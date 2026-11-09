@@ -166,3 +166,76 @@ async fn a_charge_that_cannot_post_is_queued_and_the_use_still_saves() {
     age_stock(&db, w.v.tenant, 5).await;
     assert_eq!(scan(&db, &claims).await, 0);
 }
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_deferred_ward_stock_use_posts_at_the_catalogue_price_and_gst() {
+    use axum::Extension;
+    use axum::extract::{Path, State};
+    let db = pool().await;
+    let (claims, w) = ward(&db, "LKGSTSET", 120, true).await;
+    let mut tx = scoped(&db, w.v.tenant).await;
+    // The drug carries 12% GST; a charge-master entry of the same code is
+    // priced and taxed differently, and must not win.
+    sqlx::query("UPDATE pharmacy_catalog SET tax_percent = 12 WHERE id = $1")
+        .bind(w.item)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO charge_master (tenant_id, code, name, category, base_price, tax_percent) \
+         VALUES ($1, 'LKGSTSET', 'IV set', 'consumable', 999, 5)",
+    )
+    .bind(w.v.tenant)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    // A use whose live charge was deferred: the use saved, no bill line.
+    let used: Uuid = sqlx::query_scalar(
+        "INSERT INTO ward_stock_consumptions (tenant_id, department_id, catalog_item_id, \
+           quantity, patient_id, encounter_id, admission_id, is_billable, consumed_by) \
+         VALUES ($1, $2, $3, 2, $4, $5, $6, true, $7) RETURNING id",
+    )
+    .bind(w.v.tenant)
+    .bind(w.v.department)
+    .bind(w.item)
+    .bind(w.v.patient)
+    .bind(w.v.encounter)
+    .bind(w.admission)
+    .bind(w.v.user)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    age_stock(&db, w.v.tenant, 5).await;
+    assert_eq!(scan(&db, &claims).await, 1);
+    let (row, price, tax): (Uuid, Option<Decimal>, Option<Decimal>) = sqlx::query_as(
+        "SELECT id, unit_price_override, tax_percent_override FROM charge_attention_items \
+          WHERE source_entity_id = $1",
+    )
+    .bind(used)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(price, Some(Decimal::from(120)), "the catalogue price wins");
+    assert_eq!(tax, Some(Decimal::from(12)), "the catalogue GST wins");
+
+    let posted = medbrains_billing::charge_attention::post_charge_attention(
+        State(common::state(db.clone())),
+        Extension(claims.clone()),
+        Path(row),
+    )
+    .await
+    .expect("posts");
+    assert_eq!(posted.0.status, "posted");
+    let billed: (Decimal, Decimal) = sqlx::query_as(
+        "SELECT unit_price, tax_percent FROM invoice_items \
+          WHERE source = 'consumable' AND source_id = $1",
+    )
+    .bind(used)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(billed, (Decimal::from(120), Decimal::from(12)));
+}

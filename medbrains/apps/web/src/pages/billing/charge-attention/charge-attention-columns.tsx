@@ -32,6 +32,8 @@ interface ColumnOptions {
   canResolve: boolean;
   /** May work leakage rows: care or stock never billed, implants with no patient. */
   canResolveUnbilled: boolean;
+  /** May name the patient on an unnamed implant (rewrites the store's record). */
+  canNameRecipient: boolean;
   /** Amounts are hidden from this viewer: show that, not "No tariff". */
   amountsHidden: boolean;
   pendingId: string | null;
@@ -61,7 +63,7 @@ function Actions({ row, o }: { row: ChargeAttentionItem; o: ColumnOptions }) {
       : "Post this charge to the patient's bill";
   return (
     <Group gap={4} wrap="nowrap">
-      {implant && (
+      {implant && o.canNameRecipient && (
         <Tooltip label="Name the patient this implant was used on">
           <IconButton
             tone="primary"

@@ -14,8 +14,9 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use medbrains_server_services::billing::{
-    AutoChargeInput, ChargeOutcome, ChargeRequest, charge_or_queue, queue_patient_unknown,
-    require_live_patient,
+    AutoChargeInput, ChargeOutcome, ChargeRequest, charge_or_queue,
+    encounter_id_for_admission_in_tx, queue_patient_unknown, require_live_patient,
+    verified_admission_id_for_invoice_in_tx,
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -70,6 +71,7 @@ pub(crate) async fn use_consignment(
     if let Some(patient_id) = body.patient_id {
         require_live_patient(tx, claims.tenant_id, patient_id).await?;
     }
+    let (encounter_id, admission_id) = verified_visit(tx, claims.tenant_id, body).await?;
     let batch = consignment_batch(tx, claims.tenant_id, body.batch_stock_id)
         .await?
         .ok_or_else(|| AppError::BadRequest("Consignment batch not found".into()))?;
@@ -95,7 +97,7 @@ pub(crate) async fn use_consignment(
         setting_module: SETTING_CONSIGNMENT,
         charge: AutoChargeInput {
             patient_id: body.patient_id.unwrap_or_default(),
-            encounter_id: body.encounter_id,
+            encounter_id,
             charge_code: item.code,
             source: "consumable".into(),
             source_id: movement.id,
@@ -115,11 +117,68 @@ pub(crate) async fn use_consignment(
     };
     req.charge.patient_id = patient_id;
     if let ChargeOutcome::Posted(charge) = charge_or_queue(tx, req).await?
-        && let Some(admission_id) = body.admission_id
+        && let Some(admission_id) = admission_id
     {
         stamp_admission(tx, claims.tenant_id, charge.invoice_id, admission_id).await?;
     }
     Ok(movement)
+}
+
+/// The usage's encounter and admission, checked to be the named patient's:
+/// an admission of another patient is refused, an encounter not of the
+/// patient is refused, and an admission given alone bills its encounter.
+/// With no patient named, neither may be given (there is no one to check).
+async fn verified_visit(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    body: &ConsignmentUsageRequest,
+) -> Result<(Option<Uuid>, Option<Uuid>), AppError> {
+    let Some(patient_id) = body.patient_id else {
+        if body.encounter_id.is_some() || body.admission_id.is_some() {
+            return Err(AppError::BadRequest(
+                "Name the patient for this visit".into(),
+            ));
+        }
+        return Ok((None, None));
+    };
+    require_patients_encounter(tx, tenant_id, patient_id, body.encounter_id).await?;
+    let admission_id = verified_admission_id_for_invoice_in_tx(
+        tx,
+        &tenant_id,
+        patient_id,
+        body.encounter_id,
+        body.admission_id,
+    )
+    .await?;
+    let encounter_id = match body.encounter_id {
+        Some(id) => Some(id),
+        None => encounter_id_for_admission_in_tx(tx, &tenant_id, admission_id).await?,
+    };
+    Ok((encounter_id, admission_id))
+}
+
+/// Refuse an encounter that is not the patient's (or not ours).
+async fn require_patients_encounter(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    let Some(encounter_id) = encounter_id else {
+        return Ok(());
+    };
+    let owner: Option<Uuid> =
+        sqlx::query_scalar("SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2")
+            .bind(encounter_id)
+            .bind(tenant_id)
+            .fetch_optional(&mut *conn)
+            .await?;
+    if owner != Some(patient_id) {
+        return Err(AppError::BadRequest(
+            "billing.error.encounterPatientMismatch".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// The consignment batch, or `None` when the id is not one (or not ours).

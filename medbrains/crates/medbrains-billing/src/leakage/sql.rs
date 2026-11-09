@@ -13,7 +13,8 @@ macro_rules! done_sql {
                 t.code AS charge_code, ARRAY[t.code] AS codes, t.name AS service_name, \
                 t.name AS description, t.price AS catalog_price, \
                 COALESCE(lo.verified_at, lo.completed_at, lo.updated_at) AS service_at, \
-                lo.test_id, NULL::uuid AS procedure_id, 'lab'::text AS setting, 1 AS quantity \
+                lo.test_id, NULL::uuid AS procedure_id, 'lab'::text AS setting, 1 AS quantity, \
+                NULL::numeric AS catalog_tax \
            FROM lab_orders lo \
            JOIN lab_test_catalog t ON t.id = lo.test_id AND t.tenant_id = lo.tenant_id \
            LEFT JOIN encounters e ON e.id = lo.encounter_id AND e.tenant_id = lo.tenant_id \
@@ -25,7 +26,8 @@ macro_rules! done_sql {
                 array_remove(ARRAY[re.charge_code, 'RAD-' || rm.code, re.code], NULL), \
                 COALESCE(re.name, rm.name), \
                 COALESCE(re.name, rm.name) || COALESCE(' — ' || ro.body_part, ''), NULL::numeric, \
-                COALESCE(ro.completed_at, ro.updated_at), NULL::uuid, NULL::uuid, 'radiology', 1 \
+                COALESCE(ro.completed_at, ro.updated_at), NULL::uuid, NULL::uuid, 'radiology', 1, \
+                NULL::numeric \
            FROM radiology_orders ro \
            JOIN radiology_modalities rm ON rm.id = ro.modality_id AND rm.tenant_id = ro.tenant_id \
            LEFT JOIN radiology_exams re ON re.id = ro.exam_id AND re.tenant_id = ro.tenant_id \
@@ -37,7 +39,7 @@ macro_rules! done_sql {
          SELECT 'procedure', po.id, po.patient_id, po.encounter_id, \
                 COALESCE(pc.department_id, e.department_id), pc.code, ARRAY[pc.code], pc.name, \
                 pc.name, pc.base_price, COALESCE(po.completed_at, po.updated_at), NULL::uuid, \
-                po.procedure_id, 'procedure', 1 \
+                po.procedure_id, 'procedure', 1, NULL::numeric \
            FROM procedure_orders po \
            JOIN procedure_catalog pc ON pc.id = po.procedure_id AND pc.tenant_id = po.tenant_id \
            LEFT JOIN encounters e ON e.id = po.encounter_id AND e.tenant_id = po.tenant_id \
@@ -51,7 +53,8 @@ macro_rules! done_sql {
 /// consignment stock used, and registry implants not on a consignment batch
 /// (those bill through their consignment usage, so are not counted twice).
 /// Migration 1421. The catalogue price is the issue's own price, else the
-/// item's.
+/// item's; `catalog_tax` is the pharmacy item's GST (ward stock), the store
+/// catalogue carrying none.
 macro_rules! consumed_sql {
     () => {
         "SELECT 'consumable'::text AS module, pci.id AS order_id, pci.patient_id, \
@@ -59,7 +62,8 @@ macro_rules! consumed_sql {
                 ARRAY[sc.code] AS codes, sc.name AS service_name, sc.name AS description, \
                 COALESCE(NULLIF(pci.unit_price, 0), sc.base_price) AS catalog_price, \
                 pci.created_at AS service_at, NULL::uuid AS test_id, NULL::uuid AS procedure_id, \
-                'consumable'::text AS setting, pci.quantity - pci.returned_qty AS quantity \
+                'consumable'::text AS setting, pci.quantity - pci.returned_qty AS quantity, \
+                NULL::numeric AS catalog_tax \
            FROM patient_consumable_issues pci \
            JOIN store_catalog sc ON sc.id = pci.catalog_item_id AND sc.tenant_id = pci.tenant_id \
           WHERE pci.tenant_id = $1 AND pci.deleted_at IS NULL AND pci.is_chargeable \
@@ -67,7 +71,7 @@ macro_rules! consumed_sql {
          UNION ALL \
          SELECT 'consumable', w.id, w.patient_id, w.encounter_id, w.department_id, c.code, \
                 ARRAY[c.code], c.name, c.name, c.base_price, w.created_at, NULL::uuid, \
-                NULL::uuid, 'ward_stock', w.quantity \
+                NULL::uuid, 'ward_stock', w.quantity, c.tax_percent \
            FROM ward_stock_consumptions w \
            JOIN pharmacy_catalog c ON c.id = w.catalog_item_id AND c.tenant_id = w.tenant_id \
           WHERE w.tenant_id = $1 AND w.deleted_at IS NULL AND w.patient_id IS NOT NULL \
@@ -76,7 +80,7 @@ macro_rules! consumed_sql {
          SELECT 'consumable', m.id, m.patient_id, NULL::uuid, m.department_id, sc.code, \
                 ARRAY[sc.code], sc.name, \
                 'Consignment: ' || sc.name || ' · batch ' || b.batch_number, sc.base_price, \
-                m.created_at, NULL::uuid, NULL::uuid, 'consignment', -m.quantity \
+                m.created_at, NULL::uuid, NULL::uuid, 'consignment', -m.quantity, NULL::numeric \
            FROM store_stock_movements m \
            JOIN batch_stock b ON b.id = m.batch_stock_id AND b.tenant_id = m.tenant_id \
            JOIN store_catalog sc ON sc.id = m.catalog_item_id AND sc.tenant_id = m.tenant_id \
@@ -86,7 +90,7 @@ macro_rules! consumed_sql {
          UNION ALL \
          SELECT 'ot', ir.id, ir.patient_id, NULL::uuid, NULL::uuid, sc.code, ARRAY[sc.code], \
                 sc.name, 'Implant: ' || sc.name, sc.base_price, ir.created_at, NULL::uuid, \
-                NULL::uuid, 'implant', 1 \
+                NULL::uuid, 'implant', 1, NULL::numeric \
            FROM implant_registry ir \
            JOIN store_catalog sc ON sc.id = ir.catalog_item_id AND sc.tenant_id = ir.tenant_id \
            LEFT JOIN batch_stock b ON b.id = ir.batch_stock_id AND b.tenant_id = ir.tenant_id \
@@ -115,20 +119,45 @@ macro_rules! billed_sql {
     };
 }
 
+/// An order's price: the patient's payer rate card, else the catalogue price
+/// (lab, procedure), else the rate plan for the patient's category or the
+/// default plan, else the charge master — the order the modules' own charge
+/// path uses.
+macro_rules! order_price_sql {
+    () => {
+        "SELECT COALESCE(payer.price, NULLIF(d.catalog_price, 0), plan.price, \
+                         NULLIF(cm.base_price, 0)) AS unit_price, \
+                COALESCE(payer.tax, plan.tax, d.catalog_tax, cm.tax_percent) AS tax_percent"
+    };
+}
+
+/// Stock's price, as the live stock paths post it (ward stock, consignment,
+/// consumable issue): the catalogue price and the catalogue's GST win; only
+/// a ₹0 catalogue price ("not set") falls to the rate plan, then the charge
+/// master, with their tax. No payer rate card: the live paths never read one
+/// for stock, and the detector must post what the live path would have.
+macro_rules! stock_price_sql {
+    () => {
+        "SELECT COALESCE(NULLIF(d.catalog_price, 0), plan.price, \
+                         NULLIF(cm.base_price, 0)) AS unit_price, \
+                CASE WHEN NULLIF(d.catalog_price, 0) IS NOT NULL \
+                     THEN COALESCE(d.catalog_tax, cm.tax_percent) \
+                     ELSE COALESCE(plan.tax, cm.tax_percent) END AS tax_percent"
+    };
+}
+
 /// One batch: find done, unbilled, uncovered orders and queue them, priced.
 /// `$1` tenant, `$2` grace hours, `$3` look-back days, `$4` batch size, `$5`
 /// the person running it (NULL for the daily pass).
 ///
-/// Price: the patient's payer rate card, else the catalogue price (lab,
-/// procedure), else the rate plan for the patient's category or the default
-/// plan, else the charge master — the order the modules' own charge path
-/// uses. A catalogue or charge-master ₹0 is "not set", never "free"; only an
-/// explicit ₹0 on a rate card or rate plan is an exemption and is skipped.
+/// Price: `$price` ([`order_price_sql`] or [`stock_price_sql`]). A catalogue
+/// or charge-master ₹0 is "not set", never "free"; only an explicit ₹0 on a
+/// rate card or rate plan is an exemption and is skipped.
 ///
 /// `$done` names the macro giving the rows to check, `$reason` the quoted
 /// queue reason they are raised under.
 macro_rules! queue_batch_sql {
-    ($done:ident, $reason:literal) => {
+    ($done:ident, $reason:literal, $price:ident) => {
         concat!(
             "WITH done AS (",
             $done!(),
@@ -167,10 +196,9 @@ macro_rules! queue_batch_sql {
               AND (rp.patient_category = p.category::text OR rp.is_default) \
             ORDER BY (rp.patient_category IS NOT DISTINCT FROM p.category::text) DESC, rp.id \
             LIMIT 1) plan ON true \
-         CROSS JOIN LATERAL ( \
-           SELECT COALESCE(payer.price, NULLIF(d.catalog_price, 0), plan.price, \
-                           NULLIF(cm.base_price, 0)) AS unit_price, \
-                  COALESCE(payer.tax, plan.tax, cm.tax_percent) AS tax_percent) price \
+         CROSS JOIN LATERAL (",
+            $price!(),
+            ") price \
         WHERE d.service_at < now() - make_interval(hours => $2) \
           AND d.service_at >= now() - make_interval(days => $3) \
           AND NOT ",
@@ -218,12 +246,14 @@ macro_rules! queue_batch_sql {
 }
 
 /// One batch of orders done and never billed, raised as `unbilled_order`.
-pub(super) const QUEUE_BATCH: &str = queue_batch_sql!(done_sql, "'unbilled_order'");
+pub(super) const QUEUE_BATCH: &str =
+    queue_batch_sql!(done_sql, "'unbilled_order'", order_price_sql);
 
 /// One batch of stock used on a patient and never billed, raised as
-/// `unbilled_consumption` (migration 1421). Same rules, prices and packages.
+/// `unbilled_consumption` (migration 1421). Same rules and packages; priced
+/// as the live stock paths price it ([`stock_price_sql`]).
 pub(super) const QUEUE_CONSUMPTION_BATCH: &str =
-    queue_batch_sql!(consumed_sql, "'unbilled_consumption'");
+    queue_batch_sql!(consumed_sql, "'unbilled_consumption'", stock_price_sql);
 
 /// The record `$2`/`$3` (module, id) of the rows `$done` gives, as it stands
 /// now: no row when it is no longer done (cancelled, deleted, un-verified,

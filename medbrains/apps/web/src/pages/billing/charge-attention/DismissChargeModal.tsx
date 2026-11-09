@@ -5,7 +5,9 @@
 // which gives its unit back to stock and to the vendor's usage.
 
 import { Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { ChargeAttentionItem } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Checkbox, Chip, ChipGroup, Modal, TextArea, toast } from "@/components/ui";
@@ -37,12 +39,15 @@ export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
   const [duplicateUsage, setDuplicateUsage] = useState(false);
   const reasonValid = reason.trim().length >= 3;
   const implant = item.reason === REASON_IMPLANT_NO_PATIENT;
+  // Giving the unit back rewrites the store's stock: the server needs stock.manage.
+  const canReturnStock = useHasPermission(P.INDENT.STOCK_MANAGE);
+  const returnsStock = implant && canReturnStock;
 
   const mutation = useMutation({
     mutationFn: () =>
       billingService.dismissChargeAttention(item.id, {
         reason: reason.trim(),
-        duplicate_usage: implant && duplicateUsage,
+        duplicate_usage: returnsStock && duplicateUsage,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
@@ -96,7 +101,7 @@ export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
             reason.length > 0 && !reasonValid ? "Give a reason of at least 3 characters" : undefined
           }
         />
-        {implant && (
+        {returnsStock && (
           <Checkbox
             label="Duplicate of a record already made: give the unit back to stock and the vendor's usage"
             checked={duplicateUsage}

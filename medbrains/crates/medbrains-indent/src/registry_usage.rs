@@ -19,7 +19,8 @@ use sqlx::{PgConnection, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::consignment::{
-    ConsignmentUsageRequest, SETTING_CONSIGNMENT, consignment_batch, use_consignment,
+    ConsignmentUsageRequest, SETTING_CONSIGNMENT, consignment_batch, stamp_admission,
+    use_consignment,
 };
 use medbrains_core::inventory::ImplantRegistryEntry;
 
@@ -65,12 +66,15 @@ pub(crate) async fn registry_usage(
     if usage_awaits_entry(tx, claims.tenant_id, entry).await? {
         return Ok(Some(RegistryUsage::AlreadyRecorded));
     }
+    // The admission's bill, not a patient-only draft: the discharge desk
+    // settles the admission's invoice.
+    let admission = current_admission(tx, claims.tenant_id, entry.patient_id).await?;
     let body = ConsignmentUsageRequest {
         batch_stock_id: batch_id,
         quantity: 1,
         patient_id: Some(entry.patient_id),
-        encounter_id: None,
-        admission_id: None,
+        encounter_id: admission.map(|a| a.encounter_id),
+        admission_id: admission.map(|a| a.id),
         notes: Some("Recorded from the implant registry".to_owned()),
     };
     let movement = use_consignment(tx, claims, &body).await?;
@@ -148,21 +152,21 @@ async fn claim_unnamed_unit(
     };
     if row.quantity > 1 {
         let movement = split_one(tx, claims, &row, entry.patient_id).await?;
-        let encounter_id = current_encounter(tx, claims.tenant_id, entry.patient_id).await?;
-        bill_unit(tx, claims, &row, movement, entry.patient_id, encounter_id).await?;
+        let admission = current_admission(tx, claims.tenant_id, entry.patient_id).await?;
+        bill_unit(tx, claims, &row, movement, entry.patient_id, admission).await?;
         return Ok(Some(RegistryUsage::Split {
             movement,
             from: row.source_entity_id,
         }));
     }
-    let encounter_id = name_on_usage(tx, claims.tenant_id, &row, entry.patient_id).await?;
+    let admission = name_on_usage(tx, claims.tenant_id, &row, entry.patient_id).await?;
     let posted = bill_unit(
         tx,
         claims,
         &row,
         row.source_entity_id,
         entry.patient_id,
-        encounter_id,
+        admission,
     )
     .await?;
     if let Some(invoice_id) = posted {
@@ -211,14 +215,21 @@ async fn split_one(
     .await?)
 }
 
-/// The patient's current admission's encounter, for the bill it lands on.
-async fn current_encounter(
+/// A patient's current admission and the encounter it was opened under.
+#[derive(Debug, Clone, Copy, sqlx::FromRow)]
+struct CurrentAdmission {
+    id: Uuid,
+    encounter_id: Uuid,
+}
+
+/// The patient's current admission, for the bill an implant lands on.
+async fn current_admission(
     conn: &mut PgConnection,
     tenant_id: Uuid,
     patient_id: Uuid,
-) -> Result<Option<Uuid>, AppError> {
-    Ok(sqlx::query_scalar(
-        "SELECT encounter_id FROM admissions WHERE tenant_id = $1 AND patient_id = $2 \
+) -> Result<Option<CurrentAdmission>, AppError> {
+    Ok(sqlx::query_as(
+        "SELECT id, encounter_id FROM admissions WHERE tenant_id = $1 AND patient_id = $2 \
            AND status = 'admitted' ORDER BY admitted_at DESC LIMIT 1",
     )
     .bind(tenant_id)
@@ -228,13 +239,13 @@ async fn current_encounter(
 }
 
 /// Write the patient onto a one-unit usage and its queue row (with their
-/// current admission's encounter). Returns that encounter.
+/// current admission's encounter). Returns that admission.
 async fn name_on_usage(
     conn: &mut PgConnection,
     tenant_id: Uuid,
     row: &UnnamedRow,
     patient_id: Uuid,
-) -> Result<Option<Uuid>, AppError> {
+) -> Result<Option<CurrentAdmission>, AppError> {
     sqlx::query(
         "UPDATE store_stock_movements SET patient_id = $3 \
           WHERE id = $1 AND tenant_id = $2 AND patient_id IS NULL",
@@ -244,7 +255,7 @@ async fn name_on_usage(
     .bind(patient_id)
     .execute(&mut *conn)
     .await?;
-    let encounter_id = current_encounter(conn, tenant_id, patient_id).await?;
+    let admission = current_admission(conn, tenant_id, patient_id).await?;
     sqlx::query(
         "UPDATE charge_attention_items SET patient_id = $3, encounter_id = $4 \
           WHERE id = $1 AND tenant_id = $2",
@@ -252,23 +263,24 @@ async fn name_on_usage(
     .bind(row.id)
     .bind(tenant_id)
     .bind(patient_id)
-    .bind(encounter_id)
+    .bind(admission.map(|a| a.encounter_id))
     .execute(&mut *conn)
     .await?;
-    Ok(encounter_id)
+    Ok(admission)
 }
 
 /// Bill one unit of the row's charge to the patient, keyed on `movement`.
 /// Returns the invoice when it posted. An unpriced row bills nothing now:
 /// a named one stays open for the desk to set a tariff, and a split unit is
-/// raised by the daily check. A charge that cannot post is queued.
+/// raised by the daily check. A charge that cannot post is queued. A posted
+/// charge's bill is tied to the patient's current admission, if any.
 async fn bill_unit(
     tx: &mut Transaction<'_, Postgres>,
     claims: &Claims,
     row: &UnnamedRow,
     movement: Uuid,
     patient_id: Uuid,
-    encounter_id: Option<Uuid>,
+    admission: Option<CurrentAdmission>,
 ) -> Result<Option<Uuid>, AppError> {
     if row.unit_price_override.is_none_or(|p| p.is_zero()) {
         return Ok(None);
@@ -279,7 +291,7 @@ async fn bill_unit(
         setting_module: SETTING_CONSIGNMENT,
         charge: AutoChargeInput {
             patient_id,
-            encounter_id,
+            encounter_id: admission.map(|a| a.encounter_id),
             charge_code: row.charge_code.clone(),
             source: "consumable".into(),
             source_id: movement,
@@ -290,10 +302,13 @@ async fn bill_unit(
         },
         apply_concessions: false,
     };
-    Ok(match charge_or_queue(tx, req).await? {
-        ChargeOutcome::Posted(charge) => Some(charge.invoice_id),
-        ChargeOutcome::Queued | ChargeOutcome::Disabled => None,
-    })
+    let ChargeOutcome::Posted(charge) = charge_or_queue(tx, req).await? else {
+        return Ok(None);
+    };
+    if let Some(admission) = admission {
+        stamp_admission(tx, claims.tenant_id, charge.invoice_id, admission.id).await?;
+    }
+    Ok(Some(charge.invoice_id))
 }
 
 /// Close the named usage's queue row as posted on `invoice_id`.

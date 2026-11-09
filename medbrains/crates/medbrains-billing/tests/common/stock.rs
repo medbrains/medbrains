@@ -255,4 +255,7 @@ pub(crate) fn leakage_desk(claims: &mut Claims) {
     claims
         .permissions
         .push(permissions::billing::leakage::RESOLVE.to_owned());
+    claims
+        .permissions
+        .push(permissions::billing::leakage::NAME_IMPLANT_RECIPIENT.to_owned());
 }

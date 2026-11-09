@@ -63,6 +63,8 @@ function unbilledRow(overrides: Partial<ChargeAttentionItem> = {}): ChargeAttent
 }
 
 const LEAKAGE = ["billing.leakage.view", "billing.leakage.resolve"];
+const NAME_RECIPIENT = "billing.leakage.name_implant_recipient";
+const STOCK_MANAGE = "indent.stock.manage";
 
 beforeEach(() => {
   held.clear();
@@ -184,6 +186,7 @@ function implantRow(overrides: Partial<ChargeAttentionItem> = {}): ChargeAttenti
 describe("stock used on a patient and implants with no patient", () => {
   it("shows an implant with no patient as such, and will not post it until one is named", async () => {
     for (const p of LEAKAGE) held.add(p);
+    held.add(NAME_RECIPIENT);
     service.listChargeAttention.mockResolvedValue({
       data: [implantRow()],
       meta: { total: 1, page: 1, limit: 25 },
@@ -198,6 +201,7 @@ describe("stock used on a patient and implants with no patient", () => {
 
   it("names the patient on the row through the API", async () => {
     for (const p of LEAKAGE) held.add(p);
+    held.add(NAME_RECIPIENT);
     service.listChargeAttention.mockResolvedValue({
       data: [implantRow()],
       meta: { total: 1, page: 1, limit: 25 },
@@ -220,6 +224,7 @@ describe("stock used on a patient and implants with no patient", () => {
 
   it("offers to change a named implant's patient, and will not post a ₹0 implant", async () => {
     for (const p of LEAKAGE) held.add(p);
+    held.add(NAME_RECIPIENT);
     service.listChargeAttention.mockResolvedValue({
       data: [
         implantRow({ patient_id: "patient-9", patient_name: "Ravi K", uhid: "UH-9" }),
@@ -244,6 +249,7 @@ describe("stock used on a patient and implants with no patient", () => {
 
   it("dismisses an implant as a duplicate record only when the desk says so", async () => {
     for (const p of LEAKAGE) held.add(p);
+    held.add(STOCK_MANAGE);
     service.listChargeAttention.mockResolvedValue({
       data: [implantRow()],
       meta: { total: 1, page: 1, limit: 25 },
@@ -260,6 +266,39 @@ describe("stock used on a patient and implants with no patient", () => {
       expect(service.dismissChargeAttention).toHaveBeenCalledWith("row-implant", {
         reason: "Same implant",
         duplicate_usage: true,
+      }),
+    );
+  });
+
+  it("hides naming from a leakage resolver without the implant-recipient permission", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [implantRow()],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    render(<ChargeAttentionTab />);
+    expect(await screen.findByRole("button", { name: "Dismiss" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Name patient" })).not.toBeInTheDocument();
+  });
+
+  it("offers giving the unit back to stock only to someone who manages stock", async () => {
+    for (const p of LEAKAGE) held.add(p);
+    service.listChargeAttention.mockResolvedValue({
+      data: [implantRow()],
+      meta: { total: 1, page: 1, limit: 25 },
+    });
+    service.dismissChargeAttention.mockResolvedValue(implantRow({ status: "dismissed" }));
+    const user = userEvent.setup();
+    render(<ChargeAttentionTab />);
+    await user.click(await screen.findByRole("button", { name: "Dismiss" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
+    await user.type(within(dialog).getByRole("textbox", { name: /Reason/ }), "Same implant");
+    await user.click(within(dialog).getByRole("button", { name: "Dismiss" }));
+    await waitFor(() =>
+      expect(service.dismissChargeAttention).toHaveBeenCalledWith("row-implant", {
+        reason: "Same implant",
+        duplicate_usage: false,
       }),
     );
   });

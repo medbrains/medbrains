@@ -87,6 +87,18 @@ async fn a_registry_entry_with_no_usage_records_the_usage_and_bills_once() {
         audits(&db, w.v.tenant, "indent.consignment_usage.recorded").await,
         1
     );
+    // On the admission's bill, the one the discharge desk settles.
+    let (encounter, admission): (Option<Uuid>, Option<Uuid>) = sqlx::query_as(
+        "SELECT i.encounter_id, i.admission_id FROM invoice_items ii \
+           JOIN invoices i ON i.id = ii.invoice_id \
+          WHERE ii.tenant_id = $1 AND ii.charge_code = 'LKKNEE'",
+    )
+    .bind(w.v.tenant)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(encounter, Some(w.v.encounter));
+    assert_eq!(admission, Some(w.admission));
 }
 
 /// Issue `quantity` of a store item whose charges fail until lifted.

@@ -589,9 +589,11 @@ export const P = {
     },
     LANES_MANAGE: "billing.lanes.manage",
     LEAKAGE: {
+      NAME_IMPLANT_RECIPIENT: "billing.leakage.name_implant_recipient",
       RESOLVE: "billing.leakage.resolve",
       VIEW: "billing.leakage.view",
     },
+    LEAKAGE_NAME_IMPLANT_RECIPIENT: "billing.leakage.name_implant_recipient",
     LEAKAGE_RESOLVE: "billing.leakage.resolve",
     LEAKAGE_VIEW: "billing.leakage.view",
     PAYER_SPLIT: {

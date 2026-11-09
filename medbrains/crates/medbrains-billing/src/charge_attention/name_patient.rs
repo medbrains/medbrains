@@ -28,12 +28,18 @@ pub struct NamePatientRequest {
 /// and new patient. The usage movement is renamed with it, so the vendor's
 /// consignment record names who received it; 409 when that record is gone or
 /// already names someone else. The row stays open for the desk to post.
+/// Needs `billing.leakage.name_implant_recipient` as well as the row's
+/// resolve permission: naming rewrites the store's consignment record.
 pub async fn name_patient_charge_attention(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<NamePatientRequest>,
 ) -> Result<Json<ChargeAttentionItem>, AppError> {
+    medbrains_kernel::require_permission(
+        &claims,
+        medbrains_core::permissions::billing::leakage::NAME_IMPLANT_RECIPIENT,
+    )?;
     let kinds = kinds(&claims, true)?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let item = lock_open(&mut tx, &claims, kinds, id).await?;

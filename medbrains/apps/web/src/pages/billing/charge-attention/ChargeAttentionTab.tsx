@@ -48,6 +48,7 @@ export function ChargeAttentionTab() {
   const canViewUnbilled = useHasPermission(P.BILLING.LEAKAGE.VIEW);
   const canResolve = useHasPermission(P.BILLING.CHARGE_ATTENTION.RESOLVE);
   const canResolveUnbilled = useHasPermission(P.BILLING.LEAKAGE.RESOLVE);
+  const canNameRecipient = useHasPermission(P.BILLING.LEAKAGE.NAME_IMPLANT_RECIPIENT);
   const canView = canViewFailed || canViewUnbilled;
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<StatusFilter>("open");
@@ -101,6 +102,7 @@ export function ChargeAttentionTab() {
       chargeAttentionColumns({
         canResolve,
         canResolveUnbilled,
+        canNameRecipient,
         amountsHidden,
         pendingId: post.isPending ? (post.variables ?? null) : null,
         onAction: (action: ChargeAttentionAction, item) => {
@@ -109,7 +111,15 @@ export function ChargeAttentionTab() {
           else setDismissing(item);
         },
       }),
-    [canResolve, canResolveUnbilled, amountsHidden, post.isPending, post.variables, post.mutate],
+    [
+      canResolve,
+      canResolveUnbilled,
+      canNameRecipient,
+      amountsHidden,
+      post.isPending,
+      post.variables,
+      post.mutate,
+    ],
   );
 
   if (!canView) return null;

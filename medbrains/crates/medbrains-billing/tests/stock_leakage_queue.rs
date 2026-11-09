@@ -253,6 +253,9 @@ async fn without_the_permission_nothing_is_used_named_or_posted() {
     // The failed-charge desk does not see or work the implant row.
     let mut clerk = claims.clone();
     clerk.role = "billing_clerk".to_owned();
+    clerk
+        .permissions
+        .push(medbrains_core::permissions::billing::leakage::NAME_IMPLANT_RECIPIENT.to_owned());
     let named = name_patient_charge_attention(
         State(st.clone()),
         Extension(clerk.clone()),
@@ -272,6 +275,32 @@ async fn without_the_permission_nothing_is_used_named_or_posted() {
             .await
             .unwrap();
     assert_eq!(still, None);
+
+    // A leakage resolver without the naming grant may not rewrite the
+    // store's consignment record: 403, and nothing is named.
+    let mut desk = claims.clone();
+    desk.role = "billing_clerk".to_owned();
+    desk.permissions = vec![
+        medbrains_core::permissions::billing::leakage::VIEW.to_owned(),
+        medbrains_core::permissions::billing::leakage::RESOLVE.to_owned(),
+    ];
+    let named = name_patient_charge_attention(
+        State(state(db.clone())),
+        Extension(desk),
+        Path(row),
+        Json(NamePatientRequest {
+            patient_id: w.v.patient,
+        }),
+    )
+    .await;
+    assert!(matches!(named, Err(AppError::Forbidden)), "{named:?}");
+    let usage_patient: Option<Uuid> =
+        sqlx::query_scalar("SELECT patient_id FROM store_stock_movements WHERE id = $1")
+            .bind(usage.id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(usage_patient, None, "the store's record was rewritten");
 }
 
 #[tokio::test]
