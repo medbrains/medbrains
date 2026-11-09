@@ -1,10 +1,10 @@
-import { Group, ScrollArea, Stack, Text } from "@mantine/core";
+import { Anchor, Group, ScrollArea, Stack, Text } from "@mantine/core";
 import type { InsuranceClaim, InsuranceClaimStatus } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconClockHour4, IconShieldHalf } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { PageHeader } from "@/components";
 import { QueryError } from "@/components/QueryError";
 import { Badge, type BadgeTone, Card } from "@/components/ui";
@@ -171,9 +171,18 @@ export function BillingTpaPipelinePage() {
                     >
                       <Stack gap={4}>
                         <Group justify="space-between" wrap="nowrap">
-                          <Text size="sm" fw={600} truncate>
+                          {/* The card click is for the mouse; this link is the same action for
+                              the keyboard and screen readers. */}
+                          <Anchor
+                            component={Link}
+                            to={`/billing?tab=insurance&claim_id=${claim.id}`}
+                            size="sm"
+                            fw={600}
+                            truncate
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             {claim.claim_number ?? claim.insurance_provider}
-                          </Text>
+                          </Anchor>
                           {stage.slaMinutes && (
                             <SlaBadge claim={claim} sla={stage.slaMinutes} now={now} />
                           )}
@@ -184,12 +193,12 @@ export function BillingTpaPipelinePage() {
                         <Group gap="xs">
                           {claim.pre_auth_amount && (
                             <Text size="xs" ff="monospace">
-                              req ₹{money(claim.pre_auth_amount)}
+                              Asked ₹{money(claim.pre_auth_amount)}
                             </Text>
                           )}
                           {claim.approved_amount && (
                             <Text size="xs" ff="monospace" c="var(--mb-success-fg)">
-                              appr ₹{money(claim.approved_amount)}
+                              Approved ₹{money(claim.approved_amount)}
                             </Text>
                           )}
                         </Group>
