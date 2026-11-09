@@ -9,6 +9,7 @@ import { useClinicalEmit } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { Button, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
+import { RoomEligibilityNotice, useRoomConsent } from "./room-eligibility-notice";
 import { emitIpdBedMovementEvent } from "./shared";
 
 export function TransferTab({
@@ -26,6 +27,7 @@ export function TransferTab({
   const queryClient = useQueryClient();
   const [bedId, setBedId] = useState("");
   const [notes, setNotes] = useState("");
+  const [roomConsent, setRoomConsent] = useRoomConsent(bedId);
   const emit = useClinicalEmit();
 
   const transferMutation = useMutation({
@@ -34,6 +36,7 @@ export function TransferTab({
         notes: notes.trim(),
         reason: notes.trim(),
         to_bed_id: bedId,
+        room_consent: roomConsent,
       }),
     onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
@@ -65,6 +68,12 @@ export function TransferTab({
             value={bedId}
             onChange={(id) => setBedId(id)}
             required
+          />
+          <RoomEligibilityNotice
+            patientId={patientId}
+            bedId={bedId}
+            admissionId={admissionId}
+            onConsentChange={setRoomConsent}
           />
           <Textarea
             label={t("label.transferNotes")}
