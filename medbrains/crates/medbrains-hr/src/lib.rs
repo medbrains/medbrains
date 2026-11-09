@@ -625,6 +625,8 @@ pub async fn update_my_profile(
 
 /// Create an employee record, optionally provisioning a linked login. The
 /// login's role is a grant, so it must be within the caller's own codes.
+/// Linking an existing login is refused on the caller's own or an
+/// administrator's, as editing that account would be.
 pub async fn create_employee(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -638,6 +640,11 @@ pub async fn create_employee(
     // Auto-provision a linked login if requested and not already linked. Admin supplies
     // the initial password; must_change_password forces a rotation on first sign-in.
     // Mirrors admin user-create — no secret generation/return.
+    // Linking an existing login hands it to whoever ends this employment next,
+    // so it follows the same rules as editing that account.
+    if let Some(user_id) = body.user_id {
+        refuse_login_change(&mut tx, &claims, user_id).await?;
+    }
     let mut effective_user_id = body.user_id;
     if body.provision_login.unwrap_or(false) && effective_user_id.is_none() {
         let mut errors = ValidationErrors::new();
@@ -769,6 +776,12 @@ async fn refuse_login_change(
     }
 }
 
+/// Whether `status` ends employment, so the linked login loses its access.
+/// `active` and `on_leave` keep access; every other status revokes it.
+const fn ends_employment(status: EmployeeStatus) -> bool {
+    !matches!(status, EmployeeStatus::Active | EmployeeStatus::OnLeave)
+}
+
 /// Edit an employee record. Moving it to a status that ends employment
 /// revokes the linked login's access; that, and re-linking the record to a
 /// login, are refused on the caller's own login or an administrator's.
@@ -782,8 +795,8 @@ pub async fn update_employee(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let linked_before: Option<Uuid> = sqlx::query_scalar(
-        "SELECT user_id FROM employees WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    let (linked_before, status_before): (Option<Uuid>, EmployeeStatus) = sqlx::query_as(
+        "SELECT user_id, status FROM employees WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -853,19 +866,13 @@ pub async fn update_employee(
     .await?;
 
     // Offboarding security: moving an employee to a terminal/blocked status must revoke
-    // ALL their access — previously nothing happened, so a terminated employee kept their
-    // login, refresh tokens, group permissions and VPN. active/on_leave keep access.
-    let revokes_access = matches!(
-        row.status,
-        EmployeeStatus::Suspended
-            | EmployeeStatus::Resigned
-            | EmployeeStatus::Terminated
-            | EmployeeStatus::Retired
-            | EmployeeStatus::Absconding
-    );
+    // ALL their access — their login, refresh tokens, group permissions and VPN.
+    // Only the move does it: editing a phone number on a record that was already
+    // terminal must not lock out whichever login is linked to it now.
+    let revokes_access = ends_employment(row.status) && !ends_employment(status_before);
     let relinked = row.user_id.is_some() && row.user_id != linked_before;
     if let Some(user_id) = row.user_id
-        && (relinked || (revokes_access && body.status.is_some()))
+        && (relinked || revokes_access)
     {
         refuse_login_change(&mut tx, &claims, user_id).await?;
     }

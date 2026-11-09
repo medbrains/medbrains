@@ -119,6 +119,7 @@ mod front_office_queue_metrics_test;
 mod frontline_authz_test;
 mod grant_paths_test;
 mod grant_scope_test;
+mod grant_policy_test;
 mod grant_trust_test;
 mod grn_receiving_test;
 mod grn_scan_test;

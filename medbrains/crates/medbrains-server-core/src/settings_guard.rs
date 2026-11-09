@@ -10,6 +10,8 @@
 //! exported bundle always imports again.
 
 use crate::error::AppError;
+use crate::middleware::auth::Claims;
+use crate::middleware::authorization::is_bypass_role;
 
 /// Categories managed only through their own endpoint.
 ///
@@ -52,6 +54,31 @@ pub fn refuse_own_endpoint_category(category: &str) -> Result<(), AppError> {
         )));
     }
     Ok(())
+}
+
+/// Categories a generic writer accepts only from a bypass administrator.
+///
+/// - `auth`: the sign-in policy — whether passwords are switched off and
+///   which account is the break-glass login. Whoever writes it decides who
+///   can sign in at all, so it is a trust decision, not a preference.
+pub const ADMIN_ONLY_CATEGORIES: &[&str] = &["auth"];
+
+/// Refuse a non-bypass caller writing an [`ADMIN_ONLY_CATEGORIES`] category.
+///
+/// `admin.settings.general.manage` is handed to people who set units and
+/// locale; it must not also let them switch off password sign-in or name
+/// their own account as the break-glass login.
+///
+/// # Errors
+/// [`AppError::ForbiddenReason`] when the caller is not a bypass role.
+pub fn refuse_admin_only_category(claims: &Claims, category: &str) -> Result<(), AppError> {
+    if is_bypass_role(claims) || !ADMIN_ONLY_CATEGORIES.contains(&category.trim()) {
+        return Ok(());
+    }
+    Err(AppError::ForbiddenReason(format!(
+        "Only a hospital administrator can change the '{}' settings.",
+        category.trim()
+    )))
 }
 
 #[cfg(test)]

@@ -752,7 +752,8 @@ async fn federate_user(
 /// hospital, and not holding a bypass role. An administrator's account is
 /// never adopted by an email match: whoever can assert that address at the
 /// directory would otherwise sign in as the administrator. Such a sign-in
-/// falls through to a new, ordinary account instead.
+/// falls through to a new, ordinary account instead. The row is locked, so a
+/// promotion to administrator cannot land between this check and the link.
 pub async fn email_link_candidate(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -761,7 +762,8 @@ pub async fn email_link_candidate(
     let bypass: Vec<String> = BYPASS_ROLES.iter().map(|r| (*r).to_owned()).collect();
     Ok(sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
-         AND is_service_account = false AND tenant_id = $2 AND role::text <> ALL($3)",
+         AND is_service_account = false AND tenant_id = $2 AND role::text <> ALL($3) \
+         FOR UPDATE",
     )
     .bind(email)
     .bind(tenant_id)

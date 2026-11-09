@@ -2,6 +2,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
+import { BYPASS_ROLES, usePermissionStore } from "@medbrains/stores";
 import type { CreateSsoProviderRequest, SsoProvider } from "@medbrains/types";
 import { P, ROLE_TEMPLATES } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
@@ -26,8 +27,18 @@ const DEFAULT_ROLE_OPTIONS = Object.entries(ROLE_TEMPLATES)
   .filter(([code]) => code !== "super_admin" && code !== "hospital_admin")
   .map(([value, role]) => ({ value, label: role.label }));
 
+/** Show the server's reason for a refused change, not a generic failure. */
+function notifyFailure(title: string) {
+  return (error: Error) => notifications.show({ title, message: error.message, color: "danger" });
+}
+
 export function SsoSettingsPage() {
   useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
+  // Adding, removing or switching a provider decides whom the hospital
+  // trusts; the server takes that only from a bypass administrator.
+  const canChangeTrust = usePermissionStore(
+    (s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole),
+  );
   const qc = useQueryClient();
   const [formOpen, form] = useDisclosure(false);
   const [draft, setDraft] = useState<CreateSsoProviderRequest>(EMPTY);
@@ -51,17 +62,18 @@ export function SsoSettingsPage() {
         color: "success",
       });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Could not create", color: "danger" }),
+    onError: notifyFailure("Provider not added"),
   });
   const toggleMut = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
       api.updateSsoProvider(id, { is_active }),
     onSuccess: invalidate,
+    onError: notifyFailure("Provider not changed"),
   });
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteSsoProvider(id),
     onSuccess: invalidate,
+    onError: notifyFailure("Provider not deleted"),
   });
 
   // Capture the input value in the handler body — reading e.currentTarget inside
@@ -89,13 +101,16 @@ export function SsoSettingsPage() {
     {
       key: "active",
       label: "Active",
-      render: (p) => (
-        <Switch
-          checked={p.is_active}
-          onChange={(e) => toggleMut.mutate({ id: p.id, is_active: e.currentTarget.checked })}
-          aria-label="Active"
-        />
-      ),
+      render: (p) =>
+        canChangeTrust ? (
+          <Switch
+            checked={p.is_active}
+            onChange={(e) => toggleMut.mutate({ id: p.id, is_active: e.currentTarget.checked })}
+            aria-label="Active"
+          />
+        ) : (
+          <Badge tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "On" : "Off"}</Badge>
+        ),
     },
     {
       key: "actions",
@@ -105,19 +120,21 @@ export function SsoSettingsPage() {
           <Button tone="ghost" size="xs" onClick={() => setMappingsFor(p)}>
             Group mappings
           </Button>
-          <IconButton
-            tone="danger"
-            aria-label="Delete provider"
-            onClick={() =>
-              confirmDestructive({
-                title: "Delete provider",
-                message: `Delete "${p.name}"? Users will no longer be able to sign in through it.`,
-                onConfirm: () => deleteMut.mutate(p.id),
-              })
-            }
-          >
-            <IconTrash size={14} />
-          </IconButton>
+          {canChangeTrust && (
+            <IconButton
+              tone="danger"
+              aria-label="Delete provider"
+              onClick={() =>
+                confirmDestructive({
+                  title: "Delete provider",
+                  message: `Delete "${p.name}"? Users will no longer be able to sign in through it.`,
+                  onConfirm: () => deleteMut.mutate(p.id),
+                })
+              }
+            >
+              <IconTrash size={14} />
+            </IconButton>
+          )}
         </Group>
       ),
     },
@@ -131,16 +148,18 @@ export function SsoSettingsPage() {
         title="Single Sign-On"
         subtitle="Federate login to a corporate identity provider and map AD groups to roles & access groups"
         actions={
-          <Button
-            tone="primary"
-            leftSection={<IconPlus size={15} />}
-            onClick={() => {
-              setDraft(EMPTY);
-              form.open();
-            }}
-          >
-            Add provider
-          </Button>
+          canChangeTrust ? (
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={15} />}
+              onClick={() => {
+                setDraft(EMPTY);
+                form.open();
+              }}
+            >
+              Add provider
+            </Button>
+          ) : undefined
         }
       />
       <DataTable columns={columns} data={providers} loading={isLoading} rowKey={(p) => p.id} />
@@ -268,10 +287,12 @@ function GroupMappings({ provider }: { provider: SsoProvider }) {
       setRoleCode("");
       setAccessGroupId(null);
     },
+    onError: notifyFailure("Mapping not added"),
   });
   const delMut = useMutation({
     mutationFn: (id: string) => api.deleteSsoGroupMapping(id),
     onSuccess: invalidate,
+    onError: notifyFailure("Mapping not deleted"),
   });
 
   return (

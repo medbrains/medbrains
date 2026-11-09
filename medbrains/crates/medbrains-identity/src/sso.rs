@@ -354,13 +354,15 @@ async fn refuse_mapping_grants(
 /// A provider's endpoints, client, issuer settings and on/off switches decide
 /// whose assertions sign people in here, and the email link adopts existing
 /// accounts. Whoever controls them controls every account the directory can
-/// name, so only a bypass administrator may create a provider or change them.
+/// name, so only a bypass administrator may create or delete a provider or
+/// change them.
 fn refuse_trust_change(claims: &Claims) -> Result<(), AppError> {
     if is_bypass_role(claims) {
         return Ok(());
     }
     Err(AppError::ForbiddenReason(
-        "Only a hospital administrator can add a sign-in provider or change whom it trusts."
+        "Only a hospital administrator can add or remove a sign-in provider, or change whom it \
+             trusts."
             .to_owned(),
     ))
 }
@@ -529,12 +531,17 @@ pub async fn update_provider(
 }
 
 /// DELETE /api/admin/sso/providers/{id}
+///
+/// Removing a provider decides whom the hospital trusts as much as adding
+/// one does (it can lock out everyone who signs in through it), so it needs a
+/// bypass administrator too.
 pub async fn delete_provider(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, MANAGE)?;
+    refuse_trust_change(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     sqlx::query("DELETE FROM identity_providers WHERE id = $1")

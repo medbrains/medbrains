@@ -112,7 +112,8 @@ pub(crate) struct UserAccess {
 }
 
 /// The account `id`'s role and departments, locked `FOR UPDATE` so the checks
-/// and the write see the same account.
+/// and the write see the same account. A deleted account is `None`, so every
+/// caller answers 404 for it rather than editing or deleting it again.
 pub(crate) async fn user_access(
     conn: &mut PgConnection,
     tenant_id: Uuid,
@@ -120,7 +121,7 @@ pub(crate) async fn user_access(
 ) -> Result<Option<UserAccess>, AppError> {
     let row = sqlx::query!(
         r#"SELECT role::text AS "role!", department_ids FROM users
-           WHERE id = $1 AND tenant_id = $2 FOR UPDATE"#,
+           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE"#,
         id,
         tenant_id
     )

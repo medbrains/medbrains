@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT role::text AS \"role!\", department_ids FROM users\n           WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+  "query": "SELECT role::text AS \"role!\", department_ids FROM users\n           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -25,5 +25,5 @@
       false
     ]
   },
-  "hash": "27e7afc94c33ce1c3667765e66c6cf8655a4ad6f068ae3bcc93b636947ffea35"
+  "hash": "71cb35ca5aae6af796d3766cbf37d6f5e65ee75976fb73fe15ca1529d45ffd3f"
 }

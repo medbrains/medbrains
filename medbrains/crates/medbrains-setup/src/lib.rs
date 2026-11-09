@@ -25,7 +25,9 @@ use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::permissions::{
     refuse_bypass_target, refuse_escalation_now, refuse_roles_beyond_own, refuse_self_change,
 };
-use medbrains_server_core::settings_guard::refuse_own_endpoint_category;
+use medbrains_server_core::settings_guard::{
+    refuse_admin_only_category, refuse_own_endpoint_category,
+};
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 
@@ -1682,10 +1684,11 @@ pub async fn reset_user_password(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    if let Some(current) = grants::user_access(&mut tx, claims.tenant_id, id).await? {
-        // Resetting an administrator's password is signing in as them.
-        refuse_bypass_target(&claims, &current.role)?;
-    }
+    let current = grants::user_access(&mut tx, claims.tenant_id, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    // Resetting an administrator's password is signing in as them.
+    refuse_bypass_target(&claims, &current.role)?;
 
     let updated = sqlx::query(
         "UPDATE users SET password_hash = $1, must_change_password = true, \
@@ -1748,7 +1751,7 @@ async fn refuse_deleting(
     refuse_bypass_target(claims, &target.role)
 }
 
-/// Delete a user account after expiring its VPN devices.
+/// Delete a user account, then expire its VPN devices.
 ///
 /// Deleting is the strongest change to an account, so the rules for editing
 /// one hold: a caller outside the bypass roles cannot delete themselves or an
@@ -1764,17 +1767,9 @@ pub async fn delete_user(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    // Checked before the VPN revoke, so a refused delete leaves the devices
-    // alone; the row stays locked until the delete commits.
+    // Locks the row until the delete commits; a refused delete leaves the
+    // devices alone.
     refuse_deleting(&mut tx, &claims, id).await?;
-
-    // Deprovision: expire the user's VPN nodes in Headscale BEFORE the row (and
-    // its cascade-deleted vpn_devices) disappear — else the keys would outlive
-    // the account. Best-effort so a Headscale hiccup never blocks the delete.
-    // Its own transaction touches only `vpn_devices`, not the locked user row.
-    if let Err(e) = medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, id).await {
-        tracing::warn!(error = %e, user = %id, "delete_user: VPN device revoke failed");
-    }
 
     sqlx::query("DELETE FROM users WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -1783,6 +1778,14 @@ pub async fn delete_user(
         .await?;
 
     tx.commit().await?;
+
+    // Deprovision after the commit, so the user row is not locked across the
+    // Headscale calls. `users` is soft-deleted, so its `vpn_devices` rows are
+    // still there to expire. Best-effort: a Headscale hiccup never undoes the
+    // delete.
+    if let Err(e) = medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, id).await {
+        tracing::warn!(error = %e, user = %id, "delete_user: VPN device revoke failed");
+    }
 
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
@@ -3086,6 +3089,7 @@ pub async fn update_setting(
 ) -> Result<Json<TenantSettings>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     refuse_own_endpoint_category(&body.category)?;
+    refuse_admin_only_category(&claims, &body.category)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
