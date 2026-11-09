@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1240 permissions, one per constant in the Rust source. */
+/** 1241 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4808,6 +4808,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.clinical_trials.screen",
     label: "Screen Clinical Trials",
     description: "Screen the patient population for trial candidates. Screening is not listing. It searches every patient in the tenant by diagnosis code and returns their names, so running it against a trial's ICD codes produces a named list of the people who carry that diagnosis — the disclosure is the diagnosis, not the trial. It was gated on `list`, which every trial user holds.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.clinical_trials.export",
+    label: "Send a trial's data to its sponsor",
+    description: "The export leaves the hospital, so it is not listing. It was gated on `list`, and returned every participant's name. It is now de-identified (subject keys and trial numbers, never names or identifiers) and each export is audited with its subject count. Held by no built-in role: grant it to the trial coordinator.",
     module: "specialty",
   },
   {

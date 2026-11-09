@@ -21,6 +21,7 @@ pub mod build;
 pub mod datasets;
 pub mod deid;
 pub mod omop;
+pub mod trial_export;
 
 use axum::{
     Extension, Json,
@@ -401,6 +402,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/research/exports/{id}/approve", post(approve))
         .route("/api/research/exports/{id}/reject", post(reject))
         .route("/api/research/exports/{id}/files/{file}", get(download))
+        .route(
+            "/api/clinical-trials/{id}/export",
+            get(trial_export::export_trial),
+        )
 }
 
 #[cfg(test)]

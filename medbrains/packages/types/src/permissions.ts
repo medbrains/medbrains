@@ -3237,11 +3237,13 @@ export const P = {
     CATH_LAB_STEMI_MANAGE: "specialty.cath_lab.stemi.manage",
     CLINICAL_TRIALS: {
       CREATE: "specialty.clinical_trials.create",
+      EXPORT: "specialty.clinical_trials.export",
       LIST: "specialty.clinical_trials.list",
       SCREEN: "specialty.clinical_trials.screen",
       UNBLIND: "specialty.clinical_trials.unblind",
     },
     CLINICAL_TRIALS_CREATE: "specialty.clinical_trials.create",
+    CLINICAL_TRIALS_EXPORT: "specialty.clinical_trials.export",
     CLINICAL_TRIALS_LIST: "specialty.clinical_trials.list",
     CLINICAL_TRIALS_SCREEN: "specialty.clinical_trials.screen",
     CLINICAL_TRIALS_UNBLIND: "specialty.clinical_trials.unblind",

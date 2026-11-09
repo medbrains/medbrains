@@ -1,5 +1,6 @@
 import { Group, Select, Stack } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type { ClinicalTrial } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconFlask2, IconPlus } from "@tabler/icons-react";
@@ -28,6 +29,8 @@ function statusTone(s: string): BadgeTone {
 
 export function ClinicalTrialsPage() {
   useRequirePermission(P.SPECIALTY.CLINICAL_TRIALS.LIST);
+  // The sponsor export leaves the hospital (de-identified), so it has its own code.
+  const canExport = useHasPermission(P.SPECIALTY.CLINICAL_TRIALS.EXPORT);
   const qc = useQueryClient();
   const [filter, setFilter] = useState<string | null>(null);
   const [modalOpen, modal] = useDisclosure(false);
@@ -61,10 +64,10 @@ export function ClinicalTrialsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `trial-${trial.protocol_number}.json`;
+      a.download = `trial-${trial.protocol_number}-deidentified.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Export downloaded", { title: "Clinical trials" });
+      toast.success("De-identified export downloaded", { title: "Clinical trials" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Export failed" }),
   });
@@ -119,14 +122,16 @@ export function ClinicalTrialsPage() {
           <Button size="xs" tone="secondary" onClick={() => setIrbTrial(r)}>
             Ethics
           </Button>
-          <Button
-            size="xs"
-            tone="ghost"
-            loading={exportM.isPending}
-            onClick={() => exportM.mutate(r)}
-          >
-            Export
-          </Button>
+          {canExport && (
+            <Button
+              size="xs"
+              tone="ghost"
+              loading={exportM.isPending}
+              onClick={() => exportM.mutate(r)}
+            >
+              Sponsor export
+            </Button>
+          )}
         </Group>
       ),
     },
