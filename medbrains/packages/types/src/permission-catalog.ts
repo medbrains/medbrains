@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1241 permissions, one per constant in the Rust source. */
+/** 1248 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1139,6 +1139,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payment_settings.notified",
     label: "Told of payment settings changes",
     description: "Receive a notification, and an email where one is on file, each time the UPI ID or the payment-link terms change: what changed, who changed it and when. Hospital administrators are always told.",
+    module: "billing",
+  },
+  {
+    code: "billing.preauth_alerts.configure",
+    label: "Set the pre-auth alert threshold",
+    description: "Choose the share of a pre-auth's approved amount, 1 to 100%, at which the insurance desk is warned that an inpatient's running bill is nearing it (80% until set). Hospital-wide.",
     module: "billing",
   },
   {
@@ -5239,6 +5245,42 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "insurance",
   },
   {
+    code: "insurance.enhancement.view",
+    label: "See pre-auths nearly used up",
+    description: "See insured inpatients whose running bill has reached 80% of the amount the payer approved, or whose approval could not be read, with the approved amount and the bill so far.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.enhancement.request",
+    label: "Request a pre-auth enhancement",
+    description: "Ask the payer for more on a pre-auth that is nearly used up: the extra amount is recorded on the pre-auth, which is marked as an enhancement for sending, and the alert closes. Who and when is kept.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.preauth_missing.dismiss",
+    label: "Dismiss a \"no usable pre-auth\" alert",
+    description: "Close the alert on an insured inpatient with no usable pre-auth when none is coming: the family pays cash, the treatment is not covered, or another reason written down. Who, when and why is kept.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.room_eligibility.view",
+    label: "See rooms above the policy limit",
+    description: "See inpatients placed in a room dearer than their policy's eligible room rent, with the share of room-linked charges the insurer may cut in proportion.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.room_eligibility.resolve",
+    label: "Record consent for a higher room",
+    description: "Record that the patient or a named relative agreed to pay the proportionate deduction for a room above the policy limit, which closes the alert.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.room_eligibility.configure",
+    label: "Set a policy's room rent limit",
+    description: "Record the eligible room rent from the policy schedule or e-card, in rupees a day or as a percentage of the sum insured, so rooms can be checked against it at admission and transfer.",
+    module: "insurance",
+  },
+  {
     code: "insurance.appeals.list",
     label: "View Appeals",
     description: "View prior authorization denial appeals",
@@ -8473,14 +8515,20 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.ENHANCEMENT.REQUEST,
+      P.INSURANCE.ENHANCEMENT.VIEW,
       P.INSURANCE.NHCX.PAYMENTS,
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,
+      P.INSURANCE.PREAUTH_MISSING.DISMISS,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,
       P.INSURANCE.PRIOR_AUTH.UPDATE,
+      P.INSURANCE.ROOM_ELIGIBILITY.CONFIGURE,
+      P.INSURANCE.ROOM_ELIGIBILITY.RESOLVE,
+      P.INSURANCE.ROOM_ELIGIBILITY.VIEW,
       P.INSURANCE.RULES.LIST,
       P.INSURANCE.RULES.MANAGE,
       P.INSURANCE.VERIFICATION.CREATE,
@@ -9386,15 +9434,21 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.ENHANCEMENT.REQUEST,
+      P.INSURANCE.ENHANCEMENT.VIEW,
       P.INSURANCE.NHCX.CANCEL,
       P.INSURANCE.NHCX.PAYMENTS,
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,
+      P.INSURANCE.PREAUTH_MISSING.DISMISS,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,
       P.INSURANCE.PRIOR_AUTH.UPDATE,
+      P.INSURANCE.ROOM_ELIGIBILITY.CONFIGURE,
+      P.INSURANCE.ROOM_ELIGIBILITY.RESOLVE,
+      P.INSURANCE.ROOM_ELIGIBILITY.VIEW,
       P.INSURANCE.VERIFICATION.CREATE,
       P.INSURANCE.VERIFICATION.LIST,
       P.IPD.ADMISSIONS.VIEW,
