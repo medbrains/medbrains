@@ -1,90 +1,136 @@
 #!/usr/bin/env python3
-"""Check source file lengths against a configurable line cap."""
+"""Ratchet on source file length: new files stay under the cap, long files never grow.
+
+The project rule is 450 lines per file (ENGINEERING.md). About 400 files were
+already longer when this check arrived, so they are recorded in a baseline at
+their current length: each may shrink, never grow. A file not in the baseline
+must be at or under the cap.
+
+  python3 scripts/check_file_lengths.py              # check (CI, hooks)
+  python3 scripts/check_file_lengths.py FILE...      # check only these files
+  python3 scripts/check_file_lengths.py --update     # tighten the baseline (owner)
+  python3 scripts/check_file_lengths.py --self-test
+
+A shrink passes and is reported; --update locks it in. Growth is never
+recorded by --update: an entry only ever moves down or disappears.
+"""
 
 from __future__ import annotations
 
-import argparse
-from pathlib import Path
+import json
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+BASELINE = ROOT / "scripts" / "file_lengths.baseline.json"
+CAP = 450
+SCAN = [
+    "crates",
+    "apps/web/src",
+    "packages",
+    "apps/ios",
+    "apps/android",
+    "apps/desktop/src-tauri/src",
+    "scripts",
+]
+SUFFIXES = {".rs", ".ts", ".tsx", ".scss", ".swift", ".kt", ".py"}
+SKIP_PARTS = {
+    "node_modules", "target", "dist", "build", ".gradle", ".sqlx", "vendor",
+    "migrations", "migrations-archive", "DerivedData", ".build",
+}
+GENERATED = {
+    "packages/types/src/permissions.ts",
+    "packages/types/src/permission-catalog.ts",
+}
+# Registries that every feature must append to by rule (Permissions First; the API
+# contract rule). A ratchet here would block every new permission or endpoint.
+# ponytail: exempt until they are split per module (planned with kernel adoption).
+REGISTRIES = {
+    "crates/medbrains-core/src/permissions.rs",
+    "packages/api/src/client.ts",
+}
 
 
-DEFAULT_SUFFIXES = {".rs", ".ts", ".tsx", ".scss"}
+def is_generated(rel: str) -> bool:
+    """Generated files and append-only registries are skipped; see GENERATED and REGISTRIES."""
+    return rel in GENERATED or rel in REGISTRIES or "generated" in Path(rel).name
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Report files whose line counts exceed the configured maximum."
-    )
-    parser.add_argument(
-        "paths",
-        nargs="+",
-        help="Files or directories to scan.",
-    )
-    parser.add_argument(
-        "--max-lines",
-        type=int,
-        default=450,
-        help="Maximum allowed line count per file.",
-    )
-    parser.add_argument(
-        "--suffix",
-        action="append",
-        dest="suffixes",
-        help="Limit scanning to a file suffix. Can be passed multiple times.",
-    )
-    return parser.parse_args()
-
-
-def iter_source_files(paths: list[str], suffixes: set[str]) -> list[Path]:
-    files: list[Path] = []
-    for raw_path in paths:
-        path = Path(raw_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Path does not exist: {path}")
-        if path.is_file():
-            if path.suffix in suffixes:
-                files.append(path)
+def source_files(only: list[str] | None = None) -> dict[str, int]:
+    """Map each checked file (repo-relative to medbrains/) to its line count."""
+    paths: list[Path] = []
+    if only:
+        paths = [Path(p).resolve() for p in only]
+    else:
+        for top in SCAN:
+            base = ROOT / top
+            if base.exists():
+                paths.extend(p for p in base.rglob("*") if p.is_file())
+    out: dict[str, int] = {}
+    for p in paths:
+        try:
+            rel = p.relative_to(ROOT).as_posix()
+        except ValueError:
             continue
-        files.extend(
-            file_path
-            for file_path in path.rglob("*")
-            if file_path.is_file() and file_path.suffix in suffixes
-        )
-    return sorted(files)
+        if p.suffix not in SUFFIXES or SKIP_PARTS & set(p.parts) or is_generated(rel):
+            continue
+        with p.open("rb") as fh:
+            out[rel] = sum(1 for _ in fh)
+    return out
 
 
-def count_lines(path: Path) -> int:
-    with path.open("r", encoding="utf-8") as handle:
-        return sum(1 for _ in handle)
+def judge(counts: dict[str, int], baseline: dict[str, int]) -> tuple[list[str], list[str]]:
+    """Return (failures, improvements) for the given counts against the baseline."""
+    fails, better = [], []
+    for rel, n in sorted(counts.items()):
+        limit = baseline.get(rel, CAP)
+        if n > limit:
+            why = f"grew past its baseline {limit}" if rel in baseline else f"is over the {CAP}-line cap"
+            fails.append(f"{rel}: {n} lines, {why}. Split it by responsibility.")
+        elif rel in baseline and n < baseline[rel]:
+            better.append(f"{rel}: {baseline[rel]} -> {n}")
+    return fails, better
 
 
-def main() -> int:
-    args = parse_args()
-    suffixes = set(args.suffixes or DEFAULT_SUFFIXES)
+def self_test() -> int:
+    """Pin the rules: new files capped, baselined files may shrink but not grow."""
+    base = {"a.rs": 900}
+    assert judge({"a.rs": 900}, base) == ([], [])
+    assert judge({"a.rs": 901}, base)[0]
+    assert judge({"a.rs": 800}, base) == ([], ["a.rs: 900 -> 800"])
+    assert judge({"b.rs": CAP}, base) == ([], [])
+    assert judge({"b.rs": CAP + 1}, base)[0]
+    assert is_generated("crates/x/src/generated.rs")
+    print("self-test ok")
+    return 0
 
-    try:
-        source_files = iter_source_files(args.paths, suffixes)
-    except FileNotFoundError as error:
-        print(error, file=sys.stderr)
-        return 2
 
-    offenders: list[tuple[int, Path]] = []
-    for source_file in source_files:
-        line_count = count_lines(source_file)
-        if line_count > args.max_lines:
-            offenders.append((line_count, source_file))
-
-    if not offenders:
-        print(
-            f"All {len(source_files)} checked files are at or below {args.max_lines} lines."
-        )
+def main(argv: list[str]) -> int:
+    """Check, update or self-test, per the module docstring."""
+    if "--self-test" in argv:
+        return self_test()
+    baseline = json.loads(BASELINE.read_text()) if BASELINE.exists() else {}
+    if "--update" in argv:
+        counts = source_files()
+        tightened = {
+            rel: min(n, baseline.get(rel, n))
+            for rel, n in counts.items()
+            if n > CAP and (rel in baseline or not BASELINE.exists())
+        }
+        BASELINE.write_text(json.dumps(dict(sorted(tightened.items())), indent=1) + "\n")
+        print(f"baseline: {len(tightened)} files over {CAP} lines, none may grow")
         return 0
-
-    print(f"Found {len(offenders)} files over {args.max_lines} lines:")
-    for line_count, source_file in offenders:
-        print(f"{line_count:>5}  {source_file}")
-    return 1
+    files = [a for a in argv if not a.startswith("--")]
+    counts = source_files(files or None)
+    fails, better = judge(counts, baseline)
+    for line in better:
+        print(f"shorter: {line} (run --update to lock it in)")
+    if fails:
+        print("✗ file length:", *fails, sep="\n  ")
+        return 1
+    print(f"✓ {len(counts)} files: none over {CAP} lines except the {len(baseline)} baselined, and none grew")
+    return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
