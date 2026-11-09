@@ -7722,6 +7722,9 @@ name = "medbrains-os-setup"
 version = "1.0.0"
 dependencies = [
  "argon2",
+ "data-encoding",
+ "percent-encoding",
+ "qrcodegen",
  "rustix",
  "serde_json",
  "zeroize",
