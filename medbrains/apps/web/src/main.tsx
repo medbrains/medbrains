@@ -6,17 +6,21 @@ import { Notifications } from "@mantine/notifications";
 import { createMedBrainsTheme, cssVariableResolver } from "@medbrains/design-system";
 import { createQueryClient } from "@medbrains/stores";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 import { App } from "./App";
-import { DesktopSetup } from "./components/desktop/DesktopSetup";
 import { EcgLoader } from "./components/EcgLoader";
 import { toast } from "./components/ui/toast";
 import i18n, { RTL_LANGUAGES } from "./i18n";
 import { isDesktopSetup } from "./lib/desktop-runtime";
 import { startErrorTracking } from "./lib/error-tracking";
 import { sessionService } from "./services/session.service";
+
+/** Only the desktop app's first launch needs the setup screen, so browsers never download it. */
+const DesktopSetup = lazy(() =>
+  import("./components/desktop/DesktopSetup").then((m) => ({ default: m.DesktopSetup })),
+);
 
 import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
@@ -204,7 +208,13 @@ function AppWithDirection() {
       >
         <ModalsProvider>
           <Notifications position="top-right" autoClose={4000} transitionDuration={250} />
-          {isDesktopSetup() ? <DesktopSetup /> : <App />}
+          {isDesktopSetup() ? (
+            <Suspense fallback={<EcgLoader />}>
+              <DesktopSetup />
+            </Suspense>
+          ) : (
+            <App />
+          )}
         </ModalsProvider>
       </MantineProvider>
     </DirectionProvider>
