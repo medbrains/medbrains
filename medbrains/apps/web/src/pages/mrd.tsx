@@ -7,8 +7,11 @@ import {
   IconCertificate,
   IconChartBar,
   IconClipboardList,
+  IconClockHour4,
   IconFileCertificate,
   IconFileExport,
+  IconFolderSearch,
+  IconRun,
   IconScan,
   IconShieldCheck,
   IconShieldLock,
@@ -26,6 +29,9 @@ import { CaseSheetsTab } from "@/components/Mrd/CaseSheetsTab";
 import { CrsTab } from "@/components/Mrd/CrsTab";
 import { DeathsTab } from "@/components/Mrd/DeathsTab";
 import { DigitizeTab } from "@/components/Mrd/DigitizeTab";
+import { BackscanTab } from "@/components/Mrd/file-requests/BackscanTab";
+import { FileRequestsTab } from "@/components/Mrd/file-requests/FileRequestsTab";
+import { FileWaitTab } from "@/components/Mrd/file-requests/FileWaitTab";
 import { RecordsTab } from "@/components/Mrd/RecordsTab";
 import { RetentionTab } from "@/components/Mrd/RetentionTab";
 import { RoiTab } from "@/components/Mrd/RoiTab";
@@ -39,6 +45,7 @@ import { MRD_PAGE_PERMISSIONS } from "./mrd-access";
 
 // Every rail section value, in priority order for default selection.
 const MRD_TAB_VALUES = [
+  "file-requests",
   "records",
   "case-sheets",
   "verify",
@@ -50,6 +57,8 @@ const MRD_TAB_VALUES = [
   "storage",
   "retention",
   "stats",
+  "backscan",
+  "file-wait",
 ] as const;
 
 // ══════════════════════════════════════════════════════════
@@ -74,10 +83,26 @@ function MrdPageInner() {
   const canViewCrs = useHasPermission(P.MRD.CRS_LIST);
   const canManageCrs = useHasPermission(P.MRD.CRS_MANAGE);
   const canVerifySignatures = useHasPermission(P.DOCTOR.SIGNATURE.VERIFY);
+  const canViewFileRequests = useHasPermission(P.MRD.FILE_REQUEST_VIEW);
 
   // Rail groups mirror how an MRD department runs the chart lifecycle. Items are
   // omitted when the user lacks the permission; an emptied group disappears.
   const groups: RailGroup[] = [
+    {
+      label: "File room",
+      items: [
+        canViewFileRequests && {
+          value: "file-requests",
+          label: "File requests",
+          icon: <IconRun size={14} />,
+        },
+        canViewFileRequests && {
+          value: "file-wait",
+          label: "File wait",
+          icon: <IconClockHour4 size={14} />,
+        },
+      ].filter(Boolean) as RailItem[],
+    },
     {
       label: "Case records",
       items: [
@@ -102,6 +127,11 @@ function MrdPageInner() {
       label: "Digital MRD",
       items: [
         canViewRecords && { value: "digitize", label: "Digitise", icon: <IconScan size={14} /> },
+        canViewFileRequests && {
+          value: "backscan",
+          label: "Scan first",
+          icon: <IconFolderSearch size={14} />,
+        },
       ].filter(Boolean) as RailItem[],
     },
     {
@@ -169,6 +199,21 @@ function MrdPageInner() {
       />
       <Box className={styles.workspace}>
         <WorkspaceRail groups={groups} active={tabValue} onChange={setTab}>
+          {canViewFileRequests && (
+            <Tabs.Panel value="file-requests">
+              <FileRequestsTab />
+            </Tabs.Panel>
+          )}
+          {canViewFileRequests && (
+            <Tabs.Panel value="file-wait">
+              <FileWaitTab />
+            </Tabs.Panel>
+          )}
+          {canViewFileRequests && (
+            <Tabs.Panel value="backscan">
+              <BackscanTab />
+            </Tabs.Panel>
+          )}
           {canViewRecords && (
             <Tabs.Panel value="records">
               <RecordsTab />

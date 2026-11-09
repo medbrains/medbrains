@@ -348,6 +348,20 @@ const KPI_WIDGETS: &[(&str, &str, &str, &str, &str)] = &[
         "IPD",
         "IconAlertTriangle",
     ),
+    (
+        "mrd_file_delivery_minutes",
+        "Paper file wait",
+        "Median, registration to file at the clinic",
+        "OPD",
+        "IconFolder",
+    ),
+    (
+        "mrd_file_delivery_p90_minutes",
+        "Paper file wait, slowest",
+        "90th percentile, registration to file at the clinic",
+        "OPD",
+        "IconFolder",
+    ),
 ];
 /// Who may place or see a management KPI.
 const KPI_PERMISSION: &str = "analytics.management.view";

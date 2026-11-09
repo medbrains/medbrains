@@ -2477,6 +2477,35 @@ pub mod mrd {
         pub const MANAGE: &str = "mrd.storage.manage";
     }
 
+    pub mod file_request {
+        /// See the paper-file requests queue.
+        /// Every open request for a patient's physical file — who it is for,
+        /// where it is shelved, where it must go and how long is left — plus
+        /// the night-before pull list, the back-scanning order and the
+        /// delivery times.
+        pub const VIEW: &str = "mrd.file_request.view";
+        /// Pick up and deliver requested paper files.
+        /// The runner's scans: the file barcode at the shelf ("picked") and
+        /// at the clinic ("delivered"), each written as a record movement;
+        /// marking a file not found; and building the pull list on demand.
+        pub const FULFIL: &str = "mrd.file_request.fulfil";
+        /// Be told when a requested file is late or missing.
+        /// Receives the escalation when a file request passes its due time
+        /// or a runner cannot find the file.
+        pub const SUPERVISE: &str = "mrd.file_request.supervise";
+        /// See whether a visit's paper file has arrived.
+        /// The consultation's file chip (requested, on the way, arrived),
+        /// for visits the caller can open. Nothing clinical: the summary
+        /// beside it needs `opd.diagnoses.list` and `patients.view`.
+        pub const STATUS: &str = "mrd.file_request.status";
+        /// Ask for a visit's paper file by hand.
+        /// The remedy when a visit reads "File: not requested" (the
+        /// automatic request failed or the file was shelved after the visit
+        /// was created): writes the request the visit would have written,
+        /// for a visit the caller can open.
+        pub const CREATE: &str = "mrd.file_request.create";
+    }
+
     pub mod verify_links {
         /// Show a signed record's public check link.
         /// Gives the link an outsider (an insurer, a court, another
