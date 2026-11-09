@@ -177,13 +177,16 @@ async fn check(
 struct Existing {
     id: Uuid,
     role: String,
-    /// Deactivated or deleted: the sheet does not bring it back.
+    /// Deleted: the sheet does not bring it back. A deactivated account is
+    /// not retired here: the export lists it, so the same file must import
+    /// cleanly, and the upsert never touches `is_active`, so the sheet cannot
+    /// re-activate it either.
     is_retired: bool,
 }
 
 /// Why a row naming an existing account cannot change it, if it cannot: the
 /// same rules as editing one on the Users screen. The caller's own row, an
-/// administrator's (unless the caller is one) and a retired account are left
+/// administrator's (unless the caller is one) and a removed account are left
 /// to that screen.
 fn refuse_existing(claims: &Claims, e: &Existing, p: &Person) -> Option<String> {
     if e.id == claims.sub {
@@ -199,7 +202,7 @@ fn refuse_existing(claims: &Claims, e: &Existing, p: &Person) -> Option<String> 
     }
     e.is_retired.then(|| {
         format!(
-            "{} was deactivated or removed; restore them on the Users screen",
+            "{} was removed; restore them on the Users screen",
             p.username
         )
     })
@@ -209,8 +212,9 @@ fn refuse_existing(claims: &Claims, e: &Existing, p: &Person) -> Option<String> 
 ///
 /// Every role the sheet gives (a new account's, or a changed one) must be
 /// within the caller's own codes, checked once for the sheet. The caller's own
-/// row is left alone, and a row naming an administrator or a retired account
-/// is refused, as on the Users screen.
+/// row is left alone, and a row naming an administrator or a removed account
+/// is refused, as on the Users screen. A deactivated account's row updates its
+/// details and stays deactivated.
 pub(crate) async fn import(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     db: &sqlx::PgPool,
@@ -238,7 +242,7 @@ pub(crate) async fn import(
             continue;
         };
         let existing: Option<(Uuid, String, bool)> = sqlx::query_as(
-            "SELECT id, role::text, (deleted_at IS NOT NULL OR NOT is_active) \
+            "SELECT id, role::text, (deleted_at IS NOT NULL) \
              FROM users WHERE tenant_id = $1 AND username = $2 FOR UPDATE",
         )
         .bind(tenant)

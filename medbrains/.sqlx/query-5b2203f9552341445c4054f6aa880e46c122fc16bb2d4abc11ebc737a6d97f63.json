@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT code, is_system, permissions FROM roles WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+  "query": "SELECT code, is_system, permissions FROM roles WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -31,5 +31,5 @@
       false
     ]
   },
-  "hash": "d20904a8615655f1773a554efeb86b56ece9a4e8a45cfe666d93418533da1ad3"
+  "hash": "5b2203f9552341445c4054f6aa880e46c122fc16bb2d4abc11ebc737a6d97f63"
 }

@@ -1499,7 +1499,7 @@ pub async fn update_user(
     if body
         .department_ids
         .as_ref()
-        .is_some_and(|d| *d != current.department_ids)
+        .is_some_and(|d| !grants::same_set(d, &current.department_ids))
     {
         refuse_self_change(&claims, id)?;
     }
@@ -1733,23 +1733,48 @@ pub async fn reset_user_password(
     }))
 }
 
+/// Refuse deleting account `id` when the caller may not: an administrator's
+/// account only another bypass administrator may remove. Locks the row, so the
+/// check and the delete in the same transaction see the same account; 404 for
+/// an account that is not there.
+async fn refuse_deleting(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    id: Uuid,
+) -> Result<(), AppError> {
+    let target = grants::user_access(tx, claims.tenant_id, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    refuse_bypass_target(claims, &target.role)
+}
+
+/// Delete a user account after expiring its VPN devices.
+///
+/// Deleting is the strongest change to an account, so the rules for editing
+/// one hold: a caller outside the bypass roles cannot delete themselves or an
+/// administrator.
 pub async fn delete_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::DELETE)?;
-
-    // Deprovision: expire the user's VPN nodes in Headscale BEFORE the row (and
-    // its cascade-deleted vpn_devices) disappear — else the keys would outlive
-    // the account. Best-effort so a Headscale hiccup never blocks the delete.
-    if let Err(e) = medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, id).await {
-        tracing::warn!(error = %e, user = %id, "delete_user: VPN device revoke failed");
-    }
+    refuse_self_change(&claims, id)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    // Checked before the VPN revoke, so a refused delete leaves the devices
+    // alone; the row stays locked until the delete commits.
+    refuse_deleting(&mut tx, &claims, id).await?;
+
+    // Deprovision: expire the user's VPN nodes in Headscale BEFORE the row (and
+    // its cascade-deleted vpn_devices) disappear — else the keys would outlive
+    // the account. Best-effort so a Headscale hiccup never blocks the delete.
+    // Its own transaction touches only `vpn_devices`, not the locked user row.
+    if let Err(e) = medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, id).await {
+        tracing::warn!(error = %e, user = %id, "delete_user: VPN device revoke failed");
+    }
 
     sqlx::query("DELETE FROM users WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -1766,9 +1791,10 @@ pub async fn delete_user(
 ///
 /// A role's code is how accounts hold it, so renaming one moves its codes onto
 /// whoever holds the new code, and off whoever held the old, with no code
-/// "added". The code is fixed for system roles and for any role an account
-/// holds, and cannot become a code an account already holds. Added codes must
-/// be the caller's own.
+/// "added". The code is fixed for system roles and for any role given out (an
+/// account, a directory mapping, a provider default or a pending invitation
+/// names it), and cannot become a code given out. Added codes must be the
+/// caller's own.
 pub async fn update_role(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1788,8 +1814,9 @@ pub async fn update_role(
             || grants::role_is_held(&mut tx, claims.tenant_id, &body.code).await?)
     {
         return Err(AppError::Conflict(
-            "This role's code cannot change: it is a built-in role, or staff hold it or the \
-             new code. Create a new role instead."
+            "This role's code cannot change: it is a built-in role, or it or the new code is \
+             already given to staff, a directory group, a sign-in provider or an invitation. \
+             Create a new role instead."
                 .to_owned(),
         ));
     }
@@ -1840,8 +1867,11 @@ async fn bump_role_holders(
     Ok(())
 }
 
-/// Retire a custom role; system roles stay. Its holders re-resolve, so a
-/// session from before the delete does not keep the role's codes.
+/// Retire a custom role; system roles stay. The delete is a soft delete (the
+/// table's guardrail sets `deleted_at`), so every lookup of a role's codes
+/// filters on `deleted_at IS NULL`: the row stays, its codes stop counting.
+/// Its holders re-resolve, so a session from before the delete does not keep
+/// the role's codes.
 pub async fn delete_role(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1956,6 +1986,8 @@ pub struct UpdateUserAccessMatrixRequest {
     pub widget_access: Option<std::collections::HashMap<String, String>>,
 }
 
+/// Refuse a field-access map with a level that is not one the field-access
+/// model knows, before any of it is stored or compared.
 fn validate_field_access_map(
     field_access: &std::collections::HashMap<String, String>,
 ) -> Result<(), AppError> {

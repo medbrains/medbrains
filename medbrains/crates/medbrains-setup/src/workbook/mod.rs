@@ -42,6 +42,8 @@ pub struct RowProblem {
 pub(crate) struct Problems(Vec<RowProblem>);
 
 impl Problems {
+    /// Record a problem with one cell, named by sheet, row and column so the
+    /// person fixing the workbook can find it.
     pub(crate) fn add(
         &mut self,
         sheet: &'static str,

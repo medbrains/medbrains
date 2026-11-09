@@ -15,6 +15,9 @@ use crate::middleware::authorization::is_bypass_role;
 /// Resolve the effective permission codes for a user. Bypass roles
 /// (`super_admin`, `hospital_admin`) return an empty set — callers treat them as
 /// having every permission.
+///
+/// A deleted role carries no codes: deleting a role is a soft delete, so the
+/// row stays and must be filtered out.
 pub async fn resolve_permissions(
     db: &PgPool,
     tenant_id: Uuid,
@@ -34,7 +37,8 @@ pub async fn resolve_permissions(
 
     // Get role permissions from roles table
     let role_perms_json = sqlx::query_scalar!(
-        "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true",
+        "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true \
+         AND deleted_at IS NULL",
         tenant_id,
         role
     )
@@ -241,7 +245,8 @@ pub async fn refuse_roles_beyond_own(
     for role in roles {
         refuse_bypass_role(claims, role)?;
         let permissions = sqlx::query_scalar!(
-            "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true",
+            "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true \
+         AND deleted_at IS NULL",
             claims.tenant_id,
             role
         )

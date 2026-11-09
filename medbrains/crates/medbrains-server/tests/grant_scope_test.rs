@@ -78,8 +78,8 @@ async fn a_manager_cannot_edit_an_administrator_or_their_own_scope() {
 }
 
 /// Given a manager who configures SSO, When they map a directory group to a
-/// bypass role, a role beyond theirs or a wider access group, or default new
-/// sign-ins to a wider role, Then each is refused; a held group maps.
+/// bypass role, a role beyond theirs or a wider access group, Then each is
+/// refused; a held group maps. (Default roles: `grant_trust_test`.)
 #[tokio::test]
 async fn an_sso_mapping_grants_only_what_the_mapper_holds() {
     let app = common::spawn_app().await;
@@ -88,13 +88,6 @@ async fn an_sso_mapping_grants_only_what_the_mapper_holds() {
     let manager = common::provision_staff_with(&app, &admin.csrf, "receptionist", &codes, &[]).await;
     let t = tag();
     let providers = app.url("/api/admin/sso/providers");
-    let (status, body) = send(
-        &manager,
-        manager.client.post(&providers),
-        json!({ "code": format!("w{t}"), "name": "Wide", "protocol": "oidc", "default_role": "lab_technician" }),
-    )
-    .await;
-    assert_refused_naming(status, &body, "a wider default role");
     let (status, provider) = send(
         &admin,
         admin.client.post(&providers),

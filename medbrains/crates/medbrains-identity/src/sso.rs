@@ -16,7 +16,7 @@ use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
-        authorization::{BYPASS_ROLES, require_permission},
+        authorization::{BYPASS_ROLES, is_bypass_role, require_permission},
     },
     permissions::{refuse_group_beyond_own, refuse_roles_beyond_own},
     state::AppState,
@@ -349,6 +349,39 @@ async fn refuse_mapping_grants(
     Ok(())
 }
 
+/// Refuse a non-bypass caller deciding which directory this hospital trusts.
+///
+/// A provider's endpoints, client, issuer settings and on/off switches decide
+/// whose assertions sign people in here, and the email link adopts existing
+/// accounts. Whoever controls them controls every account the directory can
+/// name, so only a bypass administrator may create a provider or change them.
+fn refuse_trust_change(claims: &Claims) -> Result<(), AppError> {
+    if is_bypass_role(claims) {
+        return Ok(());
+    }
+    Err(AppError::ForbiddenReason(
+        "Only a hospital administrator can add a sign-in provider or change whom it trusts."
+            .to_owned(),
+    ))
+}
+
+impl UpdateProviderRequest {
+    /// Whether this edit touches a field that decides whom the provider
+    /// trusts, as against its display name or default role (the default role
+    /// is checked as a grant instead). The group claim is trust: pointed at an
+    /// attribute people can edit, it lets them pick their own mapped role.
+    const fn changes_trust(&self) -> bool {
+        self.discovery_url.is_some()
+            || self.metadata_url.is_some()
+            || self.client_id.is_some()
+            || self.client_secret.is_some()
+            || self.group_claim.is_some()
+            || self.jit_enabled.is_some()
+            || self.is_active.is_some()
+            || self.config.is_some()
+    }
+}
+
 fn validate_protocol(p: &str) -> Result<(), AppError> {
     if p == "oidc" || p == "saml" {
         Ok(())
@@ -378,13 +411,15 @@ pub async fn list_providers(
     Ok(Json(rows.into_iter().map(ProviderResponse::from).collect()))
 }
 
-/// POST /api/admin/sso/providers
+/// POST /api/admin/sso/providers — bypass administrators only: a new
+/// provider is a new directory this hospital trusts.
 pub async fn create_provider(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
     req: Result<Json<CreateProviderRequest>, JsonRejection>,
 ) -> Result<Json<ProviderResponse>, AppError> {
     require_permission(&claims, MANAGE)?;
+    refuse_trust_change(&claims)?;
     let Json(req) = req?;
     validate_protocol(&req.protocol)?;
     refuse_default_role(&state, &claims, req.default_role.as_deref()).await?;
@@ -429,6 +464,9 @@ pub async fn create_provider(
 }
 
 /// PUT /api/admin/sso/providers/{id}
+///
+/// A change to whom the provider trusts needs a bypass administrator; its name and default role (within the
+/// caller's codes) may be edited by anyone who manages settings.
 pub async fn update_provider(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -437,6 +475,9 @@ pub async fn update_provider(
 ) -> Result<Json<ProviderResponse>, AppError> {
     require_permission(&claims, MANAGE)?;
     let Json(req) = req?;
+    if req.changes_trust() {
+        refuse_trust_change(&claims)?;
+    }
     refuse_default_role(&state, &claims, req.default_role.as_deref()).await?;
 
     let new_secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {

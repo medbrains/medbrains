@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true",
+  "query": "SELECT permissions FROM roles WHERE tenant_id = $1 AND code = $2 AND is_active = true AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       false
     ]
   },
-  "hash": "ce1ba6dd726f65f4d7558bebd93d4b82135d39a29b292ff8765f6c09e5f40bc2"
+  "hash": "4748a7fde025821eecb8010117de3065efa1c2445b1e22ec96559a83332ea1e5"
 }

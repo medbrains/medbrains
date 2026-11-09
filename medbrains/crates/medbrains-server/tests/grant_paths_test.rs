@@ -38,7 +38,8 @@ fn person(tag: &str, prefix: &str, role: &str) -> Value {
 }
 
 /// A role code cannot be renamed once it is built in or held, nor to a code
-/// staff hold; an unused custom role can be. Editing a role's codes adds only
+/// something gives out (here a provider's default for new sign-ins); an
+/// unused custom role can be. Editing a role's codes adds only
 /// codes the caller holds.
 #[tokio::test]
 async fn a_role_code_rename_is_refused_when_it_would_move_codes() {
@@ -47,11 +48,23 @@ async fn a_role_code_rename_is_refused_when_it_would_move_codes() {
     let manager = manager_with(&app, &admin, &[]).await;
     let t = tag();
 
-    let system: String =
-        sqlx::query_scalar("SELECT id::text FROM roles WHERE code = 'receptionist' LIMIT 1")
-            .fetch_one(&app.db)
-            .await
-            .expect("receptionist role");
+    // A built-in role nothing gives out, so only `is_system` can refuse it.
+    let system: String = sqlx::query_scalar(
+        "SELECT r.id::text FROM roles r JOIN users a ON a.tenant_id = r.tenant_id \
+          WHERE a.username = 'admin' AND r.is_system AND r.deleted_at IS NULL \
+            AND NOT EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = r.tenant_id \
+                              AND u.role::text = r.code) \
+            AND NOT EXISTS (SELECT 1 FROM idp_group_mappings m WHERE m.tenant_id = r.tenant_id \
+                              AND m.role_code = r.code) \
+            AND NOT EXISTS (SELECT 1 FROM identity_providers p WHERE p.tenant_id = r.tenant_id \
+                              AND p.default_role = r.code) \
+            AND NOT EXISTS (SELECT 1 FROM user_invitations i WHERE i.tenant_id = r.tenant_id \
+                              AND i.role = r.code) \
+          LIMIT 1",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("an unheld built-in role");
     let rename = |code: &str| json!({ "code": code, "name": "Front desk renamed" });
     let url = |id: &str| app.url(&format!("/api/setup/roles/{id}"));
     let (status, body) = send(&admin, admin.client.put(url(&system)), rename(&format!("x{t}"))).await;
@@ -65,8 +78,19 @@ async fn a_role_code_rename_is_refused_when_it_would_move_codes() {
     .await;
     assert_eq!(status, StatusCode::OK, "{role}");
     let custom = role["id"].as_str().unwrap_or_default().to_owned();
-    let (status, body) = send(&admin, admin.client.put(url(&custom)), rename("nurse")).await;
-    assert_eq!(status, StatusCode::CONFLICT, "to a code staff hold: {body}");
+    // A code with no role row, given out only as a provider's default: no
+    // unique key can answer, only the held check.
+    let pending = format!("z{t}");
+    let (status, body) = send(
+        &admin,
+        admin.client.post(app.url("/api/admin/sso/providers")),
+        json!({ "code": format!("p{t}"), "name": "Default IdP", "protocol": "oidc",
+                "default_role": pending }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, body) = send(&admin, admin.client.put(url(&custom)), rename(&pending)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "to a code given out: {body}");
     let (status, body) =
         send(&admin, admin.client.put(url(&custom)), rename(&format!("d{t}"))).await;
     assert_eq!(status, StatusCode::OK, "an unused custom role: {body}");

@@ -46,8 +46,9 @@ pub(crate) struct LockedRole {
     pub codes: Vec<String>,
 }
 
-/// The role row `id`, locked `FOR UPDATE`: the codes an edit is checked
-/// against cannot change under it before it writes.
+/// The live role row `id`, locked `FOR UPDATE`: the codes an edit is checked
+/// against cannot change under it before it writes. A deleted role is not
+/// found, so it cannot be edited back into use.
 pub(crate) async fn lock_role(
     conn: &mut PgConnection,
     tenant_id: Uuid,
@@ -55,7 +56,7 @@ pub(crate) async fn lock_role(
 ) -> Result<Option<LockedRole>, AppError> {
     let row = sqlx::query!(
         "SELECT code, is_system, permissions FROM roles \
-         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
         id,
         tenant_id
     )
@@ -68,21 +69,40 @@ pub(crate) async fn lock_role(
     }))
 }
 
-/// Whether any account holds `code` as its role. Renaming a role such
-/// accounts hold, or to a code they hold, moves codes onto them unchecked.
+/// Whether anything gives out `code` as a role: an account holding it, a
+/// directory group mapping to it, a provider defaulting new sign-ins to it, or
+/// a pending invitation for it. Renaming a role any of these name, or to a
+/// code they name, moves codes onto those people unchecked.
 pub(crate) async fn role_is_held(
     conn: &mut PgConnection,
     tenant_id: Uuid,
     code: &str,
 ) -> Result<bool, AppError> {
     Ok(sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM users
-            WHERE tenant_id = $1 AND role::text = $2 AND deleted_at IS NULL) AS "held!""#,
+        r#"SELECT (
+            EXISTS (SELECT 1 FROM users
+                WHERE tenant_id = $1 AND role::text = $2 AND deleted_at IS NULL)
+            OR EXISTS (SELECT 1 FROM idp_group_mappings
+                WHERE tenant_id = $1 AND role_code = $2)
+            OR EXISTS (SELECT 1 FROM identity_providers
+                WHERE tenant_id = $1 AND default_role = $2)
+            OR EXISTS (SELECT 1 FROM user_invitations
+                WHERE tenant_id = $1 AND role = $2
+                  AND accepted_at IS NULL AND expires_at > now())
+        ) AS "held!""#,
         tenant_id,
         code
     )
     .fetch_one(conn)
     .await?)
+}
+
+/// Whether `a` and `b` hold the same ids, ignoring order and repeats: a
+/// department list sent back reordered is not a change of access.
+pub(crate) fn same_set(a: &[Uuid], b: &[Uuid]) -> bool {
+    let a: std::collections::HashSet<&Uuid> = a.iter().collect();
+    let b: std::collections::HashSet<&Uuid> = b.iter().collect();
+    a == b
 }
 
 /// What a user account holds now that an edit to it is checked against.
@@ -190,8 +210,9 @@ pub(crate) fn fields_beyond_own(
 
 #[cfg(test)]
 mod tests {
-    use super::{FieldAccessLevel, HashMap, added, codes_in, fields_beyond_own};
+    use super::{FieldAccessLevel, HashMap, added, codes_in, fields_beyond_own, same_set};
     use serde_json::json;
+    use uuid::Uuid;
 
     #[test]
     fn a_field_opens_no_wider_than_the_caller_sees_it() {
@@ -237,5 +258,13 @@ mod tests {
         assert_eq!(added(&old, &new), vec!["c".to_owned()]);
         assert!(codes_in(Some(&json!({"extra": ["a"]}))).is_empty());
         assert!(codes_in(None).is_empty());
+    }
+
+    #[test]
+    fn departments_compare_as_sets() {
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        assert!(same_set(&[a, b], &[b, a]));
+        assert!(same_set(&[a, a], &[a]));
+        assert!(!same_set(&[a], &[a, b]));
     }
 }

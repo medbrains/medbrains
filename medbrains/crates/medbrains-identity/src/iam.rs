@@ -234,6 +234,10 @@ pub async fn create_access_request(
     Ok(Json(row))
 }
 
+/// Approve a pending access request.
+///
+/// Appends its time-bound grant to the target's `access_matrix`. The matrix is read `FOR UPDATE`, so two reviews
+/// at once cannot each write over the other's grant or revocation.
 pub async fn approve_access_request(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -283,7 +287,7 @@ pub async fn approve_access_request(
     .await?;
 
     let access_matrix = sqlx::query_scalar::<_, Value>(
-        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(row.target_user_id)
     .bind(claims.tenant_id)
@@ -400,6 +404,10 @@ pub async fn reject_access_request(
     Ok(Json(updated))
 }
 
+/// Revoke an approved or pending access request.
+///
+/// Marks its grant revoked in the target's `access_matrix`, which is read `FOR UPDATE` for the same
+/// reason as on approval.
 pub async fn revoke_access_request(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -423,7 +431,7 @@ pub async fn revoke_access_request(
 
     if row.status == "approved" {
         let access_matrix = sqlx::query_scalar::<_, Value>(
-            "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+            "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
         )
         .bind(row.target_user_id)
         .bind(claims.tenant_id)

@@ -741,6 +741,37 @@ pub async fn create_employee(
     Ok(Json(row))
 }
 
+/// Refuse linking an employee record to login `user_id`, or ending their
+/// employment, when that changes access the caller may not change.
+///
+/// Ending employment deactivates the login and drops its groups; linking hands
+/// the login to whoever HR terminates next. Both are edits to that account, so
+/// the Users screen's rules hold: a caller outside the bypass roles cannot do
+/// either to their own login or to an administrator's.
+async fn refuse_login_change(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    medbrains_server_core::permissions::refuse_self_change(claims, user_id)?;
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(user_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    match role {
+        Some(role) => medbrains_server_core::permissions::refuse_bypass_target(claims, &role),
+        None => Err(AppError::BadRequest(
+            "That login does not exist in this hospital".to_owned(),
+        )),
+    }
+}
+
+/// Edit an employee record. Moving it to a status that ends employment
+/// revokes the linked login's access; that, and re-linking the record to a
+/// login, are refused on the caller's own login or an administrator's.
 pub async fn update_employee(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -751,6 +782,14 @@ pub async fn update_employee(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let linked_before: Option<Uuid> = sqlx::query_scalar(
+        "SELECT user_id FROM employees WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let row = sqlx::query_as::<_, Employee>(
         "UPDATE employees SET \
@@ -824,6 +863,12 @@ pub async fn update_employee(
             | EmployeeStatus::Retired
             | EmployeeStatus::Absconding
     );
+    let relinked = row.user_id.is_some() && row.user_id != linked_before;
+    if let Some(user_id) = row.user_id
+        && (relinked || (revokes_access && body.status.is_some()))
+    {
+        refuse_login_change(&mut tx, &claims, user_id).await?;
+    }
     if revokes_access && let Some(user_id) = row.user_id {
         // Deactivate the login + bump perm_version so any cached JWT stops resolving.
         sqlx::query(

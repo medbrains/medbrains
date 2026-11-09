@@ -672,40 +672,32 @@ async fn federate_user(
             (id, role, "returning")
         }
         None => {
-            let linked =
-                match identity
-                    .email
-                    .as_deref()
-                    .filter(|_| identity.email_verified)
-                {
-                    // Only an email the provider says it verified. Entra's `email` claim is whatever
-                    // the tenant typed, so trusting it let any person sign in as a local account
-                    // with that address, including the first administrator (nOAuth).
-                    //
-                    // Service accounts are not claimable.
-                    //
-                    // This branch adopts an existing local account when the IdP
-                    // asserts its email, which is the right behaviour for a person
-                    // moving to SSO. For an API key's identity it is a takeover:
-                    // the UPDATE below sets `idp_id` and a role from the IdP, so
-                    // anyone able to assert that address at the IdP would turn a
-                    // machine identity into their own login — and every row the
-                    // key had written would now belong to them.
-                    //
-                    // And only in this provider's hospital. The tenant context set
-                    // above is enforced by row level security, which a superuser
-                    // connection does not apply: an email match across hospitals
-                    // let one hospital's IdP adopt another hospital's account.
-                    Some(email) => sqlx::query_scalar::<_, Uuid>(
-                        "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
-                     AND is_service_account = false AND tenant_id = $2",
-                    )
-                    .bind(email)
-                    .bind(provider.tenant_id)
-                    .fetch_optional(&mut **tx)
-                    .await?,
-                    None => None,
-                };
+            let linked = match identity
+                .email
+                .as_deref()
+                .filter(|_| identity.email_verified)
+            {
+                // Only an email the provider says it verified. Entra's `email` claim is whatever
+                // the tenant typed, so trusting it let any person sign in as a local account
+                // with that address, including the first administrator (nOAuth).
+                //
+                // Service accounts are not claimable.
+                //
+                // This branch adopts an existing local account when the IdP
+                // asserts its email, which is the right behaviour for a person
+                // moving to SSO. For an API key's identity it is a takeover:
+                // the UPDATE below sets `idp_id` and a role from the IdP, so
+                // anyone able to assert that address at the IdP would turn a
+                // machine identity into their own login — and every row the
+                // key had written would now belong to them.
+                //
+                // And only in this provider's hospital. The tenant context set
+                // above is enforced by row level security, which a superuser
+                // connection does not apply: an email match across hospitals
+                // let one hospital's IdP adopt another hospital's account.
+                Some(email) => email_link_candidate(tx, provider.tenant_id, email).await?,
+                None => None,
+            };
             match linked {
                 Some(id) => {
                     let role = sqlx::query_scalar::<_, String>(
@@ -752,6 +744,30 @@ async fn federate_user(
         outcome,
         access_groups: access_groups.len(),
     })
+}
+
+/// The local account an SSO sign-in asserting `email` may adopt, if any.
+///
+/// Only an account not yet federated, not a service account, in this
+/// hospital, and not holding a bypass role. An administrator's account is
+/// never adopted by an email match: whoever can assert that address at the
+/// directory would otherwise sign in as the administrator. Such a sign-in
+/// falls through to a new, ordinary account instead.
+pub async fn email_link_candidate(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    email: &str,
+) -> Result<Option<Uuid>, AppError> {
+    let bypass: Vec<String> = BYPASS_ROLES.iter().map(|r| (*r).to_owned()).collect();
+    Ok(sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
+         AND is_service_account = false AND tenant_id = $2 AND role::text <> ALL($3)",
+    )
+    .bind(email)
+    .bind(tenant_id)
+    .bind(&bypass)
+    .fetch_optional(&mut **tx)
+    .await?)
 }
 
 /// Make `user_id`'s SSO-sourced access-group memberships exactly `groups`,
