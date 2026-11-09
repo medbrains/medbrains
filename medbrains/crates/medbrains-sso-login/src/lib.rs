@@ -890,6 +890,8 @@ struct Federated {
     access_groups: usize,
 }
 
+/// Find, link or create the account an SSO identity signs in as, apply its
+/// mapped role (never a bypass role) and re-sync its SSO group memberships.
 async fn federate_user(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     provider: &LoginProvider,
@@ -926,41 +928,32 @@ async fn federate_user(
             (id, role, "returning")
         }
         None => {
-            let linked =
-                match identity
-                    .email
-                    .as_deref()
-                    .filter(|_| identity.email_verified && provider.link_by_email)
-                {
-                    // Only an email the provider says it verified. Entra's `email` claim is whatever
-                    // the tenant typed, so trusting it let any person sign in as a local account
-                    // with that address, including the first administrator (nOAuth).
-                    //
-                    // Service accounts are not claimable.
-                    //
-                    // This branch adopts an existing local account when the IdP
-                    // asserts its email, which is the right behaviour for a person
-                    // moving to SSO. For an API key's identity it is a takeover:
-                    // the UPDATE below sets `idp_id` and a role from the IdP, so
-                    // anyone able to assert that address at the IdP would turn a
-                    // machine identity into their own login — and every row the
-                    // key had written would now belong to them.
-                    //
-                    // And only in this provider's hospital. The tenant context set
-                    // above is enforced by row level security, which a superuser
-                    // connection does not apply: an email match across hospitals
-                    // let one hospital's IdP adopt another hospital's account.
-                    Some(email) => sqlx::query_scalar::<_, Uuid>(
-                        "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
-                     AND is_service_account = false AND tenant_id = $2 AND role::text <> ALL($3)",
-                    )
-                    .bind(email)
-                    .bind(provider.tenant_id)
-                    .bind(NEVER_LINKED_BY_EMAIL.as_slice())
-                    .fetch_optional(&mut **tx)
-                    .await?,
-                    None => None,
-                };
+            let linked = match identity
+                .email
+                .as_deref()
+                .filter(|_| identity.email_verified && provider.link_by_email)
+            {
+                // Only an email the provider says it verified. Entra's `email` claim is whatever
+                // the tenant typed, so trusting it let any person sign in as a local account
+                // with that address, including the first administrator (nOAuth).
+                //
+                // Service accounts are not claimable.
+                //
+                // This branch adopts an existing local account when the IdP
+                // asserts its email, which is the right behaviour for a person
+                // moving to SSO. For an API key's identity it is a takeover:
+                // the UPDATE below sets `idp_id` and a role from the IdP, so
+                // anyone able to assert that address at the IdP would turn a
+                // machine identity into their own login — and every row the
+                // key had written would now belong to them.
+                //
+                // And only in this provider's hospital. The tenant context set
+                // above is enforced by row level security, which a superuser
+                // connection does not apply: an email match across hospitals
+                // let one hospital's IdP adopt another hospital's account.
+                Some(email) => email_link_candidate(tx, provider.tenant_id, email).await?,
+                None => None,
+            };
             match linked {
                 Some(id) => {
                     let role = sqlx::query_scalar::<_, String>(
@@ -993,22 +986,7 @@ async fn federate_user(
         }
     };
 
-    // Re-sync SSO-managed access-group memberships (never touch 'manual' grants).
-    sqlx::query("DELETE FROM access_group_members WHERE user_id = $1 AND source = 'sso'")
-        .bind(user_id)
-        .execute(&mut **tx)
-        .await?;
-    for ag in &access_groups {
-        sqlx::query(
-            "INSERT INTO access_group_members (group_id, user_id, tenant_id, source) \
-             VALUES ($1, $2, $3, 'sso') ON CONFLICT (group_id, user_id) DO NOTHING",
-        )
-        .bind(ag)
-        .bind(user_id)
-        .bind(provider.tenant_id)
-        .execute(&mut **tx)
-        .await?;
-    }
+    sync_sso_memberships(tx, provider.tenant_id, user_id, &access_groups).await?;
 
     let perm_version = sqlx::query_scalar::<_, i32>("SELECT perm_version FROM users WHERE id = $1")
         .bind(user_id)
@@ -1022,6 +1000,69 @@ async fn federate_user(
         outcome,
         access_groups: access_groups.len(),
     })
+}
+
+/// The local account an SSO sign-in asserting `email` may adopt, if any.
+///
+/// Only an account not yet federated, not a service account, in this
+/// hospital, and not holding a bypass role. An administrator's account is
+/// never adopted by an email match: whoever can assert that address at the
+/// directory would otherwise sign in as the administrator. Such a sign-in
+/// falls through to a new, ordinary account instead. The row is locked, so a
+/// promotion to administrator cannot land between this check and the link.
+pub async fn email_link_candidate(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    email: &str,
+) -> Result<Option<Uuid>, AppError> {
+    Ok(sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
+         AND is_service_account = false AND tenant_id = $2 AND role::text <> ALL($3) \
+         FOR UPDATE",
+    )
+    .bind(email)
+    .bind(tenant_id)
+    .bind(NEVER_LINKED_BY_EMAIL.as_slice())
+    .fetch_optional(&mut **tx)
+    .await?)
+}
+
+/// Make `user_id`'s SSO-sourced access-group memberships exactly `groups`,
+/// never touching ones an administrator added by hand.
+///
+/// The delete is a soft delete (the table's guardrail), so the row stays and a
+/// plain `ON CONFLICT DO NOTHING` would leave every membership deleted from
+/// the second sign-in on. The insert brings a deleted row back instead, and a
+/// row an administrator removed becomes SSO-managed when the directory puts
+/// the person back in the group. Public so the integration suite can sign the
+/// same person in twice.
+pub async fn sync_sso_memberships(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    groups: &[Uuid],
+) -> Result<(), AppError> {
+    sqlx::query!(
+        "DELETE FROM access_group_members WHERE user_id = $1 AND tenant_id = $2 AND source = 'sso'",
+        user_id,
+        tenant_id
+    )
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query!(
+        "INSERT INTO access_group_members (group_id, user_id, tenant_id, source) \
+         SELECT g, $2, $3, 'sso' FROM unnest($1::uuid[]) AS g \
+         ON CONFLICT (group_id, user_id) DO UPDATE SET \
+           source = CASE WHEN access_group_members.deleted_at IS NULL \
+                         THEN access_group_members.source ELSE 'sso' END, \
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+        groups,
+        user_id,
+        tenant_id
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 /// The audit reason for a sign-in federation refused.

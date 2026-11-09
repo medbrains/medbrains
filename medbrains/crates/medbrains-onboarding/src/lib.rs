@@ -642,6 +642,11 @@ fn is_module_enabled_for_edition(hospital_type: &str, code: &str) -> bool {
     }
 }
 
+/// Run the onboarding wizard once, in one transaction.
+///
+/// It writes the hospital's details, facilities, departments, roles, first
+/// staff accounts, modules and sequences. The staff accounts' roles must be
+/// within the caller's own.
 #[allow(clippy::too_many_lines)]
 pub async fn setup(
     State(state): State<AppState>,
@@ -656,6 +661,14 @@ pub async fn setup(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
+    // The wizard's accounts are grants like any other: a caller outside the
+    // bypass roles (the first administrator is one) gives only roles within
+    // their own codes, and never a bypass role. The wizard's roles are created
+    // with no codes, so they grant nothing to check.
+    let mut roles: Vec<&str> = body.users.iter().map(|u| u.role.as_str()).collect();
+    roles.sort_unstable();
+    roles.dedup();
+    medbrains_server_core::permissions::refuse_roles_beyond_own(&state.db, &claims, &roles).await?;
 
     // ── Idempotency check ───────────────────────────────
     let already_complete: bool = sqlx::query_scalar(
