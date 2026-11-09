@@ -10,7 +10,7 @@ medbrains-ai not_yet 49 medbrains-db,medbrains-authz-gate
 medbrains-ai-eval not_yet 0 -
 medbrains-ambulance not_yet 37 medbrains-db
 medbrains-analytics not_yet 123 medbrains-db,medbrains-authz,medbrains-authz-gate
-medbrains-ancillary not_yet 101 medbrains-db,medbrains-authz-gate
+medbrains-ancillary not_yet 99 medbrains-db,medbrains-authz-gate
 medbrains-anthropic-auth not_yet 0 -
 medbrains-api-keys not_yet 0 -
 medbrains-api-keys-api not_yet 16 medbrains-db
