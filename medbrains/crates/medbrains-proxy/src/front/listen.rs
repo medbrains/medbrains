@@ -6,6 +6,7 @@
 
 use crate::head::{Refusal, Scan, check_head, scan_head};
 use crate::limits::{ConnectionGate, Permit};
+use crate::names::is_machine;
 use bytes::BytesMut;
 use pingora_core::apps::{HttpPersistentSettings, HttpServerApp};
 use pingora_core::listeners::tls::Acceptor;
@@ -13,7 +14,7 @@ use pingora_core::protocols::http::ServerSession;
 use pingora_core::protocols::l4::stream::Stream as L4Stream;
 use pingora_core::protocols::{GetSocketDigest, SocketDigest, Stream};
 use pingora_core::server::ShutdownWatch;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::os::fd::AsRawFd;
 use std::sync::Arc;
 use std::time::Duration;
@@ -77,9 +78,7 @@ pub(crate) fn bind(addr: SocketAddr) -> std::io::Result<TcpListener> {
 /// pass as a machine in the audit log and the sign-in limit. The firewall says the same; this does
 /// not depend on it.
 fn admits_peer(on_lan: bool, client: IpAddr) -> bool {
-    let is_machine =
-        client == IpAddr::V4(Ipv4Addr::LOCALHOST) || client == IpAddr::V6(Ipv6Addr::LOCALHOST);
-    !on_lan || !client.is_loopback() || is_machine
+    !on_lan || !client.is_loopback() || is_machine(client)
 }
 
 /// Accepts until shutdown. The only loop here meant to run forever.

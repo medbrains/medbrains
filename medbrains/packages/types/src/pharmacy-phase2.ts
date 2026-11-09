@@ -8,6 +8,7 @@ import type {
   PharmacyReturnStatusType,
 } from "./medication-timing";
 import type { MedicationSafetyFinding } from "./pharmacy-phase3";
+import type { RoomConsentInput } from "./revenue-alerts";
 
 // ── Pharmacy Phase 2 ──────────────────────────────────────
 
@@ -163,6 +164,34 @@ export interface WardStockRow {
   min_qty: number;
   on_hand: number;
   gap: number;
+}
+
+/** A nurse's use of ward stock, on a patient or on the ward. */
+export interface WardStockConsumeRequest {
+  department_id: string;
+  catalog_item_id: string;
+  quantity: number;
+  /** Who it was used on; omitted for ward use. */
+  patient_id?: string;
+}
+
+/**
+ * What became of the patient's charge: `ward_use` (no patient), `not_billable`
+ * (overhead item, or in the patient's package), `posted`, `queued` (on the
+ * billing desk's queue), `disabled` (ward-stock billing is off). `deferred` (could not be worked out now; the daily check raises it).
+ */
+export type WardStockConsumeCharge =
+  | "ward_use"
+  | "not_billable"
+  | "posted"
+  | "queued"
+  | "disabled"
+  | "deferred";
+
+export interface WardStockConsumeResponse {
+  consumption_id: string;
+  remaining: number;
+  charge: WardStockConsumeCharge;
 }
 
 export type CaseSheetScanStatus =
@@ -962,6 +991,8 @@ export interface CreateAdmissionRequest {
   admission_height_cm?: number;
   expected_discharge_date?: string;
   ward_id?: string;
+  /** Consent for a room above the policy's room rent limit. */
+  room_consent?: RoomConsentInput;
 }
 
 export interface CreateAdmissionResponse {
@@ -984,6 +1015,7 @@ export interface UpdateAdmissionRequest {
 export interface TransferBedRequest {
   bed_id: string;
   notes?: string;
+  room_consent?: RoomConsentInput;
 }
 
 export interface DischargeRequest {

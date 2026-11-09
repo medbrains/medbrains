@@ -40,9 +40,15 @@ export async function login(
   username: string,
   password: string,
 ): Promise<Session> {
-  const response = await request.post(`${BACKEND_URL}/api/auth/login`, {
-    data: { username, password },
-  });
+  const post = () =>
+    request.post(`${BACKEND_URL}/api/auth/login`, { data: { username, password } });
+  let response = await post();
+  // Sign-in is limited to five a minute per address; a long run that signs
+  // staff in back to back meets it. Wait it out rather than fail the test.
+  for (let attempt = 0; response.status() === 429 && attempt < 4; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+    response = await post();
+  }
   if (response.status() !== 200) {
     throw new Error(`login failed for ${username}: ${response.status()} ${await response.text()}`);
   }

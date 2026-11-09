@@ -8,6 +8,7 @@
 #   MEDBRAINS_SERVER_BIN  the server for the target arch
 #                         [$CARGO_TARGET_DIR/<triple>/release/medbrains-server]
 #   MEDBRAINS_WEB_DIST    the built web app [../apps/web/dist]
+#   KANIDM_DIR            the identity provider, from build-kanidm.sh [$OS_WORK/kanidm-<arch>]
 #   OS_WORK               build cache + output [/tmp/mb-osimage]
 #
 #   OS_PCR_KEY, OS_PCR_CERT  RSA key and certificate signing the boot file's expected PCR 11. Without them
@@ -35,12 +36,17 @@ esac
 
 OS_WORK="${OS_WORK:-/tmp/mb-osimage}"
 SERVER="${MEDBRAINS_SERVER_BIN:-${CARGO_TARGET_DIR:-$REPO/target}/$TRIPLE/release/medbrains-server}"
+KANIDM="${KANIDM_DIR:-$OS_WORK/kanidm-$ARCH}"
 OS_SETUP="$(dirname "$SERVER")/medbrains-os-setup"
 FRONT="$(dirname "$SERVER")/medbrains-front"
 AGENT="$(dirname "$SERVER")/medbrains-agent"
 WEB="${MEDBRAINS_WEB_DIST:-$REPO/apps/web/dist}"
 if [[ ! -x "$SERVER" ]]; then
     echo "no server binary at $SERVER — cross-build it with zigbuild for $TRIPLE (see README)" >&2
+    exit 1
+fi
+if [[ ! -x "$KANIDM/kanidmd" ]]; then
+    echo "no identity provider at $KANIDM — run os/build-kanidm.sh --arch $ARCH" >&2
     exit 1
 fi
 if [[ ! -x "$OS_SETUP" ]]; then
@@ -66,6 +72,20 @@ rm -rf "$EXTRA"
 install -d "$EXTRA/usr/bin" "$EXTRA/usr/share/medbrains" "$EXTRA/usr/lib/medbrains" \
     "$OS_WORK/out-$ARCH" "$OS_WORK/cache-$ARCH"
 install -m 0755 "$SERVER" "$EXTRA/usr/bin/medbrains-server"
+install -m 0755 "$KANIDM/kanidmd" "$EXTRA/usr/bin/kanidmd"
+install -d "$EXTRA/usr/share/kanidm/ui"
+cp -R "$KANIDM/hpkg" "$EXTRA/usr/share/kanidm/ui/hpkg"
+# Only a debug image may run the identity provider on an unencrypted disk.
+if [[ "$DEBUG" == 1 ]]; then install -m 0644 /dev/null "$EXTRA/usr/lib/medbrains/debug-image"; fi
+# The MedBrains design on the one stylesheet Kanidm leaves for this: the design system's tokens, refused
+# unless they meet WCAG 2.2 AA, then our rules, and the web app's IBM Plex fonts.
+python3 -I "$HERE/kanidm-tokens.py" --check >/dev/null || { echo "Kanidm's colours fail WCAG 2.2 AA: run os/kanidm-tokens.py --check" >&2; exit 1; }
+{ python3 -I "$HERE/kanidm-tokens.py"; cat "$HERE/kanidm-override.css"; } > "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
+install -d "$EXTRA/usr/share/kanidm/ui/hpkg/fonts"
+for font in sans-400 sans-500 sans-600 mono-400; do
+    install -m 0644 "$(ls "$WEB"/assets/ibm-plex-"${font%-*}"-latin-"${font#*-}"-normal-*.woff2 | head -1)" \
+        "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/plex-$font.woff2"
+done
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
 install -m 0755 "$FRONT" "$EXTRA/usr/bin/medbrains-front"
 install -m 0755 "$AGENT" "$EXTRA/usr/bin/medbrains-agent"
@@ -88,6 +108,9 @@ if [[ "$DEBUG" == 1 ]]; then
     install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
     install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
     install -m 0755 "$HERE/debug/pcr11-replay" "$EXTRA/usr/lib/medbrains/pcr11-replay"
+    # A clearly marked sign-in for trying the Identity app. Never in a release image.
+    install -m 0755 "$HERE/debug/kanidm-debug-account" "$EXTRA/usr/lib/medbrains/kanidm-debug-account"
+    install -m 0644 "$HERE/debug/kanidm-debug-account.service" "$EXTRA/usr/lib/systemd/system/"
     # The shell replaces the login prompt that systemd would put on both ports. wtype and grim let
     # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
     # a test Wi-Fi network with mac80211_hwsim.

@@ -20,6 +20,8 @@ WEB_SRC = ROOT / "apps" / "web" / "src"
 PAGE_ROOT = WEB_SRC / "pages"
 COMPONENT_ROOT = WEB_SRC / "components"
 APP_TSX = WEB_SRC / "App.tsx"
+# The signed-in routes, split from App.tsx into their own lazy module.
+AUTHED_ROUTES_TSX = WEB_SRC / "AuthedRoutes.tsx"
 OUT_JSON = ROOT / "docs" / "audit" / "ui-permission-inventory.json"
 OUT_MD = ROOT / "docs" / "audit" / "ui-permission-inventory.md"
 
@@ -274,7 +276,9 @@ def resolve_page_import(import_path: str) -> str | None:
 
 
 def get_exposed_route_files() -> set[str]:
-    text = APP_TSX.read_text(encoding="utf-8")
+    text = "\n".join(
+        f.read_text(encoding="utf-8") for f in (APP_TSX, AUTHED_ROUTES_TSX) if f.exists()
+    )
     files: set[str] = set()
     for match in re.finditer(r"""import\(["'](\./pages/[^"']+)["']\)""", text):
         resolved = resolve_page_import(match.group(1))

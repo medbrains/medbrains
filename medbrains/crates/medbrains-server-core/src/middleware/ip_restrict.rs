@@ -145,7 +145,6 @@ pub async fn ip_restrict_middleware(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{IpRules, ip_allowed, ip_in_cidr};

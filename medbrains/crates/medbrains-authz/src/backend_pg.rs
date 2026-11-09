@@ -128,6 +128,7 @@ impl AuthzBackend for PgAuthzBackend {
                             WHERE m.tenant_id = rt.tenant_id
                               AND m.user_id = $8
                               AND m.group_id::text = rt.subject_id
+                              AND m.deleted_at IS NULL
                               AND (m.expires_at IS NULL OR m.expires_at > now())
                          ))
                    )
@@ -251,6 +252,7 @@ impl AuthzBackend for PgAuthzBackend {
                       OR (subject_type = 'group' AND subject_id IN (
                            SELECT group_id::text FROM access_group_members
                            WHERE tenant_id = $1 AND user_id = $7
+                             AND deleted_at IS NULL
                              AND (expires_at IS NULL OR expires_at > now())
                       ))
                    )

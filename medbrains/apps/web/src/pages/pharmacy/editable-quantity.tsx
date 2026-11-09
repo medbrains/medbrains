@@ -21,6 +21,7 @@ export function EditablePharmacyQuantity({
   return (
     <Group gap={4} wrap="nowrap">
       <NumberInput
+        aria-label={`${item.drug_name} quantity`}
         value={quantity}
         min={1}
         step={1}

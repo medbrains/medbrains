@@ -481,6 +481,13 @@ pub mod pharmacy {
         pub const PARTIAL: &str = "pharmacy.dispensing.partial";
         pub const CANCEL: &str = "pharmacy.dispensing.cancel";
         pub const VOID: &str = "pharmacy.dispensing.void";
+        /// Hand over an unpaid bill's medicines on a reason.
+        ///
+        /// Credit patients, scheme beneficiaries and staff are served before
+        /// they pay. The reason is written with the dispense, against the
+        /// patient, for the cashier and the auditor to see. Without this grant
+        /// an open bill means payment first.
+        pub const UNPAID_OVERRIDE: &str = "pharmacy.dispensing.unpaid_override";
     }
 
     pub mod stock {
@@ -564,6 +571,13 @@ pub mod pharmacy {
     pub mod ndps {
         pub const LIST: &str = "pharmacy.ndps.list";
         pub const MANAGE: &str = "pharmacy.ndps.manage";
+        /// Dispense a controlled drug with no witness.
+        ///
+        /// The NDPS dual lock may be bypassed only on a recorded reason, and
+        /// only by someone the hospital names for it: the medication-safety
+        /// override every pharmacist holds no longer covers it. Granted to no
+        /// built-in role. Never covers Schedule X, which always needs a witness.
+        pub const WITNESS_OVERRIDE: &str = "pharmacy.ndps.witness_override";
     }
 
     pub mod stores {
@@ -784,6 +798,15 @@ pub mod billing {
         pub const NOTIFIED: &str = "billing.payment_settings.notified";
     }
 
+    /// When the insurance desk is warned that a pre-auth is nearly used up.
+    pub mod preauth_alerts {
+        /// Set the pre-auth alert threshold.
+        /// Choose the share of a pre-auth's approved amount, 1 to 100%, at
+        /// which the insurance desk is warned that an inpatient's running
+        /// bill is nearing it (80% until set). Hospital-wide.
+        pub const CONFIGURE: &str = "billing.preauth_alerts.configure";
+    }
+
     /// Taking a patient's money at a department desk (#4885).
     ///
     /// Each desk collects its own department's dues; collecting another
@@ -938,6 +961,13 @@ pub mod billing {
         /// it with a reason (package-included, free by policy, duplicate), or
         /// run the unbilled-orders check now. Who and when is recorded.
         pub const RESOLVE: &str = "billing.leakage.resolve";
+        /// Name the patient on an unnamed implant.
+        ///
+        /// Name or change the patient a consignment implant was used on when
+        /// the store recorded it on no one. This rewrites the store's
+        /// consignment usage record, which the vendor is paid from, so it is
+        /// kept apart from posting and dismissing. Every naming is audited.
+        pub const NAME_IMPLANT_RECIPIENT: &str = "billing.leakage.name_implant_recipient";
     }
 
     pub mod claims {
@@ -2470,6 +2500,35 @@ pub mod mrd {
         pub const MANAGE: &str = "mrd.storage.manage";
     }
 
+    pub mod file_request {
+        /// See the paper-file requests queue.
+        /// Every open request for a patient's physical file — who it is for,
+        /// where it is shelved, where it must go and how long is left — plus
+        /// the night-before pull list, the back-scanning order and the
+        /// delivery times.
+        pub const VIEW: &str = "mrd.file_request.view";
+        /// Pick up and deliver requested paper files.
+        /// The runner's scans: the file barcode at the shelf ("picked") and
+        /// at the clinic ("delivered"), each written as a record movement;
+        /// marking a file not found; and building the pull list on demand.
+        pub const FULFIL: &str = "mrd.file_request.fulfil";
+        /// Be told when a requested file is late or missing.
+        /// Receives the escalation when a file request passes its due time
+        /// or a runner cannot find the file.
+        pub const SUPERVISE: &str = "mrd.file_request.supervise";
+        /// See whether a visit's paper file has arrived.
+        /// The consultation's file chip (requested, on the way, arrived),
+        /// for visits the caller can open. Nothing clinical: the summary
+        /// beside it needs `opd.diagnoses.list` and `patients.view`.
+        pub const STATUS: &str = "mrd.file_request.status";
+        /// Ask for a visit's paper file by hand.
+        /// The remedy when a visit reads "File: not requested" (the
+        /// automatic request failed or the file was shelved after the visit
+        /// was created): writes the request the visit would have written,
+        /// for a visit the caller can open.
+        pub const CREATE: &str = "mrd.file_request.create";
+    }
+
     pub mod verify_links {
         /// Show a signed record's public check link.
         /// Gives the link an outsider (an insurer, a court, another
@@ -2879,6 +2938,14 @@ pub mod specialty {
         /// diagnosis — the disclosure is the diagnosis, not the trial. It was
         /// gated on `list`, which every trial user holds.
         pub const SCREEN: &str = "specialty.clinical_trials.screen";
+        /// Send a trial's data to its sponsor.
+        ///
+        /// The export leaves the hospital, so it is not listing. It was gated
+        /// on `list`, and returned every participant's name. It is now
+        /// pseudonymised (subject keys and trial numbers, never names or
+        /// identifiers) and each export is audited with its subject count.
+        /// Held by no built-in role: grant it to the trial coordinator.
+        pub const EXPORT: &str = "specialty.clinical_trials.export";
     }
 
     /// Health packages — priced bundles sold at the front desk.
@@ -3097,6 +3164,54 @@ pub mod insurance {
         pub const CREATE: &str = "insurance.prior_auth.create";
         pub const UPDATE: &str = "insurance.prior_auth.update";
         pub const SUBMIT: &str = "insurance.prior_auth.submit";
+    }
+
+    /// A pre-authorisation nearly used up by the running bill.
+    pub mod enhancement {
+        /// See pre-auths nearly used up.
+        ///
+        /// See insured inpatients whose running bill has reached 80% of the
+        /// amount the payer approved, or whose approval could not be read,
+        /// with the approved amount and the bill so far.
+        pub const VIEW: &str = "insurance.enhancement.view";
+        /// Request a pre-auth enhancement.
+        ///
+        /// Ask the payer for more on a pre-auth that is nearly used up: the
+        /// extra amount is recorded on the pre-auth, which is marked as an
+        /// enhancement for sending, and the alert closes. Who and when is kept.
+        pub const REQUEST: &str = "insurance.enhancement.request";
+    }
+
+    /// An insured inpatient with no usable pre-auth on the visit.
+    pub mod preauth_missing {
+        /// Dismiss a "no usable pre-auth" alert.
+        ///
+        /// Close the alert on an insured inpatient with no usable pre-auth
+        /// when none is coming: the family pays cash, the treatment is not
+        /// covered, or another reason written down. Who, when and why is kept.
+        pub const DISMISS: &str = "insurance.preauth_missing.dismiss";
+    }
+
+    /// A room above the policy's room rent limit.
+    pub mod room_eligibility {
+        /// See rooms above the policy limit.
+        ///
+        /// See inpatients placed in a room dearer than their policy's
+        /// eligible room rent, with the share of room-linked charges the
+        /// insurer may cut in proportion.
+        pub const VIEW: &str = "insurance.room_eligibility.view";
+        /// Record consent for a higher room.
+        ///
+        /// Record that the patient or a named relative agreed to pay the
+        /// proportionate deduction for a room above the policy limit, which
+        /// closes the alert.
+        pub const RESOLVE: &str = "insurance.room_eligibility.resolve";
+        /// Set a policy's room rent limit.
+        ///
+        /// Record the eligible room rent from the policy schedule or e-card,
+        /// in rupees a day or as a percentage of the sum insured, so rooms
+        /// can be checked against it at admission and transfer.
+        pub const CONFIGURE: &str = "insurance.room_eligibility.configure";
     }
 
     pub mod appeals {
@@ -3410,6 +3525,28 @@ pub mod admin {
         pub const UPDATE: &str = "admin.users.update";
         pub const DELETE: &str = "admin.users.delete";
         pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
+        /// Link an account to a sign-in person.
+        ///
+        /// Link or unlink a MedBrains account to a person in the hospital's own
+        /// sign-in service, chosen by name and ID. An email address never links
+        /// an account there, so existing staff are linked here. Administrators
+        /// only; the server also requires a bypass role.
+        pub const LINK_IDENTITY: &str = "admin.users.link_identity";
+    }
+
+    /// Single sign-on providers.
+    pub mod sso {
+        /// The identity providers staff sign in through.
+        pub mod providers {
+            /// Add, change or remove sign-in providers.
+            ///
+            /// Add, change, switch off or delete an outside identity provider,
+            /// and map its directory groups to roles and access groups. Whoever
+            /// holds this decides who can sign in and as what. The machine's own
+            /// sign-in service is pinned by the OS and cannot be changed here.
+            /// Administrators only; the server also requires a bypass role.
+            pub const MANAGE: &str = "admin.sso.providers.manage";
+        }
     }
 
     /// Oversight of the approvals platform.

@@ -19,6 +19,7 @@ use medbrains_server_core::{
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie, clear_cookie},
         field_access,
     },
+    os_identity::{KANIDM_CODE, SETUP_ADMIN_SQL},
     state::AppState,
 };
 
@@ -214,14 +215,20 @@ fn wants_native_token_response(headers: &HeaderMap) -> bool {
 }
 
 /// SSO-first tenant policy: when `tenant_settings(auth, password_login_disabled)`
-/// is true, password login is refused for everyone except the break-glass admin
-/// named in `tenant_settings(auth, break_glass_username)`. Returns true if this
+/// is true, password login is refused for everyone except the setup
+/// administrator (`setup_admin`), the one named break-glass. Returns true if this
 /// password attempt must be rejected. Absent settings = passwords allowed (default).
+///
+/// The break-glass is never a username in a setting: an administrator could name
+/// any account there and give it a password route nobody else has.
 async fn password_login_blocked(
     db: &PgPool,
     tenant_id: Uuid,
-    username: &str,
+    setup_admin: bool,
 ) -> Result<bool, AppError> {
+    if setup_admin {
+        return Ok(false);
+    }
     // `tenant_settings` is row-level secured, and this decides whether a
     // password login is allowed at all. Unscoped it reads nothing, which here
     // means "passwords are fine" — the permissive answer, arrived at by not
@@ -235,24 +242,30 @@ async fn password_login_blocked(
     .bind(tenant_id)
     .fetch_optional(&mut *conn)
     .await?;
-    let is_disabled =
-        disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
-    if !is_disabled {
-        return Ok(false);
-    }
-    // Passwords disabled — allow only the break-glass admin through.
-    let break_glass: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username' \
-           AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?;
-    let break_glass = break_glass.and_then(|v| v.as_str().map(str::to_owned));
-    Ok(break_glass.as_deref() != Some(username))
+    Ok(disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true")))
 }
 
+/// The audit action of a password sign-in through the setup administrator's break-glass.
+pub const BREAK_GLASS_LOGIN: &str = "break_glass_password_login";
+
+/// Whether a password may open this account, and whether doing so is the break-glass. An account linked to
+/// the OS's Kanidm signs in there, with its second step and lockout; only the setup administrator keeps a
+/// password beside the link, so an outage of Kanidm cannot lock the hospital out (os/README.md).
+fn password_route(kanidm_linked: bool, setup_admin: bool) -> Result<bool, AppError> {
+    match (kanidm_linked, setup_admin) {
+        (false, _) => Ok(false),
+        (true, true) => Ok(true),
+        (true, false) => Err(AppError::BadRequest(KANIDM_SIGN_IN.to_owned())),
+    }
+}
+
+/// What a linked account sees when it tries a password.
+const KANIDM_SIGN_IN: &str = "This account signs in with your MedBrains account, not a password here. \
+     Choose \"Sign in with MedBrains account\" on this page.";
+
+/// POST /api/auth/login — password sign-in: finds the account in the named hospital, applies lockout, then the
+/// SSO-only policy and the Kanidm-link rule (both only after the password is proven), checks MFA, and opens a
+/// session.
 #[allow(clippy::too_many_lines)]
 pub async fn login(
     State(state): State<AppState>,
@@ -298,22 +311,18 @@ pub async fn login(
         return Err(AppError::Unauthorized);
     }
 
-    // SSO-first policy: when the tenant disables password login, only the
-    // designated break-glass admin may still use a password — everyone else
-    // must sign in via SSO (so an IdP outage can't lock the hospital out).
-    if password_login_blocked(&state.db, row.tenant_id, &body.username).await? {
-        return Err(AppError::BadRequest(
-            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
-        ));
-    }
-
     // Per-account lockout — independent of the per-IP rate limit so a
     // distributed credential-stuffing run still locks the account.
     // The account's hospital is known from here on; `users` needs it under RLS.
-    let locked: bool = sqlx::query_scalar(
-        "SELECT locked_until IS NOT NULL AND locked_until > now() FROM users WHERE id = $1",
-    )
+    // Read with it: whether the account is linked to the OS's Kanidm, and whether
+    // it is the setup administrator, the one linked account a password still opens.
+    let (locked, kanidm_linked, setup_admin): (bool, bool, bool) = sqlx::query_as(&format!(
+        "SELECT u.locked_until IS NOT NULL AND u.locked_until > now(), \
+         EXISTS (SELECT 1 FROM identity_providers p WHERE p.id = u.idp_id AND p.code = $2), \
+         {SETUP_ADMIN_SQL} FROM users u WHERE u.id = $1"
+    ))
     .bind(row.id)
+    .bind(KANIDM_CODE)
     .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &row.tenant_id).await?)
     .await?;
     if locked {
@@ -338,6 +347,19 @@ pub async fn login(
         record_failed_login(&state, (row.id, row.tenant_id), ip.as_deref()).await?;
         return Err(AppError::Unauthorized);
     }
+    // Only now, with the password proven, does the account hear that a password is not its way in: said
+    // before, the SSO-only answer would point at the one account it exempts (the break-glass), and the Kanidm
+    // one at every linked account.
+    //
+    // SSO-first policy: when the tenant disables password login, only the
+    // setup administrator may still use a password — everyone else must sign
+    // in via SSO (so an IdP outage can't lock the hospital out).
+    if password_login_blocked(&state.db, row.tenant_id, setup_admin).await? {
+        return Err(AppError::BadRequest(
+            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
+        ));
+    }
+    let break_glass = password_route(kanidm_linked, setup_admin)?;
 
     // MFA gate — when enabled, credentials alone never open a session.
     // The client resubmits the same credentials with mfa_code.
@@ -449,17 +471,23 @@ pub async fn login(
     .execute(&mut *tx)
     .await?;
 
-    // Audit log
+    // Audit log. The break-glass is named in it, so every use is found by one action.
+    let break_glass_details =
+        serde_json::json!({ "route": "setup administrator password beside Kanidm" });
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
         &medbrains_db::audit::AuditEntry {
             tenant_id: row.tenant_id,
             user_id: Some(row.id),
-            action: "login",
+            action: if break_glass {
+                BREAK_GLASS_LOGIN
+            } else {
+                "login"
+            },
             entity_type: "user",
             entity_id: Some(row.id),
             old_values: None,
-            new_values: None,
+            new_values: break_glass.then_some(&break_glass_details),
             ip_address: None,
         },
     )
@@ -875,6 +903,10 @@ pub struct LogoutAllRequest {
     pub user_id: Option<Uuid>,
 }
 
+/// Sign a user out everywhere: revoke their refresh tokens and bump their
+/// `perm_version`. The caller by default; another user needs
+/// `admin.users.force_logout` and a fresh step-up, and an administrator's
+/// account only another bypass administrator may sign out.
 pub async fn logout_all(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -898,6 +930,20 @@ pub async fn logout_all(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    if target_user != claims.sub {
+        // Signing an administrator out is locking them out of the screen that
+        // could undo it; only another bypass administrator may.
+        let role = sqlx::query_scalar!(
+            r#"SELECT role::text AS "role!" FROM users
+               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"#,
+            target_user,
+            claims.tenant_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        medbrains_server_core::permissions::refuse_bypass_target(&claims, &role)?;
+    }
 
     sqlx::query!(
         "UPDATE refresh_tokens SET revoked = true \

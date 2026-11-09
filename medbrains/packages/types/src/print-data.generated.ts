@@ -259,6 +259,11 @@ export interface DischargeSummaryPrintData {
   condition_at_discharge: string | null;
   follow_up_instructions: string | null;
   /**
+   * One line per medicine on discharge; one bought outside says
+   * "Buy from outside the hospital".
+   */
+  medications_on_discharge: string[];
+  /**
    * Digital signatures stamped onto the PDF. Empty array = unsigned
    * (template should render "DRAFT — UNSIGNED" watermark).
    */

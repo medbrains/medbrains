@@ -111,7 +111,8 @@ async fn a_trusted_patient_pays_at_the_door_and_follows_it_home() {
         &setup,
         "PUT",
         &format!("/api/pharmacy/orders/{order}/dispense"),
-        json!({ "unpaid_override_reason": "cash on delivery" }),
+        json!({ "unpaid_override_reason": "cash on delivery",
+                "allergy_status_acknowledged": true }),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");

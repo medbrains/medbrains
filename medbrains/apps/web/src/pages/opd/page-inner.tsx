@@ -49,7 +49,12 @@ import type {
 } from "../opd-queue-actions";
 import { resolveOpdQueueRowActions } from "../opd-queue-actions";
 import { isStaleRowError } from "./queue-action-error";
-import { QueueAppointmentMarker, QueuePatientCell, QueueVisitTypeBadge } from "./queue-cells";
+import {
+  QueueAppointmentMarker,
+  QueuePatientCell,
+  QueueVisitTypeBadge,
+  QueueVitalsCell,
+} from "./queue-cells";
 import { OpdRegistrationPolicyToggle } from "./registration-policy-toggle";
 import {
   appointmentVisitType,
@@ -475,6 +480,13 @@ export function OpdPageInner() {
             {t("queue.noComplaint")}
           </Text>
         ),
+    },
+    {
+      key: "has_vitals",
+      label: t("queueColumns.vitals"),
+      accessor: (row: QueueEntry) =>
+        row.has_vitals ? t("queueSignals.vitalsTaken") : t("queueSignals.vitalsNotTaken"),
+      render: (row: QueueEntry) => <QueueVitalsCell row={row} />,
     },
     {
       key: "status",

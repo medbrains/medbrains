@@ -23,6 +23,10 @@ export const pharmacyService = {
   dispenseOrder: (...args: Parameters<typeof api.dispenseOrder>) => api.dispenseOrder(...args),
   validatePharmacyOrder: (...args: Parameters<typeof api.validatePharmacyOrder>) =>
     api.validatePharmacyOrder(...args),
+  getPharmacyDispenseContext: (patientId: string) => api.getPharmacyDispenseContext(patientId),
+  listDispenseWitnesses: (q?: string) => api.listDispenseWitnesses(q),
+  getPharmacyOrderSafetyRecord: (...args: Parameters<typeof api.getPharmacyOrderSafetyRecord>) =>
+    api.getPharmacyOrderSafetyRecord(...args),
   listPatientAllergies: (...args: Parameters<typeof api.listPatientAllergies>) =>
     api.listPatientAllergies(...args),
   cancelPharmacyOrder: (...args: Parameters<typeof api.cancelPharmacyOrder>) =>

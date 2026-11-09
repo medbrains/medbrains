@@ -115,46 +115,9 @@
 }
 
 .desktopSetup {
-  margin-top: 18px;
+  margin-top: var(--mantine-spacing-md);
   border-top: 1px solid var(--mb-border-subtle);
-  padding-top: 16px;
-}
-
-.desktopSetupToggle {
-  width: 100%;
-  border: 1px solid var(--mb-border);
-  background: var(--mb-action-surface-bg);
-  color: var(--mb-action-surface-text);
-  cursor: pointer;
-  border-radius: 0;
-  padding: 10px 12px;
-  font-size: 12px;
-  font-weight: var(--mb-font-weight-action);
-  text-align: left;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-
-  &:hover {
-    border-color: var(--mb-active-border);
-    background: var(--mb-action-surface-hover-bg);
-    box-shadow: var(--mb-card-hover-shadow);
-    transform: translateY(-1px);
-  }
-}
-
-.desktopSetupPanel {
-  display: grid;
-  gap: 12px;
-  margin-top: 12px;
-  padding: 14px;
-  border: 1px solid var(--mb-border);
-  border-radius: 0;
-  background: var(--mb-panel-bg);
-}
-
-.desktopSetupActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  padding-top: var(--mantine-spacing-md);
 }
 
 .version {

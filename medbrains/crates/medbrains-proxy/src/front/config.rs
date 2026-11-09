@@ -31,6 +31,10 @@ pub(crate) struct ListenerConfig {
     /// Zero for no limit per address.
     #[serde(default = "default_max_per_address")]
     pub(crate) max_per_address: usize,
+    /// Places only the machine itself (127.0.0.1 or ::1) may take, so a flood from the LAN cannot shut out the
+    /// screen or the server's own calls. Must be fewer than `max_connections`.
+    #[serde(default)]
+    pub(crate) reserved_for_machine: usize,
 }
 
 /// One back end and the rules in front of it.
@@ -50,6 +54,10 @@ pub(crate) struct SiteConfig {
     /// Path prefixes answered 404, matched after decoding.
     #[serde(default)]
     pub(crate) block_paths: Vec<String>,
+    /// When not empty, the only path prefixes a client other than the machine itself may reach; every other
+    /// path answers 404 to the LAN and stays open on loopback.
+    #[serde(default)]
+    pub(crate) lan_paths: Vec<String>,
     #[serde(default = "default_max_body_bytes")]
     pub(crate) max_body_bytes: u64,
     #[serde(default)]
@@ -163,6 +171,11 @@ impl ListenerConfig {
         ensure!(
             self.max_connections > 0,
             "{} takes no connections",
+            self.addr
+        );
+        ensure!(
+            self.reserved_for_machine < self.max_connections,
+            "{} keeps every place for the machine",
             self.addr
         );
         match (&self.cert, &self.key) {
