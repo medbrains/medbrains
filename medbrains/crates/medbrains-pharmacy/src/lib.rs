@@ -7179,9 +7179,9 @@ pub async fn review_prescription(
             ));
         }
         if !confirmed_outside.is_empty() {
-            medbrains_kernel::audit(
+            medbrains_db::audit::AuditLogger::log(
                 &mut tx,
-                &medbrains_kernel::audit::AuditEntry {
+                &medbrains_db::audit::AuditEntry {
                     tenant_id: claims.tenant_id,
                     user_id: Some(claims.sub),
                     action: "pharmacy.rx_review.buy_outside_confirmed",
