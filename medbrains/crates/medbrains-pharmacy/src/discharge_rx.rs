@@ -108,16 +108,35 @@ pub async fn discharge_medicines(
 /// ignoring case. The order line's free-text name is never compared: a line
 /// for Tramadol stock named "Paracetamol 500mg" must not pass as paracetamol.
 pub fn lists(listed: &[ListedMedicine], catalog_item_id: Uuid, names: [&str; 2]) -> bool {
-    let matches_name = |entry: &str| {
-        let entry = entry.trim();
-        !entry.is_empty() && names.iter().any(|n| n.trim().eq_ignore_ascii_case(entry))
-    };
     listed.iter().any(|m| {
-        m.catalog_item_id.map_or_else(
-            || m.drug_name.as_deref().is_some_and(matches_name),
-            |id| id == catalog_item_id,
+        names_drug(
+            m.catalog_item_id,
+            m.drug_name.as_deref(),
+            catalog_item_id,
+            names,
         )
     })
+}
+
+/// Whether one written medicine names this catalogue item.
+///
+/// For a discharge listing or a prescription line: by its catalogue id when it
+/// has one, otherwise by the catalogue item's own name or generic name,
+/// ignoring case.
+pub fn names_drug(
+    listed_id: Option<Uuid>,
+    listed_name: Option<&str>,
+    catalog_item_id: Uuid,
+    names: [&str; 2],
+) -> bool {
+    listed_id.map_or_else(
+        || {
+            listed_name.map(str::trim).is_some_and(|entry| {
+                !entry.is_empty() && names.iter().any(|n| n.trim().eq_ignore_ascii_case(entry))
+            })
+        },
+        |id| id == catalog_item_id,
+    )
 }
 
 #[cfg(test)]

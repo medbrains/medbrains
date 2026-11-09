@@ -45,6 +45,18 @@ export function frequencyToDefaultSlots(freq: string): TimeOfDay[] {
   return FREQ_SLOT_MAP[freq.toUpperCase()] ?? [];
 }
 
+/** What a dispensing view or label says for a frequency it cannot read. */
+export const FREQUENCY_NOT_RECOGNISED = "Frequency not recognised — read the prescription";
+
+/**
+ * Whether the frequency is a spelling the timing map knows — scheduled, or
+ * as needed (STAT/SOS/PRN). An unknown one yields no slots, exactly like PRN,
+ * so callers ask this before filing a medicine under "as needed".
+ */
+export function isRecognisedFrequency(freq: string): boolean {
+  return Object.hasOwn(FREQ_SLOT_MAP, freq.trim().toUpperCase());
+}
+
 // ── Display Labels ──────────────────────────────────────────
 
 const FOOD_LABELS: Record<FoodTiming, string> = {

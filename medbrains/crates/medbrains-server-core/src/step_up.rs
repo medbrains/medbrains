@@ -255,60 +255,20 @@ fn check_subject(data: &StepUpClaims, claims: &Claims) -> Result<(), AppError> {
     Ok(())
 }
 
-/// What a second person's password check came to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PasswordCheck {
-    /// Their own password: the failure count is cleared.
-    Right,
-    /// Not their password: counted against their account, which may now lock.
-    Wrong,
-    /// Their account is locked; the password was not even tried.
-    Locked,
-}
-
-/// Checks `password` against this user's own, under the shared lockout.
+/// Whether `password` is the one `hash` (a stored Argon2 hash) was made from.
 ///
 /// For a second person who confirms an action at the first person's screen:
-/// the witness to a controlled-drug dispense types their own password. It is
-/// the sign-in counter (`lockout`): a locked account is refused before the
-/// password is tried, a wrong password counts towards the lock and is audited
-/// as `action`, a right one clears the count. A user with no password (SSO
-/// only), or of another hospital, is `Wrong`.
-pub async fn check_user_password(
-    state: &AppState,
-    (user_id, tenant_id): (Uuid, Uuid),
-    password: &str,
-    action: &str,
-) -> Result<PasswordCheck, AppError> {
-    let account = (user_id, tenant_id);
-    if crate::lockout::is_locked(state, account).await? {
-        return Ok(PasswordCheck::Locked);
-    }
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
-    let hash = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT password_hash FROM users \
-          WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?
-    .flatten();
-    drop(conn);
-    let right = hash.as_deref().is_some_and(|hash| {
+/// the witness to a controlled-drug dispense types their own password. Counts
+/// nothing and locks nothing: the caller keeps its own counter, so a witness's
+/// wrong passwords never lock them out of signing in. No hash (an SSO-only
+/// user, or nobody) never matches. The password is compared exactly as typed.
+#[must_use]
+pub fn password_matches(hash: Option<&str>, password: &str) -> bool {
+    hash.is_some_and(|hash| {
         PasswordHash::new(hash).is_ok_and(|parsed| {
             Argon2::default()
                 .verify_password(password.as_bytes(), &parsed)
                 .is_ok()
         })
-    });
-    if right {
-        crate::lockout::clear_failed_passwords(state, account).await?;
-        return Ok(PasswordCheck::Right);
-    }
-    // An account that is not there has no counter to add to.
-    if hash.is_some() {
-        crate::lockout::record_failed_password(state, account, None, action).await?;
-    }
-    Ok(PasswordCheck::Wrong)
+    })
 }

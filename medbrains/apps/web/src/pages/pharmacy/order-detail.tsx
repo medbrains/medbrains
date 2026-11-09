@@ -58,9 +58,13 @@ import {
 interface DispensePayload {
   items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
   witnessed_by?: string;
+  witness_password?: string;
   allergy_override_reason?: string;
   safety_override_reason?: string;
   unpaid_override_reason?: string;
+  ndps_override_reason?: string;
+  schedule_x_duplicate_ref?: string;
+  allergy_status_acknowledged?: boolean;
 }
 
 export function PharmacyOrderDetail({
@@ -151,6 +155,12 @@ export function PharmacyOrderDetail({
     enabled: canDispense && dispensePatientId.length > 0,
   });
   const drugAllergens = (dispenseContext.data?.drug_allergies ?? []).map((a) => a.allergen_name);
+  // Nobody has recorded an allergy or noted "none": the server asks the
+  // pharmacist to acknowledge it, so the screen asks first.
+  const allergyStatusUnknown =
+    dispenseContext.data !== undefined &&
+    dispenseContext.data.no_known_allergies == null &&
+    dispenseContext.data.drug_allergies.length === 0;
   const dispenseMutation = useMutation({
     mutationFn: async (payload?: DispensePayload) => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
@@ -241,15 +251,20 @@ export function PharmacyOrderDetail({
 
   return (
     <Stack>
-      <DispenseModal
-        opened={dispenseOpen}
-        orderId={orderId}
-        onClose={dispenseModal.close}
-        items={detail.items}
-        isDispensing={dispenseMutation.isPending}
-        patientAllergens={drugAllergens}
-        onDispense={(payload) => dispenseMutation.mutate(payload)}
-      />
+      {/* Mounted only while open: closing it, by any path, drops the
+          witness's password and every reason typed into it. */}
+      {dispenseOpen && (
+        <DispenseModal
+          opened
+          orderId={orderId}
+          onClose={dispenseModal.close}
+          items={detail.items}
+          isDispensing={dispenseMutation.isPending}
+          patientAllergens={drugAllergens}
+          allergyStatusUnknown={allergyStatusUnknown}
+          onDispense={(payload) => dispenseMutation.mutate(payload)}
+        />
+      )}
       <ReasonModal
         opened={unpaid !== null}
         title="Dispense unpaid?"

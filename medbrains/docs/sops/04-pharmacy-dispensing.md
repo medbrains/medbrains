@@ -73,7 +73,7 @@ The Pharmacy module covers the full drug dispensing cycle: prescription receipt 
 **Steps**:
 1. Pharmacist opens prescription; system displays a red "CONTROLLED SUBSTANCE" banner with drug schedule and NDPS flag.
 2. System enforces that a second pharmacist (witness) must be present — prompts to select witness from active pharmacist list.
-3. Both pharmacist and witness authenticate (login or PIN).
+3. The witness types their own password at the dispensing screen; the server checks it (see "What the dispense checks" below). For Schedule X the pharmacist also enters the reference of the retained duplicate prescription.
 4. Pharmacist retrieves drug from dual-lock cabinet and records retrieval in NDPS register (drug name, batch, quantity retrieved, patient UHID, prescription ID, prescriber name, date/time).
 5. Quantity dispensed recorded against prescription; stock decremented.
 6. Witness confirms dispense in the register.
@@ -83,6 +83,38 @@ The Pharmacy module covers the full drug dispensing cycle: prescription receipt 
 **Exit / Outcome**: NDPS register entry created and linked to dispense; dual-witness authentication logged; drug dispensed; stock decremented.  
 **Regulatory note**: NDPS Act 1985 §§8, 9 — NDPS register mandatory; dual-custody for Schedule X; D&C Act — Schedule H1 requires written Rx retained for 3 years.  
 **Existing test**: `— needs test`
+
+---
+
+## What the dispense checks, and what it does not (2026-11-09)
+
+The counter dispense (`PUT /api/pharmacy/orders/{id}/dispense`) and the pick of
+a pack-and-collect order run the same Schedule H/H1/X gate
+(`crates/medbrains-pharmacy/src/schedule_gate.rs`). A refusal names every reason
+and is filed on the order's Safety record (`SCHEDULE_DISPENSE_REFUSED`).
+
+| Rule | Where | Refusal |
+|---|---|---|
+| Each H/H1/X line is an item on the order's prescription: by catalogue id where the prescription line has one, else by the catalogue's own name or generic name | gate | "not on the prescription" |
+| This order plus earlier orders on the same prescription stay within the prescribed quantity (stated quantity, else dose x frequency x duration; one fill per issued repeat, none for X) | gate | "the prescription allows N and M already went out" |
+| A line with no quantity and an uncountable frequency (SOS, PRN, unknown spelling) | gate | "prescribed quantity cannot be read" |
+| The prescription is signed (`is_signed`) and in date (`valid_until`) | gate | "not signed by the doctor" / "expired on" |
+| Schedule X: written order only, prescriber with `can_prescribe_schedule_x`, a witness who is not the prescriber, and the retained duplicate's reference (Rule 65(11)), stored as `pharmacy_orders.schedule_x_duplicate_ref` | gate | named per condition |
+| A visit or admission alone is never a prescription; H/H1 may stand on a verified upload or a recent doctor-signed discharge summary that lists the drug; X never does | gate | "no prescription for this patient" |
+| Controlled (`is_controlled`, which a Schedule X or NDPS drug always carries, migration 1423) needs a witness who types their own password, or a reason from a holder of `pharmacy.ndps.witness_override` (granted to no built-in role; never for X) | dispense | filed as `NDPS_WITNESS_MISSING` |
+| Wrong witness passwords: their own counter (`witness_password_failed` on the audit chain, with the dispenser and their address); 5 in 15 minutes stops the dispenser, 5 against one witness pauses that witness; sign-in is never locked by it | dispense | 429 |
+| Allergy status unknown (no drug allergy recorded, "no known allergies" never noted) needs the pharmacist's acknowledgement | dispense | filed as `ALLERGY_STATUS_UNKNOWN` |
+| The NDPS register is posted under a per-drug lock and never goes below zero | dispense | 409 |
+
+An unknown frequency spelling is shown on the dispensing view and the label as
+"Frequency not recognised — read the prescription", never as "as needed".
+
+**Not checked, follow-ups:** dose against weight, renal function or age
+(there are no dose checks of any kind); the witness confirming from their own
+session; an append-only, hash-chained NDPS record with the witness's user id;
+a quantity cap for discharge-summary and verified-upload dispenses; the POS
+counter sale of H/H1 against an outside paper prescription (Rule 65(9)) is a
+separate path and keeps its own checks.
 
 ---
 

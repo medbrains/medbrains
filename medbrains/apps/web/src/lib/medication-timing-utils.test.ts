@@ -4,6 +4,7 @@ import {
   foodTimingLabel,
   frequencyToDefaultSlots,
   instructionsDisplayText,
+  isRecognisedFrequency,
   parseInstructions,
   serializeTiming,
   timeSlotHour,
@@ -82,6 +83,16 @@ describe("frequencyToDefaultSlots", () => {
     expect(frequencyToDefaultSlots("TID")).toEqual(["morning", "afternoon", "evening"]);
     expect(frequencyToDefaultSlots("BID")).toEqual(["morning", "evening"]);
     expect(frequencyToDefaultSlots("QDS")).toEqual(["morning", "afternoon", "evening", "bedtime"]);
+  });
+
+  it("tells a frequency it cannot read from one that means as needed", () => {
+    // Both yield no slots; only the second may be filed as "as needed".
+    expect(isRecognisedFrequency("SOS")).toBe(true);
+    expect(isRecognisedFrequency(" prn ")).toBe(true);
+    expect(isRecognisedFrequency("TID")).toBe(true);
+    expect(isRecognisedFrequency("Q6H")).toBe(false);
+    expect(isRecognisedFrequency("typo")).toBe(false);
+    expect(isRecognisedFrequency("")).toBe(false);
   });
 
   it("is case-insensitive", () => {

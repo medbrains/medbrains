@@ -20,7 +20,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use medbrains_core::permissions;
-use medbrains_pharmacy::rx_safety;
+use medbrains_pharmacy::{rx_safety, schedule_gate};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -386,6 +386,16 @@ async fn simple_transition(
         // Picking is where this medicine leaves the shelf for the patient, so
         // it passes the same safety gate as a counter dispense.
         let (encounter_id, lines) = release_lines(&mut tx, claims.tenant_id, order_id).await?;
+        // And the same Schedule H/H1/X gate: on the prescription, within its
+        // quantity, signed and in date. A Schedule X line has no witness here,
+        // so it is refused and goes to the counter.
+        schedule_gate::enforce_schedule_compliance(
+            &mut tx,
+            claims.tenant_id,
+            order_id,
+            &schedule_gate::GateInput::default(),
+        )
+        .await?;
         rx_safety::gate_release_in_tx(
             state,
             &mut tx,

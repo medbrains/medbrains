@@ -2650,9 +2650,11 @@ export const P = {
     NDPS: {
       LIST: "pharmacy.ndps.list",
       MANAGE: "pharmacy.ndps.manage",
+      WITNESS_OVERRIDE: "pharmacy.ndps.witness_override",
     },
     NDPS_LIST: "pharmacy.ndps.list",
     NDPS_MANAGE: "pharmacy.ndps.manage",
+    NDPS_WITNESS_OVERRIDE: "pharmacy.ndps.witness_override",
     NPPA: {
       MANAGE: "pharmacy.nppa.manage",
     },

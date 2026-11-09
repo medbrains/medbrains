@@ -49,6 +49,9 @@ pub const NDPS_WITNESS: &str = "NDPS_WITNESS_MISSING";
 pub const WITNESS_CONFIRMED: &str = "WITNESS_CONFIRMED";
 /// Medicines handed over on an open bill, on a reason.
 pub const UNPAID_DISPENSE: &str = "UNPAID_DISPENSE";
+/// Nobody has recorded whether the patient has drug allergies: no allergy on
+/// file and "no known allergies" never ticked. Acknowledged at dispense.
+pub const ALLERGY_UNKNOWN: &str = "ALLERGY_STATUS_UNKNOWN";
 
 /// Shortest override reason `cpoe_safety_audit` accepts (its CHECK constraint).
 pub const MIN_REASON_CHARS: usize = 5;
@@ -75,6 +78,9 @@ pub fn override_permission(code: &str) -> &'static str {
     match code {
         RESERVE_ANTIBIOTIC => permissions::pharmacy::stewardship::APPROVE,
         NON_FORMULARY => permissions::pharmacy::formulary::APPROVE,
+        // The dual lock is the whole control on a narcotic: the general
+        // safety override every pharmacist holds must not lift it.
+        NDPS_WITNESS => permissions::pharmacy::ndps::WITNESS_OVERRIDE,
         _ => permissions::pharmacy::safety::OVERRIDE,
     }
 }
@@ -545,6 +551,21 @@ pub fn ndps_witness_finding() -> MedicationSafetyWarning {
     }
 }
 
+/// The pharmacist's acknowledgement that the patient's allergy status is
+/// unknown, filed with the dispense: an empty allergy list is not a clean one.
+pub fn allergy_unknown_finding() -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: ALLERGY_UNKNOWN.to_owned(),
+        severity: MedicationSafetySeverity::Warn,
+        message: "Allergy status unknown: no allergy recorded and none noted as asked; \
+                  the pharmacist acknowledged it at dispense"
+            .to_owned(),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
 /// The proof that the witness confirmed: who, checked how. Filed as a caution
 /// so it appears, dated, on the order's safety record.
 pub fn witness_confirmed_finding(witness_name: &str) -> MedicationSafetyWarning {
@@ -848,5 +869,13 @@ mod tests {
             override_permission(ALLERGY),
             permissions::pharmacy::safety::OVERRIDE
         );
+    }
+
+    #[test]
+    fn the_general_safety_override_never_lifts_the_ndps_dual_lock() {
+        let pharmacist = claims_with(&[permissions::pharmacy::safety::OVERRIDE]);
+        assert!(!can_override(&pharmacist, NDPS_WITNESS));
+        let named = claims_with(&[permissions::pharmacy::ndps::WITNESS_OVERRIDE]);
+        assert!(can_override(&named, NDPS_WITNESS));
     }
 }

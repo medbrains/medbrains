@@ -10,6 +10,14 @@
 //!
 //! `verify_witness` is what the dispense runs: a second person, still allowed
 //! to dispense, who has typed their own password at this screen.
+//!
+//! Wrong witness passwords have their own counter, kept in the audit chain as
+//! `witness_password_failed` (dispenser as the actor, witness as the entity,
+//! the dispenser's address): five in fifteen minutes stops that dispenser, and
+//! five against one witness pauses that witness's confirmations. Neither
+//! touches the sign-in lockout, so a dispenser mistyping cannot lock a
+//! colleague out of the hospital system. The witness still confirms at the
+//! dispenser's screen; confirming from their own session is a follow-up.
 
 use axum::Extension;
 use axum::{
@@ -20,8 +28,9 @@ use medbrains_core::permissions;
 use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
-use medbrains_server_core::step_up::{PasswordCheck, check_user_password};
+use medbrains_server_core::step_up::password_matches;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use uuid::Uuid;
 
 /// The most names the picker offers.
@@ -78,53 +87,92 @@ pub async fn list_dispense_witnesses(
     Ok(Json(rows))
 }
 
-/// How many failed witness confirmations one dispenser may make in the window.
-const DISPENSER_FAILURES: i64 = 5;
+/// How many wrong witness passwords one dispenser, or one witness, may have
+/// in the window.
+const WITNESS_FAILURES: i64 = 5;
 /// The window those failures are counted over, in minutes.
-const DISPENSER_WINDOW_MINUTES: i32 = 15;
+const WITNESS_WINDOW_MINUTES: i32 = 15;
+/// The audit action a wrong witness password is filed under.
+const WITNESS_FAILED_ACTION: &str = "witness_password_failed";
+
+/// The witness's password exactly as typed. Never printed, never trimmed.
+#[derive(Deserialize)]
+#[serde(transparent)]
+pub struct WitnessPassword(String);
+
+impl WitnessPassword {
+    /// The password, for the hash comparison only.
+    fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for WitnessPassword {
+    /// Redacted: a request body logged with `{:?}` must not carry it.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("WitnessPassword(<redacted>)")
+    }
+}
+
+/// One attempt to confirm a witness: who, with what, on which order, from where.
+#[derive(Debug, Clone, Copy)]
+pub struct WitnessAttempt<'a> {
+    pub witness_id: Uuid,
+    pub password: Option<&'a WitnessPassword>,
+    pub order_id: Uuid,
+    /// The dispenser's address, filed with a wrong password.
+    pub ip: Option<&'a str>,
+}
 
 /// Checks the witness to a controlled dispense and returns their name.
 ///
-/// Refuses the dispenser as their own witness; a dispenser with five failed
-/// confirmations in fifteen minutes; anyone who is not an active colleague in
-/// one of the dispenser's departments still allowed to dispense (role grant,
-/// personal grant, minus a personal denial); and a password that is not the
-/// witness's own. The password is checked under the shared sign-in lockout:
-/// a locked witness is refused before the password is tried, a wrong one
-/// counts towards their lock, a right one clears it. Each refusal is a 400
-/// (429 for the dispenser limit) the dispense screen shows, never a 401.
+/// Refuses the dispenser as their own witness; a dispenser, or a witness, with
+/// five wrong witness passwords in fifteen minutes; anyone who is not an
+/// active colleague in one of the dispenser's departments still allowed to
+/// dispense (role grant, personal grant, minus a personal denial); and a
+/// password that is not the witness's own. A wrong password is written to the
+/// audit chain before the refusal is answered: if it cannot be written, the
+/// dispense fails rather than letting an uncounted guess through. Each refusal
+/// is a 400 (429 for the limits) the dispense screen shows, never a 401.
 pub async fn verify_witness(
     state: &AppState,
     claims: &Claims,
-    witness_id: Uuid,
-    password: Option<&str>,
+    attempt: &WitnessAttempt<'_>,
 ) -> Result<String, AppError> {
-    if witness_id == claims.sub {
+    if attempt.witness_id == claims.sub {
         return Err(AppError::BadRequest(
             "The witness must be a second person, not the pharmacist dispensing.".to_owned(),
         ));
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await?;
-    // Failed confirmations are filed on the orders (`WITNESS_CONFIRMED`,
-    // blocked): the same record bounds how often one dispenser may try.
-    let recent_failures = sqlx::query_scalar!(
-        "SELECT COUNT(*) AS \"n!\" FROM cpoe_safety_audit \
-          WHERE tenant_id = $1 AND checked_by = $2 AND source_module = 'pharmacy' \
-            AND warning_code = 'WITNESS_CONFIRMED' AND action_taken = 'blocked' \
-            AND checked_at > now() - make_interval(mins => $3)",
+    let failures = sqlx::query!(
+        "SELECT COUNT(*) FILTER (WHERE user_id = $2) AS \"by_dispenser!\", \
+                COUNT(*) FILTER (WHERE entity_id = $3) AS \"against_witness!\" \
+           FROM audit_log \
+          WHERE tenant_id = $1 AND action = $4 \
+            AND created_at > now() - make_interval(mins => $5)",
         claims.tenant_id,
         claims.sub,
-        DISPENSER_WINDOW_MINUTES,
+        attempt.witness_id,
+        WITNESS_FAILED_ACTION,
+        WITNESS_WINDOW_MINUTES,
     )
     .fetch_one(&mut *tx)
     .await?;
-    if recent_failures >= DISPENSER_FAILURES {
+    if failures.by_dispenser >= WITNESS_FAILURES {
         return Err(AppError::TooManyRequests(format!(
-            "Too many failed witness confirmations. Try again in {DISPENSER_WINDOW_MINUTES} minutes."
+            "Too many failed witness confirmations. Try again in {WITNESS_WINDOW_MINUTES} minutes."
         )));
     }
-    let witness = sqlx::query_scalar!(
-        "SELECT u.full_name \
+    if failures.against_witness >= WITNESS_FAILURES {
+        return Err(AppError::TooManyRequests(format!(
+            "This colleague's witness confirmations are paused for {WITNESS_WINDOW_MINUTES} \
+             minutes after repeated wrong passwords. Ask another colleague to witness. Their \
+             sign-in is not affected."
+        )));
+    }
+    let witness = sqlx::query!(
+        "SELECT u.full_name, u.password_hash \
            FROM users u \
            JOIN roles r ON r.code = u.role::text AND r.tenant_id = u.tenant_id \
                        AND r.deleted_at IS NULL \
@@ -132,7 +180,7 @@ pub async fn verify_witness(
             AND u.department_ids && $4::uuid[] \
             AND (r.permissions ? $3 OR COALESCE(u.access_matrix->'extra' ? $3, false)) \
             AND NOT COALESCE(u.access_matrix->'denied' ? $3, false)",
-        witness_id,
+        attempt.witness_id,
         claims.tenant_id,
         permissions::pharmacy::dispensing::CREATE,
         &claims.department_ids,
@@ -140,34 +188,64 @@ pub async fn verify_witness(
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
-    let Some(name) = witness else {
+    let Some(witness) = witness else {
         return Err(AppError::BadRequest(
             "The witness is not an active colleague in your department who may dispense."
                 .to_owned(),
         ));
     };
-    let password = password
-        .map(str::trim)
+    let password = attempt
+        .password
+        .map(WitnessPassword::expose)
         .filter(|p| !p.is_empty())
         .ok_or_else(|| {
             AppError::BadRequest("The witness must confirm with their own password.".to_owned())
         })?;
-    match check_user_password(
-        state,
-        (witness_id, claims.tenant_id),
-        password,
-        "witness_password_failed",
+    if password_matches(witness.password_hash.as_deref(), password) {
+        return Ok(witness.full_name);
+    }
+    file_wrong_password(state, claims, attempt).await?;
+    Err(AppError::BadRequest(
+        "That is not the witness's password. Ask them to type it again.".to_owned(),
+    ))
+}
+
+/// Writes a wrong witness password to the audit chain, in its own unit of
+/// work (the dispense rolls back with the refusal). Not best-effort: this row
+/// is the counter that bounds guessing.
+async fn file_wrong_password(
+    state: &AppState,
+    claims: &Claims,
+    attempt: &WitnessAttempt<'_>,
+) -> Result<(), AppError> {
+    let detail = serde_json::json!({ "order_id": attempt.order_id });
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await?;
+    medbrains_kernel::audit(
+        &mut tx,
+        &medbrains_kernel::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: WITNESS_FAILED_ACTION,
+            entity_type: "user",
+            entity_id: Some(attempt.witness_id),
+            old_values: None,
+            new_values: Some(&detail),
+            ip_address: attempt.ip,
+        },
     )
-    .await?
-    {
-        PasswordCheck::Right => Ok(name),
-        PasswordCheck::Wrong => Err(AppError::BadRequest(
-            "That is not the witness's password. Ask them to type it again.".to_owned(),
-        )),
-        PasswordCheck::Locked => Err(AppError::BadRequest(
-            "The witness's account is locked after repeated wrong passwords. Ask another \
-             colleague to witness, or wait 15 minutes."
-                .to_owned(),
-        )),
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WitnessPassword;
+
+    #[test]
+    fn a_witness_password_never_prints_and_keeps_its_spaces() {
+        let typed: WitnessPassword = serde_json::from_str("\" secret \"").expect("parse");
+        assert_eq!(format!("{typed:?}"), "WitnessPassword(<redacted>)");
+        assert_eq!(typed.expose(), " secret ");
     }
 }

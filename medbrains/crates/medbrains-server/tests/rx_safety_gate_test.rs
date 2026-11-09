@@ -299,7 +299,7 @@ async fn review_and_dispense_run_interaction_and_stewardship_checks() {
         &csrf,
         "PUT",
         &format!("/api/pharmacy/orders/{mero_order}/dispense"),
-        json!({}),
+        json!({ "allergy_status_acknowledged": true }),
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");

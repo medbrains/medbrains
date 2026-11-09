@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1228 permissions, one per constant in the Rust source. */
+/** 1232 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -814,6 +814,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.ndps.manage",
     label: "Manage NDPS Register",
     description: "Record and reconcile controlled-drug register entries",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.ndps.witness_override",
+    label: "Dispense a controlled drug with no witness",
+    description: "The NDPS dual lock may be bypassed only on a recorded reason, and only by someone the hospital names for it: the medication-safety override every pharmacist holds no longer covers it. Granted to no built-in role. Never covers Schedule X, which always needs a witness.",
     module: "pharmacy",
   },
   {

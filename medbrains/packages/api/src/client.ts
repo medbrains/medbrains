@@ -7339,6 +7339,10 @@ export const api = {
       unpaid_override_reason?: string;
       /** Clinical reason for dispensing past a blocking safety finding. */
       safety_override_reason?: string;
+      /** Scan id or serial of the retained Schedule X duplicate prescription. */
+      schedule_x_duplicate_ref?: string;
+      /** The pharmacist asked: the patient's allergy status was unknown. */
+      allergy_status_acknowledged?: boolean;
     },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {

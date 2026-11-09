@@ -17,8 +17,8 @@ use medbrains_core::permissions;
 use medbrains_kernel::{Actor, Claims, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::field_access::resolve_restricted_fields;
-use medbrains_server_services::patient_identity::patient_identities;
 use medbrains_server_core::state::AppState;
+use medbrains_server_services::patient_identity::patient_identities;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -92,4 +92,60 @@ pub async fn patient_dispense_context(
         no_known_allergies,
         drug_allergies,
     }))
+}
+
+/// Refuses a dispense to a patient whose allergy status nobody has recorded —
+/// no active drug allergy on file (as the dispense screen's card reads it), and "no known allergies" never noted — unless
+/// the pharmacist acknowledges it, and files the acknowledgement with the
+/// dispense. An empty allergy list reads as a clean one; this one is unknown.
+///
+/// # Errors
+/// `BadRequest` (filed as refused) without the acknowledgement; the database.
+pub(crate) async fn require_allergy_status_known(
+    state: &AppState,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    subject: &crate::rx_safety::Subject,
+    acknowledged: bool,
+) -> Result<(), AppError> {
+    let unknown: bool = sqlx::query_scalar(
+        "SELECT p.no_known_allergies IS NULL \
+                AND NOT EXISTS (SELECT 1 FROM patient_allergies a \
+                                 WHERE a.patient_id = p.id AND a.tenant_id = p.tenant_id \
+                                   AND a.is_active AND a.allergy_type = 'drug' \
+                                   AND a.deleted_at IS NULL) \
+           FROM patients p WHERE p.id = $1 AND p.tenant_id = $2",
+    )
+    .bind(subject.patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .unwrap_or(true);
+    if !unknown {
+        return Ok(());
+    }
+    if !acknowledged {
+        let refusal = AppError::BadRequest(
+            "This patient's allergy status is unknown: no allergy is recorded and nobody has \
+             noted \"no known allergies\". Ask the patient, then acknowledge it to dispense."
+                .to_owned(),
+        );
+        crate::rx_safety::file_dispense_refusal(
+            state,
+            claims,
+            subject,
+            crate::rx_safety::ALLERGY_UNKNOWN,
+            &refusal,
+        )
+        .await;
+        return Err(refusal);
+    }
+    crate::rx_safety::record_in_tx(
+        tx,
+        claims,
+        subject,
+        &[crate::rx_safety::allergy_unknown_finding()],
+        None,
+    )
+    .await
 }

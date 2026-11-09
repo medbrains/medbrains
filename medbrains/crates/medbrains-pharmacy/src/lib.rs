@@ -53,6 +53,7 @@ pub mod discharge_rx;
 pub mod dispense_context;
 pub mod rx_safety;
 pub mod safety_record;
+pub mod schedule_gate;
 pub mod witnesses;
 pub mod storefront;
 mod terminal_tender;
@@ -1077,30 +1078,27 @@ fn dash_frequency_units_per_day(text: &str) -> Option<f64> {
     (sum > 0.0).then_some(sum)
 }
 
-fn frequency_units_per_day(frequency: &str) -> f64 {
+/// Doses a day for a frequency spelling the estimate understands, or `None`
+/// for one it does not (PRN, SOS, a typo, blank): those have no countable
+/// quantity, and guessing one would cap or size a dispense on a number the
+/// prescriber never wrote.
+fn known_frequency_units_per_day(frequency: &str) -> Option<f64> {
     let f = frequency.trim().to_ascii_lowercase();
     if f.is_empty() {
-        return 1.0;
+        return None;
     }
-
     if let Some(sum) = dash_frequency_units_per_day(&f) {
-        return sum;
+        return Some(sum);
     }
-
-    if f.contains("q4h") || f.contains("4 hourly") || f.contains("every 4") {
-        return 6.0;
-    }
-    if f.contains("q6h") || f.contains("6 hourly") || f.contains("every 6") {
-        return 4.0;
-    }
-    if f.contains("q8h") || f.contains("8 hourly") || f.contains("every 8") {
-        return 3.0;
-    }
-    if f.contains("q12h") || f.contains("12 hourly") || f.contains("every 12") {
-        return 2.0;
-    }
-
-    if f.contains("qid") || f.contains("qds") || f.contains("four times") {
+    let per_day = if f.contains("q4h") || f.contains("4 hourly") || f.contains("every 4") {
+        6.0
+    } else if f.contains("q6h") || f.contains("6 hourly") || f.contains("every 6") {
+        4.0
+    } else if f.contains("q8h") || f.contains("8 hourly") || f.contains("every 8") {
+        3.0
+    } else if f.contains("q12h") || f.contains("12 hourly") || f.contains("every 12") {
+        2.0
+    } else if f.contains("qid") || f.contains("qds") || f.contains("four times") {
         4.0
     } else if f.contains("tid") || f.contains("tds") || f.contains("three times") {
         3.0
@@ -1108,9 +1106,21 @@ fn frequency_units_per_day(frequency: &str) -> f64 {
         2.0
     } else if f.contains("qod") || f.contains("alternate") {
         0.5
-    } else {
+    } else if matches!(f.as_str(), "od" | "qd" | "hs" | "qhs" | "stat" | "q24h")
+        || f.contains("once")
+        || f.contains("daily")
+    {
         1.0
-    }
+    } else {
+        return None;
+    };
+    Some(per_day)
+}
+
+/// Doses a day for the dispense-quantity estimate: one a day for a spelling it
+/// does not know, which the pharmacist corrects at review.
+fn frequency_units_per_day(frequency: &str) -> f64 {
+    known_frequency_units_per_day(frequency).unwrap_or(1.0)
 }
 
 fn duration_days(duration: &str) -> f64 {
@@ -1157,6 +1167,14 @@ fn dose_units_per_administration(dosage: &str) -> f64 {
     } else {
         1.0
     }
+}
+
+/// The quantity a prescription line adds up to, when its frequency is one the
+/// estimate understands: the Schedule H/H1/X gate's ceiling for a line that
+/// states no quantity of its own.
+pub(crate) fn countable_rx_quantity(dosage: &str, frequency: &str, duration: &str) -> Option<i32> {
+    known_frequency_units_per_day(frequency)
+        .map(|_| estimate_rx_dispense_quantity(dosage, frequency, duration))
 }
 
 fn estimate_rx_dispense_quantity(dosage: &str, frequency: &str, duration: &str) -> i32 {
@@ -1595,8 +1613,16 @@ pub struct DispenseOrderRequest {
     pub items: Option<Vec<DispenseItemInput>>,
     pub witnessed_by: Option<Uuid>,
     /// The witness's own password, typed by them at this screen and checked on
-    /// the server. Required whenever `witnessed_by` is given.
-    pub witness_password: Option<String>,
+    /// the server, exactly as typed. Required whenever `witnessed_by` is given.
+    pub witness_password: Option<witnesses::WitnessPassword>,
+    /// The reference (scan id or serial) of the Schedule X duplicate
+    /// prescription the pharmacy retains (Drugs Rules 65(11)). Required when
+    /// any line is Schedule X; stored on the order.
+    pub schedule_x_duplicate_ref: Option<String>,
+    /// The pharmacist's acknowledgement that the patient's allergy status is
+    /// unknown (nothing recorded, "no known allergies" never noted). Required
+    /// then; filed with the dispense.
+    pub allergy_status_acknowledged: Option<bool>,
     /// Pharmacist's reason for dispensing despite a documented drug allergy.
     /// Required (non-blank) when a line conflicts with the patient's allergies;
     /// logged to `pharmacy_allergy_check_log` (context `dispensing`).
@@ -2746,6 +2772,8 @@ async fn reverse_invoice_item_for_removed_order_item_in_tx(
 //  PUT /api/pharmacy/orders/{id}/items/{item_id}
 // ══════════════════════════════════════════════════════════
 
+/// Changes one line's quantity before dispense, with its bill line. The
+/// Schedule H/H1/X gate checks the new quantity when the order is dispensed.
 pub async fn update_order_item(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2765,8 +2793,10 @@ pub async fn update_order_item(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // Held like a dispense holds it: a quantity raised while a dispense is
+    // passing the Schedule H/H1/X gate would leave with the old check.
     let order = sqlx::query_as::<_, PharmacyOrder>(
-        "SELECT * FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+        "SELECT * FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -2973,13 +3003,18 @@ async fn require_payment_before_dispense(
     }))
 }
 
+/// Hands an order's medicines over at the counter: witness, Schedule H/H1/X,
+/// allergy, medication-safety, NDPS dual-lock and payment gates, then stock,
+/// batches and the NDPS register, in one transaction.
 pub async fn dispense_order(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    client_ip: Option<Extension<medbrains_server_core::middleware::client_ip::ClientIp>>,
     Json(body): Json<DispenseOrderRequest>,
 ) -> Result<Json<PharmacyOrder>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    let ip = client_ip.map(|Extension(ip)| ip.as_str());
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3008,14 +3043,13 @@ pub async fn dispense_order(
     // dispense, who typed their own password here. The confirmation is filed
     // with the dispense as the proof.
     if let Some(witness_id) = body.witnessed_by {
-        let witness_name = match witnesses::verify_witness(
-            &state,
-            &claims,
+        let attempt = witnesses::WitnessAttempt {
             witness_id,
-            body.witness_password.as_deref(),
-        )
-        .await
-        {
+            password: body.witness_password.as_ref(),
+            order_id: id,
+            ip: ip.as_deref(),
+        };
+        let witness_name = match witnesses::verify_witness(&state, &claims, &attempt).await {
             Ok(name) => name,
             Err(refusal) => {
                 // A failed witness confirmation is a record too.
@@ -3060,18 +3094,47 @@ pub async fn dispense_order(
     // prescription; Schedule X (NDPS Act) further requires a witnessed
     // dispense and duplicate retained Rx. A refusal is filed, not only
     // answered: a blocked controlled-drug dispense is itself a record.
-    if let Err(refusal) =
-        enforce_schedule_compliance(&mut tx, &claims.tenant_id, id, body.witnessed_by).await
+    let gate_input = schedule_gate::GateInput {
+        witnessed_by: body.witnessed_by,
+        duplicate_ref: body.schedule_x_duplicate_ref.as_deref(),
+    };
+    let passed = match schedule_gate::enforce_schedule_compliance(
+        &mut tx,
+        claims.tenant_id,
+        id,
+        &gate_input,
+    )
+    .await
     {
-        rx_safety::file_dispense_refusal(
-            &state,
-            &claims,
-            &dispense_subject,
-            rx_safety::SCHEDULE_GATE,
-            &refusal,
+        Ok(passed) => passed,
+        Err(refusal) => {
+            rx_safety::file_dispense_refusal(
+                &state,
+                &claims,
+                &dispense_subject,
+                rx_safety::SCHEDULE_GATE,
+                &refusal,
+            )
+            .await;
+            return Err(refusal);
+        }
+    };
+    if passed.has_schedule_x
+        && let Some(reference) = body
+            .schedule_x_duplicate_ref
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+    {
+        sqlx::query(
+            "UPDATE pharmacy_orders SET schedule_x_duplicate_ref = $3 \
+             WHERE id = $1 AND tenant_id = $2",
         )
-        .await;
-        return Err(refusal);
+        .bind(id)
+        .bind(claims.tenant_id)
+        .bind(reference)
+        .execute(&mut *tx)
+        .await?;
     }
 
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
@@ -3120,6 +3183,17 @@ pub async fn dispense_order(
             }
         }
     }
+
+    // An empty allergy list is not a clean one: when nobody has recorded an
+    // allergy or noted "no known allergies", the pharmacist acknowledges it.
+    dispense_context::require_allergy_status_known(
+        &state,
+        &mut tx,
+        &claims,
+        &dispense_subject,
+        body.allergy_status_acknowledged.unwrap_or(false),
+    )
+    .await?;
 
     // Medication safety gate — interactions with the patient's other medicines,
     // Reserve antibiotics without an approved stewardship request, and
@@ -3180,18 +3254,32 @@ pub async fn dispense_order(
                 return Err(refusal);
             }
             Some(reason) => {
-                if !rx_safety::can_override(&claims, rx_safety::NDPS_WITNESS) {
-                    return Err(AppError::ForbiddenReason(
-                        "Dispensing a controlled drug without a witness needs the medication \
-                         safety override right."
+                let refusal = if !rx_safety::can_override(&claims, rx_safety::NDPS_WITNESS) {
+                    Some(AppError::ForbiddenReason(
+                        "Dispensing a controlled drug without a witness needs the NDPS witness \
+                         override right, which the hospital grants by name."
                             .to_owned(),
-                    ));
-                }
-                if reason.chars().count() < rx_safety::MIN_REASON_CHARS {
-                    return Err(AppError::BadRequest(format!(
+                    ))
+                } else if reason.chars().count() < rx_safety::MIN_REASON_CHARS {
+                    Some(AppError::BadRequest(format!(
                         "Say why there is no witness, in at least {} characters.",
                         rx_safety::MIN_REASON_CHARS
-                    )));
+                    )))
+                } else {
+                    None
+                };
+                // Every refused controlled dispense is a record, including
+                // one by somebody without the right.
+                if let Some(refusal) = refusal {
+                    rx_safety::file_dispense_refusal(
+                        &state,
+                        &claims,
+                        &dispense_subject,
+                        rx_safety::NDPS_WITNESS,
+                        &refusal,
+                    )
+                    .await;
+                    return Err(refusal);
                 }
                 // Filed with the dispense, so the reason is on the record a
                 // drug inspector reads, not only in an application log.
@@ -3445,7 +3533,9 @@ pub async fn dispense_order(
             .await?;
 
             if stock.is_controlled {
-                // Get current balance
+                // One receipt or issue at a time per drug (the receipt takes
+                // the same lock), so two dispenses cannot both read one balance.
+                lock_ndps_register(&mut tx, claims.tenant_id, catalog_id).await?;
                 let current_balance = sqlx::query_scalar::<_, Option<i64>>(
                     "SELECT SUM(CASE WHEN action IN ('receipt', 'adjustment') THEN quantity \
                      ELSE -quantity END) FROM pharmacy_ndps_register \
@@ -3458,21 +3548,32 @@ pub async fn dispense_order(
                 .unwrap_or(0);
 
                 let new_balance = current_balance - i64::from(dispense_qty);
+                // A register below zero does not match the shelf: the stock
+                // came in without a receipt, and an inspector reads that.
+                let new_balance = i32::try_from(new_balance)
+                    .ok()
+                    .filter(|b| *b >= 0)
+                    .ok_or_else(|| {
+                        AppError::Conflict(format!(
+                            "The NDPS register shows {current_balance} of {} on hand, fewer \
+                             than the {dispense_qty} being dispensed. Record the receipt in the \
+                             register before dispensing.",
+                            item.drug_name
+                        ))
+                    })?;
 
                 let ndps_entry = sqlx::query_as::<_, NdpsRegisterEntry>(
                     "INSERT INTO pharmacy_ndps_register \
                      (tenant_id, catalog_item_id, action, quantity, balance_after, \
                       patient_id, prescription_id, dispensed_by, witnessed_by, \
                       requires_dual_sign) \
-                     VALUES ($1, $2, 'dispensed', $3, $4, $5, $6, $7, $8, \
-                             (SELECT is_controlled OR drug_schedule IN ('X', 'NDPS') \
-                                FROM pharmacy_catalog WHERE id = $2)) \
+                     VALUES ($1, $2, 'dispensed', $3, $4, $5, $6, $7, $8, true) \
                      RETURNING *",
                 )
                 .bind(claims.tenant_id)
                 .bind(catalog_id)
                 .bind(dispense_qty)
-                .bind(i32::try_from(new_balance).unwrap_or(0))
+                .bind(new_balance)
                 .bind(patient_id)
                 .bind(order.prescription_id)
                 .bind(claims.sub)
@@ -3620,190 +3721,10 @@ pub async fn dispense_order(
 }
 
 // ══════════════════════════════════════════════════════════
-//  Schedule H/H1/X compliance enforcement
-// ══════════════════════════════════════════════════════════
-//
-// Drugs and Cosmetics Act 1940 + NDPS Act 1985:
-//   Schedule H   — Rx-only. Must be on a doctor's prescription.
-//   Schedule H1  — H plus mandatory register entry; pharmacist keeps
-//                  duplicate of the Rx for 3 years.
-//   Schedule X   — H1 plus dual signature (witness) and duplicate Rx
-//                  retained for 2 years; only doctors with
-//                  `can_prescribe_schedule_x` may issue.
-//
-// Returns AppError::BadRequest with the offending list when any item
-// fails the gate. Caller already holds an open transaction so the
-// rollback is automatic on error.
-
-/// The prescriber (a real prescription for this patient), and whether a
-/// pharmacist verified an uploaded prescription.
-type ComplianceOrderRow = (Option<Uuid>, bool);
-
-/// Refuses a dispense whose Schedule H, H1 or X lines lack what the Drugs and
-/// Cosmetics Act and the NDPS Act require: a real prescription for this
-/// patient (or a verified upload), and for Schedule X a doctor allowed to
-/// prescribe it and a witness.
-async fn enforce_schedule_compliance(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    order_id: Uuid,
-    witnessed_by: Option<Uuid>,
-) -> Result<(), AppError> {
-    // An online order whose uploaded prescription a pharmacist verified is
-    // prescription-backed too.
-    // The prescriber is the doctor who signed the prescription, not whoever
-    // raised the pharmacy order: approving a prescription in the Rx queue
-    // stamps the pharmacist as `ordered_by`, so a Schedule X order was checked
-    // against the pharmacist's (absent) doctor profile and could never pass.
-    let order: Option<ComplianceOrderRow> = sqlx::query_as(
-        "SELECT rx.doctor_id, \
-                EXISTS (SELECT 1 FROM pharmacy_store_orders s \
-                         WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
-                           AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
-                           AND s.deleted_at IS NULL) \
-         FROM pharmacy_orders o \
-         LEFT JOIN prescriptions rx ON rx.id = o.prescription_id AND rx.tenant_id = o.tenant_id \
-              AND rx.deleted_at IS NULL \
-              AND COALESCE(rx.patient_id, \
-                    (SELECT e.patient_id FROM encounters e \
-                      WHERE e.id = rx.encounter_id AND e.tenant_id = rx.tenant_id), \
-                    (SELECT a.patient_id FROM admissions a \
-                      WHERE a.id = rx.admission_id AND a.tenant_id = rx.tenant_id)) \
-                  = o.patient_id \
-         WHERE o.id = $1 AND o.tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    let Some((prescriber, verified_upload)) = order else {
-        return Err(AppError::NotFound);
-    };
-
-    // A prescription counts only when it is a real one for this patient (the
-    // join above checks that) or an uploaded one a pharmacist verified. An id
-    // or a visit alone is not a prescription. Discharge dispensing has no
-    // prescription row: there, each H/H1 line must be listed on the patient's
-    // recent, doctor-signed discharge summary (`discharge_rx`). Schedule X
-    // still needs a real prescription: below.
-    let has_prescription = prescriber.is_some() || verified_upload;
-    let discharge_listed = if has_prescription {
-        None
-    } else {
-        discharge_rx::discharge_medicines(tx, *tenant_id, order_id).await?
-    };
-
-    // The catalogue's own names, not the line's free-text `drug_name`: the
-    // stock that leaves is the catalogue item's.
-    let scheduled_items: Vec<(Uuid, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT c.id, c.name, COALESCE(c.generic_name, ''), c.drug_schedule::text \
-         FROM pharmacy_order_items oi \
-         JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id \
-         WHERE oi.order_id = $1 AND oi.tenant_id = $2 \
-           AND oi.removed_at IS NULL \
-           AND c.drug_schedule IS NOT NULL \
-           AND c.drug_schedule::text IN ('H', 'H1', 'X')",
-    )
-    .bind(order_id)
-    .bind(tenant_id)
-    .fetch_all(&mut **tx)
-    .await?;
-
-    if scheduled_items.is_empty() {
-        return Ok(());
-    }
-
-    let mut blocks: Vec<String> = Vec::new();
-
-    // Anything Schedule H/H1/X requires a prescription source on the order.
-    if !has_prescription {
-        for (catalog_id, name, generic_name, sched) in &scheduled_items {
-            let on_summary = sched.as_deref() != Some("X")
-                && discharge_listed.as_deref().is_some_and(|listed| {
-                    discharge_rx::lists(listed, *catalog_id, [name.as_str(), generic_name.as_str()])
-                });
-            if on_summary {
-                continue;
-            }
-            blocks.push(format!(
-                "{name}: Schedule {} drug — no prescription for this patient on the order \
-                 (a doctor's prescription, a verified upload, or a recent discharge summary, \
-                 finalized or doctor-signed, that lists it)",
-                sched.as_deref().unwrap_or("?")
-            ));
-        }
-    }
-
-    // Schedule X: dual signature + prescriber must be authorised.
-    let has_x = scheduled_items
-        .iter()
-        .any(|(_, _, _, s)| s.as_deref() == Some("X"));
-
-    if has_x {
-        // A Schedule X order needs a prescription from a doctor for this
-        // patient; with none there is nobody whose authorisation to check.
-        let Some(prescriber) = prescriber else {
-            return Err(AppError::BadRequest(format!(
-                "Schedule H/H1/X gate failed: {}",
-                blocks
-                    .into_iter()
-                    .chain(std::iter::once(
-                        "Schedule X needs a prescription for this patient signed by an \
-                         authorised doctor"
-                            .to_owned(),
-                    ))
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            )));
-        };
-        if witnessed_by.is_none() {
-            blocks
-                .push("Schedule X dispense requires a witness signature (witnessed_by)".to_owned());
-        } else if witnessed_by == Some(prescriber) {
-            blocks.push("Schedule X witness must differ from prescriber".to_owned());
-        }
-
-        // There is no `doctors` table; the flag lives on `doctor_profiles`.
-        // The gate did fail closed, because the error propagated and the
-        // dispense failed — but it refused with a database error rather than
-        // the statutory reason, so a pharmacist blocked on a Schedule X
-        // dispense was told nothing they could act on. It now answers with
-        // the authorisation itself.
-        let prescriber_authorised: Option<bool> = sqlx::query_scalar(
-            "SELECT can_prescribe_schedule_x FROM doctor_profiles \
-             WHERE user_id = $1 AND tenant_id = $2",
-        )
-        .bind(prescriber)
-        .bind(tenant_id)
-        .fetch_optional(&mut **tx)
-        .await?;
-
-        match prescriber_authorised {
-            Some(true) => {}
-            Some(false) => blocks.push(
-                "Schedule X prescriber lacks `can_prescribe_schedule_x` authorisation".to_owned(),
-            ),
-            None => blocks.push(
-                "Schedule X prescriber not registered as a doctor in this hospital".to_owned(),
-            ),
-        }
-    }
-
-    if !blocks.is_empty() {
-        return Err(AppError::BadRequest(format!(
-            "Schedule H/H1/X gate failed: {}",
-            blocks.join("; ")
-        )));
-    }
-
-    Ok(())
-}
-
-// ══════════════════════════════════════════════════════════
 //  PUT /api/pharmacy/orders/{id}/cancel
 // ══════════════════════════════════════════════════════════
 
+/// Cancels an order that is still waiting to be dispensed.
 pub async fn cancel_order(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4956,6 +4877,8 @@ pub async fn list_ndps_entries(
     }))
 }
 
+/// Records a manual NDPS register movement (receipt, adjustment, dispense,
+/// destruction, transfer), one writer per drug, never below zero.
 pub async fn create_ndps_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4971,14 +4894,8 @@ pub async fn create_ndps_entry(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    #[derive(sqlx::FromRow)]
-    struct NdpsCatalogCheck {
-        drug_schedule: Option<String>,
-        is_controlled: bool,
-    }
-
-    let catalog = sqlx::query_as::<_, NdpsCatalogCheck>(
-        "SELECT drug_schedule, is_controlled FROM pharmacy_catalog \
+    let is_controlled: bool = sqlx::query_scalar(
+        "SELECT is_controlled FROM pharmacy_catalog \
          WHERE id = $1 AND tenant_id = $2 AND is_active = true",
     )
     .bind(body.catalog_item_id)
@@ -4987,14 +4904,16 @@ pub async fn create_ndps_entry(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    if !catalog.is_controlled && !matches!(catalog.drug_schedule.as_deref(), Some("NDPS" | "X")) {
+    // `is_controlled` follows from the schedule (migration 1423): one predicate.
+    if !is_controlled {
         return Err(AppError::BadRequest(
             "NDPS register entries require a controlled, NDPS, or Schedule X catalog item"
                 .to_owned(),
         ));
     }
 
-    // Calculate current balance
+    // Calculate the current balance, as its only writer for now.
+    lock_ndps_register(&mut tx, claims.tenant_id, body.catalog_item_id).await?;
     let current_balance = sqlx::query_scalar::<_, Option<i64>>(
         "SELECT SUM(CASE WHEN action IN ('receipt', 'adjustment') THEN quantity \
          ELSE -quantity END) FROM pharmacy_ndps_register \
@@ -5049,9 +4968,7 @@ pub async fn create_ndps_entry(
         "INSERT INTO pharmacy_ndps_register \
          (tenant_id, catalog_item_id, action, quantity, balance_after, \
           dispensed_by, witnessed_by, notes, requires_dual_sign) \
-         VALUES ($1, $2, $3::ndps_register_action, $4, $5, $6, $7, $8, \
-                 (SELECT is_controlled OR drug_schedule IN ('X', 'NDPS') \
-                    FROM pharmacy_catalog WHERE id = $2)) \
+         VALUES ($1, $2, $3::ndps_register_action, $4, $5, $6, $7, $8, true) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -5273,6 +5190,22 @@ pub async fn create_batch(
     )))
 }
 
+/// Holds the NDPS register for one drug until the transaction ends: every
+/// receipt and issue takes it, so a running balance is read and written by one
+/// writer at a time.
+async fn lock_ndps_register(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    catalog_item_id: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2::text, 0))")
+        .bind(tenant_id)
+        .bind(catalog_item_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
 /// A controlled drug received into stock goes on the NDPS register as a
 /// receipt, in the same transaction as the batch.
 ///
@@ -5285,8 +5218,7 @@ async fn post_ndps_receipt_in_tx(
     body: &CreateBatchRequest,
 ) -> Result<(), AppError> {
     let controlled: bool = sqlx::query_scalar(
-        "SELECT is_controlled OR COALESCE(drug_schedule::text IN ('X', 'NDPS'), false) \
-           FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
+        "SELECT is_controlled FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
     )
     .bind(body.catalog_item_id)
     .bind(claims.tenant_id)
@@ -5298,11 +5230,7 @@ async fn post_ndps_receipt_in_tx(
     }
     // One receipt or issue at a time per drug, so two at once cannot both
     // read the same balance and write the same "after".
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2::text, 0))")
-        .bind(claims.tenant_id)
-        .bind(body.catalog_item_id)
-        .execute(&mut **tx)
-        .await?;
+    lock_ndps_register(tx, claims.tenant_id, body.catalog_item_id).await?;
     let balance: i64 = sqlx::query_scalar::<_, Option<i64>>(
         "SELECT SUM(CASE WHEN action IN ('receipt', 'adjustment') THEN quantity \
                     ELSE -quantity END) \
