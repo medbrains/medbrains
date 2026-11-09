@@ -784,6 +784,15 @@ pub mod billing {
         pub const NOTIFIED: &str = "billing.payment_settings.notified";
     }
 
+    /// When the insurance desk is warned that a pre-auth is nearly used up.
+    pub mod preauth_alerts {
+        /// Set the pre-auth alert threshold.
+        /// Choose the share of a pre-auth's approved amount, 1 to 100%, at
+        /// which the insurance desk is warned that an inpatient's running
+        /// bill is nearing it (80% until set). Hospital-wide.
+        pub const CONFIGURE: &str = "billing.preauth_alerts.configure";
+    }
+
     /// Taking a patient's money at a department desk (#4885).
     ///
     /// Each desk collects its own department's dues; collecting another
@@ -3133,6 +3142,54 @@ pub mod insurance {
         pub const CREATE: &str = "insurance.prior_auth.create";
         pub const UPDATE: &str = "insurance.prior_auth.update";
         pub const SUBMIT: &str = "insurance.prior_auth.submit";
+    }
+
+    /// A pre-authorisation nearly used up by the running bill.
+    pub mod enhancement {
+        /// See pre-auths nearly used up.
+        ///
+        /// See insured inpatients whose running bill has reached 80% of the
+        /// amount the payer approved, or whose approval could not be read,
+        /// with the approved amount and the bill so far.
+        pub const VIEW: &str = "insurance.enhancement.view";
+        /// Request a pre-auth enhancement.
+        ///
+        /// Ask the payer for more on a pre-auth that is nearly used up: the
+        /// extra amount is recorded on the pre-auth, which is marked as an
+        /// enhancement for sending, and the alert closes. Who and when is kept.
+        pub const REQUEST: &str = "insurance.enhancement.request";
+    }
+
+    /// An insured inpatient with no usable pre-auth on the visit.
+    pub mod preauth_missing {
+        /// Dismiss a "no usable pre-auth" alert.
+        ///
+        /// Close the alert on an insured inpatient with no usable pre-auth
+        /// when none is coming: the family pays cash, the treatment is not
+        /// covered, or another reason written down. Who, when and why is kept.
+        pub const DISMISS: &str = "insurance.preauth_missing.dismiss";
+    }
+
+    /// A room above the policy's room rent limit.
+    pub mod room_eligibility {
+        /// See rooms above the policy limit.
+        ///
+        /// See inpatients placed in a room dearer than their policy's
+        /// eligible room rent, with the share of room-linked charges the
+        /// insurer may cut in proportion.
+        pub const VIEW: &str = "insurance.room_eligibility.view";
+        /// Record consent for a higher room.
+        ///
+        /// Record that the patient or a named relative agreed to pay the
+        /// proportionate deduction for a room above the policy limit, which
+        /// closes the alert.
+        pub const RESOLVE: &str = "insurance.room_eligibility.resolve";
+        /// Set a policy's room rent limit.
+        ///
+        /// Record the eligible room rent from the policy schedule or e-card,
+        /// in rupees a day or as a percentage of the sum insured, so rooms
+        /// can be checked against it at admission and transfer.
+        pub const CONFIGURE: &str = "insurance.room_eligibility.configure";
     }
 
     pub mod appeals {

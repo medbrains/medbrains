@@ -992,6 +992,7 @@ import type {
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
   DismissChargeAttentionRequest,
+  DismissPreauthRequest,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -1855,6 +1856,7 @@ import type {
   PostopOrdersPrintData,
   PostureReport,
   PreAuthorizationRequest,
+  PreauthAlertSettings,
   PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
@@ -2042,6 +2044,7 @@ import type {
   RepeatRow,
   ReportCatalogResponse,
   ReportDataResponse,
+  RequestEnhancementRequest,
   Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
@@ -2070,6 +2073,8 @@ import type {
   ReturnResult,
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
+  RevenueAlert,
+  RevenueAlertKind,
   ReviewBreakGlassRequest,
   ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
@@ -2085,6 +2090,11 @@ import type {
   RoiAccessInput,
   RoiAccessLogRow,
   RoiRequest,
+  RoomCheck,
+  RoomConsentInput,
+  RoomConsentWitness,
+  RoomRentLimit,
+  RoomRentLimitInput,
   RoomTurnaround,
   RoomUtilization,
   RunPayoutsRequest,
@@ -2464,6 +2474,7 @@ import type {
   UpdatePipelineStatusRequest,
   UpdatePostopRecordRequest,
   UpdatePreAuthRequest,
+  UpdatePreauthAlertSettings,
   UpdatePreopAssessmentRequest,
   UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
@@ -6278,6 +6289,46 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  /** Pre-auths nearly used up or rooms above the policy limit, by kind. */
+  listRevenueAlerts: (params: { kind: RevenueAlertKind; status?: string }) =>
+    request<Paginated<RevenueAlert>>(`/billing/revenue-alerts?${new URLSearchParams(params)}`),
+  /** Ask the payer for more on a pre-auth nearly used up; closes the alert. */
+  requestPreauthEnhancement: (id: string, data: RequestEnhancementRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/request-enhancement`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Dismiss a "no usable pre-auth" alert with why none is needed. */
+  dismissPreauthAlert: (id: string, data: DismissPreauthRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** The hospital's pre-auth alert threshold, and whether the stored one is unreadable. */
+  getPreauthAlertSettings: () => request<PreauthAlertSettings>("/billing/preauth-alert-settings"),
+  /** Save the pre-auth alert threshold (1 to 100%). */
+  updatePreauthAlertSettings: (data: UpdatePreauthAlertSettings) =>
+    request<PreauthAlertSettings>("/billing/preauth-alert-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Record the family's consent to a room above the policy limit; closes the alert. */
+  recordRoomConsent: (id: string, data: RoomConsentInput) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/room-consent`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Staff who may witness a family's room consent, by name. */
+  listRoomConsentWitnesses: (search?: string) =>
+    request<RoomConsentWitness[]>(
+      `/billing/room-consent/witnesses${search ? `?${new URLSearchParams({ search })}` : ""}`,
+    ),
+  /** Set the eligible room rent on a patient's policy (₹ a day or % of sum insured). */
+  setRoomRentLimit: (policyId: string, data: RoomRentLimitInput) =>
+    request<RoomRentLimit>(`/billing/policies/${policyId}/room-rent-limit`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   namePatientChargeAttention: (id: string, data: NamePatientChargeAttentionRequest) =>
     request<ChargeAttentionItem>(`/billing/charge-attention/${id}/patient`, {
       method: "PUT",
@@ -7880,6 +7931,13 @@ export const api = {
   listAdmissions: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<AdmissionListResponse>(`/ipd/admissions${qs}`);
+  },
+  /** The bed's rate against the patient's policy room-rent limit, before allocating it. */
+  checkRoomEligibility: (params: { patient_id: string; bed_id: string; admission_id?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter((e): e is [string, string] => Boolean(e[1])),
+    );
+    return request<RoomCheck>(`/ipd/room-eligibility?${qs}`);
   },
   createAdmission: (data: CreateAdmissionRequest) =>
     request<CreateAdmissionResponse>("/ipd/admissions", {
