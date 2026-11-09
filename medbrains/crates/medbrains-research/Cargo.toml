@@ -28,4 +28,5 @@ workspace = true
 [dev-dependencies]
 medbrains-db = { path = "../medbrains-db" }
 medbrains-db-migrations = { path = "../medbrains-db-migrations" }
+medbrains-seed = { path = "../medbrains-seed" }
 tokio = { workspace = true }

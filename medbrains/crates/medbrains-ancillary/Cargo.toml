@@ -21,6 +21,7 @@ rust_decimal = { workspace = true }
 
 [dev-dependencies]
 medbrains-db-migrations = { path = "../medbrains-db-migrations" }
+medbrains-seed = { path = "../medbrains-seed" }
 tokio = { workspace = true }
 
 [lints]

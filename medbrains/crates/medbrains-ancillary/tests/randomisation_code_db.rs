@@ -24,6 +24,11 @@ async fn a_code_holding_the_uhid_in_any_spelling_is_refused() {
     medbrains_db_migrations::run(&db)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
+    // Seed before planting: the seed makes the first hospital's admin only on an
+    // empty database, and the server tests that run after this share it.
+    medbrains_seed::run_seed(&db)
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
     let (t, p) = (Uuid::new_v4(), Uuid::new_v4());
     let code = &t.simple().to_string()[..8];
     let up = code.to_uppercase();
