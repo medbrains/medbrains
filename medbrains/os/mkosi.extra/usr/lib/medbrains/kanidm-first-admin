@@ -1,10 +1,16 @@
 #!/bin/bash
 # Makes the first administrator in Kanidm, with the username and password chosen at setup, so there is one
-# login. Kanidm's own check decides on the password. Reads two lines on stdin, the username and the password,
-# and keeps them in memory: they reach curl through a pipe, and nothing here prints them.
+# login, enrolled with an authenticator app: the group it joins, mb_it_admins, needs a second step. Kanidm's
+# own checks decide on the password and the code. Secrets arrive on stdin and stay in memory: they reach curl
+# through a pipe, and nothing here prints them, except the TOTP status on stdout, to setup alone.
 #
-# Exits 0 when that login signs in, 3 when Kanidm refuses the password, and 1 for anything else. Safe to run
-# again: a person this run made is removed if it fails, and a person left by a power cut is reset.
+#   kanidm-first-admin begin    stdin: username, password. Makes the person, sets the password, starts a TOTP
+#                               and prints Kanidm's status (the secret) on stdout. Exits 3 if the password is refused.
+#   kanidm-first-admin finish   stdin: username, the 6-digit code. Saves password and code together, then grants
+#                               the groups. Exits 4 if the code does not match, 5 if the step expired.
+#
+# Exits 1 for anything else. Safe to run again: a person a failed begin made is removed, and a person left by a
+# power cut or an abandoned code step is reset.
 set -euo pipefail
 
 . /usr/lib/medbrains/kanidm-lib.sh
@@ -12,32 +18,19 @@ set -euo pipefail
 # Setup links this login to the MedBrains administrator by its UUID, recorded here. Root's folder, not Kanidm's.
 OWN=/var/lib/medbrains/config/kanidm
 RECORD=$OWN/first-admin
-# Enough to add staff and reset their passwords. Not idm_admins: this login has no second step.
+# Between begin and finish: the username and Kanidm's credential-update session, which is not the TOTP secret
+# (Kanidm keeps that in its own memory). Root's tmpfs, so a restart forgets it; Kanidm forgets the session too.
+SESSION=/run/medbrains-kanidm/first-admin-session
+# Joined before the credential is made, so Kanidm itself refuses to save the password without the code.
+EXTRA_STEP_GROUP=mb_it_admins
+# Enough to add staff and reset their passwords. Not idm_admins.
 ADMIN_GROUPS=(idm_people_on_boarding idm_service_desk)
-INTENT_SECONDS=300
-
-IFS= read -r username
-IFS= read -r password
-[[ -n "$username" && -n "$password" ]] || { echo "no username or password" >&2; exit 1; }
-
-# Setup starts Kanidm when its screen appears; if that start failed, a retry must start it again, or
-# every retry waits for a service that is not coming. Clearing the failure lets systemd try once more.
-systemctl reset-failed kanidmd 2>/dev/null || true
-systemctl start --no-block kanidmd
-wait_for_kanidm
-/usr/lib/medbrains/kanidm-setup rules
-admin="$(admin_token idm_admin)"
+# Kanidm ends a credential-update session after 15 minutes whatever this says; time enough to find a phone.
+INTENT_SECONDS=900
+CODE_LABEL=setup
+# Set by begin; read by undo, which runs on exit.
+username=""
 made=0
-
-# A login made by an earlier attempt that setup then could not finish, under another name: remove it, or two
-# administrator logins would exist. Setup runs this only before the machine has a role.
-if [[ -s "$RECORD" ]]; then
-    read -r earlier _ < "$RECORD" || earlier=""
-    if [[ "$earlier" =~ ^[a-z][a-z0-9_]*$ && "$earlier" != "$username" ]]; then
-        api_as "$admin" -o /dev/null -X DELETE "$ORIGIN/v1/person/$earlier" 2>/dev/null || true
-    fi
-    rm -f "$RECORD"
-fi
 
 # Takes back a person this run made, if the run did not finish.
 undo() {
@@ -45,31 +38,98 @@ undo() {
         api_as "$admin" -o /dev/null -X DELETE "$ORIGIN/v1/person/$username" || echo "could not remove the unfinished person" >&2
     fi
 }
-trap undo EXIT
 
-if ! api_as "$admin" "$ORIGIN/v1/person/$username" | grep -q '"attrs"'; then
-    printf '{"attrs":{"name":["%s"],"displayname":["%s"]}}' "$username" "$username" |
-        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/person"
-    made=1
-fi
-intent="$(api_as "$admin" "$ORIGIN/v1/person/$username/_credential/_update_intent/$INTENT_SECONDS" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
-exchanged="$(printf '"%s"' "$intent" | json_body "$ORIGIN/v1/credential/_exchange_intent")"
-session="${exchanged#\[}"
-session="${session%%,\{\"spn\"*}"
-if ! printf '[{"password":"%s"},%s]' "$(json_escape "$password")" "$session" |
-    json_body -o /dev/null "$ORIGIN/v1/credential/_update" 2>/dev/null; then
-    echo "Kanidm refused the password" >&2
-    exit 3
-fi
-printf '%s' "$session" | json_body -o /dev/null "$ORIGIN/v1/credential/_commit"
-for group in "${ADMIN_GROUPS[@]}"; do
-    printf '["%s"]' "$username" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$group/_attr/member"
-done
-token="$(printf '%s\n' "$password" | token_for_password "$username")"
-[[ -n "$token" ]] || { echo "the new login does not sign in" >&2; exit 1; }
-uuid="$(api_as "$admin" "$ORIGIN/v1/person/$username/_attr/uuid" | sed -n 's/^\["\([0-9a-f-]\{36\}\)"\]$/\1/p')"
-[[ -n "$uuid" ]] || { echo "could not read the new login's UUID" >&2; exit 1; }
-install -d -m 0750 "$OWN"
-printf '%s %s\n' "$username" "$uuid" > "$RECORD.new"
-mv "$RECORD.new" "$RECORD"
-made=0
+# Starts Kanidm if it is not running and signs in as idm_admin, into $admin.
+sign_in_as_idm_admin() {
+    # Setup starts Kanidm when its screen appears; if that start failed, a retry must start it again, or
+    # every retry waits for a service that is not coming. Clearing the failure lets systemd try once more.
+    systemctl reset-failed kanidmd 2>/dev/null || true
+    systemctl start --no-block kanidmd
+    wait_for_kanidm
+    /usr/lib/medbrains/kanidm-setup rules
+    admin="$(admin_token idm_admin)"
+}
+
+# Makes the person, joins them to the extra-step group, sets the password and starts a TOTP. Prints Kanidm's
+# status, which holds the new secret, on stdout for setup to show.
+begin() {
+    local password intent exchanged session status uuid earlier
+    IFS= read -r username
+    IFS= read -r password
+    [[ -n "$username" && -n "$password" ]] || { echo "no username or password" >&2; exit 1; }
+    sign_in_as_idm_admin >/dev/null
+    rm -f "$SESSION"
+    # A login made by an earlier attempt that setup then could not finish, under another name: remove it, or two
+    # administrator logins would exist. Setup runs this only before the machine has a role.
+    if [[ -s "$RECORD" ]]; then
+        read -r earlier _ < "$RECORD" || earlier=""
+        if [[ "$earlier" =~ ^[a-z][a-z0-9_]*$ && "$earlier" != "$username" ]]; then
+            api_as "$admin" -o /dev/null -X DELETE "$ORIGIN/v1/person/$earlier" 2>/dev/null || true
+        fi
+        rm -f "$RECORD"
+    fi
+    trap undo EXIT
+    if api_as "$admin" "$ORIGIN/v1/person/$username" | grep -q '"attrs"'; then
+        # Left by a power cut or an abandoned code step: start its credential from nothing, so no old code survives.
+        api_as "$admin" -o /dev/null -X DELETE "$ORIGIN/v1/person/$username/_attr/primary_credential" 2>/dev/null || true
+    else
+        printf '{"attrs":{"name":["%s"],"displayname":["%s"]}}' "$username" "$username" |
+            json_body_as "$admin" -o /dev/null "$ORIGIN/v1/person"
+        made=1
+    fi
+    printf '["%s"]' "$username" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$EXTRA_STEP_GROUP/_attr/member"
+    intent="$(api_as "$admin" "$ORIGIN/v1/person/$username/_credential/_update_intent/$INTENT_SECONDS" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+    exchanged="$(printf '"%s"' "$intent" | json_body "$ORIGIN/v1/credential/_exchange_intent")"
+    session="${exchanged#\[}"
+    session="${session%%,\{\"spn\"*}"
+    if ! printf '[{"password":"%s"},%s]' "$(json_escape "$password")" "$session" |
+        json_body -o /dev/null "$ORIGIN/v1/credential/_update" 2>/dev/null; then
+        echo "Kanidm refused the password" >&2
+        exit 3
+    fi
+    status="$(printf '["totpgenerate",%s]' "$session" | json_body "$ORIGIN/v1/credential/_update")"
+    [[ "$status" == *'"TotpCheck"'* ]] || { echo "Kanidm did not start a one-time code" >&2; exit 1; }
+    uuid="$(api_as "$admin" "$ORIGIN/v1/person/$username/_attr/uuid" | sed -n 's/^\["\([0-9a-f-]\{36\}\)"\]$/\1/p')"
+    [[ -n "$uuid" ]] || { echo "could not read the new login's UUID" >&2; exit 1; }
+    # Recorded now, so a retry under another name removes this person even if finish never runs.
+    install -d -m 0750 "$OWN"
+    printf '%s %s\n' "$username" "$uuid" > "$RECORD.new"
+    mv "$RECORD.new" "$RECORD"
+    install -d -m 0700 "${SESSION%/*}"
+    install -m 0600 /dev/null "$SESSION"
+    printf '%s %s\n' "$username" "$session" > "$SESSION"
+    made=0
+    printf '%s' "$status"
+}
+
+# Checks the code against the TOTP begin started, saves password and code as one credential, then grants the
+# groups. Kanidm refuses the save without the code, because the person is already in the extra-step group.
+finish() {
+    local code saved session status
+    IFS= read -r username
+    IFS= read -r code
+    [[ "$code" =~ ^[0-9]{6}$ ]] || { echo "the code did not match" >&2; exit 4; }
+    [[ -s "$SESSION" ]] && read -r saved session < "$SESSION" && [[ "$saved" == "$username" ]] ||
+        { echo "the code step expired" >&2; exit 5; }
+    sign_in_as_idm_admin >/dev/null
+    # Kanidm answers an error once the session is gone: it restarted, or 15 minutes passed.
+    status="$(printf '[{"totpverify":[%d,"%s"]},%s]' "$((10#$code))" "$CODE_LABEL" "$session" |
+        json_body "$ORIGIN/v1/credential/_update" 2>/dev/null)" || { rm -f "$SESSION"; echo "the code step expired" >&2; exit 5; }
+    [[ "$status" != *'"TotpTryAgain"'* ]] || { echo "the code did not match" >&2; exit 4; }
+    # Google Authenticator and others use SHA-1 whatever the QR code asks. The code proved the phone, so take it.
+    if [[ "$status" == *'"TotpInvalidSha1"'* ]]; then
+        status="$(printf '["totpacceptsha1",%s]' "$session" | json_body "$ORIGIN/v1/credential/_update")"
+    fi
+    [[ "$status" == *'"can_commit":true'* ]] || { echo "Kanidm will not save the login" >&2; exit 1; }
+    printf '%s' "$session" | json_body -o /dev/null "$ORIGIN/v1/credential/_commit"
+    rm -f "$SESSION"
+    for group in "${ADMIN_GROUPS[@]}"; do
+        printf '["%s"]' "$username" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$group/_attr/member"
+    done
+}
+
+case "${1:-}" in
+    begin) begin ;;
+    finish) finish ;;
+    *) echo "usage: kanidm-first-admin begin|finish" >&2; exit 1 ;;
+esac

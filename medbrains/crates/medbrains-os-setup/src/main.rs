@@ -7,6 +7,7 @@
 //! deliberately small: one connection at a time is plenty for one screen.
 
 mod child;
+mod first_admin;
 mod machine;
 mod node;
 mod peer;
@@ -116,7 +117,8 @@ fn read_request(stream: impl Read) -> Option<Request> {
 
 /// Writes a JSON answer.
 fn respond(mut stream: &UnixStream, status: u16, body: &Value) {
-    let text = body.to_string();
+    // Wiped when dropped: an answer may hold the first administrator's TOTP secret.
+    let text = Zeroizing::new(body.to_string());
     let head = format!(
         "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
          Cache-Control: no-store\r\nConnection: close\r\n\r\n",
@@ -152,27 +154,48 @@ fn hospital_problems(body: &Value) -> Option<(u16, Value)> {
     Some((422, json!({ "problems": map })))
 }
 
-/// Handles `POST /hospital`: checks the three fields, then starts the main machine.
-fn new_hospital(body: &Value) -> (u16, Value) {
+/// The same refusals `POST /hospital/admin` and `POST /hospital` both start with: set up already, or bad fields.
+fn refuse_new_hospital(body: &Value) -> Option<(u16, Value)> {
     match machine::is_set_up() {
-        Ok(false) => {}
-        Ok(true) => return (409, json!({ "error": "This machine is already set up." })),
+        Ok(false) => hospital_problems(body),
+        Ok(true) => Some((409, json!({ "error": "This machine is already set up." }))),
         // Not knowing is not "no": setting up twice would overwrite the machine's identity.
-        Err(error) => return (500, json!({ "error": error })),
+        Err(error) => Some((500, json!({ "error": error }))),
     }
-    if let Some(problems) = hospital_problems(body) {
-        return problems;
+}
+
+/// Handles `POST /hospital/admin`: makes the first administrator's Kanidm login with the password, and answers
+/// the TOTP to enrol, `{ "totp": { secret, qr } }`, or `{ "totp": null }` on a machine with no identity provider.
+/// Safe to repeat: each call starts a new code.
+fn begin_admin(body: &Value) -> (u16, Value) {
+    if let Some(refusal) = refuse_new_hospital(body) {
+        return refusal;
+    }
+    match first_admin::begin(field(body, "username"), field(body, "password")) {
+        first_admin::Begun::Enrol(totp) => (200, json!({ "totp": totp })),
+        first_admin::Begun::NoProviderOnThisDisk => (200, json!({ "totp": null })),
+        first_admin::Begun::PasswordRefused => (
+            422,
+            json!({ "problems": { "password": rules::PASSWORD_RULE } }),
+        ),
+        first_admin::Begun::Failed(error) => (500, json!({ "error": error })),
+    }
+}
+
+/// Handles `POST /hospital`: checks the three fields and the authenticator code, saves the first
+/// administrator's login, then starts the main machine.
+fn new_hospital(body: &Value) -> (u16, Value) {
+    if let Some(refusal) = refuse_new_hospital(body) {
+        return refusal;
     }
     // Before anything else, and safe to repeat: until the marker below exists, setup can run again.
-    match machine::make_first_admin(field(body, "username"), field(body, "password")) {
-        machine::FirstAdmin::Made | machine::FirstAdmin::NoProviderOnThisDisk => {}
-        machine::FirstAdmin::PasswordRefused => {
-            return (
-                422,
-                json!({ "problems": { "password": rules::PASSWORD_RULE } }),
-            );
+    match first_admin::finish(field(body, "username"), field(body, "code")) {
+        first_admin::Finished::Made | first_admin::Finished::NoProviderOnThisDisk => {}
+        first_admin::Finished::WrongCode => {
+            return (422, json!({ "problems": { "code": rules::CODE_WRONG } }));
         }
-        machine::FirstAdmin::Failed(error) => return (500, json!({ "error": error })),
+        first_admin::Finished::Expired => return (409, json!({ "error": rules::CODE_EXPIRED })),
+        first_admin::Finished::Failed(error) => return (500, json!({ "error": error })),
     }
     let started = machine::start_main_machine(
         field(body, "hospital"),
@@ -275,10 +298,12 @@ fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
     answer
 }
 
-/// Overwrites every string in a parsed body before it is dropped.
-fn scrub(value: &mut Value) {
+/// Overwrites every string and number in a body before it is dropped: a request's password, or an
+/// answer's TOTP secret.
+pub(crate) fn scrub(value: &mut Value) {
     match value {
         Value::String(text) => text.zeroize(),
+        Value::Number(number) => *number = 0.into(),
         Value::Array(items) => items.iter_mut().for_each(scrub),
         Value::Object(fields) => fields.values_mut().for_each(scrub),
         _ => {}
@@ -295,6 +320,7 @@ fn route_body(state: &Arc<State>, request: &Request, body: &Value) -> (u16, Valu
         ("POST", "/hospital/check") => {
             hospital_problems(body).unwrap_or_else(|| (200, json!({ "ok": true })))
         }
+        ("POST", "/hospital/admin") => begin_admin(body),
         ("POST", "/hospital") => new_hospital(body),
         ("POST", "/node/finish") => finish_node(),
         ("POST", "/network/fixed") => fixed_address(state, body),
@@ -335,8 +361,9 @@ fn handle(state: &Arc<State>, stream: &UnixStream) {
     let Some(request) = read_request(Deadlined { stream, deadline }) else {
         return;
     };
-    let (status, body) = route(state, &request);
+    let (status, mut body) = route(state, &request);
     respond(stream, status, &body);
+    scrub(&mut body);
 }
 
 /// Opens the socket: only root and the screen's group may connect. A socket left by the last run
@@ -440,13 +467,13 @@ mod tests {
         }
     }
 
-    /// A parsed body's strings, the password among them, are wiped, however deep they sit.
+    /// A parsed body's strings and numbers, a password or a TOTP secret among them, are wiped, however deep they sit.
     #[test]
     fn every_string_in_a_body_is_wiped() {
         let mut body = json!({ "password": "Blue-River-Walks-At-7!", "list": [{ "inner": "secret" }], "n": 3 });
         super::scrub(&mut body);
         assert_eq!(body["password"], "");
         assert_eq!(body["list"][0]["inner"], "");
-        assert_eq!(body["n"], 3);
+        assert_eq!(body["n"], 0);
     }
 }

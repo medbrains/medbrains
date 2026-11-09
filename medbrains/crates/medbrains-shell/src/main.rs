@@ -3,6 +3,7 @@
 
 mod api;
 mod apps;
+mod authenticator;
 mod child;
 mod desktop;
 mod display;

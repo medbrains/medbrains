@@ -4,9 +4,10 @@ Kanidm step that must leave nothing behind, then the real setup, then what that 
 
   OS_WORK=... OS_WEB_PORT=8470 OS_IDP_PORT=8471 os/tests/kanidm-one-login-test.py
 """
-import hashlib, hmac, json, re, struct, sys, time
+import json, re, sys, time
 
-from kanidm_lib import ADMIN, IDP, WEB, cookie, curl, kanidm_auth, local_sign_in, must, new_jar, recover_password, serial, setup_call, set_up_machine
+from kanidm_lib import (ADMIN, ADMIN_TOTP, IDP, WEB, begin_admin, code_for, curl, kanidm_auth, local_sign_in, must,
+                        limit_opened, new_jar, recover_password, secret_bytes, serial, setup_call, set_up_machine, totp_now)
 
 # What setup's rule should take and refuse, with the username this test uses.
 ACCEPTED = ["Blue-River-Walks-At-7!", "My dog Rocky eats 3 apples", "Sunflower ward 7 is bright"]
@@ -52,11 +53,30 @@ def test_failed_step_is_safe():
     """Kanidm stopped: setup must say so, leave nothing, and work when tried again."""
     serial("systemctl mask --runtime kanidmd; systemctl stop kanidmd; sleep 1", 20)
     started = time.time()
-    code, answer = setup_call("/hospital", form(ADMIN[0], ADMIN[1]))
+    code, answer = setup_call("/hospital/admin", form(ADMIN[0], ADMIN[1]))
     print(f"INFO  with Kanidm down, after {time.time() - started:.0f}s:", code, answer[-120:].replace("\n", " "), flush=True)
     check("setup says the sign-in service failed", code == "500" and "Try again" in answer, code)
     check("and leaves no role marker and no seed", machine_state() == ["0", "0"], str(machine_state()))
     serial("systemctl unmask --runtime kanidmd; systemctl daemon-reload; systemctl start --no-block kanidmd; sleep 8", 30)
+
+
+def test_authenticator_step():
+    """Setup shows an authenticator to enrol, refuses a wrong code and anything but one, leaves nothing until the
+    right code, and takes a fresh code after starting again."""
+    secret = begin_admin()
+    raw = secret_bytes(secret)
+    check("setup shows a secret to type, in groups of four", re.fullmatch(r"([A-Z2-7]{4} )+[A-Z2-7]{1,4}", secret) is not None and len(raw) >= 16)
+    code, answer = setup_call("/hospital/admin", form(ADMIN[0], ADMIN[1]))
+    check("and a QR code for it", code == "200" and '"qr":["' in answer, code)
+    fresh = re.search(r'"secret":"([A-Z2-7 ]+)"', answer).group(1)
+    check("starting again gives a new secret", fresh != secret)
+    wrong = (totp_now(secret_bytes(fresh)) + 1) % 10 ** 6
+    for bad in (f"{wrong:06d}", "12345", "abcdef", ""):
+        code, answer = setup_call("/hospital", {**form(ADMIN[0], ADMIN[1]), "code": bad})
+        check(f"a wrong code {bad!r} is refused, plainly", code == "422" and '"code"' in answer and "did not match" in answer, code)
+    check("and leaves no role marker and no seed", machine_state() == ["0", "0"], str(machine_state()))
+    sessions = serial("ls /run/medbrains-kanidm/first-admin-session 2>/dev/null | wc -l; stat -c '%U %a' /run/medbrains-kanidm/first-admin-session", 10)
+    check("the code step waits in root's tmpfs only", sessions.split()[0] == "1" and "root 600" in sessions, sessions[-40:])
 
 
 def test_nothing_left_on_disk():
@@ -65,14 +85,22 @@ def test_nothing_left_on_disk():
     found = serial(f"grep -rlF -- '{secret}' /var/lib/medbrains /var/lib/kanidm /etc/kanidm /run/medbrains-console /var/log 2>/dev/null | wc -l; "
                    f"journalctl -b --no-pager | grep -cF -- '{secret}'; true", 90).split()[-2:]
     check("the password is in no file and no log", found == ["0", "0"], str(found))
+    key = open(ADMIN_TOTP).read().replace(" ", "").strip()
+    found = serial(f"grep -rlF -- '{key}' /var/lib/medbrains /var/lib/kanidm /etc/kanidm /run /var/log 2>/dev/null | wc -l; "
+                   f"journalctl -b --no-pager | grep -cF -- '{key}'; ls /run/medbrains-kanidm/first-admin-session 2>/dev/null | wc -l; true", 90).split()[-3:]
+    check("the authenticator secret is in no file and no log, and the code step is gone", found == ["0", "0", "0"], str(found))
     print("INFO  env holds only its hash until the server has read it:", serial("cat /var/lib/medbrains/config/env 2>/dev/null | grep -c MEDBRAINS_SEED; true", 8)[-3:].strip(), flush=True)
 
 
 def test_login():
     """The chosen login works in Kanidm and MedBrains, and only with the right password."""
     token = kanidm_auth(ADMIN[0], ADMIN[1], privileged=False)[0]
-    check("Kanidm takes the login chosen at setup", bool(token))
+    check("Kanidm takes the login chosen at setup, with the authenticator's code", bool(token))
     check("and refuses a wrong password", not kanidm_auth(ADMIN[0], "Blue-River-Walks-At-8!", privileged=False)[0])
+    check("and the password alone", not kanidm_auth(ADMIN[0], ADMIN[1], privileged=False, code=False)[0])
+    check("and a wrong code", not kanidm_auth(ADMIN[0], ADMIN[1], privileged=False, code=(code_for(ADMIN[0]) + 1) % 10 ** 6)[0])
+    groups = serial("bash -c '. /usr/lib/medbrains/kanidm-lib.sh; api_as \"$(admin_token idm_admin)\" \"$ORIGIN/v1/group/mb_it_admins/_attr/member\"'", 40)
+    check("the first administrator is in mb_it_admins", f'"{ADMIN[0]}@' in groups, groups[-80:])
     time.sleep(3)
     jar = local_sign_in()
     me = curl(f"{WEB}/api/auth/me", jar=jar)[1]
@@ -97,6 +125,8 @@ def walk_sign_in(url, jar, username, password):
         elif 'action="/ui/login/mech_choose"' in str(text):
             # A person with a passkey as well is asked how to sign in; these tests use the password.
             status, text, headers = curl(f"{origin}/ui/login/mech_choose", "POST", jar=jar, form={"mech": "password"}, extra=extra)
+        elif 'action="/ui/login/totp"' in str(text):
+            status, text, headers = curl(f"{origin}/ui/login/totp", "POST", jar=jar, form={"totp": f"{code_for(username):06d}"}, extra=extra)
         elif 'action="/ui/login/pw"' in str(text):
             status, text, headers = curl(f"{origin}/ui/login/pw", "POST", jar=jar, form={"password": password}, extra=extra)
         elif "consent_token" in str(text):
@@ -116,9 +146,9 @@ def test_one_sign_in():
     status, _, headers = curl(f"{WEB}/api/auth/sso/{provider}/authorize", jar=jar)
     status, text, headers = walk_sign_in(headers["location"], jar, ADMIN[0], ADMIN[1])
     me = curl(f"{WEB}/api/auth/me", jar=jar)[1]
-    check("the admin signs in to MedBrains through Kanidm, as the same account",
+    check("the admin signs in to MedBrains through Kanidm with password and code, as the same account",
           isinstance(me, dict) and me.get("username") == ADMIN[0] and me.get("role") in ("super_admin", "hospital_admin"),
-          f"{status} {str(me)[:100]}")
+          f"{status} {headers.get('location', '')} {str(me)[:100]}")
     token = kanidm_auth("idm_admin", recover_password("idm_admin"))[0]
     must(curl(f"{IDP}/v1/person", "POST", token, {"attrs": {"name": ["ward.nurse"], "displayname": ["Ward Nurse"], "mail": ["ward.nurse@hospital.test"]}}), "person")
     reset = serial("/usr/lib/medbrains/kanidm-reset-password ward.nurse", 20)
@@ -138,10 +168,8 @@ def test_one_sign_in():
 
 
 def totp_code(secret):
-    """The code an authenticator app would show now, for Kanidm's default: SHA-256, 30 seconds, 6 digits."""
-    digest = hmac.new(bytes(secret["secret"]), struct.pack(">Q", int(time.time() // secret["step"])), hashlib.sha256).digest()
-    offset = digest[-1] & 15
-    return (struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7fffffff) % 10 ** secret["digits"]
+    """The code an authenticator app would show now, for a TOTP as Kanidm's status gives it."""
+    return totp_now(secret["secret"], step=secret["step"], digits=secret["digits"])
 
 
 def credential_session(token, name):
@@ -189,11 +217,15 @@ def main():
     if serial("ls /var/lib/medbrains/config/role-main 2>/dev/null; true", 8).strip() == "":
         test_rule_on_the_screen()
         test_failed_step_is_safe()
+        test_authenticator_step()
         set_up_machine()
     test_nothing_left_on_disk()
     test_login()
+    # The rest administers Kanidm from this computer, which the front refuses from the LAN: open it for this boot.
+    limit_opened(True)
     test_one_sign_in()
     test_second_step_group()
+    limit_opened(False)
     print(json.dumps({"failed": failed}))
     print("FAILED" if failed else "ALL PASSED")
     return 1 if failed else 0

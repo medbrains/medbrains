@@ -19,7 +19,7 @@ const SERVICE: &str = "/run/medbrains-console/setup.sock";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
 /// Long enough for a new main machine to create its database while the screen waits.
 const TIMEOUT: Duration = Duration::from_secs(60);
-/// Starting the machine: it waits for the identity provider to make the first administrator.
+/// Making the first administrator and starting the machine: both wait for the identity provider.
 const START_TIMEOUT: Duration = Duration::from_secs(150);
 /// Said when the service cannot be asked at all. A fault, so never shown as "no network".
 const NOT_ANSWERING: &str = "The machine's setup service is not answering. Try again in a moment.";
@@ -173,7 +173,11 @@ fn outcome(status: u16, body: Value) -> Result<Value, Failure> {
 /// One blocking exchange with the service.
 fn exchange(method: &str, path: &str, body: &str) -> Option<(u16, Value)> {
     let mut stream = UnixStream::connect(SERVICE).ok()?;
-    let limit = if path == "/hospital" { START_TIMEOUT } else { TIMEOUT };
+    let limit = if path.starts_with("/hospital") {
+        START_TIMEOUT
+    } else {
+        TIMEOUT
+    };
     stream.set_read_timeout(Some(limit)).ok()?;
     stream.set_write_timeout(Some(TIMEOUT)).ok()?;
     let length = body.len();
