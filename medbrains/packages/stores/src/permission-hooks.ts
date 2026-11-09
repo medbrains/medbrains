@@ -1,5 +1,5 @@
 import type { FieldAccessLevel } from "@medbrains/types";
-import { usePermissionStore } from "./permission-store.js";
+import { BYPASS_ROLES, usePermissionStore } from "./permission-store.js";
 
 /**
  * Returns true if the current user has the given permission.
@@ -30,4 +30,12 @@ export function useHasAnyPermission(codes: readonly string[]): boolean {
  */
 export function useFieldAccess(moduleFieldCode: string): FieldAccessLevel {
   return usePermissionStore((s) => s.getFieldAccess(moduleFieldCode));
+}
+
+/**
+ * Returns true if the current user holds a bypass role (`super_admin` / `hospital_admin`): the only
+ * callers the server lets give, remove or change an administrator account.
+ */
+export function useIsBypassRole(): boolean {
+  return usePermissionStore((s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole));
 }

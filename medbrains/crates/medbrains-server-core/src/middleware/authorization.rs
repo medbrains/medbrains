@@ -9,6 +9,53 @@ use crate::{error::AppError, middleware::auth::Claims};
 // HTTP type, so there is nothing for a caller to gain by importing them elsewhere.
 pub use medbrains_kernel::authz::{BYPASS_ROLES, authz_context, is_bypass_role, outcome_of};
 
+/// What a caller who is not an administrator is told when they would give, take away or change
+/// an administrator's account.
+const ADMIN_ACCOUNT_ONLY: &str =
+    "Only an administrator can give, remove or change an administrator account.";
+
+/// Refuses a caller without a bypass role who would give any of `roles` when one is a bypass role.
+///
+/// `admin.users.create` or `.update` is held by delegated user managers; it must not let them
+/// make anyone, themselves included, a `hospital_admin` or `super_admin`.
+///
+/// # Errors
+/// `AppError::ForbiddenReason` with a plain message.
+pub fn require_admin_to_give_role<'a>(
+    claims: &Claims,
+    roles: impl IntoIterator<Item = &'a str>,
+) -> Result<(), AppError> {
+    if is_bypass_role(claims) || !roles.into_iter().any(|r| BYPASS_ROLES.contains(&r.trim())) {
+        return Ok(());
+    }
+    Err(AppError::ForbiddenReason(ADMIN_ACCOUNT_ONLY.to_owned()))
+}
+
+/// Refuses a caller without a bypass role who would change an account that holds one.
+///
+/// Its role, access, active flag, password and removal all count: a delegated user manager
+/// must not be able to lock out or take over an administrator. An account that does not
+/// exist passes, so the caller's own not-found answer stands.
+///
+/// # Errors
+/// `AppError::ForbiddenReason` with a plain message, or the database error.
+pub async fn require_admin_to_change_account(
+    conn: &mut sqlx::PgConnection,
+    claims: &Claims,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    if is_bypass_role(claims) {
+        return Ok(());
+    }
+    let role: Option<String> =
+        sqlx::query_scalar("SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2")
+            .bind(user_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(conn)
+            .await?;
+    require_admin_to_give_role(claims, role.as_deref())
+}
+
 /// Require the user to have a specific permission.
 /// `super_admin` and `hospital_admin` bypass all checks.
 pub fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {

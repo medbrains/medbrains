@@ -22,7 +22,9 @@ use uuid::Uuid;
 use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    is_bypass_role, require_admin_to_change_account, require_permission,
+};
 use medbrains_server_core::middleware::field_access::resolve_restricted_fields;
 use medbrains_server_core::state::AppState;
 
@@ -2573,6 +2575,7 @@ pub async fn admin_set_user_widget_access(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    require_admin_to_change_account(&mut tx, &claims, user_id).await?;
 
     sqlx::query(
         "UPDATE users SET access_matrix = jsonb_set(

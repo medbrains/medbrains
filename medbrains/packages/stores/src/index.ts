@@ -22,6 +22,7 @@ export {
   useHasAllPermissions,
   useHasAnyPermission,
   useHasPermission,
+  useIsBypassRole,
 } from "./permission-hooks.js";
 export { BYPASS_ROLES, usePermissionStore } from "./permission-store.js";
 export { createQueryClient } from "./query-client.js";

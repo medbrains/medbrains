@@ -19,7 +19,8 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::middleware::authorization::{
-    is_bypass_role, require_any_permission, require_permission,
+    BYPASS_ROLES, is_bypass_role, require_admin_to_change_account, require_admin_to_give_role,
+    require_any_permission, require_permission,
 };
 use medbrains_server_core::settings_guard::refuse_own_endpoint_category;
 use medbrains_server_core::state::AppState;
@@ -1311,6 +1312,7 @@ pub async fn create_user(
     Json(body): Json<CreateUserRequest>,
 ) -> Result<Json<SetupUserRow>, AppError> {
     require_permission(&claims, permissions::admin::users::CREATE)?;
+    require_admin_to_give_role(&claims, [body.role.as_str()])?;
     let mut errors = ValidationErrors::new();
     validation::validate_username(&mut errors, "username", &body.username);
     validation::validate_email(&mut errors, "email", &body.email);
@@ -1471,9 +1473,11 @@ pub async fn update_user(
     Json(body): Json<UpdateUserRequest>,
 ) -> Result<Json<SetupUserRow>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
+    require_admin_to_give_role(&claims, body.role.as_deref())?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    require_admin_to_change_account(&mut tx, &claims, id).await?;
 
     let fee = body
         .consultation_fee
@@ -1642,6 +1646,7 @@ pub async fn reset_user_password(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    require_admin_to_change_account(&mut tx, &claims, id).await?;
 
     let updated = sqlx::query(
         "UPDATE users SET password_hash = $1, must_change_password = true, \
@@ -1695,6 +1700,10 @@ pub async fn delete_user(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::DELETE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    require_admin_to_change_account(&mut tx, &claims, id).await?;
 
     // Deprovision: expire the user's VPN nodes in Headscale BEFORE the row (and
     // its cascade-deleted vpn_devices) disappear — else the keys would outlive
@@ -1702,10 +1711,6 @@ pub async fn delete_user(
     if let Err(e) = medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, id).await {
         tracing::warn!(error = %e, user = %id, "delete_user: VPN device revoke failed");
     }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
 
     sqlx::query("DELETE FROM users WHERE id = $1 AND tenant_id = $2")
         .bind(id)
@@ -1873,6 +1878,7 @@ pub async fn update_user_access_matrix(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    require_admin_to_change_account(&mut tx, &claims, id).await?;
 
     let existing_matrix = sqlx::query_scalar::<_, Value>(
         "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
@@ -4647,13 +4653,20 @@ pub async fn import_users(
         let password = password_idx
             .and_then(|idx| row.values.get(idx))
             .map_or_else(
-                || format!("Welcome@{}", &username),
+                || format!("Welcome@{username}"),
                 |v| v.trim().to_string(),
             );
 
         let role = role_idx
             .and_then(|idx| row.values.get(idx))
             .map_or_else(|| "receptionist".to_string(), |v| v.trim().to_string());
+        if BYPASS_ROLES.contains(&role.as_str()) && !is_bypass_role(&claims) {
+            errors.push(format!(
+                "Row {row_num}: only an administrator can give the {role} role"
+            ));
+            skipped += 1;
+            continue;
+        }
 
         // Hash password
         let password_hash = argon2
@@ -5028,6 +5041,7 @@ pub async fn bulk_create_users(
     Json(body): Json<BulkCreateUsersRequest>,
 ) -> Result<Json<BulkCreateUsersResponse>, AppError> {
     require_permission(&claims, permissions::admin::users::CREATE)?;
+    require_admin_to_give_role(&claims, body.users.iter().map(|u| u.role.as_str()))?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

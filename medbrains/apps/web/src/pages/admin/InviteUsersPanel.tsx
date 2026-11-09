@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
+import { BYPASS_ROLES, useHasPermission, useIsBypassRole } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconMailForward, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -46,6 +46,9 @@ type FormInput = z.infer<typeof schema>;
 
 export function InviteUsersPanel() {
   const canInvite = useHasPermission(P.ADMIN.USERS.CREATE);
+  // Only an administrator invites an administrator; the server refuses anyone else.
+  const isCallerAdmin = useIsBypassRole();
+  const roleOptions = ROLE_OPTIONS.filter((r) => isCallerAdmin || !BYPASS_ROLES.has(r.value));
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
 
@@ -177,7 +180,7 @@ export function InviteUsersPanel() {
             render={({ field }) => (
               <Select
                 label="Role"
-                data={ROLE_OPTIONS}
+                data={roleOptions}
                 value={field.value}
                 onChange={(v) => field.onChange(v ?? "doctor")}
                 error={errors.role?.message}

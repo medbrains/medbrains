@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{require_admin_to_give_role, require_permission};
 use medbrains_server_core::validation::{self, ValidationErrors};
 use medbrains_server_core::{error::AppError, state::AppState};
 
@@ -92,6 +92,7 @@ pub async fn create(
     if !USER_ROLES.contains(&role) {
         return Err(AppError::BadRequest(format!("Unknown role '{role}'")));
     }
+    require_admin_to_give_role(&claims, [role])?;
 
     let mut buf = [0u8; 32];
     getrandom::fill(&mut buf).map_err(|e| AppError::Internal(format!("rng: {e}")))?;

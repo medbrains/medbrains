@@ -61,6 +61,7 @@ mod ai_dictation_test;
 mod allergy_verification_test;
 mod analyzer_orders_test;
 mod anonymous_incident_test;
+mod admin_account_guard_test;
 mod admin_authz_order_test;
 mod api_key_limits_test;
 mod api_not_found_test;

@@ -21,7 +21,9 @@ use argon2::{Argon2, PasswordHasher};
 use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{
+    require_admin_to_change_account, require_admin_to_give_role, require_permission,
+};
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 
@@ -647,6 +649,7 @@ pub async fn create_employee(
         if role.is_empty() {
             errors.add("login_role", "Role is required to provision a login");
         }
+        require_admin_to_give_role(&claims, [role])?;
         let taken: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)",
         )
@@ -819,6 +822,7 @@ pub async fn update_employee(
             | EmployeeStatus::Absconding
     );
     if revokes_access && let Some(user_id) = row.user_id {
+        require_admin_to_change_account(&mut tx, &claims, user_id).await?;
         // Deactivate the login + bump perm_version so any cached JWT stops resolving.
         sqlx::query(
             "UPDATE users SET is_active = false, perm_version = perm_version + 1, \
