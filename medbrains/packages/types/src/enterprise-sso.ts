@@ -14,6 +14,8 @@ export interface SsoProvider {
   group_claim: string;
   default_role: string | null;
   jit_enabled: boolean;
+  /** A verified email from this provider may find an existing account; never an administrator's. */
+  link_by_email: boolean;
   config: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -30,6 +32,7 @@ export interface CreateSsoProviderRequest {
   group_claim?: string;
   default_role?: string;
   jit_enabled?: boolean;
+  link_by_email?: boolean;
   is_active?: boolean;
   config?: Record<string, unknown>;
 }
@@ -43,6 +46,7 @@ export interface UpdateSsoProviderRequest {
   group_claim?: string;
   default_role?: string;
   jit_enabled?: boolean;
+  link_by_email?: boolean;
   is_active?: boolean;
   config?: Record<string, unknown>;
 }
@@ -117,4 +121,20 @@ export interface IssueTokenInput {
   patient_name?: string;
   entity_type?: string;
   entity_id?: string;
+}
+
+/** A person in the hospital's own sign-in service (Kanidm), as the link picker shows them. */
+export interface KanidmPerson {
+  uuid: string;
+  name: string;
+  display_name: string | null;
+  mail: string | null;
+  /** The MedBrains account this person is already linked to, if any. */
+  linked_username: string | null;
+}
+
+/** A MedBrains account's link to a sign-in person. */
+export interface SsoLink {
+  provider_id: string;
+  subject: string;
 }

@@ -2,9 +2,10 @@
   "id": "medbrains",
   "name": "MedBrains",
   "icon": "/usr/share/medbrains/shell/logo.svg",
-  "url": "https://127.0.0.1:8443/",
+  "url": "https://screen.medbrains.local:8443/",
   "role": "main",
   "unit": "medbrains-server.service",
   "health": "http://127.0.0.1:3000/api/health",
-  "accent": true
+  "accent": true,
+  "sign_in_origin": "https://idm.medbrains.local:9443"
 }

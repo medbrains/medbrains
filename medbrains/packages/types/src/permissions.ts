@@ -302,6 +302,13 @@ export const P = {
     SIGNATURE_CREDENTIALS_ISSUE: "admin.signature_credentials.issue",
     SIGNATURE_CREDENTIALS_LIST: "admin.signature_credentials.list",
     SIGNATURE_CREDENTIALS_REVOKE: "admin.signature_credentials.revoke",
+    SSO: {
+      PROVIDERS: {
+        MANAGE: "admin.sso.providers.manage",
+      },
+      PROVIDERS_MANAGE: "admin.sso.providers.manage",
+    },
+    SSO_PROVIDERS_MANAGE: "admin.sso.providers.manage",
     SYSTEM_STATE: {
       MANAGE: "admin.system_state.manage",
       VIEW: "admin.system_state.view",
@@ -329,6 +336,7 @@ export const P = {
       CREATE: "admin.users.create",
       DELETE: "admin.users.delete",
       FORCE_LOGOUT: "admin.users.force_logout",
+      LINK_IDENTITY: "admin.users.link_identity",
       LIST: "admin.users.list",
       UPDATE: "admin.users.update",
       VIEW: "admin.users.view",
@@ -336,6 +344,7 @@ export const P = {
     USERS_CREATE: "admin.users.create",
     USERS_DELETE: "admin.users.delete",
     USERS_FORCE_LOGOUT: "admin.users.force_logout",
+    USERS_LINK_IDENTITY: "admin.users.link_identity",
     USERS_LIST: "admin.users.list",
     USERS_UPDATE: "admin.users.update",
     USERS_VIEW: "admin.users.view",

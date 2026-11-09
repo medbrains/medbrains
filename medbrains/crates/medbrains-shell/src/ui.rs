@@ -272,12 +272,12 @@ mod tests {
         let broken = machine("degraded", &["medbrains-front.service"]);
         assert_eq!(health_word(&broken, true), "Needs attention");
         assert_eq!(
-            status_sentence(&broken, true),
+            status_sentence(&broken, true, "encrypted-tpm2"),
             "This service has a problem: medbrains-front.service"
         );
         let two = machine("degraded", &["a.service", "b.service"]);
         assert_eq!(
-            status_sentence(&two, true),
+            status_sentence(&two, true, "encrypted-tpm2"),
             "These services have a problem: a.service, b.service"
         );
         assert_eq!(
