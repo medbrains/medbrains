@@ -180,8 +180,10 @@ function UserModal({
     enabled: opened && hasDepartments && canListDepartments,
   });
 
+  // Only an administrator gives an administrator role; the server refuses anyone else.
+  const isCallerAdmin = usePermissionStore((s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole));
   const roleOptions = [
-    ...BUILT_IN_ROLES,
+    ...BUILT_IN_ROLES.filter((r) => isCallerAdmin || !BYPASS_ROLES.has(r.value)),
     ...(customRoles ?? [])
       .filter((r: CustomRole) => r.is_active && !BUILT_IN_ROLES.some((b) => b.value === r.code))
       .map((r: CustomRole) => ({ value: r.code, label: r.name })),
@@ -898,30 +900,33 @@ export function UsersPage() {
     {
       key: "actions",
       label: "",
-      render: (row: SetupUser) => (
+      render: (row: SetupUser) => {
+        // An administrator's account is changed only by an administrator; the server refuses anyone else.
+        const mayChange = isAdmin || !BYPASS_ROLES.has(row.role);
+        return (
         <Group gap={4}>
-          {canUpdate && (
+          {canUpdate && mayChange && (
             <Tooltip label="Edit user">
               <IconButton tone="primary" onClick={() => openEdit(row)} aria-label="Edit">
                 <IconPencil size={16} />
               </IconButton>
             </Tooltip>
           )}
-          {canUpdate && (
+          {canUpdate && mayChange && (
             <Tooltip label="Permission overrides">
               <IconButton tone="default" onClick={() => openPermissions(row)} aria-label="Security">
                 <IconShield size={16} />
               </IconButton>
             </Tooltip>
           )}
-          {canUpdate && (
+          {canUpdate && mayChange && (
             <Tooltip label="Reset password">
               <IconButton tone="default" onClick={() => openReset(row)} aria-label="Reset password">
                 <IconKey size={16} />
               </IconButton>
             </Tooltip>
           )}
-          {canLink && (
+          {canLink && mayChange && (
             <Tooltip label="Link to sign-in">
               <IconButton
                 tone="default"
@@ -932,7 +937,7 @@ export function UsersPage() {
               </IconButton>
             </Tooltip>
           )}
-          {canDelete && (
+          {canDelete && mayChange && (
             <Tooltip label="Delete user">
               <IconButton tone="danger" onClick={() => openDelete(row)} aria-label="Delete">
                 <IconTrash size={16} />
@@ -940,7 +945,8 @@ export function UsersPage() {
             </Tooltip>
           )}
         </Group>
-      ),
+        );
+      },
     },
   ];
 
