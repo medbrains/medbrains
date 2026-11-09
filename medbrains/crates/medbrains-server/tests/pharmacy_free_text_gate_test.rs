@@ -1,11 +1,13 @@
 //! Free text never carries a gated drug.
 //!
-//! Every Schedule H/H1/X/NDPS check keys on the catalogue item. A
-//! prescription-backed dispense takes catalogue lines only, so any free-text
-//! line there is refused with "Choose the drug from the catalogue". At OTC
-//! and POS, free text naming a gated drug is refused: an X, NDPS or
-//! controlled name anywhere in it as a word or phrase, an H or H1 name at its
-//! start (after a dosage form); a line naming nothing gated is sold.
+//! Every Schedule H/H1/X/NDPS check keys on the catalogue item. A dispense
+//! through the schedule gate takes catalogue lines only, with or without a
+//! prescription, so any free-text line there is refused with "Choose the drug
+//! from the catalogue". At OTC and POS, free text naming a gated drug is
+//! refused: a gated catalogue name or a part of a gated generic, anywhere in
+//! it as a whole word or phrase, after zero-width characters are deleted and
+//! NFKC applied; a line still holding a non-ASCII letter is refused too; a
+//! line naming nothing gated is sold.
 
 use crate::dispense_world::{self, Desk};
 
@@ -169,4 +171,61 @@ async fn an_otc_line_naming_a_gated_drug_in_other_words_is_refused() {
     }
     let (_, plain) = post(&d, "/api/pharmacy/otc-sale", sale("Cotton roll")).await;
     assert!(!plain.contains(CHOOSE), "nothing gated is named: {plain}");
+}
+
+/// POSTs a one-line POS sale typed as `drug_name`.
+async fn pos_sale(d: &Desk, drug_name: &str) -> (StatusCode, String) {
+    let body = json!({
+        "items": [{
+            "catalog_item_id": null, "drug_name": drug_name, "quantity": 1,
+            "gst_rate": 12, "mrp": 10, "selling_price": 10,
+        }],
+        "payment_mode": "cash",
+    });
+    post(d, "/api/pharmacy/pos/sales", body).await
+}
+
+#[tokio::test]
+async fn a_gated_name_anywhere_in_free_text_or_disguised_is_refused() {
+    let d = dispense_world::desk().await;
+    named_drug(
+        &d,
+        ("Morphine Sulphate 10mg Tablet", "Morphine"),
+        "NDPS",
+        true,
+    )
+    .await;
+    named_drug(&d, ("Tramadol 50mg Tablet", "Tramadol"), "H1", false).await;
+    named_drug(
+        &d,
+        (
+            "Codeine Phosphate + Chlorpheniramine Syrup",
+            "Codeine Phosphate + Chlorpheniramine",
+        ),
+        "H",
+        false,
+    )
+    .await;
+    named_drug(&d, ("Iron 100mg Injection", "Iron"), "H", false).await;
+    let sale = |drug_name: &str| json!({ "items": [{ "catalog_item_id": null, "drug_name": drug_name, "quantity": 1, "unit_price": 10 }] });
+
+    for typed in [
+        "2 strips morphine",
+        "50mg tramadol",
+        "2 strips tramadol",
+        "T. Tramadol",
+        "Mor\u{200B}phine",
+        "Morphin\u{0435}",
+        "Chlorpheniramine maleate syrup",
+    ] {
+        let (status, text) = post(&d, "/api/pharmacy/otc-sale", sale(typed)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{typed}: {text}");
+        assert!(text.contains(CHOOSE), "{typed}: {text}");
+    }
+    let (_, plain) = post(&d, "/api/pharmacy/otc-sale", sale("Environment spray")).await;
+    assert!(!plain.contains(CHOOSE), "iron is not in environment: {plain}");
+
+    let (status, text) = pos_sale(&d, "50mg tramadol").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{text}");
+    assert!(text.contains(CHOOSE), "{text}");
 }

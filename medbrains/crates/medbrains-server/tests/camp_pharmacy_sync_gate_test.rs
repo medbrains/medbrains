@@ -378,3 +378,34 @@ async fn a_camp_prescription_waits_for_its_doctor_and_the_gate_flags_what_it_ref
         "1 + 2 + 9 + 1 were handed over at the camp"
     );
 }
+
+#[tokio::test]
+async fn a_dispense_naming_an_unknown_prescription_fails_alone() {
+    let d = dispense_world::desk().await;
+    let camp = camp(&d).await;
+    let plain = d.drug(None, false).await;
+    let pharmacist = staff(
+        &d.app,
+        &d.admin_csrf,
+        ("pharmacist", d.department),
+        &["camp.list"],
+    )
+    .await;
+    let results = sync(
+        &d,
+        &pharmacist,
+        camp,
+        vec![
+            dispense_event(&d, Some(Uuid::new_v4()), &[(Some(plain), 1)]),
+            dispense_event(&d, None, &[(Some(plain), 1)]),
+        ],
+    )
+    .await;
+    let [unknown, later] = results.as_slice() else {
+        panic!("two results: {results:?}");
+    };
+    assert_eq!(unknown.status, "failed", "{unknown:?}");
+    assert!(unknown.message.contains("not on record"), "{unknown:?}");
+    assert_eq!(later.status, "applied", "{later:?}");
+    assert_eq!(stock(&d, plain).await, 499, "only the later event dispensed");
+}

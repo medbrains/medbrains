@@ -3260,6 +3260,42 @@ async fn patient_for_registration(
     .flatten())
 }
 
+/// Refuses a camp dispense naming a prescription that is not this patient's
+/// live one in this tenant.
+///
+/// Without it an unknown id reached the order insert as a foreign-key error,
+/// a 500 that failed the whole sync batch on every retry; as `BadRequest` only
+/// that event fails. The patient is matched as the schedule gate matches it:
+/// on the prescription, else its encounter's or admission's.
+async fn ensure_prescription_for_patient(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    prescription_id: Uuid,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let found: Option<bool> = sqlx::query_scalar(
+        "SELECT true FROM prescriptions rx \
+          WHERE rx.id = $1 AND rx.tenant_id = $2 AND rx.deleted_at IS NULL \
+            AND COALESCE(rx.patient_id, \
+                  (SELECT e.patient_id FROM encounters e \
+                    WHERE e.id = rx.encounter_id AND e.tenant_id = rx.tenant_id), \
+                  (SELECT a.patient_id FROM admissions a \
+                    WHERE a.id = rx.admission_id AND a.tenant_id = rx.tenant_id)) = $3",
+    )
+    .bind(prescription_id)
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if found.is_some() {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(format!(
+        "prescription {prescription_id} is not on record for this patient; sync the \
+         prescription first or dispense without one"
+    )))
+}
+
 async fn resolve_camp_patient_id(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -3955,6 +3991,9 @@ async fn apply_camp_sync_event(
                 body.registration_id,
             )
             .await?;
+            if let Some(rx_id) = body.prescription_id {
+                ensure_prescription_for_patient(tx, claims.tenant_id, rx_id, patient_id).await?;
+            }
             // One catalogue read for the whole dispense instead of one per item.
             // A camp syncs a day of offline dispensing in a single call, so the
             // per-item read was N round trips inside the transaction holding the

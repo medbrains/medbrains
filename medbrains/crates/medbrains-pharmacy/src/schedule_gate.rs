@@ -26,9 +26,9 @@
 //!   X, NDPS and controlled drugs are never dispensed on a verbal or telephone
 //!   order.
 //! - Every line carries its catalogue item. A line typed as free text is
-//!   refused here outright ("Choose the drug from the catalogue"): a
-//!   prescription-backed dispense, a pack-and-collect pick and a camp
-//!   dispense take catalogue lines only. Free text is for OTC and POS sales,
+//!   refused here outright ("Choose the drug from the catalogue"), on every
+//!   order the gate sees, with or without a prescription: a counter dispense,
+//!   a pack-and-collect pick and a camp dispense take catalogue lines only. Free text is for OTC and POS sales,
 //!   where `refuse_gated_free_text` keeps a gated drug off it.
 //! - Schedule X also needs a doctor allowed to prescribe it, a witness who is
 //!   not that doctor, and the reference of the duplicate the pharmacy retains
@@ -124,8 +124,8 @@ pub async fn enforce_schedule_compliance(
     .await?;
     if !free_text.is_empty() {
         return Err(AppError::BadRequest(format!(
-            "{}: {CHOOSE_FROM_CATALOGUE}. A dispense against a prescription takes catalogue \
-             lines only",
+            "{}: {CHOOSE_FROM_CATALOGUE}. A dispense, pick or camp dispense takes catalogue \
+             lines only, with or without a prescription; free text is for OTC and POS sales",
             free_text.join(", ")
         )));
     }
@@ -162,16 +162,24 @@ pub const CHOOSE_FROM_CATALOGUE: &str = "Choose the drug from the catalogue";
 
 /// Refuses free-text lines that name a gated drug, at an OTC or POS sale.
 ///
-/// Both sides are normalised (lowercase, punctuation to spaces, whitespace
-/// collapsed), and a catalogue name loses its strength (everything from the
-/// first word that starts with a digit). A line is refused when:
-/// - it contains, as a whole word or phrase, the generic or catalogue name of
-///   a Schedule X, NDPS or controlled row ("Morphine sulphate 10mg tab"); or
-/// - after a leading dosage form ("tab", "inj", ...), it starts with the
-///   generic or catalogue name of a Schedule H or H1 row ("tab tramadol 50").
+/// Each typed line is cleaned first: format characters (zero-width spaces and
+/// joiners, soft hyphen, BOM, word joiner, bidi marks) are deleted, then NFKC
+/// folds look-alike forms (fullwidth "Ｍｏｒｐｈｉｎｅ") to plain letters. A line
+/// that still holds a letter outside A-Z (a Cyrillic "е" in "Morphinе") is
+/// refused: it cannot be read reliably, so it is picked from the catalogue.
+///
+/// Then both sides are normalised (lowercase, punctuation to spaces,
+/// whitespace collapsed). The gated names are every Schedule H, H1, X, NDPS
+/// or controlled row's catalogue name and each part of its generic name split
+/// on `+`, `,` and `/` ("Codeine Phosphate + Chlorpheniramine"), each losing
+/// its strength (everything from the first word that starts with a digit). A
+/// line is refused when it contains any of them as a whole word or phrase,
+/// anywhere: "50mg tramadol", "T. Tramadol". Whole words keep "iron" out of
+/// "environment".
 ///
 /// Typed instead of picked, a gated drug would pass every check keyed on the
-/// catalogue.
+/// catalogue. Text matching cannot catch a misspelling or an unstocked brand;
+/// SOP 04 says free text naming a drug is audited.
 ///
 /// # Errors
 /// `BadRequest` naming each such line; a database error as itself.
@@ -183,42 +191,87 @@ pub async fn refuse_gated_free_text(
     if names.is_empty() {
         return Ok(());
     }
+    let lines = classify_free_text(tx, tenant_id, names).await?;
+    let unreadable: Vec<&str> = lines
+        .iter()
+        .filter(|(_, clean, _)| has_non_ascii_letter(clean))
+        .map(|(shown, _, _)| shown.as_str())
+        .collect();
+    let gated: Vec<&str> = lines
+        .iter()
+        .filter(|(_, clean, hit)| *hit && !has_non_ascii_letter(clean))
+        .map(|(shown, _, _)| shown.as_str())
+        .collect();
+    let mut problems = Vec::new();
+    if !unreadable.is_empty() {
+        problems.push(format!(
+            "{}: {CHOOSE_FROM_CATALOGUE}. A line typed as free text may use only the letters A-Z",
+            unreadable.join(", ")
+        ));
+    }
+    if !gated.is_empty() {
+        problems.push(format!(
+            "{}: {CHOOSE_FROM_CATALOGUE}. A Schedule H, H1, X, NDPS or controlled drug cannot \
+             be sold on a line typed as free text",
+            gated.join(", ")
+        ));
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(problems.join("; ")))
+    }
+}
+
+/// Characters deleted from typed text before matching: zero-width space,
+/// non-joiner and joiner, LTR/RTL marks, bidi embeddings and isolates, soft
+/// hyphen, Mongolian vowel separator, combining grapheme joiner, word joiner
+/// and the invisible operators, and the BOM. Deleted, not spaced, so
+/// "Mor\u{200B}phine" reads "Morphine".
+const FORMAT_CHARS_RE: &str =
+    "[\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u2066-\\u206F\\u00AD\\u180E\\u034F\\uFEFF]";
+
+/// Each typed line, in order, as `(shown, cleaned, names a gated drug)`;
+/// "cleaned" is after format-character deletion and NFKC, before lowercasing.
+async fn classify_free_text(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    names: &[String],
+) -> Result<Vec<(String, String, bool)>, AppError> {
     // ponytail: every typed line against every gated catalogue name, in one
     // query; a trigram index on the normalised names if catalogues pass ~50k.
-    let gated: Vec<String> = sqlx::query_scalar(
+    let sql = format!(
         "WITH typed AS ( \
-            SELECT btrim(n.name) AS shown, \
-                   btrim(regexp_replace(lower(n.name), '[^a-z0-9]+', ' ', 'g')) AS t \
-              FROM unnest($2::text[]) AS n(name)), \
+            SELECT n.ord, btrim(n.name) AS shown, \
+                   normalize(regexp_replace(n.name, '{FORMAT_CHARS_RE}', '', 'g'), NFKC) AS clean \
+              FROM unnest($2::text[]) WITH ORDINALITY AS n(name, ord)), \
          gated AS ( \
-            SELECT (c.drug_schedule::text IN ('X', 'NDPS') OR c.is_controlled) AS strict, \
-                   btrim(regexp_replace( \
-                       btrim(regexp_replace(lower(v.name), '[^a-z0-9]+', ' ', 'g')), \
+            SELECT DISTINCT btrim(regexp_replace( \
+                       btrim(regexp_replace(lower(normalize(v.part, NFKC)), '[^a-z0-9]+', ' ', 'g')), \
                        '(^| )[0-9].*$', '')) AS g \
               FROM pharmacy_catalog c \
-              CROSS JOIN LATERAL (VALUES (c.name), (c.generic_name)) AS v(name) \
-             WHERE c.tenant_id = $1 AND v.name IS NOT NULL \
+              CROSS JOIN LATERAL (SELECT c.name \
+                                  UNION ALL \
+                                  SELECT regexp_split_to_table(c.generic_name, '[+,/]')) AS v(part) \
+             WHERE c.tenant_id = $1 AND v.part IS NOT NULL \
                AND (c.drug_schedule::text IN ('H', 'H1', 'X', 'NDPS') OR c.is_controlled)) \
-         SELECT DISTINCT typed.shown FROM typed JOIN gated ON gated.g <> '' AND ( \
-             (gated.strict AND ' ' || typed.t || ' ' LIKE '% ' || gated.g || ' %') \
-          OR (NOT gated.strict \
-              AND regexp_replace(typed.t, \
-                    '^((tab|tabs|tablet|tablets|cap|caps|capsule|capsules|inj|injection|syp|syrup|susp|suspension) )+', \
-                    '') || ' ' LIKE gated.g || ' %')) \
-         ORDER BY 1",
-    )
-    .bind(tenant_id)
-    .bind(names)
-    .fetch_all(&mut **tx)
-    .await?;
-    if gated.is_empty() {
-        return Ok(());
-    }
-    Err(AppError::BadRequest(format!(
-        "{}: {CHOOSE_FROM_CATALOGUE}. A Schedule H, H1, X, NDPS or controlled drug cannot be \
-         sold on a line typed as free text",
-        gated.join(", ")
-    )))
+         SELECT t.shown, t.clean, EXISTS ( \
+                  SELECT 1 FROM gated WHERE gated.g <> '' \
+                     AND ' ' || btrim(regexp_replace(lower(t.clean), '[^a-z0-9]+', ' ', 'g')) || ' ' \
+                         LIKE '% ' || gated.g || ' %') AS hit \
+           FROM typed t ORDER BY t.ord"
+    );
+    Ok(sqlx::query_as::<_, (String, String, bool)>(&sql)
+        .bind(tenant_id)
+        .bind(names)
+        .fetch_all(&mut **tx)
+        .await?)
+}
+
+/// Whether `text` still holds a letter outside ASCII after cleaning: a
+/// homoglyph or a script the matcher cannot read.
+fn has_non_ascii_letter(text: &str) -> bool {
+    text.chars().any(|c| c.is_alphabetic() && !c.is_ascii())
 }
 
 /// The order's prescription, when it is this patient's and not deleted, and
@@ -568,7 +621,14 @@ pub fn duplicate_ref<'a>(typed: Option<&'a str>, stored: Option<&'a str>) -> Opt
 
 #[cfg(test)]
 mod tests {
-    use super::duplicate_ref;
+    use super::{duplicate_ref, has_non_ascii_letter};
+
+    #[test]
+    fn only_a_letter_outside_ascii_makes_a_line_unreadable() {
+        assert!(has_non_ascii_letter("Morphin\u{0435}"));
+        assert!(has_non_ascii_letter("caf\u{00E9}"));
+        assert!(!has_non_ascii_letter("Paracetamol 500mg \u{00B0} \u{00D7}2"));
+    }
 
     #[test]
     fn a_blank_duplicate_reference_falls_back_to_the_stored_one() {
