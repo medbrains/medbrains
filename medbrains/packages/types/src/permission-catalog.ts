@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1233 permissions, one per constant in the Rust source. */
+/** 1234 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5179,6 +5179,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "insurance",
   },
   {
+    code: "insurance.preauth_missing.dismiss",
+    label: "Dismiss a \"no usable pre-auth\" alert",
+    description: "Close the alert on an insured inpatient with no usable pre-auth when none is coming: the family pays cash, the treatment is not covered, or another reason written down. Who, when and why is kept.",
+    module: "insurance",
+  },
+  {
     code: "insurance.room_eligibility.view",
     label: "See rooms above the policy limit",
     description: "See inpatients placed in a room dearer than their policy's eligible room rent, with the share of room-linked charges the insurer may cut in proportion.",
@@ -8427,6 +8433,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,
+      P.INSURANCE.PREAUTH_MISSING.DISMISS,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,
@@ -9334,6 +9341,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,
+      P.INSURANCE.PREAUTH_MISSING.DISMISS,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,

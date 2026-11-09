@@ -4,7 +4,8 @@
 //! one before the bill grows. Sometimes none is coming, and rightly: the
 //! family chose to pay cash, or the treatment is not covered by the policy.
 //! The desk dismisses the row with that reason, on the audit chain; the
-//! check does not raise it again for that admission.
+//! check does not raise it again for that admission, unless a pre-auth is
+//! created for the patient after the dismissal.
 
 use axum::{
     Extension, Json,
@@ -13,10 +14,11 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
-use crate::revenue_alerts::{KIND_PREAUTH, RevenueAlert, fetch, kind_permission, lock_open};
+use crate::revenue_alerts::{KIND_PREAUTH, RevenueAlert, fetch, lock_open};
 
 /// The only reason a dismissal is accepted on.
 const REASON_MISSING: &str = "preauth_missing_or_expired";
@@ -65,8 +67,8 @@ fn validated(body: &DismissPreauthBody) -> Result<(&str, Option<&str>), AppError
 /// approval nearly used up is answered by an enhancement, not a dismissal).
 ///
 /// # Errors
-/// 403 without `insurance.enhancement.request` or billing access to the
-/// patient; 400 as [`validated`]; 404 / 409 as `lock_open`.
+/// 403 without `insurance.preauth_missing.dismiss` or billing access to
+/// the patient; 400 as [`validated`]; 404 / 409 as `lock_open`.
 #[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn dismiss_preauth_alert(
     State(state): State<AppState>,
@@ -74,7 +76,7 @@ pub async fn dismiss_preauth_alert(
     Path(id): Path<Uuid>,
     Json(body): Json<DismissPreauthBody>,
 ) -> Result<Json<RevenueAlert>, AppError> {
-    require_permission(&claims, kind_permission(KIND_PREAUTH, true)?)?;
+    require_permission(&claims, permissions::insurance::preauth_missing::DISMISS)?;
     let (reason, note) = validated(&body)?;
     let hidden = crate::amounts_hidden(&state, &claims).await?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;

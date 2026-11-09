@@ -3098,6 +3098,16 @@ pub mod insurance {
         pub const REQUEST: &str = "insurance.enhancement.request";
     }
 
+    /// An insured inpatient with no usable pre-auth on the visit.
+    pub mod preauth_missing {
+        /// Dismiss a "no usable pre-auth" alert.
+        ///
+        /// Close the alert on an insured inpatient with no usable pre-auth
+        /// when none is coming: the family pays cash, the treatment is not
+        /// covered, or another reason written down. Who, when and why is kept.
+        pub const DISMISS: &str = "insurance.preauth_missing.dismiss";
+    }
+
     /// A room above the policy's room rent limit.
     pub mod room_eligibility {
         /// See rooms above the policy limit.

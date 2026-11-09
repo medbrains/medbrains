@@ -115,20 +115,32 @@ ALTER TABLE public.charge_attention_items
     -- `charge_attention_only_detector_unattributed` for them. It is numbered
     -- above every migration that redefines that constraint, so it is last.
     -- A closed row names who closed it, except one the system closed because
-    -- the fact it reported stopped being true: a usable pre-auth is now on the
-    -- visit (`preauth_found`), the patient has no policy in force
-    -- (`not_insured`), the patient left (`discharged`), or the pre-auth the
-    -- row was about expired and the visit's "no usable pre-auth" row took
-    -- over (`preauth_expired`). Nobody acted, so nobody is named.
+    -- the fact it reported stopped being true, and each such resolution only
+    -- on the source that can have it. On the admission's "no usable pre-auth"
+    -- row: a usable pre-auth is now on the visit (`preauth_found`) or the
+    -- patient has no policy in force (`not_insured`). On that row or the
+    -- admission's room row: the stay is over and its bill settled (`settled`:
+    -- discharged, and every bill paid, cancelled or refunded, or a claim
+    -- submitted), or the admission was deleted (`admission_deleted`). On a
+    -- used-up row of a pre-auth: it expired and the visit's "no usable
+    -- pre-auth" row took over (`preauth_expired`). Nobody acted, so nobody
+    -- is named.
     DROP CONSTRAINT IF EXISTS charge_attention_resolved_has_who,
     ADD CONSTRAINT charge_attention_resolved_has_who
         CHECK (status = 'open'
                OR (resolved_at IS NOT NULL
                    AND (resolved_by IS NOT NULL
                         OR (status = 'actioned' AND kind <> 'charge_not_posted'
-                            AND evidence ->> 'resolution' IN
-                                ('preauth_found', 'not_insured', 'discharged',
-                                 'preauth_expired')))));
+                            AND ((source_module = 'admission_preauth'
+                                  AND evidence ->> 'resolution' IN
+                                      ('preauth_found', 'not_insured', 'settled',
+                                       'admission_deleted'))
+                                 OR (source_module = 'admission_room'
+                                     AND evidence ->> 'resolution' IN
+                                         ('settled', 'admission_deleted'))
+                                 OR (source_module = 'prior_auth'
+                                     AND reason = 'preauth_used_up'
+                                     AND evidence ->> 'resolution' = 'preauth_expired'))))));
 
 CREATE INDEX idx_charge_attention_kind_open
     ON public.charge_attention_items (tenant_id, kind, created_at DESC)
@@ -216,6 +228,32 @@ CREATE TRIGGER trg_preauth_check_failures_soft_delete BEFORE DELETE
 
 -- ── Pre-auth used up: the check ────────────────────────────────────
 
+-- Whether the visit's money is settled: a claim on one of its bills has gone
+-- to the payer, or none of its live bills is still owed (each is paid,
+-- cancelled or refunded; `invoice_status` also has draft, issued and
+-- partially_paid). Discharge is not the end of the bill: the room, the
+-- pharmacy return and the final charges are posted at discharge or after, so
+-- the checks keep running on a discharged stay until this is true.
+CREATE OR REPLACE FUNCTION public.preauth_visit_settled(p_tenant uuid, p_encounter uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SET search_path TO 'public'
+AS $$
+    SELECT EXISTS (
+               SELECT 1 FROM insurance_claims c
+                 JOIN invoices i ON i.id = c.invoice_id AND i.tenant_id = c.tenant_id
+                WHERE c.tenant_id = p_tenant AND i.encounter_id = p_encounter
+                  AND c.deleted_at IS NULL
+                  AND c.status IN ('claim_submitted', 'claim_approved', 'claim_rejected',
+                                   'settled', 'partially_settled'))
+        OR NOT EXISTS (
+               SELECT 1 FROM invoices i
+                WHERE i.tenant_id = p_tenant AND i.encounter_id = p_encounter
+                  AND i.deleted_at IS NULL
+                  AND i.status NOT IN ('paid', 'cancelled', 'refunded'));
+$$;
+
 -- The share of the approval at which the desk is warned: `tenant_settings`
 -- preauth_alerts/`threshold_percent` (Billing settings, its own endpoint,
 -- which refuses anything but 1 to 100), 80 when the hospital has not set one.
@@ -261,7 +299,9 @@ $$;
 -- force is self-pay: nothing to raise, and an open row raised while a policy
 -- was in force closes, as the system (`not_insured`). Once the desk has
 -- dismissed the admission's row (the patient pays cash, the treatment is not
--- covered), it is not raised again for that admission.
+-- covered), it is not raised again for that admission, unless a pre-auth
+-- for the patient (on this visit or not yet linked to one) was created after
+-- the dismissal: the desk's "none is coming" is then out of date.
 CREATE OR REPLACE FUNCTION public.preauth_missing_raise(
     p_tenant uuid, p_admission uuid, p_encounter uuid, p_patient uuid, p_running numeric)
 RETURNS text
@@ -295,7 +335,12 @@ BEGIN
         SELECT 1 FROM charge_attention_items c
          WHERE c.tenant_id = p_tenant AND c.source_module = 'admission_preauth'
            AND c.source_entity_id = p_admission AND c.status = 'dismissed'
-           AND c.deleted_at IS NULL) THEN
+           AND c.deleted_at IS NULL
+           AND NOT EXISTS (
+               SELECT 1 FROM prior_auth_requests p
+                WHERE p.tenant_id = p_tenant AND p.patient_id = p_patient
+                  AND (p.encounter_id = p_encounter OR p.encounter_id IS NULL)
+                  AND p.deleted_at IS NULL AND p.created_at > c.resolved_at)) THEN
         RETURN 'dismissed';
     END IF;
 
@@ -338,10 +383,13 @@ $$;
 
 -- The check for one visit, shared by the invoice trigger and the sweep.
 -- Finds the approved, unexpired pre-auth for the visit, while the patient is
--- still admitted (a discharged stay raises nothing; the sweep closes its
+-- still admitted or the discharged stay's bill is not yet settled
+-- (`preauth_visit_settled`: the final room charge posted at discharge can
+-- pass the approval; a settled stay raises nothing, and the sweep closes its
 -- admission rows), and sums the visit's live bills. Without one, an open
 -- used-up row on a pre-auth of the visit (one that has since expired) closes
--- as `preauth_expired`, and an insured patient gets the "no usable pre-auth"
+-- as `preauth_expired` (a "could not check" row stays: it is a fault, not a
+-- finding), and an insured patient gets the "no usable pre-auth"
 -- row above. A threshold that cannot be read warns at the default and marks
 -- the row `threshold_invalid`. With one, that row (if any) closes, and the bill is
 -- placed in a band: the hospital's threshold (default 80% of the approval)
@@ -369,11 +417,12 @@ BEGIN
     SELECT a.id INTO v_admission
       FROM admissions a
      WHERE a.tenant_id = p_tenant AND a.encounter_id = p_encounter AND a.deleted_at IS NULL
-       AND a.status IN ('admitted', 'transferred')
+       AND (a.status IN ('admitted', 'transferred')
+            OR NOT preauth_visit_settled(p_tenant, p_encounter))
      ORDER BY a.created_at DESC
      LIMIT 1;
     IF v_admission IS NULL THEN
-        RETURN 'not_admitted';
+        RETURN 'no_open_stay';
     END IF;
 
     SELECT COALESCE(SUM(i.total_amount), 0) INTO v_running
@@ -395,6 +444,7 @@ BEGIN
                evidence = COALESCE(evidence, '{}'::jsonb)
                           || jsonb_build_object('resolution', 'preauth_expired')
          WHERE tenant_id = p_tenant AND source_module = 'prior_auth'
+           AND reason = 'preauth_used_up'
            AND encounter_id = p_encounter AND status = 'open' AND deleted_at IS NULL;
         RETURN preauth_missing_raise(p_tenant, v_admission, p_encounter, p_patient, v_running);
     END IF;

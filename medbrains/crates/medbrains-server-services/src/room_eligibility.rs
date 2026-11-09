@@ -197,6 +197,18 @@ pub fn linked_charges_sql(tenant: &str, encounter: &str) -> String {
     )
 }
 
+/// A room row's payable ratio as SQL, `NULL` unless it is a plain decimal.
+///
+/// `evidence` is the SQL expression for the row's evidence. A malformed
+/// ratio keeps the row at its stored amount instead of failing the read.
+#[must_use]
+pub fn payable_ratio_sql(evidence: &str) -> String {
+    format!(
+        "CASE WHEN {evidence}->>'payable_ratio' ~ '^[0-9]+(\\.[0-9]+)?$' \
+              THEN ({evidence}->>'payable_ratio')::numeric END"
+    )
+}
+
 /// Room-linked charges on each visit's live bills, in one grouped query
 /// (see [`linked_lines`]). A visit with no such charges is absent.
 pub async fn associated_by_encounter(

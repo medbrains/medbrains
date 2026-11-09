@@ -16,6 +16,10 @@
 -- widened definition lives here, numbered above both, as a superset of every
 -- earlier one: dropped IF EXISTS and re-added whatever an earlier migration
 -- left.
+--
+-- Requires #5265 (1421) applied first. #5265 merges before this PR, so on
+-- every install 1421 runs before 1425 and this superset is the definition
+-- that stays; a 1421 applied after 1425 would re-run its narrower one.
 
 ALTER TABLE public.charge_attention_items
     DROP CONSTRAINT IF EXISTS charge_attention_only_detector_unattributed,

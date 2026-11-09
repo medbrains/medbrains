@@ -89,9 +89,16 @@ interface Acting {
   dismiss: boolean;
 }
 
-/** The row's action button, or nothing when it has none. */
-function actionFor(copy: KindCopy, r: RevenueAlert, onAct: (a: Acting) => void) {
+/** Which of the row actions the caller holds the permission for. */
+interface Allowed {
+  act: boolean;
+  dismiss: boolean;
+}
+
+/** The row's action button, or nothing when it has none or the caller may not take it. */
+function actionFor(copy: KindCopy, r: RevenueAlert, may: Allowed, onAct: (a: Acting) => void) {
   if (isMissingPreauth(r)) {
+    if (!may.dismiss) return null;
     return (
       <Button
         tone="secondary"
@@ -103,7 +110,7 @@ function actionFor(copy: KindCopy, r: RevenueAlert, onAct: (a: Acting) => void) 
       </Button>
     );
   }
-  if (!canActOn(r)) return null;
+  if (!may.act || !canActOn(r)) return null;
   return (
     <Button
       tone="secondary"
@@ -119,11 +126,7 @@ function actionFor(copy: KindCopy, r: RevenueAlert, onAct: (a: Acting) => void) 
 }
 
 /** The kind's columns; the action shows only to someone who may take it. */
-function columns(
-  copy: KindCopy,
-  canAct: boolean,
-  onAct: (a: Acting) => void,
-): Column<RevenueAlert>[] {
+function columns(copy: KindCopy, may: Allowed, onAct: (a: Acting) => void): Column<RevenueAlert>[] {
   return [
     {
       key: "patient",
@@ -170,7 +173,7 @@ function columns(
     {
       key: "action",
       label: "Action",
-      render: (r) => (canAct ? actionFor(copy, r, onAct) : null),
+      render: (r) => actionFor(copy, r, may, onAct),
     },
   ];
 }
@@ -180,6 +183,7 @@ export function RevenueAlertsPanel({ kind }: { kind: RevenueAlertKind }) {
   const copy = COPY[kind];
   const canView = useHasPermission(copy.view);
   const canAct = useHasPermission(copy.act);
+  const canDismiss = useHasPermission(P.INSURANCE.PREAUTH_MISSING.DISMISS);
   const [acting, setActing] = useState<Acting | null>(null);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["billing", "revenue-alerts", kind],
@@ -187,7 +191,10 @@ export function RevenueAlertsPanel({ kind }: { kind: RevenueAlertKind }) {
     enabled: canView,
     refetchInterval: 60_000,
   });
-  const cols = useMemo(() => columns(copy, canAct, setActing), [copy, canAct]);
+  const cols = useMemo(
+    () => columns(copy, { act: canAct, dismiss: canDismiss }, setActing),
+    [copy, canAct, canDismiss],
+  );
   if (!canView) return null;
   return (
     <Card padding="md">

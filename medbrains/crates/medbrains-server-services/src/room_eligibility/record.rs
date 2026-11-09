@@ -14,7 +14,9 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
-use super::{RoomCheck, SOURCE_ADMISSION_ROOM, associated_so_far, check_room, deduction};
+use super::{
+    RoomCheck, SOURCE_ADMISSION_ROOM, associated_so_far, check_room, deduction, payable_ratio_sql,
+};
 
 /// The wording of the disclosure the desk shows the family (the web's
 /// `ROOM_DISCLOSURE_VERSION`); a consent names the version it was given on.
@@ -257,10 +259,10 @@ pub async fn mark_actioned(
 /// them: the visit's room-linked charges now, as the desk's list shows them
 /// (the row was raised at allocation, often at ₹0).
 async fn refresh_cut(conn: &mut PgConnection, tenant_id: Uuid, row: Uuid) -> Result<(), AppError> {
-    let (encounter, ratio): (Option<Uuid>, Option<Decimal>) = sqlx::query_as(
-        "SELECT encounter_id, (evidence->>'payable_ratio')::numeric \
-           FROM charge_attention_items WHERE id = $1 AND tenant_id = $2",
-    )
+    let (encounter, ratio): (Option<Uuid>, Option<Decimal>) = sqlx::query_as(&format!(
+        "SELECT encounter_id, {} FROM charge_attention_items WHERE id = $1 AND tenant_id = $2",
+        payable_ratio_sql("evidence")
+    ))
     .bind(row)
     .bind(tenant_id)
     .fetch_optional(&mut *conn)

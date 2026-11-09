@@ -1124,6 +1124,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Pre-auths nearly used up and rooms above the policy limit.
             permissions::insurance::enhancement::VIEW,
             permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
             permissions::insurance::room_eligibility::VIEW,
             permissions::insurance::room_eligibility::RESOLVE,
             permissions::insurance::room_eligibility::CONFIGURE,
@@ -2220,6 +2221,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Pre-auths nearly used up and rooms above the policy limit.
             permissions::insurance::enhancement::VIEW,
             permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
             permissions::insurance::room_eligibility::VIEW,
             permissions::insurance::room_eligibility::RESOLVE,
             permissions::insurance::room_eligibility::CONFIGURE,

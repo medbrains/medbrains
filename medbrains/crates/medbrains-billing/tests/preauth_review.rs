@@ -1,7 +1,8 @@
 //! The second review of #5270, against a real, migrated database: an
-//! action's response hides amounts the caller may not see; a discharged or
-//! no-longer-insured patient's admission rows close and are not raised
-//! again; a "no usable pre-auth" row can be dismissed with a reason; an
+//! action's response hides amounts the caller may not see; a
+//! no-longer-insured patient's admission row closes (a settled stay's, in
+//! `preauth_settlement`); a "no usable pre-auth" row can be dismissed with a
+//! reason, under its own permission, until a pre-auth is created after it; an
 //! unreadable threshold is its own fault and the threshold has its own
 //! endpoint; and a consent keeps the cut as it is now.
 //!
@@ -40,7 +41,7 @@ use common::inpatient::{
     Inpatient, admit, approved_preauth, bed, bill, bill_lines, holding, policy, raise_bill, rows,
     staff,
 };
-use common::{fixture, insert_patient, pool, scoped, state};
+use common::{fixture, pool, scoped, state};
 
 const PREAUTH: &str = "preauth_used_up";
 const ROOM: &str = "room_over_limit";
@@ -53,6 +54,7 @@ async fn hidden_desk(db: &PgPool, claims: &Claims, patient: Uuid) -> (AppState, 
         &[
             permissions::insurance::enhancement::REQUEST,
             permissions::insurance::room_eligibility::RESOLVE,
+            permissions::insurance::preauth_missing::DISMISS,
         ],
     );
     sqlx::query(
@@ -113,15 +115,6 @@ async fn closed_how(db: &PgPool, row: Uuid) -> (String, Option<String>) {
     .unwrap()
 }
 
-/// The admission leaves hospital.
-async fn discharge(db: &PgPool, inp: &Inpatient) {
-    sqlx::query("UPDATE admissions SET status = 'discharged', discharged_at = now() WHERE id = $1")
-        .bind(inp.admission)
-        .execute(db)
-        .await
-        .unwrap();
-}
-
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
 async fn an_action_hides_the_amounts_its_caller_may_not_see() {
@@ -177,53 +170,6 @@ async fn an_action_hides_the_amounts_its_caller_may_not_see() {
 
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
-async fn a_discharged_patient_is_not_raised_and_their_open_rows_close() {
-    let db = pool().await;
-    let (claims, patient) = fixture(&db).await;
-    let t = claims.tenant_id;
-    let inp = admit(&db, &claims, patient).await;
-    policy(&db, t, patient, (Some(5_000), None)).await;
-    allocate(&db, &claims, &inp, bed(&db, t, 8_000, "Deluxe").await).await;
-    let first = sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap();
-    assert_eq!(first.missing, 1);
-    let missing = rows(&db, t, PREAUTH).await[0].0;
-    let room = rows(&db, t, ROOM).await[0].0;
-
-    discharge(&db, &inp).await;
-    // The final bill after discharge raises nothing new.
-    let invoice = bill(&db, &inp).await;
-    raise_bill(&db, t, invoice, 40_000).await;
-    assert_eq!(rows(&db, t, PREAUTH).await.len(), 1);
-
-    let report = sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap();
-    assert_eq!((report.checked, report.closed_stale), (0, 2));
-    for row in [missing, room] {
-        let how = closed_how(&db, row).await;
-        assert_eq!(
-            (how.0.as_str(), how.1.as_deref()),
-            ("actioned", Some("discharged"))
-        );
-    }
-
-    // A patient discharged before any check is never raised at all.
-    let mut tx = scoped(&db, t).await;
-    let other = insert_patient(&mut tx, t).await;
-    tx.commit().await.unwrap();
-    let gone = admit(&db, &claims, other).await;
-    policy(&db, t, other, (None, None)).await;
-    discharge(&db, &gone).await;
-    let invoice = bill(&db, &gone).await;
-    raise_bill(&db, t, invoice, 10_000).await;
-    sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap();
-    assert_eq!(
-        rows(&db, t, PREAUTH).await.len(),
-        1,
-        "only the first patient's row"
-    );
-}
-
-#[tokio::test]
-#[ignore = "needs DATABASE_URL"]
 async fn a_patient_no_longer_insured_has_their_row_closed_by_the_system() {
     let db = pool().await;
     let (claims, patient) = fixture(&db).await;
@@ -253,7 +199,7 @@ async fn the_desk_dismisses_a_no_usable_preauth_row_with_a_reason() {
     let (claims, patient) = fixture(&db).await;
     let t = claims.tenant_id;
     let inp = admit(&db, &claims, patient).await;
-    policy(&db, t, patient, (None, None)).await;
+    let pol = policy(&db, t, patient, (None, None)).await;
     sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap();
     let row = rows(&db, t, PREAUTH).await[0].0;
     let dismiss = |c: &Claims, id: Uuid, reason: &str, note: Option<&str>| {
@@ -268,8 +214,15 @@ async fn the_desk_dismisses_a_no_usable_preauth_row_with_a_reason() {
         )
     };
 
-    let viewer = holding(&claims, &[permissions::insurance::enhancement::VIEW]);
-    let err = dismiss(&viewer, row, "self_pay", None).await.unwrap_err();
+    // Asking for an enhancement is not leave to say none is needed.
+    let requester = holding(
+        &claims,
+        &[
+            permissions::insurance::enhancement::VIEW,
+            permissions::insurance::enhancement::REQUEST,
+        ],
+    );
+    let err = dismiss(&requester, row, "self_pay", None).await.unwrap_err();
     assert!(matches!(err, AppError::Forbidden), "{err:?}");
     let err = dismiss(&claims, row, "other", None).await.unwrap_err();
     assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
@@ -292,6 +245,48 @@ async fn the_desk_dismisses_a_no_usable_preauth_row_with_a_reason() {
     raise_bill(&db, t, invoice, 20_000).await;
     sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap();
     assert_eq!(rows(&db, t, PREAUTH).await.len(), 1);
+
+    // A pre-auth asked for after the dismissal makes it out of date: the
+    // next check raises the stay again, now as "not approved".
+    sqlx::query(
+        "INSERT INTO prior_auth_requests (tenant_id, pa_number, patient_id, \
+           patient_insurance_id, service_type, encounter_id, status) \
+         VALUES ($1, $2, $3, $5, 'surgery', $4, 'submitted')",
+    )
+    .bind(t)
+    .bind(format!("PA-{}", Uuid::new_v4().simple()))
+    .bind(inp.patient)
+    .bind(inp.encounter)
+    .bind(pol)
+    .execute(&db)
+    .await
+    .unwrap();
+    raise_bill(&db, t, invoice, 25_000).await;
+    let again = rows(&db, t, PREAUTH).await;
+    assert_eq!((again.len(), again[1].2.as_str()), (2, "open"));
+    let cause: Option<String> =
+        sqlx::query_scalar("SELECT evidence->>'cause' FROM charge_attention_items WHERE id = $1")
+            .bind(again[1].0)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(cause.as_deref(), Some("not_approved"));
+
+    // A desk whose amounts are hidden dismisses without seeing them.
+    let (st, desk) = hidden_desk(&db, &claims, patient).await;
+    let Json(done) = dismiss_preauth_alert(
+        State(st),
+        Extension(desk),
+        Path(again[1].0),
+        Json(DismissPreauthBody {
+            reason: "not_covered".to_owned(),
+            note: None,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!((done.status.as_str(), done.amount), ("dismissed", None));
+    assert!(done.evidence.is_none());
 
     // An approval nearly used up is answered by an enhancement, not dismissed.
     let (claims2, patient2) = fixture(&db).await;

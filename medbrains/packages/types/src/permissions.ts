@@ -1674,6 +1674,10 @@ export const P = {
     NHCX_RESPOND: "insurance.nhcx.respond",
     NHCX_SUBMIT: "insurance.nhcx.submit",
     NHCX_VIEW: "insurance.nhcx.view",
+    PREAUTH_MISSING: {
+      DISMISS: "insurance.preauth_missing.dismiss",
+    },
+    PREAUTH_MISSING_DISMISS: "insurance.preauth_missing.dismiss",
     PRIOR_AUTH: {
       CREATE: "insurance.prior_auth.create",
       LIST: "insurance.prior_auth.list",

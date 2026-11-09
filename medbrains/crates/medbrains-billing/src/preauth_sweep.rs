@@ -5,15 +5,18 @@
 //! must never fail a bill, so when it cannot run it only records the failure.
 //! This sweep is the durable signal behind it: every hour, for each hospital,
 //! it re-runs the same check (`preauth_usage_raise`) for insured visits still
-//! in hospital, a bounded page at a time from where the last pass stopped,
+//! in hospital or discharged with a bill not yet settled
+//! (`preauth_visit_settled`), a bounded page at a time from where the last
+//! pass stopped,
 //! and reports the trigger failures on the visits it re-checked. It also
 //! catches the visit whose pre-auth expires with no bill change
 //! (`preauth_missing_or_expired`). A visit whose check fails here too gets a
 //! `preauth_approval_unknown` row, so the desk sees "could not check", never
-//! silence. A patient who has left takes their admission's open "no usable
-//! pre-auth" and room rows with them, and one no longer insured their "no
-//! usable pre-auth" row: the pass closes those as the system, which also
-//! keeps the desk's open room rows to patients still in a bed.
+//! silence. A stay that is over and settled (discharged, and every bill paid,
+//! cancelled or refunded, or a claim submitted) takes its admission's open
+//! "no usable pre-auth" and room rows with it, and a patient no longer
+//! insured their "no usable pre-auth" row: the pass closes those as the
+//! system. Discharge alone closes nothing: the final charges come after it.
 //! Trigger failures no pass has stamped within an hour of being recorded
 //! (a bill with no visit, or a visit no longer in hospital) are counted and
 //! warned about, so they are never silent either.
@@ -51,7 +54,7 @@ pub struct SweepReport {
     /// Trigger failures older than a pass that no pass could stamp.
     pub stale_trigger_failures: u64,
     /// Open admission rows ("no usable pre-auth", room) closed because the
-    /// patient is no longer admitted, or no longer insured.
+    /// stay is over and settled, or the patient is no longer insured.
     pub closed_stale: u64,
     /// The last visit checked when the page was full: where the next pass
     /// starts. `None` once the hospital's visits are all covered.
@@ -69,14 +72,18 @@ struct Visit {
     prior_auth_id: Option<Uuid>,
 }
 
-/// Insured visits still in hospital, after visit `after`: an admitted or
-/// transferred (not discharged) admission with an approved, unexpired pre-auth, or whose
-/// patient has a policy in force (so a missing or expired pre-auth is seen).
+/// Insured visits still open, after visit `after`: an admission still in a
+/// bed, or discharged with a bill not yet settled, with an approved,
+/// unexpired pre-auth, or whose patient has a policy in force (so a missing
+/// or expired pre-auth is seen).
 async fn open_visits(
     conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     (after, page_size): (Option<Uuid>, i64),
 ) -> Result<Vec<Visit>, AppError> {
+    // ponytail: settlement is tested per discharged admission of the
+    // hospital (two index lookups each, hourly); keep a "settled" flag on
+    // admissions if that history grows past what one pass reads comfortably.
     Ok(sqlx::query_as::<_, Visit>(
         "SELECT * FROM ( \
            SELECT DISTINCT ON (a.encounter_id) a.id AS admission_id, a.encounter_id, \
@@ -90,7 +97,8 @@ async fn open_visits(
                     AS prior_auth_id \
              FROM admissions a \
             WHERE a.tenant_id = $1 AND a.deleted_at IS NULL \
-              AND a.status IN ('admitted', 'transferred') \
+              AND (a.status IN ('admitted', 'transferred') \
+                   OR NOT preauth_visit_settled(a.tenant_id, a.encounter_id)) \
               AND ($3::uuid IS NULL OR a.encounter_id > $3) \
             ORDER BY a.encounter_id, a.created_at DESC) v \
           WHERE v.prior_auth_id IS NOT NULL OR EXISTS ( \
@@ -183,31 +191,36 @@ async fn unknown_row(
 }
 
 /// Close, as the system, up to `limit` open admission rows whose fact
-/// stopped being true: "no usable pre-auth" and room rows of a patient no
-/// longer admitted (`discharged`), and "no usable pre-auth" rows of a
-/// patient with no policy in force any more (`not_insured`), whom the
-/// trigger and the visit page no longer reach.
+/// stopped being true: "no usable pre-auth" and room rows of a stay that is
+/// over and settled (`settled`) or whose admission was deleted
+/// (`admission_deleted`), and "no usable pre-auth" rows of a patient with no
+/// policy in force any more (`not_insured`), whom the trigger and the visit
+/// page no longer reach.
 async fn close_stale(
     tx: &mut medbrains_kernel::Tx,
     tenant_id: Uuid,
     limit: i64,
 ) -> Result<u64, AppError> {
     let done = sqlx::query(
-        "WITH stale AS ( \
-           SELECT o.id, CASE WHEN a.status IN ('admitted', 'transferred') \
-                              AND a.deleted_at IS NULL \
-                             THEN 'not_insured' ELSE 'discharged' END AS why \
+        "WITH seen AS ( \
+           SELECT o.id, o.created_at, o.source_module, o.tenant_id, o.patient_id, \
+                  CASE WHEN a.deleted_at IS NOT NULL THEN 'admission_deleted' \
+                       WHEN a.status NOT IN ('admitted', 'transferred') \
+                            AND preauth_visit_settled(a.tenant_id, a.encounter_id) \
+                       THEN 'settled' END AS over \
              FROM charge_attention_items o \
              JOIN admissions a ON a.id = o.source_entity_id AND a.tenant_id = o.tenant_id \
             WHERE o.tenant_id = $1 AND o.status = 'open' AND o.deleted_at IS NULL \
-              AND o.source_module IN ('admission_preauth', 'admission_room') \
-              AND (a.status NOT IN ('admitted', 'transferred') OR a.deleted_at IS NOT NULL \
-                   OR (o.source_module = 'admission_preauth' AND NOT EXISTS ( \
-                       SELECT 1 FROM patient_insurance pi \
-                        WHERE pi.tenant_id = o.tenant_id AND pi.patient_id = o.patient_id \
-                          AND pi.deleted_at IS NULL AND pi.is_active \
-                          AND current_date BETWEEN pi.valid_from AND pi.valid_until))) \
-            ORDER BY o.created_at LIMIT $2) \
+              AND o.source_module IN ('admission_preauth', 'admission_room')), \
+         stale AS ( \
+           SELECT s.id, COALESCE(s.over, 'not_insured') AS why FROM seen s \
+            WHERE s.over IS NOT NULL \
+               OR (s.source_module = 'admission_preauth' AND NOT EXISTS ( \
+                   SELECT 1 FROM patient_insurance pi \
+                    WHERE pi.tenant_id = s.tenant_id AND pi.patient_id = s.patient_id \
+                      AND pi.deleted_at IS NULL AND pi.is_active \
+                      AND current_date BETWEEN pi.valid_from AND pi.valid_until)) \
+            ORDER BY s.created_at LIMIT $2) \
          UPDATE charge_attention_items c SET status = 'actioned', resolved_at = now(), \
                 evidence = COALESCE(c.evidence, '{}'::jsonb) \
                            || jsonb_build_object('resolution', stale.why), \

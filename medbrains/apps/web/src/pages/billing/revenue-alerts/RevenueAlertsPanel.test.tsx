@@ -139,7 +139,7 @@ describe("pre-auths nearly used up on the TPA screen", () => {
 
   it("dismisses a no-usable-pre-auth alert with why none is needed", async () => {
     held.add("insurance.enhancement.view");
-    held.add("insurance.enhancement.request");
+    held.add("insurance.preauth_missing.dismiss");
     service.listRevenueAlerts.mockResolvedValue([
       preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } }),
     ]);
@@ -163,8 +163,9 @@ describe("pre-auths nearly used up on the TPA screen", () => {
     );
   });
 
-  it("offers no dismissal to a viewer who may not act", async () => {
+  it("offers no dismissal to a desk that may request but not dismiss", async () => {
     held.add("insurance.enhancement.view");
+    held.add("insurance.enhancement.request");
     service.listRevenueAlerts.mockResolvedValue([
       preauthRow({ reason: "preauth_missing_or_expired", evidence: { cause: "none" } }),
     ]);

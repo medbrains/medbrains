@@ -26,7 +26,7 @@ use medbrains_core::permissions;
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use medbrains_server_services::room_eligibility::{
-    RoomConsentInput, consent_on_row, linked_charges_sql, mark_actioned,
+    RoomConsentInput, consent_on_row, linked_charges_sql, mark_actioned, payable_ratio_sql,
 };
 
 /// Pre-auth nearly used up (or its approval unreadable).
@@ -74,7 +74,8 @@ pub struct RevenueAlert {
 /// The row's columns with the patient and payer joined. An open room row's
 /// amount is its cut on the visit's room-linked charges now (the cut stored
 /// at allocation is often ₹0), worked out here so a list ranks and limits by
-/// it, with the bill it is worked on in the evidence.
+/// it, with the bill it is worked on in the evidence. A ratio that is not a
+/// plain decimal leaves the row at its stored amount.
 fn alert_select() -> String {
     format!(
         "SELECT a.id, a.kind, a.reason, a.status, a.source_entity_id, \
@@ -82,8 +83,7 @@ fn alert_select() -> String {
             btrim(concat_ws(' ', p.first_name, p.last_name)) AS patient_name, p.uhid, \
             pi.insurance_provider AS payer, pa.pa_number, pa.approved_amount, \
             pa.enhancement_amount, \
-            COALESCE(round(lc.bill * (1 - (a.evidence->>'payable_ratio')::numeric), 2), \
-                     a.amount) AS amount, \
+            COALESCE(round(lc.bill * (1 - lc.ratio), 2), a.amount) AS amount, \
             CASE WHEN lc.bill IS NULL THEN a.evidence \
                  ELSE a.evidence || jsonb_build_object('estimated_bill', lc.bill) END \
               AS evidence, \
@@ -95,12 +95,13 @@ fn alert_select() -> String {
         AND pa.tenant_id = a.tenant_id \
        LEFT JOIN patient_insurance pi ON pi.tenant_id = a.tenant_id \
          AND pi.id = COALESCE(pa.patient_insurance_id, (a.evidence->>'patient_insurance_id')::uuid) \
-       LEFT JOIN LATERAL (SELECT {} AS bill \
+       LEFT JOIN LATERAL (SELECT {} AS bill, r.ratio \
+                            FROM (SELECT {} AS ratio) r \
                            WHERE a.status = 'open' AND a.reason = '{KIND_ROOM}' \
-                             AND a.encounter_id IS NOT NULL \
-                             AND a.evidence ? 'payable_ratio') lc ON true \
+                             AND a.encounter_id IS NOT NULL AND r.ratio IS NOT NULL) lc ON true \
        LEFT JOIN users ru ON ru.id = a.resolved_by",
-        linked_charges_sql("a.tenant_id", "a.encounter_id")
+        linked_charges_sql("a.tenant_id", "a.encounter_id"),
+        payable_ratio_sql("a.evidence")
     )
 }
 
@@ -131,7 +132,8 @@ pub struct ListRevenueAlertsQuery {
 /// `GET /api/billing/revenue-alerts?kind=` — the kind's rows, largest first.
 ///
 /// Then oldest. Amounts (and the approval behind them) are hidden from a
-/// caller who may not see them, as on the charge queue.
+/// caller who may not see them, as on the charge queue, and that caller's
+/// list is oldest first, so its order does not give the amounts away.
 ///
 /// # Errors
 /// 403 without the kind's view permission; 400 for an unknown kind.
@@ -152,11 +154,16 @@ pub async fn list_revenue_alerts(
     };
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     // `amount` here is the output column: an open room row's live cut.
+    let order = if hide_amounts {
+        "a.created_at"
+    } else {
+        "amount DESC NULLS LAST, a.created_at"
+    };
     let mut rows = sqlx::query_as::<_, RevenueAlert>(&format!(
         "{} WHERE a.tenant_id = $1 AND a.kind = $2 AND a.deleted_at IS NULL \
            AND ($3::text IS NULL OR a.status = $3) \
            AND ($4::uuid[] IS NULL OR a.patient_id = ANY($4)) \
-         ORDER BY amount DESC NULLS LAST, a.created_at LIMIT 200",
+         ORDER BY {order} LIMIT 200",
         alert_select()
     ))
     .bind(claims.tenant_id)
