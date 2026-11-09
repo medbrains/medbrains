@@ -34,9 +34,10 @@ pub const OWN_ENDPOINT_CATEGORIES: &[&str] = &[
 ];
 
 /// Whether `category` may only be written through its own endpoint.
+/// Surrounding whitespace does not hide one (` ai `).
 #[must_use]
 pub fn is_own_endpoint_category(category: &str) -> bool {
-    OWN_ENDPOINT_CATEGORIES.contains(&category)
+    OWN_ENDPOINT_CATEGORIES.contains(&category.trim())
 }
 
 /// Refuse a generic read or write of an own-endpoint category with a 400.
@@ -46,7 +47,8 @@ pub fn is_own_endpoint_category(category: &str) -> bool {
 pub fn refuse_own_endpoint_category(category: &str) -> Result<(), AppError> {
     if is_own_endpoint_category(category) {
         return Err(AppError::BadRequest(format!(
-            "'{category}' settings are managed on their own screen, not here"
+            "'{}' settings are managed on their own screen, not here",
+            category.trim()
         )));
     }
     Ok(())
@@ -63,6 +65,9 @@ mod tests {
                 refuse_own_endpoint_category(category).is_err(),
                 "{category}"
             );
+        }
+        for category in [" dictation", "abdm ", "\tai\n"] {
+            assert!(refuse_own_endpoint_category(category).is_err(), "{category:?}");
         }
         for category in ["units", "locale", "billing", "regression_test"] {
             assert!(refuse_own_endpoint_category(category).is_ok(), "{category}");

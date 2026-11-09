@@ -2,7 +2,7 @@
 
 mod holders;
 pub mod on_call;
-pub use holders::notify_permission_holders;
+pub use holders::{notify_permission_holders, permission_holders};
 
 use axum::{
     Extension, Json,
@@ -220,6 +220,19 @@ pub async fn create_notification(
     tenant_id: Uuid,
     notification: NewNotification<'_>,
 ) -> Result<Uuid, AppError> {
+    create_notification_on(tx, tenant_id, notification).await
+}
+
+/// [`create_notification`] on a bare connection, such as a kernel unit of
+/// work (`medbrains_kernel::Tx` derefs to one). Call it inside a transaction.
+///
+/// # Errors
+/// A database fault.
+pub async fn create_notification_on(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    notification: NewNotification<'_>,
+) -> Result<Uuid, AppError> {
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO notifications \
          (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) \
@@ -234,7 +247,7 @@ pub async fn create_notification(
     .bind(notification.entity_type)
     .bind(notification.entity_id)
     .bind(notification.action_url)
-    .fetch_one(&mut *tx)
+    .fetch_one(conn)
     .await?;
     Ok(id)
 }

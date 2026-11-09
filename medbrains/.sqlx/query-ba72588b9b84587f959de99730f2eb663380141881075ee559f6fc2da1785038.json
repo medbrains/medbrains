@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE dictation_sessions SET audio_deleted_at = COALESCE(audio_deleted_at, now()), status = CASE WHEN status IN ('saved', 'rejected') THEN status ELSE 'abandoned' END WHERE tenant_id = $1 AND id = ANY($2) AND (audio_deleted_at IS NULL OR status NOT IN ('saved', 'rejected', 'abandoned'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ba72588b9b84587f959de99730f2eb663380141881075ee559f6fc2da1785038"
+}
