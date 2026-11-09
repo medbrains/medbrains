@@ -13,7 +13,7 @@ medbrains-analytics not_yet 123 medbrains-db,medbrains-authz,medbrains-authz-gat
 medbrains-ancillary not_yet 101 medbrains-db,medbrains-authz-gate
 medbrains-anthropic-auth not_yet 0 -
 medbrains-api-keys not_yet 0 -
-medbrains-api-keys-api not_yet 16 medbrains-db
+medbrains-api-keys-api not_yet 15 medbrains-db
 medbrains-app-manifest on_facade 0 -
 medbrains-approvals not_yet 0 -
 medbrains-approvals-api not_yet 21 medbrains-db
