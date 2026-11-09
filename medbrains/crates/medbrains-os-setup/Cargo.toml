@@ -12,6 +12,10 @@ argon2 = { workspace = true }
 serde_json = { workspace = true }
 # The same check as Kanidm, so the screen can say no before anything is made.
 zxcvbn = "3.1.1"
+# The first administrator's authenticator: its secret as text, its otpauth URI as a QR code on the screen.
+data-encoding = "2.11"
+percent-encoding = "2.3"
+qrcodegen = "1.8"
 # Passwords cross this process; their copies are wiped when dropped.
 zeroize = "1.9"
 
