@@ -36,7 +36,7 @@ import {
   Select,
   TagsInput,
 } from "@mantine/core";
-import { DateInput, DatePickerInput, DateTimePicker } from "@mantine/dates";
+import type { DateInputProps, DatePickerInputProps, DateTimePickerProps } from "@mantine/dates";
 import { ramps, roleCssVars, roles } from "./colors.generated";
 import {
   ANATOMY_PALETTE,
@@ -176,6 +176,19 @@ const MODAL_DROPDOWN_PROPS = {
     },
   },
 };
+
+/**
+ * Defaults shared by the three date fields. Plain objects, not
+ * `DateInput.extend(...)`: `extend` is an identity function, and calling it
+ * imported all of @mantine/dates (~70 kB) into the theme, which every page —
+ * sign-in included — loads first. The type-only import keeps the checking.
+ */
+const DATE_FIELD_DEFAULTS = {
+  popoverProps: MODAL_DROPDOWN_PROPS,
+  radius: "md",
+  size: "md",
+  variant: "default",
+} satisfies Partial<DateInputProps> & Partial<DatePickerInputProps> & Partial<DateTimePickerProps>;
 
 // ═══════════════════════════════════════════════════════════════════
 // ── Mantine Theme Factory
@@ -429,32 +442,11 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         },
       }),
 
-      DateInput: DateInput.extend({
-        defaultProps: {
-          popoverProps: MODAL_DROPDOWN_PROPS,
-          radius: "md",
-          size: "md",
-          variant: "default",
-        },
-      }),
+      DateInput: { defaultProps: DATE_FIELD_DEFAULTS },
 
-      DatePickerInput: DatePickerInput.extend({
-        defaultProps: {
-          popoverProps: MODAL_DROPDOWN_PROPS,
-          radius: "md",
-          size: "md",
-          variant: "default",
-        },
-      }),
+      DatePickerInput: { defaultProps: DATE_FIELD_DEFAULTS },
 
-      DateTimePicker: DateTimePicker.extend({
-        defaultProps: {
-          popoverProps: MODAL_DROPDOWN_PROPS,
-          radius: "md",
-          size: "md",
-          variant: "default",
-        },
-      }),
+      DateTimePicker: { defaultProps: DATE_FIELD_DEFAULTS },
 
       Table: {
         defaultProps: {
