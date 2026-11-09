@@ -109,12 +109,13 @@ pub(crate) fn mismatched_key_is_replaced(vm: &mut Vm, _: &Value) -> Result<(), S
     )
 }
 
-/// The agent owns its folder, so root must not write through a link it plants there.
+/// The agent owns its folder, so root must not write through a link it plants there. The screen's
+/// trust file is the certificate and then the local authority, which the identity provider's port needs.
 pub(crate) fn agent_link_is_refused(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let copy = "/var/lib/medbrains-agent/local-front.pem";
     let out = vm.run_for(
         &format!(
-            "echo untouched > /run/link-target; rm -f {copy}; ln -s /run/link-target {copy}; {CERTS} 2>&1 | grep -c refusing; cat /run/link-target; rm -f {copy}; {CERTS}; stat -c '%U %G %a' {copy}; cmp {copy} {FRONT_STATE}/screen/cert.pem && echo same; stat -c '%U' /var/lib/medbrains-settings/local-front.pem; cmp /var/lib/medbrains-settings/local-front.pem {FRONT_STATE}/screen/cert.pem && echo trust-same"
+            "echo untouched > /run/link-target; rm -f {copy}; ln -s /run/link-target {copy}; {CERTS} 2>&1 | grep -c refusing; cat /run/link-target; rm -f {copy}; {CERTS}; stat -c '%U %G %a' {copy}; cmp {copy} {FRONT_STATE}/screen/cert.pem && echo same; stat -c '%U' /var/lib/medbrains-settings/local-front.pem; cat {FRONT_STATE}/screen/cert.pem {FRONT_STATE}/ca/ca.pem | cmp /var/lib/medbrains-settings/local-front.pem - && echo trust-same"
         ),
         Duration::from_secs(40),
     )?;

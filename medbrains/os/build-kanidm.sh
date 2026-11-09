@@ -61,6 +61,7 @@ require_sha256() {
     echo "$2  $1" | shasum -a 256 -c - >/dev/null || { echo "$1 is not the pinned Kanidm $KANIDM_VERSION" >&2; exit 1; }
 }
 
+mkdir -p "$OS_WORK"
 [[ -f "$ARCHIVE" ]] || curl --proto '=https' --tlsv1.2 -fsSL -o "$ARCHIVE" "https://codeload.github.com/kanidm/kanidm/tar.gz/$KANIDM_COMMIT"
 require_sha256 "$ARCHIVE" "$KANIDM_SHA256"
 # From the archive every time, so nothing edited on disk reaches a build.
