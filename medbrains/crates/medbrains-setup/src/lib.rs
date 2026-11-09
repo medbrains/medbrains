@@ -17,11 +17,11 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::middleware::authorization::{
-    BYPASS_ROLES, is_bypass_role, require_admin_to_change_account, require_admin_to_give_role,
-    require_any_permission, require_permission,
+    BYPASS_ROLES, authz_context, is_bypass_role, require_admin_to_change_account,
+    require_admin_to_give_role, require_any_permission, require_permission,
 };
+use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::settings_guard::refuse_own_endpoint_category;
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
@@ -1425,7 +1425,7 @@ pub async fn create_user(
     // Link the user's department/group memberships via the raw-relation grant
     // (`dept_member`/`group_member` aren't in the `Relation` enum). Best-effort:
     // the user exists regardless; the outbox/backfill retries a failed tuple.
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let authz_ctx = authz_context(&claims);
     for d in dept_ids {
         if let Err(e) = state
             .authz
@@ -1700,10 +1700,13 @@ pub async fn delete_user(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::DELETE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+    // Refuse before revoking anything, in a short transaction of its own so the row lock is
+    // not held across the Headscale calls; the delete below checks again under its lock.
+    let mut check = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut check, &claims.tenant_id, &claims.department_ids)
         .await?;
-    require_admin_to_change_account(&mut tx, &claims, id).await?;
+    require_admin_to_change_account(&mut check, &claims, id).await?;
+    check.commit().await?;
 
     // Deprovision: expire the user's VPN nodes in Headscale BEFORE the row (and
     // its cascade-deleted vpn_devices) disappear — else the keys would outlive
@@ -1712,6 +1715,10 @@ pub async fn delete_user(
         tracing::warn!(error = %e, user = %id, "delete_user: VPN device revoke failed");
     }
 
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    require_admin_to_change_account(&mut tx, &claims, id).await?;
     sqlx::query("DELETE FROM users WHERE id = $1 AND tenant_id = $2")
         .bind(id)
         .bind(claims.tenant_id)
@@ -2075,7 +2082,11 @@ pub async fn update_module(
     let turning_on = body.status == "enabled";
     let blockers = entitlement::switch_blockers(&code, turning_on, &by_code);
     if !blockers.is_empty() {
-        let why = if turning_on { "it needs" } else { "they need it" };
+        let why = if turning_on {
+            "it needs"
+        } else {
+            "they need it"
+        };
         return Err(AppError::Conflict(format!(
             "{} cannot be switched {}: {why} — {}",
             medbrains_core::bricks::find(&code).map_or(code.as_str(), |b| b.name),
@@ -2848,7 +2859,6 @@ pub struct SettingsQuery {
 /// `email` holds the SMTP credentials, and the other three describe how the
 /// hospital is defended and how long it keeps things.
 const SENSITIVE_SETTING_CATEGORIES: &[&str] = &["email", "security", "retention", "integrations"];
-
 
 pub async fn get_settings(
     State(state): State<AppState>,
@@ -4652,10 +4662,7 @@ pub async fn import_users(
 
         let password = password_idx
             .and_then(|idx| row.values.get(idx))
-            .map_or_else(
-                || format!("Welcome@{username}"),
-                |v| v.trim().to_string(),
-            );
+            .map_or_else(|| format!("Welcome@{username}"), |v| v.trim().to_string());
 
         let role = role_idx
             .and_then(|idx| row.values.get(idx))
@@ -4676,7 +4683,7 @@ pub async fn import_users(
 
         let result = sqlx::query(
             "INSERT INTO users (id, tenant_id, username, full_name, email, password_hash, role) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7::user_role) \
              ON CONFLICT (tenant_id, username) DO NOTHING",
         )
         .bind(Uuid::new_v4())
@@ -5860,7 +5867,7 @@ pub async fn add_access_group_member(
     // Watch consumer will eventually pick up tuple changes via a
     // separate path; group → user perm filtering still works at the
     // PgAuthzBackend fallback.
-    let ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let ctx = authz_context(&claims);
     let _ = state
         .authz
         .write_tuple(
@@ -5999,7 +6006,7 @@ pub async fn remove_access_group_member(
     .map_err(AppError::from)?;
     tx.commit().await?;
 
-    let ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let ctx = authz_context(&claims);
     let _ = state
         .authz
         .revoke_specific(

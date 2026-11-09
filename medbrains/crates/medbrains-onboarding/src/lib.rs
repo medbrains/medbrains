@@ -16,6 +16,9 @@ use uuid::Uuid;
 
 use sha2::{Digest, Sha256};
 
+use medbrains_server_core::middleware::authorization::{
+    require_admin_to_give_role, require_permission,
+};
 use medbrains_server_core::{
     error::AppError,
     middleware::{
@@ -652,16 +655,21 @@ pub async fn setup(
     // is complete, but before that any authenticated user of the tenant could
     // have run it — and it writes departments, settings and the tenant's whole
     // shape. Same permission the edition endpoints in this crate already use.
-    medbrains_server_core::middleware::authorization::require_permission(
+    require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
+    // The wizard's user list may not mint administrators for a caller who is not one.
+    require_admin_to_give_role(&claims, body.users.iter().map(|u| u.role.as_str()))?;
 
     // ── Idempotency check ───────────────────────────────
+    // A tenant with no progress row did not come through `init` (seeded, OS, vendor
+    // provisioned) and has nothing to set up. Missing counts as complete: otherwise the
+    // final UPDATE below matches no row and `setup` stays open on that tenant for good.
     let already_complete: bool = sqlx::query_scalar(
         "SELECT COALESCE(\
             (SELECT is_complete FROM onboarding_progress WHERE tenant_id = $1), \
-            false\
+            true\
         )",
     )
     .bind(claims.tenant_id)
@@ -1350,7 +1358,7 @@ pub async fn get_progress(
     // is complete, but before that any authenticated user of the tenant could
     // have run it — and it writes departments, settings and the tenant's whole
     // shape. Same permission the edition endpoints in this crate already use.
-    medbrains_server_core::middleware::authorization::require_permission(
+    require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
@@ -1387,7 +1395,7 @@ pub async fn update_progress(
     // is complete, but before that any authenticated user of the tenant could
     // have run it — and it writes departments, settings and the tenant's whole
     // shape. Same permission the edition endpoints in this crate already use.
-    medbrains_server_core::middleware::authorization::require_permission(
+    require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
@@ -1422,7 +1430,7 @@ pub async fn complete(
     // is complete, but before that any authenticated user of the tenant could
     // have run it — and it writes departments, settings and the tenant's whole
     // shape. Same permission the edition endpoints in this crate already use.
-    medbrains_server_core::middleware::authorization::require_permission(
+    require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
@@ -1487,7 +1495,7 @@ pub async fn get_edition(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    medbrains_server_core::middleware::authorization::require_permission(
+    require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
@@ -1505,7 +1513,7 @@ pub async fn apply_edition(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ApplyEditionRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    medbrains_server_core::middleware::authorization::require_permission(
+    require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;

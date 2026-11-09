@@ -19,7 +19,9 @@ use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_admin_to_give_role, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    BYPASS_ROLES, require_admin_to_give_role, require_permission,
+};
 use medbrains_server_core::validation::{self, ValidationErrors};
 use medbrains_server_core::{error::AppError, state::AppState};
 
@@ -244,6 +246,9 @@ pub struct AcceptInviteRequest {
     pub full_name: Option<String>,
 }
 
+/// An open invitation: tenant, email, role, invitee name, and its inviter's role while active.
+type OpenInvite = (Uuid, String, String, Option<String>, Option<String>);
+
 /// POST /api/public/invitations/{token}/accept — create the account.
 pub async fn accept(
     State(state): State<AppState>,
@@ -258,24 +263,34 @@ pub async fn accept(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let invite: Option<(Uuid, String, String, Option<String>)> =
-        match invitation_tenant(&state, &token_hash).await? {
-            Some(tenant_id) => {
-                sqlx::query_as(
-                    "SELECT tenant_id, email, role, full_name FROM user_invitations \
-                 WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()",
-                )
-                .bind(&token_hash)
-                .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
-                .await?
-            }
-            None => None,
-        };
-    let Some((tenant_id, email, role, invite_name)) = invite else {
+    let invite: Option<OpenInvite> = match invitation_tenant(&state, &token_hash).await? {
+        Some(tenant_id) => {
+            sqlx::query_as(
+                "SELECT i.tenant_id, i.email, i.role, i.full_name, u.role::text \
+                 FROM user_invitations i LEFT JOIN users u ON u.id = i.invited_by \
+                 AND u.is_active AND u.deleted_at IS NULL \
+                 WHERE i.token_hash = $1 AND i.accepted_at IS NULL AND i.expires_at > now()",
+            )
+            .bind(&token_hash)
+            .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
+            .await?
+        }
+        None => None,
+    };
+    let Some((tenant_id, email, role, invite_name, inviter_role)) = invite else {
         return Err(AppError::BadRequest(
             "This invitation is invalid or has expired".to_owned(),
         ));
     };
+    // An administrator invitation holds only while its inviter is still an administrator:
+    // one sent before `create` checked roles, or by someone since demoted, is refused.
+    let inviter_is_admin = inviter_role.is_some_and(|r| BYPASS_ROLES.contains(&r.as_str()));
+    if BYPASS_ROLES.contains(&role.as_str()) && !inviter_is_admin {
+        return Err(AppError::ForbiddenReason(
+            "This administrator invitation is no longer valid. Ask an administrator to send a new one."
+                .to_owned(),
+        ));
+    }
     let full_name = body
         .full_name
         .filter(|n| !n.trim().is_empty())

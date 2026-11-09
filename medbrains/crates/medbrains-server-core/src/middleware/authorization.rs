@@ -35,7 +35,8 @@ pub fn require_admin_to_give_role<'a>(
 ///
 /// Its role, access, active flag, password and removal all count: a delegated user manager
 /// must not be able to lock out or take over an administrator. An account that does not
-/// exist passes, so the caller's own not-found answer stands.
+/// exist passes, so the caller's own not-found answer stands. The row is locked for the
+/// caller's transaction, so a concurrent promotion cannot slip between this check and the write.
 ///
 /// # Errors
 /// `AppError::ForbiddenReason` with a plain message, or the database error.
@@ -47,12 +48,13 @@ pub async fn require_admin_to_change_account(
     if is_bypass_role(claims) {
         return Ok(());
     }
-    let role: Option<String> =
-        sqlx::query_scalar("SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2")
-            .bind(user_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(conn)
-            .await?;
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(user_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(conn)
+    .await?;
     require_admin_to_give_role(claims, role.as_deref())
 }
 
