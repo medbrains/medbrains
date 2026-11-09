@@ -34,6 +34,7 @@ import { usePatientName } from "@/hooks/usePatientName";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { printDocument } from "@/lib/print/printDocument";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { BUY_OUTSIDE_LABEL, isBoughtOutside } from "@/utils/buyOutside";
 import { pharmacyOrderJourneyContext } from "../pharmacy-workspace";
 import { ArrangeDeliveryButton } from "./arrange-delivery-drawer";
 import { DispensePatientCard } from "./dispense-patient-card";
@@ -429,9 +430,9 @@ export function PharmacyOrderDetail({
                 <Table.Td>
                   <Stack gap={2}>
                     <Text size="sm">{item.drug_name}</Text>
-                    {!item.catalog_item_id && (
+                    {isBoughtOutside(item) && (
                       <Badge tone="neutral" size="xs">
-                        Buy outside, not dispensed here
+                        {BUY_OUTSIDE_LABEL}
                       </Badge>
                     )}
                   </Stack>

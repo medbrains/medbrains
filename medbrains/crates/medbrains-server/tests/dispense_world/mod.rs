@@ -319,6 +319,69 @@ impl Desk {
         })
     }
 
+    /// A pack-and-collect store with one shelf batch of each drug.
+    pub async fn pack_store(&self, drugs: &[Uuid]) -> Uuid {
+        let t = tag();
+        let store: Uuid = sqlx::query_scalar(
+            "INSERT INTO store_locations (tenant_id, code, name) VALUES ($1, $2, $3) RETURNING id",
+        )
+        .bind(self.tenant)
+        .bind(format!("PC-{t}"))
+        .bind(format!("Pack and collect {t}"))
+        .fetch_one(&self.app.db)
+        .await
+        .expect("store");
+        sqlx::query(
+            "INSERT INTO pharmacy_store_assignments (tenant_id, store_location_id, \
+                                                     fulfilment_mode) \
+             VALUES ($1, $2, 'pack_and_collect')",
+        )
+        .bind(self.tenant)
+        .bind(store)
+        .execute(&self.app.db)
+        .await
+        .expect("store mode");
+        for drug in drugs {
+            sqlx::query(
+                "INSERT INTO pharmacy_batches (tenant_id, catalog_item_id, batch_number, \
+                                               expiry_date, quantity_received, quantity_on_hand, \
+                                               store_location_id) \
+                 VALUES ($1, $2, $3, CURRENT_DATE + 365, 50, 50, $4)",
+            )
+            .bind(self.tenant)
+            .bind(drug)
+            .bind(format!("B-{}", tag()))
+            .bind(store)
+            .execute(&self.app.db)
+            .await
+            .expect("batch");
+        }
+        store
+    }
+
+    /// The pharmacist claims an order for picking.
+    pub async fn claim(&self, order: Uuid, body: Value) -> (StatusCode, Value) {
+        self.fulfil(order, "claim", body).await
+    }
+
+    /// The pharmacist POSTs `body` to the order's fulfilment `step`.
+    pub async fn fulfil(&self, order: Uuid, step: &str, body: Value) -> (StatusCode, Value) {
+        let resp = self
+            .pharmacist
+            .client
+            .post(
+                self.app
+                    .url(&format!("/api/pharmacy/fulfilment/{order}/{step}")),
+            )
+            .header("x-csrf-token", &self.pharmacist.csrf)
+            .json(&body)
+            .send()
+            .await
+            .expect("fulfilment");
+        let status = resp.status();
+        (status, resp.json().await.unwrap_or(Value::Null))
+    }
+
     /// Rows `cpoe_safety_audit` holds for this order, code and outcome.
     pub async fn filed(&self, order: Uuid, code: &str, action: &str) -> i64 {
         sqlx::query_scalar(

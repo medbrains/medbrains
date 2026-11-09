@@ -102,10 +102,13 @@ export interface IpdNoDuesCertificate {
 /**
  * One medicine on an IPD discharge summary, picked from the formulary. The
  * catalogue id is what the pharmacy matches a Schedule H/H1 discharge line to;
- * the server refuses an entry without one.
+ * the server refuses an entry without one, unless the doctor marked it
+ * `buy_outside` (then it names none and prints "Buy from outside the hospital").
  */
 export interface DischargeMedicine {
-  catalog_item_id: string;
+  catalog_item_id?: string;
+  /** The hospital does not stock it: the patient buys it outside. */
+  buy_outside?: boolean;
   drug_name: string;
   quantity: number;
   /** How to take it, as the patient will read it on the summary. */

@@ -11,6 +11,7 @@ import { Input, NumberField, PasswordField } from "@/components/ui/Input";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
+import { BUY_OUTSIDE_LABEL, isBoughtOutside, isSoldHere } from "@/utils/buyOutside";
 import { SafetyFindingsPanel, useSafetyGate } from "./SafetyFindingsPanel";
 
 interface Props {
@@ -98,12 +99,13 @@ export function DispenseModal({
     enabled: opened,
   });
 
-  // Lines that still have a balance to dispense. A line with no catalogue
-  // item is bought outside and never dispensed here (the order page says so).
+  // Lines that still have a balance to dispense. A line bought outside is
+  // never dispensed here; it is listed below so nobody looks for it.
   const lines = items
-    .filter((it) => !it.removed_at && it.catalog_item_id)
+    .filter((it) => !it.removed_at && isSoldHere(it))
     .map((it) => ({ item: it, remaining: it.quantity - it.quantity_dispensed }))
     .filter((l) => l.remaining > 0);
+  const outside = items.filter((it) => !it.removed_at && isBoughtOutside(it));
 
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [witness, setWitness] = useState<string | null>(null);
@@ -232,6 +234,12 @@ export function DispenseModal({
               ))}
             </Table.Tbody>
           </Table>
+        )}
+
+        {outside.length > 0 && (
+          <Alert tone="neutral" title={BUY_OUTSIDE_LABEL}>
+            <Text size="sm">{outside.map((it) => it.drug_name).join(", ")}</Text>
+          </Alert>
         )}
 
         {allergyConflicts.length > 0 && (

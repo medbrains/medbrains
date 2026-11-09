@@ -2050,11 +2050,14 @@ pub async fn trigger_auto_charge(
                 .fetch_all(&mut *tx)
                 .await?;
 
+                // Only a line sold here is charged: a medicine bought outside,
+                // or typed by an order raised elsewhere, is never billed.
                 for o in &orders {
                     let items = sqlx::query_as::<_, PharmItemInfo>(
                         "SELECT id, catalog_item_id, drug_name, quantity, unit_price \
                          FROM pharmacy_order_items \
-                         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
+                         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
+                           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
                     )
                     .bind(o.id)
                     .bind(claims.tenant_id)

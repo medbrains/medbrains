@@ -1638,6 +1638,17 @@ export const patientRegistrationFormSchema = z
     }
   });
 
+/**
+ * A prescription line the hospital does not stock, chosen on purpose to be
+ * bought outside (owner, 2026-11-09): the medicine's name, its strength, and
+ * the dose to take. Never dispensed or billed here.
+ */
+export const buyOutsideLineFormSchema = z.object({
+  name: requiredTrimmed("Name the medicine", 255),
+  strength: z.string().trim().max(60),
+  dose: requiredTrimmed("Give the dose, for example 1 tab", 60),
+});
+
 export const miniAddDrugFormSchema = z.object({
   name: requiredTrimmed("Drug name is required"),
   generic_name: z.string(),
@@ -1688,7 +1699,11 @@ export const pharmacyCatalogFormSchema = z.object({
     return Number.isFinite(parsed) && parsed <= 100;
   }, "Tax percent cannot exceed 100"),
   reorder_level: nonNegativeInteger("Reorder level must be a whole number"),
-  drug_schedule: drugScheduleFormSchema.optional(),
+  // Required: every sale and dispense check keys on it, and the server
+  // refuses a new item without one (owner, 2026-11-09).
+  drug_schedule: drugScheduleFormSchema
+    .optional()
+    .refine((value) => value !== undefined, "Choose the drug schedule"),
   formulary_status: formularyStatusFormSchema.optional(),
   aware_category: awareCategoryFormSchema.optional(),
   inn_name: z.string(),
@@ -1865,6 +1880,8 @@ export const pharmacyRxReviewItemFormSchema = z.object({
   catalog_item_id: z.string().nullable().optional(),
   quantity: positiveFormInteger,
   unit_price: nonNegativeNumber("Unit price cannot be negative"),
+  /** The pharmacist confirmed an unmapped line is bought outside. */
+  buy_outside: z.boolean().optional(),
 });
 
 export const pharmacyRxReviewFormSchema = z
@@ -5415,6 +5432,7 @@ export type PatientRegistrationInitialValues = Partial<
   is_dob_estimated?: boolean;
 };
 export type MiniAddDrugFormInput = z.infer<typeof miniAddDrugFormSchema>;
+export type BuyOutsideLineFormInput = z.infer<typeof buyOutsideLineFormSchema>;
 export type PharmacyCatalogFormInput = z.infer<typeof pharmacyCatalogFormSchema>;
 export type MiniAddLabTestFormInput = z.infer<typeof miniAddLabTestFormSchema>;
 export type OrderBasketDrugFormInput = z.infer<typeof orderBasketDrugFormSchema>;

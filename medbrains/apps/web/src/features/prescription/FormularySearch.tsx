@@ -11,11 +11,16 @@ import { type FormularyDrug, searchFormulary, stockStatus } from "./rxModel";
 /** Fewest characters before the catalogue is searched on the server. */
 const SERVER_SEARCH_MIN = 2;
 
+/** The option value that writes the search as a buy-outside line. */
+const BUY_OUTSIDE_OPTION = "__buy_outside__";
+
 interface FormularySearchProps {
   formulary: FormularyDrug[];
   /** The formulary has not arrived yet: say so instead of "no match". */
   loading: boolean;
   onPick: (drug: FormularyDrug) => void;
+  /** The prescriber chose to write the search as bought outside. */
+  onBuyOutside: (name: string) => void;
   inputRef?: Ref<HTMLInputElement>;
 }
 
@@ -28,7 +33,13 @@ const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ")
  * buttons whose Enter, pressed before the formulary had loaded, did nothing
  * and said nothing.
  */
-export function FormularySearch({ formulary, loading, onPick, inputRef }: FormularySearchProps) {
+export function FormularySearch({
+  formulary,
+  loading,
+  onPick,
+  onBuyOutside,
+  inputRef,
+}: FormularySearchProps) {
   const [query, setQuery] = useState("");
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   // The loaded formulary is the catalogue's first hundred by name; a drug
@@ -51,6 +62,13 @@ export function FormularySearch({ formulary, loading, onPick, inputRef }: Formul
 
   /** Adds the chosen drug to the prescription and clears the search. */
   const pick = (id: string) => {
+    if (id === BUY_OUTSIDE_OPTION) {
+      const name = query.trim();
+      setQuery("");
+      combobox.closeDropdown();
+      onBuyOutside(name);
+      return;
+    }
     const drug = byId.get(id);
     if (!drug) return;
     setQuery("");
@@ -89,16 +107,28 @@ export function FormularySearch({ formulary, loading, onPick, inputRef }: Formul
             <Combobox.Empty className={classes.ddEmpty}>
               Loading the formulary. Your search will match as soon as it arrives.
             </Combobox.Empty>
-          ) : results.length === 0 ? (
-            <Combobox.Empty className={classes.ddEmpty}>
-              No match for “{query}”. Try a salt or brand name.
-            </Combobox.Empty>
           ) : (
-            results.map((drug) => (
-              <Combobox.Option key={drug.id} value={drug.id} className={classes.ddItem}>
-                <FormularyOption drug={drug} />
+            <>
+              {results.length === 0 && (
+                <Combobox.Empty className={classes.ddEmpty}>
+                  No match for “{query}”. Try a salt or brand name.
+                </Combobox.Empty>
+              )}
+              {results.map((drug) => (
+                <Combobox.Option key={drug.id} value={drug.id} className={classes.ddItem}>
+                  <FormularyOption drug={drug} />
+                </Combobox.Option>
+              ))}
+              {/* Chosen on purpose, never inferred from a missing match. */}
+              <Combobox.Option value={BUY_OUTSIDE_OPTION} className={classes.ddItem}>
+                <Box className={classes.ddMid}>
+                  <Box className={classes.ddName}>Buy outside: “{query.trim()}”</Box>
+                  <Box className={classes.ddSalt}>
+                    Not stocked here. Prints as “Buy from outside the hospital”.
+                  </Box>
+                </Box>
               </Combobox.Option>
-            ))
+            </>
           )}
         </Combobox.Options>
       </Combobox.Dropdown>

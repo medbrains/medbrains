@@ -344,6 +344,56 @@ pub struct PrescriptionItemInput {
     pub route: Option<String>,
     pub instructions: Option<String>,
     pub catalog_item_id: Option<Uuid>,
+    /// Chosen on purpose: the hospital does not stock it and the patient
+    /// buys it outside. Never inferred from a missing catalogue id.
+    #[serde(default)]
+    pub buy_outside: bool,
+}
+
+/// Refuses a buy-outside line that names a catalogue item or no medicine:
+/// a stocked item is dispensed here, and an outside one needs its name.
+///
+/// # Errors
+/// `BadRequest` naming the line.
+fn check_buy_outside_lines(items: &[PrescriptionItemInput]) -> Result<(), AppError> {
+    let bad = items
+        .iter()
+        .find(|i| i.buy_outside && (i.catalog_item_id.is_some() || i.drug_name.trim().is_empty()));
+    bad.map_or(Ok(()), |i| {
+        Err(AppError::BadRequest(format!(
+            "\"{}\" is marked buy outside: give its name and leave the catalogue item empty.",
+            i.drug_name.trim()
+        )))
+    })
+}
+
+/// Writes one prescription line, with who marked it bought outside.
+async fn insert_prescription_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    prescription_id: Uuid,
+    item: &PrescriptionItemInput,
+) -> Result<PrescriptionItem, AppError> {
+    sqlx::query_as::<_, PrescriptionItem>(
+        "INSERT INTO prescription_items \
+         (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
+          route, instructions, catalog_item_id, buy_outside, buy_outside_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(prescription_id)
+    .bind(item.drug_name.trim())
+    .bind(&item.dosage)
+    .bind(&item.frequency)
+    .bind(&item.duration)
+    .bind(&item.route)
+    .bind(&item.instructions)
+    .bind(item.catalog_item_id)
+    .bind(item.buy_outside)
+    .bind(item.buy_outside.then_some(claims.sub))
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(AppError::from)
 }
 
 #[derive(Debug, Serialize)]
@@ -2658,6 +2708,7 @@ pub async fn create_prescription(
             "At least one prescription item is required".to_owned(),
         ));
     }
+    check_buy_outside_lines(&body.items)?;
 
     let order_mode = body.order_mode.as_deref().unwrap_or("written");
     if !["written", "verbal", "telephone"].contains(&order_mode) {
@@ -3018,24 +3069,7 @@ pub async fn create_prescription(
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
-        let pi = sqlx::query_as::<_, PrescriptionItem>(
-            "INSERT INTO prescription_items \
-             (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
-              route, instructions, catalog_item_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-        )
-        .bind(claims.tenant_id)
-        .bind(rx.id)
-        .bind(&item.drug_name)
-        .bind(&item.dosage)
-        .bind(&item.frequency)
-        .bind(&item.duration)
-        .bind(&item.route)
-        .bind(&item.instructions)
-        .bind(item.catalog_item_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        items.push(pi);
+        items.push(insert_prescription_item(&mut tx, &claims, rx.id, item).await?);
     }
 
     // Antimicrobial stewardship + formulary (NABH AMS / DTC): a Reserve
@@ -3210,6 +3244,7 @@ pub async fn update_prescription(
             "At least one prescription item is required".to_owned(),
         ));
     }
+    check_buy_outside_lines(&body.items)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3269,24 +3304,7 @@ pub async fn update_prescription(
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
-        let pi = sqlx::query_as::<_, PrescriptionItem>(
-            "INSERT INTO prescription_items \
-             (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
-              route, instructions, catalog_item_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-        )
-        .bind(claims.tenant_id)
-        .bind(id)
-        .bind(&item.drug_name)
-        .bind(&item.dosage)
-        .bind(&item.frequency)
-        .bind(&item.duration)
-        .bind(&item.route)
-        .bind(&item.instructions)
-        .bind(item.catalog_item_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        items.push(pi);
+        items.push(insert_prescription_item(&mut tx, &claims, id, item).await?);
     }
 
     // An edit is held to the same stewardship and formulary rules as a new

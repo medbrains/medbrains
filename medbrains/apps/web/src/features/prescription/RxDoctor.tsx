@@ -1,6 +1,7 @@
 import { Box, Group, Menu, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import type { BuyOutsideLineFormInput } from "@medbrains/schemas";
 import type {
   AllergyConflict,
   ClinicalConclusion,
@@ -24,10 +25,12 @@ import {
 import { type ReactNode, useRef, useState } from "react";
 import { Alert, Button, Modal, SegmentedControl } from "@/components/ui";
 import { Input } from "@/components/ui/Input";
+import { BuyOutsideModal } from "./BuyOutsideModal";
 import { FormularySearch } from "./FormularySearch";
 import classes from "./prescription.module.scss";
 import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
 import { RxTable } from "./RxTable";
+import { buyOutsideItem } from "./rxBuyOutside";
 import {
   type FormularyDrug,
   maxDoseExceeded,
@@ -156,6 +159,7 @@ export function RxDoctor({
   const [safetyOpen, safetyPanel] = useDisclosure(false);
   const [setName, setSetName] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const [outsideName, setOutsideName] = useState<string | null>(null);
 
   const commit = (next: RxItem[]) => {
     setItems(next);
@@ -187,6 +191,14 @@ export function RxDoctor({
       pendingMD: prescriber === "nurse" && drug.kind === "rx",
     };
     commit([...items, item]);
+  };
+
+  /** Adds a line the prescriber chose to have bought outside. */
+  const addOutside = (line: BuyOutsideLineFormInput) => {
+    setOutsideName(null);
+    searchRef.current?.focus();
+    UID += 1;
+    commit([...items, { ...buyOutsideItem(UID, line), pendingMD: prescriber === "nurse" }]);
   };
 
   const patchItem = (uid: number, patch: Partial<RxItem>) =>
@@ -390,6 +402,7 @@ export function RxDoctor({
                 formulary={formulary}
                 loading={formularyLoading}
                 onPick={addDrug}
+                onBuyOutside={setOutsideName}
                 inputRef={searchRef}
               />
             </Box>
@@ -583,6 +596,8 @@ export function RxDoctor({
           }
         />
       </Modal>
+
+      <BuyOutsideModal name={outsideName} onAdd={addOutside} onClose={() => setOutsideName(null)} />
 
       <Modal opened={saveOpen} onClose={saveModal.close} title="Save as order set" size="sm">
         <Input

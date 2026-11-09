@@ -111,6 +111,23 @@ pub struct PharmacyOrderItem {
     pub removed_by: Option<Uuid>,
     pub remove_reason: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Bought outside, not dispensed here: no catalogue item, no price.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub buy_outside: bool,
+    /// Who chose or confirmed it: the prescriber, or the reviewing pharmacist.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub buy_outside_by: Option<Uuid>,
+}
+
+impl PharmacyOrderItem {
+    /// Whether this line is sold here: a catalogue item, not bought outside.
+    /// Only such a line is dispensed, picked, verified or billed.
+    #[must_use]
+    pub const fn is_sold_here(&self) -> bool {
+        self.catalog_item_id.is_some() && !self.buy_outside
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

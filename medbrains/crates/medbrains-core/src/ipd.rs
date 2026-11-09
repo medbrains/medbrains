@@ -261,6 +261,11 @@ pub struct IpdMedicationAdministration {
     pub batch_expiry: Option<NaiveDate>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The patient's own medicine, brought from outside: given and charted
+    /// like any dose, with no batch from this pharmacy.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub patients_own: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

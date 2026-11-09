@@ -1,11 +1,15 @@
 // Medicines on discharge: picked from the formulary, so each carries the
 // catalogue id the pharmacy dispenses Schedule H/H1 discharge lines against.
+// A medicine the hospital does not stock is marked buy outside on purpose:
+// it names no catalogue item and prints "Buy from outside the hospital".
 
 import { Group, Stack, Text } from "@mantine/core";
 import type { DischargeMedicine } from "@medbrains/types";
 import { IconTrash } from "@tabler/icons-react";
+import { useState } from "react";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
-import { IconButton, Input, NumberField } from "@/components/ui";
+import { Badge, Button, IconButton, Input, NumberField } from "@/components/ui";
+import { BUY_OUTSIDE_PRINT } from "@/features/prescription/rxBuyOutside";
 
 interface DischargeMedicinesEditorProps {
   value: DischargeMedicine[];
@@ -25,6 +29,14 @@ export function DischargeMedicinesEditor({ value, onChange }: DischargeMedicines
     if (!catalogItemId || value.some((m) => m.catalog_item_id === catalogItemId)) return;
     onChange([...value, { catalog_item_id: catalogItemId, drug_name: drugName, quantity: 1 }]);
   };
+  const [outsideName, setOutsideName] = useState("");
+  /** Adds the typed medicine as bought outside, chosen on purpose. */
+  const addOutside = () => {
+    const name = outsideName.trim();
+    if (!name) return;
+    onChange([...value, { buy_outside: true, drug_name: name, quantity: 1 }]);
+    setOutsideName("");
+  };
 
   return (
     <Stack gap="xs">
@@ -37,10 +49,19 @@ export function DischargeMedicinesEditor({ value, onChange }: DischargeMedicines
         </Text>
       )}
       {value.map((medicine, index) => (
-        <Group key={medicine.catalog_item_id} align="flex-end" wrap="nowrap">
-          <Text size="sm" flex={1}>
-            {medicine.drug_name}
-          </Text>
+        <Group
+          key={medicine.catalog_item_id ?? `outside-${index}-${medicine.drug_name}`}
+          align="flex-end"
+          wrap="nowrap"
+        >
+          <Stack gap={2} flex={1}>
+            <Text size="sm">{medicine.drug_name}</Text>
+            {medicine.buy_outside && (
+              <Badge tone="neutral" size="xs">
+                {BUY_OUTSIDE_PRINT}
+              </Badge>
+            )}
+          </Stack>
           <NumberField
             label="Quantity"
             min={1}
@@ -65,12 +86,26 @@ export function DischargeMedicinesEditor({ value, onChange }: DischargeMedicines
         </Group>
       ))}
       {value.length < MAX_MEDICINES && (
-        <DrugSearchSelect
-          label="Add a medicine"
-          value=""
-          clearOnSelect
-          onChange={(id, drug) => add(id, drug?.name ?? "")}
-        />
+        <>
+          <DrugSearchSelect
+            label="Add a medicine"
+            value=""
+            clearOnSelect
+            onChange={(id, drug) => add(id, drug?.name ?? "")}
+          />
+          <Group align="flex-end" wrap="nowrap">
+            <Input
+              label="Not stocked here: buy outside"
+              placeholder="Medicine name and strength"
+              value={outsideName}
+              onChange={(e) => setOutsideName(e.currentTarget.value)}
+              flex={1}
+            />
+            <Button tone="secondary" onClick={addOutside} disabled={!outsideName.trim()}>
+              Add as buy outside
+            </Button>
+          </Group>
+        </>
       )}
     </Stack>
   );

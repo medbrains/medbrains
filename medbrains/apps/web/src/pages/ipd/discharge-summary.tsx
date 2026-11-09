@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useClinicalEmit } from "@/components";
 import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Badge, Button, toast } from "@/components/ui";
+import { BUY_OUTSIDE_PRINT } from "@/features/prescription/rxBuyOutside";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { ipdService } from "@/services/ipd.service";
 import { DischargeMedicinesEditor } from "./discharge-medicines-editor";
@@ -201,10 +202,11 @@ export function DischargeSummaryTab({
             <Text size="sm" fw={600}>
               Medicines on discharge
             </Text>
-            {summary.medications_on_discharge.map((m) => (
-              <Text key={m.catalog_item_id} size="sm">
+            {summary.medications_on_discharge.map((m, i) => (
+              <Text key={m.catalog_item_id ?? `outside-${i}`} size="sm">
                 {m.drug_name} × {m.quantity}
                 {m.instructions ? ` — ${m.instructions}` : ""}
+                {m.buy_outside ? ` — ${BUY_OUTSIDE_PRINT}` : ""}
               </Text>
             ))}
           </Stack>

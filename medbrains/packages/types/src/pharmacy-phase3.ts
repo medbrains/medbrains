@@ -70,7 +70,9 @@ export interface PharmacyRxDetailItem {
   taxable_amount: number;
   tax_amount: number;
   line_total: number;
-  price_source: "catalog" | "unmatched";
+  /** `buy_outside`: the prescriber marked it bought outside; never billed. */
+  price_source: "catalog" | "unmatched" | "buy_outside";
+  buy_outside: boolean;
 }
 
 export interface PharmacyRxDetailResponse {
@@ -112,6 +114,8 @@ export interface PharmacyRxReviewItemInput {
   catalog_item_id?: string | null;
   quantity: number;
   unit_price: number;
+  /** The pharmacist confirms an unmapped line is bought outside. */
+  buy_outside?: boolean;
 }
 
 export interface ReviewPharmacyPrescriptionRequest {

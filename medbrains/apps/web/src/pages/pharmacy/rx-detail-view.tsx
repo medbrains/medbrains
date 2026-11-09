@@ -121,6 +121,8 @@ export function RxDetailView({
         discontinued_by: null,
         discontinue_reason: null,
         catalog_item_id: it.catalog_item_id,
+        buy_outside: it.buy_outside,
+        buy_outside_by: null,
       })),
     },
   ];

@@ -238,6 +238,8 @@ mod payments_pos_fixes_test;
 mod payments_pos_test;
 mod pcpndt_form_f_test;
 mod pharmacy_bill_test;
+mod pharmacy_buy_outside_db_test;
+mod pharmacy_buy_outside_test;
 mod pharmacy_controlled_pos_guard_test;
 mod pharmacy_day_close_test;
 mod pharmacy_delivery_choice_test;

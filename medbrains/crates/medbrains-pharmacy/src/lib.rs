@@ -26,7 +26,7 @@ use medbrains_core::privacy::{mask_name, mask_phone};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use axum::routing::{delete, get, post, put};
@@ -41,6 +41,9 @@ use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
 mod credit_notes;
+pub mod buy_outside;
+pub mod discharge_rx;
+pub mod dispense_context;
 mod expired;
 pub mod h1_register;
 pub mod nppa;
@@ -49,15 +52,15 @@ pub mod pos_returns;
 mod pos_scheduled;
 pub mod quarantine;
 mod return_rules;
-pub mod discharge_rx;
-pub mod dispense_context;
+mod rx_quantity;
 pub mod rx_safety;
 pub mod safety_record;
-mod rx_quantity;
 pub mod schedule_gate;
-pub mod witnesses;
 pub mod storefront;
 mod terminal_tender;
+pub mod witnesses;
+
+pub use buy_outside::NOTHING_SOLD_HERE;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -92,6 +95,9 @@ pub struct OrderItemInput {
     pub drug_name: String,
     pub quantity: i32,
     pub unit_price: Decimal,
+    /// Chosen on purpose: bought outside, never dispensed or billed here.
+    #[serde(default)]
+    pub buy_outside: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,9 +179,9 @@ pub struct OrderDetailResponse {
 }
 
 #[derive(Debug, sqlx::FromRow)]
-struct CatalogPriceRow {
-    id: Uuid,
-    base_price: Decimal,
+pub(crate) struct CatalogPriceRow {
+    pub(crate) id: Uuid,
+    pub(crate) base_price: Decimal,
 }
 
 fn pharmacy_rx_status_code(status: &PharmacyRxStatus) -> &'static str {
@@ -204,6 +210,7 @@ struct RxDetailItemPriceRow {
     unit_price: Decimal,
     tax_percent: Decimal,
     price_source: String,
+    buy_outside: bool,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -644,6 +651,7 @@ struct PrescriptionItemForMar {
     duration: String,
     route: Option<String>,
     catalog_item_id: Option<Uuid>,
+    buy_outside: bool,
 }
 
 /// Explode a just-dispensed IPD prescription into scheduled eMAR doses.
@@ -654,6 +662,11 @@ struct PrescriptionItemForMar {
 /// and flagging high-alert drugs (controlled / Schedule H1·X·NDPS / LASA) so the
 /// bedside requires a witness. Idempotent: an item that already has MAR rows is
 /// skipped, so re-dispensing the remainder of a partial order won't double-book.
+///
+/// A medicine bought outside (marked by the prescriber, or confirmed at
+/// review) still goes on the MAR, as the patient's own with no batch: the
+/// nurse gives and charts it like any dose. Leaving it off would hide a
+/// medicine the patient is taking (DECISIONS, 2026-11-09).
 async fn generate_mar_from_dispensed_order_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -673,9 +686,16 @@ async fn generate_mar_from_dispensed_order_in_tx(
             })
         })
         .collect();
+    // ponytail: the review copies the prescription's drug name onto the
+    // order line, so the name links a confirmed buy-outside line back to it.
+    let outside_names: HashSet<String> = dispensed_items
+        .iter()
+        .filter(|i| i.buy_outside)
+        .map(|i| i.drug_name.trim().to_lowercase())
+        .collect();
 
     let items = sqlx::query_as::<_, PrescriptionItemForMar>(
-        "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id \
+        "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id, buy_outside \
          FROM prescription_items \
          WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active'",
     )
@@ -708,7 +728,10 @@ async fn generate_mar_from_dispensed_order_in_tx(
 
         let is_high_alert = match item.catalog_item_id {
             Some(cid) => sqlx::query_scalar::<_, bool>(
-                "SELECT (is_controlled OR is_lasa OR drug_schedule IN ('H1','X','NDPS')) \
+                // A drug with no schedule makes the IN NULL: read it as not
+                // high-alert rather than fail the dispense decoding a NULL.
+                "SELECT COALESCE(is_controlled OR is_lasa OR drug_schedule IN ('H1','X','NDPS'), \
+                                 false) \
                  FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
             )
             .bind(cid)
@@ -724,14 +747,17 @@ async fn generate_mar_from_dispensed_order_in_tx(
             .and_then(|cid| batch_by_catalog.get(&cid).cloned())
             .unwrap_or((None, None, None));
         let route = item.route.clone().unwrap_or_else(|| "oral".to_owned());
+        let patients_own =
+            item.buy_outside || outside_names.contains(&item.drug_name.trim().to_lowercase());
 
         for slot in slots {
             sqlx::query(
                 "INSERT INTO ipd_medication_administration \
                    (tenant_id, admission_id, prescription_item_id, drug_name, dose, route, \
                     frequency, scheduled_at, status, is_high_alert, \
-                    batch_stock_id, batch_number, batch_expiry) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled'::mar_status, $9, $10, $11, $12)",
+                    batch_stock_id, batch_number, batch_expiry, patients_own) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled'::mar_status, $9, $10, $11, $12, \
+                         $13)",
             )
             .bind(tenant_id)
             .bind(admission_id)
@@ -745,6 +771,7 @@ async fn generate_mar_from_dispensed_order_in_tx(
             .bind(batch_stock_id)
             .bind(&batch_number)
             .bind(batch_expiry)
+            .bind(patients_own)
             .execute(&mut **tx)
             .await?;
         }
@@ -1030,6 +1057,7 @@ fn filter_pharmacy_analytics_json_response(
     value
 }
 
+/// Masks the money in a POS day summary for a role that may not see it.
 fn filter_pos_day_summary_response(
     mut row: PosDaySummary,
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -1045,35 +1073,6 @@ fn filter_pos_day_summary_response(
 }
 
 /// The safety gate's view of order lines.
-/// What the pharmacy order says of the prescription lines it does not hold.
-pub const BUY_OUTSIDE: &str = "Buy outside, not dispensed here";
-
-/// Names, on the order's notes, the prescribed medicines the hospital does
-/// not stock, so the counter sees them as bought outside, not missing.
-async fn note_buy_outside(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    order_id: Uuid,
-    names: &[String],
-) -> Result<(), AppError> {
-    if names.is_empty() {
-        return Ok(());
-    }
-    let note = format!("{BUY_OUTSIDE}: {}", names.join(", "));
-    sqlx::query(
-        "UPDATE pharmacy_orders \
-            SET notes = CASE WHEN COALESCE(btrim(notes), '') = '' THEN $3 \
-                             ELSE notes || E'\\n' || $3 END \
-          WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(tenant_id)
-    .bind(note)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
-}
-
 fn rx_lines_of(items: &[PharmacyOrderItem]) -> Vec<rx_safety::RxLine> {
     items
         .iter()
@@ -1879,8 +1878,7 @@ pub async fn create_order(
     // in its queue, a recent order). Every other caller of
     // `create_order_in_tx` (discharge dispensing, the discharge checklist)
     // checks patient access first too.
-    medbrains_authz_gate::require_patient_pharmacy_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_pharmacy_access(&state, &claims, body.patient_id).await?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -1908,6 +1906,7 @@ pub async fn create_order_in_tx(
             "At least one item is required".to_owned(),
         ));
     }
+    buy_outside::check_unsold_lines_unpriced(&body.items)?;
 
     if let Some(prescription_id) = body.prescription_id {
         // The prescription is the order's authority — its doctor is who the
@@ -2046,8 +2045,8 @@ pub async fn create_order_in_tx(
             "
             INSERT INTO pharmacy_order_items
               (tenant_id, order_id, catalog_item_id, drug_name, quantity,
-               unit_price, total_price, quantity_prescribed)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               unit_price, total_price, quantity_prescribed, buy_outside, buy_outside_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *
             ",
         )
@@ -2059,6 +2058,8 @@ pub async fn create_order_in_tx(
         .bind(item.unit_price)
         .bind(total)
         .bind(item.quantity)
+        .bind(item.buy_outside)
+        .bind(item.buy_outside.then_some(claims.sub))
         .fetch_one(&mut **tx)
         .await?;
         items.push(oi);
@@ -2425,7 +2426,11 @@ async fn bill_order_items_in_tx(
     // One tax lookup for the order, not one per line. A discharge
     // prescription of fifteen drugs used to cost fifteen round trips here,
     // inside the transaction that is also writing the billing indent.
-    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
+    let catalog_ids: Vec<Uuid> = items
+        .iter()
+        .filter(|i| i.is_sold_here())
+        .filter_map(|i| i.catalog_item_id)
+        .collect();
     let tax_by_item: HashMap<Uuid, Decimal> = if catalog_ids.is_empty() {
         HashMap::new()
     } else {
@@ -2441,7 +2446,9 @@ async fn bill_order_items_in_tx(
         .collect()
     };
 
-    for item in items {
+    // Only a line sold here is charged: a medicine bought outside, or typed by
+    // an order raised elsewhere, never reaches the bill (owner, 2026-11-09).
+    for item in items.iter().filter(|i| i.is_sold_here()) {
         // Absent stays zero, exactly as the per-row `unwrap_or` did: a
         // catalogue row that has gone missing must not silently inherit the
         // previous line's tax rate.
@@ -3064,6 +3071,9 @@ pub async fn dispense_order(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+    if !items.iter().any(PharmacyOrderItem::is_sold_here) {
+        return Err(AppError::Conflict(NOTHING_SOLD_HERE.to_owned()));
+    }
 
     // Allergy backstop — the last barrier before a drug reaches the patient.
     // Warn & require an acknowledged reason (logged); never a silent pass,
@@ -3319,10 +3329,10 @@ pub async fn dispense_order(
     let online_shelf_days =
         storefront::settings::min_shelf_days_for_order(&mut tx, claims.tenant_id, order.id).await?;
     for item in &items {
-        // A line with no catalogue item is not dispensed here: the patient
-        // buys it outside. Nothing leaves the shelf for it and it does not
+        // A line bought outside (or typed by an order raised elsewhere) is
+        // not dispensed here. Nothing leaves the shelf for it and it does not
         // hold the order open.
-        if item.catalog_item_id.is_none() {
+        if !item.is_sold_here() {
             continue;
         }
         if item.quantity <= 0 {
@@ -4366,7 +4376,10 @@ pub async fn list_catalog(
         })
         .transpose()
         .map_err(|_| AppError::BadRequest("ids must be catalogue ids".to_owned()))?;
-    if ids.as_ref().is_some_and(|ids| ids.len() > CATALOG_IDS_LIMIT) {
+    if ids
+        .as_ref()
+        .is_some_and(|ids| ids.len() > CATALOG_IDS_LIMIT)
+    {
         return Err(AppError::BadRequest(format!(
             "ask for at most {CATALOG_IDS_LIMIT} catalogue ids at once"
         )));
@@ -4406,12 +4419,15 @@ pub async fn list_catalog(
     ))
 }
 
+/// Adds a medicine to the catalogue (`POST /api/pharmacy/catalog`), with the
+/// schedule every counter gate reads.
 pub async fn create_catalog_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCatalogRequest>,
 ) -> Result<Json<PharmacyCatalog>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    buy_outside::check_catalogue_schedule(body.drug_schedule.as_deref())?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_catalog_price_write(Some(body.base_price), &restricted_fields, true)?;
     check_refill_policy(body.refill_policy.as_deref())?;
@@ -4932,6 +4948,7 @@ pub async fn create_ndps_entry(
     Ok(Json(filter_ndps_entry_response(entry, &restricted_fields)))
 }
 
+/// The NDPS register's running balance per controlled drug.
 pub async fn ndps_balance(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5197,8 +5214,14 @@ async fn post_ndps_receipt_in_tx(
     .bind(format!("Batch {} received", body.batch_number))
     .fetch_one(&mut **tx)
     .await?;
-    queue_ndps_movement_created_event_in_tx(tx, claims.tenant_id, claims.sub, &entry, "batch_receipt")
-        .await?;
+    queue_ndps_movement_created_event_in_tx(
+        tx,
+        claims.tenant_id,
+        claims.sub,
+        &entry,
+        "batch_receipt",
+    )
+    .await?;
     Ok(())
 }
 
@@ -6378,6 +6401,7 @@ pub async fn drug_utilization_review(
          LEFT JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id AND c.tenant_id = oi.tenant_id \
          WHERE o.tenant_id = $1 AND o.status = 'dispensed' \
            AND oi.removed_at IS NULL \
+           AND oi.catalog_item_id IS NOT NULL AND NOT oi.buy_outside \
            AND o.created_at >= now() - interval '90 days' \
          GROUP BY oi.drug_name, c.generic_name, c.aware_category \
          ORDER BY total_dispensed DESC LIMIT 500",
@@ -6772,13 +6796,16 @@ pub async fn get_rx_detail(
                 pc.id AS catalog_item_id,
                 COALESCE(pc.base_price, 0) AS unit_price,
                 COALESCE(pc.tax_percent, 0) AS tax_percent,
-                CASE WHEN pc.id IS NULL THEN 'unmatched' ELSE 'catalog' END AS price_source
+                CASE WHEN pi.buy_outside THEN 'buy_outside'
+                     WHEN pc.id IS NULL THEN 'unmatched' ELSE 'catalog' END AS price_source,
+                pi.buy_outside
          FROM prescription_items pi
          LEFT JOIN LATERAL (
              SELECT c.id, c.base_price, c.tax_percent
              FROM pharmacy_catalog c
              WHERE c.tenant_id = pi.tenant_id
                AND c.is_active = true
+               AND NOT pi.buy_outside
                AND (
                    c.id = pi.catalog_item_id
                    OR lower(c.name) = lower(pi.drug_name)
@@ -6854,6 +6881,7 @@ pub async fn get_rx_detail(
                 "tax_amount": decimal_as_f64(tax_amount),
                 "line_total": decimal_as_f64(line_total),
                 "price_source": item.price_source,
+                "buy_outside": item.buy_outside,
             })
         })
         .collect::<Vec<_>>();
@@ -6946,7 +6974,8 @@ pub async fn review_prescription(
     .ok_or(AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, PrescriptionItemRow>(
-        "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id \
+        "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id, \
+                buy_outside, buy_outside_by \
          FROM prescription_items \
          WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active'",
     )
@@ -7066,50 +7095,27 @@ pub async fn review_prescription(
         )
         .await?;
 
-        // Create order items from prescription items
+        // Create order items from prescription items: each line is mapped to
+        // the catalogue or bought outside, by the prescriber's or the
+        // pharmacist's explicit choice (owner, 2026-11-09).
         let mut order_items = Vec::with_capacity(items.len());
-        let mut buy_outside: Vec<String> = Vec::new();
+        let mut confirmed_outside: Vec<&str> = Vec::new();
         for item in &items {
             let reviewed = reviewed_items
                 .iter()
                 .find(|review_item| review_item.prescription_item_id == item.id);
-            let reviewed_catalog_id = reviewed
-                .and_then(|review_item| review_item.catalog_item_id)
-                .or(item.catalog_item_id);
-
-            // Try to resolve catalog item by drug name
-            let catalog = sqlx::query_as::<_, CatalogPriceRow>(
-                "SELECT id, base_price \
-                 FROM pharmacy_catalog \
-                 WHERE tenant_id = $1 \
-                   AND is_active = true \
-                   AND ( \
-                     id = $2 \
-                     OR lower(name) = lower($3) \
-                     OR (generic_name IS NOT NULL AND lower(generic_name) = lower($3)) \
-                   ) \
-                 ORDER BY \
-                   CASE \
-                     WHEN id = $2 THEN 0 \
-                     WHEN lower(name) = lower($3) THEN 1 \
-                     ELSE 2 \
-                   END, \
-                   name \
-                 LIMIT 1",
-            )
-            .bind(claims.tenant_id)
-            .bind(reviewed_catalog_id)
-            .bind(&item.drug_name)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-            // A medicine the hospital does not stock (the doctor may write
-            // one, for the patient to buy outside) is not dispensed here: it
-            // stays off the order and is named on it, never blocking the
-            // catalogue lines (owner, 2026-11-09).
-            let Some(catalog) = catalog else {
-                buy_outside.push(item.drug_name.trim().to_owned());
-                continue;
+            let catalog = match buy_outside::settle_review_line(&mut tx, &claims, item, reviewed).await? {
+                buy_outside::ReviewedLine::Catalogue(catalog) => catalog,
+                buy_outside::ReviewedLine::BuyOutside(by) => {
+                    if !item.buy_outside {
+                        confirmed_outside.push(item.drug_name.trim());
+                    }
+                    order_items.push(
+                        buy_outside::insert_buy_outside_line(&mut tx, claims.tenant_id, order.id, item, by)
+                            .await?,
+                    );
+                    continue;
+                }
             };
             let quantity = reviewed.map_or_else(
                 || {
@@ -7149,10 +7155,10 @@ pub async fn review_prescription(
 
             let order_item = sqlx::query_as::<_, PharmacyOrderItem>(
                 "INSERT INTO pharmacy_order_items \
-                 (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, \
-                  total_price, quantity_prescribed) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $5) \
-                 RETURNING *",
+                     (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, \
+                      total_price, quantity_prescribed) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $5) \
+                     RETURNING *",
             )
             .bind(claims.tenant_id)
             .bind(order.id)
@@ -7165,14 +7171,32 @@ pub async fn review_prescription(
             .await?;
             order_items.push(order_item);
         }
-        if order_items.is_empty() {
+        if !order_items.iter().any(PharmacyOrderItem::is_sold_here) {
             return Err(AppError::Conflict(
                 "Nothing on this prescription is in the catalogue: print it for the patient to \
                  buy outside"
                     .to_owned(),
             ));
         }
-        note_buy_outside(&mut tx, claims.tenant_id, order.id, &buy_outside).await?;
+        if !confirmed_outside.is_empty() {
+            medbrains_db::audit::AuditLogger::log(
+                &mut tx,
+                &medbrains_db::audit::AuditEntry {
+                    tenant_id: claims.tenant_id,
+                    user_id: Some(claims.sub),
+                    action: "pharmacy.rx_review.buy_outside_confirmed",
+                    entity_type: "pharmacy_order",
+                    entity_id: Some(order.id),
+                    old_values: None,
+                    new_values: Some(&json!({
+                        "rx_queue_id": rx.id,
+                        "medicines": confirmed_outside,
+                    })),
+                    ip_address: None,
+                },
+            )
+            .await?;
+        }
 
         ensure_order_items_stock_available_for_billing_in_tx(
             &mut tx,
@@ -7376,14 +7400,16 @@ pub async fn review_prescription(
 // Helper row for prescription items
 #[derive(Debug, sqlx::FromRow)]
 #[allow(dead_code)]
-struct PrescriptionItemRow {
-    id: Uuid,
-    drug_name: String,
-    dosage: String,
-    frequency: String,
-    duration: String,
-    route: Option<String>,
-    catalog_item_id: Option<Uuid>,
+pub(crate) struct PrescriptionItemRow {
+    pub(crate) id: Uuid,
+    pub(crate) drug_name: String,
+    pub(crate) dosage: String,
+    pub(crate) frequency: String,
+    pub(crate) duration: String,
+    pub(crate) route: Option<String>,
+    pub(crate) catalog_item_id: Option<Uuid>,
+    pub(crate) buy_outside: bool,
+    pub(crate) buy_outside_by: Option<Uuid>,
 }
 
 // ══════════════════════════════════════════════════════════
@@ -8490,6 +8516,9 @@ pub struct ReviewPrescriptionItemInput {
     pub catalog_item_id: Option<Uuid>,
     pub quantity: i32,
     pub unit_price: Decimal,
+    /// The pharmacist confirms an unmapped line is bought outside.
+    #[serde(default)]
+    pub buy_outside: bool,
 }
 
 #[derive(Debug, Deserialize)]

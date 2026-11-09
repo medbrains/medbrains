@@ -231,67 +231,11 @@ async fn an_unknown_allergy_status_is_refused_until_the_pharmacist_acknowledges_
     assert_eq!(status, StatusCode::OK, "{body}");
 }
 
-/// A pack-and-collect store with one shelf batch of each drug.
-async fn pack_store(d: &Desk, drugs: &[Uuid]) -> Uuid {
-    let t = dispense_world::tag();
-    let store: Uuid = sqlx::query_scalar(
-        "INSERT INTO store_locations (tenant_id, code, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(d.tenant)
-    .bind(format!("PC-{t}"))
-    .bind(format!("Pack and collect {t}"))
-    .fetch_one(&d.app.db)
-    .await
-    .expect("store");
-    sqlx::query(
-        "INSERT INTO pharmacy_store_assignments (tenant_id, store_location_id, fulfilment_mode) \
-         VALUES ($1, $2, 'pack_and_collect')",
-    )
-    .bind(d.tenant)
-    .bind(store)
-    .execute(&d.app.db)
-    .await
-    .expect("store mode");
-    for drug in drugs {
-        sqlx::query(
-            "INSERT INTO pharmacy_batches (tenant_id, catalog_item_id, batch_number, expiry_date, \
-                                           quantity_received, quantity_on_hand, store_location_id) \
-             VALUES ($1, $2, $3, CURRENT_DATE + 365, 50, 50, $4)",
-        )
-        .bind(d.tenant)
-        .bind(drug)
-        .bind(format!("B-{}", dispense_world::tag()))
-        .bind(store)
-        .execute(&d.app.db)
-        .await
-        .expect("batch");
-    }
-    store
-}
-
-/// The pharmacist claims an order for picking.
-async fn claim(d: &Desk, order: Uuid, body: Value) -> (StatusCode, Value) {
-    let resp = d
-        .pharmacist
-        .client
-        .post(
-            d.app
-                .url(&format!("/api/pharmacy/fulfilment/{order}/claim")),
-        )
-        .header("x-csrf-token", &d.pharmacist.csrf)
-        .json(&body)
-        .send()
-        .await
-        .expect("claim");
-    let status = resp.status();
-    (status, resp.json().await.unwrap_or(Value::Null))
-}
-
 #[tokio::test]
 async fn picking_runs_the_schedule_gate_and_the_allergy_question() {
     let d = dispense_world::desk().await;
     let drug = d.drug(Some("H"), false).await;
-    let store = pack_store(&d, &[drug]).await;
+    let store = d.pack_store(&[drug]).await;
     let unprescribed = d.order(None, drug, 2).await;
     let rx = d.prescription(&[(drug, Some(10), "BD")]).await;
     let prescribed = d.order(Some(rx), drug, 2).await;
@@ -302,7 +246,7 @@ async fn picking_runs_the_schedule_gate_and_the_allergy_question() {
         .await
         .expect("to the pack store");
 
-    let gate = claim(&d, unprescribed, json!({})).await;
+    let gate = d.claim(unprescribed, json!({})).await;
     refused(
         &gate,
         StatusCode::BAD_REQUEST,
@@ -319,14 +263,11 @@ async fn picking_runs_the_schedule_gate_and_the_allergy_question() {
         .execute(&d.app.db)
         .await
         .expect("unknown");
-    let asked = claim(&d, prescribed, json!({})).await;
+    let asked = d.claim(prescribed, json!({})).await;
     refused(&asked, StatusCode::BAD_REQUEST, "allergy status is unknown");
-    let (status, body) = claim(
-        &d,
-        prescribed,
-        json!({ "allergy_status_acknowledged": true }),
-    )
-    .await;
+    let (status, body) = d
+        .claim(prescribed, json!({ "allergy_status_acknowledged": true }))
+        .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["status"], "picking");
 }

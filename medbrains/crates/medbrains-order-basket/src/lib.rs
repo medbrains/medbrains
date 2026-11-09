@@ -1202,6 +1202,7 @@ async fn create_prescription_from_basket_drug_in_tx(
         route: Some(item.route.clone()),
         instructions: instructions.clone(),
         catalog_item_id: Some(item.drug_id),
+        buy_outside: false,
     };
     medbrains_opd::rx_policy::enforce_rx_policy(
         tx,

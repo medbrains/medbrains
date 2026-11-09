@@ -8,9 +8,10 @@
 //! when a path forgets (migration 1453). The camp's refusal is in
 //! `camp_pharmacy_sync_gate_test`.
 //!
-//! A doctor may still prescribe a medicine the hospital does not stock: it
-//! is bought outside, named on the pharmacy order, and never dispensed here,
-//! and it never blocks dispensing the catalogue lines.
+//! A doctor may still prescribe a medicine the hospital does not stock,
+//! marked buy outside: it is listed on the pharmacy order as such, never
+//! dispensed here, and never blocks dispensing the catalogue lines. The
+//! marker's billing, review and MAR rules are in `pharmacy_buy_outside_test`.
 
 use crate::dispense_world::{self, Desk};
 
@@ -148,7 +149,8 @@ async fn a_doctor_prescribes_a_medicine_bought_outside_and_the_rest_is_dispensed
     // stock, for the patient to buy outside: the prescription saves.
     let line = |name: &str, item: Option<Uuid>| {
         json!({ "drug_name": name, "catalog_item_id": item, "dosage": "1 tab",
-                "frequency": "OD", "duration": "5 days", "route": "oral" })
+                "frequency": "OD", "duration": "5 days", "route": "oral",
+                "buy_outside": item.is_none() })
     };
     let (status, rx) = send(
         &d,
@@ -157,11 +159,15 @@ async fn a_doctor_prescribes_a_medicine_bought_outside_and_the_rest_is_dispensed
         json!({ "items": [line("Stocked", Some(plain)), line("Zincovit Syrup", None)] }),
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "a doctor may prescribe outside the catalogue: {rx}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "a doctor may prescribe outside the catalogue: {rx}"
+    );
     let queue = rx["pharmacy_rx_queue_id"].as_str().unwrap_or_default();
 
     // The pharmacist approves: the stocked line is ordered, the outside one is
-    // named on the order, not an error.
+    // on the order as bought outside, not an error.
     let (status, body) = send(
         &d,
         "PUT",
@@ -170,19 +176,22 @@ async fn a_doctor_prescribes_a_medicine_bought_outside_and_the_rest_is_dispensed
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let (order, notes): (Uuid, Option<String>) = sqlx::query_as(
-        "SELECT o.id, o.notes FROM pharmacy_prescriptions q \
-           JOIN pharmacy_orders o ON o.id = q.pharmacy_order_id WHERE q.id = $1::uuid",
+    let order: Uuid = sqlx::query_scalar(
+        "SELECT pharmacy_order_id FROM pharmacy_prescriptions WHERE id = $1::uuid",
     )
     .bind(queue)
     .fetch_one(&d.app.db)
     .await
     .expect("order");
-    let notes = notes.unwrap_or_default();
-    assert!(
-        notes.contains(&format!("{}: Zincovit Syrup", medbrains_pharmacy::BUY_OUTSIDE)),
-        "{notes}"
-    );
+    let outside: bool = sqlx::query_scalar(
+        "SELECT buy_outside FROM pharmacy_order_items \
+          WHERE order_id = $1 AND drug_name = 'Zincovit Syrup'",
+    )
+    .bind(order)
+    .fetch_one(&d.app.db)
+    .await
+    .expect("the outside line is on the order");
+    assert!(outside, "marked buy outside on the order");
 
     // A typed line on the order too (as an order raised elsewhere can carry)
     // is skipped, not refused: the catalogue line is dispensed.
@@ -205,13 +214,16 @@ async fn a_doctor_prescribes_a_medicine_bought_outside_and_the_rest_is_dispensed
     .fetch_all(&d.app.db)
     .await
     .expect("lines");
-    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert_eq!(lines.len(), 3, "{lines:?}");
     assert!(
         lines.iter().any(|(id, n)| *id == Some(plain) && *n > 0),
         "the stocked medicine went out: {lines:?}"
     );
     assert!(
-        lines.iter().any(|(id, n)| id.is_none() && *n == 0),
-        "nothing left the shelf for the outside one: {lines:?}"
+        lines
+            .iter()
+            .filter(|(id, _)| id.is_none())
+            .all(|(_, n)| *n == 0),
+        "nothing left the shelf for the outside ones: {lines:?}"
     );
 }

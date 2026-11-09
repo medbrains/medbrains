@@ -30,6 +30,10 @@ export interface PrescriptionItem {
   discontinued_by: string | null;
   discontinue_reason: string | null;
   catalog_item_id: string | null;
+  /** Chosen by the prescriber: bought outside, never dispensed or billed. */
+  buy_outside: boolean;
+  /** Who marked it bought outside. */
+  buy_outside_by: string | null;
 }
 
 export interface PrescriptionItemInput {
@@ -40,6 +44,8 @@ export interface PrescriptionItemInput {
   route?: string;
   instructions?: string;
   catalog_item_id?: string;
+  /** The hospital does not stock it: the patient buys it outside. */
+  buy_outside?: boolean;
 }
 
 export type RxOrderMode = "written" | "verbal" | "telephone";
@@ -3793,6 +3799,10 @@ export interface PharmacyOrderItem {
   removed_by: string | null;
   remove_reason: string | null;
   created_at: string;
+  /** Bought outside, not dispensed here: no catalogue item, no price. */
+  buy_outside: boolean;
+  /** Who chose or confirmed it: the prescriber, or the reviewing pharmacist. */
+  buy_outside_by: string | null;
 }
 
 /** A dispensable batch (FEFO order) for a catalog item. */
@@ -3887,7 +3897,9 @@ export interface PharmacyOrderItemInput {
   catalog_item_id?: string;
   drug_name: string;
   quantity: number;
+  /** Zero for a line with no catalogue item: nothing here sells it. */
   unit_price: number;
+  buy_outside?: boolean;
 }
 
 export interface PharmacyOrderDetailResponse {

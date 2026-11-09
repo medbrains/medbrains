@@ -107,7 +107,8 @@ async fn load_for_transition(
     let unverified: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
-           AND deleted_at IS NULL AND verified_at IS NULL",
+           AND deleted_at IS NULL AND verified_at IS NULL \
+           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
     )
     .bind(order_id)
     .bind(tenant_id)
@@ -255,7 +256,9 @@ pub async fn fulfilment_queue(
                 p.first_name || ' ' || p.last_name AS patient_name, \
                 p.uhid, \
                 COUNT(i.id) FILTER (WHERE i.removed_at IS NULL) AS line_count, \
-                COUNT(i.id) FILTER (WHERE i.removed_at IS NULL AND i.verified_at IS NULL) \
+                COUNT(i.id) FILTER (WHERE i.removed_at IS NULL AND i.verified_at IS NULL \
+                                      AND i.catalog_item_id IS NOT NULL \
+                                      AND NOT i.buy_outside) \
                   AS unverified_lines, \
                 COUNT(i.id) FILTER (WHERE i.removed_at IS NULL \
                                       AND b.expiry_date IS NOT NULL \
@@ -334,6 +337,7 @@ pub async fn pick_list(
                 ON b.id = i.batch_stock_id AND b.tenant_id = i.tenant_id \
          WHERE i.order_id = $1 AND i.tenant_id = $2 \
            AND i.removed_at IS NULL AND i.deleted_at IS NULL \
+           AND i.catalog_item_id IS NOT NULL AND NOT i.buy_outside \
          ORDER BY b.rack_number NULLS LAST, b.shelf_number NULLS LAST, \
                   b.bin_number NULLS LAST, i.drug_name",
     )
@@ -671,10 +675,10 @@ pub async fn verify_line(
         )));
     }
 
-    let (drug_name, catalog_item_id): (String, Option<Uuid>) = sqlx::query_as(
-        "SELECT drug_name, catalog_item_id FROM pharmacy_order_items \
-         WHERE id = $1 AND order_id = $2 AND tenant_id = $3 \
-           AND removed_at IS NULL AND deleted_at IS NULL",
+    let (drug_name, catalog_item_id, buy_outside): (String, Option<Uuid>, bool) = sqlx::query_as(
+        "SELECT drug_name, catalog_item_id, buy_outside FROM pharmacy_order_items \
+             WHERE id = $1 AND order_id = $2 AND tenant_id = $3 \
+               AND removed_at IS NULL AND deleted_at IS NULL",
     )
     .bind(body.order_item_id)
     .bind(id)
@@ -682,6 +686,12 @@ pub async fn verify_line(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // Nothing of a bought-outside or typed line is in the bag to check.
+    if buy_outside || catalog_item_id.is_none() {
+        return Err(AppError::BadRequest(format!(
+            "{drug_name} is bought outside, not packed here: there is nothing to check"
+        )));
+    }
 
     let method = resolve_check_method(
         &mut tx,
@@ -714,7 +724,8 @@ pub async fn verify_line(
     let outstanding: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
-           AND deleted_at IS NULL AND verified_at IS NULL",
+           AND deleted_at IS NULL AND verified_at IS NULL \
+           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -929,12 +940,18 @@ async fn commit_stock(
         "SELECT id, catalog_item_id, drug_name, quantity, batch_stock_id \
          FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 \
-           AND removed_at IS NULL AND deleted_at IS NULL",
+           AND removed_at IS NULL AND deleted_at IS NULL \
+           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
     )
     .bind(order_id)
     .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
+    if lines.is_empty() {
+        return Err(AppError::Conflict(
+            medbrains_pharmacy::NOTHING_SOLD_HERE.to_owned(),
+        ));
+    }
 
     for (item_id, catalog_item_id, drug_name, quantity, already_taken) in lines {
         // A line that already names a batch has been through here (or through
@@ -942,9 +959,9 @@ async fn commit_stock(
         if already_taken.is_some() || quantity <= 0 {
             continue;
         }
+        // The query above reads catalogue lines only: a bought-outside or
+        // typed line is never picked, so nothing leaves the shelf for it.
         let Some(catalog_item_id) = catalog_item_id else {
-            // The schedule gate refused any free-text line before the pick
-            // (no free text where medicine is sold); none holds stock.
             continue;
         };
 
