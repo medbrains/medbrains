@@ -210,12 +210,13 @@ pub struct NewNotification<'a> {
     pub action_url: Option<&'a str>,
 }
 
-/// Insert a notification row (call inside a tenant-scoped transaction).
+/// Insert a notification row (call inside a tenant-scoped transaction: a `sqlx` transaction or a kernel
+/// `Tx`, both of which deref to the connection).
 /// Returns the new row id so a caller can publish it live post-commit via
 /// [`publish_notification`]. Existing callers that write `…await?;` and discard
 /// the id keep compiling (persist-only; they gain real-time by publishing).
 pub async fn create_notification(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     notification: NewNotification<'_>,
 ) -> Result<Uuid, AppError> {

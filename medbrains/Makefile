@@ -996,8 +996,10 @@ OS_TARGET_DIR ?= /tmp/mb-target-osimage
 .PHONY: os-image os-boot
 os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a serial root shell)
 	bash scripts/build_guard.sh --wait
-	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target.
-	env -u MAKEFLAGS -u ARCH CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
+	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target. It also
+	# takes macOS ar and ranlib unless told, which index Linux objects as Mach-O and break the link.
+	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
+	OS_TARGET_DIR=$(OS_TARGET_DIR)-kanidm os/build-kanidm.sh --arch $(or $(ARCH),arm64)
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
 

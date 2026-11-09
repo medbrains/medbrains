@@ -118,6 +118,10 @@ endif
 # (no docker, no QEMU). Output lands at
 # target/$(STARTER_TARGET)/release/, which is what the terraform
 # `binaries_dir` default points to.
+# jemalloc builds with autoconf, which takes macOS ar and ranlib unless told; they index the
+# Linux objects as Mach-O and the link then fails with undefined _rjem_* symbols.
+build-starter: export AR = zig ar
+build-starter: export RANLIB = zig ranlib
 build-starter:
 	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-server
 	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-archive
