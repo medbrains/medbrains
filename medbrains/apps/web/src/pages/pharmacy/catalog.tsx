@@ -30,6 +30,7 @@ import { pharmacyService } from "@/services/pharmacy.service";
 import { CatalogDuplicatesButton } from "./catalog-duplicates";
 import { ColdChainSwitch } from "./cold-chain-switch";
 import { OnlineListingSwitch } from "./online-listing-switch";
+import { PatientBillableSwitch } from "./patient-billable-switch";
 import { REFILL_POLICY_OPTIONS, RefillPolicySelect } from "./refill-policy-select";
 import { renderPharmacySensitiveCurrency } from "./shared";
 
@@ -201,6 +202,11 @@ export function PharmacyCatalogTab({
       key: "needs_cold_chain",
       label: "Refrigerated",
       render: (row: PharmacyCatalog) => <ColdChainSwitch row={row} canManage={canManage} />,
+    },
+    {
+      key: "is_patient_billable",
+      label: "Bill from ward",
+      render: (row: PharmacyCatalog) => <PatientBillableSwitch row={row} canManage={canManage} />,
     },
     {
       key: "sold_online",

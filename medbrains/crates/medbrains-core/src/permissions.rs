@@ -938,6 +938,13 @@ pub mod billing {
         /// it with a reason (package-included, free by policy, duplicate), or
         /// run the unbilled-orders check now. Who and when is recorded.
         pub const RESOLVE: &str = "billing.leakage.resolve";
+        /// Name the patient on an unnamed implant.
+        ///
+        /// Name or change the patient a consignment implant was used on when
+        /// the store recorded it on no one. This rewrites the store's
+        /// consignment usage record, which the vendor is paid from, so it is
+        /// kept apart from posting and dismissing. Every naming is audited.
+        pub const NAME_IMPLANT_RECIPIENT: &str = "billing.leakage.name_implant_recipient";
     }
 
     pub mod claims {
