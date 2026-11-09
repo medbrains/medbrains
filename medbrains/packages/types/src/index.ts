@@ -382,6 +382,7 @@ export {
   tokenBoardSurfaceFlowLabelKey,
 } from "./token-board-surfaces.js";
 export * from "./uhi";
+export * from "./vendor-access";
 export type {
   WorkflowSignalShape,
   WorkflowSignalShapeDefinition,

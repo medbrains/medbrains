@@ -20,8 +20,13 @@ pub async fn resolve_permissions(
     role: &str,
 ) -> Result<Vec<String>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
-    // Bypass roles don't need permissions in the token
-    if role == "super_admin" || role == "hospital_admin" {
+    // Bypass roles don't need permissions in the token. A vendor session's
+    // permissions are its grant's and nothing else: re-applying the account's
+    // own `access_matrix.extra` here would hand back what the grant withheld.
+    if role == "super_admin"
+        || role == "hospital_admin"
+        || role == crate::middleware::vendor_access::VENDOR_ROLE
+    {
         return Ok(Vec::new());
     }
 
@@ -84,7 +89,8 @@ pub async fn resolve_permissions(
                 if !temporary_grant_is_active(grant) {
                     continue;
                 }
-                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions") {
+                if let Some(serde_json::Value::Array(permission_values)) = grant.get("permissions")
+                {
                     for val in permission_values {
                         if let serde_json::Value::String(s) = val {
                             perms.insert(s.clone());

@@ -62,7 +62,13 @@ pub async fn run(
     }
     found.push(pg_version(pools.owner, production).await);
     found.push(migrations(pools.owner).await);
-    found.push(request_role(pools.request).await);
+    found.push(
+        request_role(
+            pools.request,
+            medbrains_core::secrets::sealing::is_dev_like(&config.environment),
+        )
+        .await,
+    );
     found.push(note_types(pools.owner).await);
     found.push(default_admin(pools.owner).await);
     found
@@ -284,25 +290,46 @@ async fn migrations(pool: &PgPool) -> Finding {
     }
 }
 
-async fn request_role(pool: &PgPool) -> Finding {
-    match medbrains_kernel::health::rls_mode(pool).await {
-        Ok(mode) if !mode.enforced => Finding::warn(
-            "db.request_role",
-            format!(
-                "DATABASE_URL connects as {}, which row level security does not apply to: tenant isolation rests on each query's own WHERE",
-                mode.role
-            ),
-            "Point DATABASE_URL at medbrains_app (docs/ops/DB-ROLES.md)",
+/// Whether requests connect as a role row level security applies to.
+async fn request_role(pool: &PgPool, dev_like: bool) -> Finding {
+    let mode = medbrains_kernel::health::rls_mode(pool)
+        .await
+        .map(|m| (m.enforced, m.role))
+        .map_err(|e| e.to_string());
+    request_role_finding(mode, dev_like)
+}
+
+/// The finding for a request pool that is (`Ok((true, role))`) or is not
+/// subject to row level security, or could not be checked.
+///
+/// Owner decision, 2026-11-08: a development or test environment logs a
+/// warning and carries on; any other environment, staging and production
+/// included, refuses to start, because a request pool connected as the owner
+/// leaves tenant isolation to each query's own `WHERE`.
+fn request_role_finding(mode: Result<(bool, String), String>, dev_like: bool) -> Finding {
+    const FIX: &str = "Move DATABASE_URL to the medbrains_app role, and keep the owner in \
+                       MIGRATION_DATABASE_URL (docs/ops/DB-ROLES.md)";
+    let problem = match mode {
+        Ok((true, role)) => {
+            return Finding::ok(
+                "db.request_role",
+                format!("{role} is subject to row level security"),
+            );
+        }
+        Ok((false, role)) => format!(
+            "DATABASE_URL connects as {role}, which row level security does not apply to: \
+             tenant isolation rests on each query's own WHERE"
         ),
-        Ok(mode) => Finding::ok(
+        Err(e) => format!("could not check the request role: {e}"),
+    };
+    if dev_like {
+        Finding::warn("db.request_role", problem, FIX)
+    } else {
+        Finding::fail(
             "db.request_role",
-            format!("{} is subject to row level security", mode.role),
-        ),
-        Err(e) => Finding::warn(
-            "db.request_role",
-            format!("could not check the request role: {e}"),
-            "Check DATABASE_URL",
-        ),
+            format!("refusing to start: {problem}. Move DATABASE_URL to the medbrains_app role."),
+            FIX,
+        )
     }
 }
 
@@ -448,5 +475,48 @@ mod tests {
     async fn development_lets_the_development_keys_stand_in_quietly() {
         let found = key_findings(false).await;
         assert!(found.iter().all(|f| f.level == Level::Ok), "{found:?}");
+    }
+}
+
+#[cfg(test)]
+mod request_role_tests {
+    use super::request_role_finding;
+    use medbrains_infra_settings::preflight::Level;
+
+    /// Development and test environments warn and carry on.
+    #[test]
+    fn the_owner_connection_warns_in_development() {
+        let found = request_role_finding(Ok((false, "medbrains".to_owned())), true);
+        assert_eq!(found.level, Level::Warn);
+    }
+
+    /// Any other environment refuses to start, and says what to do.
+    #[test]
+    fn the_owner_connection_refuses_to_start_elsewhere() {
+        let found = request_role_finding(Ok((false, "medbrains".to_owned())), false);
+        assert_eq!(found.level, Level::Fail);
+        assert!(found.detail.contains("medbrains_app"), "{}", found.detail);
+        assert!(found.fix.is_some_and(|f| f.contains("docs/ops/DB-ROLES.md")));
+        let unknown = request_role_finding(Err("timeout".to_owned()), false);
+        assert_eq!(unknown.level, Level::Fail, "an unanswered check is not a pass");
+    }
+
+    /// The request role passes everywhere.
+    #[test]
+    fn the_request_role_passes() {
+        let found = request_role_finding(Ok((true, "medbrains_app".to_owned())), false);
+        assert_eq!(found.level, Level::Ok);
+    }
+
+    /// The development-like names are exactly the ones the owner listed.
+    #[test]
+    fn only_the_listed_environments_are_development_like() {
+        use medbrains_core::secrets::sealing::is_dev_like;
+        for name in ["dev", "development", "test", "local", "ci"] {
+            assert!(is_dev_like(name), "{name}");
+        }
+        for name in ["staging", "production", "prod", "uat"] {
+            assert!(!is_dev_like(name), "{name}");
+        }
     }
 }
