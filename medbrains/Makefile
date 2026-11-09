@@ -19,7 +19,7 @@
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
-       desktop desktop-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
+       desktop desktop-dev desktop-setup-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
        icd-up icd-down icd-logs icd-open \
        clean logs db-shell seed
 
@@ -619,11 +619,14 @@ deploy-bootstrap: ## terraform apply bootstrap (state buckets, run ONCE per regi
 
 desktop: desktop-dev ## Start desktop app against the running make dev stack
 
-desktop-dev: ## Start desktop app against https://medbrains-desktop.localhost
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+desktop-dev: ## Start desktop app against the make dev server (https://medbrains.localhost)
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
+
+desktop-setup-dev: ## Start desktop app on its first-launch server setup screen
+	cd apps/desktop && pnpm install && pnpm dev
 
 desktop-reports-dev: ## Run desktop app directly on the reports command center
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
 
 desktop-build: ## Build desktop bundle for current OS
 	cd apps/desktop && pnpm install && pnpm build

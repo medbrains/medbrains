@@ -6,20 +6,21 @@ import { Notifications } from "@mantine/notifications";
 import { createMedBrainsTheme, cssVariableResolver } from "@medbrains/design-system";
 import { createQueryClient } from "@medbrains/stores";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 import { App } from "./App";
 import { EcgLoader } from "./components/EcgLoader";
 import { toast } from "./components/ui/toast";
 import i18n, { RTL_LANGUAGES } from "./i18n";
-import {
-  defaultDesktopApiBase,
-  getStoredDesktopApiBase,
-  isTauriDesktopRuntime,
-} from "./lib/desktop-runtime";
+import { isDesktopSetup } from "./lib/desktop-runtime";
 import { startErrorTracking } from "./lib/error-tracking";
 import { sessionService } from "./services/session.service";
+
+/** Only the desktop app's first launch needs the setup screen, so browsers never download it. */
+const DesktopSetup = lazy(() =>
+  import("./components/desktop/DesktopSetup").then((m) => ({ default: m.DesktopSetup })),
+);
 
 import "@fontsource/ibm-plex-sans/400.css";
 import "@fontsource/ibm-plex-sans/500.css";
@@ -38,24 +39,9 @@ import "./styles/signature-spectrum.css";
 
 const theme = createMedBrainsTheme({ loaders: { ecg: EcgLoader } });
 
-const isTauriDesktop = isTauriDesktopRuntime();
-const desktopSearchParams = new URLSearchParams(window.location.search);
-const desktopStartRoute = desktopSearchParams.get("desktopStartRoute");
-const desktopRuntimeApiBase = desktopSearchParams.get("desktopApiBase")?.trim();
-if (isTauriDesktop && desktopStartRoute && window.location.pathname.endsWith("/index.html")) {
-  window.history.replaceState(null, "", desktopStartRoute);
-}
-
-const desktopApiBase =
-  desktopRuntimeApiBase ||
-  getStoredDesktopApiBase() ||
-  import.meta.env.VITE_DESKTOP_API_BASE ||
-  defaultDesktopApiBase();
-
-sessionService.setApiBase(
-  import.meta.env.VITE_API_BASE || (isTauriDesktop ? desktopApiBase : "/api"),
-);
-sessionService.configureNativeAuth(isTauriDesktop ? "desktop" : null);
+// The desktop app opens the hospital server's own web app, so it shares the
+// browser's same-origin API and cookie session; no desktop-specific base.
+sessionService.setApiBase(import.meta.env.VITE_API_BASE || "/api");
 // A response that drifts from its schema throws while developing, logs in production.
 sessionService.setStrictResponseValidation(import.meta.env.DEV);
 
@@ -222,7 +208,13 @@ function AppWithDirection() {
       >
         <ModalsProvider>
           <Notifications position="top-right" autoClose={4000} transitionDuration={250} />
-          <App />
+          {isDesktopSetup() ? (
+            <Suspense fallback={<EcgLoader />}>
+              <DesktopSetup />
+            </Suspense>
+          ) : (
+            <App />
+          )}
         </ModalsProvider>
       </MantineProvider>
     </DirectionProvider>
