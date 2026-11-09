@@ -78,7 +78,7 @@ medbrains-infection-control not_yet 77 medbrains-db
 medbrains-infra-settings not_yet 18 medbrains-db
 medbrains-infra-utils not_yet 26 medbrains-db
 medbrains-integration-hub not_yet 0 -
-medbrains-invitations not_yet 11 medbrains-db
+medbrains-invitations not_yet 10 medbrains-db
 medbrains-ipd not_yet 304 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-ipd-post-discharge not_yet 24 medbrains-db,medbrains-authz-gate
 medbrains-it-security partial 82 medbrains-db
