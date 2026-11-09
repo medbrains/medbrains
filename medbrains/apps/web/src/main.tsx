@@ -72,7 +72,16 @@ const runtimeState = globalThis as typeof globalThis & {
   __medbrainsRoot?: ReturnType<typeof createRoot>;
 };
 const reportedConsoleMessages = new Set<string>();
+// The dedupe key holds the path, and paths carry record ids, so over a long
+// shift the set would grow without end. Past the cap it starts again: the
+// worst case is one repeat report per message.
+const MAX_REPORTED_CONSOLE_MESSAGES = 500;
 
+/**
+ * Mirrors console.error to the server's client-error report in production,
+ * once per path and message (the dedupe set is capped), so a crash on a ward
+ * PC reaches support without anyone copying a console.
+ */
 function installConsoleErrorReporter() {
   if (runtimeState.__medbrainsConsoleReporterInstalled) {
     return;
@@ -111,6 +120,9 @@ function installConsoleErrorReporter() {
     const reportKey = `${window.location.pathname}:${message.slice(0, 160)}`;
     if (reportedConsoleMessages.has(reportKey)) {
       return;
+    }
+    if (reportedConsoleMessages.size >= MAX_REPORTED_CONSOLE_MESSAGES) {
+      reportedConsoleMessages.clear();
     }
     reportedConsoleMessages.add(reportKey);
 
