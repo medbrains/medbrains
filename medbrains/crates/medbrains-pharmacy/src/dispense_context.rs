@@ -101,7 +101,7 @@ pub async fn patient_dispense_context(
 ///
 /// # Errors
 /// `BadRequest` (filed as refused) without the acknowledgement; the database.
-pub(crate) async fn require_allergy_status_known(
+pub async fn require_allergy_status_known(
     state: &AppState,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,

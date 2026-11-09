@@ -90,7 +90,11 @@ describe("the dispense modal", () => {
     renderModal([line("i1", "c1", "Morphine")]);
     const reference = await screen.findByLabelText(/Retained duplicate prescription/);
     expect(dispenseButton()).toBeDisabled();
+    // Shorter than the server's six characters: still asked for.
+    fireEvent.change(reference, { target: { value: "SX1" } });
+    expect(screen.getByText(/at least 6 characters/)).toBeInTheDocument();
     fireEvent.change(reference, { target: { value: "SX-2026-0042" } });
+    expect(screen.queryByText(/at least 6 characters/)).toBeNull();
     // Still no witness: the dual lock is not lifted by the reference.
     expect(dispenseButton()).toBeDisabled();
   });

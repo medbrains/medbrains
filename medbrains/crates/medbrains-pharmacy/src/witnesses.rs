@@ -129,9 +129,10 @@ pub struct WitnessAttempt<'a> {
 /// Refuses the dispenser as their own witness; a dispenser, or a witness, with
 /// five wrong witness passwords in fifteen minutes; anyone who is not an
 /// active colleague in one of the dispenser's departments still allowed to
-/// dispense (role grant, personal grant, minus a personal denial); and a
-/// password that is not the witness's own. A wrong password is written to the
-/// audit chain before the refusal is answered: if it cannot be written, the
+/// dispense (role grant, personal grant, minus a personal denial); a witness
+/// whose sign-in is locked; and a password that is not the witness's own. A
+/// wrong password is written to the audit chain before the refusal is
+/// answered: if it cannot be written, the
 /// dispense fails rather than letting an uncounted guess through. Each refusal
 /// is a 400 (429 for the limits) the dispense screen shows, never a 401.
 pub async fn verify_witness(
@@ -194,6 +195,17 @@ pub async fn verify_witness(
                 .to_owned(),
         ));
     };
+    // A colleague locked out of signing in is not confirming anything here
+    // either; disabled accounts never reach this point (`is_active` above).
+    if medbrains_server_core::lockout::is_locked(state, (attempt.witness_id, claims.tenant_id))
+        .await?
+    {
+        return Err(AppError::BadRequest(
+            "This colleague's sign-in is locked after repeated wrong passwords, so they cannot \
+             witness until it unlocks. Ask another colleague."
+                .to_owned(),
+        ));
+    }
     let password = attempt
         .password
         .map(WitnessPassword::expose)
@@ -243,9 +255,10 @@ mod tests {
     use super::WitnessPassword;
 
     #[test]
-    fn a_witness_password_never_prints_and_keeps_its_spaces() {
-        let typed: WitnessPassword = serde_json::from_str("\" secret \"").expect("parse");
+    fn a_witness_password_never_prints_and_keeps_its_spaces() -> Result<(), serde_json::Error> {
+        let typed: WitnessPassword = serde_json::from_str("\" secret \"")?;
         assert_eq!(format!("{typed:?}"), "WitnessPassword(<redacted>)");
         assert_eq!(typed.expose(), " secret ");
+        Ok(())
     }
 }

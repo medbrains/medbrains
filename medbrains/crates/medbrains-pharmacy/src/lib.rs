@@ -53,6 +53,7 @@ pub mod discharge_rx;
 pub mod dispense_context;
 pub mod rx_safety;
 pub mod safety_record;
+mod rx_quantity;
 pub mod schedule_gate;
 pub mod witnesses;
 pub mod storefront;
@@ -1038,152 +1039,6 @@ fn filter_pos_day_summary_response(
     row
 }
 
-fn first_number(text: &str) -> Option<f64> {
-    let mut buf = String::new();
-    let mut seen_digit = false;
-
-    for ch in text.chars() {
-        if ch.is_ascii_digit() || (ch == '.' && seen_digit && !buf.contains('.')) {
-            if ch.is_ascii_digit() {
-                seen_digit = true;
-            }
-            buf.push(ch);
-        } else if seen_digit {
-            break;
-        }
-    }
-
-    if seen_digit {
-        buf.parse::<f64>().ok()
-    } else {
-        None
-    }
-}
-
-fn dash_frequency_units_per_day(text: &str) -> Option<f64> {
-    let parts: Vec<&str> = text.split('-').collect();
-    if parts.len() < 2 {
-        return None;
-    }
-
-    let mut sum = 0.0;
-    for part in parts {
-        let trimmed = part.trim();
-        if trimmed.is_empty() || !trimmed.chars().all(|ch| ch.is_ascii_digit()) {
-            return None;
-        }
-        sum += trimmed.parse::<f64>().ok()?;
-    }
-
-    (sum > 0.0).then_some(sum)
-}
-
-/// Doses a day for a frequency spelling the estimate understands, or `None`
-/// for one it does not (PRN, SOS, a typo, blank): those have no countable
-/// quantity, and guessing one would cap or size a dispense on a number the
-/// prescriber never wrote.
-fn known_frequency_units_per_day(frequency: &str) -> Option<f64> {
-    let f = frequency.trim().to_ascii_lowercase();
-    if f.is_empty() {
-        return None;
-    }
-    if let Some(sum) = dash_frequency_units_per_day(&f) {
-        return Some(sum);
-    }
-    let per_day = if f.contains("q4h") || f.contains("4 hourly") || f.contains("every 4") {
-        6.0
-    } else if f.contains("q6h") || f.contains("6 hourly") || f.contains("every 6") {
-        4.0
-    } else if f.contains("q8h") || f.contains("8 hourly") || f.contains("every 8") {
-        3.0
-    } else if f.contains("q12h") || f.contains("12 hourly") || f.contains("every 12") {
-        2.0
-    } else if f.contains("qid") || f.contains("qds") || f.contains("four times") {
-        4.0
-    } else if f.contains("tid") || f.contains("tds") || f.contains("three times") {
-        3.0
-    } else if f.contains("bid") || f.contains("bd") || f.contains("twice") {
-        2.0
-    } else if f.contains("qod") || f.contains("alternate") {
-        0.5
-    } else if matches!(f.as_str(), "od" | "qd" | "hs" | "qhs" | "stat" | "q24h")
-        || f.contains("once")
-        || f.contains("daily")
-    {
-        1.0
-    } else {
-        return None;
-    };
-    Some(per_day)
-}
-
-/// Doses a day for the dispense-quantity estimate: one a day for a spelling it
-/// does not know, which the pharmacist corrects at review.
-fn frequency_units_per_day(frequency: &str) -> f64 {
-    known_frequency_units_per_day(frequency).unwrap_or(1.0)
-}
-
-fn duration_days(duration: &str) -> f64 {
-    let d = duration.trim().to_ascii_lowercase();
-    let Some(value) = first_number(&d) else {
-        return 1.0;
-    };
-
-    if d.contains("week") || d.contains(" wk") || d.ends_with("wk") {
-        value * 7.0
-    } else if d.contains("month") || d.contains(" mon") || d.ends_with("mo") {
-        value * 30.0
-    } else if d.contains("hour") || d.ends_with('h') {
-        (value / 24.0).max(1.0)
-    } else {
-        value
-    }
-}
-
-fn dose_units_per_administration(dosage: &str) -> f64 {
-    let d = dosage.trim().to_ascii_lowercase();
-    let Some(value) = first_number(&d) else {
-        return 1.0;
-    };
-
-    let countable_units = [
-        "tab",
-        "tablet",
-        "cap",
-        "capsule",
-        "vial",
-        "amp",
-        "ampoule",
-        "puff",
-        "drop",
-        "sachet",
-        "suppository",
-        "patch",
-        "ml",
-    ];
-
-    if countable_units.iter().any(|unit| d.contains(unit)) {
-        value.max(1.0)
-    } else {
-        1.0
-    }
-}
-
-/// The quantity a prescription line adds up to, when its frequency is one the
-/// estimate understands: the Schedule H/H1/X gate's ceiling for a line that
-/// states no quantity of its own.
-pub(crate) fn countable_rx_quantity(dosage: &str, frequency: &str, duration: &str) -> Option<i32> {
-    known_frequency_units_per_day(frequency)
-        .map(|_| estimate_rx_dispense_quantity(dosage, frequency, duration))
-}
-
-fn estimate_rx_dispense_quantity(dosage: &str, frequency: &str, duration: &str) -> i32 {
-    let estimated = dose_units_per_administration(dosage)
-        * frequency_units_per_day(frequency)
-        * duration_days(duration);
-    estimated.ceil().clamp(1.0, 9_999.0) as i32
-}
-
 /// The safety gate's view of order lines.
 fn rx_lines_of(items: &[PharmacyOrderItem]) -> Vec<rx_safety::RxLine> {
     items
@@ -1224,6 +1079,8 @@ fn split_allergy_text(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// The non-blank parts of a drug's names, joined and lowercased, for matching
+/// a search against brand, generic and INN at once.
 fn drug_search_text(parts: &[Option<&str>]) -> String {
     parts
         .iter()
@@ -1233,6 +1090,7 @@ fn drug_search_text(parts: &[Option<&str>]) -> String {
         .to_lowercase()
 }
 
+/// A safety warning's `detail` object from key-value pairs.
 fn warning_detail(mut pairs: Vec<(&str, serde_json::Value)>) -> serde_json::Value {
     let mut map = serde_json::Map::new();
     for (key, value) in pairs.drain(..) {
@@ -2236,6 +2094,8 @@ pub async fn create_order_in_tx(
     order_detail_response_in_tx(tx, &claims.tenant_id, order, items).await
 }
 
+/// A catalogue item's stock and its batch and controlled flags, for the order
+/// line being added; refuses a line not mapped to an active formulary item.
 async fn fetch_pharmacy_stock_gate_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -2745,6 +2605,8 @@ async fn sync_invoice_item_quantity_in_tx(
     Ok(())
 }
 
+/// Reverses the bill line of an order item removed before dispense, when the
+/// bill can still follow the edit; nothing to do for an unbilled item.
 async fn reverse_invoice_item_for_removed_order_item_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -3086,7 +2948,9 @@ pub async fn dispense_order(
     .ok_or(AppError::NotFound)?;
     // The order cannot change patient between the read above and this lock.
     if order.patient_id != Some(patient_id) {
-        return Err(AppError::Conflict("This order changed while it was opened".to_owned()));
+        return Err(AppError::Conflict(
+            "This order changed while it was opened".to_owned(),
+        ));
     }
 
     // Schedule H/H1/X compliance gate. Drugs and Cosmetics Act 1940
@@ -3119,12 +2983,11 @@ pub async fn dispense_order(
             return Err(refusal);
         }
     };
+    // The gate checked this reference (or the stored one, when the field was
+    // left blank); a typed one replaces what the order holds.
     if passed.has_schedule_x
-        && let Some(reference) = body
-            .schedule_x_duplicate_ref
-            .as_deref()
-            .map(str::trim)
-            .filter(|r| !r.is_empty())
+        && let Some(reference) =
+            schedule_gate::duplicate_ref(body.schedule_x_duplicate_ref.as_deref(), None)
     {
         sqlx::query(
             "UPDATE pharmacy_orders SET schedule_x_duplicate_ref = $3 \
@@ -3254,7 +3117,7 @@ pub async fn dispense_order(
                 return Err(refusal);
             }
             Some(reason) => {
-                let refusal = if !rx_safety::can_override(&claims, rx_safety::NDPS_WITNESS) {
+                let refusal = if !rx_safety::may_skip_ndps_witness(&mut tx, &claims).await? {
                     Some(AppError::ForbiddenReason(
                         "Dispensing a controlled drug without a witness needs the NDPS witness \
                          override right, which the hospital grants by name."
@@ -4386,6 +4249,8 @@ pub struct CatalogQuery {
     pub ids: Option<String>,
 }
 
+/// Lists the formulary: searched by name, filtered by schedule, or exactly
+/// the catalogue ids asked for (`?ids=`).
 pub async fn list_catalog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4904,7 +4769,7 @@ pub async fn create_ndps_entry(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // `is_controlled` follows from the schedule (migration 1423): one predicate.
+    // `is_controlled` follows from the schedule (migration 1450): one predicate.
     if !is_controlled {
         return Err(AppError::BadRequest(
             "NDPS register entries require a controlled, NDPS, or Schedule X catalog item"
@@ -5056,6 +4921,8 @@ pub async fn ndps_report(
 //  Batch & Expiry Management
 // ══════════════════════════════════════════════════════════
 
+/// Lists stock batches (`?catalog_item_id=`, `?store_location_id=`) for stock
+/// managers, with restricted fields scrubbed.
 pub async fn list_batches(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6885,8 +6752,11 @@ pub async fn get_rx_detail(
     let items = item_rows
         .into_iter()
         .map(|item| {
-            let quantity =
-                estimate_rx_dispense_quantity(&item.dosage, &item.frequency, &item.duration);
+            let quantity = rx_quantity::estimate_rx_dispense_quantity(
+                &item.dosage,
+                &item.frequency,
+                &item.duration,
+            );
             let (unit_price, tax_percent) = if is_camp_rx {
                 (Decimal::ZERO, Decimal::ZERO)
             } else {
@@ -7131,7 +7001,13 @@ pub async fn review_prescription(
                 .iter()
                 .find(|review_item| review_item.prescription_item_id == item.id);
             let quantity = reviewed.map_or_else(
-                || estimate_rx_dispense_quantity(&item.dosage, &item.frequency, &item.duration),
+                || {
+                    rx_quantity::estimate_rx_dispense_quantity(
+                        &item.dosage,
+                        &item.frequency,
+                        &item.duration,
+                    )
+                },
                 |review_item| review_item.quantity,
             );
             if quantity <= 0 {

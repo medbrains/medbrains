@@ -65,6 +65,7 @@
 // in-progress scaffolding doesn't block CI.
 #![allow(dead_code)]
 
+mod pharmacy_sync;
 mod registration_filter;
 pub mod route;
 
@@ -442,7 +443,6 @@ struct CampPharmacyDispenseSyncPayload {
     registration_id: Option<Uuid>,
     prescription_id: Option<Uuid>,
     notes: Option<String>,
-    restricted_approval_reason: Option<String>,
     items: Vec<CampPharmacyDispenseItemSyncPayload>,
 }
 
@@ -3076,7 +3076,6 @@ struct PharmacySafetyRow {
     current_stock: i32,
     drug_schedule: Option<String>,
     is_controlled: bool,
-    prescription_only: Option<bool>,
     narcotic_class: Option<String>,
 }
 
@@ -3949,6 +3948,54 @@ async fn apply_camp_sync_event(
                 body.registration_id,
             )
             .await?;
+            // One catalogue read for the whole dispense instead of one per item.
+            // A camp syncs a day of offline dispensing in a single call, so the
+            // per-item read was N round trips inside the transaction holding the
+            // stock rows. The safety attributes are fixed for the transaction;
+            // current_stock is decremented below, so the map is kept in step and
+            // a drug repeated in one dispense still sees the reduced figure —
+            // which is what re-reading the row used to give us.
+            let catalog_ids: Vec<Uuid> = body
+                .items
+                .iter()
+                .filter_map(|item| item.catalog_item_id)
+                .collect();
+            let mut safety_by_id: HashMap<Uuid, PharmacySafetyRow> =
+                sqlx::query_as::<_, PharmacySafetyRow>(
+                    "SELECT id, current_stock, drug_schedule, is_controlled, narcotic_class \
+                     FROM pharmacy_catalog \
+                     WHERE tenant_id = $1 AND id = ANY($2) AND is_active = true",
+                )
+                .bind(claims.tenant_id)
+                .bind(&catalog_ids)
+                .fetch_all(&mut **tx)
+                .await?
+                .into_iter()
+                .map(|row| (row.id, row))
+                .collect();
+
+            // Schedule X, NDPS and controlled drugs never leave a camp's shelf on
+            // an offline record: every such line is named, and none is taken.
+            let refused: Vec<String> = body
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let row = safety_by_id.get(&item.catalog_item_id?)?;
+                    pharmacy_sync::controlled_line_refusal(
+                        &item.drug_name,
+                        row.drug_schedule.as_deref(),
+                        row.is_controlled,
+                        row.narcotic_class.as_deref(),
+                    )
+                })
+                .collect();
+            if !refused.is_empty() {
+                return Err(AppError::BadRequest(format!(
+                    "Camp sync refused: {}",
+                    refused.join("; ")
+                )));
+            }
+
             let order_id = sqlx::query_scalar::<_, Uuid>(
                 "INSERT INTO pharmacy_orders \
                  (tenant_id, prescription_id, patient_id, encounter_id, ordered_by, status, notes, \
@@ -3966,33 +4013,6 @@ async fn apply_camp_sync_event(
             .fetch_one(&mut **tx)
             .await?;
 
-            // One catalogue read for the whole dispense instead of one per item.
-            // A camp syncs a day of offline dispensing in a single call, so the
-            // per-item read was N round trips inside the transaction holding the
-            // stock rows. The safety attributes are fixed for the transaction;
-            // current_stock is decremented below, so the map is kept in step and
-            // a drug repeated in one dispense still sees the reduced figure —
-            // which is what re-reading the row used to give us.
-            let catalog_ids: Vec<Uuid> = body
-                .items
-                .iter()
-                .filter_map(|item| item.catalog_item_id)
-                .collect();
-            let mut safety_by_id: HashMap<Uuid, PharmacySafetyRow> =
-                sqlx::query_as::<_, PharmacySafetyRow>(
-                    "SELECT id, current_stock, drug_schedule, is_controlled, prescription_only, \
-                            narcotic_class \
-                     FROM pharmacy_catalog \
-                     WHERE tenant_id = $1 AND id = ANY($2) AND is_active = true",
-                )
-                .bind(claims.tenant_id)
-                .bind(&catalog_ids)
-                .fetch_all(&mut **tx)
-                .await?
-                .into_iter()
-                .map(|row| (row.id, row))
-                .collect();
-
             for item in &body.items {
                 if item.quantity <= 0 {
                     return Err(AppError::BadRequest(
@@ -4000,38 +4020,11 @@ async fn apply_camp_sync_event(
                     ));
                 }
                 if let Some(catalog_item_id) = item.catalog_item_id {
-                    let safety = safety_by_id
+                    let on_hand = safety_by_id
                         .get(&catalog_item_id)
                         .ok_or(AppError::NotFound)?
-                        .clone();
-
-                    let schedule = safety.drug_schedule.as_deref().unwrap_or_default();
-                    let restricted = safety.is_controlled
-                        || safety.narcotic_class.is_some()
-                        || matches!(schedule, "NDPS" | "X");
-                    if restricted {
-                        require_permission(claims, permissions::pharmacy::ndps::MANAGE)?;
-                        if body
-                            .restricted_approval_reason
-                            .as_deref()
-                            .unwrap_or("")
-                            .trim()
-                            .is_empty()
-                        {
-                            return Err(AppError::BadRequest(
-                                "restricted camp pharmacy item requires approval reason".to_owned(),
-                            ));
-                        }
-                    }
-                    if safety.prescription_only.unwrap_or(false)
-                        && body.prescription_id.is_none()
-                        && matches!(schedule, "H" | "H1" | "X" | "NDPS")
-                    {
-                        return Err(AppError::BadRequest(
-                            "prescription-only camp medicine requires prescription_id".to_owned(),
-                        ));
-                    }
-                    if safety.current_stock < item.quantity {
+                        .current_stock;
+                    if on_hand < item.quantity {
                         return Err(AppError::BadRequest(format!(
                             "insufficient stock for {}",
                             item.drug_name
@@ -4091,9 +4084,10 @@ async fn apply_camp_sync_event(
                 let total_price = item.unit_price * Decimal::from(item.quantity);
                 sqlx::query(
                     "INSERT INTO pharmacy_order_items \
-                     (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, \
-                      total_price, batch_number, expiry_date, batch_stock_id) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                     (tenant_id, order_id, catalog_item_id, drug_name, quantity, \
+                      quantity_dispensed, unit_price, total_price, batch_number, expiry_date, \
+                      batch_stock_id) \
+                     VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10)",
                 )
                 .bind(claims.tenant_id)
                 .bind(order_id)
@@ -4108,6 +4102,17 @@ async fn apply_camp_sync_event(
                 .execute(&mut **tx)
                 .await?;
             }
+
+            // Schedule H and H1 lines: on the synced prescription, within what
+            // it prescribes across every order on it, signed and in date. The
+            // order's lines count as released (`quantity_dispensed` above).
+            medbrains_pharmacy::schedule_gate::enforce_schedule_compliance(
+                tx,
+                claims.tenant_id,
+                order_id,
+                &medbrains_pharmacy::schedule_gate::GateInput::default(),
+            )
+            .await?;
 
             Ok(AppliedSyncEvent {
                 server_entity_type: "pharmacy_order".to_owned(),

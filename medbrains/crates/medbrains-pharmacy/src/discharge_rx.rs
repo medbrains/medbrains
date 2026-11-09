@@ -14,7 +14,9 @@
 //! - it is recent: the patient was discharged, or the summary finalized or
 //!   signed, within `DISCHARGE_RX_DAYS`;
 //! - the drug itself is listed in `medications_on_discharge`, matched on the
-//!   catalogue item the stock leaves from, never on the line's free-text name.
+//!   catalogue item the stock leaves from, never on the line's free-text name,
+//!   and every order on the summary together stays within the quantity listed
+//!   (`schedule_gate`).
 
 use medbrains_server_core::error::AppError;
 use serde::Deserialize;
@@ -28,6 +30,8 @@ pub const DISCHARGE_RX_DAYS: i32 = 7;
 pub struct ListedMedicine {
     pub catalog_item_id: Option<Uuid>,
     pub drug_name: Option<String>,
+    /// What the doctor listed: the cap across every order on the summary.
+    pub quantity: Option<i32>,
 }
 
 /// Refuses a discharge summary that is not this patient's, when an order is
@@ -98,93 +102,4 @@ pub async fn discharge_medicines(
     .await?;
     // A list that does not parse lists nothing: no line is covered by it.
     Ok(listed.map(|value| serde_json::from_value(value).unwrap_or_default()))
-}
-
-/// Whether the summary lists the catalogue item an order line dispenses.
-///
-/// A listed medicine with a catalogue id matches that id only. One without
-/// (written before the screen picked from the formulary) matches by name,
-/// against the catalogue item's own names (`names`: name and generic name),
-/// ignoring case. The order line's free-text name is never compared: a line
-/// for Tramadol stock named "Paracetamol 500mg" must not pass as paracetamol.
-pub fn lists(listed: &[ListedMedicine], catalog_item_id: Uuid, names: [&str; 2]) -> bool {
-    listed.iter().any(|m| {
-        names_drug(
-            m.catalog_item_id,
-            m.drug_name.as_deref(),
-            catalog_item_id,
-            names,
-        )
-    })
-}
-
-/// Whether one written medicine names this catalogue item.
-///
-/// For a discharge listing or a prescription line: by its catalogue id when it
-/// has one, otherwise by the catalogue item's own name or generic name,
-/// ignoring case.
-pub fn names_drug(
-    listed_id: Option<Uuid>,
-    listed_name: Option<&str>,
-    catalog_item_id: Uuid,
-    names: [&str; 2],
-) -> bool {
-    listed_id.map_or_else(
-        || {
-            listed_name.map(str::trim).is_some_and(|entry| {
-                !entry.is_empty() && names.iter().any(|n| n.trim().eq_ignore_ascii_case(entry))
-            })
-        },
-        |id| id == catalog_item_id,
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{ListedMedicine, Uuid, lists};
-
-    #[test]
-    fn a_line_is_covered_only_by_its_own_listing() {
-        let amox = Uuid::from_u128(1);
-        let other = Uuid::from_u128(2);
-        let listed = vec![ListedMedicine {
-            catalog_item_id: Some(amox),
-            drug_name: Some("Amoxicillin 500mg".into()),
-        }];
-        assert!(lists(&listed, amox, ["Anything", ""]));
-        // A listing with an id matches that id only, whatever the names say.
-        assert!(!lists(&listed, other, ["amoxicillin 500MG", ""]));
-        // Tramadol stock on a line named after the listed paracetamol: the
-        // caller passes the catalogue's names, and the id decides.
-        let paracetamol = Uuid::from_u128(3);
-        let tramadol = Uuid::from_u128(4);
-        let para = vec![ListedMedicine {
-            catalog_item_id: Some(paracetamol),
-            drug_name: Some("Paracetamol 500mg".into()),
-        }];
-        assert!(!lists(&para, tramadol, ["Tramadol 50mg", "Tramadol"]));
-        assert!(lists(
-            &para,
-            paracetamol,
-            ["Paracetamol 500mg", "Paracetamol"]
-        ));
-        // No id on the listing: the catalogue's own names, never the line's.
-        let by_name = vec![ListedMedicine {
-            catalog_item_id: None,
-            drug_name: Some("Paracetamol 500mg".into()),
-        }];
-        assert!(!lists(&by_name, tramadol, ["Tramadol 50mg", "Tramadol"]));
-        assert!(lists(
-            &by_name,
-            paracetamol,
-            ["PARACETAMOL 500MG", "Paracetamol"]
-        ));
-        assert!(!lists(&listed, other, ["Cefixime", "Cefixime 200"]));
-        assert!(!lists(&[], amox, ["Amoxicillin 500mg", ""]));
-        let unnamed = vec![ListedMedicine {
-            catalog_item_id: None,
-            drug_name: Some(" ".into()),
-        }];
-        assert!(!lists(&unnamed, other, ["", " "]));
-    }
 }

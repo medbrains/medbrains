@@ -85,8 +85,48 @@ pub fn override_permission(code: &str) -> &'static str {
     }
 }
 
+/// Whether `claims` carries `permission`. A bypass role holds everything
+/// except the NDPS witness override, which is granted by name only.
 fn holds(claims: &Claims, permission: &str) -> bool {
-    is_bypass_role(claims) || claims.permissions.iter().any(|p| p == permission)
+    let named = claims.permissions.iter().any(|p| p == permission);
+    if permission == permissions::pharmacy::ndps::WITNESS_OVERRIDE {
+        return named;
+    }
+    is_bypass_role(claims) || named
+}
+
+/// Whether this user may dispense a controlled drug with no witness: an
+/// explicit grant of `pharmacy.ndps.witness_override`, never the bypass a
+/// super or hospital admin has for everything else.
+///
+/// A bypass role's token carries no permissions, so its grant is read from
+/// the role row and the user's own `access_matrix` (extra, less denied).
+///
+/// # Errors
+/// The database could not be read; the caller refuses, never assumes.
+pub async fn may_skip_ndps_witness(
+    tx: &mut Transaction<'_, Postgres>,
+    claims: &Claims,
+) -> Result<bool, AppError> {
+    let permission = permissions::pharmacy::ndps::WITNESS_OVERRIDE;
+    if !is_bypass_role(claims) {
+        return Ok(holds(claims, permission));
+    }
+    let granted: Option<bool> = sqlx::query_scalar(
+        "SELECT (COALESCE(r.permissions ? $3, false) \
+                 OR COALESCE(u.access_matrix->'extra' ? $3, false)) \
+                AND NOT COALESCE(u.access_matrix->'denied' ? $3, false) \
+           FROM users u \
+           LEFT JOIN roles r ON r.code = u.role::text AND r.tenant_id = u.tenant_id \
+                            AND r.deleted_at IS NULL \
+          WHERE u.id = $1 AND u.tenant_id = $2",
+    )
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .bind(permission)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(granted.unwrap_or(false))
 }
 
 /// Whether `claims` may override a blocking finding with this code.
@@ -877,5 +917,12 @@ mod tests {
         assert!(!can_override(&pharmacist, NDPS_WITNESS));
         let named = claims_with(&[permissions::pharmacy::ndps::WITNESS_OVERRIDE]);
         assert!(can_override(&named, NDPS_WITNESS));
+        // A hospital admin bypasses every other check, but not this one.
+        let admin = Claims {
+            role: "hospital_admin".to_owned(),
+            ..claims_with(&[])
+        };
+        assert!(!can_override(&admin, NDPS_WITNESS));
+        assert!(can_override(&admin, INTERACTION));
     }
 }

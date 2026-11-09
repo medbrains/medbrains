@@ -49,6 +49,9 @@ interface RowState {
 const isControlled = (drug: PharmacyCatalog): boolean =>
   drug.is_controlled || drug.drug_schedule === "X" || drug.drug_schedule === "NDPS";
 
+/** Shortest retained-duplicate reference the server accepts (migration 1450's CHECK). */
+const DUPLICATE_REF_MIN_CHARS = 6;
+
 /**
  * Dispense modal — per line: FEFO batch pick + dispensed quantity (partial),
  * with a mandatory witness when any Schedule-X/controlled drug is present.
@@ -139,11 +142,14 @@ export function DispenseModal({
   );
   const allergyBlocked = allergyConflicts.length > 0 && allergyReason.trim().length < 5;
 
+  /** A line's batch and quantity as edited, or the whole remainder untouched. */
   const rowFor = (itemId: string, remaining: number): RowState =>
     rows[itemId] ?? { qty: remaining, batchId: null };
+  /** Merges an edit into one line's batch and quantity. */
   const patch = (itemId: string, p: Partial<RowState>) =>
     setRows((r) => ({ ...r, [itemId]: { ...rowFor(itemId, 0), ...r[itemId], ...p } }));
 
+  /** The catalogue row an order line dispenses from, once read. */
   const drugOf = (it: PharmacyOrderItem) => catalogById.get(it.catalog_item_id ?? "");
   // Until the order's drugs are read, whether any is controlled is unknown:
   // shown as unknown, and the dispense waits rather than guessing "no".
@@ -161,7 +167,7 @@ export function DispenseModal({
     (skippingWitness
       ? noWitnessReason.trim().length < 5
       : !witness || witnessPassword.length === 0);
-  const duplicateMissing = anyScheduleX && duplicateRef.trim().length < 3;
+  const duplicateMissing = anyScheduleX && duplicateRef.trim().length < DUPLICATE_REF_MIN_CHARS;
   const allergyUnacknowledged = allergyStatusUnknown && !allergyAsked;
 
   const submit = () => {
@@ -288,7 +294,11 @@ export function DispenseModal({
             description="The scan id or serial of the copy the pharmacy keeps for two years."
             value={duplicateRef}
             onChange={(e) => setDuplicateRef(e.currentTarget.value)}
-            error={duplicateMissing ? "Required for Schedule X" : undefined}
+            error={
+              duplicateMissing
+                ? `Required for Schedule X, at least ${DUPLICATE_REF_MIN_CHARS} characters`
+                : undefined
+            }
             required
           />
         )}

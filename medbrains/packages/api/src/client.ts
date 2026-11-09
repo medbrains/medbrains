@@ -7707,8 +7707,14 @@ export const api = {
   },
   getFulfilmentPickList: (orderId: string) =>
     request<PickLine[]>(`/pharmacy/fulfilment/${orderId}/pick-list`),
-  /** Claim for picking. A reason is needed only to override a medication safety block. */
-  claimFulfilmentOrder: (orderId: string, data?: { safety_override_reason?: string }) =>
+  /**
+   * Claim for picking. A reason is needed only to override a medication safety
+   * block; the acknowledgement only when the patient's allergy status is unknown.
+   */
+  claimFulfilmentOrder: (
+    orderId: string,
+    data?: { safety_override_reason?: string; allergy_status_acknowledged?: boolean },
+  ) =>
     request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, {
       method: "POST",
       ...(data ? { body: JSON.stringify(data) } : {}),

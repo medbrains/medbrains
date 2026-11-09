@@ -18,7 +18,8 @@
 --
 -- 2. Drugs Rules 65(11): a Schedule X prescription is issued in duplicate and
 --    the pharmacy retains one copy for two years. The dispense now records the
---    reference (scan id or serial) of the copy the pharmacy kept.
+--    reference (scan id or serial, 6 to 120 characters) of the copy the
+--    pharmacy kept.
 
 UPDATE pharmacy_catalog
    SET is_controlled = true
@@ -53,4 +54,4 @@ ALTER TABLE public.pharmacy_orders
 ALTER TABLE public.pharmacy_orders
     ADD CONSTRAINT pharmacy_orders_schedule_x_duplicate_ref_check
     CHECK (schedule_x_duplicate_ref IS NULL
-           OR length(btrim(schedule_x_duplicate_ref)) BETWEEN 3 AND 120);
+           OR length(btrim(schedule_x_duplicate_ref)) BETWEEN 6 AND 120);

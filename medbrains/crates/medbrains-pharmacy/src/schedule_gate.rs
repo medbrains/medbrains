@@ -1,37 +1,56 @@
-//! The Schedule H/H1/X gate, run wherever a scheduled medicine leaves the
-//! shelf for a patient: the counter dispense and the pick of a
-//! pack-and-collect order.
+//! The Schedule H/H1/X and NDPS gate.
 //!
-//! Drugs and Cosmetics Act 1940, Drugs Rules 65 and 65A, and the NDPS Act 1985:
+//! It runs wherever a scheduled or controlled medicine leaves the shelf for a
+//! patient: the counter dispense, the pick of a pack-and-collect order, and a
+//! camp's offline dispense at sync.
 //!
-//! - Schedule H, H1 and X are sold only on a registered practitioner's
-//!   prescription, and not beyond what it prescribes. Each scheduled line must
-//!   be an item on the order's prescription, matched on the catalogue item the
-//!   stock leaves from (by its id where the prescription line carries one, by
-//!   the catalogue's own names otherwise, never by the order line's free text),
-//!   and the order may not take the patient past the prescribed quantity once
-//!   every earlier order on the same prescription is counted. Repeats the
-//!   doctor allowed and the pharmacy issued add one fill each, except for
-//!   Schedule X, which is never repeated.
+//! Drugs and Cosmetics Act 1940, Drugs Rules 65 and 65A, and the NDPS Act 1985
+//! and Rules. A line is gated when its drug is Schedule H, H1, X or NDPS, or
+//! carries `is_controlled` (which X and NDPS always do, migration 1450):
+//!
+//! - It is sold only on a registered practitioner's prescription, and not
+//!   beyond what it prescribes. Each gated line must be an item on the order's
+//!   prescription, matched on the catalogue item the stock leaves from: by the
+//!   prescription line's catalogue id where it carries one, otherwise by the
+//!   catalogue's full name (which carries the strength), never by the generic
+//!   name alone, and never by the order line's free text. A 0.25 mg
+//!   prescription does not release 2 mg.
+//! - The cap is per prescription item: one item's quantity is shared by every
+//!   catalogue item it matches, across this order and every earlier order on
+//!   the same prescription. Repeats the doctor allowed and the pharmacy issued
+//!   add one fill each, except for X, NDPS and controlled drugs, which are
+//!   never repeated, and for which the doctor must have stated the quantity
+//!   (it is never derived from the frequency).
 //! - The prescription must be signed and in date (`valid_until`). An unsigned
 //!   one, a verbal order not yet countersigned among them, backs nothing.
-//! - Schedule X also needs a written prescription (never verbal or telephone),
-//!   from a doctor allowed to prescribe it, a witness who is not that doctor,
-//!   and the reference of the duplicate the pharmacy retains (Rule 65(11)).
+//!   X, NDPS and controlled drugs are never dispensed on a verbal or telephone
+//!   order.
+//! - Schedule X also needs a doctor allowed to prescribe it, a witness who is
+//!   not that doctor, and the reference of the duplicate the pharmacy retains
+//!   (Rule 65(11)).
 //!
-//! What else counts as a prescription: an uploaded one a pharmacist verified,
-//! for H and H1 (its lines are read by the pharmacist, not here), and a recent
-//! doctor-signed discharge summary that lists the drug (`discharge_rx`), for H
-//! and H1. A visit or admission alone is never a prescription.
+//! What else counts as a prescription, for H and H1 only: an uploaded one a
+//! pharmacist verified (its lines are read by the pharmacist, not here; one
+//! uploaded prescription backs one order per drug), and a recent doctor-signed
+//! discharge summary that lists the drug (`discharge_rx`), capped at the
+//! quantity it lists across every order on that summary. A visit or admission
+//! alone is never a prescription.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use chrono::NaiveDate;
 use medbrains_server_core::error::AppError;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::{countable_rx_quantity, discharge_rx};
+use crate::{discharge_rx, rx_quantity::countable_rx_quantity};
+
+mod cap;
+
+use cap::{Allowance, Released, ScheduledLine, Source, cap_problems};
+
+/// Shortest reference to the retained Schedule X duplicate the gate accepts.
+pub const DUPLICATE_REF_MIN_CHARS: usize = 6;
 
 /// What the dispense brings to the gate beyond the order itself.
 #[derive(Debug, Clone, Copy, Default)]
@@ -48,8 +67,8 @@ pub struct Passed {
     pub has_schedule_x: bool,
 }
 
-/// The order's prescription as the gate reads it; every field `None` when the
-/// order names none that is this patient's.
+/// The order's prescription as the gate reads it; every prescription field
+/// `None` when the order names none that is this patient's.
 #[derive(Debug, sqlx::FromRow)]
 struct RxRow {
     rx_id: Option<Uuid>,
@@ -59,39 +78,21 @@ struct RxRow {
     order_mode: Option<String>,
     repeats_used: Option<i32>,
     verified_upload: bool,
+    upload_sha256: Option<String>,
+    discharge_summary_id: Option<Uuid>,
     stored_duplicate_ref: Option<String>,
     today: NaiveDate,
 }
 
-/// One scheduled drug on the order, its lines summed.
-#[derive(Debug, sqlx::FromRow)]
-struct ScheduledLine {
-    catalog_id: Uuid,
-    name: String,
-    generic_name: String,
-    schedule: String,
-    quantity: i64,
-}
-
 /// One live item on the prescription.
 #[derive(Debug, sqlx::FromRow)]
-struct RxItem {
+struct RxItemRow {
     catalog_item_id: Option<Uuid>,
     drug_name: String,
     quantity: Option<i32>,
     dosage: String,
     frequency: String,
     duration: String,
-}
-
-/// How much of a drug a prescription prescribes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Prescribed {
-    /// The drug is not an item on it.
-    Absent,
-    /// It is, with no stated quantity and a frequency that cannot be counted.
-    Uncountable,
-    Quantity(i64),
 }
 
 /// Refuses a release the Drugs and Cosmetics Act or the NDPS Act forbids.
@@ -116,10 +117,11 @@ pub async fn enforce_schedule_compliance(
     let mut blocks = Vec::new();
     match rx.rx_id {
         Some(rx_id) => {
-            blocks.extend(prescription_problems(&rx));
-            blocks.extend(quantity_problems(tx, (tenant_id, order_id, rx_id), &rx, &lines).await?);
+            blocks.extend(prescription_problems(&rx, &lines));
+            blocks
+                .extend(prescribed_problems(tx, (tenant_id, order_id, rx_id), &rx, &lines).await?);
         }
-        None => blocks.extend(unprescribed_problems(tx, tenant_id, order_id, &rx, &lines).await?),
+        None => blocks.extend(unprescribed_problems(tx, (tenant_id, order_id), &rx, &lines).await?),
     }
     if has_schedule_x {
         blocks.extend(schedule_x_problems(tx, tenant_id, &rx, input).await?);
@@ -134,7 +136,8 @@ pub async fn enforce_schedule_compliance(
     }
 }
 
-/// The order's prescription, when it is this patient's and not deleted.
+/// The order's prescription, when it is this patient's and not deleted, and
+/// what else could stand for one.
 async fn read_prescription(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
@@ -143,10 +146,8 @@ async fn read_prescription(
     sqlx::query_as::<_, RxRow>(
         "SELECT rx.id AS rx_id, rx.doctor_id, rx.is_signed, rx.valid_until, rx.order_mode, \
                 rx.repeats_used, \
-                EXISTS (SELECT 1 FROM pharmacy_store_orders s \
-                         WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
-                           AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
-                           AND s.deleted_at IS NULL) AS verified_upload, \
+                up.id IS NOT NULL AS verified_upload, up.rx_document_sha256 AS upload_sha256, \
+                o.discharge_summary_id, \
                 o.schedule_x_duplicate_ref AS stored_duplicate_ref, \
                 CURRENT_DATE AS today \
          FROM pharmacy_orders o \
@@ -158,6 +159,11 @@ async fn read_prescription(
                     (SELECT a.patient_id FROM admissions a \
                       WHERE a.id = rx.admission_id AND a.tenant_id = rx.tenant_id)) \
                   = o.patient_id \
+         LEFT JOIN LATERAL (SELECT s.id, s.rx_document_sha256 FROM pharmacy_store_orders s \
+                             WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
+                               AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
+                               AND s.deleted_at IS NULL \
+                             ORDER BY s.verified_at LIMIT 1) up ON true \
          WHERE o.id = $1 AND o.tenant_id = $2",
     )
     .bind(order_id)
@@ -167,21 +173,23 @@ async fn read_prescription(
     .ok_or(AppError::NotFound)
 }
 
-/// The order's Schedule H/H1/X drugs, by the catalogue's own names, each with
-/// the quantity this order's live lines add up to.
+/// The order's gated drugs, by the catalogue's own names, each with the
+/// quantity this order's live lines add up to.
 async fn scheduled_lines(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
     order_id: Uuid,
 ) -> Result<Vec<ScheduledLine>, AppError> {
     Ok(sqlx::query_as::<_, ScheduledLine>(
-        "SELECT c.id AS catalog_id, c.name, COALESCE(c.generic_name, '') AS generic_name, \
-                c.drug_schedule::text AS schedule, SUM(oi.quantity)::bigint AS quantity \
+        "SELECT c.id AS catalog_id, c.name, \
+                CASE WHEN c.drug_schedule::text IN ('H', 'H1', 'X', 'NDPS') \
+                     THEN c.drug_schedule::text ELSE 'controlled' END AS schedule, \
+                c.is_controlled, SUM(oi.quantity)::bigint AS quantity \
          FROM pharmacy_order_items oi \
          JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id AND c.tenant_id = oi.tenant_id \
          WHERE oi.order_id = $1 AND oi.tenant_id = $2 AND oi.removed_at IS NULL \
-           AND c.drug_schedule::text IN ('H', 'H1', 'X') \
-         GROUP BY c.id, c.name, c.generic_name, c.drug_schedule \
+           AND (c.drug_schedule::text IN ('H', 'H1', 'X', 'NDPS') OR c.is_controlled) \
+         GROUP BY c.id, c.name, c.drug_schedule, c.is_controlled \
          ORDER BY c.name",
     )
     .bind(order_id)
@@ -190,8 +198,9 @@ async fn scheduled_lines(
     .await?)
 }
 
-/// What is wrong with the prescription itself: unsigned, or out of date.
-fn prescription_problems(rx: &RxRow) -> Vec<String> {
+/// What is wrong with the prescription itself: unsigned, out of date, or a
+/// verbal order behind an X, NDPS or controlled drug.
+fn prescription_problems(rx: &RxRow, lines: &[ScheduledLine]) -> Vec<String> {
     let mut out = Vec::new();
     if rx.is_signed != Some(true) {
         out.push(
@@ -205,24 +214,39 @@ fn prescription_problems(rx: &RxRow) -> Vec<String> {
     {
         out.push(format!("the prescription expired on {until}"));
     }
+    if lines.iter().any(ScheduledLine::is_strict)
+        && rx.order_mode.as_deref().is_some_and(|m| m != "written")
+    {
+        out.push(
+            "Schedule X and NDPS drugs need a written prescription, never a verbal or telephone \
+             order"
+                .to_owned(),
+        );
+    }
     out
 }
 
-/// Each scheduled line must be on the prescription, and this order plus every
-/// earlier one on it must stay within what it prescribes.
-async fn quantity_problems(
+/// Takes the transaction-scoped lock that keeps two dispenses against one
+/// prescription (or summary, or upload) from each counting the other as not
+/// yet released.
+async fn lock(tx: &mut Transaction<'_, Postgres>, key: &str) -> Result<(), AppError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(key)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// Each gated line must be on the prescription, and this order plus every
+/// earlier one on it must stay within what each item prescribes.
+async fn prescribed_problems(
     tx: &mut Transaction<'_, Postgres>,
     (tenant_id, order_id, rx_id): (Uuid, Uuid, Uuid),
     rx: &RxRow,
     lines: &[ScheduledLine],
 ) -> Result<Vec<String>, AppError> {
-    // Two dispenses against one prescription at once would each count the
-    // other as not yet released.
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('rx:' || $1::text, 0))")
-        .bind(rx_id)
-        .execute(&mut **tx)
-        .await?;
-    let items = sqlx::query_as::<_, RxItem>(
+    lock(tx, &format!("rx:{rx_id}")).await?;
+    let items = sqlx::query_as::<_, RxItemRow>(
         "SELECT catalog_item_id, drug_name, quantity, dosage, frequency, duration \
            FROM prescription_items \
           WHERE prescription_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
@@ -232,156 +256,178 @@ async fn quantity_problems(
     .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
-    let released = released_elsewhere(tx, (tenant_id, order_id, rx_id), lines).await?;
-    let repeats = i64::from(rx.repeats_used.unwrap_or(0).max(0));
-    Ok(lines
-        .iter()
-        .filter_map(|line| {
-            let fills = if line.schedule == "X" { 1 } else { 1 + repeats };
-            let before = released.get(&line.catalog_id).copied().unwrap_or(0);
-            line_problem(line, prescribed(&items, line), fills, before)
+    let allowances: Vec<Allowance> = items
+        .into_iter()
+        .map(|i| Allowance {
+            stated: i.quantity.filter(|q| *q > 0).map(i64::from),
+            counted: countable_rx_quantity(&i.dosage, &i.frequency, &i.duration).map(i64::from),
+            catalog_item_id: i.catalog_item_id,
+            name: i.drug_name,
         })
-        .collect())
+        .collect();
+    let released = released_elsewhere(tx, (tenant_id, order_id), "prescription_id", rx_id).await?;
+    let source = Source {
+        noun: "the prescription",
+        repeats: i64::from(rx.repeats_used.unwrap_or(0).max(0)),
+    };
+    Ok(cap_problems(lines, &allowances, &released, source))
 }
 
-/// What earlier orders on the same prescription have already released, per
-/// drug: dispensed at the counter, or taken from the shelf for a pack, less
-/// what came back.
+/// What earlier orders backed by the same paper (`column` = `backing`) have
+/// already released, per catalogue item: dispensed at the counter, or taken
+/// from the shelf for a pack, less what came back.
 async fn released_elsewhere(
     tx: &mut Transaction<'_, Postgres>,
-    (tenant_id, order_id, rx_id): (Uuid, Uuid, Uuid),
-    lines: &[ScheduledLine],
-) -> Result<HashMap<Uuid, i64>, AppError> {
-    let ids: Vec<Uuid> = lines.iter().map(|l| l.catalog_id).collect();
-    let rows: Vec<(Uuid, i64)> = sqlx::query_as(
-        "SELECT oi.catalog_item_id, \
+    (tenant_id, order_id): (Uuid, Uuid),
+    column: &'static str,
+    backing: Uuid,
+) -> Result<Vec<Released>, AppError> {
+    let sql = format!(
+        "SELECT oi.catalog_item_id AS catalog_id, c.name, \
                 COALESCE(SUM(GREATEST(CASE WHEN o.status IN \
                      ('picking', 'packed', 'verified', 'ready', 'collected', 'released') \
                    THEN oi.quantity ELSE oi.quantity_dispensed END - oi.quantity_returned, 0)), \
-                 0)::bigint \
+                 0)::bigint AS quantity \
            FROM pharmacy_order_items oi \
            JOIN pharmacy_orders o ON o.id = oi.order_id AND o.tenant_id = oi.tenant_id \
-          WHERE o.tenant_id = $1 AND o.prescription_id = $2 AND o.id <> $3 \
-            AND o.status <> 'cancelled' AND o.deleted_at IS NULL \
-            AND oi.removed_at IS NULL AND oi.catalog_item_id = ANY($4) \
-          GROUP BY oi.catalog_item_id",
-    )
-    .bind(tenant_id)
-    .bind(rx_id)
-    .bind(order_id)
-    .bind(&ids)
-    .fetch_all(&mut **tx)
-    .await?;
-    Ok(rows.into_iter().collect())
-}
-
-/// How much of this drug the prescription's items prescribe, summed over every
-/// item that names it.
-fn prescribed(items: &[RxItem], line: &ScheduledLine) -> Prescribed {
-    let names = [line.name.as_str(), line.generic_name.as_str()];
-    let mut total = 0_i64;
-    let mut found = false;
-    for item in items {
-        if !discharge_rx::names_drug(
-            item.catalog_item_id,
-            Some(&item.drug_name),
-            line.catalog_id,
-            names,
-        ) {
-            continue;
-        }
-        found = true;
-        let quantity = item
-            .quantity
-            .filter(|q| *q > 0)
-            .or_else(|| countable_rx_quantity(&item.dosage, &item.frequency, &item.duration));
-        match quantity {
-            Some(q) => total += i64::from(q),
-            None => return Prescribed::Uncountable,
-        }
-    }
-    if found {
-        Prescribed::Quantity(total)
-    } else {
-        Prescribed::Absent
-    }
-}
-
-/// The refusal for one line, if it has one. Pure: the rule lives here.
-fn line_problem(
-    line: &ScheduledLine,
-    prescribed: Prescribed,
-    fills: i64,
-    released_before: i64,
-) -> Option<String> {
-    let name = &line.name;
-    let schedule = &line.schedule;
-    match prescribed {
-        Prescribed::Absent => Some(format!(
-            "{name}: Schedule {schedule} drug that is not on the prescription"
-        )),
-        Prescribed::Uncountable => Some(format!(
-            "{name}: Schedule {schedule} drug whose prescribed quantity cannot be read (no \
-             quantity, and a frequency that cannot be counted); ask the doctor to state it"
-        )),
-        Prescribed::Quantity(q) => {
-            let allowed = q.saturating_mul(fills);
-            let left = allowed - released_before;
-            (line.quantity > left).then(|| {
-                format!(
-                    "{name}: {} asked, but the prescription allows {allowed} and {released_before} \
-                     already went out on it ({} left)",
-                    line.quantity,
-                    left.max(0)
-                )
-            })
-        }
-    }
+           JOIN pharmacy_catalog c ON c.id = oi.catalog_item_id AND c.tenant_id = oi.tenant_id \
+          WHERE o.tenant_id = $1 AND o.{column} = $2 AND o.id <> $3 \
+            AND o.status <> 'cancelled' AND o.deleted_at IS NULL AND oi.removed_at IS NULL \
+          GROUP BY oi.catalog_item_id, c.name"
+    );
+    Ok(sqlx::query_as::<_, Released>(&sql)
+        .bind(tenant_id)
+        .bind(backing)
+        .bind(order_id)
+        .fetch_all(&mut **tx)
+        .await?)
 }
 
 /// With no prescription on the order: H and H1 may stand on a verified upload
-/// or a discharge summary that lists them; Schedule X never does.
+/// (once per drug) or a discharge summary that lists them (up to what it
+/// lists); X, NDPS and controlled drugs never do.
 async fn unprescribed_problems(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
-    order_id: Uuid,
+    (tenant_id, order_id): (Uuid, Uuid),
     rx: &RxRow,
     lines: &[ScheduledLine],
 ) -> Result<Vec<String>, AppError> {
-    let listed = if rx.verified_upload {
-        None
-    } else {
-        discharge_rx::discharge_medicines(tx, tenant_id, order_id).await?
+    let (strict, others): (Vec<&ScheduledLine>, Vec<&ScheduledLine>) =
+        lines.iter().partition(|l| l.is_strict());
+    let mut out: Vec<String> = strict
+        .iter()
+        .map(|l| {
+            format!(
+                "{}: {} drug — no prescription for this patient on the order (a doctor's signed \
+                 written prescription)",
+                l.name,
+                l.kind()
+            )
+        })
+        .collect();
+    if others.is_empty() {
+        return Ok(out);
+    }
+    if rx.verified_upload {
+        out.extend(upload_problems(tx, (tenant_id, order_id), rx, &others).await?);
+        return Ok(out);
+    }
+    let listed = discharge_rx::discharge_medicines(tx, tenant_id, order_id).await?;
+    match (listed, rx.discharge_summary_id) {
+        (Some(listed), Some(summary_id)) => {
+            lock(tx, &format!("ds:{summary_id}")).await?;
+            let allowances: Vec<Allowance> = listed
+                .into_iter()
+                .map(|m| Allowance {
+                    catalog_item_id: m.catalog_item_id,
+                    name: m.drug_name.unwrap_or_default(),
+                    stated: m.quantity.filter(|q| *q > 0).map(i64::from),
+                    counted: None,
+                })
+                .collect();
+            let released = released_elsewhere(
+                tx,
+                (tenant_id, order_id),
+                "discharge_summary_id",
+                summary_id,
+            )
+            .await?;
+            let source = Source {
+                noun: "the discharge summary",
+                repeats: 0,
+            };
+            out.extend(cap_problems(
+                others.iter().copied(),
+                &allowances,
+                &released,
+                source,
+            ));
+        }
+        _ => out.extend(others.iter().map(|l| {
+            format!(
+                "{}: {} drug — no prescription for this patient on the order (a doctor's signed \
+                 prescription, a verified upload, or a recent discharge summary, finalized or \
+                 doctor-signed, that lists it)",
+                l.name,
+                l.kind()
+            )
+        })),
+    }
+    Ok(out)
+}
+
+/// A verified uploaded prescription backs one order per drug: the same file
+/// (by its SHA-256) behind an earlier order that released the drug backs it
+/// no more.
+async fn upload_problems(
+    tx: &mut Transaction<'_, Postgres>,
+    (tenant_id, order_id): (Uuid, Uuid),
+    rx: &RxRow,
+    lines: &[&ScheduledLine],
+) -> Result<Vec<String>, AppError> {
+    let Some(sha) = rx.upload_sha256.as_deref() else {
+        // No hash to recognise it by: the upload is this order's alone.
+        return Ok(Vec::new());
     };
+    lock(tx, &format!("upload:{sha}")).await?;
+    let ids: Vec<Uuid> = lines.iter().map(|l| l.catalog_id).collect();
+    let used: HashSet<Uuid> = sqlx::query_scalar::<_, Uuid>(
+        "SELECT DISTINCT oi.catalog_item_id \
+           FROM pharmacy_order_items oi \
+           JOIN pharmacy_orders o ON o.id = oi.order_id AND o.tenant_id = oi.tenant_id \
+           JOIN pharmacy_store_orders s ON s.pharmacy_order_id = o.id \
+                AND s.tenant_id = o.tenant_id AND s.rx_source = 'upload' \
+                AND s.verified_at IS NOT NULL AND s.deleted_at IS NULL \
+          WHERE o.tenant_id = $1 AND o.id <> $2 AND s.rx_document_sha256 = $3 \
+            AND o.status <> 'cancelled' AND o.deleted_at IS NULL AND oi.removed_at IS NULL \
+            AND oi.catalog_item_id = ANY($4) \
+            AND CASE WHEN o.status IN \
+                     ('picking', 'packed', 'verified', 'ready', 'collected', 'released') \
+                     THEN oi.quantity ELSE oi.quantity_dispensed END > oi.quantity_returned",
+    )
+    .bind(tenant_id)
+    .bind(order_id)
+    .bind(sha)
+    .bind(&ids)
+    .fetch_all(&mut **tx)
+    .await?
+    .into_iter()
+    .collect();
     Ok(lines
         .iter()
-        .filter(|line| {
-            let names = [line.name.as_str(), line.generic_name.as_str()];
-            let backed = rx.verified_upload
-                || listed
-                    .as_deref()
-                    .is_some_and(|l| discharge_rx::lists(l, line.catalog_id, names));
-            line.schedule == "X" || !backed
-        })
-        .map(|line| {
+        .filter(|l| used.contains(&l.catalog_id))
+        .map(|l| {
             format!(
-                "{}: Schedule {} drug — no prescription for this patient on the order (a \
-                 doctor's signed prescription{})",
-                line.name,
-                line.schedule,
-                if line.schedule == "X" {
-                    ""
-                } else {
-                    ", a verified upload, or a recent discharge summary, finalized or \
-                     doctor-signed, that lists it"
-                }
+                "{}: the uploaded prescription already backed an earlier order for this drug; a \
+                 fresh prescription is needed",
+                l.name
             )
         })
         .collect())
 }
 
-/// Schedule X's own conditions: written, an authorised prescriber, a witness
-/// who is not that prescriber, and the retained duplicate's reference.
+/// Schedule X's own conditions: an authorised prescriber, a witness who is
+/// not that prescriber, and the retained duplicate's reference.
 async fn schedule_x_problems(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
@@ -389,11 +435,6 @@ async fn schedule_x_problems(
     input: &GateInput<'_>,
 ) -> Result<Vec<String>, AppError> {
     let mut out = Vec::new();
-    if rx.order_mode.as_deref().is_some_and(|m| m != "written") {
-        out.push(
-            "Schedule X needs a written prescription, never a verbal or telephone order".to_owned(),
-        );
-    }
     match input.witnessed_by {
         None => out.push("Schedule X dispense requires a witness".to_owned()),
         Some(w) if Some(w) == rx.doctor_id => {
@@ -401,17 +442,11 @@ async fn schedule_x_problems(
         }
         Some(_) => {}
     }
-    let duplicate = input
-        .duplicate_ref
-        .or(rx.stored_duplicate_ref.as_deref())
-        .map(str::trim)
-        .filter(|r| r.chars().count() >= 3);
-    if duplicate.is_none() {
-        out.push(
+    if duplicate_ref(input.duplicate_ref, rx.stored_duplicate_ref.as_deref()).is_none() {
+        out.push(format!(
             "Schedule X needs the reference of the duplicate prescription the pharmacy keeps \
-             (its scan id or serial)"
-                .to_owned(),
-        );
+             (its scan id or serial, at least {DUPLICATE_REF_MIN_CHARS} characters)"
+        ));
     }
     if let Some(prescriber) = rx.doctor_id {
         let authorised: Option<bool> = sqlx::query_scalar(
@@ -435,50 +470,30 @@ async fn schedule_x_problems(
     Ok(out)
 }
 
+/// The duplicate's reference the dispense goes on: what was typed, trimmed,
+/// else what the order already holds; refused under the minimum length. A
+/// blank field never hides the stored one.
+pub fn duplicate_ref<'a>(typed: Option<&'a str>, stored: Option<&'a str>) -> Option<&'a str> {
+    typed
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .or_else(|| stored.map(str::trim))
+        .filter(|r| r.chars().count() >= DUPLICATE_REF_MIN_CHARS)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Prescribed, RxItem, ScheduledLine, Uuid, line_problem, prescribed};
-
-    fn line(quantity: i64) -> ScheduledLine {
-        ScheduledLine {
-            catalog_id: Uuid::from_u128(7),
-            name: "Alprax 0.25".to_owned(),
-            generic_name: "alprazolam".to_owned(),
-            schedule: "H".to_owned(),
-            quantity,
-        }
-    }
-
-    fn item(catalog: Option<u128>, name: &str, quantity: Option<i32>, frequency: &str) -> RxItem {
-        RxItem {
-            catalog_item_id: catalog.map(Uuid::from_u128),
-            drug_name: name.to_owned(),
-            quantity,
-            dosage: "1 tab".to_owned(),
-            frequency: frequency.to_owned(),
-            duration: "5 days".to_owned(),
-        }
-    }
+    use super::duplicate_ref;
 
     #[test]
-    fn a_line_is_on_the_prescription_by_its_id_or_the_catalogue_names() {
-        let by_id = [item(Some(7), "anything", None, "BD")];
-        assert_eq!(prescribed(&by_id, &line(1)), Prescribed::Quantity(10));
-        let other_id = [item(Some(8), "Alprax 0.25", Some(10), "BD")];
-        assert_eq!(prescribed(&other_id, &line(1)), Prescribed::Absent);
-        let by_name = [item(None, "ALPRAZOLAM", Some(4), "SOS")];
-        assert_eq!(prescribed(&by_name, &line(1)), Prescribed::Quantity(4));
-        let as_needed = [item(Some(7), "Alprax", None, "SOS")];
-        assert_eq!(prescribed(&as_needed, &line(1)), Prescribed::Uncountable);
-    }
-
-    #[test]
-    fn the_cap_counts_earlier_orders_and_issued_repeats() {
-        assert!(line_problem(&line(10), Prescribed::Quantity(10), 1, 0).is_none());
-        assert!(line_problem(&line(11), Prescribed::Quantity(10), 1, 0).is_some());
-        assert!(line_problem(&line(5), Prescribed::Quantity(10), 1, 6).is_some());
-        assert!(line_problem(&line(10), Prescribed::Quantity(10), 2, 10).is_none());
-        assert!(line_problem(&line(1), Prescribed::Absent, 1, 0).is_some());
-        assert!(line_problem(&line(1), Prescribed::Uncountable, 1, 0).is_some());
+    fn a_blank_duplicate_reference_falls_back_to_the_stored_one() {
+        assert_eq!(
+            duplicate_ref(Some("  "), Some(" SX-2026-01 ")),
+            Some("SX-2026-01")
+        );
+        assert_eq!(duplicate_ref(Some(" SX-77-AB "), None), Some("SX-77-AB"));
+        assert_eq!(duplicate_ref(Some("abc"), Some("SX-2026-01")), None);
+        assert_eq!(duplicate_ref(None, Some("12345")), None);
+        assert_eq!(duplicate_ref(None, None), None);
     }
 }
