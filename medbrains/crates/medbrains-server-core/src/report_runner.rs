@@ -93,6 +93,7 @@ impl ReportLimits {
                 .min(TIMEOUT_CEILING),
             per_tenant: read("REPORTS_MAX_CONCURRENT_PER_TENANT")
                 .and_then(|n| usize::try_from(n).ok())
+                .filter(|&n| n > 0)
                 .unwrap_or(defaults.per_tenant),
             slot_wait: read("REPORTS_SLOT_WAIT_MS")
                 .map_or(defaults.slot_wait, Duration::from_millis)
