@@ -137,9 +137,16 @@ export function CsvImportModal({
         });
       }
     } catch {
+      // Earlier batches are already saved, and their one-time passwords are
+      // shown nowhere else: keep them on screen.
+      setResult(agg);
+      setPasswords(issued);
       notifications.show({
-        title: "Import failed",
-        message: "An error occurred during import",
+        title: "Import stopped",
+        message:
+          agg.imported > 0
+            ? `Imported ${agg.imported} records before an error. Hand out the passwords below, then import the rest.`
+            : "An error occurred during import",
         color: "danger",
       });
     } finally {

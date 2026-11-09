@@ -48,7 +48,13 @@ fn callback_uri() -> String {
 }
 
 async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SSO_SECRET_KEY, DEV_SSO_SECRET_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        SSO_SECRET_KEY,
+        DEV_SSO_SECRET_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 /// URL-safe random token of `bytes` entropy (state/nonce/PKCE verifier).
@@ -580,7 +586,10 @@ fn group_value_as_string(v: &serde_json::Value) -> Option<String> {
 
 /// Resolve mapped (role, access-group-ids) from the provider's group mappings
 /// against the user's IdP groups. The first matching mapping that names a role
-/// wins (single role); all matching access groups are collected. Pure + tested.
+/// wins (single role); all matching access groups are collected. A mapping to
+/// a bypass role is skipped, as `new_user_role` skips a bypass default: whoever
+/// controls the directory's group list must not be able to mint an
+/// administrator nobody here chose. Pure + tested.
 fn resolve_group_targets(
     mappings: &[(String, Option<String>, Option<Uuid>)],
     user_groups: &HashSet<String>,
@@ -593,6 +602,7 @@ fn resolve_group_targets(
         }
         if role.is_none()
             && let Some(rc) = role_code
+            && !BYPASS_ROLES.contains(&rc.as_str())
         {
             role = Some(rc.clone());
         }
@@ -617,6 +627,8 @@ struct Federated {
     access_groups: usize,
 }
 
+/// Find, link or create the account an SSO identity signs in as, apply its
+/// mapped role (never a bypass role) and re-sync its SSO group memberships.
 async fn federate_user(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     provider: &LoginProvider,
@@ -661,7 +673,11 @@ async fn federate_user(
         }
         None => {
             let linked =
-                match identity.email.as_deref().filter(|_| identity.email_verified) {
+                match identity
+                    .email
+                    .as_deref()
+                    .filter(|_| identity.email_verified)
+                {
                     // Only an email the provider says it verified. Entra's `email` claim is whatever
                     // the tenant typed, so trusting it let any person sign in as a local account
                     // with that address, including the first administrator (nOAuth).
@@ -722,22 +738,7 @@ async fn federate_user(
         }
     };
 
-    // Re-sync SSO-managed access-group memberships (never touch 'manual' grants).
-    sqlx::query("DELETE FROM access_group_members WHERE user_id = $1 AND source = 'sso'")
-        .bind(user_id)
-        .execute(&mut **tx)
-        .await?;
-    for ag in &access_groups {
-        sqlx::query(
-            "INSERT INTO access_group_members (group_id, user_id, tenant_id, source) \
-             VALUES ($1, $2, $3, 'sso') ON CONFLICT (group_id, user_id) DO NOTHING",
-        )
-        .bind(ag)
-        .bind(user_id)
-        .bind(provider.tenant_id)
-        .execute(&mut **tx)
-        .await?;
-    }
+    sync_sso_memberships(tx, provider.tenant_id, user_id, &access_groups).await?;
 
     let perm_version = sqlx::query_scalar::<_, i32>("SELECT perm_version FROM users WHERE id = $1")
         .bind(user_id)
@@ -751,6 +752,44 @@ async fn federate_user(
         outcome,
         access_groups: access_groups.len(),
     })
+}
+
+/// Make `user_id`'s SSO-sourced access-group memberships exactly `groups`,
+/// never touching ones an administrator added by hand.
+///
+/// The delete is a soft delete (the table's guardrail), so the row stays and a
+/// plain `ON CONFLICT DO NOTHING` would leave every membership deleted from
+/// the second sign-in on. The insert brings a deleted row back instead, and a
+/// row an administrator removed becomes SSO-managed when the directory puts
+/// the person back in the group. Public so the integration suite can sign the
+/// same person in twice.
+pub async fn sync_sso_memberships(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    groups: &[Uuid],
+) -> Result<(), AppError> {
+    sqlx::query!(
+        "DELETE FROM access_group_members WHERE user_id = $1 AND tenant_id = $2 AND source = 'sso'",
+        user_id,
+        tenant_id
+    )
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query!(
+        "INSERT INTO access_group_members (group_id, user_id, tenant_id, source) \
+         SELECT g, $2, $3, 'sso' FROM unnest($1::uuid[]) AS g \
+         ON CONFLICT (group_id, user_id) DO UPDATE SET \
+           source = CASE WHEN access_group_members.deleted_at IS NULL \
+                         THEN access_group_members.source ELSE 'sso' END, \
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+        groups,
+        user_id,
+        tenant_id
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 /// What a new sign-in with no mapped directory group gets: dashboard only,
@@ -998,6 +1037,19 @@ mod tests {
     }
 
     #[test]
+    fn a_mapping_never_gives_a_bypass_role() {
+        let mappings = vec![
+            ("admins".to_owned(), Some("hospital_admin".to_owned()), None),
+            ("root".to_owned(), Some("super_admin".to_owned()), None),
+            ("nurses".to_owned(), Some("nurse".to_owned()), None),
+        ];
+        let (role, _) = resolve_group_targets(&mappings, &groups(&["admins", "root"]));
+        assert!(role.is_none(), "{role:?}");
+        let (role, _) = resolve_group_targets(&mappings, &groups(&["admins", "nurses"]));
+        assert_eq!(role.as_deref(), Some("nurse"));
+    }
+
+    #[test]
     fn no_matching_groups_yields_nothing() {
         let mappings = vec![("doctors".to_owned(), Some("doctor".to_owned()), None)];
         let (role, ags) = resolve_group_targets(&mappings, &groups(&["nurses"]));
@@ -1054,17 +1106,28 @@ mod tests {
     #[test]
     fn a_token_from_another_tenant_does_not_match_the_issuer() {
         let issuer = "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0";
-        assert!(tenant_matches_issuer(issuer, Some("72F988BF-86F1-41AF-91AB-2D7CD011DB47")));
-        assert!(!tenant_matches_issuer(issuer, Some("00000000-0000-4000-8000-000000000000")));
+        assert!(tenant_matches_issuer(
+            issuer,
+            Some("72F988BF-86F1-41AF-91AB-2D7CD011DB47")
+        ));
+        assert!(!tenant_matches_issuer(
+            issuer,
+            Some("00000000-0000-4000-8000-000000000000")
+        ));
         assert!(tenant_matches_issuer(issuer, None));
-        assert!(tenant_matches_issuer("https://idm.hospital.test/oauth2/openid/app", Some("x")));
+        assert!(tenant_matches_issuer(
+            "https://idm.hospital.test/oauth2/openid/app",
+            Some("x")
+        ));
     }
 
     #[test]
     fn email_is_verified_only_if_the_provider_says_so() {
         let parse = |verified: &str| {
             let text = format!(r#"{{"sub":"s","aud":"a"{verified}}}"#);
-            serde_json::from_str::<IdClaims>(&text).map(|c| c.email_verified).unwrap_or_default()
+            serde_json::from_str::<IdClaims>(&text)
+                .map(|c| c.email_verified)
+                .unwrap_or_default()
         };
         assert!(parse(r#","email_verified":true"#));
         assert!(parse(r#","email_verified":"true""#));

@@ -12,9 +12,9 @@ use crate::common::{self, Staff};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
-const HELD: &str = "blood_bank.donors.list";
-const LACKED: &str = "lab.results.verify";
-const MANAGER: &[&str] = &[
+pub(crate) const HELD: &str = "blood_bank.donors.list";
+pub(crate) const LACKED: &str = "lab.results.verify";
+pub(crate) const MANAGER: &[&str] = &[
     "admin.users.create",
     "admin.users.update",
     "admin.roles.create",
@@ -24,7 +24,7 @@ const MANAGER: &[&str] = &[
 ];
 
 /// Send `body` with `staff`'s session; the status and the JSON answer.
-async fn send(staff: &Staff, req: reqwest::RequestBuilder, body: Value) -> (StatusCode, Value) {
+pub(crate) async fn send(staff: &Staff, req: reqwest::RequestBuilder, body: Value) -> (StatusCode, Value) {
     let resp = req
         .header("x-csrf-token", &staff.csrf)
         .json(&body)
@@ -36,7 +36,7 @@ async fn send(staff: &Staff, req: reqwest::RequestBuilder, body: Value) -> (Stat
 }
 
 /// A refusal that names the code the caller does not hold.
-fn assert_refused_naming(status: StatusCode, body: &Value, what: &str) {
+pub(crate) fn assert_refused_naming(status: StatusCode, body: &Value, what: &str) {
     assert_eq!(status, StatusCode::FORBIDDEN, "{what}: {body}");
     assert!(
         body["detail"].as_str().is_some_and(|d| d.contains(LACKED)),
@@ -46,7 +46,7 @@ fn assert_refused_naming(status: StatusCode, body: &Value, what: &str) {
 
 /// Sign `staff` in again: a change to their access bumps `perm_version`, and
 /// the session from before it answers 401.
-async fn sign_in_again(app: &common::TestApp, staff: &Staff) -> Staff {
+pub(crate) async fn sign_in_again(app: &common::TestApp, staff: &Staff) -> Staff {
     let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
         .bind(staff.user_id)
         .fetch_one(&app.db)
@@ -75,7 +75,7 @@ async fn sign_in_again(app: &common::TestApp, staff: &Staff) -> Staff {
 }
 
 /// The admin, as a `Staff` with the default admin session.
-async fn admin(app: &common::TestApp) -> Staff {
+pub(crate) async fn admin(app: &common::TestApp) -> Staff {
     let csrf = app.login_admin().await;
     let user_id = sqlx::query_scalar("SELECT id FROM users WHERE username = 'admin' LIMIT 1")
         .fetch_one(&app.db)

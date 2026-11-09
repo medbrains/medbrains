@@ -31,7 +31,7 @@ const HOLDERS_SQL: &str = "\
                                   JOIN access_groups g ON g.id = m.group_id \
                                                       AND g.tenant_id = m.tenant_id \
                                  WHERE m.tenant_id = u.tenant_id AND m.user_id = u.id \
-                                   AND g.is_active = true \
+                                   AND g.is_active = true AND m.deleted_at IS NULL \
                                    AND (m.expires_at IS NULL OR m.expires_at > now()) \
                                    AND g.permissions ? $3)))) \
      ORDER BY u.role::text = 'super_admin', u.role::text = 'hospital_admin', \

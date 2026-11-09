@@ -23,7 +23,7 @@ use medbrains_server_core::middleware::authorization::{
 };
 use medbrains_server_core::middleware::entitlement;
 use medbrains_server_core::permissions::{
-    refuse_bypass_role, refuse_escalation_now, refuse_roles_beyond_own, refuse_self_change,
+    refuse_bypass_target, refuse_escalation_now, refuse_roles_beyond_own, refuse_self_change,
 };
 use medbrains_server_core::settings_guard::refuse_own_endpoint_category;
 use medbrains_server_core::state::AppState;
@@ -1476,6 +1476,11 @@ pub async fn create_user(
     Ok(Json(row))
 }
 
+/// Edit a staff account's details, role, departments or active flag.
+///
+/// The role and the departments are access: a caller outside the bypass roles
+/// cannot change their own, gives only a role within their own codes, and
+/// cannot edit an administrator's account at all.
 pub async fn update_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1487,12 +1492,22 @@ pub async fn update_user(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    if let Some(role) = body.role.as_deref() {
-        let current = grants::user_role(&mut tx, claims.tenant_id, id).await?;
-        if current.as_deref() != Some(role) {
-            refuse_self_change(&claims, id)?;
-            refuse_roles_beyond_own(&state.db, &claims, &[role]).await?;
-        }
+    let current = grants::user_access(&mut tx, claims.tenant_id, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    refuse_bypass_target(&claims, &current.role)?;
+    if body
+        .department_ids
+        .as_ref()
+        .is_some_and(|d| *d != current.department_ids)
+    {
+        refuse_self_change(&claims, id)?;
+    }
+    if let Some(role) = body.role.as_deref()
+        && role != current.role
+    {
+        refuse_self_change(&claims, id)?;
+        refuse_roles_beyond_own(&state.db, &claims, &[role]).await?;
     }
 
     let fee = body
@@ -1667,9 +1682,9 @@ pub async fn reset_user_password(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    if let Some(role) = grants::user_role(&mut tx, claims.tenant_id, id).await? {
+    if let Some(current) = grants::user_access(&mut tx, claims.tenant_id, id).await? {
         // Resetting an administrator's password is signing in as them.
-        refuse_bypass_role(&claims, &role)?;
+        refuse_bypass_target(&claims, &current.role)?;
     }
 
     let updated = sqlx::query(
@@ -1747,6 +1762,13 @@ pub async fn delete_user(
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
+/// Edit a role's code, name, description and codes.
+///
+/// A role's code is how accounts hold it, so renaming one moves its codes onto
+/// whoever holds the new code, and off whoever held the old, with no code
+/// "added". The code is fixed for system roles and for any role an account
+/// holds, and cannot become a code an account already holds. Added codes must
+/// be the caller's own.
 pub async fn update_role(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1757,10 +1779,24 @@ pub async fn update_role(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let current = grants::lock_role(&mut tx, claims.tenant_id, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    if body.code != current.code
+        && (current.is_system
+            || grants::role_is_held(&mut tx, claims.tenant_id, &current.code).await?
+            || grants::role_is_held(&mut tx, claims.tenant_id, &body.code).await?)
+    {
+        return Err(AppError::Conflict(
+            "This role's code cannot change: it is a built-in role, or staff hold it or the \
+             new code. Create a new role instead."
+                .to_owned(),
+        ));
+    }
     if body.permissions.is_some() {
-        let old = grants::role_codes_by_id(&mut tx, claims.tenant_id, id).await?;
         let new = grants::codes_in(body.permissions.as_ref());
-        refuse_escalation_now(&state.db, &claims, &grants::added(&old, &new), "a role").await?;
+        let granted = grants::added(&current.codes, &new);
+        refuse_escalation_now(&state.db, &claims, &granted, "a role").await?;
     }
 
     let row = sqlx::query_as::<_, CustomRole>(
@@ -1777,12 +1813,35 @@ pub async fn update_role(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
+    if let Some(role) = &row {
+        bump_role_holders(&mut tx, claims.tenant_id, &role.code).await?;
+    }
 
     tx.commit().await?;
 
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
 }
 
+/// Make every account holding role `code` re-resolve its permissions: a
+/// session issued before a role row changed must not keep the old codes.
+async fn bump_role_holders(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    code: &str,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        "UPDATE users SET perm_version = perm_version + 1 \
+         WHERE tenant_id = $1 AND role::text = $2",
+        tenant_id,
+        code
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Retire a custom role; system roles stay. Its holders re-resolve, so a
+/// session from before the delete does not keep the role's codes.
 pub async fn delete_role(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1793,11 +1852,15 @@ pub async fn delete_role(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    let role = grants::lock_role(&mut tx, claims.tenant_id, id).await?;
     sqlx::query("DELETE FROM roles WHERE id = $1 AND tenant_id = $2 AND is_system = false")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
+    if let Some(role) = role.filter(|r| !r.is_system) {
+        bump_role_holders(&mut tx, claims.tenant_id, &role.code).await?;
+    }
 
     tx.commit().await?;
 
@@ -1811,6 +1874,8 @@ pub struct UpdateRolePermissionsRequest {
     pub permissions: Vec<String>,
 }
 
+/// Replace a role's codes. The ones it adds must be the caller's own; the
+/// role row is locked so the comparison holds until the write.
 pub async fn update_role_permissions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1822,7 +1887,10 @@ pub async fn update_role_permissions(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let old = grants::role_codes_by_id(&mut tx, claims.tenant_id, id).await?;
+    let old = grants::lock_role(&mut tx, claims.tenant_id, id)
+        .await?
+        .ok_or(AppError::NotFound)?
+        .codes;
     let granted = grants::added(&old, &body.permissions);
     refuse_escalation_now(&state.db, &claims, &granted, "a role").await?;
 
@@ -1901,6 +1969,10 @@ fn validate_field_access_map(
     Ok(())
 }
 
+/// Replace a user's extra and denied codes, field access and widget access.
+///
+/// Added extras, lifted denials and widened fields must all be within the
+/// caller's own access, and nobody outside the bypass roles edits their own.
 pub async fn update_user_access_matrix(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1914,7 +1986,7 @@ pub async fn update_user_access_matrix(
         .await?;
 
     let existing_matrix = sqlx::query_scalar::<_, Value>(
-        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1940,6 +2012,7 @@ pub async fn update_user_access_matrix(
 
     if let Some(fa) = &body.field_access {
         validate_field_access_map(fa)?;
+        refuse_fields_beyond_own(&state, &claims, existing_matrix.get("field_access"), fa).await?;
         matrix["field_access"] =
             serde_json::to_value(fa).unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     }
@@ -1971,6 +2044,33 @@ pub struct UpdateRoleFieldAccessRequest {
     pub field_access: std::collections::HashMap<String, String>,
 }
 
+/// Refuse a field-access edit that opens a field wider than the caller's own
+/// access to it: showing what you cannot see yourself is the field-level form
+/// of granting a code you do not hold. Bypass roles are unrestricted.
+async fn refuse_fields_beyond_own(
+    state: &AppState,
+    claims: &Claims,
+    old: Option<&Value>,
+    new: &std::collections::HashMap<String, String>,
+) -> Result<(), AppError> {
+    let own = medbrains_server_core::middleware::field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let wider = grants::fields_beyond_own(&own, old, new);
+    if wider.is_empty() {
+        return Ok(());
+    }
+    Err(AppError::ForbiddenReason(format!(
+        "You cannot open fields wider than you see them yourself: {}.",
+        wider.join(", ")
+    )))
+}
+
+/// Set a role's default field-access levels, within the caller's own.
 pub async fn update_role_field_access(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1983,6 +2083,15 @@ pub async fn update_role_field_access(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let old = sqlx::query_scalar!(
+        "SELECT field_access_defaults FROM roles WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+        id,
+        claims.tenant_id
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    refuse_fields_beyond_own(&state, &claims, Some(&old), &body.field_access).await?;
 
     let fa_json = serde_json::to_value(&body.field_access)
         .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
@@ -4982,6 +5091,9 @@ pub async fn list_user_facilities(
 /// PUT /api/setup/users/{id}/facilities
 ///
 /// Replaces all facility assignments for a user.
+///
+/// Facilities are access scope: a caller outside the bypass roles cannot
+/// change their own, nor an administrator's.
 pub async fn assign_user_facilities(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4989,21 +5101,15 @@ pub async fn assign_user_facilities(
     Json(body): Json<AssignUserFacilitiesRequest>,
 ) -> Result<Json<Vec<UserFacilityAssignment>>, AppError> {
     require_permission(&claims, permissions::admin::users::UPDATE)?;
+    refuse_self_change(&claims, user_id)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // Verify user belongs to this tenant
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2)")
-            .bind(user_id)
-            .bind(claims.tenant_id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-    if !exists {
-        return Err(AppError::NotFound);
-    }
+    let target = grants::user_access(&mut tx, claims.tenant_id, user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    refuse_bypass_target(&claims, &target.role)?;
 
     // Remove existing assignments
     sqlx::query("DELETE FROM user_facility_assignments WHERE tenant_id = $1 AND user_id = $2")
@@ -5032,7 +5138,7 @@ pub async fn assign_user_facilities(
     let rows = sqlx::query_as::<_, UserFacilityAssignment>(
         "SELECT id, tenant_id, user_id, facility_id, is_primary, assigned_at \
          FROM user_facility_assignments \
-         WHERE tenant_id = $1 AND user_id = $2 \
+         WHERE tenant_id = $1 AND user_id = $2 AND deleted_at IS NULL \
          ORDER BY is_primary DESC, assigned_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -5521,12 +5627,24 @@ pub struct ImportConfigResponse {
     pub roles_created: i64,
 }
 
+/// Create the departments and roles of an exported configuration that this
+/// hospital lacks. Existing codes are left alone; an imported role's codes must
+/// all be ones the caller holds.
 pub async fn import_config(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<ImportConfigRequest>,
 ) -> Result<Json<ImportConfigResponse>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    // An imported role reaches everyone who holds its code, so its codes are
+    // a grant like any other role edit.
+    let imported_codes: Vec<String> = body
+        .roles
+        .iter()
+        .flatten()
+        .flat_map(|role| grants::codes_in(role.permissions.as_ref()))
+        .collect();
+    refuse_escalation_now(&state.db, &claims, &imported_codes, "a role").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5811,6 +5929,8 @@ pub async fn create_access_group(
     Ok(Json(row))
 }
 
+/// Edit an access group's name, description and codes. The codes it adds
+/// must be the caller's own; the group row is locked until the write.
 pub async fn update_access_group(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5974,12 +6094,10 @@ pub async fn add_access_group_member(
     .map_err(AppError::from)?;
     tx.commit().await?;
 
-    // Mirror to SpiceDB if configured. Failures are non-fatal — the
-    // Watch consumer will eventually pick up tuple changes via a
-    // separate path; group → user perm filtering still works at the
-    // PgAuthzBackend fallback.
+    // Mirror to SpiceDB if configured. A failure does not undo the committed
+    // membership; it is logged as an error and the backfill repairs it.
     let ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let _ = state
+    let written = state
         .authz
         .write_tuple(
             &ctx,
@@ -5991,6 +6109,12 @@ pub async fn add_access_group_member(
             None,
         )
         .await;
+    if let Err(e) = written {
+        // The backfill adds this tuple on its next run; until then the PG
+        // backend, which reads the membership table, is the one that is right.
+        tracing::error!(error = %e, group = %group_id, user = %body.user_id,
+            "rebac: added group member is not yet in the relation store");
+    }
 
     Ok(Json(serde_json::json!({"status": "added"})))
 }
@@ -6072,6 +6196,8 @@ pub async fn list_visible_screens(
     Ok(Json(visible))
 }
 
+/// Remove a member from an access group, in the database and the relation
+/// store, and audit both outcomes.
 pub async fn remove_access_group_member(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6100,7 +6226,32 @@ pub async fn remove_access_group_member(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
-    let member_audit = serde_json::json!({ "user_id": user_id });
+    // Revoke in the relation store before committing, so a failure is in the
+    // same audit row as the removal: there is no outbox for relation writes
+    // and the backfill only adds, so this row is what an operator repairs
+    // the mismatch from. Never dropped: a member the relation store still
+    // lists keeps the group's object access there. If the commit then fails,
+    // the stores disagree in the safe direction (less access).
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let relation_store = match state
+        .authz
+        .revoke_specific(
+            &ctx,
+            "access_group",
+            group_id,
+            medbrains_authz::Relation::Editor,
+            medbrains_authz::Subject::User(user_id),
+        )
+        .await
+    {
+        Ok(()) => "revoked".to_owned(),
+        Err(e) => {
+            tracing::error!(error = %e, group = %group_id, user = %user_id,
+                "rebac: removed group member is still in the relation store");
+            format!("not revoked: {e}")
+        }
+    };
+    let member_audit = serde_json::json!({ "user_id": user_id, "relation_store": relation_store });
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
         &medbrains_db::audit::AuditEntry {
@@ -6117,18 +6268,6 @@ pub async fn remove_access_group_member(
     .await
     .map_err(AppError::from)?;
     tx.commit().await?;
-
-    let ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let _ = state
-        .authz
-        .revoke_specific(
-            &ctx,
-            "access_group",
-            group_id,
-            medbrains_authz::Relation::Editor,
-            medbrains_authz::Subject::User(user_id),
-        )
-        .await;
 
     Ok(Json(serde_json::json!({"status": "removed"})))
 }

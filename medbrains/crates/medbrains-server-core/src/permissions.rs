@@ -208,6 +208,22 @@ pub fn refuse_bypass_role(claims: &Claims, role: &str) -> Result<(), AppError> {
     )))
 }
 
+/// Refuse a non-bypass caller changing an account that holds a bypass role.
+///
+/// Demoting, deactivating or re-addressing an administrator, or resetting
+/// their password, is taking over or locking out the account that could undo
+/// it; only another bypass administrator may.
+pub fn refuse_bypass_target(claims: &Claims, target_role: &str) -> Result<(), AppError> {
+    if is_bypass_role(claims)
+        || !crate::middleware::authorization::BYPASS_ROLES.contains(&target_role)
+    {
+        return Ok(());
+    }
+    Err(AppError::ForbiddenReason(
+        "Only a hospital administrator can change an administrator's account.".to_owned(),
+    ))
+}
+
 /// Refuse giving `roles` beyond the caller's own codes.
 ///
 /// Assigning a role is granting its codes. Checked for the whole set at once,
@@ -239,6 +255,29 @@ pub async fn refuse_roles_beyond_own(
     refuse_escalation_now(db, claims, &codes, "a user's role").await
 }
 
+/// Refuse giving access group `group`'s codes beyond the caller's own.
+/// Answers 400 for a group that does not exist in the caller's hospital.
+pub async fn refuse_group_beyond_own(
+    db: &PgPool,
+    claims: &Claims,
+    group: Uuid,
+    what: &str,
+) -> Result<(), AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
+    let permissions = sqlx::query_scalar!(
+        "SELECT permissions FROM access_groups WHERE id = $1 AND tenant_id = $2",
+        group,
+        claims.tenant_id
+    )
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("That access group does not exist".to_owned()))?;
+    let mut codes = std::collections::HashSet::new();
+    insert_permissions_from_value(&mut codes, &permissions);
+    let codes: Vec<String> = codes.into_iter().collect();
+    refuse_escalation_now(db, claims, &codes, what).await
+}
+
 /// Refuse a non-bypass caller changing their own role, access matrix or
 /// group memberships: otherwise anyone who manages users manages themselves.
 pub fn refuse_self_change(claims: &Claims, target_user: Uuid) -> Result<(), AppError> {
@@ -252,7 +291,7 @@ pub fn refuse_self_change(claims: &Claims, target_user: Uuid) -> Result<(), AppE
 
 #[cfg(test)]
 mod escalation_tests {
-    use super::{refuse_escalation, refuse_self_change};
+    use super::{refuse_bypass_target, refuse_escalation, refuse_self_change};
     use crate::middleware::auth::Claims;
     use uuid::Uuid;
 
@@ -287,5 +326,13 @@ mod escalation_tests {
         assert!(refuse_self_change(&claims("receptionist"), Uuid::nil()).is_err());
         assert!(refuse_self_change(&claims("receptionist"), Uuid::new_v4()).is_ok());
         assert!(refuse_self_change(&claims("super_admin"), Uuid::nil()).is_ok());
+    }
+
+    #[test]
+    fn only_a_bypass_role_changes_a_bypass_account() {
+        assert!(refuse_bypass_target(&claims("receptionist"), "hospital_admin").is_err());
+        assert!(refuse_bypass_target(&claims("receptionist"), "super_admin").is_err());
+        assert!(refuse_bypass_target(&claims("receptionist"), "nurse").is_ok());
+        assert!(refuse_bypass_target(&claims("hospital_admin"), "super_admin").is_ok());
     }
 }

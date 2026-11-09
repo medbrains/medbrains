@@ -67,7 +67,10 @@ mod tests {
             );
         }
         for category in [" dictation", "abdm ", "\tai\n"] {
-            assert!(refuse_own_endpoint_category(category).is_err(), "{category:?}");
+            assert!(
+                refuse_own_endpoint_category(category).is_err(),
+                "{category:?}"
+            );
         }
         for category in ["units", "locale", "billing", "regression_test"] {
             assert!(refuse_own_endpoint_category(category).is_ok(), "{category}");

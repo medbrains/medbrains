@@ -18,6 +18,7 @@ use medbrains_server_core::{
         auth::Claims,
         authorization::{BYPASS_ROLES, require_permission},
     },
+    permissions::{refuse_group_beyond_own, refuse_roles_beyond_own},
     state::AppState,
 };
 
@@ -27,7 +28,13 @@ const DEV_SSO_SECRET_KEY: &[u8] = b"medbrains-dev-oauth-token-key-32";
 const SSO_SECRET_CONTEXT: &[u8] = b"sso-client-secret";
 
 async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), SSO_SECRET_KEY, DEV_SSO_SECRET_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        SSO_SECRET_KEY,
+        DEV_SSO_SECRET_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 fn encrypt_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
@@ -298,16 +305,48 @@ pub struct UpdateProviderRequest {
 
 /// A provider's default role is what every new sign-in gets. A role that
 /// bypasses permission checks there makes every new account an unrestricted
-/// administrator whose access cannot be edited — refuse it.
-fn validate_default_role(role: Option<&str>) -> Result<(), AppError> {
-    match role {
-        Some(r) if BYPASS_ROLES.contains(&r) => Err(AppError::BadRequest(
-            "An administrator role cannot be the default for new sign-ins; map an admin \
-             directory group to it instead"
+/// administrator whose access cannot be edited — refuse it. Any other default
+/// is a grant to everyone who signs in, so it must be within the caller's own
+/// codes.
+async fn refuse_default_role(
+    state: &AppState,
+    claims: &Claims,
+    role: Option<&str>,
+) -> Result<(), AppError> {
+    let Some(role) = role else { return Ok(()) };
+    if BYPASS_ROLES.contains(&role) {
+        return Err(AppError::BadRequest(
+            "An administrator role cannot be the default for new sign-ins; give it to a \
+             person on the Users screen"
                 .to_owned(),
-        )),
-        _ => Ok(()),
+        ));
     }
+    refuse_roles_beyond_own(&state.db, claims, &[role]).await
+}
+
+/// A group mapping grants its role and access group to everyone the
+/// directory puts in that group, so both must be within the caller's own
+/// codes. A bypass role is never given by a mapping: sign-in ignores one, so
+/// refusing it here keeps the screen honest.
+async fn refuse_mapping_grants(
+    state: &AppState,
+    claims: &Claims,
+    req: &CreateMappingRequest,
+) -> Result<(), AppError> {
+    if let Some(role) = req.role_code.as_deref() {
+        if BYPASS_ROLES.contains(&role) {
+            return Err(AppError::BadRequest(
+                "A directory group cannot map to an administrator role; give it to a person \
+                 on the Users screen"
+                    .to_owned(),
+            ));
+        }
+        refuse_roles_beyond_own(&state.db, claims, &[role]).await?;
+    }
+    if let Some(group) = req.access_group_id {
+        refuse_group_beyond_own(&state.db, claims, group, "a directory group").await?;
+    }
+    Ok(())
 }
 
 fn validate_protocol(p: &str) -> Result<(), AppError> {
@@ -348,7 +387,7 @@ pub async fn create_provider(
     require_permission(&claims, MANAGE)?;
     let Json(req) = req?;
     validate_protocol(&req.protocol)?;
-    validate_default_role(req.default_role.as_deref())?;
+    refuse_default_role(&state, &claims, req.default_role.as_deref()).await?;
 
     let secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {
@@ -398,7 +437,7 @@ pub async fn update_provider(
 ) -> Result<Json<ProviderResponse>, AppError> {
     require_permission(&claims, MANAGE)?;
     let Json(req) = req?;
-    validate_default_role(req.default_role.as_deref())?;
+    refuse_default_role(&state, &claims, req.default_role.as_deref()).await?;
 
     let new_secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {
@@ -518,6 +557,7 @@ pub async fn create_mapping(
             "a mapping must set role_code and/or access_group_id".to_owned(),
         ));
     }
+    refuse_mapping_grants(&state, &claims, &req).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, GroupMapping>(

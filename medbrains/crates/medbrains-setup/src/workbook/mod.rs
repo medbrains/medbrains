@@ -42,8 +42,19 @@ pub struct RowProblem {
 pub(crate) struct Problems(Vec<RowProblem>);
 
 impl Problems {
-    pub(crate) fn add(&mut self, sheet: &'static str, row: u32, column: &'static str, message: impl Into<String>) {
-        self.0.push(RowProblem { sheet, row, column, message: message.into() });
+    pub(crate) fn add(
+        &mut self,
+        sheet: &'static str,
+        row: u32,
+        column: &'static str,
+        message: impl Into<String>,
+    ) {
+        self.0.push(RowProblem {
+            sheet,
+            row,
+            column,
+            message: message.into(),
+        });
     }
 }
 
@@ -107,11 +118,20 @@ pub async fn import_workbook(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let mut problems = Problems::default();
     // Order matters: wards name departments, beds name wards, staff name departments.
-    let mut sheets = vec![departments::import(&mut tx, claims.tenant_id, &body.departments, &mut problems).await?];
+    let mut sheets = vec![
+        departments::import(&mut tx, claims.tenant_id, &body.departments, &mut problems).await?,
+    ];
     sheets.push(wards::import(&mut tx, claims.tenant_id, &body.wards, &mut problems).await?);
     sheets.push(beds::import(&mut tx, claims.tenant_id, &body.beds, &mut problems).await?);
-    let (tally, welcomed) =
-        staff::import(&mut tx, &claims, &headers, &body.staff, &mut problems).await?;
+    let (tally, welcomed) = staff::import(
+        &mut tx,
+        &state.db,
+        &claims,
+        &headers,
+        &body.staff,
+        &mut problems,
+    )
+    .await?;
     sheets.push(tally);
 
     let applied = !body.dry_run && problems.0.is_empty();
@@ -131,5 +151,8 @@ pub async fn import_workbook(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/setup/workbook", axum::routing::get(export_workbook))
-        .route("/api/setup/workbook/import", axum::routing::post(import_workbook))
+        .route(
+            "/api/setup/workbook/import",
+            axum::routing::post(import_workbook),
+        )
 }

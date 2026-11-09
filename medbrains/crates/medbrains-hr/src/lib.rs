@@ -623,6 +623,8 @@ pub async fn update_my_profile(
     }))
 }
 
+/// Create an employee record, optionally provisioning a linked login. The
+/// login's role is a grant, so it must be within the caller's own codes.
 pub async fn create_employee(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -660,6 +662,10 @@ pub async fn create_employee(
         if errors.has_errors() {
             return Err(AppError::ValidationFailed(errors));
         }
+        // The login's role is a grant: an HR clerk gives only what they hold,
+        // and never a bypass role.
+        medbrains_server_core::permissions::refuse_roles_beyond_own(&state.db, &claims, &[role])
+            .await?;
         let password_hash = Argon2::default()
             .hash_password(password.as_bytes())
             .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?

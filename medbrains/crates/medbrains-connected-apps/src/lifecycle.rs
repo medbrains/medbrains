@@ -13,17 +13,8 @@ use uuid::Uuid;
 
 use crate::{IssuedCredentials, RevokeRequest, record};
 
-/// A person may not let in an app wider than themselves; otherwise
-/// `connected_apps.manage` is a route to every permission in the system.
-fn refuse_escalation(claims: &Claims, granted: &[String]) -> Result<(), AppError> {
-    medbrains_server_core::permissions::refuse_escalation(
-        claims,
-        &claims.permissions,
-        granted,
-        "an app",
-    )
-}
-
+/// Approve a pending connected app, which lets it act with its codes. The
+/// approver must hold every one of them now.
 pub(crate) async fn approve(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -46,7 +37,15 @@ pub(crate) async fn approve(
         }
         let granted: Vec<String> = serde_json::from_value(row.permissions.clone())
             .map_err(|e| AppError::Internal(format!("app permissions: {e}")))?;
-        refuse_escalation(&claims, &granted)?;
+        // A person may not let in an app wider than they are now; otherwise
+        // `connected_apps.manage` is a route to every permission in the system.
+        medbrains_server_core::permissions::refuse_escalation_now(
+            &state.db,
+            &claims,
+            &granted,
+            "an app",
+        )
+        .await?;
 
         sqlx::query!(
             "UPDATE connected_apps SET status = 'approved', approved_at = now(), approved_by = $3 \
@@ -176,39 +175,4 @@ pub(crate) async fn rotate_secret(
         client_secret: secret.secret,
         webhook_signing_secret: None,
     }))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::refuse_escalation;
-    use medbrains_kernel::Claims;
-    use uuid::Uuid;
-
-    fn claims(role: &str, permissions: &[&str]) -> Claims {
-        Claims {
-            sub: Uuid::new_v4(),
-            tenant_id: Uuid::new_v4(),
-            role: role.to_owned(),
-            permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
-            department_ids: Vec::new(),
-            perm_version: 0,
-            paired_device_id: None,
-            act: None,
-            exp: 0,
-        }
-    }
-
-    #[test]
-    fn nobody_approves_an_app_wider_than_themselves() {
-        let granted = vec!["patients.view".to_owned(), "lab.orders.view".to_owned()];
-        assert!(refuse_escalation(&claims("audit_officer", &["patients.view"]), &granted).is_err());
-        assert!(
-            refuse_escalation(
-                &claims("x", &["patients.view", "lab.orders.view"]),
-                &granted
-            )
-            .is_ok()
-        );
-        assert!(refuse_escalation(&claims("hospital_admin", &[]), &granted).is_ok());
-    }
 }

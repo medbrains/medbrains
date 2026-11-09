@@ -1,6 +1,9 @@
 //! Identity leaf crate: IAM access requests, enterprise SSO.
 
-use axum::{Router, routing::{delete,get,post,put}};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod iam;
@@ -36,8 +39,5 @@ pub fn router() -> Router<AppState> {
             "/api/admin/sso/providers/{id}/mappings",
             get(sso::list_mappings).post(sso::create_mapping),
         )
-        .route(
-            "/api/admin/sso/mappings/{id}",
-            delete(sso::delete_mapping),
-        )
+        .route("/api/admin/sso/mappings/{id}", delete(sso::delete_mapping))
 }

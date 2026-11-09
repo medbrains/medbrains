@@ -62,7 +62,6 @@ pub trait Permission {
     const CODE: &'static str;
 }
 
-
 /// A requirement an endpoint places on the caller.
 ///
 /// Deliberately flat rather than a general algebra. The API needs exactly two

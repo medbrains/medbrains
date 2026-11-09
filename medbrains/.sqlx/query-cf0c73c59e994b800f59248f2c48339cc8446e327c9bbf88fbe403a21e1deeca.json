@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n             SELECT 1 FROM user_invitations i\n             JOIN users u ON u.id = i.invited_by AND u.tenant_id = i.tenant_id\n             WHERE i.token_hash = $1 AND u.is_active AND u.deleted_at IS NULL\n               AND u.role::text = ANY($2)) AS \"ok!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ok!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "cf0c73c59e994b800f59248f2c48339cc8446e327c9bbf88fbe403a21e1deeca"
+}

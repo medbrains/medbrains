@@ -335,7 +335,7 @@ pub async fn get_my_dashboard(
                  JOIN access_group_members m ON m.group_id = g.id
                  WHERE d.is_active = true AND d.user_id IS NULL
                    AND d.group_ids != '[]'::jsonb
-                   AND m.user_id = $1
+                   AND m.user_id = $1 AND m.deleted_at IS NULL
                    AND (m.expires_at IS NULL OR m.expires_at > now())
                  ORDER BY g.priority DESC, d.is_default DESC LIMIT 1",
             )
@@ -1468,6 +1468,7 @@ async fn fetch_viewer_groups(
         "SELECT g.id, g.priority FROM access_groups g
          JOIN access_group_members m ON m.group_id = g.id
          WHERE m.user_id = $1 AND g.tenant_id = $2 AND g.is_active = true
+           AND m.deleted_at IS NULL
            AND (m.expires_at IS NULL OR m.expires_at > now())",
     )
     .bind(user_id)

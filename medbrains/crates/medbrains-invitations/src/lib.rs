@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{BYPASS_ROLES, require_permission};
 use medbrains_server_core::validation::{self, ValidationErrors};
 use medbrains_server_core::{error::AppError, state::AppState};
 
@@ -246,6 +246,38 @@ pub struct AcceptInviteRequest {
     pub full_name: Option<String>,
 }
 
+/// Refuse accepting an invitation to a bypass role unless whoever sent it
+/// still holds a bypass role. The role was checked when the invitation was
+/// made; an inviter demoted or removed since must not still be able to mint
+/// an administrator through a link already in someone's inbox.
+async fn refuse_stale_bypass_invite(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    token_hash: &str,
+    role: &str,
+) -> Result<(), AppError> {
+    if !BYPASS_ROLES.contains(&role) {
+        return Ok(());
+    }
+    let bypass: Vec<String> = BYPASS_ROLES.iter().map(|r| (*r).to_owned()).collect();
+    let inviter_still_bypass = sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+             SELECT 1 FROM user_invitations i
+             JOIN users u ON u.id = i.invited_by AND u.tenant_id = i.tenant_id
+             WHERE i.token_hash = $1 AND u.is_active AND u.deleted_at IS NULL
+               AND u.role::text = ANY($2)) AS "ok!""#,
+        token_hash,
+        &bypass
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if inviter_still_bypass {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "This invitation is no longer valid. Ask an administrator for a new one.".to_owned(),
+    ))
+}
+
 /// POST /api/public/invitations/{token}/accept — create the account.
 pub async fn accept(
     State(state): State<AppState>,
@@ -291,6 +323,7 @@ pub async fn accept(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    refuse_stale_bypass_invite(&mut tx, &token_hash, &role).await?;
     // Invited email is proven → email_verified = true.
     sqlx::query!(
         "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role, email_verified) \

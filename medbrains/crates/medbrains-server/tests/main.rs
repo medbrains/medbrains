@@ -117,6 +117,8 @@ mod flow_world;
 mod form_templates_test;
 mod front_office_queue_metrics_test;
 mod frontline_authz_test;
+mod grant_paths_test;
+mod grant_scope_test;
 mod grn_receiving_test;
 mod grn_scan_test;
 mod hai_rate_report_test;

@@ -11,7 +11,10 @@
 //! **Nobody can mint a key stronger than themselves.** Without that,
 //! `admin.api_keys.create` is a route to every permission in the system: grant
 //! a clerk the ability to issue keys and they can issue one that prescribes.
-//! The check is in [`refuse_escalation`].
+//! The check is `refuse_escalation_now`, against the creator's codes as they
+//! stand now, not as their session token captured them. Bypass roles hold
+//! everything; what they still cannot do is put a wildcard or a bypass role on
+//! a key, which `mint` refuses regardless of who is asking.
 //!
 //! The secret is returned exactly once, by the create call. It is stored only
 //! as a hash, so there is no second chance and no support path that recovers
@@ -31,6 +34,7 @@ use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError,
     middleware::{auth::Claims, authorization::require_permission},
+    permissions::refuse_escalation_now,
     state::AppState,
 };
 use serde::{Deserialize, Serialize};
@@ -110,21 +114,6 @@ pub struct KeySummary {
     pub rate_limit_per_minute: i32,
 }
 
-/// Refuse to mint a key carrying permissions the caller does not hold.
-///
-/// Bypass roles may grant anything the key layer itself permits — they already
-/// hold every permission, so requiring them to enumerate would be theatre.
-/// What they still cannot do is put a wildcard or a bypass role on a key;
-/// `mint` refuses those regardless of who is asking.
-fn refuse_escalation(claims: &Claims, requested: &[String]) -> Result<(), AppError> {
-    medbrains_server_core::permissions::refuse_escalation(
-        claims,
-        &claims.permissions,
-        requested,
-        "a key",
-    )
-}
-
 /// The longest name slug that still fits `svc_<slug>_<8-char id>` in 30.
 const MAX_SLUG: usize = 30 - "svc_".len() - 1 - 8;
 
@@ -159,6 +148,8 @@ fn service_username(name: &str, id: Uuid) -> String {
     }
 }
 
+/// Issue an API key with its service account. The key's codes must all be
+/// ones the creator holds now.
 async fn create(
     State(state): State<AppState>,
     axum::Extension(claims): axum::Extension<Claims>,
@@ -166,7 +157,7 @@ async fn create(
 ) -> Result<Json<CreatedKey>, AppError> {
     require_permission(&claims, permissions::admin::api_keys::CREATE)?;
     let Json(body) = body?;
-    refuse_escalation(&claims, &body.permissions)?;
+    refuse_escalation_now(&state.db, &claims, &body.permissions, "a key").await?;
 
     let name = body.name.trim().to_owned();
     if name.is_empty() {
