@@ -144,11 +144,12 @@ async function signInForReal(
   const encounters = await get("/opd/encounters?per_page=1");
 
   await page.goto(`/login?hospital=${encodeURIComponent(tenant.code ?? "")}`);
-  await expect(page.getByLabel("Username")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("textbox", { name: "Username", exact: true })).toBeVisible({ timeout: 30_000 });
   const signInPage = await measure();
-  await page.getByLabel("Username").fill(admin.username);
-  await page.getByLabel("Password", { exact: true }).fill(admin.password);
-  await page.getByRole("button", { name: /sign in/i }).click();
+  await page.getByRole("textbox", { name: "Username", exact: true }).fill(admin.username);
+  await page.getByRole("textbox", { name: "Password", exact: true }).fill(admin.password);
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
   return {
     signInPage,
     patientId: patients.ok() ? firstId(await patients.json()) : null,
