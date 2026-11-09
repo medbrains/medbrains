@@ -4,8 +4,8 @@
 //! code, and whose groups, departments, relationships and break-glass are within theirs; an administrator's
 //! account links only to a person in Kanidm's high-privilege group; a linked account is never re-pointed, only
 //! unlinked, and only an administrator unlinks; the holder is told of every link made or removed. A linked
-//! account loses its local password, except the setup administrator's break-glass, and the OS's own Kanidm
-//! provider row cannot be changed through the admin API.
+//! account keeps its local password for step-up but cannot sign in with it, except the setup administrator's
+//! break-glass, and the OS's own Kanidm provider row cannot be changed through the admin API.
 
 use crate::common;
 
@@ -18,9 +18,9 @@ const PERSON_C: &str = "0c0c0c0c-0000-4000-8000-00000000000c";
 const PERSON_D: &str = "0d0d0d0d-0000-4000-8000-00000000000d";
 const PERSON_E: &str = "0e0e0e0e-0000-4000-8000-00000000000e";
 /// The nurse role's signing codes: a nurse without them is one IT may link.
-const NURSE_SIGNING: [&str; 2] = ["clinical_notes.sign", "nurse.signature.sign"];
+pub(crate) const NURSE_SIGNING: [&str; 2] = ["clinical_notes.sign", "nurse.signature.sign"];
 
-async fn put_link(
+pub(crate) async fn put_link(
     app: &common::TestApp,
     client: &Client,
     csrf: &str,
@@ -67,7 +67,7 @@ async fn email_of(app: &common::TestApp, user: Uuid) -> String {
 }
 
 /// The account's Kanidm subject and whether it still has a local password.
-async fn link_state(app: &common::TestApp, user: Uuid) -> (Option<String>, bool) {
+pub(crate) async fn link_state(app: &common::TestApp, user: Uuid) -> (Option<String>, bool) {
     sqlx::query_as("SELECT external_subject, password_hash IS NOT NULL FROM users WHERE id = $1")
         .bind(user)
         .fetch_one(&app.db)
@@ -76,7 +76,7 @@ async fn link_state(app: &common::TestApp, user: Uuid) -> (Option<String>, bool)
 }
 
 /// A password sign-in's status and body.
-async fn password_login(
+pub(crate) async fn password_login(
     app: &common::TestApp,
     username: &str,
     password: &str,
@@ -90,7 +90,7 @@ async fn password_login(
     (resp.status(), resp.text().await.unwrap_or_default())
 }
 
-async fn username_of(app: &common::TestApp, user: Uuid) -> String {
+pub(crate) async fn username_of(app: &common::TestApp, user: Uuid) -> String {
     sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
         .bind(user)
         .fetch_one(&app.db)
@@ -99,7 +99,7 @@ async fn username_of(app: &common::TestApp, user: Uuid) -> String {
 }
 
 /// The tenant of the seeded admin, and its Kanidm provider (made here if missing, and whether it was).
-async fn kanidm_provider(app: &common::TestApp) -> (Uuid, Uuid, bool) {
+pub(crate) async fn kanidm_provider(app: &common::TestApp) -> (Uuid, Uuid, bool) {
     let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
@@ -127,7 +127,7 @@ async fn kanidm_provider(app: &common::TestApp) -> (Uuid, Uuid, bool) {
     (tenant, id, true)
 }
 
-async fn drop_provider(app: &common::TestApp, tenant: Uuid, made: bool) {
+pub(crate) async fn drop_provider(app: &common::TestApp, tenant: Uuid, made: bool) {
     if made {
         sqlx::query("DELETE FROM identity_providers WHERE tenant_id = $1 AND code = 'kanidm'")
             .bind(tenant)
@@ -182,10 +182,10 @@ async fn a_link_never_hands_it_more_than_it_holds_and_the_holder_is_told() {
         StatusCode::OK
     );
 
-    // 2. A linked account loses its local password, and the password form sends it to Kanidm.
+    // 2. A linked account keeps its local password (step-up), and the password form sends it to Kanidm.
     assert_eq!(
         link_state(&app, nurse.user_id).await,
-        (Some(PERSON_A.to_owned()), false)
+        (Some(PERSON_A.to_owned()), true)
     );
     let (status, body) = password_login(
         &app,

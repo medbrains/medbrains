@@ -61,7 +61,7 @@ require_sha256() {
     echo "$2  $1" | shasum -a 256 -c - >/dev/null || { echo "$1 is not the pinned Kanidm $KANIDM_VERSION" >&2; exit 1; }
 }
 
-[[ -f "$ARCHIVE" ]] || curl -fsSL -o "$ARCHIVE" "https://codeload.github.com/kanidm/kanidm/tar.gz/$KANIDM_COMMIT"
+[[ -f "$ARCHIVE" ]] || curl --proto '=https' --tlsv1.2 -fsSL -o "$ARCHIVE" "https://codeload.github.com/kanidm/kanidm/tar.gz/$KANIDM_COMMIT"
 require_sha256 "$ARCHIVE" "$KANIDM_SHA256"
 # From the archive every time, so nothing edited on disk reaches a build.
 rm -rf "$SRC"; mkdir -p "$SRC"
@@ -75,7 +75,7 @@ SSL="$OS_WORK/kanidm-openssl-$ARCH"
 unpack_openssl_deb() {
     local deb sha_var="$2"
     deb="$(mktemp)"
-    curl -fsSL -o "$deb" "$OPENSSL_POOL/${1}_${OPENSSL_VERSION}_${DEB_ARCH}.deb"
+    curl --proto '=https' --tlsv1.2 -fsSL -o "$deb" "$OPENSSL_POOL/${1}_${OPENSSL_VERSION}_${DEB_ARCH}.deb"
     echo "${!sha_var}  $deb" | shasum -a 256 -c - >/dev/null
     (cd "$SSL" && ar p "$deb" data.tar.xz | tar xJ)
     rm -f "$deb"

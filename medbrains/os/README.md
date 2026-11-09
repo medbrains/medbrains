@@ -362,13 +362,23 @@ does not ask Kanidm again until it is renewed. A new sign-in through Kanidm goes
 down only the first administrator can sign in, by MedBrains' local form.
 
 **The break-glass: the setup administrator's password.** An account linked to Kanidm signs in through Kanidm only. Linking it
-(`set_link`) removes its local password, and MedBrains' password form refuses any account with a Kanidm link, saying to use
-"Sign in with MedBrains account", even one whose password survived from before this rule. One account is the exception: the
+(`set_link`) keeps its local password, but only for step-up inside a session (signing a record): MedBrains' password form
+refuses any account with a Kanidm link, saying to use "Sign in with MedBrains account", and says so only once the password
+is proven, so a guess does not learn which accounts are linked. A leaver disabled in Kanidm therefore cannot get a session;
+the leftover password opens none. One account is the exception: the
 setup administrator, the hospital's first account, made by the seed from the password typed at setup (`start_main_machine`
 hashes it; the seed stores the hash) and still a `super_admin` (`SETUP_ADMIN_SQL` in `medbrains-server-core/src/os_identity.rs`).
 It keeps that password beside its link, so a Kanidm outage cannot lock the hospital out. Each use is audited as
 `break_glass_password_login`, not `login`, so every one is found by one action; it still needs its MFA code when MFA is on.
-Relinking it keeps the password; changing its role away from `super_admin` ends the exception. No setting names another account.
+Relinking it keeps the password; changing its role away from `super_admin` ends the exception. No setting names another
+account, and the SSO-only policy (`password_login_disabled`) never blocks it.
+
+**Administrators through Kanidm.** An administrator's account (a bypass role, or any `admin.*` power) links only to a Kanidm
+person in `mb_it_admins`, and signs in through Kanidm only while that person is still in it, read from the token's groups or
+the directory at every sign-in; when the directory cannot be read, the sign-in stops and says so. A link made by someone who
+is not an administrator is dropped, with its sessions, as soon as the account's role, permissions, access groups or
+departments change (migration 1451), so an administrator links it again. Directory-group mappings never grant an
+administrator role, and on Kanidm only an administrator may create or delete one.
 
 **Emergency sign-in, designed and not built** (for an independent review before any of it ships; revised after the first review).
 The problem: Kanidm is down for longer than a shift change, and a nurse who was not signed in must chart. The design:

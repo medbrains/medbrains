@@ -34,6 +34,7 @@ use medbrains_server_core::{
     middleware::authorization::BYPASS_ROLES,
     middleware::cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
     os_identity,
+    permissions::resolve_permissions,
     state::AppState,
 };
 
@@ -152,6 +153,10 @@ const PROVIDER_UNAVAILABLE: &str = "/login?sso_error=unavailable";
 const PROVIDER_REFUSED: &str = "/login?sso_error=1";
 /// Where the login page says the sign-in matches an account that an administrator has to link first.
 const LINK_NEEDED: &str = "/login?sso_error=link";
+/// Where the login page says an administrator's account needs a Kanidm person in the high-privilege group.
+const ADMIN_GROUP_NEEDED: &str = "/login?sso_error=admin_group";
+/// Where the login page says that group could not be checked, so an administrator's sign-in stopped.
+const ADMIN_GROUP_UNCHECKED: &str = "/login?sso_error=admin_group_unchecked";
 /// The OS's own Kanidm, as kanidm-setup registers it. Every sign-in through it asks for a fresh login, because
 /// its pages run on shared computers and its session would otherwise sign the next person in.
 const OS_KANIDM_CODE: &str = os_identity::KANIDM_CODE;
@@ -510,7 +515,7 @@ pub async fn oidc_callback(
             // Authenticated at the IdP but refused here (no authorized role, or
             // JIT disabled for a new user) — audit the refused attempt.
             let _ = tx.rollback().await;
-            audit_sso_denied(&state, &provider, &identity).await;
+            audit_sso_denied(&state, &provider, &identity, NOT_PROVISIONED).await;
             if matches!(e, AppError::Conflict(_)) {
                 return Ok((
                     CookieJar::new(),
@@ -520,6 +525,14 @@ pub async fn oidc_callback(
             return Err(e);
         }
     };
+
+    if provider.code == OS_KANIDM_CODE
+        && let Some(target) = kanidm_privilege_refusal(&state, &provider, &identity, &fed).await?
+    {
+        let _ = tx.rollback().await;
+        audit_sso_denied(&state, &provider, &identity, NOT_HIGH_PRIVILEGE).await;
+        return Ok((CookieJar::new(), Redirect::to(&format!("{base}{target}"))));
+    }
 
     // Compliance audit (parity with password login) — who logged in via which
     // IdP, the groups presented, the role/access-groups synced, and the outcome.
@@ -596,6 +609,41 @@ pub async fn oidc_callback(
         format!("{base}/dashboard")
     };
     Ok((jar, Redirect::to(&target)))
+}
+
+/// Where a Kanidm sign-in to an administrator's account (a bypass role or any `admin.*` power) is sent when its
+/// person is not in the high-privilege group, or when that cannot be read; `None` when it may go on. Checked at
+/// every sign-in, not only when the account was linked, so a person later dropped from the group, or an
+/// account later made an administrator, does not keep the way in.
+// ponytail: permissions are read outside the federation transaction, so a directory-group access group synced
+// by this same sign-in is not yet counted; on Kanidm only an administrator may map one.
+async fn kanidm_privilege_refusal(
+    state: &AppState,
+    provider: &LoginProvider,
+    identity: &SsoIdentity,
+    fed: &Federated,
+) -> Result<Option<&'static str>, AppError> {
+    let permissions =
+        resolve_permissions(&state.db, provider.tenant_id, fed.user_id, &fed.role).await?;
+    if !os_identity::needs_high_privilege(&fed.role, &permissions) {
+        return Ok(None);
+    }
+    Ok(privilege_target(
+        os_identity::is_high_privilege_person(&identity.subject, &identity.groups).await,
+    ))
+}
+
+/// The high-privilege answer as a sign-in outcome: a member goes on, a non-member is refused, and a directory
+/// that cannot be read stops the sign-in and says so, never reading as either.
+fn privilege_target(answer: Result<bool, AppError>) -> Option<&'static str> {
+    match answer {
+        Ok(true) => None,
+        Ok(false) => Some(ADMIN_GROUP_NEEDED),
+        Err(e) => {
+            tracing::warn!(error = %e, "could not read Kanidm's high-privilege group at sign-in");
+            Some(ADMIN_GROUP_UNCHECKED)
+        }
+    }
 }
 
 /// Logs why the provider is not answering and sends the person back to sign-in, which says so in plain words.
@@ -762,7 +810,9 @@ fn group_value_as_string(v: &serde_json::Value) -> Option<String> {
 
 /// Resolve mapped (role, access-group-ids) from the provider's group mappings
 /// against the user's IdP groups. The first matching mapping that names a role
-/// wins (single role); all matching access groups are collected. Pure + tested.
+/// wins (single role); all matching access groups are collected. A mapping to a
+/// bypass role grants nothing and is logged: the admin API refuses one, so a row
+/// that names one was written some other way. Pure + tested.
 fn resolve_group_targets(
     mappings: &[(String, Option<String>, Option<Uuid>)],
     user_groups: &HashSet<String>,
@@ -771,6 +821,13 @@ fn resolve_group_targets(
     let mut access_groups: Vec<Uuid> = Vec::new();
     for (group, role_code, ag) in mappings {
         if !user_groups.contains(group) {
+            continue;
+        }
+        if let Some(rc) = role_code
+            .as_ref()
+            .filter(|rc| BYPASS_ROLES.contains(&rc.as_str()))
+        {
+            tracing::warn!(idp_group = %group, role = %rc, "ignored a directory-group mapping to an administrator role");
             continue;
         }
         if role.is_none()
@@ -940,6 +997,14 @@ async fn federate_user(
     })
 }
 
+/// The audit reason for a sign-in federation refused.
+const NOT_PROVISIONED: &str =
+    "not provisioned: a new user and just-in-time accounts are off for this provider";
+/// The audit reason for an administrator's account whose Kanidm person is not, or could not be shown to be, in
+/// the high-privilege group.
+const NOT_HIGH_PRIVILEGE: &str =
+    "administrator's account: the Kanidm person is not shown to be in the high-privilege group";
+
 /// What a new sign-in with no mapped directory group gets: dashboard only,
 /// until an administrator assigns the real role.
 const STAFF_ROLE: &str = "staff";
@@ -996,13 +1061,18 @@ async fn tell_admins_of_new_staff(
 /// but is not authorized here (no matching group mapping + no default role, or
 /// JIT disabled for a new user). Uses its own tx so it survives the rolled-back
 /// federation tx. `user_id` is null (no session was created).
-async fn audit_sso_denied(state: &AppState, provider: &LoginProvider, identity: &SsoIdentity) {
+async fn audit_sso_denied(
+    state: &AppState,
+    provider: &LoginProvider,
+    identity: &SsoIdentity,
+    reason: &str,
+) {
     let details = serde_json::json!({
         "provider_id": provider.id,
         "external_subject": identity.subject,
         "email": identity.email,
         "groups": identity.groups,
-        "reason": "not provisioned: a new user and just-in-time accounts are off for this provider",
+        "reason": reason,
     });
     let Ok(mut tx) = state.db.begin().await else {
         return;
@@ -1136,10 +1206,11 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        Discovery, IdClaims, NEVER_LINKED_BY_EMAIL, PROVIDER_REFUSED, PROVIDER_UNAVAILABLE,
-        STAFF_ROLE, SsoIdentity, base_username, callback_error_target, extract_groups,
-        is_reserved_username, new_user_role, pin_kanidm, pkce_challenge, resolve_group_targets,
-        screen_base, tenant_matches_issuer,
+        ADMIN_GROUP_NEEDED, ADMIN_GROUP_UNCHECKED, Discovery, IdClaims, NEVER_LINKED_BY_EMAIL,
+        PROVIDER_REFUSED, PROVIDER_UNAVAILABLE, STAFF_ROLE, SsoIdentity, base_username,
+        callback_error_target, extract_groups, is_reserved_username, new_user_role, pin_kanidm,
+        pkce_challenge, privilege_target, resolve_group_targets, screen_base,
+        tenant_matches_issuer,
     };
 
     fn groups(items: &[&str]) -> HashSet<String> {
@@ -1188,6 +1259,36 @@ mod tests {
         let (role, ags) = resolve_group_targets(&mappings, &groups(&["doctors", "research"]));
         assert_eq!(role.as_deref(), Some("doctor")); // first matching role wins
         assert_eq!(ags, vec![ag1, ag2]);
+    }
+
+    /// A mapping row to a bypass role, however it got there, grants nothing at sign-in: not the role, and not
+    /// the access group on the same row. The next mapping's role still applies.
+    #[test]
+    fn a_mapping_to_a_bypass_role_has_no_effect() {
+        let ag = Uuid::new_v4();
+        let mappings = vec![
+            ("it".to_owned(), Some("super_admin".to_owned()), Some(ag)),
+            ("it".to_owned(), Some("hospital_admin".to_owned()), None),
+            ("nurses".to_owned(), Some("nurse".to_owned()), None),
+        ];
+        let (role, ags) = resolve_group_targets(&mappings, &groups(&["it"]));
+        assert!(role.is_none());
+        assert!(ags.is_empty());
+        let (role, _) = resolve_group_targets(&mappings, &groups(&["it", "nurses"]));
+        assert_eq!(role.as_deref(), Some("nurse"));
+    }
+
+    /// An administrator's Kanidm sign-in goes on only for a person shown to be in the high-privilege group; an
+    /// unreadable directory stops it with its own message, not "refused" and not "allowed".
+    #[test]
+    fn an_administrators_kanidm_sign_in_needs_the_group_and_fails_closed() {
+        use medbrains_server_core::error::AppError;
+        assert_eq!(privilege_target(Ok(true)), None);
+        assert_eq!(privilege_target(Ok(false)), Some(ADMIN_GROUP_NEEDED));
+        assert_eq!(
+            privilege_target(Err(AppError::ServiceUnavailable("down".to_owned()))),
+            Some(ADMIN_GROUP_UNCHECKED)
+        );
     }
 
     #[test]

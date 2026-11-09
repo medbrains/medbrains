@@ -13,14 +13,10 @@ use uuid::Uuid;
 use medbrains_core::permissions::admin::users::LINK_IDENTITY;
 use medbrains_kernel::{Actor, Claims, Tx, require_permission};
 use medbrains_notifications::publish_notification;
-use medbrains_server_core::{
-    error::AppError,
-    os_identity::{KANIDM_CODE, SETUP_ADMIN_SQL},
-    state::AppState,
-};
+use medbrains_server_core::{error::AppError, os_identity::KANIDM_CODE, state::AppState};
 
 mod directory;
-mod target;
+pub mod target;
 
 use directory::{read_directory, require_high_privilege_person};
 use target::{guard_target, holder_notice, is_admin, needs_link_write, notify_holder};
@@ -234,22 +230,27 @@ pub async fn set_link(
     if target.needs_high_privilege {
         require_high_privilege_person(&req.subject).await?;
     }
-    // A linked account signs in through Kanidm only, so its local password goes: a password left beside the
-    // link would be a second way in that Kanidm's second step and lockout never see. The setup administrator
-    // keeps theirs as the named break-glass (os/README.md).
-    sqlx::query(&format!(
-        "UPDATE users u SET idp_id = $2, external_subject = $3, perm_version = u.perm_version + 1, \
-         password_hash = CASE WHEN {SETUP_ADMIN_SQL} THEN u.password_hash END, \
-         updated_at = now() WHERE u.id = $1"
-    ))
+    // The local password stays: password sign-in refuses a linked account (`medbrains-auth`), and step-up
+    // inside a Kanidm session still checks it, so a clinician can sign. Who made the link, and whether they
+    // were an administrator, is kept: a non-administrator's link is dropped when the account's access changes
+    // (migration 1451).
+    sqlx::query(
+        "UPDATE users u SET idp_id = $2, external_subject = $3, sso_linked_by = $4, \
+         sso_linked_by_admin = $5, perm_version = u.perm_version + 1, updated_at = now() WHERE u.id = $1",
+    )
     .bind(user_id)
     .bind(provider_id)
     .bind(&req.subject)
+    .bind(claims.sub)
+    .bind(is_admin(&claims))
     .execute(&mut *tx)
     .await
     .map_err(already_linked)?;
-    let details =
-        serde_json::json!({ "provider_id": provider_id, "external_subject": req.subject });
+    let details = serde_json::json!({
+        "provider_id": provider_id,
+        "external_subject": req.subject,
+        "linked_by_admin": is_admin(&claims),
+    });
     audit_link(&mut tx, &claims, user_id, "sso_link", &details).await?;
     let notice = notify_holder(
         &mut tx,
@@ -288,7 +289,8 @@ fn already_linked(error: sqlx::Error) -> AppError {
 /// DELETE /api/admin/users/{id}/sso-link — removes the account's link to Kanidm.
 ///
 /// Only an administrator may remove a link, since removing one is how an account is re-pointed. Audited, and
-/// the holder is told. An account with no password of its own cannot sign in afterwards until it is linked again or given one.
+/// the holder is told. An account with no password of its own (one made by sign-in) cannot sign in afterwards
+/// until it is linked again or given one.
 pub async fn remove_link(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -305,7 +307,8 @@ pub async fn remove_link(
         return Err(AppError::Forbidden);
     }
     let previous = sqlx::query_as::<_, (Option<Uuid>, Option<String>)>(
-        "UPDATE users u SET idp_id = NULL, external_subject = NULL, perm_version = u.perm_version + 1, \
+        "UPDATE users u SET idp_id = NULL, external_subject = NULL, sso_linked_by = NULL, \
+         sso_linked_by_admin = NULL, perm_version = u.perm_version + 1, \
          updated_at = now() FROM users old WHERE u.id = $1 AND old.id = u.id \
          RETURNING old.idp_id, old.external_subject",
     )

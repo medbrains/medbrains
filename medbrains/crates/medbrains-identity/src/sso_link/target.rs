@@ -4,7 +4,12 @@ use std::collections::HashSet;
 
 use medbrains_kernel::{Claims, Tx, authz::BYPASS_ROLES};
 use medbrains_notifications::{NewNotification, create_notification};
-use medbrains_server_core::{error::AppError, permissions::resolve_permissions, state::AppState};
+use medbrains_server_core::{
+    error::AppError,
+    os_identity::{is_admin_power, needs_high_privilege},
+    permissions::resolve_permissions,
+    state::AppState,
+};
 use uuid::Uuid;
 
 /// The account a link change is aimed at, as read and locked in the change's own transaction.
@@ -42,19 +47,56 @@ fn link_refusal(
     target_permissions: &[String],
     scope: ExtraScope,
 ) -> Option<&'static str> {
-    let held: HashSet<&str> = caller_permissions.iter().map(String::as_str).collect();
     if BYPASS_ROLES.contains(&target_role) {
         Some("Only an administrator may link an administrator's account.")
     } else if target_permissions.iter().any(|code| is_signing(code)) {
         Some("Only an administrator may link an account that signs clinical records.")
-    } else if !target_permissions
-        .iter()
-        .all(|code| !is_admin_power(code) && held.contains(code.as_str()))
-    {
+    } else if !holds_without_admin_power(caller_permissions, target_permissions) {
         Some("This account holds permissions you do not. Ask an administrator to link it.")
     } else {
         scope_refusal(scope)
     }
+}
+
+/// True when every code in `codes` is one the caller holds and none is an `admin.*` power: what a
+/// non-administrator may hand to someone else, by a link or by a directory-group mapping.
+fn holds_without_admin_power(caller_permissions: &[String], codes: &[String]) -> bool {
+    let held: HashSet<&str> = caller_permissions.iter().map(String::as_str).collect();
+    codes
+        .iter()
+        .all(|code| !is_admin_power(code) && held.contains(code.as_str()))
+}
+
+/// Why a non-administrator may not map a directory group to a role with these permissions, or `None`.
+///
+/// A mapping hands the role to everyone in the group, so it holds to the link's rule: nothing the
+/// caller lacks, and no `admin.*` power.
+pub fn mapping_role_refusal(
+    caller_permissions: &[String],
+    role_permissions: &[String],
+) -> Option<&'static str> {
+    (!holds_without_admin_power(caller_permissions, role_permissions))
+        .then_some("This role holds permissions you do not. Ask an administrator to map it.")
+}
+
+/// True when `caller` is a live member of access group `group`: what a non-administrator must be to map a
+/// directory group to it.
+pub async fn is_group_member(
+    conn: &mut sqlx::PgConnection,
+    caller: Uuid,
+    group: Uuid,
+) -> Result<bool, AppError> {
+    let member = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM access_group_members m \
+         JOIN access_groups g ON g.id = m.group_id AND g.is_active AND g.deleted_at IS NULL \
+         WHERE m.user_id = $1 AND m.group_id = $2 AND m.deleted_at IS NULL \
+           AND (m.expires_at IS NULL OR m.expires_at > now()))",
+    )
+    .bind(caller)
+    .bind(group)
+    .fetch_one(conn)
+    .await?;
+    Ok(member)
 }
 
 /// The refusal for scope the target holds and the caller does not, if any.
@@ -69,16 +111,6 @@ const fn scope_refusal(scope: ExtraScope) -> Option<&'static str> {
     } else {
         None
     }
-}
-
-/// True for an `admin.*` code that changes something. Read-only ones (`.read`, `.list`, `.view`) are not
-/// powers: every clinical role holds `admin.settings.read`, so counting them would leave IT unable to link
-/// any member of staff, and the subset rule already keeps them to codes the caller holds.
-fn is_admin_power(code: &str) -> bool {
-    code.starts_with("admin.")
-        && ![".read", ".list", ".view"]
-            .iter()
-            .any(|read| code.ends_with(read))
 }
 
 /// True for a code that puts the holder's signature on a record: `sign`, `cosign`, `co_sign` and the like as
@@ -177,12 +209,12 @@ pub(super) async fn guard_target(
         email,
         idp_id,
         subject,
-        needs_high_privilege: is_bypass || target_permissions.iter().any(|c| is_admin_power(c)),
+        needs_high_privilege: needs_high_privilege(&role, &target_permissions),
     })
 }
 
 /// True for a caller with a bypass role: an administrator.
-pub(super) fn is_admin(claims: &Claims) -> bool {
+pub fn is_admin(claims: &Claims) -> bool {
     BYPASS_ROLES.contains(&claims.role.as_str())
 }
 
@@ -251,7 +283,9 @@ pub(super) async fn notify_holder(
 
 #[cfg(test)]
 mod tests {
-    use super::{ExtraScope, holder_notice, is_signing, link_refusal, needs_link_write};
+    use super::{
+        ExtraScope, holder_notice, is_signing, link_refusal, mapping_role_refusal, needs_link_write,
+    };
     use uuid::Uuid;
 
     fn codes(list: &[&str]) -> Vec<String> {
@@ -300,6 +334,19 @@ mod tests {
         assert_eq!(refused(&it_reader, "nurse", &with_settings), None);
         assert!(refused(&it_officer, "nurse", &with_settings).is_some());
         assert!(refused(&it_reader, "nurse", &codes(&["admin.users.create"])).is_some());
+    }
+
+    /// A non-administrator maps a directory group only to a role within their own codes, with no `admin.*` power.
+    #[test]
+    fn a_mapping_never_hands_out_more_than_its_maker_holds() {
+        let it = codes(&[
+            "admin.sso.providers.manage",
+            "opd.visit.view",
+            "lab.result.view",
+        ]);
+        assert_eq!(mapping_role_refusal(&it, &codes(&["opd.visit.view"])), None);
+        assert!(mapping_role_refusal(&it, &codes(&["pharmacy.dispense"])).is_some());
+        assert!(mapping_role_refusal(&it, &codes(&["admin.sso.providers.manage"])).is_some());
     }
 
     /// An account that signs clinical records is never linked by a non-administrator, even one who signs too.

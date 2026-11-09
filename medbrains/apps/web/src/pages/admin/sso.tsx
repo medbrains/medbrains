@@ -2,7 +2,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
+import { BYPASS_ROLES, useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type { CreateSsoProviderRequest, SsoProvider } from "@medbrains/types";
 import { P, ROLE_TEMPLATES } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
@@ -33,6 +33,8 @@ const DEFAULT_ROLE_OPTIONS = Object.entries(ROLE_TEMPLATES)
 export function SsoSettingsPage() {
   useRequirePermission([P.ADMIN.SETTINGS.GENERAL.MANAGE, P.ADMIN.SSO.PROVIDERS.MANAGE]);
   const canManage = useHasPermission(P.ADMIN.SSO.PROVIDERS.MANAGE);
+  // New accounts and email linking let a provider decide who gets in: an administrator's call only.
+  const isAdmin = usePermissionStore((s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole));
   const qc = useQueryClient();
   const [formOpen, form] = useDisclosure(false);
   const [draft, setDraft] = useState<CreateSsoProviderRequest>(EMPTY);
@@ -56,8 +58,8 @@ export function SsoSettingsPage() {
         color: "success",
       });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Could not create", color: "danger" }),
+    onError: (err: Error) =>
+      notifications.show({ title: "Could not create", message: err.message, color: "danger" }),
   });
   const toggleMut = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
@@ -148,7 +150,7 @@ export function SsoSettingsPage() {
               tone="primary"
               leftSection={<IconPlus size={15} />}
               onClick={() => {
-                setDraft(EMPTY);
+                setDraft({ ...EMPTY, jit_enabled: isAdmin });
                 form.open();
               }}
             >
@@ -217,23 +219,27 @@ export function SsoSettingsPage() {
             clearable
             searchable
           />
-          <Switch
-            label="Just-in-time provisioning"
-            checked={draft.jit_enabled ?? true}
-            onChange={(e) => {
-              const checked = e.currentTarget.checked;
-              setDraft((d) => ({ ...d, jit_enabled: checked }));
-            }}
-          />
-          <Switch
-            label="Link existing accounts by verified email"
-            description="Only for a provider you trust to own its addresses. Never links an administrator's account. Otherwise link people in Users."
-            checked={draft.link_by_email ?? false}
-            onChange={(e) => {
-              const checked = e.currentTarget.checked;
-              setDraft((d) => ({ ...d, link_by_email: checked }));
-            }}
-          />
+          {isAdmin && (
+            <>
+              <Switch
+                label="Just-in-time provisioning"
+                checked={draft.jit_enabled ?? true}
+                onChange={(e) => {
+                  const checked = e.currentTarget.checked;
+                  setDraft((d) => ({ ...d, jit_enabled: checked }));
+                }}
+              />
+              <Switch
+                label="Link existing accounts by verified email"
+                description="Only for a provider you trust to own its addresses. Never links an administrator's account. Otherwise link people in Users."
+                checked={draft.link_by_email ?? false}
+                onChange={(e) => {
+                  const checked = e.currentTarget.checked;
+                  setDraft((d) => ({ ...d, link_by_email: checked }));
+                }}
+              />
+            </>
+          )}
           <Group justify="flex-end">
             <Button tone="secondary" onClick={form.close}>
               Cancel
@@ -256,13 +262,22 @@ export function SsoSettingsPage() {
         title={mappingsFor ? `Group mappings — ${mappingsFor.name}` : ""}
         fullScreen
       >
-        {mappingsFor && <GroupMappings provider={mappingsFor} canManage={canManage} />}
+        {mappingsFor && (
+          <GroupMappings
+            provider={mappingsFor}
+            canManage={canManage && (mappingsFor.code !== OS_PROVIDER_CODE || isAdmin)}
+          />
+        )}
       </Modal>
     </div>
   );
 }
 
-/** A provider's directory-group mappings; adding or removing one needs the provider-management permission. */
+/**
+ * A provider's directory-group mappings; adding or removing one needs the provider-management permission, and on
+ * the OS's own Kanidm an administrator. The server refuses an administrator role, and anyone else's mapping to a
+ * role or group beyond their own, with the reason shown here.
+ */
 function GroupMappings({ provider, canManage }: { provider: SsoProvider; canManage: boolean }) {
   const qc = useQueryClient();
   const [idpGroup, setIdpGroup] = useState("");
@@ -292,10 +307,14 @@ function GroupMappings({ provider, canManage }: { provider: SsoProvider; canMana
       setRoleCode("");
       setAccessGroupId(null);
     },
+    onError: (err: Error) =>
+      notifications.show({ title: "Mapping not added", message: err.message, color: "danger" }),
   });
   const delMut = useMutation({
     mutationFn: (id: string) => api.deleteSsoGroupMapping(id),
     onSuccess: invalidate,
+    onError: (err: Error) =>
+      notifications.show({ title: "Mapping not removed", message: err.message, color: "danger" }),
   });
 
   return (

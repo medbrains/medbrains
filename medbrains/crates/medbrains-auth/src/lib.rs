@@ -215,14 +215,20 @@ fn wants_native_token_response(headers: &HeaderMap) -> bool {
 }
 
 /// SSO-first tenant policy: when `tenant_settings(auth, password_login_disabled)`
-/// is true, password login is refused for everyone except the break-glass admin
-/// named in `tenant_settings(auth, break_glass_username)`. Returns true if this
+/// is true, password login is refused for everyone except the setup
+/// administrator (`setup_admin`), the one named break-glass. Returns true if this
 /// password attempt must be rejected. Absent settings = passwords allowed (default).
+///
+/// The break-glass is never a username in a setting: an administrator could name
+/// any account there and give it a password route nobody else has.
 async fn password_login_blocked(
     db: &PgPool,
     tenant_id: Uuid,
-    username: &str,
+    setup_admin: bool,
 ) -> Result<bool, AppError> {
+    if setup_admin {
+        return Ok(false);
+    }
     // `tenant_settings` is row-level secured, and this decides whether a
     // password login is allowed at all. Unscoped it reads nothing, which here
     // means "passwords are fine" — the permissive answer, arrived at by not
@@ -236,22 +242,7 @@ async fn password_login_blocked(
     .bind(tenant_id)
     .fetch_optional(&mut *conn)
     .await?;
-    let is_disabled =
-        disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
-    if !is_disabled {
-        return Ok(false);
-    }
-    // Passwords disabled — allow only the break-glass admin through.
-    let break_glass: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username' \
-           AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?;
-    let break_glass = break_glass.and_then(|v| v.as_str().map(str::to_owned));
-    Ok(break_glass.as_deref() != Some(username))
+    Ok(disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true")))
 }
 
 /// The audit action of a password sign-in through the setup administrator's break-glass.
@@ -272,6 +263,8 @@ fn password_route(kanidm_linked: bool, setup_admin: bool) -> Result<bool, AppErr
 const KANIDM_SIGN_IN: &str = "This account signs in with your MedBrains account, not a password here. \
      Choose \"Sign in with MedBrains account\" on this page.";
 
+/// POST /api/auth/login — password sign-in: finds the account in the named hospital, applies lockout, the
+/// SSO-only policy and the Kanidm-link rule (only after the password is proven), checks MFA, and opens a session.
 #[allow(clippy::too_many_lines)]
 pub async fn login(
     State(state): State<AppState>,
@@ -317,15 +310,6 @@ pub async fn login(
         return Err(AppError::Unauthorized);
     }
 
-    // SSO-first policy: when the tenant disables password login, only the
-    // designated break-glass admin may still use a password — everyone else
-    // must sign in via SSO (so an IdP outage can't lock the hospital out).
-    if password_login_blocked(&state.db, row.tenant_id, &body.username).await? {
-        return Err(AppError::BadRequest(
-            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
-        ));
-    }
-
     // Per-account lockout — independent of the per-IP rate limit so a
     // distributed credential-stuffing run still locks the account.
     // The account's hospital is known from here on; `users` needs it under RLS.
@@ -340,7 +324,14 @@ pub async fn login(
     .bind(KANIDM_CODE)
     .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &row.tenant_id).await?)
     .await?;
-    let break_glass = password_route(kanidm_linked, setup_admin)?;
+    // SSO-first policy: when the tenant disables password login, only the
+    // setup administrator may still use a password — everyone else must sign
+    // in via SSO (so an IdP outage can't lock the hospital out).
+    if password_login_blocked(&state.db, row.tenant_id, setup_admin).await? {
+        return Err(AppError::BadRequest(
+            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
+        ));
+    }
     if locked {
         return Err(AppError::BadRequest(
             "Account temporarily locked after repeated failed logins. Try again later.".to_owned(),
@@ -363,6 +354,9 @@ pub async fn login(
         record_failed_login(&state, (row.id, row.tenant_id), ip.as_deref()).await?;
         return Err(AppError::Unauthorized);
     }
+    // Only now, with the password proven, does a linked account hear it must use Kanidm: said before, the
+    // answer would tell anyone which accounts are linked.
+    let break_glass = password_route(kanidm_linked, setup_admin)?;
 
     // MFA gate — when enabled, credentials alone never open a session.
     // The client resubmits the same credentials with mfa_code.

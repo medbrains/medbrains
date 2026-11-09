@@ -27,6 +27,10 @@ const SSO_ERRORS: Record<string, string> = {
     "The sign-in service is not answering, so you can't sign in with it right now. Anyone already signed in can carry on. Try again in a minute; if it keeps happening, call IT.",
   "1": "Sign-in was cancelled or refused. Try again.",
   link: "Your sign-in matches a MedBrains account that is not linked to it yet. Ask IT to link it in Users, then sign in again.",
+  admin_group:
+    "This is an administrator's account, so its sign-in must be in the IT administrators group, which uses a second step. Ask IT to add you to it, then sign in again.",
+  admin_group_unchecked:
+    "This is an administrator's account, and the sign-in service could not confirm its IT administrators group, so sign-in stopped. Try again in a minute; if it keeps happening, call IT.",
 };
 
 /**
