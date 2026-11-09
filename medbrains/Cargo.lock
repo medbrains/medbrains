@@ -7299,6 +7299,7 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
