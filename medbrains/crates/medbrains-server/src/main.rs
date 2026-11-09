@@ -748,6 +748,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     // A code blue nobody answers is re-paged wider, a bounded number of times.
     medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
+    // Late or missing MRD files to the supervisor; tomorrow's pull list each evening.
+    medbrains_mrd::file_requests::jobs::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());

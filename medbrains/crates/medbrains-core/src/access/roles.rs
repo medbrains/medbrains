@@ -274,6 +274,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::VIEW,
             permissions::mrd::case_sheets::GENERATE,
             permissions::mrd::case_sheets::PRINT,
+            // The consultation's paper-file chip and digital summary.
+            permissions::mrd::file_request::STATUS,
+            // Ask for the file by hand when the chip reads "not requested".
+            permissions::mrd::file_request::CREATE,
             // Order Sets
             permissions::order_sets::templates::LIST,
             permissions::order_sets::templates::VIEW,
@@ -758,6 +762,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::queue::LIST,
             permissions::opd::queue::VIEW,
             permissions::opd::visit::CREATE,
+            // The front desk that registered the visit asks for its file
+            // when the automatic request did not happen.
+            permissions::mrd::file_request::CREATE,
             permissions::opd::TOKEN_MANAGE,
             permissions::opd::appointment::LIST,
             permissions::opd::appointment::CREATE,
@@ -1625,6 +1632,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            // The runner's queue: fetch, deliver, be told when one is late.
+            permissions::mrd::file_request::VIEW,
+            permissions::mrd::file_request::FULFIL,
+            permissions::mrd::file_request::SUPERVISE,
+            permissions::mrd::file_request::STATUS,
             // Medical records answers "is this paper genuine?" for insurers
             // and courts, and withdraws a copy's public link when asked.
             permissions::doctor::signature::VERIFY,

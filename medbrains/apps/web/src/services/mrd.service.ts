@@ -35,6 +35,26 @@ export const mrdService = {
     api.listMrdMovements(...args),
   returnMrdRecord: (...args: Parameters<typeof api.returnMrdRecord>) =>
     api.returnMrdRecord(...args),
+  listMrdFileRequests: (...args: Parameters<typeof api.listMrdFileRequests>) =>
+    api.listMrdFileRequests(...args),
+  scanMrdFileRequest: (...args: Parameters<typeof api.scanMrdFileRequest>) =>
+    api.scanMrdFileRequest(...args),
+  markMrdFileNotFound: (...args: Parameters<typeof api.markMrdFileNotFound>) =>
+    api.markMrdFileNotFound(...args),
+  returnMrdFileToShelf: (...args: Parameters<typeof api.returnMrdFileToShelf>) =>
+    api.returnMrdFileToShelf(...args),
+  buildMrdPullList: (...args: Parameters<typeof api.buildMrdPullList>) =>
+    api.buildMrdPullList(...args),
+  listMrdBackscanOrder: (...args: Parameters<typeof api.listMrdBackscanOrder>) =>
+    api.listMrdBackscanOrder(...args),
+  getMrdFileDeliveryTimes: (...args: Parameters<typeof api.getMrdFileDeliveryTimes>) =>
+    api.getMrdFileDeliveryTimes(...args),
+  getVisitFileStatus: (...args: Parameters<typeof api.getVisitFileStatus>) =>
+    api.getVisitFileStatus(...args),
+  requestVisitFile: (...args: Parameters<typeof api.requestVisitFile>) =>
+    api.requestVisitFile(...args),
+  getVisitDigitalSummary: (...args: Parameters<typeof api.getVisitDigitalSummary>) =>
+    api.getVisitDigitalSummary(...args),
   listMrdBirths: (...args: Parameters<typeof api.listMrdBirths>) => api.listMrdBirths(...args),
   createMrdBirth: (...args: Parameters<typeof api.createMrdBirth>) => api.createMrdBirth(...args),
   listMrdDeaths: (...args: Parameters<typeof api.listMrdDeaths>) => api.listMrdDeaths(...args),

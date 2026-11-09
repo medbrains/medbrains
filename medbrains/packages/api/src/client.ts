@@ -1554,17 +1554,24 @@ import type {
   MpiMatchRequest,
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
+  // MRD
+  MrdBackscanItem,
   MrdBirthRegister,
   MrdCaseSheetCompletenessResponse,
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
-  // MRD
+  MrdDeliveryTimeRow,
+  MrdDigitalSummary,
+  MrdFileRequest,
+  MrdFileScanRequest,
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
+  MrdPullListBuilt,
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
+  MrdVisitFileStatus,
   MyDayResponse,
   MyProfileResponse,
   MyShiftResponse,
@@ -12147,6 +12154,40 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+
+  // File requests: the paper file a patient waits for
+  listMrdFileRequests: (params?: { date?: string }) =>
+    request<MrdFileRequest[]>(
+      `/mrd/file-requests${params?.date ? `?date=${encodeURIComponent(params.date)}` : ""}`,
+    ),
+  scanMrdFileRequest: (id: string, body: MrdFileScanRequest) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/scan`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  markMrdFileNotFound: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/not-found`, { method: "POST" }),
+  returnMrdFileToShelf: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/return`, { method: "POST" }),
+  buildMrdPullList: (body: { date?: string }) =>
+    request<MrdPullListBuilt>("/mrd/file-requests/pull-list", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listMrdBackscanOrder: (days?: number) =>
+    request<MrdBackscanItem[]>(`/mrd/file-requests/backscan${days ? `?days=${days}` : ""}`),
+  getMrdFileDeliveryTimes: (from: string, to: string) =>
+    request<MrdDeliveryTimeRow[]>(
+      `/mrd/file-requests/delivery-times?${new URLSearchParams({ from, to })}`,
+    ),
+  getVisitFileStatus: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}`),
+  requestVisitFile: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}/request`, {
+      method: "POST",
+    }),
+  getVisitDigitalSummary: (encounterId: string) =>
+    request<MrdDigitalSummary>(`/mrd/file-requests/by-encounter/${encounterId}/summary`),
 
   // Record Movements
   listMrdMovements: (recordId: string) =>
