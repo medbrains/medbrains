@@ -426,7 +426,16 @@ export function PharmacyOrderDetail({
           <Table.Tbody>
             {detail.items.map((item) => (
               <Table.Tr key={item.id}>
-                <Table.Td>{item.drug_name}</Table.Td>
+                <Table.Td>
+                  <Stack gap={2}>
+                    <Text size="sm">{item.drug_name}</Text>
+                    {!item.catalog_item_id && (
+                      <Badge tone="neutral" size="xs">
+                        Buy outside, not dispensed here
+                      </Badge>
+                    )}
+                  </Stack>
+                </Table.Td>
                 <Table.Td>
                   {renderPharmacySensitiveValue(batchNumberAccess, item.batch_number)}
                 </Table.Td>

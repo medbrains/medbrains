@@ -4,8 +4,8 @@
 //! their mobile, never duplicated — and for H1 the prescriber and the
 //! patient's address are recorded for the H1 register. Schedule X, NDPS and
 //! controlled drugs are never sold here: they are dispensed against the
-//! register on the prescription path. A free-text line naming a gated drug
-//! is refused: it is chosen from the catalogue.
+//! register on the prescription path. Every line is a catalogue item; a
+//! line typed as free text is refused (`require_catalogue_items`).
 
 use medbrains_core::pharmacy_storefront::h1_record_problem;
 use medbrains_server_core::error::AppError;
@@ -28,13 +28,11 @@ pub(crate) async fn check_scheduled_sale(
     tenant_id: Uuid,
     body: &mut CreatePosSaleRequest,
 ) -> Result<bool, AppError> {
-    let free_text: Vec<String> = body
-        .items
-        .iter()
-        .filter(|i| i.catalog_item_id.is_none())
-        .map(|i| i.drug_name.clone())
-        .collect();
-    crate::schedule_gate::refuse_gated_free_text(tx, tenant_id, &free_text).await?;
+    crate::schedule_gate::require_catalogue_items(
+        body.items
+            .iter()
+            .map(|i| (i.catalog_item_id, i.drug_name.as_str())),
+    )?;
     let ids: Vec<Uuid> = body
         .items
         .iter()

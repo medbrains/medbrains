@@ -4,8 +4,10 @@
 //! signed at sync: it waits, unsigned, until the doctor signs it on the
 //! review screen. A dispense on it before then is a camp exception.
 //! A pharmacist with the built-in role syncs the dispenses: Schedule X, NDPS
-//! and controlled lines, and lines with no catalogue item, are refused and
-//! named, and nothing leaves the shelf. A Schedule H dispense that already
+//! and controlled lines, and lines with no catalogue item ("Pick the item
+//! from the catalogue"), are refused and named, and nothing leaves the shelf.
+//! A dispense naming a prescription that is not this patient's fails alone;
+//! one linked to the patient only through the visit is theirs. A Schedule H dispense that already
 //! happened and fails the gate is posted, filed as `CAMP_DISPENSE_EXCEPTION`,
 //! and listed under the pharmacy's camp exceptions; one the signed
 //! prescription covers is applied clean.
@@ -334,9 +336,10 @@ async fn a_camp_prescription_waits_for_its_doctor_and_the_gate_flags_what_it_ref
     );
     assert_eq!(free_text.status, "failed", "{free_text:?}");
     assert!(
-        free_text
-            .message
-            .contains("Free text tonic: choose the drug from the catalogue"),
+        free_text.message.contains(&format!(
+            "Free text tonic: {}",
+            medbrains_pharmacy::schedule_gate::PICK_FROM_CATALOGUE
+        )),
         "{free_text:?}"
     );
 
@@ -379,11 +382,87 @@ async fn a_camp_prescription_waits_for_its_doctor_and_the_gate_flags_what_it_ref
     );
 }
 
+/// Another patient of the desk's tenant, with an open visit and a signed
+/// prescription for one tablet of `drug`: a real prescription, not this
+/// patient's.
+async fn another_patients_prescription(d: &dispense_world::Desk, drug: Uuid) -> Uuid {
+    let t = dispense_world::tag().to_uppercase();
+    let other: Uuid = sqlx::query_scalar(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, \
+                               no_known_allergies) \
+         VALUES ($1, $2, 'Other', 'Patient', 'male', $3, true) RETURNING id",
+    )
+    .bind(d.tenant)
+    .bind(format!("UH-OT-{t}"))
+    .bind(format!("7{}", &Uuid::new_v4().as_u128().to_string()[..9]))
+    .fetch_one(&d.app.db)
+    .await
+    .expect("other patient");
+    let visit: Uuid = sqlx::query_scalar(
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type, status) \
+         VALUES ($1, $2, 'opd', 'open') RETURNING id",
+    )
+    .bind(d.tenant)
+    .bind(other)
+    .fetch_one(&d.app.db)
+    .await
+    .expect("other visit");
+    let rx: Uuid = sqlx::query_scalar(
+        "INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, patient_id, \
+                                    valid_until, order_mode, is_signed) \
+         VALUES ($1, $2, $3, $4, '2999-01-01', 'written', true) RETURNING id",
+    )
+    .bind(d.tenant)
+    .bind(visit)
+    .bind(d.doctor)
+    .bind(other)
+    .fetch_one(&d.app.db)
+    .await
+    .expect("other prescription");
+    add_item(d, rx, drug).await;
+    rx
+}
+
+/// A signed prescription that names the desk's patient only through the
+/// visit (`patient_id` unset), as an OPD prescription does.
+async fn visit_linked_prescription(d: &dispense_world::Desk, drug: Uuid) -> Uuid {
+    let rx: Uuid = sqlx::query_scalar(
+        "INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, valid_until, order_mode, \
+                                    is_signed) \
+         VALUES ($1, $2, $3, '2999-01-01', 'written', true) RETURNING id",
+    )
+    .bind(d.tenant)
+    .bind(d.encounter)
+    .bind(d.doctor)
+    .fetch_one(&d.app.db)
+    .await
+    .expect("visit prescription");
+    add_item(d, rx, drug).await;
+    rx
+}
+
+/// One tablet BD of `drug` for 5 days on `rx`.
+async fn add_item(d: &dispense_world::Desk, rx: Uuid, drug: Uuid) {
+    sqlx::query(
+        "INSERT INTO prescription_items (tenant_id, prescription_id, drug_name, dosage, \
+                                         frequency, duration, catalog_item_id, quantity) \
+         VALUES ($1, $2, 'as prescribed', '1 tab', 'BD', '5 days', $3, 10)",
+    )
+    .bind(d.tenant)
+    .bind(rx)
+    .bind(drug)
+    .execute(&d.app.db)
+    .await
+    .expect("prescription item");
+}
+
 #[tokio::test]
-async fn a_dispense_naming_an_unknown_prescription_fails_alone() {
+async fn a_dispense_naming_a_prescription_not_this_patients_fails_alone() {
     let d = dispense_world::desk().await;
     let camp = camp(&d).await;
     let plain = d.drug(None, false).await;
+    let others = another_patients_prescription(&d, plain).await;
+    let visit_linked = visit_linked_prescription(&d, plain).await;
     let pharmacist = staff(
         &d.app,
         &d.admin_csrf,
@@ -397,15 +476,25 @@ async fn a_dispense_naming_an_unknown_prescription_fails_alone() {
         camp,
         vec![
             dispense_event(&d, Some(Uuid::new_v4()), &[(Some(plain), 1)]),
+            dispense_event(&d, Some(others), &[(Some(plain), 1)]),
+            dispense_event(&d, Some(visit_linked), &[(Some(plain), 1)]),
             dispense_event(&d, None, &[(Some(plain), 1)]),
         ],
     )
     .await;
-    let [unknown, later] = results.as_slice() else {
-        panic!("two results: {results:?}");
+    let [unknown, not_theirs, through_visit, later] = results.as_slice() else {
+        panic!("four results: {results:?}");
     };
-    assert_eq!(unknown.status, "failed", "{unknown:?}");
-    assert!(unknown.message.contains("not on record"), "{unknown:?}");
+    for refused in [unknown, not_theirs] {
+        assert_eq!(refused.status, "failed", "{refused:?}");
+        assert!(refused.message.contains("not on record"), "{refused:?}");
+    }
+    assert_eq!(through_visit.status, "applied", "{through_visit:?}");
+    assert_eq!(through_visit.message, "", "{through_visit:?}");
     assert_eq!(later.status, "applied", "{later:?}");
-    assert_eq!(stock(&d, plain).await, 499, "only the later event dispensed");
+    assert_eq!(
+        stock(&d, plain).await,
+        498,
+        "only the visit-linked and the later events dispensed"
+    );
 }

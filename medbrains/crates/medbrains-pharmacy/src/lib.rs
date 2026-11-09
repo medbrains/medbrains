@@ -1045,6 +1045,35 @@ fn filter_pos_day_summary_response(
 }
 
 /// The safety gate's view of order lines.
+/// What the pharmacy order says of the prescription lines it does not hold.
+pub const BUY_OUTSIDE: &str = "Buy outside, not dispensed here";
+
+/// Names, on the order's notes, the prescribed medicines the hospital does
+/// not stock, so the counter sees them as bought outside, not missing.
+async fn note_buy_outside(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    order_id: Uuid,
+    names: &[String],
+) -> Result<(), AppError> {
+    if names.is_empty() {
+        return Ok(());
+    }
+    let note = format!("{BUY_OUTSIDE}: {}", names.join(", "));
+    sqlx::query(
+        "UPDATE pharmacy_orders \
+            SET notes = CASE WHEN COALESCE(btrim(notes), '') = '' THEN $3 \
+                             ELSE notes || E'\\n' || $3 END \
+          WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .bind(note)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 fn rx_lines_of(items: &[PharmacyOrderItem]) -> Vec<rx_safety::RxLine> {
     items
         .iter()
@@ -1055,6 +1084,8 @@ fn rx_lines_of(items: &[PharmacyOrderItem]) -> Vec<rx_safety::RxLine> {
         .collect()
 }
 
+/// Whether a pharmacist may override this safety warning; a stock shortage
+/// is a fact about the shelf, not a judgement, so it never is.
 pub fn medication_safety_warning_is_overrideable(code: &str) -> bool {
     !matches!(code, "INSUFFICIENT_STOCK")
 }
@@ -3288,6 +3319,12 @@ pub async fn dispense_order(
     let online_shelf_days =
         storefront::settings::min_shelf_days_for_order(&mut tx, claims.tenant_id, order.id).await?;
     for item in &items {
+        // A line with no catalogue item is not dispensed here: the patient
+        // buys it outside. Nothing leaves the shelf for it and it does not
+        // hold the order open.
+        if item.catalog_item_id.is_none() {
+            continue;
+        }
         if item.quantity <= 0 {
             return Err(AppError::BadRequest(
                 "Pharmacy quantity must be greater than zero".to_owned(),
@@ -3930,6 +3967,8 @@ async fn log_allergy_overrides(
     Ok(())
 }
 
+/// Records a walk-in counter sale (`POST /api/pharmacy/otc-sale`): catalogue
+/// lines only, never a scheduled or controlled drug, stock taken at once.
 pub async fn create_otc_sale(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3961,13 +4000,11 @@ pub async fn create_otc_sale(
     // and controlled drugs (Schedule H/H1/X/NDPS or is_controlled) may NOT be sold
     // here — they require the prescription-backed dispense_order path, which enforces
     // schedule compliance (witness, authorised prescriber) and the NDPS register write.
-    let free_text: Vec<String> = body
-        .items
-        .iter()
-        .filter(|i| i.catalog_item_id.is_none())
-        .map(|i| i.drug_name.clone())
-        .collect();
-    schedule_gate::refuse_gated_free_text(&mut tx, claims.tenant_id, &free_text).await?;
+    schedule_gate::require_catalogue_items(
+        body.items
+            .iter()
+            .map(|i| (i.catalog_item_id, i.drug_name.as_str())),
+    )?;
     let catalog_ids: Vec<Uuid> = body
         .items
         .iter()
@@ -7031,25 +7068,11 @@ pub async fn review_prescription(
 
         // Create order items from prescription items
         let mut order_items = Vec::with_capacity(items.len());
+        let mut buy_outside: Vec<String> = Vec::new();
         for item in &items {
             let reviewed = reviewed_items
                 .iter()
                 .find(|review_item| review_item.prescription_item_id == item.id);
-            let quantity = reviewed.map_or_else(
-                || {
-                    rx_quantity::estimate_rx_dispense_quantity(
-                        &item.dosage,
-                        &item.frequency,
-                        &item.duration,
-                    )
-                },
-                |review_item| review_item.quantity,
-            );
-            if quantity <= 0 {
-                return Err(AppError::BadRequest(
-                    "Reviewed pharmacy quantity must be greater than zero".to_owned(),
-                ));
-            }
             let reviewed_catalog_id = reviewed
                 .and_then(|review_item| review_item.catalog_item_id)
                 .or(item.catalog_item_id);
@@ -7080,12 +7103,29 @@ pub async fn review_prescription(
             .fetch_optional(&mut *tx)
             .await?;
 
+            // A medicine the hospital does not stock (the doctor may write
+            // one, for the patient to buy outside) is not dispensed here: it
+            // stays off the order and is named on it, never blocking the
+            // catalogue lines (owner, 2026-11-09).
             let Some(catalog) = catalog else {
-                return Err(AppError::Conflict(format!(
-                    "Map \"{}\" to the pharmacy formulary before approving billing",
-                    item.drug_name
-                )));
+                buy_outside.push(item.drug_name.trim().to_owned());
+                continue;
             };
+            let quantity = reviewed.map_or_else(
+                || {
+                    rx_quantity::estimate_rx_dispense_quantity(
+                        &item.dosage,
+                        &item.frequency,
+                        &item.duration,
+                    )
+                },
+                |review_item| review_item.quantity,
+            );
+            if quantity <= 0 {
+                return Err(AppError::BadRequest(
+                    "Reviewed pharmacy quantity must be greater than zero".to_owned(),
+                ));
+            }
             let price = reviewed
                 .map(|review_item| review_item.unit_price)
                 .unwrap_or(catalog.base_price);
@@ -7125,6 +7165,14 @@ pub async fn review_prescription(
             .await?;
             order_items.push(order_item);
         }
+        if order_items.is_empty() {
+            return Err(AppError::Conflict(
+                "Nothing on this prescription is in the catalogue: print it for the patient to \
+                 buy outside"
+                    .to_owned(),
+            ));
+        }
+        note_buy_outside(&mut tx, claims.tenant_id, order.id, &buy_outside).await?;
 
         ensure_order_items_stock_available_for_billing_in_tx(
             &mut tx,

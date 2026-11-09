@@ -98,9 +98,10 @@ export function DispenseModal({
     enabled: opened,
   });
 
-  // Lines that still have a balance to dispense.
+  // Lines that still have a balance to dispense. A line with no catalogue
+  // item is bought outside and never dispensed here (the order page says so).
   const lines = items
-    .filter((it) => !it.removed_at)
+    .filter((it) => !it.removed_at && it.catalog_item_id)
     .map((it) => ({ item: it, remaining: it.quantity - it.quantity_dispensed }))
     .filter((l) => l.remaining > 0);
 

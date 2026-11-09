@@ -69,7 +69,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
       unit: "tablet",
       base_price: "0",
       reorder_level: "0",
-      drug_schedule: "OTC",
+      drug_schedule: "",
     },
     mode: "onTouched",
   });
@@ -110,7 +110,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
       base_price: canEditBasePrice ? Number(formValues.base_price) || 0 : 0,
       tax_percent: 0,
       reorder_level: Number(formValues.reorder_level) || 0,
-      drug_schedule: formValues.drug_schedule,
+      drug_schedule: toDrugScheduleFormValue(formValues.drug_schedule),
       formulary_status: "approved",
       unit: formValues.unit.trim() || "unit",
     };
@@ -126,7 +126,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
     <Stack gap="sm">
       {!canCreateDrug && (
         <Alert color="orange" variant="light" icon={<IconLock size={16} />}>
-          Adding formulary drugs requires pharmacy stock management permission.
+          Ask a pharmacist to add it: adding to the catalogue needs pharmacy stock management.
         </Alert>
       )}
       {canCreateDrug && !canEditBasePrice && (
@@ -234,8 +234,11 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
             allowDeselect={false}
             data={scheduleOptions}
             label="Drug schedule"
-            value={field.value}
-            onChange={(value) => field.onChange(toDrugScheduleFormValue(value))}
+            placeholder="Choose the schedule"
+            required
+            value={field.value || null}
+            onChange={(value) => field.onChange(value ?? "")}
+            error={errors.drug_schedule?.message}
             disabled={!canCreateDrug}
           />
         )}

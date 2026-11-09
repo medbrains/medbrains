@@ -6,7 +6,8 @@
 //! refuses the line and names it, and the drug is dispensed at a hospital
 //! pharmacy counter. Schedule H and H1 lines go through the hospital's own
 //! gate (`medbrains_pharmacy::schedule_gate`) against the synced prescription.
-//! A line with no catalogue item is refused: camp stock is the catalogue's.
+//! A line with no catalogue item is refused, as everywhere medicine is sold:
+//! it is picked from the catalogue, or added to it first by a pharmacist.
 //!
 //! A camp H/H1 dispense that fails the gate at sync had already happened: it
 //! is posted (the stock left the shelf) and filed as a refused
@@ -28,10 +29,7 @@ use sqlx::{Postgres, Transaction};
 
 /// The sync error for a line with no catalogue item.
 pub(crate) fn free_text_line_refusal(drug_name: &str) -> String {
-    format!(
-        "{drug_name}: choose the drug from the catalogue; a camp dispense line needs its \
-         catalogue item, because camp stock is the catalogue's"
-    )
+    format!("{drug_name}: {}", schedule_gate::PICK_FROM_CATALOGUE)
 }
 
 /// The sync error for a prescription that names no doctor.
@@ -124,12 +122,14 @@ pub(crate) fn controlled_line_refusal(
 
 #[cfg(test)]
 mod tests {
+    use medbrains_pharmacy::schedule_gate::PICK_FROM_CATALOGUE;
+
     use super::{controlled_line_refusal, free_text_line_refusal};
 
     #[test]
     fn a_free_text_line_is_named_and_sent_to_the_catalogue() {
         let m = free_text_line_refusal("Amoxicillin 500");
-        assert!(m.starts_with("Amoxicillin 500: choose the drug from the catalogue"));
+        assert_eq!(m, format!("Amoxicillin 500: {PICK_FROM_CATALOGUE}"));
     }
 
     #[test]

@@ -25,11 +25,12 @@
 //!   one, a verbal order not yet countersigned among them, backs nothing.
 //!   X, NDPS and controlled drugs are never dispensed on a verbal or telephone
 //!   order.
-//! - Every line carries its catalogue item. A line typed as free text is
-//!   refused here outright ("Choose the drug from the catalogue"), on every
-//!   order the gate sees, with or without a prescription: a counter dispense,
-//!   a pack-and-collect pick and a camp dispense take catalogue lines only. Free text is for OTC and POS sales,
-//!   where `refuse_gated_free_text` keeps a gated drug off it.
+//! - Nothing is sold or dispensed as free text (owner, 2026-11-09). OTC and
+//!   POS sale lines and camp dispense lines must carry a catalogue item
+//!   (`require_catalogue_items`). An order line with none is a medicine the
+//!   doctor wrote that the hospital does not stock: the counter and the pick
+//!   skip it ("Buy outside, not dispensed here"), nothing leaves the shelf for
+//!   it, and this gate never sees it, because it reads catalogue lines only.
 //! - Schedule X also needs a doctor allowed to prescribe it, a witness who is
 //!   not that doctor, and the reference of the duplicate the pharmacy retains
 //!   (Rule 65(11)).
@@ -113,22 +114,6 @@ pub async fn enforce_schedule_compliance(
     order_id: Uuid,
     input: &GateInput<'_>,
 ) -> Result<Passed, AppError> {
-    let free_text: Vec<String> = sqlx::query_scalar(
-        "SELECT drug_name FROM pharmacy_order_items \
-          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
-            AND catalog_item_id IS NULL",
-    )
-    .bind(order_id)
-    .bind(tenant_id)
-    .fetch_all(&mut **tx)
-    .await?;
-    if !free_text.is_empty() {
-        return Err(AppError::BadRequest(format!(
-            "{}: {CHOOSE_FROM_CATALOGUE}. A dispense, pick or camp dispense takes catalogue \
-             lines only, with or without a prescription; free text is for OTC and POS sales",
-            free_text.join(", ")
-        )));
-    }
     let rx = read_prescription(tx, tenant_id, order_id).await?;
     let lines = scheduled_lines(tx, tenant_id, order_id).await?;
     let has_schedule_x = lines.iter().any(|l| l.schedule == "X");
@@ -157,121 +142,38 @@ pub async fn enforce_schedule_compliance(
     }
 }
 
-/// What every free-text refusal tells the pharmacist to do.
-pub const CHOOSE_FROM_CATALOGUE: &str = "Choose the drug from the catalogue";
+/// What a line typed instead of picked is told, on every sale and dispense.
+pub const PICK_FROM_CATALOGUE: &str = "Pick the item from the catalogue. If it is not there, \
+                                       ask a pharmacist to add it with its schedule.";
 
-/// Refuses free-text lines that name a gated drug, at an OTC or POS sale.
+/// Refuses a sale or dispense with any line that is not a catalogue item.
 ///
-/// Each typed line is cleaned first: format characters (zero-width spaces and
-/// joiners, soft hyphen, BOM, word joiner, bidi marks) are deleted, then NFKC
-/// folds look-alike forms (fullwidth "Ｍｏｒｐｈｉｎｅ") to plain letters. A line
-/// that still holds a letter outside A-Z (a Cyrillic "е" in "Morphinе") is
-/// refused: it cannot be read reliably, so it is picked from the catalogue.
+/// The owner's rule (2026-11-09, DECISIONS): no free text at OTC, POS or a
+/// camp dispense; a counter dispense or pick skips an order's typed line. A typed line would pass every check
+/// keyed on the catalogue (schedule, NDPS register, stock, GST), and five
+/// rounds of text matching could not close that. An item that is missing is
+/// added to the catalogue first, by a pharmacist, with its schedule.
 ///
-/// Then both sides are normalised (lowercase, punctuation to spaces,
-/// whitespace collapsed). The gated names are every Schedule H, H1, X, NDPS
-/// or controlled row's catalogue name and each part of its generic name split
-/// on `+`, `,` and `/` ("Codeine Phosphate + Chlorpheniramine"), each losing
-/// its strength (everything from the first word that starts with a digit). A
-/// line is refused when it contains any of them as a whole word or phrase,
-/// anywhere: "50mg tramadol", "T. Tramadol". Whole words keep "iron" out of
-/// "environment".
-///
-/// Typed instead of picked, a gated drug would pass every check keyed on the
-/// catalogue. Text matching cannot catch a misspelling or an unstocked brand;
-/// SOP 04 says free text naming a drug is audited.
+/// `lines` is each line's catalogue id and the name it was typed or shown as.
 ///
 /// # Errors
-/// `BadRequest` naming each such line; a database error as itself.
-pub async fn refuse_gated_free_text(
-    tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
-    names: &[String],
+/// `BadRequest` with [`PICK_FROM_CATALOGUE`], naming each such line.
+pub fn require_catalogue_items<'a>(
+    lines: impl IntoIterator<Item = (Option<Uuid>, &'a str)>,
 ) -> Result<(), AppError> {
-    if names.is_empty() {
-        return Ok(());
-    }
-    let lines = classify_free_text(tx, tenant_id, names).await?;
-    let unreadable: Vec<&str> = lines
-        .iter()
-        .filter(|(_, clean, _)| has_non_ascii_letter(clean))
-        .map(|(shown, _, _)| shown.as_str())
+    let typed: Vec<&str> = lines
+        .into_iter()
+        .filter(|(id, _)| id.is_none())
+        .map(|(_, name)| name.trim())
         .collect();
-    let gated: Vec<&str> = lines
-        .iter()
-        .filter(|(_, clean, hit)| *hit && !has_non_ascii_letter(clean))
-        .map(|(shown, _, _)| shown.as_str())
-        .collect();
-    let mut problems = Vec::new();
-    if !unreadable.is_empty() {
-        problems.push(format!(
-            "{}: {CHOOSE_FROM_CATALOGUE}. A line typed as free text may use only the letters A-Z",
-            unreadable.join(", ")
-        ));
-    }
-    if !gated.is_empty() {
-        problems.push(format!(
-            "{}: {CHOOSE_FROM_CATALOGUE}. A Schedule H, H1, X, NDPS or controlled drug cannot \
-             be sold on a line typed as free text",
-            gated.join(", ")
-        ));
-    }
-    if problems.is_empty() {
+    if typed.is_empty() {
         Ok(())
     } else {
-        Err(AppError::BadRequest(problems.join("; ")))
+        Err(AppError::BadRequest(format!(
+            "{PICK_FROM_CATALOGUE} Not in the catalogue: {}",
+            typed.join(", ")
+        )))
     }
-}
-
-/// Characters deleted from typed text before matching: zero-width space,
-/// non-joiner and joiner, LTR/RTL marks, bidi embeddings and isolates, soft
-/// hyphen, Mongolian vowel separator, combining grapheme joiner, word joiner
-/// and the invisible operators, and the BOM. Deleted, not spaced, so
-/// "Mor\u{200B}phine" reads "Morphine".
-const FORMAT_CHARS_RE: &str =
-    "[\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u2066-\\u206F\\u00AD\\u180E\\u034F\\uFEFF]";
-
-/// Each typed line, in order, as `(shown, cleaned, names a gated drug)`;
-/// "cleaned" is after format-character deletion and NFKC, before lowercasing.
-async fn classify_free_text(
-    tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
-    names: &[String],
-) -> Result<Vec<(String, String, bool)>, AppError> {
-    // ponytail: every typed line against every gated catalogue name, in one
-    // query; a trigram index on the normalised names if catalogues pass ~50k.
-    let sql = format!(
-        "WITH typed AS ( \
-            SELECT n.ord, btrim(n.name) AS shown, \
-                   normalize(regexp_replace(n.name, '{FORMAT_CHARS_RE}', '', 'g'), NFKC) AS clean \
-              FROM unnest($2::text[]) WITH ORDINALITY AS n(name, ord)), \
-         gated AS ( \
-            SELECT DISTINCT btrim(regexp_replace( \
-                       btrim(regexp_replace(lower(normalize(v.part, NFKC)), '[^a-z0-9]+', ' ', 'g')), \
-                       '(^| )[0-9].*$', '')) AS g \
-              FROM pharmacy_catalog c \
-              CROSS JOIN LATERAL (SELECT c.name \
-                                  UNION ALL \
-                                  SELECT regexp_split_to_table(c.generic_name, '[+,/]')) AS v(part) \
-             WHERE c.tenant_id = $1 AND v.part IS NOT NULL \
-               AND (c.drug_schedule::text IN ('H', 'H1', 'X', 'NDPS') OR c.is_controlled)) \
-         SELECT t.shown, t.clean, EXISTS ( \
-                  SELECT 1 FROM gated WHERE gated.g <> '' \
-                     AND ' ' || btrim(regexp_replace(lower(t.clean), '[^a-z0-9]+', ' ', 'g')) || ' ' \
-                         LIKE '% ' || gated.g || ' %') AS hit \
-           FROM typed t ORDER BY t.ord"
-    );
-    Ok(sqlx::query_as::<_, (String, String, bool)>(&sql)
-        .bind(tenant_id)
-        .bind(names)
-        .fetch_all(&mut **tx)
-        .await?)
-}
-
-/// Whether `text` still holds a letter outside ASCII after cleaning: a
-/// homoglyph or a script the matcher cannot read.
-fn has_non_ascii_letter(text: &str) -> bool {
-    text.chars().any(|c| c.is_alphabetic() && !c.is_ascii())
 }
 
 /// The order's prescription, when it is this patient's and not deleted, and
@@ -621,13 +523,21 @@ pub fn duplicate_ref<'a>(typed: Option<&'a str>, stored: Option<&'a str>) -> Opt
 
 #[cfg(test)]
 mod tests {
-    use super::{duplicate_ref, has_non_ascii_letter};
+    use uuid::Uuid;
+
+    use super::{PICK_FROM_CATALOGUE, duplicate_ref, require_catalogue_items};
 
     #[test]
-    fn only_a_letter_outside_ascii_makes_a_line_unreadable() {
-        assert!(has_non_ascii_letter("Morphin\u{0435}"));
-        assert!(has_non_ascii_letter("caf\u{00E9}"));
-        assert!(!has_non_ascii_letter("Paracetamol 500mg \u{00B0} \u{00D7}2"));
+    fn any_line_without_a_catalogue_item_refuses_the_sale() {
+        let id = Some(Uuid::nil());
+        assert!(require_catalogue_items([(id, "Paracetamol 500 mg")]).is_ok());
+        assert!(require_catalogue_items(std::iter::empty()).is_ok());
+        let err = require_catalogue_items([(id, "Paracetamol"), (None, " Crocin ")])
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default();
+        assert!(err.contains(PICK_FROM_CATALOGUE), "{err}");
+        assert!(err.ends_with("Not in the catalogue: Crocin"), "{err}");
     }
 
     #[test]

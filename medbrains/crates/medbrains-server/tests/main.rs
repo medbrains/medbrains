@@ -245,7 +245,7 @@ mod pharmacy_delivery_test;
 mod pharmacy_dispense_caps_test;
 mod pharmacy_dispense_controls_test;
 mod pharmacy_expired_stock_test;
-mod pharmacy_free_text_gate_test;
+mod pharmacy_catalogue_lines_test;
 mod pharmacy_schedule_gate_test;
 mod group_patient_identity_test;
 mod hl7_adt_feed_test;

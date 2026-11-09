@@ -112,10 +112,10 @@ sync and the event fails.
 | Schedule X: prescriber with `can_prescribe_schedule_x`, a witness who is not the prescriber, and the retained duplicate's reference (Rule 65(11)), trimmed, at least 6 characters, stored as `pharmacy_orders.schedule_x_duplicate_ref`; a blank field uses the one already stored | gate | named per condition |
 | A visit or admission alone is never a prescription; H/H1 may stand on a verified upload (one order per drug for one uploaded file) or a recent doctor-signed discharge summary that lists the drug (every order on the summary together within the listed quantity); X, NDPS and controlled never do | gate | "no prescription for this patient" / "already backed an earlier order" / "the discharge summary allows" |
 | A camp's synced dispense never carries Schedule X, NDPS or controlled lines | camp sync | "cannot be dispensed through camp offline sync" |
-| A camp dispense line carries its catalogue item (camp stock is the catalogue's) | camp sync | "choose the drug from the catalogue" |
+| A camp dispense line carries its catalogue item (camp stock is the catalogue's) | camp sync | "Pick the item from the catalogue" |
 | A camp dispense naming a prescription names one on record for this patient; otherwise that event alone fails and the rest of the sync goes on | camp sync | "not on record for this patient" |
-| A free-text line (no catalogue item) on any order through the schedule gate (a counter dispense, a pack-and-collect pick, a camp dispense), with or without a prescription: refused whatever it names. Free text is for OTC and POS sales only | counter, pick, camp | "Choose the drug from the catalogue" |
-| A free-text line at an OTC or POS sale is cleaned (zero-width and other format characters deleted, NFKC) and refused if a letter outside A-Z remains; then, normalised (lowercase, punctuation to spaces), it is refused when it contains, as a whole word or phrase anywhere, a Schedule H, H1, X, NDPS or controlled row's catalogue name or any part of its generic name split on `+`, `,` or `/` (strength dropped): "50mg tramadol", "Chlorpheniramine syrup" | OTC, POS | "Choose the drug from the catalogue" |
+| Every OTC and POS sale line and every camp dispense line is a catalogue item, whatever it names. There is no free text where medicine is sold (owner, 2026-11-09). The database refuses the same lines (migration 1453) | OTC, POS, camp | "Pick the item from the catalogue. If it is not there, ask a pharmacist to add it with its schedule." |
+| A doctor may prescribe a medicine the hospital does not stock (bought outside). At Rx-queue approval it stays off the pharmacy order and is named in the order's notes; a typed line already on an order is shown as "Buy outside, not dispensed here". The counter dispense and the pick skip it: nothing leaves the shelf for it and it never blocks the catalogue lines. A prescription with nothing in the catalogue cannot be approved into an order | Rx queue, counter, pick | "Buy outside, not dispensed here" / "Nothing on this prescription is in the catalogue" |
 | A camp prescription names its doctor (`doctor_id`), or the event is refused; it is never signed at sync, and stays unsigned for that doctor to sign from the sign-off inbox on the review screen. A camp H/H1 dispense on it before then is posted as a camp exception; signing later does not clear the exception, which the pharmacist closes on review | camp sync | "Prescription saved unsigned"; "prescription sync requires doctor_id" |
 | A quantity is counted from dose x frequency x duration only for a dose in a discrete unit (tab, cap, sachet, suppository, patch, vial, ampoule); ml, drops, puffs, g, mg and units need a stated quantity. "N hours" is an interval only as "every N hours", "qN h" or "N hourly" ("once daily at 8 hrs" is once a day) | gate | "prescribed quantity cannot be read" |
 | Controlled (`is_controlled`, which a Schedule X or NDPS drug always carries, migration 1450) needs a witness who types their own password, or a reason from a holder of `pharmacy.ndps.witness_override`, granted by name only (no built-in role; a super or hospital admin's bypass does not carry it; never for X) | dispense | filed as `NDPS_WITNESS_MISSING` |
@@ -124,9 +124,14 @@ sync and the event fails.
 | Allergy status unknown (no drug allergy recorded, "no known allergies" never noted) needs the pharmacist's acknowledgement, at the counter and at the pick (the fulfilment queue asks) | dispense, pick | filed as `ALLERGY_STATUS_UNKNOWN` |
 | The NDPS register is posted under a per-drug lock and never goes below zero | dispense | 409 |
 
-Text matching cannot catch a misspelt drug name or a brand the catalogue does
-not stock, so a free-text line naming a drug is audited: the pharmacist in
-charge reviews the day's OTC and POS free-text lines.
+When the item search at the OTC or POS screen finds nothing, it says **Not in
+the catalogue**. A user holding `pharmacy.stock.manage` (the pharmacist) gets
+**Add to catalogue**: the catalogue form opens with the typed name filled in,
+and the drug schedule must be chosen (there is no default). Anyone else is told
+**Ask a pharmacist to add it.** Nothing can be sold as a typed line. A fixed-dose combination (Amoxicillin + Clavulanic acid) is one catalogue
+item: its generic parts go in the one "Generic / INN" field, joined with
+`+`. A compounded or extemporaneous mixture made in the pharmacy has no flow
+yet (known gap, see DECISIONS).
 
 An unknown frequency spelling is shown on the dispensing view and the label as
 "Frequency not recognised — read the prescription", never as "as needed".

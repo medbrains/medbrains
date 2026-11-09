@@ -1645,7 +1645,14 @@ export const miniAddDrugFormSchema = z.object({
   unit: z.string(),
   base_price: nonNegativeNumber("Enter a valid amount"),
   reorder_level: nonNegativeInteger("Enter a valid whole number"),
-  drug_schedule: drugScheduleFormSchema,
+  // No default: the pharmacist adding a drug states its schedule, because
+  // every sale and dispense check keys on it (owner, 2026-11-09).
+  drug_schedule: z
+    .string()
+    .refine(
+      (value) => (drugScheduleValues as readonly string[]).includes(value),
+      "Choose the drug schedule",
+    ),
 });
 
 /**

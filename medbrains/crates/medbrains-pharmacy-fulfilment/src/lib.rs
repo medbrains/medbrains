@@ -943,8 +943,8 @@ async fn commit_stock(
             continue;
         }
         let Some(catalog_item_id) = catalog_item_id else {
-            // Free-text lines hold no stock, so there is nothing to take. They
-            // are still picked and still verified.
+            // The schedule gate refused any free-text line before the pick
+            // (no free text where medicine is sold); none holds stock.
             continue;
         };
 
