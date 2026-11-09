@@ -210,7 +210,7 @@ function LoginFooter({ needsSetup, trialOpen }: { needsSetup: boolean; trialOpen
           )}
         </Box>
       )}
-      <Box className={classes.version}>MedBrains HMS v0.1.0</Box>
+      <Box className={classes.version}>MedBrains v{__APP_VERSION__}</Box>
       <Text size="xs" c="var(--mb-text-secondary)" ta="center" mt={4}>
         <Anchor component={Link} to="/terms" c="inherit">
           Terms
