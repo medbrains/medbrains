@@ -21,3 +21,4 @@ sourcemaps/
 # Anatomy model for the body-site picker — fetched, never committed
 # (python3 scripts/sync_anatomy_atlas.py).
 public/anatomy/
+perf-result*.json

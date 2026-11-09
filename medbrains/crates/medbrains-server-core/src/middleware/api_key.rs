@@ -150,6 +150,28 @@ pub async fn authenticate(db: &PgPool, presented: &str) -> Result<(Claims, Uuid)
         return Err(AppError::Unauthorized);
     };
 
+    // A key a vendor account created — or a connected app it registered or
+    // approved — would let a support session outlive its grant. Refused here
+    // as well as revoked when the account is flagged, because an account on a
+    // vendor domain is gated without ever being flagged.
+    let vendor_made: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM api_keys k \
+                  LEFT JOIN connected_apps a ON a.id = k.connected_app_id \
+                  JOIN users u ON u.id IN (k.created_by, a.created_by, a.approved_by) \
+                 WHERE k.id = $1 AND k.tenant_id = $2 \
+                   AND (u.is_vendor_staff OR public.app_email_is_vendor(u.email, $3)))",
+    )
+    .bind(record.id)
+    .bind(record.tenant_id)
+    .bind(super::vendor_access::vendor_domains())
+    .fetch_one(&mut *conn)
+    .await?;
+    if vendor_made {
+        return Err(AppError::ForbiddenReason(
+            "This key was made or approved by a MedBrains account and cannot be used.".to_owned(),
+        ));
+    }
+
     // The key's own budget, counted from its usage log so every server process
     // agrees. A refused request is not logged, so a key that backs off is
     // let back in within the minute.

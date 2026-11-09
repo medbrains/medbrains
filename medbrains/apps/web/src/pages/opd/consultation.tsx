@@ -15,6 +15,7 @@ import { useClinicalEmit } from "@/components";
 import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import { DictationPanel } from "@/components/Clinical/dictation/DictationPanel";
 import { SoapTimeline } from "@/components/Clinical/SoapTimeline";
+import { VisitFilePanel } from "@/components/Mrd/file-requests/VisitFilePanel";
 import { toast } from "@/components/ui";
 import { clinicalNotesService } from "@/services/clinicalNotes.service";
 import { opdService } from "@/services/opd.service";
@@ -83,6 +84,7 @@ export function ConsultationTab({
 
   return (
     <Stack gap="md">
+      <VisitFilePanel encounterId={encounterId} />
       {canWrite && !hasMyConsultation && templates.length > 0 && (
         <Select
           label="Start a consultation note from a template"

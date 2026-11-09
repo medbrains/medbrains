@@ -39,6 +39,7 @@ const TITLES: Record<string, string> = {
   DRUG_INTERACTION: "Drug-drug interaction",
   RESERVE_ANTIBIOTIC_APPROVAL_REQUIRED: "Reserve antibiotic — stewardship approval",
   NON_FORMULARY_APPROVAL_REQUIRED: "Not on the formulary",
+  LASA_LOOK_ALIKE: "Look-alike sound-alike medicine",
 };
 
 interface Props {

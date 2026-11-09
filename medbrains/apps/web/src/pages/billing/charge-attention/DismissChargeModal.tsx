@@ -1,14 +1,23 @@
 // Dismiss a queued charge: the charge should not be billed, and the reason
 // why is required and kept on the record. An unbilled order offers the usual
-// reasons (package-included, free by policy, duplicate) as one tap each.
+// reasons (package-included, free by policy, duplicate) as one tap each. An
+// implant used without a patient can be dismissed as a duplicate record,
+// which gives its unit back to stock and to the vendor's usage.
 
 import { Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { ChargeAttentionItem } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Chip, ChipGroup, Modal, TextArea, toast } from "@/components/ui";
+import { Checkbox, Chip, ChipGroup, Modal, TextArea, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
-import { moduleLabel, REASON_UNBILLED } from "./charge-attention-labels";
+import { NO_PATIENT } from "./charge-attention-columns";
+import {
+  isDetectedReason,
+  moduleLabel,
+  REASON_IMPLANT_NO_PATIENT,
+} from "./charge-attention-labels";
 
 /** Why an order done for a patient is rightly not billed, as the desk says it. */
 const UNBILLED_REASONS = [
@@ -27,10 +36,19 @@ interface DismissChargeModalProps {
 export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
   const queryClient = useQueryClient();
   const [reason, setReason] = useState("");
+  const [duplicateUsage, setDuplicateUsage] = useState(false);
   const reasonValid = reason.trim().length >= 3;
+  const implant = item.reason === REASON_IMPLANT_NO_PATIENT;
+  // Giving the unit back rewrites the store's stock: the server needs stock.manage.
+  const canReturnStock = useHasPermission(P.INDENT.STOCK_MANAGE);
+  const returnsStock = implant && canReturnStock;
 
   const mutation = useMutation({
-    mutationFn: () => billingService.dismissChargeAttention(item.id, { reason: reason.trim() }),
+    mutationFn: () =>
+      billingService.dismissChargeAttention(item.id, {
+        reason: reason.trim(),
+        duplicate_usage: returnsStock && duplicateUsage,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
       toast.success("Charge dismissed");
@@ -56,13 +74,13 @@ export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
     >
       <Stack>
         <Text size="sm">
-          {item.patient_name} · {item.uhid} · {item.description_override ?? item.charge_code} from{" "}
-          {moduleLabel(item.source_module)}
+          {item.patient_id === null ? NO_PATIENT : `${item.patient_name} · ${item.uhid}`} ·{" "}
+          {item.description_override ?? item.charge_code} from {moduleLabel(item.source_module)}
         </Text>
         <Text size="sm" c="dimmed">
           The patient will not be billed for this. Say why, for whoever audits it later.
         </Text>
-        {item.reason === REASON_UNBILLED && (
+        {isDetectedReason(item.reason) && (
           <ChipGroup value={reason} onChange={(value) => setReason(String(value))}>
             <Group gap="xs" aria-label="Common reasons">
               {UNBILLED_REASONS.map((r) => (
@@ -83,6 +101,13 @@ export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
             reason.length > 0 && !reasonValid ? "Give a reason of at least 3 characters" : undefined
           }
         />
+        {returnsStock && (
+          <Checkbox
+            label="Duplicate of a record already made: give the unit back to stock and the vendor's usage"
+            checked={duplicateUsage}
+            onChange={(e) => setDuplicateUsage(e.currentTarget.checked)}
+          />
+        )}
       </Stack>
     </Modal>
   );

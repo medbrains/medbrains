@@ -105,7 +105,7 @@ async fn by_role(tx: &mut Tx<'_>, tenant_id: Uuid, role: &str) -> Result<Vec<Uui
 /// Mirrors the resolution the auth layer uses: the role's permission array,
 /// widened by `users.access_matrix->'extra'` and narrowed by `'denied'`. A
 /// denied permission must not make somebody an approver — that is the whole
-/// point of a per-user denial.
+/// point of a per-user denial. A deleted or inactive role carries no codes.
 ///
 /// The bypass roles are included unconditionally, because they hold every
 /// permission by definition.
@@ -117,6 +117,7 @@ async fn by_permission(
     let rows = sqlx::query(
         "SELECT u.id FROM users u \
          LEFT JOIN roles r ON r.tenant_id = u.tenant_id AND r.code = u.role::text \
+                          AND r.is_active = true AND r.deleted_at IS NULL \
          WHERE u.tenant_id = $1 AND u.is_active = true AND u.deleted_at IS NULL \
            AND NOT COALESCE(u.access_matrix->'denied' @> to_jsonb($2::text), false) \
            AND ( \

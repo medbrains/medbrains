@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT allergen_name, severity::text AS severity, reaction FROM patient_allergies WHERE patient_id = $1 AND tenant_id = $2 AND is_active AND allergy_type = 'drug' AND deleted_at IS NULL ORDER BY allergen_name LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "allergen_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "reaction",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "947166431bd331fbd911b4673adcf74041896e0bdc2ca2320fdd024402c8e2f0"
+}

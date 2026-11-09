@@ -114,7 +114,7 @@ export function RxSuiteWriter({
   const refillable = (terms: RefillTerms, items: RxItem[]) =>
     controlledNames(items, formularyById).length > 0 ? { ...terms, refills: 0 } : terms;
 
-  const { data: catalog = [] } = useQuery({
+  const { data: catalog = [], isLoading: catalogLoading } = useQuery({
     queryKey: ["pharmacy-catalog"],
     queryFn: () => clinicalSupportService.listPharmacyCatalog(),
     staleTime: 300_000,
@@ -153,7 +153,14 @@ export function RxSuiteWriter({
     staleTime: 60_000,
   });
 
-  const formulary = useMemo<FormularyDrug[]>(() => catalogToFormulary(catalog), [catalog]);
+  // Drugs found by the server-side search, beyond the first hundred loaded:
+  // the safety checks below look drugs up here, so a picked one must be in it.
+  const [foundDrugs, setFoundDrugs] = useState<FormularyDrug[]>([]);
+  const formulary = useMemo<FormularyDrug[]>(() => {
+    const loaded = catalogToFormulary(catalog);
+    const ids = new Set(loaded.map((d) => d.id));
+    return [...loaded, ...foundDrugs.filter((d) => !ids.has(d.id))];
+  }, [catalog, foundDrugs]);
   const formularyById = useMemo(
     () => Object.fromEntries(formulary.map((d) => [d.id, d])),
     [formulary],
@@ -461,6 +468,10 @@ export function RxSuiteWriter({
       )}
       <RxDoctor
         formulary={formulary}
+        formularyLoading={catalogLoading}
+        onDrugFound={(drug) =>
+          setFoundDrugs((prev) => (prev.some((d) => d.id === drug.id) ? prev : [...prev, drug]))
+        }
         formularyById={formularyById}
         nlemGenerics={nlemGenerics}
         initialItems={[]}

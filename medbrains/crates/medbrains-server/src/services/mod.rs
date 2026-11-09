@@ -26,6 +26,7 @@ pub mod queue_rollover;
 pub mod restraint_observation_escalation;
 pub mod retention;
 pub mod room_rent;
+pub mod preauth_sweep;
 pub mod unbilled_orders;
 pub mod paperless_meter;
 pub mod simulator;

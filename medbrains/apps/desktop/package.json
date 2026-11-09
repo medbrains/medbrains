@@ -2,10 +2,10 @@
   "name": "@medbrains/desktop",
   "private": true,
   "version": "0.1.0",
-  "description": "MedBrains HMS — desktop app (Tauri 2 shell over apps/web SPA)",
+  "description": "MedBrains desktop client for Windows and Mac PCs (Tauri 2)",
   "scripts": {
     "tauri": "tauri",
-    "dev": "tauri dev",
+    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "build": "tauri build",
     "build:macos": "tauri build --target universal-apple-darwin",
     "build:windows": "tauri build --target x86_64-pc-windows-msvc",
@@ -17,9 +17,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-notification": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "@tauri-apps/plugin-process": "^2.0.0",

@@ -1,8 +1,11 @@
-//! Revenue leakage, first check: orders done for a patient that no bill carries.
+//! Revenue leakage: care given to a patient that no bill carries.
 //!
 //! A lab test verified, an image reported or a procedure completed with no
 //! charge goes on the charge attention queue (migrations 1411, 1416) with
-//! reason `unbilled_order`, priced from the tariff.
+//! reason `unbilled_order`, priced from the tariff. Stock used on a patient
+//! with no charge (a store consumable issued as chargeable, billable ward
+//! stock, consignment stock, a registry implant) goes on it as
+//! `unbilled_consumption` (migration 1421), under the same rules below.
 //!
 //! The discharge final-bill checklist catches these only for inpatients and
 //! only at the end; outpatients and day-care patients were never caught. This
@@ -36,8 +39,14 @@ use uuid::Uuid;
 
 mod sql;
 
-/// The queue reason every row this check writes carries.
+/// The queue reason of an order done and never billed.
 pub const REASON_UNBILLED_ORDER: &str = "unbilled_order";
+/// The queue reason of stock used on a patient and never billed.
+pub const REASON_UNBILLED_CONSUMPTION: &str = "unbilled_consumption";
+/// The rows seen and worked under `billing.leakage.*`, as a SQL list: what
+/// the detector finds, and the implant used with no patient named.
+pub(crate) const LEAKAGE_REASONS_SQL: &str =
+    "('unbilled_order', 'unbilled_consumption', 'implant_no_patient')";
 /// Orders done this recently are still the desk's to bill, not a leak.
 pub const GRACE_HOURS: i32 = 2;
 /// Orders older than this are past any claim window; not raised.
@@ -51,19 +60,32 @@ const THROTTLE_MINUTES: i32 = 10;
 /// The audit action every run writes, and the throttle reads.
 const SCAN_ACTION: &str = "billing.leakage.scan";
 
-/// Queue every done-but-unbilled order of the transaction's hospital, in
-/// batches of [`BATCH`], one statement each. Returns how many were queued.
+/// Queue every done-but-unbilled order and every unbilled use of stock of
+/// the transaction's hospital. Returns how many were queued.
 ///
-/// Re-running adds nothing: an order on the queue in any status is skipped,
+/// Re-running adds nothing: a record on the queue in any status is skipped,
 /// and the open-row unique index answers a concurrent run.
 pub async fn queue_unbilled_orders(
     conn: &mut PgConnection,
     tenant_id: Uuid,
     run_by: Option<Uuid>,
 ) -> Result<u64, AppError> {
+    let orders = queue_batches(conn, sql::QUEUE_BATCH, tenant_id, run_by).await?;
+    let stock = queue_batches(conn, sql::QUEUE_CONSUMPTION_BATCH, tenant_id, run_by).await?;
+    Ok(orders + stock)
+}
+
+/// Run one detector statement in batches of [`BATCH`], at most
+/// [`MAX_BATCHES`] of them. Returns how many rows it queued.
+async fn queue_batches(
+    conn: &mut PgConnection,
+    batch_sql: &str,
+    tenant_id: Uuid,
+    run_by: Option<Uuid>,
+) -> Result<u64, AppError> {
     let mut queued = 0;
     for _ in 0..MAX_BATCHES {
-        let written = sqlx::query(sql::QUEUE_BATCH)
+        let written = sqlx::query(batch_sql)
             .bind(tenant_id)
             .bind(GRACE_HOURS)
             .bind(LOOKBACK_DAYS)
@@ -104,73 +126,167 @@ async fn ran_recently(conn: &mut PgConnection, tenant_id: Uuid) -> Result<bool, 
     .await?)
 }
 
-/// Where an unbilled order stands when the desk posts it.
+/// Where a queued order or use of stock stands when the desk posts it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OrderNow {
-    /// Still done, and no bill carries it.
-    Unbilled,
+    /// Still done, and no bill carries it; how many are still to bill (net
+    /// of returns, for stock).
+    Unbilled(i32),
     /// A bill already carries it, by its id or by hand.
     Billed,
-    /// No longer done: cancelled, deleted or un-verified.
+    /// No longer stands: cancelled, deleted, un-verified, or all returned.
     Gone,
 }
 
-/// Re-run the detector's "done" and "already billed" checks for one order,
-/// in the caller's transaction, so posting cannot bill it twice.
+/// Re-run the detector's "done" and "already billed" checks for one order
+/// or (when `stock`) one use of stock, in the caller's transaction, so
+/// posting cannot bill it twice or bill what came back.
 pub(crate) async fn order_now(
     conn: &mut PgConnection,
     tenant_id: Uuid,
-    module: &str,
+    (stock, module): (bool, &str),
     order_id: Uuid,
 ) -> Result<OrderNow, AppError> {
-    let billed: Option<bool> = sqlx::query_scalar(sql::RECHECK)
+    let recheck = if stock {
+        sql::RECHECK_CONSUMPTION
+    } else {
+        sql::RECHECK
+    };
+    let now: Option<(bool, i32)> = sqlx::query_as(recheck)
         .bind(tenant_id)
         .bind(module)
         .bind(order_id)
         .fetch_optional(&mut *conn)
         .await?;
-    Ok(match billed {
+    Ok(match now {
         None => OrderNow::Gone,
-        Some(true) => OrderNow::Billed,
-        Some(false) => OrderNow::Unbilled,
+        Some((true, _)) => OrderNow::Billed,
+        Some((false, quantity)) => OrderNow::Unbilled(quantity),
     })
 }
 
-/// Before an unbilled order is posted: it must have a price, still be done,
-/// and still be on no bill. A cancelled order's row is dismissed (committed)
-/// and the post answers 409; a billed one answers 409 and stays open for the
-/// desk to dismiss with that reason. Takes the unit of work so it can commit.
-pub(crate) async fn check_unbilled_order(
+/// Before a queued charge is posted, in the posting unit of work.
+///
+/// - A row the detector found, or an implant with no patient named, must
+///   carry a price (a ₹0 implant is "no tariff").
+/// - An order or a use of stock must still stand and be on no bill. Stock
+///   returned since it was queued posts only what is left (the row is
+///   lowered to match); all of it returned, or an order cancelled, dismisses
+///   the row (committed) and answers 409. One already billed answers 409 and
+///   stays open for the desk to dismiss with that reason.
+///
+/// Returns the unit of work and the quantity to bill.
+pub(crate) async fn check_before_post(
     mut tx: medbrains_kernel::Tx,
     claims: &Claims,
     item: &crate::charge_attention::ChargeAttentionItem,
-) -> Result<medbrains_kernel::Tx, AppError> {
-    if item.unit_price_override.is_none() {
+) -> Result<(medbrains_kernel::Tx, i32), AppError> {
+    let detected =
+        item.reason == REASON_UNBILLED_ORDER || item.reason == REASON_UNBILLED_CONSUMPTION;
+    let stock = item.reason == REASON_UNBILLED_CONSUMPTION || item.source_module == "consumable";
+    require_price(item, detected)?;
+    if item.reason == medbrains_server_services::billing::REASON_IMPLANT_NO_PATIENT {
+        require_not_registry_duplicate(&mut tx, claims.tenant_id, item).await?;
+    }
+    if !detected && !stock {
+        return Ok((tx, item.quantity));
+    }
+    let key = (stock, item.source_module.as_str());
+    match order_now(&mut tx, claims.tenant_id, key, item.source_entity_id).await? {
+        OrderNow::Unbilled(left) if left < item.quantity => {
+            lower_quantity(&mut tx, claims.tenant_id, item.id, left).await?;
+            Ok((tx, left))
+        }
+        OrderNow::Unbilled(_) => Ok((tx, item.quantity)),
+        OrderNow::Billed => Err(AppError::Conflict(
+            "This is already on a bill. Dismiss it with that reason.".to_owned(),
+        )),
+        OrderNow::Gone => {
+            let why = if stock {
+                "Stock returned or removed"
+            } else {
+                "Order cancelled"
+            };
+            crate::charge_attention::mark_dismissed(&mut tx, claims, item.id, why).await?;
+            tx.commit().await?;
+            Err(AppError::Conflict(format!(
+                "{why} since it was queued, so it has been dismissed."
+            )))
+        }
+    }
+}
+
+/// A found row or an implant with no patient named posts only with a price.
+fn require_price(
+    item: &crate::charge_attention::ChargeAttentionItem,
+    detected: bool,
+) -> Result<(), AppError> {
+    let implant = item.reason == medbrains_server_services::billing::REASON_IMPLANT_NO_PATIENT;
+    let unpriced = match item.unit_price_override {
+        None => detected || implant,
+        Some(price) => implant && price.is_zero(),
+    };
+    if unpriced {
         return Err(AppError::BadRequest(
             "Set a tariff for this service first.".to_owned(),
         ));
     }
-    let now = order_now(
-        &mut tx,
-        claims.tenant_id,
-        &item.source_module,
-        item.source_entity_id,
+    Ok(())
+}
+
+/// Refuse (409) to post a store usage that would bill a patient for more
+/// units of the batch than the implant registry says they received.
+///
+/// The OT can enter the implant first, which records its usage and bills it;
+/// the store may then record the same implant again with no patient. Named
+/// after the fact, it would bill the patient twice. When the patient has any
+/// registry entry on the batch, the units used on them may not exceed the
+/// entries: the desk dismisses the duplicate, or the second implant is
+/// entered in the registry first.
+async fn require_not_registry_duplicate(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    item: &crate::charge_attention::ChargeAttentionItem,
+) -> Result<(), AppError> {
+    let (entries, units): (i64, i64) = sqlx::query_as(
+        "WITH mv AS (SELECT batch_stock_id, patient_id FROM store_stock_movements \
+                      WHERE id = $2 AND tenant_id = $1) \
+         SELECT (SELECT COUNT(*) FROM implant_registry r, mv \
+                  WHERE r.tenant_id = $1 AND r.batch_stock_id = mv.batch_stock_id \
+                    AND r.patient_id = mv.patient_id AND r.deleted_at IS NULL), \
+                (SELECT COALESCE(SUM(-m.quantity), 0)::int8 FROM store_stock_movements m, mv \
+                  WHERE m.tenant_id = $1 AND m.batch_stock_id = mv.batch_stock_id \
+                    AND m.patient_id = mv.patient_id AND m.deleted_at IS NULL \
+                    AND m.reference_type = 'consignment_usage')",
     )
+    .bind(tenant_id)
+    .bind(item.source_entity_id)
+    .fetch_one(&mut *conn)
     .await?;
-    match now {
-        OrderNow::Unbilled => Ok(tx),
-        OrderNow::Billed => Err(AppError::Conflict(
-            "This order is already on a bill. Dismiss it with that reason.".to_owned(),
-        )),
-        OrderNow::Gone => {
-            crate::charge_attention::mark_dismissed(&mut tx, claims, item.id, "Order cancelled")
-                .await?;
-            tx.commit().await?;
-            Err(AppError::Conflict(
-                "This order was cancelled, so it has been dismissed.".to_owned(),
-            ))
-        }
+    if entries > 0 && units > entries {
+        return Err(AppError::Conflict(format!(
+            "The implant registry has {entries} implant(s) of this batch for this patient, \
+             and this would bill unit {units}. Dismiss it as a duplicate, or enter the \
+             second implant in the registry first."
+        )));
     }
+    Ok(())
+}
+
+/// Lower the queued quantity to what is left to bill.
+async fn lower_quantity(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    id: Uuid,
+    quantity: i32,
+) -> Result<(), AppError> {
+    sqlx::query("UPDATE charge_attention_items SET quantity = $3 WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(tenant_id)
+        .bind(quantity)
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
 }
 
 /// What one run of the check found.

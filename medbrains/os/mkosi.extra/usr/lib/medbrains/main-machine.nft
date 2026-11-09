@@ -2,9 +2,10 @@
 # so a node, and a machine not yet set up, never opens them.
 #
 # One address, or one IPv6 /64, gets a limited rate of new connections, so one machine cannot flood the front end.
-add rule inet medbrains main_machine tcp dport { 80, 443 } ct state new meter web_new { ip saddr limit rate over 50/second burst 100 packets } drop
-add rule inet medbrains main_machine tcp dport { 80, 443 } ct state new meter web_new6 { ip6 saddr and ffff:ffff:ffff:ffff:: limit rate over 50/second burst 100 packets } drop
+add rule inet medbrains main_machine tcp dport { 80, 443, 9443 } ct state new meter web_new { ip saddr limit rate over 50/second burst 100 packets } drop
+add rule inet medbrains main_machine tcp dport { 80, 443, 9443 } ct state new meter web_new6 { ip6 saddr and ffff:ffff:ffff:ffff:: limit rate over 50/second burst 100 packets } drop
 add rule inet medbrains main_machine tcp dport { 80, 443 } accept
+add rule inet medbrains main_machine tcp dport 9443 accept comment "identity provider sign-in"
 add rule inet medbrains main_machine udp dport 123 accept comment "serves the LAN its time"
 # A machine's connections reach the front end from its own 127.x.y.z, which the audit log and the
 # sign-in limit believe. Only the agent may use those addresses, or any local program could appear

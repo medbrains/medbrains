@@ -403,7 +403,12 @@ export async function dispensePharmacyOrder(
     ctx,
     "PUT",
     `/api/pharmacy/orders/${orderId}/dispense`,
-    reason ? { unpaid_override_reason: reason } : {},
+    // Fixture patients have no allergy recorded and none noted as asked: the
+    // pharmacist's acknowledgement, as the dispense screen asks for it.
+    {
+      allergy_status_acknowledged: true,
+      ...(reason ? { unpaid_override_reason: reason } : {}),
+    },
   );
 }
 

@@ -803,6 +803,97 @@ pub async fn require_patient_access(
     collapse(any([direct, reachable]))
 }
 
+/// How long a pharmacy order keeps the dispensing view of its patient open.
+///
+/// Open orders count only while recent, and a dispensed one only for returns
+/// and counselling. Past this the pharmacist reaches the patient the ordinary
+/// way or not at all.
+const PHARMACY_ACCESS_DAYS: i32 = 30;
+
+/// Gate the **dispensing view** of a patient: name, UHID and drug allergies,
+/// and raising a pharmacy order for them.
+///
+/// Passes for anyone `require_patient_access` passes. Beyond that, it passes
+/// while the pharmacy is working for the patient, within
+/// `PHARMACY_ACCESS_DAYS`: an open prescription in the Rx queue (to a holder
+/// of the Rx-queue permission), or a pharmacy order the caller can view (the
+/// Pharmacy department). It deliberately does not widen
+/// `require_patient_access`: the pharmacy used to reach the whole record
+/// through a `handoff:PHARMACY` tuple on the visit, with no end. Use it only
+/// for reads that return what dispensing needs, nothing more.
+pub async fn require_patient_pharmacy_access(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let care = require_patient_access(state, claims, patient_id).await;
+    if !matches!(care, Err(AppError::NotFound)) {
+        // Allowed, or a fault that must not turn into a refusal.
+        return care;
+    }
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    // The Rx queue is the pharmacy's worklist, scoped by its permission: an
+    // open prescription for this patient is the pharmacy's work.
+    let rx_queue_holder = medbrains_server_core::middleware::authorization::require_any_permission(
+        claims,
+        &[
+            medbrains_core::permissions::pharmacy::rx_queue::LIST,
+            medbrains_core::permissions::pharmacy::rx_queue::REVIEW,
+        ],
+    )
+    .is_ok();
+    if rx_queue_holder {
+        let open_rx = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM pharmacy_prescriptions \
+              WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+                AND status::text IN ('pending_review', 'on_hold', 'approved', 'dispensing', \
+                                     'partially_dispensed') \
+                AND received_at > now() - make_interval(days => $3)) AS \"exists!\"",
+            patient_id,
+            claims.tenant_id,
+            PHARMACY_ACCESS_DAYS,
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        if open_rx {
+            return Ok(());
+        }
+    }
+    let order_ids: Vec<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM pharmacy_orders WHERE patient_id = $1 AND tenant_id = $2 \
+           AND deleted_at IS NULL \
+           AND ((status IN ('ordered', 'partially_dispensed') \
+                 AND created_at > now() - make_interval(days => $3)) \
+                OR dispensed_at > now() - make_interval(days => $3)) \
+         ORDER BY created_at DESC LIMIT $4",
+        patient_id,
+        claims.tenant_id,
+        PHARMACY_ACCESS_DAYS,
+        MAX_FANOUT,
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    if order_ids.is_empty() {
+        return Err(AppError::NotFound);
+    }
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    let items: Vec<(String, medbrains_authz::Relation, Uuid)> = order_ids
+        .into_iter()
+        .map(|id| ("pharmacy_order".to_owned(), medbrains_authz::Relation::Viewer, id))
+        .collect();
+    let reachable = match state.authz.bulk_check(&ctx, &items).await {
+        Ok(results) => any(results.values().map(|&allowed| {
+            if allowed { Outcome::Allow } else { Outcome::Deny }
+        })),
+        Err(err) => {
+            tracing::error!(target: "authz", error = %err, check = "patient_pharmacy",
+                "authorization backend unavailable — refusing as 503, not as absent");
+            Outcome::Unknown
+        }
+    };
+    collapse(reachable)
+}
+
 /// The set of patients this caller may see, for constraining a list query.
 ///
 /// `None` means "no constraint" — a bypass role sees every row in the tenant,

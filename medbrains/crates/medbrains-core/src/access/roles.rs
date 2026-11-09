@@ -274,6 +274,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::VIEW,
             permissions::mrd::case_sheets::GENERATE,
             permissions::mrd::case_sheets::PRINT,
+            // The consultation's paper-file chip and digital summary.
+            permissions::mrd::file_request::STATUS,
+            // Ask for the file by hand when the chip reads "not requested".
+            permissions::mrd::file_request::CREATE,
             // Order Sets
             permissions::order_sets::templates::LIST,
             permissions::order_sets::templates::VIEW,
@@ -758,6 +762,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::queue::LIST,
             permissions::opd::queue::VIEW,
             permissions::opd::visit::CREATE,
+            // The front desk that registered the visit asks for its file
+            // when the automatic request did not happen.
+            permissions::mrd::file_request::CREATE,
             permissions::opd::TOKEN_MANAGE,
             permissions::opd::appointment::LIST,
             permissions::opd::appointment::CREATE,
@@ -946,6 +953,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::dispensing::PARTIAL,
             permissions::pharmacy::dispensing::CANCEL,
             permissions::pharmacy::dispensing::VOID,
+            permissions::pharmacy::dispensing::UNPAID_OVERRIDE,
             permissions::pharmacy::stock::MANAGE,
             permissions::pharmacy::ndps::LIST,
             permissions::pharmacy::ndps::MANAGE,
@@ -1124,6 +1132,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::prior_auth::CREATE,
             permissions::insurance::prior_auth::UPDATE,
             permissions::insurance::prior_auth::SUBMIT,
+            // Pre-auths nearly used up and rooms above the policy limit.
+            permissions::insurance::enhancement::VIEW,
+            permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
+            permissions::insurance::room_eligibility::VIEW,
+            permissions::insurance::room_eligibility::RESOLVE,
+            permissions::insurance::room_eligibility::CONFIGURE,
             permissions::insurance::appeals::LIST,
             permissions::insurance::appeals::CREATE,
             permissions::insurance::rules::LIST,
@@ -1316,6 +1331,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             // Read-only: security intelligence findings and check health.
             permissions::security::intel::VIEW,
+            // Read-only: what MedBrains staff were allowed and what they did.
+            permissions::security::vendor_access::VIEW,
             // Auditors read knowledge changes and download their proofs.
             permissions::knowledge::change_sets::LIST,
             // Read-only: the privacy pack and its gaps.
@@ -1623,6 +1640,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            // The runner's queue: fetch, deliver, be told when one is late.
+            permissions::mrd::file_request::VIEW,
+            permissions::mrd::file_request::FULFIL,
+            permissions::mrd::file_request::SUPERVISE,
+            permissions::mrd::file_request::STATUS,
             // Medical records answers "is this paper genuine?" for insurers
             // and courts, and withdraws a copy's public link when asked.
             permissions::doctor::signature::VERIFY,
@@ -2180,6 +2202,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::flows::BUILD,
             permissions::knowledge::change_sets::LIST,
             permissions::knowledge::change_sets::APPROVE,
+            // The clinical head is the second approver before MedBrains staff
+            // see patient data unmasked (docs/compliance/vendor-access.md).
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
             // Sees who is in discharge from the control room.
             permissions::ipd::admissions::LIST,
             permissions::ipd::admissions::VIEW,
@@ -2200,6 +2226,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Security → Intelligence (RFC-OSINT §6).
             permissions::security::intel::VIEW,
             permissions::security::intel::MANAGE,
+            // Gives, approves and ends MedBrains support access. Approving
+            // their own request is refused by the server, so one officer alone
+            // cannot open patient data unmasked.
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::GRANT,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
+            permissions::security::vendor_access::REVOKE,
             // Opens and follows incidents raised from findings.
             permissions::security::incidents::LIST,
             permissions::security::incidents::CREATE,
@@ -2207,6 +2240,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Can cut a suspect machine off at once, and cannot let a new one in.
             permissions::devices::machines::VIEW,
             permissions::devices::machines::REMOVE,
+            // Not LINK_IDENTITY or admin.sso.providers.manage: identity management is administrators only.
             permissions::dashboard::VIEW,
         ],
     },
@@ -2226,6 +2260,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::prior_auth::CREATE,
             permissions::insurance::prior_auth::UPDATE,
             permissions::insurance::prior_auth::SUBMIT,
+            // Pre-auths nearly used up and rooms above the policy limit.
+            permissions::insurance::enhancement::VIEW,
+            permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
+            permissions::insurance::room_eligibility::VIEW,
+            permissions::insurance::room_eligibility::RESOLVE,
+            permissions::insurance::room_eligibility::CONFIGURE,
             permissions::insurance::appeals::LIST,
             permissions::insurance::appeals::CREATE,
             permissions::insurance::dashboard::VIEW,

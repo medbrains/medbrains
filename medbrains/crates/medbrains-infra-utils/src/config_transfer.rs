@@ -15,12 +15,16 @@
 use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
 
+use medbrains_core::permissions;
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    settings_guard::{OWN_ENDPOINT_CATEGORIES, refuse_own_endpoint_category},
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::require_permission,
+    settings_guard::{
+        OWN_ENDPOINT_CATEGORIES, refuse_admin_only_category, refuse_own_endpoint_category,
+    },
     state::AppState,
 };
-use medbrains_core::permissions;
 
 const BUNDLE_VERSION: i32 = 1;
 
@@ -164,6 +168,9 @@ pub async fn import_config(
             Some(_) => "unchanged",
         };
         if action != "unchanged" {
+            // An unchanged sign-in policy re-imports, so an exported bundle
+            // still round-trips; changing it needs a bypass administrator.
+            refuse_admin_only_category(&claims, &entry.category)?;
             diff.push(DiffEntry {
                 kind: "setting",
                 item: format!("{}/{}", entry.category, entry.key),

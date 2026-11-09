@@ -1,7 +1,7 @@
 //! Runs helper programs with a deadline. The service answers one request at a time, so one stuck
 //! `ip` or `busctl` would otherwise hold the whole screen.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
@@ -40,13 +40,34 @@ fn collect(pipe: Option<impl Read + Send + 'static>) -> mpsc::Receiver<Vec<u8>> 
 /// Runs a helper to the end or to the limit, whichever comes first, killing it at the limit.
 /// `None` means it couldn't start or was killed: not an answer of any kind.
 pub(crate) fn run(program: &str, args: &[&str], limit: Duration) -> Option<Finished> {
+    run_with_input(program, args, b"", limit)
+}
+
+/// The same, with bytes on the helper's stdin: the way to hand it a secret, which arguments are not.
+pub(crate) fn run_with_input(
+    program: &str,
+    args: &[&str],
+    input: &[u8],
+    limit: Duration,
+) -> Option<Finished> {
     let mut child = Command::new(program)
         .args(args)
-        .stdin(Stdio::null())
+        .stdin(if input.is_empty() {
+            Stdio::null()
+        } else {
+            Stdio::piped()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .ok()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        // Wiped when the thread drops it: this copy may hold a password.
+        let owned = zeroize::Zeroizing::new(input.to_owned());
+        // Its own thread, so a helper that never reads cannot hold this past the limit. Dropping it closes
+        // stdin. A helper that exits early breaks the pipe, and its exit status tells that story.
+        thread::spawn(move || drop(stdin.write_all(&owned)));
+    }
     let (stdout, stderr) = (collect(child.stdout.take()), collect(child.stderr.take()));
     let deadline = Instant::now() + limit;
     let status = loop {
@@ -70,7 +91,7 @@ pub(crate) fn run(program: &str, args: &[&str], limit: Duration) -> Option<Finis
 
 #[cfg(test)]
 mod tests {
-    use super::run;
+    use super::{run, run_with_input};
     use std::time::{Duration, Instant};
 
     const SOON: Duration = Duration::from_millis(300);
@@ -92,6 +113,12 @@ mod tests {
         );
         let done = done.filter(|d| !d.success && d.stdout == b"out\n" && d.stderr == b"err\n");
         assert!(done.is_some());
+    }
+
+    #[test]
+    fn input_reaches_the_helper_on_its_stdin() {
+        let done = run_with_input("cat", &[], b"secret\n", Duration::from_secs(5));
+        assert!(done.is_some_and(|d| d.success && d.stdout == b"secret\n"));
     }
 
     #[test]

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET perm_version = perm_version + 1 WHERE tenant_id = $1 AND role::text = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "217506f8749e5df9089bcf37bf232311e8fd52173ba486075007b7d6856eaac8"
+}

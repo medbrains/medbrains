@@ -406,7 +406,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
                   WHERE day BETWEEN $1 AND $2 \
                   GROUP BY day",
         },
-        _ => return None,
+        _ => return super::file_delivery::kpi(code),
     })
 }
 

@@ -210,12 +210,13 @@ pub struct NewNotification<'a> {
     pub action_url: Option<&'a str>,
 }
 
-/// Insert a notification row (call inside a tenant-scoped transaction).
+/// Insert a notification row (call inside a tenant-scoped transaction: a `sqlx` transaction or a kernel
+/// `Tx`, both of which deref to the connection).
 /// Returns the new row id so a caller can publish it live post-commit via
 /// [`publish_notification`]. Existing callers that write `…await?;` and discard
 /// the id keep compiling (persist-only; they gain real-time by publishing).
 pub async fn create_notification(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     notification: NewNotification<'_>,
 ) -> Result<Uuid, AppError> {
@@ -417,7 +418,9 @@ pub async fn notifications_ws_handler(
     // The upgrade skips the auth middleware, so its checks run here: a token
     // for a deactivated or deleted account, a stale permission version or a
     // revoked device is refused before the socket opens, and the permissions
-    // the board topics are chosen by are the account's real ones.
+    // the board topics are chosen by are the account's real ones. A MedBrains
+    // account is refused too: a stream cannot be masked or recorded per
+    // request, so it gets none, grant or no grant.
     medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut claims).await?;
     let topics = socket_topics(&claims);
     Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics, claims)))

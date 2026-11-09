@@ -302,6 +302,13 @@ export const P = {
     SIGNATURE_CREDENTIALS_ISSUE: "admin.signature_credentials.issue",
     SIGNATURE_CREDENTIALS_LIST: "admin.signature_credentials.list",
     SIGNATURE_CREDENTIALS_REVOKE: "admin.signature_credentials.revoke",
+    SSO: {
+      PROVIDERS: {
+        MANAGE: "admin.sso.providers.manage",
+      },
+      PROVIDERS_MANAGE: "admin.sso.providers.manage",
+    },
+    SSO_PROVIDERS_MANAGE: "admin.sso.providers.manage",
     SYSTEM_STATE: {
       MANAGE: "admin.system_state.manage",
       VIEW: "admin.system_state.view",
@@ -329,6 +336,7 @@ export const P = {
       CREATE: "admin.users.create",
       DELETE: "admin.users.delete",
       FORCE_LOGOUT: "admin.users.force_logout",
+      LINK_IDENTITY: "admin.users.link_identity",
       LIST: "admin.users.list",
       UPDATE: "admin.users.update",
       VIEW: "admin.users.view",
@@ -336,6 +344,7 @@ export const P = {
     USERS_CREATE: "admin.users.create",
     USERS_DELETE: "admin.users.delete",
     USERS_FORCE_LOGOUT: "admin.users.force_logout",
+    USERS_LINK_IDENTITY: "admin.users.link_identity",
     USERS_LIST: "admin.users.list",
     USERS_UPDATE: "admin.users.update",
     USERS_VIEW: "admin.users.view",
@@ -600,9 +609,11 @@ export const P = {
     },
     LANES_MANAGE: "billing.lanes.manage",
     LEAKAGE: {
+      NAME_IMPLANT_RECIPIENT: "billing.leakage.name_implant_recipient",
       RESOLVE: "billing.leakage.resolve",
       VIEW: "billing.leakage.view",
     },
+    LEAKAGE_NAME_IMPLANT_RECIPIENT: "billing.leakage.name_implant_recipient",
     LEAKAGE_RESOLVE: "billing.leakage.resolve",
     LEAKAGE_VIEW: "billing.leakage.view",
     PAYER_SPLIT: {
@@ -627,6 +638,10 @@ export const P = {
     PAYMENT_SETTINGS_MANAGE: "billing.payment_settings.manage",
     PAYMENT_SETTINGS_NOTIFIED: "billing.payment_settings.notified",
     PAYMENT_SETTINGS_VIEW: "billing.payment_settings.view",
+    PREAUTH_ALERTS: {
+      CONFIGURE: "billing.preauth_alerts.configure",
+    },
+    PREAUTH_ALERTS_CONFIGURE: "billing.preauth_alerts.configure",
     RECEIPTS: {
       PRINT: "billing.receipts.print",
       REPRINT: "billing.receipts.reprint",
@@ -1663,6 +1678,12 @@ export const P = {
       VIEW: "insurance.dashboard.view",
     },
     DASHBOARD_VIEW: "insurance.dashboard.view",
+    ENHANCEMENT: {
+      REQUEST: "insurance.enhancement.request",
+      VIEW: "insurance.enhancement.view",
+    },
+    ENHANCEMENT_REQUEST: "insurance.enhancement.request",
+    ENHANCEMENT_VIEW: "insurance.enhancement.view",
     NHCX: {
       CANCEL: "insurance.nhcx.cancel",
       CONFIGURE: "insurance.nhcx.configure",
@@ -1677,6 +1698,10 @@ export const P = {
     NHCX_RESPOND: "insurance.nhcx.respond",
     NHCX_SUBMIT: "insurance.nhcx.submit",
     NHCX_VIEW: "insurance.nhcx.view",
+    PREAUTH_MISSING: {
+      DISMISS: "insurance.preauth_missing.dismiss",
+    },
+    PREAUTH_MISSING_DISMISS: "insurance.preauth_missing.dismiss",
     PRIOR_AUTH: {
       CREATE: "insurance.prior_auth.create",
       LIST: "insurance.prior_auth.list",
@@ -1687,6 +1712,14 @@ export const P = {
     PRIOR_AUTH_LIST: "insurance.prior_auth.list",
     PRIOR_AUTH_SUBMIT: "insurance.prior_auth.submit",
     PRIOR_AUTH_UPDATE: "insurance.prior_auth.update",
+    ROOM_ELIGIBILITY: {
+      CONFIGURE: "insurance.room_eligibility.configure",
+      RESOLVE: "insurance.room_eligibility.resolve",
+      VIEW: "insurance.room_eligibility.view",
+    },
+    ROOM_ELIGIBILITY_CONFIGURE: "insurance.room_eligibility.configure",
+    ROOM_ELIGIBILITY_RESOLVE: "insurance.room_eligibility.resolve",
+    ROOM_ELIGIBILITY_VIEW: "insurance.room_eligibility.view",
     RULES: {
       LIST: "insurance.rules.list",
       MANAGE: "insurance.rules.manage",
@@ -2135,6 +2168,18 @@ export const P = {
     },
     DEATHS_CREATE: "mrd.deaths.create",
     DEATHS_LIST: "mrd.deaths.list",
+    FILE_REQUEST: {
+      CREATE: "mrd.file_request.create",
+      FULFIL: "mrd.file_request.fulfil",
+      STATUS: "mrd.file_request.status",
+      SUPERVISE: "mrd.file_request.supervise",
+      VIEW: "mrd.file_request.view",
+    },
+    FILE_REQUEST_CREATE: "mrd.file_request.create",
+    FILE_REQUEST_FULFIL: "mrd.file_request.fulfil",
+    FILE_REQUEST_STATUS: "mrd.file_request.status",
+    FILE_REQUEST_SUPERVISE: "mrd.file_request.supervise",
+    FILE_REQUEST_VIEW: "mrd.file_request.view",
     RECORDS: {
       CREATE: "mrd.records.create",
       LIST: "mrd.records.list",
@@ -2621,11 +2666,13 @@ export const P = {
       CANCEL: "pharmacy.dispensing.cancel",
       CREATE: "pharmacy.dispensing.create",
       PARTIAL: "pharmacy.dispensing.partial",
+      UNPAID_OVERRIDE: "pharmacy.dispensing.unpaid_override",
       VOID: "pharmacy.dispensing.void",
     },
     DISPENSING_CANCEL: "pharmacy.dispensing.cancel",
     DISPENSING_CREATE: "pharmacy.dispensing.create",
     DISPENSING_PARTIAL: "pharmacy.dispensing.partial",
+    DISPENSING_UNPAID_OVERRIDE: "pharmacy.dispensing.unpaid_override",
     DISPENSING_VOID: "pharmacy.dispensing.void",
     FORMULARY: {
       APPROVE: "pharmacy.formulary.approve",
@@ -2654,9 +2701,11 @@ export const P = {
     NDPS: {
       LIST: "pharmacy.ndps.list",
       MANAGE: "pharmacy.ndps.manage",
+      WITNESS_OVERRIDE: "pharmacy.ndps.witness_override",
     },
     NDPS_LIST: "pharmacy.ndps.list",
     NDPS_MANAGE: "pharmacy.ndps.manage",
+    NDPS_WITNESS_OVERRIDE: "pharmacy.ndps.witness_override",
     NPPA: {
       MANAGE: "pharmacy.nppa.manage",
     },
@@ -3181,6 +3230,16 @@ export const P = {
     PATIENT_SAFETY_MANAGE: "security.patient_safety.manage",
     PATIENT_SAFETY_REPORT_EVENT: "security.patient_safety.report_event",
     PATIENT_SAFETY_VERIFY_MATCH: "security.patient_safety.verify_match",
+    VENDOR_ACCESS: {
+      APPROVE_UNMASKED: "security.vendor_access.approve_unmasked",
+      GRANT: "security.vendor_access.grant",
+      REVOKE: "security.vendor_access.revoke",
+      VIEW: "security.vendor_access.view",
+    },
+    VENDOR_ACCESS_APPROVE_UNMASKED: "security.vendor_access.approve_unmasked",
+    VENDOR_ACCESS_GRANT: "security.vendor_access.grant",
+    VENDOR_ACCESS_REVOKE: "security.vendor_access.revoke",
+    VENDOR_ACCESS_VIEW: "security.vendor_access.view",
   },
   SPECIALTY: {
     CATH_LAB: {
@@ -3219,11 +3278,13 @@ export const P = {
     CATH_LAB_STEMI_MANAGE: "specialty.cath_lab.stemi.manage",
     CLINICAL_TRIALS: {
       CREATE: "specialty.clinical_trials.create",
+      EXPORT: "specialty.clinical_trials.export",
       LIST: "specialty.clinical_trials.list",
       SCREEN: "specialty.clinical_trials.screen",
       UNBLIND: "specialty.clinical_trials.unblind",
     },
     CLINICAL_TRIALS_CREATE: "specialty.clinical_trials.create",
+    CLINICAL_TRIALS_EXPORT: "specialty.clinical_trials.export",
     CLINICAL_TRIALS_LIST: "specialty.clinical_trials.list",
     CLINICAL_TRIALS_SCREEN: "specialty.clinical_trials.screen",
     CLINICAL_TRIALS_UNBLIND: "specialty.clinical_trials.unblind",

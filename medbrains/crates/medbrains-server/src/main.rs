@@ -395,6 +395,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // whose roles table was never populated — or was emptied.
     medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
 
+    // The live vendor-domain list, then the back-fill. Only a mistake in the
+    // list itself stops the boot: a single label or public suffix, a
+    // hospital's own site domain, or more accounts than the ceiling. One
+    // account never takes every hospital offline: an account whose flag would
+    // leave its hospital with no administrator of its own is skipped (it is
+    // still gated at request time by the domain rule) and logged as an error,
+    // which the error-tracking layer raises to platform operators.
+    let refused = medbrains_core::vendor::configured_refusals();
+    if !refused.is_empty() {
+        return Err(format!(
+            "MEDBRAINS_VENDOR_EMAIL_DOMAINS refused: {refused:?} is a single label or a public \
+             suffix, which would make every account under it a MedBrains account. Fix the \
+             setting and restart."
+        )
+        .into());
+    }
+    let domains = medbrains_core::vendor::vendor_domains();
+    let (flagged, skipped): (i32, Vec<uuid::Uuid>) =
+        sqlx::query_as(
+            "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
+        )
+            .bind(&domains)
+            .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+            .bind(medbrains_core::vendor::backfill_max())
+            .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
+            .fetch_one(&bootstrap_pool)
+            .await
+            .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;
+    sqlx::query("SELECT public.app_set_vendor_domains($1)")
+        .bind(&domains)
+        .execute(&bootstrap_pool)
+        .await?;
+    if flagged > 0 {
+        tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
+    }
+    for user_id in skipped {
+        tracing::error!(
+            %user_id,
+            "vendor-domain account not flagged: it is its hospital's last administrator. It is \
+             still refused without a grant; hand the hospital an administrator account of its \
+             own (docs/compliance/vendor-access.md)"
+        );
+    }
+
     // Every startup check, reported at once; production does not serve on a
     // failure. After seeding, so a fresh database is judged as it will run.
     let findings = medbrains_server::preflight::run(
@@ -687,6 +731,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
     // Paperless meter — daily recount of the last week's documents and paper.
     medbrains_server::services::paperless_meter::spawn(worker_pool.clone());
+    medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
     // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
     medbrains_hrms_gateway::spawn(worker_pool.clone());
 
@@ -705,6 +750,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     // A code blue nobody answers is re-paged wider, a bounded number of times.
     medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
+    // Late or missing MRD files to the supervisor; tomorrow's pull list each evening.
+    medbrains_mrd::file_requests::jobs::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
@@ -913,6 +960,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
+    // Tells an account holder their sign-in was linked to, or unlinked from, a Kanidm person.
+    registry.register(email_stub::SmtpSendHandler::new("email.account_link"));
     registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.appointment_confirmation",

@@ -218,11 +218,14 @@ def consultation_body(row: dict, rejects: clinical.Rejects) -> dict | None:
 # ── stage 6: prescription and referral ──────────────────────────────────────
 
 
-def prescription_event(row: dict, patient_id: str, encounter_id: str | None) -> dict | None:
+def prescription_event(
+    row: dict, patient_id: str, encounter_id: str | None, doctor_id: str
+) -> dict | None:
+    """The form's prescription, written by `doctor_id`, or None when it has none."""
     items = clinical.prescription_items(row.get("prescription_advice"))
     if not items:
         return None
-    payload: dict = {"patient_id": patient_id, "items": items}
+    payload: dict = {"patient_id": patient_id, "doctor_id": doctor_id, "items": items}
     if encounter_id:
         payload["encounter_id"] = encounter_id
     return {
