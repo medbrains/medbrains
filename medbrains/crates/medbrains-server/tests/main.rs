@@ -57,6 +57,7 @@ mod ai_sensitive_test;
 mod ai_redaction_test;
 mod ai_whispers_test;
 mod ai_actor_audit_test;
+mod ai_dictation_test;
 mod allergy_verification_test;
 mod analyzer_orders_test;
 mod anonymous_incident_test;
