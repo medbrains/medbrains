@@ -35,6 +35,8 @@ def checks_for(path: str) -> dict[str, list[str]]:
     if rel.startswith("..") or "/target/" in rel or "/node_modules/" in rel:
         return {}
     checks: dict[str, list[str]] = {}
+    if rel.endswith((".rs", ".ts", ".tsx", ".scss", ".swift", ".kt", ".py")):
+        checks["file-length"] = py("scripts/check_file_lengths.py", path)
     if rel.startswith("crates/") and rel.endswith(".rs"):
         checks["authz-collapse"] = py("scripts/check_authz_collapse.py")
         checks["soft-delete-filter"] = py("scripts/check_soft_delete_filter.py")

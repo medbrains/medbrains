@@ -100,6 +100,11 @@ jobs:
         run: python3 scripts/check_api_contract.py
       - name: Page API references resolve
         run: python3 scripts/check_ui_api_coverage.py
+      # The 450-line rule: a new file stays under it, an older long file never grows.
+      - name: Files stay under 450 lines, or never grow
+        run: |
+          python3 medbrains/scripts/check_file_lengths.py --self-test
+          python3 medbrains/scripts/check_file_lengths.py
       - name: Decorative effects only ever go down
         run: python3 medbrains/scripts/check_ui_slop.py
       - name: Pages build from the @/components/ui seam
