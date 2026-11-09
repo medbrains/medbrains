@@ -41,13 +41,42 @@ export function estimateDeduction(bill: number, ratio: number): number {
   return Math.round(bill * (1 - ratio) * 100) / 100;
 }
 
-/** The row's state in words; the `_unknown` reasons say the check failed. */
-export const REASON_LABEL: Record<RevenueAlert["reason"], string> = {
-  preauth_used_up: "80% of approval used",
-  preauth_approval_unknown: "Approval amount unknown",
-  room_over_limit: "Room above policy limit",
-  room_eligibility_unknown: "Could not check room",
+/** Why an insured inpatient has no usable pre-auth, in words. */
+const MISSING_CAUSE: Record<string, string> = {
+  expired: "Pre-auth expired",
+  unlinked: "Pre-auth not linked to this stay",
+  not_approved: "Pre-auth not approved yet",
+  none: "No pre-auth for this stay",
 };
+
+/** The approval share (a whole percent) at which this row warned. */
+function bandOf(row: RevenueAlert): number | null {
+  return evidenceNumber(row, "band") ?? evidenceNumber(row, "threshold_percent");
+}
+
+/** The row's state in words; the `_unknown` reasons say the check failed. */
+export function reasonLabel(row: RevenueAlert): string {
+  switch (row.reason) {
+    case "preauth_used_up": {
+      const band = bandOf(row);
+      if (band !== null && band >= 100) return "Approval used up";
+      return band === null ? "Approval nearly used" : `${band}% of approval used`;
+    }
+    case "preauth_approval_unknown":
+      return "Approval amount unknown";
+    case "preauth_missing_or_expired":
+      return MISSING_CAUSE[String(row.evidence?.cause)] ?? "No usable pre-auth";
+    case "room_over_limit":
+      return "Room above policy limit";
+    case "room_eligibility_unknown":
+      return "Could not check room";
+  }
+}
+
+/** Whether the row's only remedy is a new or renewed pre-auth, not an enhancement. */
+export function isMissingPreauth(row: RevenueAlert): boolean {
+  return row.reason === "preauth_missing_or_expired";
+}
 
 /** Whether the row is a fault rather than a finding. */
 export function isUnknown(row: RevenueAlert): boolean {

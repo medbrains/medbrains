@@ -53,27 +53,38 @@ function quietLine(check: RoomCheck): string | null {
   }
 }
 
-/** No limit on the policy: say so, and let the insurance desk record it. */
-function NoLimit({ check }: { check: RoomCheck }) {
+/**
+ * Record or correct the policy's room rent limit, for someone who may
+ * configure it; nothing for anyone else or without a policy.
+ */
+function EditLimit({ check, label }: { check: RoomCheck; label: string }) {
   const canConfigure = useHasPermission(P.INSURANCE.ROOM_ELIGIBILITY.CONFIGURE);
   const [editing, setEditing] = useState(false);
+  if (!canConfigure || !check.patient_insurance_id) return null;
   return (
-    <Group gap="xs">
-      <Text size="sm" c="dimmed">
-        No room rent limit is recorded on the patient's policy, so this room was not checked.
-      </Text>
-      {canConfigure && check.patient_insurance_id && (
-        <Button tone="secondary" size="xs" onClick={() => setEditing(true)}>
-          Record the limit
-        </Button>
-      )}
-      {editing && check.patient_insurance_id && (
+    <>
+      <Button tone="secondary" size="xs" onClick={() => setEditing(true)}>
+        {label}
+      </Button>
+      {editing && (
         <RoomLimitModal
           policyId={check.patient_insurance_id}
           insurer={check.insurance_provider}
           onClose={() => setEditing(false)}
         />
       )}
+    </>
+  );
+}
+
+/** No limit on the policy: say so, and let the insurance desk record it. */
+function NoLimit({ check }: { check: RoomCheck }) {
+  return (
+    <Group gap="xs">
+      <Text size="sm" c="dimmed">
+        No room rent limit is recorded on the patient's policy, so this room was not checked.
+      </Text>
+      <EditLimit check={check} label="Record the limit" />
     </Group>
   );
 }
@@ -111,21 +122,31 @@ export function RoomEligibilityNotice({
     );
   }
   if (data.status === "above") {
-    return <RoomAboveLimit key={bedId} check={data} onConsentChange={onConsentChange} />;
+    return (
+      <>
+        <RoomAboveLimit key={bedId} check={data} onConsentChange={onConsentChange} />
+        <EditLimit check={data} label="Edit the limit" />
+      </>
+    );
   }
   if (data.status === "no_limit") return <NoLimit check={data} />;
   if (data.status === "limit_unknown") {
     return (
       <Alert tone="danger" title="Could not work out the policy's room limit">
         The limit is a share of the sum insured, which is not recorded on the policy. Check the
-        e-card before allocating.
+        e-card, or record the limit in rupees a day, before allocating.{" "}
+        <EditLimit check={data} label="Edit the limit" />
       </Alert>
     );
   }
   const line = quietLine(data);
-  return line ? (
-    <Text size="sm" c="dimmed">
-      {line}
-    </Text>
-  ) : null;
+  if (!line) return null;
+  return (
+    <Group gap="xs">
+      <Text size="sm" c="dimmed">
+        {line}
+      </Text>
+      {data.status === "within" && <EditLimit check={data} label="Edit the limit" />}
+    </Group>
+  );
 }

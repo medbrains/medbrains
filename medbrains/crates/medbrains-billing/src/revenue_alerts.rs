@@ -4,8 +4,10 @@
 //! kinds, each seen and worked under its own permission; a row of a kind the
 //! caller may not see answers 404, as if absent.
 //!
-//! The rows are raised elsewhere: `preauth_used_up` by the invoice trigger
-//! (migration 1423), `room_over_limit` by the IPD allocation
+//! The rows are raised elsewhere: `preauth_used_up` (and, for an insured
+//! inpatient with no usable pre-auth, `preauth_missing_or_expired`) by the
+//! invoice trigger and the hourly sweep (migration 1423, `preauth_sweep`),
+//! `room_over_limit` by the IPD allocation
 //! (`medbrains_server_services::room_eligibility`). Here the desk lists them
 //! and acts: request an enhancement, or record the family's room consent.
 
@@ -23,24 +25,29 @@ use medbrains_core::permissions;
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use medbrains_server_services::room_eligibility::{
-    RoomConsentInput, consent_on_row, mark_actioned,
+    RoomConsentInput, associated_by_encounter, consent_on_row, deduction, mark_actioned,
 };
 
 /// Pre-auth nearly used up (or its approval unreadable).
 pub const KIND_PREAUTH: &str = "preauth_used_up";
 /// Room above the policy's room rent limit.
 pub const KIND_ROOM: &str = "room_over_limit";
+/// A pre-auth row's reason when its approval was read and is nearly used:
+/// the only one an enhancement can be asked on.
+const REASON_USED_UP: &str = "preauth_used_up";
 
 /// One inbox row of an insurance kind, with the patient and payer joined.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct RevenueAlert {
     pub id: Uuid,
     pub kind: String,
-    /// `preauth_used_up`, `preauth_approval_unknown`, `room_over_limit` or
+    /// `preauth_used_up`, `preauth_approval_unknown`,
+    /// `preauth_missing_or_expired`, `room_over_limit` or
     /// `room_eligibility_unknown`: the unknowns are faults, never "fine".
     pub reason: String,
     pub status: String,
-    /// The pre-auth (`prior_auth_requests`) or the admission.
+    /// The pre-auth (`prior_auth_requests`) or, for a room row or a visit
+    /// with no usable pre-auth, the admission.
     pub source_entity_id: Uuid,
     pub patient_id: Uuid,
     pub encounter_id: Option<Uuid>,
@@ -53,7 +60,8 @@ pub struct RevenueAlert {
     pub approved_amount: Option<Decimal>,
     /// The extra amount already asked for, if an enhancement is pending.
     pub enhancement_amount: Option<Decimal>,
-    /// Rupees at stake: the running bill, or the expected cut.
+    /// Rupees at stake: the running bill, or the expected cut (an open room
+    /// row's is worked out from the visit's bills when the list is read).
     pub amount: Option<Decimal>,
     /// The numbers behind the row (approved amount, room rate, ratio, ...).
     pub evidence: Option<serde_json::Value>,
@@ -100,9 +108,10 @@ pub struct ListRevenueAlertsQuery {
     pub status: Option<String>,
 }
 
-/// `GET /api/billing/revenue-alerts?kind=` — the kind's rows, largest
-/// amount first, then oldest. Amounts are hidden from a caller who may not
-/// see them, as on the charge queue.
+/// `GET /api/billing/revenue-alerts?kind=` — the kind's rows, largest first.
+///
+/// Then oldest. Amounts (and the approval behind them) are hidden from a
+/// caller who may not see them, as on the charge queue.
 ///
 /// # Errors
 /// 403 without the kind's view permission; 400 for an unknown kind.
@@ -134,14 +143,75 @@ pub async fn list_revenue_alerts(
     .bind(&visible)
     .fetch_all(&mut *tx)
     .await?;
+    live_room_cuts(&mut tx, claims.tenant_id, &mut rows).await?;
     tx.commit().await?;
     if hide_amounts {
-        for row in &mut rows {
-            row.amount = None;
-            row.evidence = None;
-        }
+        hide(&mut rows);
     }
     Ok(Json(rows))
+}
+
+/// Blank every figure on the rows: the amount, the numbers behind it, and
+/// the pre-auth's approval and enhancement, which give the bill away.
+fn hide(rows: &mut [RevenueAlert]) {
+    for row in rows {
+        row.amount = None;
+        row.evidence = None;
+        row.approved_amount = None;
+        row.enhancement_amount = None;
+    }
+}
+
+/// A decimal from a row's evidence field (stored as a string or a number).
+fn evidence_decimal(row: &RevenueAlert, key: &str) -> Option<Decimal> {
+    match row.evidence.as_ref()?.get(key)? {
+        serde_json::Value::String(s) => s.parse().ok(),
+        serde_json::Value::Number(n) => n.to_string().parse().ok(),
+        _ => None,
+    }
+}
+
+/// Whether the row is an open room finding, whose cut grows with the bill.
+fn is_open_room(row: &RevenueAlert) -> bool {
+    row.status == "open" && row.reason == KIND_ROOM
+}
+
+/// Each open room row's expected cut from the visit's room-linked charges
+/// now, in one grouped query over the page's visits, then the page sorted
+/// again by amount. The cut stored at allocation is often ₹0.
+async fn live_room_cuts(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    rows: &mut [RevenueAlert],
+) -> Result<(), AppError> {
+    // ponytail: the SQL LIMIT picks the page by the stored amount; past 200 open
+    // rows a stale low one can miss the page. Store the cut on each bill change then.
+    let visits: Vec<Uuid> = rows
+        .iter()
+        .filter(|r| is_open_room(r))
+        .filter_map(|r| r.encounter_id)
+        .collect();
+    if visits.is_empty() {
+        return Ok(());
+    }
+    let sums = associated_by_encounter(conn, tenant_id, &visits).await?;
+    for row in rows.iter_mut().filter(|r| is_open_room(r)) {
+        let (Some(visit), Some(ratio)) = (row.encounter_id, evidence_decimal(row, "payable_ratio"))
+        else {
+            continue;
+        };
+        let bill = sums.get(&visit).copied().unwrap_or_default();
+        row.amount = Some(deduction(bill, ratio));
+        if let Some(serde_json::Value::Object(evidence)) = row.evidence.as_mut() {
+            evidence.insert("estimated_bill".to_owned(), serde_json::json!(bill));
+        }
+    }
+    rows.sort_by(|a, b| {
+        b.amount
+            .cmp(&a.amount)
+            .then(a.created_at.cmp(&b.created_at))
+    });
+    Ok(())
 }
 
 /// The open row of `kind`, locked for this decision, once the caller has
@@ -196,7 +266,8 @@ pub struct RequestEnhancementBody {
 
 /// `PUT /api/billing/revenue-alerts/{id}/request-enhancement` — ask for more.
 ///
-/// For a pre-auth nearly used up. The pre-auth becomes an `enhancement`
+/// For a pre-auth nearly used up; 409 on a row whose approval could not be
+/// read or whose visit has no usable pre-auth. The pre-auth becomes an `enhancement`
 /// request for the new total (sent from the pre-auth screen, through NHCX or
 /// the payer's portal), and the alert closes with what was asked.
 ///
@@ -227,7 +298,12 @@ pub async fn request_enhancement(
         ));
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
-    let (_, prior_auth) = lock_open(&mut tx, (&state, &claims), KIND_PREAUTH, id).await?;
+    let (reason, prior_auth) = lock_open(&mut tx, (&state, &claims), KIND_PREAUTH, id).await?;
+    if reason != REASON_USED_UP {
+        return Err(AppError::Conflict(
+            "billing.revenueAlerts.noApprovalToEnhance".to_owned(),
+        ));
+    }
     let extra = body.additional_amount.round_dp(2);
     let total = mark_enhancement(&mut tx, &claims, prior_auth, extra).await?;
     let what = serde_json::json!({ "enhancement": {
@@ -298,4 +374,45 @@ pub async fn record_room_consent(
     let row = fetch(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::{RevenueAlert, hide};
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+    use uuid::Uuid;
+
+    #[test]
+    fn hidden_amounts_hide_the_approval_and_enhancement_too() {
+        let mut rows = [RevenueAlert {
+            id: Uuid::nil(),
+            kind: "preauth_used_up".to_owned(),
+            reason: "preauth_used_up".to_owned(),
+            status: "open".to_owned(),
+            source_entity_id: Uuid::nil(),
+            patient_id: Uuid::nil(),
+            encounter_id: None,
+            patient_name: "A".to_owned(),
+            uhid: "U".to_owned(),
+            payer: None,
+            pa_number: None,
+            approved_amount: Some(Decimal::from(100_000)),
+            enhancement_amount: Some(Decimal::from(50_000)),
+            amount: Some(Decimal::from(85_000)),
+            evidence: Some(serde_json::json!({ "running_bill": 85_000 })),
+            created_at: Utc::now(),
+            resolved_at: None,
+            resolved_by_name: None,
+        }];
+        hide(&mut rows);
+        let r = &rows[0];
+        assert_eq!(
+            (r.amount, r.approved_amount, r.enhancement_amount),
+            (None, None, None)
+        );
+        assert!(r.evidence.is_none());
+    }
 }

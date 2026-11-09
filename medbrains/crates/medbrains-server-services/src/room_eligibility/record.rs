@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
-use super::{RoomCheck, SOURCE_ADMISSION_ROOM, check_room, deduction};
+use super::{RoomCheck, SOURCE_ADMISSION_ROOM, associated_so_far, check_room, deduction};
 
 /// The wording of the disclosure the desk shows the family (the web's
 /// `ROOM_DISCLOSURE_VERSION`); a consent names the version it was given on.
@@ -253,8 +253,40 @@ pub async fn mark_actioned(
     Ok(())
 }
 
+/// Bring the open room row's bill and cut up to date before a consent keeps
+/// them: the visit's room-linked charges now, as the desk's list shows them
+/// (the row was raised at allocation, often at ₹0).
+async fn refresh_cut(conn: &mut PgConnection, tenant_id: Uuid, row: Uuid) -> Result<(), AppError> {
+    let (encounter, ratio): (Option<Uuid>, Option<Decimal>) = sqlx::query_as(
+        "SELECT encounter_id, (evidence->>'payable_ratio')::numeric \
+           FROM charge_attention_items WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(row)
+    .bind(tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let (Some(encounter), Some(ratio)) = (encounter, ratio) else {
+        return Ok(());
+    };
+    let bill = associated_so_far(conn, tenant_id, encounter).await?;
+    sqlx::query(
+        "UPDATE charge_attention_items SET amount = $3, \
+                evidence = evidence || jsonb_build_object('estimated_bill', $4::numeric) \
+          WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(row)
+    .bind(tenant_id)
+    .bind(deduction(bill, ratio))
+    .bind(bill)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
 /// Consent given after the allocation, from the insurance desk's inbox: the
-/// open room row's numbers are kept with it and the row closes.
+/// open room row's numbers, brought up to date, are kept with it and the row
+/// closes.
 pub async fn consent_on_row(
     conn: &mut PgConnection,
     (tenant_id, actor): (Uuid, Uuid),
@@ -262,6 +294,7 @@ pub async fn consent_on_row(
     consent: &RoomConsentInput,
 ) -> Result<(), AppError> {
     let who = validated(conn, tenant_id, actor, consent).await?;
+    refresh_cut(conn, tenant_id, row).await?;
     let id = insert_consent(conn, (tenant_id, actor, row), consent, &who).await?;
     mark_actioned(
         conn,

@@ -15,7 +15,9 @@
 use axum::Extension;
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use medbrains_billing::revenue_alerts::record_room_consent;
+use medbrains_billing::revenue_alerts::{
+    ListRevenueAlertsQuery, list_revenue_alerts, record_room_consent,
+};
 use medbrains_billing::room_limit::{RoomRentLimitBody, set_room_rent_limit};
 use medbrains_core::permissions;
 use medbrains_ipd::room_eligibility::{RoomEligibilityQuery, get_room_eligibility};
@@ -30,8 +32,10 @@ use uuid::Uuid;
 
 mod common;
 
-use common::inpatient::{Inpatient, admit, bed, bill, bill_lines, holding, policy, rows, staff};
-use common::{fixture, pool, scoped, state};
+use common::inpatient::{
+    Inpatient, admit, bed, bill, bill_lines, holding, line, policy, rows, staff,
+};
+use common::{fixture, insert_patient, pool, scoped, state};
 
 const KIND: &str = "room_over_limit";
 
@@ -309,4 +313,53 @@ async fn the_desk_records_a_missing_limit_and_the_room_is_then_checked() {
     .await
     .unwrap_err();
     assert!(matches!(err, AppError::Forbidden), "{err:?}");
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn the_expected_cut_follows_the_bill_when_the_list_is_read() {
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let t = claims.tenant_id;
+    policy(&db, t, patient, (Some(5_000), None)).await;
+    let deluxe = bed(&db, t, 8_000, "Deluxe").await;
+
+    // Admitted first, at ₹0: the cut stored at allocation is nothing.
+    let first = admit(&db, &claims, patient).await;
+    allocate(&db, &claims, &first, deluxe, None).await;
+    assert_eq!(rows(&db, t, KIND).await[0].3, Some(Decimal::ZERO));
+
+    // Admitted second with ₹10,000 already billed: ₹3,750 stored.
+    let mut tx = scoped(&db, t).await;
+    let other = insert_patient(&mut tx, t).await;
+    tx.commit().await.unwrap();
+    policy(&db, t, other, (Some(5_000), None)).await;
+    let second = admit(&db, &claims, other).await;
+    let early = bill(&db, &second).await;
+    line(&db, t, early, ("ipd", "Room", 10_000, None)).await;
+    allocate(&db, &claims, &second, deluxe, None).await;
+
+    // The first stay's bill grows to ₹40,000 of room-linked charges.
+    let invoice = bill(&db, &first).await;
+    bill_lines(&db, t, invoice, 40_000, 60_000).await;
+
+    let Json(listed) = list_revenue_alerts(
+        State(state(db.clone())),
+        Extension(claims.clone()),
+        Query(ListRevenueAlertsQuery {
+            kind: KIND.to_owned(),
+            status: None,
+        }),
+    )
+    .await
+    .unwrap();
+    let cuts: Vec<_> = listed.iter().map(|r| (r.patient_id, r.amount)).collect();
+    assert_eq!(
+        cuts,
+        vec![
+            (patient, Some(Decimal::from(15_000))),
+            (other, Some(Decimal::new(3_750, 0))),
+        ],
+        "the cut is worked out from the bill now, and the largest comes first"
+    );
 }

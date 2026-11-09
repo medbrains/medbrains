@@ -13,6 +13,8 @@
 
 pub mod record;
 
+use std::collections::HashMap;
+
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::Serialize;
 use sqlx::PgConnection;
@@ -154,21 +156,23 @@ async fn bills_by_room(conn: &mut PgConnection, tenant_id: Uuid) -> Result<bool,
     Ok(value.is_none_or(|v| v.as_bool().unwrap_or_else(|| v.as_str() != Some("false"))))
 }
 
-/// Room-linked charges on the visit's live bills: the allowlisted sources
-/// and categories, less implants (by catalogue category or the implant
-/// registry) and bed-days already billed in a critical-care bed type.
-async fn associated_so_far(
+/// Room-linked charges on each visit's live bills, in one grouped query.
+///
+/// The allowlisted sources and categories, less implants (by catalogue
+/// category or the implant registry) and bed-days already billed in a
+/// critical-care bed type. A visit with no such charges is absent.
+pub async fn associated_by_encounter(
     conn: &mut PgConnection,
     tenant_id: Uuid,
-    encounter_id: Uuid,
-) -> Result<Decimal, AppError> {
+    encounters: &[Uuid],
+) -> Result<HashMap<Uuid, Decimal>, AppError> {
     // ponytail: an ICU bed-day is matched by the room-rent line's description,
     // which names the bed type (`services::room_rent`); a bed-type id on the
     // line would be exact if hospitals rename bed types mid-stay.
-    Ok(sqlx::query_scalar::<_, Decimal>(&format!(
-        "SELECT COALESCE(SUM(ii.total_price), 0) FROM invoice_items ii \
+    let rows: Vec<(Uuid, Decimal)> = sqlx::query_as(&format!(
+        "SELECT i.encounter_id, COALESCE(SUM(ii.total_price), 0) FROM invoice_items ii \
            JOIN invoices i ON i.id = ii.invoice_id AND i.tenant_id = ii.tenant_id \
-          WHERE i.tenant_id = $1 AND i.encounter_id = $2 AND i.deleted_at IS NULL \
+          WHERE i.tenant_id = $1 AND i.encounter_id = ANY($2) AND i.deleted_at IS NULL \
             AND ii.deleted_at IS NULL AND i.status NOT IN ('cancelled', 'refunded') \
             AND (ii.source::text IN {LINKED_SOURCES} OR ii.category IN {LINKED_CATEGORIES}) \
             AND COALESCE(ii.category, '') NOT ILIKE '%implant%' \
@@ -176,12 +180,24 @@ async fn associated_so_far(
                              WHERE ir.tenant_id = ii.tenant_id AND ir.id = ii.source_id) \
             AND NOT EXISTS (SELECT 1 FROM bed_types bt \
                              WHERE bt.tenant_id = ii.tenant_id AND bt.is_critical_care \
-                               AND ii.description LIKE 'Room rent — ' || bt.name || ' (%')"
+                               AND ii.description LIKE 'Room rent — ' || bt.name || ' (%') \
+          GROUP BY i.encounter_id"
     ))
     .bind(tenant_id)
-    .bind(encounter_id)
-    .fetch_one(conn)
-    .await?)
+    .bind(encounters)
+    .fetch_all(conn)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
+/// Room-linked charges on one visit's live bills (see [`associated_by_encounter`]).
+pub async fn associated_so_far(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    encounter_id: Uuid,
+) -> Result<Decimal, AppError> {
+    let sums = associated_by_encounter(conn, tenant_id, &[encounter_id]).await?;
+    Ok(sums.get(&encounter_id).copied().unwrap_or_default())
 }
 
 /// The check's status once the policy and room are known.

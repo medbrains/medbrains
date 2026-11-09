@@ -10,8 +10,8 @@ pub use accounting::*;
 mod insurance;
 mod nhcx_recon;
 // Pre-auths nearly used up and rooms above the policy limit (mig 1423).
-pub mod revenue_alerts;
 pub mod preauth_sweep;
+pub mod revenue_alerts;
 pub mod room_limit;
 pub use insurance::*;
 // Insurer settlements posted against bills under maker-checker (mig 1227).

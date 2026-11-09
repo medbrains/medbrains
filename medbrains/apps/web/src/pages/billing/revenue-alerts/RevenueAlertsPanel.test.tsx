@@ -98,6 +98,44 @@ describe("pre-auths nearly used up on the TPA screen", () => {
     expect(await screen.findByText("Approval amount unknown")).toBeInTheDocument();
   });
 
+  it("offers no enhancement on an approval that could not be read", async () => {
+    held.add("insurance.enhancement.view");
+    held.add("insurance.enhancement.request");
+    service.listRevenueAlerts.mockResolvedValue([
+      preauthRow({ reason: "preauth_approval_unknown", evidence: { approved_amount: null } }),
+    ]);
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    await screen.findByText("Approval amount unknown");
+    expect(screen.queryByRole("button", { name: "Request enhancement" })).not.toBeInTheDocument();
+  });
+
+  it("names the hospital's threshold and warns again once the approval is used up", async () => {
+    held.add("insurance.enhancement.view");
+    service.listRevenueAlerts.mockResolvedValue([
+      preauthRow({ id: "a", evidence: { running_bill: 90000, threshold_percent: 90, band: 90 } }),
+      preauthRow({ id: "b", evidence: { running_bill: 101000, threshold_percent: 90, band: 100 } }),
+    ]);
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    expect(await screen.findByText("90% of approval used")).toBeInTheDocument();
+    expect(screen.getByText("Approval used up")).toBeInTheDocument();
+  });
+
+  it("flags an insured inpatient whose pre-auth expired, with no enhancement offered", async () => {
+    held.add("insurance.enhancement.view");
+    held.add("insurance.enhancement.request");
+    service.listRevenueAlerts.mockResolvedValue([
+      preauthRow({
+        reason: "preauth_missing_or_expired",
+        pa_number: null,
+        approved_amount: null,
+        evidence: { cause: "expired", running_bill: 40000 },
+      }),
+    ]);
+    render(<RevenueAlertsPanel kind="preauth_used_up" />);
+    expect(await screen.findByText("Pre-auth expired")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request enhancement" })).not.toBeInTheDocument();
+  });
+
   it("shows a failed load as a fault, not as an empty list", async () => {
     held.add("insurance.enhancement.view");
     service.listRevenueAlerts.mockImplementation(async () => {

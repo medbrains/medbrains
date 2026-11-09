@@ -1,6 +1,8 @@
 // The insurance desk's alerts on the TPA screen: pre-auths whose running bill
-// has reached 80% of the approval (action: request an enhancement), and rooms
-// above the policy's room rent limit (action: record the family's consent).
+// has reached the hospital's alert share of the approval, or all of it
+// (action: request an enhancement), insured inpatients with no usable pre-auth
+// (action: raise or renew it on the pre-auth screen), and rooms above the
+// policy's room rent limit (action: record the family's consent).
 // Hidden, and never fetched, without the kind's view permission. A failed
 // load is shown as a fault, never as "nothing here".
 
@@ -18,10 +20,11 @@ import { RoomConsentModal } from "./RoomConsentModal";
 import {
   evidenceNumber,
   inr,
+  isMissingPreauth,
   isUnknown,
   liveApproval,
   percentUsed,
-  REASON_LABEL,
+  reasonLabel,
 } from "./revenue-alerts-labels";
 
 interface KindCopy {
@@ -38,7 +41,7 @@ const COPY: Record<RevenueAlertKind, KindCopy> = {
   preauth_used_up: {
     title: "Pre-auths nearly used up",
     blurb:
-      "The running bill has reached 80% of the approved amount. Ask for an enhancement before the bill passes it.",
+      "The running bill is near or past the approved amount: ask for an enhancement before the bill passes it. An insured patient with no usable pre-auth needs one raised or renewed on the pre-auth screen.",
     empty: "No pre-auth is near its approved amount",
     amountLabel: "Bill so far",
     actionLabel: "Request enhancement",
@@ -59,11 +62,22 @@ const COPY: Record<RevenueAlertKind, KindCopy> = {
 
 /** What the row's numbers say, in one line. */
 function detail(row: RevenueAlert): string {
+  if (isMissingPreauth(row)) {
+    return "Insured inpatient: raise or renew the pre-auth before the bill grows";
+  }
   if (row.kind === "preauth_used_up") {
     const used = percentUsed(row);
     return `Approved ${inr(liveApproval(row))}${used === null ? "" : ` · ${used}% used`}`;
   }
   return `Room ${inr(evidenceNumber(row, "room_rate"))}/day · allowed ${inr(evidenceNumber(row, "eligible_rate"))}`;
+}
+
+/**
+ * Whether the row's action applies: an enhancement only on a readable
+ * approval, a consent only on a room that was checked.
+ */
+function canActOn(row: RevenueAlert): boolean {
+  return row.reason === "preauth_used_up" || row.reason === "room_over_limit";
 }
 
 /** The kind's columns; the action shows only to someone who may take it. */
@@ -90,8 +104,8 @@ function columns(
       label: "Alert",
       render: (r) => (
         <Stack gap={2}>
-          <Badge tone={isUnknown(r) ? "danger" : "warning"} size="sm">
-            {REASON_LABEL[r.reason]}
+          <Badge tone={isUnknown(r) || isMissingPreauth(r) ? "danger" : "warning"} size="sm">
+            {reasonLabel(r)}
           </Badge>
           {!isUnknown(r) && (
             <Text size="xs" c="dimmed">
@@ -114,7 +128,7 @@ function columns(
       key: "action",
       label: "Action",
       render: (r) =>
-        canAct && !(r.reason === "room_eligibility_unknown") ? (
+        canAct && canActOn(r) ? (
           <Button
             tone="secondary"
             size="xs"

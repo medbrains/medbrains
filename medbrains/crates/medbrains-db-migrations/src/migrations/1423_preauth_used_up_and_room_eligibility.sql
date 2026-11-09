@@ -10,8 +10,12 @@
 -- 1.3 Pre-auth used up. An insured inpatient's running bill passes the
 -- amount the payer approved, nobody asks for an enhancement, and the excess
 -- is short-paid at discharge. When the bill reaches 80% of the approved
--- pre-authorisation, a `preauth_used_up` row goes on the inbox for the
--- insurance desk, whose action is "request an enhancement". The check runs in
+-- pre-authorisation (the hospital's threshold, `tenant_settings`
+-- billing/`preauth_alert_threshold_percent`, default 80) and again at 100%,
+-- a `preauth_used_up` row goes on the inbox for the insurance desk, whose
+-- action is "request an enhancement". An admitted patient with a policy in
+-- force but no usable pre-auth on the visit (expired, unlinked, not approved
+-- or none) gets a `preauth_missing_or_expired` row on the same panel. The check runs in
 -- a trigger on the invoice total, the same way the claim arithmetic does
 -- (migration 1068): every writer of a bill goes through it, in its own
 -- transaction. An approved pre-auth whose amount could not be read raises a
@@ -108,12 +112,23 @@ ALTER TABLE public.charge_attention_items
     -- A detector acts for the hospital, not for a person. The charge
     -- detectors are named (1416 unbilled orders, 1421 unbilled consumption);
     -- the new kinds are raised by a trigger, a sweep or the check itself, so
-    -- they may be unattributed too. A superset of every earlier definition.
-    DROP CONSTRAINT charge_attention_only_detector_unattributed,
+    -- they may be unattributed too. A superset of every earlier definition,
+    -- dropped IF EXISTS and re-added here whatever an earlier migration left
+    -- (1421 re-adds it without the `kind` clause).
+    DROP CONSTRAINT IF EXISTS charge_attention_only_detector_unattributed,
     ADD CONSTRAINT charge_attention_only_detector_unattributed
         CHECK (created_by IS NOT NULL
                OR reason IN ('unbilled_order', 'unbilled_consumption')
-               OR kind <> 'charge_not_posted');
+               OR kind <> 'charge_not_posted'),
+    -- A closed row names who closed it, except an admission's "no usable
+    -- pre-auth" row, which the check itself closes once a usable pre-auth is
+    -- on the visit: nobody acted, the fact it reported stopped being true.
+    DROP CONSTRAINT IF EXISTS charge_attention_resolved_has_who,
+    ADD CONSTRAINT charge_attention_resolved_has_who
+        CHECK (status = 'open'
+               OR (resolved_at IS NOT NULL
+                   AND (resolved_by IS NOT NULL
+                        OR (source_module = 'admission_preauth' AND status = 'actioned'))));
 
 CREATE INDEX idx_charge_attention_kind_open
     ON public.charge_attention_items (tenant_id, kind, created_at DESC)
@@ -201,12 +216,115 @@ CREATE TRIGGER trg_preauth_check_failures_soft_delete BEFORE DELETE
 
 -- ── Pre-auth used up: the check ────────────────────────────────────
 
+-- The share of the approval at which the desk is warned: `tenant_settings`
+-- billing/`preauth_alert_threshold_percent` (Billing settings), 80 when the
+-- hospital has not set one. A value that is not a number from 1 to 100 is an
+-- error, never a guess: the trigger records it as a failure and the sweep
+-- raises "approval unknown".
+CREATE OR REPLACE FUNCTION public.preauth_alert_threshold(p_tenant uuid)
+RETURNS numeric
+LANGUAGE plpgsql
+STABLE
+SET search_path TO 'public'
+AS $$
+DECLARE
+    v_value jsonb;
+    v_percent numeric;
+BEGIN
+    SELECT s.value INTO v_value
+      FROM tenant_settings s
+     WHERE s.tenant_id = p_tenant AND s.category = 'billing'
+       AND s.key = 'preauth_alert_threshold_percent' AND s.deleted_at IS NULL;
+    IF v_value IS NULL OR v_value = 'null'::jsonb THEN
+        RETURN 80;
+    END IF;
+    v_percent := (v_value #>> '{}')::numeric;
+    IF v_percent < 1 OR v_percent > 100 THEN
+        RAISE EXCEPTION 'preauth_alert_threshold_percent must be 1 to 100'
+            USING ERRCODE = '22023';
+    END IF;
+    RETURN v_percent;
+END;
+$$;
+
+-- An admitted, insured patient with no usable pre-auth on the visit: raise
+-- (or refresh) the admission's `preauth_missing_or_expired` row, saying why:
+-- `expired` (the approval on the visit has lapsed, the riskiest: the desk
+-- believes the stay is covered), `unlinked` (an approval for the patient is
+-- not linked to this visit), `not_approved` (one is on the visit but not
+-- approved), or `none` (no pre-auth at all). A patient with no policy in
+-- force is self-pay: nothing to raise.
+CREATE OR REPLACE FUNCTION public.preauth_missing_raise(
+    p_tenant uuid, p_admission uuid, p_encounter uuid, p_patient uuid, p_running numeric)
+RETURNS text
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+DECLARE
+    v_policy  uuid;
+    v_pa      uuid;
+    v_status  text;
+    v_expires timestamptz;
+    v_cause   text;
+BEGIN
+    SELECT pi.id INTO v_policy
+      FROM patient_insurance pi
+     WHERE pi.tenant_id = p_tenant AND pi.patient_id = p_patient
+       AND pi.deleted_at IS NULL AND pi.is_active
+       AND current_date BETWEEN pi.valid_from AND pi.valid_until
+     ORDER BY pi.priority, pi.created_at
+     LIMIT 1;
+    IF v_policy IS NULL THEN
+        RETURN 'not_insured';
+    END IF;
+
+    SELECT p.id, p.status::text, p.expires_at INTO v_pa, v_status, v_expires
+      FROM prior_auth_requests p
+     WHERE p.tenant_id = p_tenant AND p.encounter_id = p_encounter AND p.deleted_at IS NULL
+     ORDER BY p.created_at DESC
+     LIMIT 1;
+    IF v_status IN ('approved', 'partially_approved', 'expired') THEN
+        v_cause := 'expired';
+    ELSIF EXISTS (
+        SELECT 1 FROM prior_auth_requests p
+         WHERE p.tenant_id = p_tenant AND p.patient_id = p_patient
+           AND p.encounter_id IS NULL AND p.deleted_at IS NULL
+           AND p.status IN ('approved', 'partially_approved')
+           AND (p.expires_at IS NULL OR p.expires_at > now())) THEN
+        v_cause := 'unlinked';
+    ELSIF v_pa IS NOT NULL THEN
+        v_cause := 'not_approved';
+    ELSE
+        v_cause := 'none';
+    END IF;
+
+    INSERT INTO charge_attention_items
+        (tenant_id, kind, source_module, source_entity_id, patient_id, encounter_id,
+         reason, amount, evidence, service_at)
+    VALUES (p_tenant, 'preauth_used_up', 'admission_preauth', p_admission, p_patient,
+            p_encounter, 'preauth_missing_or_expired', p_running,
+            jsonb_build_object('cause', v_cause, 'patient_insurance_id', v_policy,
+                               'prior_auth_id', v_pa, 'prior_auth_status', v_status,
+                               'expires_at', v_expires, 'running_bill', p_running),
+            now())
+    ON CONFLICT (tenant_id, source_module, source_entity_id)
+        WHERE status = 'open' AND deleted_at IS NULL
+    DO UPDATE SET amount = EXCLUDED.amount, evidence = EXCLUDED.evidence,
+                  reason = EXCLUDED.reason, updated_at = now();
+    RETURN 'preauth_missing_or_expired';
+END;
+$$;
+
 -- The check for one visit, shared by the invoice trigger and the sweep.
--- Finds the approved, unexpired pre-auth for the admitted visit, sums the
--- visit's live bills, and at 80% of the approval raises (or refreshes) the
--- open row. A pre-auth that already had a row at this approved amount, open
--- or closed, is not raised again: the next row comes only after the approval
--- changes (an enhancement granted). Returns what it did.
+-- Finds the approved, unexpired pre-auth for the admitted visit and sums the
+-- visit's live bills. Without one, an insured patient gets the "no usable
+-- pre-auth" row above. With one, that row (if any) closes, and the bill is
+-- placed in a band: the hospital's threshold (default 80% of the approval)
+-- or 100% (the approval used up). Reaching a band raises (or refreshes) the
+-- open row. A row already closed at this approved amount and at this band or
+-- a higher one is not raised again, so a denied or pending enhancement asked
+-- at the threshold still warns again once the bill passes the approval.
+-- Returns what it did.
 CREATE OR REPLACE FUNCTION public.preauth_usage_raise(
     p_tenant uuid, p_encounter uuid, p_patient uuid)
 RETURNS text
@@ -214,11 +332,28 @@ LANGUAGE plpgsql
 SET search_path TO 'public'
 AS $$
 DECLARE
-    v_pa       uuid;
-    v_approved numeric;
-    v_running  numeric;
-    v_reason   text;
+    v_admission uuid;
+    v_pa        uuid;
+    v_approved  numeric;
+    v_running   numeric;
+    v_threshold numeric;
+    v_band      numeric;
+    v_reason    text;
 BEGIN
+    SELECT a.id INTO v_admission
+      FROM admissions a
+     WHERE a.tenant_id = p_tenant AND a.encounter_id = p_encounter AND a.deleted_at IS NULL
+     ORDER BY a.created_at DESC
+     LIMIT 1;
+    IF v_admission IS NULL THEN
+        RETURN 'not_admitted';
+    END IF;
+
+    SELECT COALESCE(SUM(i.total_amount), 0) INTO v_running
+      FROM invoices i
+     WHERE i.tenant_id = p_tenant AND i.encounter_id = p_encounter
+       AND i.deleted_at IS NULL AND i.status NOT IN ('cancelled', 'refunded');
+
     SELECT p.id, p.approved_amount INTO v_pa, v_approved
       FROM prior_auth_requests p
      WHERE p.tenant_id = p_tenant AND p.encounter_id = p_encounter
@@ -227,23 +362,27 @@ BEGIN
        AND (p.expires_at IS NULL OR p.expires_at > now())
      ORDER BY p.responded_at DESC NULLS LAST, p.created_at DESC
      LIMIT 1;
-    IF v_pa IS NULL OR NOT EXISTS (
-        SELECT 1 FROM admissions a
-         WHERE a.tenant_id = p_tenant AND a.encounter_id = p_encounter
-           AND a.deleted_at IS NULL) THEN
-        RETURN 'not_insured';
+    IF v_pa IS NULL THEN
+        RETURN preauth_missing_raise(p_tenant, v_admission, p_encounter, p_patient, v_running);
     END IF;
 
-    SELECT COALESCE(SUM(i.total_amount), 0) INTO v_running
-      FROM invoices i
-     WHERE i.tenant_id = p_tenant AND i.encounter_id = p_encounter
-       AND i.deleted_at IS NULL AND i.status NOT IN ('cancelled', 'refunded');
+    UPDATE charge_attention_items
+       SET status = 'actioned', resolved_at = now(),
+           evidence = COALESCE(evidence, '{}'::jsonb)
+                      || jsonb_build_object('resolution', 'preauth_found', 'prior_auth_id', v_pa)
+     WHERE tenant_id = p_tenant AND source_module = 'admission_preauth'
+       AND source_entity_id = v_admission AND status = 'open' AND deleted_at IS NULL;
 
+    v_threshold := preauth_alert_threshold(p_tenant);
     IF v_approved IS NULL OR v_approved <= 0 THEN
         v_reason := 'preauth_approval_unknown';
         v_approved := NULL;
-    ELSIF v_running >= v_approved * 0.8 THEN
+    ELSIF v_running >= v_approved THEN
         v_reason := 'preauth_used_up';
+        v_band := 100;
+    ELSIF v_running >= v_approved * v_threshold / 100 THEN
+        v_reason := 'preauth_used_up';
+        v_band := v_threshold;
     ELSE
         RETURN 'within';
     END IF;
@@ -253,7 +392,8 @@ BEGIN
          WHERE c.tenant_id = p_tenant AND c.source_module = 'prior_auth'
            AND c.source_entity_id = v_pa AND c.deleted_at IS NULL
            AND c.status <> 'open'
-           AND (c.evidence ->> 'approved_amount')::numeric IS NOT DISTINCT FROM v_approved) THEN
+           AND (c.evidence ->> 'approved_amount')::numeric IS NOT DISTINCT FROM v_approved
+           AND COALESCE((c.evidence ->> 'band')::numeric, -1) >= COALESCE(v_band, -1)) THEN
         RETURN 'already_actioned';
     END IF;
 
@@ -263,7 +403,7 @@ BEGIN
     VALUES (p_tenant, 'preauth_used_up', 'prior_auth', v_pa, p_patient,
             p_encounter, v_reason, v_running,
             jsonb_build_object('approved_amount', v_approved, 'running_bill', v_running,
-                               'threshold_percent', 80),
+                               'threshold_percent', v_threshold, 'band', v_band),
             now())
     ON CONFLICT (tenant_id, source_module, source_entity_id)
         WHERE status = 'open' AND deleted_at IS NULL
@@ -273,11 +413,13 @@ BEGIN
 END;
 $$;
 
--- Runs after a bill is created with a total or its total grows. It never
--- fails the bill: a failure is written to `preauth_check_failures` (the
--- SQLSTATE only, never the message, which can quote the row), and only if
--- even that cannot be written does it fall back to a server-log WARNING. The
--- sweep re-checks the visit either way.
+-- Runs after a bill is created with a total or its total grows. A bill with
+-- no visit, or for a visit with no approved pre-auth and a patient with no
+-- active policy (self-pay), returns before the check's subtransaction. The
+-- check never fails the bill: a failure is written to
+-- `preauth_check_failures` (the SQLSTATE only, never the message, which can
+-- quote the row), and only if even that cannot be written does it fall back
+-- to a server-log WARNING. The sweep re-checks the visit either way.
 --
 -- `medbrains.fault_inject = 'preauth_check'` makes the check fail on purpose,
 -- so a test can prove the failure is counted and the sweep still raises the row.
@@ -290,6 +432,16 @@ DECLARE
     v_state text;
 BEGIN
     IF NEW.encounter_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM prior_auth_requests p
+         WHERE p.tenant_id = NEW.tenant_id AND p.encounter_id = NEW.encounter_id
+           AND p.deleted_at IS NULL AND p.status IN ('approved', 'partially_approved'))
+       AND NOT EXISTS (
+        SELECT 1 FROM patient_insurance pi
+         WHERE pi.tenant_id = NEW.tenant_id AND pi.patient_id = NEW.patient_id
+           AND pi.deleted_at IS NULL AND pi.is_active) THEN
         RETURN NULL;
     END IF;
     BEGIN

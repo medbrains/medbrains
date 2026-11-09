@@ -9,10 +9,15 @@ export type RevenueAlertKind = "preauth_used_up" | "room_over_limit";
 export interface RevenueAlert {
   id: string;
   kind: RevenueAlertKind;
-  /** The `_unknown` reasons are faults: the check could not be made. */
+  /**
+   * The `_unknown` reasons are faults: the check could not be made.
+   * `preauth_missing_or_expired`: an insured inpatient with no usable
+   * pre-auth on the stay (`evidence.cause` says why).
+   */
   reason:
     | "preauth_used_up"
     | "preauth_approval_unknown"
+    | "preauth_missing_or_expired"
     | "room_over_limit"
     | "room_eligibility_unknown";
   status: "open" | "actioned" | "dismissed";
@@ -23,7 +28,7 @@ export interface RevenueAlert {
   uhid: string;
   payer: string | null;
   pa_number: string | null;
-  /** The pre-auth's approved amount now, not as when the row was raised. */
+  /** The pre-auth's approved amount now, not as when the row was raised; null when hidden. */
   approved_amount: string | null;
   /** The extra amount already asked for, when an enhancement is pending. */
   enhancement_amount: string | null;

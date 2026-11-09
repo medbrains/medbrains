@@ -1,8 +1,10 @@
 //! Pre-auth used up (revenue integrity RFC wave 1.3) against a real,
-//! migrated database: the invoice trigger raises one row at 80% of the
-//! approval, refreshes it as the bill grows, raises nothing for self-pay,
-//! says "approval unknown" when the amount cannot be read, and the desk's
-//! enhancement request closes it; a caller without the permission is refused.
+//! migrated database: the invoice trigger raises one row at the hospital's
+//! threshold of the approval (80% unless set), refreshes it as the bill
+//! grows, warns again at 100% after an enhancement was asked, raises nothing
+//! for self-pay, says "approval unknown" when the amount cannot be read (and
+//! refuses an enhancement on it), and the desk's enhancement request closes
+//! it; a caller without the permission is refused.
 //!
 //! ```text
 //! DATABASE_URL=… cargo test -p medbrains-billing --test preauth_used_up -- --ignored
@@ -25,7 +27,7 @@ use uuid::Uuid;
 mod common;
 
 use common::inpatient::{admit, approved_preauth, bill, holding, policy, raise_bill, rows};
-use common::{fixture, pool, state};
+use common::{fixture, pool, scoped, state};
 
 const KIND: &str = "preauth_used_up";
 
@@ -174,11 +176,29 @@ async fn requesting_an_enhancement_closes_the_row_until_the_approval_changes() {
     .unwrap_err();
     assert!(matches!(err, AppError::Conflict(_)), "{err:?}");
 
-    // The bill grows on the same approval: no new row.
+    // The bill grows on the same approval, still short of it: no new row.
     raise_bill(&db, inp.tenant, invoice, 99_000).await;
     assert_eq!(rows(&db, inp.tenant, KIND).await.len(), 1);
 
-    // The payer grants the enhancement; at 80% of the new amount, a new row.
+    // The payer has not granted it (or denied it) and the bill passes the
+    // approval: the desk is warned again, at the second band.
+    raise_bill(&db, inp.tenant, invoice, 101_000).await;
+    let found = rows(&db, inp.tenant, KIND).await;
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert_eq!(
+        (found[1].1.as_str(), found[1].2.as_str()),
+        ("preauth_used_up", "open")
+    );
+    let band: Option<f64> = sqlx::query_scalar(
+        "SELECT (evidence->>'band')::float8 FROM charge_attention_items WHERE id = $1",
+    )
+    .bind(found[1].0)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(band, Some(100.0));
+
+    // The payer grants the enhancement: the open row follows the new approval.
     sqlx::query("UPDATE prior_auth_requests SET approved_amount = 150000 WHERE id = $1")
         .bind(pa)
         .execute(&db)
@@ -187,7 +207,94 @@ async fn requesting_an_enhancement_closes_the_row_until_the_approval_changes() {
     raise_bill(&db, inp.tenant, invoice, 125_000).await;
     let found = rows(&db, inp.tenant, KIND).await;
     assert_eq!(found.len(), 2, "{found:?}");
-    assert_eq!(found[1].2, "open");
+    let approved: Option<f64> = sqlx::query_scalar(
+        "SELECT (evidence->>'approved_amount')::float8 FROM charge_attention_items WHERE id = $1",
+    )
+    .bind(found[1].0)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(approved, Some(150_000.0));
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn the_hospital_sets_the_share_of_the_approval_that_warns() {
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let inp = admit(&db, &claims, patient).await;
+    let pol = policy(&db, inp.tenant, patient, (None, None)).await;
+    approved_preauth(&db, &inp, pol, Some(100_000)).await;
+    let mut tx = scoped(&db, inp.tenant).await;
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'billing', 'preauth_alert_threshold_percent', '90')",
+    )
+    .bind(inp.tenant)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let invoice = bill(&db, &inp).await;
+    raise_bill(&db, inp.tenant, invoice, 85_000).await;
+    assert!(
+        rows(&db, inp.tenant, KIND).await.is_empty(),
+        "85% is under 90%"
+    );
+    raise_bill(&db, inp.tenant, invoice, 90_000).await;
+    let found = rows(&db, inp.tenant, KIND).await;
+    assert_eq!(found.len(), 1);
+    let pct: Option<f64> = sqlx::query_scalar(
+        "SELECT (evidence->>'threshold_percent')::float8 FROM charge_attention_items WHERE id = $1",
+    )
+    .bind(found[0].0)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(pct, Some(90.0), "the row says which share warned");
+
+    // A threshold out of range is a fault the trigger records, never a guess.
+    sqlx::query(
+        "UPDATE tenant_settings SET value = '0' WHERE tenant_id = $1 \
+            AND key = 'preauth_alert_threshold_percent'",
+    )
+    .bind(inp.tenant)
+    .execute(&db)
+    .await
+    .unwrap();
+    raise_bill(&db, inp.tenant, invoice, 95_000).await;
+    let failures: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM preauth_check_failures WHERE tenant_id = $1")
+            .bind(inp.tenant)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(failures, 1);
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn no_enhancement_on_a_row_whose_approval_is_unknown() {
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let inp = admit(&db, &claims, patient).await;
+    let pol = policy(&db, inp.tenant, patient, (None, None)).await;
+    approved_preauth(&db, &inp, pol, None).await;
+    let invoice = bill(&db, &inp).await;
+    raise_bill(&db, inp.tenant, invoice, 1_000).await;
+    let row = rows(&db, inp.tenant, KIND).await[0].0;
+    let err = request_enhancement(
+        State(state(db.clone())),
+        Extension(claims.clone()),
+        Path(row),
+        Json(RequestEnhancementBody {
+            additional_amount: Decimal::ONE,
+            note: None,
+        }),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(err, AppError::Conflict(_)), "{err:?}");
 }
 
 #[tokio::test]

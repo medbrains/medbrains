@@ -1,9 +1,10 @@
 //! The pre-auth used-up trigger's edges and the sweep behind it, against a
 //! real, migrated database (review of #5270): a trigger that fails is
 //! counted and the sweep still raises the row; a bill created with a total
-//! fires the check; an expired pre-auth raises nothing; an enhancement keeps
-//! the original estimate and is refused when not open; and the inbox's
-//! "who may be unattributed" constraint admits all four detector reasons.
+//! fires the check; an expired, unlinked or missing pre-auth is flagged until
+//! a usable one is on the visit; an enhancement keeps the original estimate
+//! and is refused when not open; and the inbox's "who may be unattributed"
+//! constraint admits every detector reason.
 //!
 //! ```text
 //! DATABASE_URL=… cargo test -p medbrains-billing --test preauth_sweep -- --ignored
@@ -62,7 +63,7 @@ async fn a_failed_trigger_is_counted_and_the_sweep_still_raises_the_row() {
     .unwrap();
     assert_eq!(failures, 1);
 
-    let report = sweep_for(&db, inp.tenant).await.unwrap();
+    let report = sweep_for(&db, inp.tenant, None).await.unwrap();
     assert_eq!(
         (report.checked, report.used_up, report.trigger_failures),
         (1, 1, 1)
@@ -71,14 +72,14 @@ async fn a_failed_trigger_is_counted_and_the_sweep_still_raises_the_row() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].3, Some(Decimal::from(90_000)));
     // A second pass finds nothing new to report and raises nothing twice.
-    let again = sweep_for(&db, inp.tenant).await.unwrap();
+    let again = sweep_for(&db, inp.tenant, None).await.unwrap();
     assert_eq!(again.trigger_failures, 0);
     assert_eq!(rows(&db, inp.tenant, KIND).await.len(), 1);
 }
 
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
-async fn a_bill_created_with_a_total_fires_the_check_and_an_expired_preauth_does_not() {
+async fn a_bill_created_with_a_total_fires_the_check_and_an_expired_preauth_is_flagged() {
     let db = pool().await;
     let (claims, patient) = fixture(&db).await;
     let inp = admit(&db, &claims, patient).await;
@@ -117,11 +118,70 @@ async fn a_bill_created_with_a_total_fires_the_check_and_an_expired_preauth_does
     .unwrap();
     let invoice2 = bill(&db, &inp2).await;
     raise_bill(&db, inp2.tenant, invoice2, 9_500).await;
-    assert!(
-        rows(&db, inp2.tenant, KIND).await.is_empty(),
-        "an expired approval is not used"
-    );
+    let found = rows(&db, inp2.tenant, KIND).await;
+    assert_eq!(found.len(), 1, "an expired approval is not used: {found:?}");
+    assert_eq!(found[0].1, "preauth_missing_or_expired");
+    assert_eq!(cause(&db, found[0].0).await.as_deref(), Some("expired"));
     let _ = pa;
+}
+
+/// The `cause` a "no usable pre-auth" row gives.
+async fn cause(db: &sqlx::PgPool, row: Uuid) -> Option<String> {
+    sqlx::query_scalar("SELECT evidence->>'cause' FROM charge_attention_items WHERE id = $1")
+        .bind(row)
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn an_insured_inpatient_with_no_usable_preauth_is_flagged_until_one_is_linked() {
+    let db = pool().await;
+    let (claims, patient) = fixture(&db).await;
+    let inp = admit(&db, &claims, patient).await;
+    let pol = policy(&db, inp.tenant, patient, (None, None)).await;
+
+    // Insured, admitted, no pre-auth at all: the sweep finds it with no bill.
+    let report = sweep_for(&db, inp.tenant, None).await.unwrap();
+    assert_eq!((report.checked, report.missing), (1, 1));
+    let found = rows(&db, inp.tenant, KIND).await;
+    assert_eq!(found.len(), 1);
+    assert_eq!(cause(&db, found[0].0).await.as_deref(), Some("none"));
+
+    // An approval for the patient, raised without the visit: "not linked".
+    let mut tx = scoped(&db, inp.tenant).await;
+    let unlinked: Uuid = sqlx::query_scalar(
+        "INSERT INTO prior_auth_requests (tenant_id, pa_number, patient_id, \
+           patient_insurance_id, service_type, status, approved_amount, responded_at) \
+         VALUES ($1, $2, $3, $4, 'surgery', 'approved', 50000, now()) RETURNING id",
+    )
+    .bind(inp.tenant)
+    .bind(format!("PA-{}", Uuid::new_v4().simple()))
+    .bind(patient)
+    .bind(pol)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let invoice = bill(&db, &inp).await;
+    raise_bill(&db, inp.tenant, invoice, 1_000).await;
+    let found = rows(&db, inp.tenant, KIND).await;
+    assert_eq!(found.len(), 1, "the same row, refreshed: {found:?}");
+    assert_eq!(cause(&db, found[0].0).await.as_deref(), Some("unlinked"));
+
+    // The desk links it to the visit: the next check closes the row, as the
+    // system, and nothing else is raised (₹2,000 of ₹50,000).
+    sqlx::query("UPDATE prior_auth_requests SET encounter_id = $2 WHERE id = $1")
+        .bind(unlinked)
+        .bind(inp.encounter)
+        .execute(&db)
+        .await
+        .unwrap();
+    raise_bill(&db, inp.tenant, invoice, 2_000).await;
+    let found = rows(&db, inp.tenant, KIND).await;
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].2, "actioned");
 }
 
 #[tokio::test]
@@ -245,6 +305,7 @@ async fn every_detector_reason_may_be_unattributed_and_a_failed_charge_may_not()
         ("charge_not_posted", "unbilled_order", Some("CBC")),
         ("charge_not_posted", "unbilled_consumption", Some("IVSET")),
         ("preauth_used_up", "preauth_used_up", None),
+        ("preauth_used_up", "preauth_missing_or_expired", None),
         ("room_over_limit", "room_over_limit", None),
     ] {
         insert(kind, reason, code)

@@ -158,3 +158,27 @@ describe("the room check before a bed is allocated", () => {
     expect(screen.queryByRole("button", { name: "Record the limit" })).not.toBeInTheDocument();
   });
 });
+
+describe("correcting a room limit already recorded", () => {
+  it.each([
+    ["within", above({ status: "within", payable_ratio: null })],
+    ["above", above()],
+    ["limit_unknown", above({ status: "limit_unknown", eligible_rate: null })],
+  ])("offers 'Edit the limit' on a %s check to the insurance desk", async (_, check) => {
+    held.add("insurance.room_eligibility.configure");
+    service.checkRoomEligibility.mockResolvedValue(check);
+    render(<RoomEligibilityNotice patientId="p-1" bedId="b-1" onConsentChange={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Edit the limit" }));
+    expect(await screen.findByText("Policy room rent limit")).toBeInTheDocument();
+  });
+
+  it("offers no edit to someone who may not configure the limit", async () => {
+    service.checkRoomEligibility.mockResolvedValue(
+      above({ status: "within", payable_ratio: null }),
+    );
+    render(<RoomEligibilityNotice patientId="p-1" bedId="b-1" onConsentChange={vi.fn()} />);
+    await screen.findByText(/Within the policy's room limit/);
+    expect(screen.queryByRole("button", { name: "Edit the limit" })).not.toBeInTheDocument();
+  });
+});

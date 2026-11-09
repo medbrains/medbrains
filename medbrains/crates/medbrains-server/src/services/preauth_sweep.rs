@@ -2,21 +2,26 @@
 //! re-checked against their approval (`medbrains_billing::preauth_sweep`),
 //! so a check the invoice trigger could not run is caught within the hour.
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use sqlx::PgPool;
 
 const PASS_INTERVAL_SECS: u64 = 3600;
 
-/// Run the sweep now and then every hour, for the life of the server.
+/// Run the sweep now and then every hour, for the life of the server. Each
+/// hospital's place in its visits is kept between passes, so one with more
+/// visits than a pass checks is covered over the following passes.
 pub fn spawn(pool: PgPool) {
     tokio::spawn(async move {
+        let mut cursors = HashMap::new();
         loop {
-            match medbrains_billing::preauth_sweep::sweep_all(&pool).await {
-                Ok(r) if r.used_up + r.unknown > 0 => {
+            match medbrains_billing::preauth_sweep::sweep_all(&pool, &mut cursors).await {
+                Ok(r) if r.used_up + r.missing + r.unknown > 0 => {
                     tracing::info!(
                         checked = r.checked,
                         used_up = r.used_up,
+                        missing = r.missing,
                         unknown = r.unknown,
                         trigger_failures = r.trigger_failures,
                         "pre-auth sweep complete"
