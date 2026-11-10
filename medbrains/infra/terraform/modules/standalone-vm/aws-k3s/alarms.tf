@@ -10,8 +10,14 @@
 # replaced by an outside-in health check: Route53 can tell you the node
 # is gone, but only CloudWatch can bring it back.
 
+module "alerts_key" {
+  source = "../../sns-kms-key"
+  name   = "${var.hostname}-alerts"
+}
+
 resource "aws_sns_topic" "alerts" {
-  name = "${var.hostname}-alerts"
+  name              = "${var.hostname}-alerts"
+  kms_master_key_id = module.alerts_key.key_arn
 
   tags = {
     Project   = "medbrains"

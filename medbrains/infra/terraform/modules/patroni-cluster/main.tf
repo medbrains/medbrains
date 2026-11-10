@@ -26,20 +26,39 @@ variable "vpc_id" {
 }
 
 resource "aws_security_group" "patroni" {
+  #checkov:skip=CKV_AWS_23: the group-level description is force-new; adding it would replace the group under running replicas. Every rule has one - schedule the group description with a migration
   name_prefix = "${var.environment}-patroni-"
   vpc_id      = var.vpc_id
 
   ingress {
+    description = "Postgres from the private network"
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = ["10.0.0.0/8"]
   }
 
+  # Replication, Patroni REST and DCS traffic stay on the private network;
+  # the internet is reached only for packages and S3 backups over TLS.
   egress {
+    description = "Replication, Patroni API and DCS on the private network"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
+    cidr_blocks = ["10.0.0.0/8"]
+  }
+  egress {
+    description = "HTTPS - packages and S3 backups"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    description = "HTTP - Ubuntu package mirrors"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -59,13 +78,20 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-resource "aws_instance" "patroni" {
+resource "aws_instance" "patroni" { # NOSONAR(S6329): associate_public_ip_address is force-new; the subnets passed in are private, and setting it would replace each replica
+  #checkov:skip=CKV_AWS_135: r6g and other current-generation types are EBS-optimised by default; setting the flag would stop and start each replica
+  #checkov:skip=CKV2_AWS_41: no AWS API is called from these hosts yet; attach a role with the backup bucket when WAL archiving lands rather than an empty one now
   count         = 2
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
   subnet_id     = var.subnet_ids[count.index % length(var.subnet_ids)]
 
   vpc_security_group_ids = [aws_security_group.patroni.id]
+  monitoring             = true
+
+  metadata_options {
+    http_tokens = "required"
+  }
 
   root_block_device {
     volume_type           = "gp3"
