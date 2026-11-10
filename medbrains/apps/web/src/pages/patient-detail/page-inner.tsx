@@ -130,6 +130,9 @@ export function PatientDetailPageInner() {
   const canViewGrowth = useHasPermission(P.PATIENTS.GROWTH.VIEW);
   const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
   const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
+  // Admissions and radiology reports are read only by those who may list
+  // them; the front desk opening a record sent both and was refused.
+  const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const canListPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
@@ -182,7 +185,7 @@ export function PatientDetailPageInner() {
   const { data: radiologyReports = [] } = useQuery({
     queryKey: ["patient-radiology-reports", patientId],
     queryFn: () => patientDetailService.listRadiologyReports(patientId),
-    enabled: patientId.length > 0,
+    enabled: canListRadiologyOrders && patientId.length > 0,
   });
   // Reports miss orders not yet reported (a desk walk-in, mostly); prescriptions
   // miss direct counter sales. Both lists are read for the flow bar.
@@ -212,7 +215,7 @@ export function PatientDetailPageInner() {
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-admissions", patientId, "admitted"],
     queryFn: () => patientDetailService.listPatientAdmissions(patientId, "admitted"),
-    enabled: patientId.length > 0,
+    enabled: canListAdmissions && patientId.length > 0,
   });
   const activeAdmission = activeAdmissions?.admissions[0];
   const { data: emergencyVisits = [] } = useQuery<ErVisit[]>({
@@ -597,49 +600,49 @@ export function PatientDetailPageInner() {
         <Grid align="flex-start" className={classes.workspaceGrid}>
           <Grid.Col span={12}>
             <Stack className={classes.workspaceMain}>
-              <Tabs.Panel id="patient-overview" value="overview" pt="md">
+              <Tabs.Panel value="overview" pt="md">
                 <OverviewTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-allergies" value="allergies" pt="md">
+              <Tabs.Panel value="allergies" pt="md">
                 <AllergiesTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-immunizations" value="immunizations" pt="md">
+              <Tabs.Panel value="immunizations" pt="md">
                 <ImmunizationsTab patient={patient} />
               </Tabs.Panel>
               {canViewGrowth && (
-                <Tabs.Panel id="patient-growth" value="growth" pt="md">
+                <Tabs.Panel value="growth" pt="md">
                   <GrowthTab patient={patient} />
                 </Tabs.Panel>
               )}
-              <Tabs.Panel id="patient-timeline" value="timeline" pt="md">
+              <Tabs.Panel value="timeline" pt="md">
                 <ClinicalTimelineTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-visits" value="visits" pt="md">
+              <Tabs.Panel value="visits" pt="md">
                 <VisitsTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-prescriptions" value="prescriptions" pt="md">
+              <Tabs.Panel value="prescriptions" pt="md">
                 <PrescriptionsTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-lab" value="lab" pt="md">
+              <Tabs.Panel value="lab" pt="md">
                 <LabOrdersTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-imaging" value="imaging" pt="md">
+              <Tabs.Panel value="imaging" pt="md">
                 <ImagingTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-billing" value="billing" pt="md">
+              <Tabs.Panel value="billing" pt="md">
                 <BillingTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-camps" value="camps" pt="md">
+              <Tabs.Panel value="camps" pt="md">
                 <CampsTab patientId={patient.id} />
               </Tabs.Panel>
 
-              <Tabs.Panel id="patient-appointments" value="appointments" pt="md">
+              <Tabs.Panel value="appointments" pt="md">
                 <AppointmentsTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-family" value="family" pt="md">
+              <Tabs.Panel value="family" pt="md">
                 <DetailFamilyLinksTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-documents" value="documents" pt="md">
+              <Tabs.Panel value="documents" pt="md">
                 <Stack>
                   <DetailDocumentsTab patientId={patient.id} />
                   <AbdmRecordsSection patientId={patient.id} />
@@ -648,16 +651,16 @@ export function PatientDetailPageInner() {
                   <PatientAccessLogSection patientId={patient.id} />
                 </Stack>
               </Tabs.Panel>
-              <Tabs.Panel id="patient-chronic" value="chronic" pt="md">
+              <Tabs.Panel value="chronic" pt="md">
                 <ChronicCareTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-packages" value="packages" pt="md">
+              <Tabs.Panel value="packages" pt="md">
                 <ActivePackagesSection patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-notes" value="notes" pt="md">
+              <Tabs.Panel value="notes" pt="md">
                 <ChartReview patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-merge" value="merge" pt="md">
+              <Tabs.Panel value="merge" pt="md">
                 <MergeTab patient={patient} />
               </Tabs.Panel>
             </Stack>

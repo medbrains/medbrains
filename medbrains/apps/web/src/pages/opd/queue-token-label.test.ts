@@ -1,5 +1,6 @@
+import type { QueueEntry } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { queueTokenLabel } from "./shared";
+import { protectedOpdQueueIdentity, queueTokenLabel } from "./shared";
 
 /**
  * One patient, two numbering schemes.
@@ -41,5 +42,20 @@ describe("queueTokenLabel", () => {
     const label = queueTokenLabel({ token_code: null, token_number: 434 });
     expect(label).not.toBe("T434");
     expect(label).toContain("no token");
+  });
+});
+
+describe("protectedOpdQueueIdentity", () => {
+  it("names the patient by the token on their slip, as every other screen does", () => {
+    // The vitals screen read the legacy integer (T019) to the nurse while the
+    // slip, the queue and the board said R-037.
+    const entry = {
+      patient_name: "Asha Rao",
+      uhid: "MB-00037",
+      token_code: "R-037",
+      token_number: 19,
+    } as QueueEntry;
+    const identity = protectedOpdQueueIdentity(entry, { name: "view", uhid: "view" });
+    expect(identity.token).toBe("R-037");
   });
 });

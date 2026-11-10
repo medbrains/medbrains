@@ -64,6 +64,11 @@ pub(crate) struct WebApp {
     closed: Rc<RefCell<Option<ClosedAction>>>,
     /// True once the page has asked about unsaved changes, so nothing forces it shut.
     asking: Rc<Cell<bool>>,
+    /// True while an idle close is under way, so a question about unsaved changes is answered
+    /// "stay" at once instead of waiting, unseen, in a hidden view.
+    idle_closing: Rc<Cell<bool>>,
+    /// True once the page refused an idle close, so it is not asked again until it is shown.
+    keeps_view: Rc<Cell<bool>>,
 }
 
 impl WebApp {
@@ -100,6 +105,8 @@ impl WebApp {
             busy: Rc::default(),
             closed: Rc::default(),
             asking: Rc::default(),
+            idle_closing: Rc::default(),
+            keeps_view: Rc::default(),
         };
         let target = web.clone();
         web.retry.connect_clicked(move |_| target.start());
@@ -108,6 +115,7 @@ impl WebApp {
 
     /// Opens the app, or returns to it. Does nothing new while an attempt is running.
     pub(crate) fn open(&self) {
+        self.keeps_view.set(false);
         if self.is_showing() {
             if let Some(view) = self.view.borrow().as_ref() {
                 view.grab_focus();
@@ -130,6 +138,7 @@ impl WebApp {
             return;
         };
         self.asking.set(false);
+        self.idle_closing.set(false);
         view.try_close();
         let (app, closing) = (self.clone(), view.downgrade());
         glib::timeout_add_local_once(CLOSE_PATIENCE, move || {
@@ -141,8 +150,30 @@ impl WebApp {
         });
     }
 
+    /// Closes the view of an app left in the background, to give its memory back. Unlike `close`
+    /// it never forces: a page with unsaved changes, or one that does not answer, keeps its view.
+    pub(crate) fn close_if_idle(&self) {
+        let Some(view) = self.view.borrow().clone() else {
+            return;
+        };
+        if self.busy.get() || self.keeps_view.get() || self.idle_closing.get() {
+            return;
+        }
+        self.idle_closing.set(true);
+        view.try_close();
+        let app = self.clone();
+        glib::timeout_add_local_once(CLOSE_PATIENCE, move || {
+            if app.idle_closing.replace(false) {
+                app.keeps_view.set(true);
+            }
+        });
+    }
+
     /// Destroys the view and everything it holds, and returns the page to its starting state.
     fn finish_close(&self) {
+        if self.idle_closing.replace(false) {
+            glib::g_message!(LOG, "{}: idle view closed to free memory", self.app.id);
+        }
         self.attempt.set(self.attempt.get() + 1);
         self.busy.set(false);
         self.retry.set_visible(false);
@@ -248,7 +279,7 @@ impl WebApp {
         self.progress.set_fraction(0.1);
         glib::g_message!(LOG, "{}: compiling its navigation limit", self.app.id);
         let store = UserContentFilterStore::new(FILTER_STORE);
-        let source = glib::Bytes::from_owned(apps::content_filter(&self.origin).into_bytes());
+        let source = glib::Bytes::from_owned(apps::content_filter(&self.origin, self.app.sign_in_origin.as_deref()).into_bytes());
         let timed_out = self.clone();
         glib::timeout_add_local_once(FILTER_PATIENCE, move || {
             if timed_out.is_current(attempt) && timed_out.view.borrow().is_none() {
@@ -309,7 +340,7 @@ impl WebApp {
 
     /// Builds the view and follows it.
     fn make_view(&self, filter: &webkit6::UserContentFilter) {
-        let view = webview::new_view(filter, &self.origin);
+        let view = webview::new_view(filter, &self.origin, self.app.sign_in_origin.as_deref());
         self.connect_view_signals(&view);
         self.root.add_named(&view, Some("view"));
         *self.view.borrow_mut() = Some(view);
@@ -322,9 +353,16 @@ impl WebApp {
         let app = self.clone();
         // WebKit draws this question inside the view, so it works under `cage`.
         view.connect_script_dialog(move |_, dialog| {
-            if dialog.dialog_type() == webkit6::ScriptDialogType::BeforeUnloadConfirm {
-                app.asking.set(true);
+            if dialog.dialog_type() != webkit6::ScriptDialogType::BeforeUnloadConfirm {
+                return false;
             }
+            if app.idle_closing.replace(false) {
+                // Unsaved changes: stay, keep the view, and do not ask again while hidden.
+                dialog.confirm_set_confirmed(false);
+                app.keeps_view.set(true);
+                return true;
+            }
+            app.asking.set(true);
             false
         });
         let app = self.clone();

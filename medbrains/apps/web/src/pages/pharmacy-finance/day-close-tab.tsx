@@ -3,23 +3,30 @@
  * first in mind: pick one to see its Z-report and count it.
  */
 import { Stack, Text } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import type { CounterDay, FieldAccessLevel } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Alert, Badge, Button, Modal } from "@/components/ui";
+import { Alert, Badge, Button, Input, Modal } from "@/components/ui";
 import { pharmacyFinanceService } from "@/services/pharmacyFinance.service";
 import { DayClosePanel } from "./day-close-panel";
 import { financeAmountText } from "./shared";
 
 const STATUS_TONE = { open: "warning", closed: "success", reopened: "danger" } as const;
 const STATUS_LABEL = { open: "Not closed", closed: "Closed", reopened: "Reopened" } as const;
+/** The most counter days the server returns (`day_close.rs` `LIST_LIMIT`). */
+const LIST_LIMIT = 200;
 
 export function DayCloseTab({ amountAccess }: { amountAccess: FieldAccessLevel }) {
   const [picked, setPicked] = useState<CounterDay | null>(null);
+  // The list is capped on the server, so the counter search runs there too.
+  const [search, setSearch] = useState("");
+  const [query] = useDebouncedValue(search.trim(), 250);
   const days = useQuery({
-    queryKey: ["pharmacy-day-close", "list"],
-    queryFn: () => pharmacyFinanceService.listCounterDays(),
+    queryKey: ["pharmacy-day-close", "list", query],
+    queryFn: () => pharmacyFinanceService.listCounterDays(query || undefined),
+    placeholderData: (previous) => previous,
   });
 
   if (days.isError) {
@@ -79,6 +86,18 @@ export function DayCloseTab({ amountAccess }: { amountAccess: FieldAccessLevel }
         Each counter closes its business day once every drawer is cashed up: the cash is counted by
         denomination, any difference is explained, and nothing more can be dated to that day.
       </Text>
+      <Input
+        label="Find a counter"
+        placeholder="Counter name"
+        value={search}
+        onChange={(e) => setSearch(e.currentTarget.value)}
+        maw={320}
+      />
+      {(days.data?.length ?? 0) >= LIST_LIMIT && (
+        <Text size="sm" c="dimmed" role="status">
+          Showing the latest {LIST_LIMIT} counter days. Search for a counter to see the rest.
+        </Text>
+      )}
       <DataTable
         columns={columns}
         data={days.data ?? []}

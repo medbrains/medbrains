@@ -94,7 +94,7 @@ export function casesFor(
       type: "Sign in",
       area: "Sign in",
       title: `Sign in as ${role.label}`,
-      steps: `app.medbrains.in → hospital code AMH → username ${login} and the password from your test-accounts file.`,
+      steps: `app.medbrains.in → your hospital's code → username ${login} and the password from your test-accounts file.`,
       expected: `You are signed in; the header shows 'TEST - ${role.label}'; you land on a page you can use (not an error).`,
     },
     ...seen.map((e) => ({

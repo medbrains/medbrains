@@ -6,7 +6,9 @@
 //! connected, since WebKit's helpers share the screen's group. The server is
 //! deliberately small: one connection at a time is plenty for one screen.
 
+mod first_admin;
 mod machine;
+mod node;
 mod peer;
 mod rules;
 mod status;
@@ -15,12 +17,13 @@ mod wifi;
 mod wifi_parse;
 
 use std::fs;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use zeroize::{Zeroize, Zeroizing};
 
 use medbrains_os_update::child;
 use serde_json::{Value, json};
@@ -54,7 +57,7 @@ struct State {
 struct Request {
     method: String,
     path: String,
-    body: Vec<u8>,
+    body: Zeroizing<Vec<u8>>,
 }
 
 /// A connection that stops reading at a deadline for the whole request, not per read, so sending
@@ -77,19 +80,31 @@ impl Read for Deadlined<'_> {
     }
 }
 
+/// One line of the request head, read a byte at a time so no buffer holds what follows it: the body may be a
+/// password, and only its own wiped vector may hold it. The head is a few hundred bytes, so this costs nothing.
+fn read_head_line(reader: &mut impl Read) -> Option<String> {
+    let mut line = Vec::new();
+    let mut byte = [0_u8; 1];
+    while reader.read(&mut byte).ok()? == 1 {
+        line.push(byte[0]);
+        if byte[0] == b'\n' {
+            break;
+        }
+    }
+    String::from_utf8(line).ok()
+}
+
 /// Reads one request, refusing anything oversized. Everything is bounded by `MAX_REQUEST`.
 fn read_request(stream: impl Read) -> Option<Request> {
-    let mut reader = BufReader::new(stream.take(MAX_REQUEST));
-    let mut line = String::new();
-    reader.read_line(&mut line).ok()?;
+    let mut reader = stream.take(MAX_REQUEST);
+    let line = read_head_line(&mut reader)?;
     let mut parts = line.split_whitespace();
     let (method, path) = (parts.next()?.to_owned(), parts.next()?.to_owned());
     let mut length = 0_usize;
     for _ in 0..MAX_HEADERS {
-        let mut header = String::new();
-        reader.read_line(&mut header).ok()?;
+        let header = read_head_line(&mut reader)?;
         if header.trim().is_empty() {
-            let mut body = vec![0; length];
+            let mut body = Zeroizing::new(vec![0; length]);
             reader.read_exact(&mut body).ok()?;
             return Some(Request { method, path, body });
         }
@@ -103,7 +118,8 @@ fn read_request(stream: impl Read) -> Option<Request> {
 
 /// Writes a JSON answer.
 fn respond(mut stream: &UnixStream, status: u16, body: &Value) {
-    let text = body.to_string();
+    // Wiped when dropped: an answer may hold the first administrator's TOTP secret.
+    let text = Zeroizing::new(body.to_string());
     let head = format!(
         "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
          Cache-Control: no-store\r\nConnection: close\r\n\r\n",
@@ -139,16 +155,48 @@ fn hospital_problems(body: &Value) -> Option<(u16, Value)> {
     Some((422, json!({ "problems": map })))
 }
 
-/// Handles `POST /hospital`: checks the three fields, then starts the main machine.
-fn new_hospital(body: &Value) -> (u16, Value) {
+/// The same refusals `POST /hospital/admin` and `POST /hospital` both start with: set up already, or bad fields.
+fn refuse_new_hospital(body: &Value) -> Option<(u16, Value)> {
     match machine::is_set_up() {
-        Ok(false) => {}
-        Ok(true) => return (409, json!({ "error": "This machine is already set up." })),
+        Ok(false) => hospital_problems(body),
+        Ok(true) => Some((409, json!({ "error": "This machine is already set up." }))),
         // Not knowing is not "no": setting up twice would overwrite the machine's identity.
-        Err(error) => return (500, json!({ "error": error })),
+        Err(error) => Some((500, json!({ "error": error }))),
     }
-    if let Some(problems) = hospital_problems(body) {
-        return problems;
+}
+
+/// Handles `POST /hospital/admin`: makes the first administrator's Kanidm login with the password, and answers
+/// the TOTP to enrol, `{ "totp": { secret, qr } }`, or `{ "totp": null }` on a machine with no identity provider.
+/// Safe to repeat: each call starts a new code.
+fn begin_admin(body: &Value) -> (u16, Value) {
+    if let Some(refusal) = refuse_new_hospital(body) {
+        return refusal;
+    }
+    match first_admin::begin(field(body, "username"), field(body, "password")) {
+        first_admin::Begun::Enrol(totp) => (200, json!({ "totp": totp })),
+        first_admin::Begun::NoProviderOnThisDisk => (200, json!({ "totp": null })),
+        first_admin::Begun::PasswordRefused => (
+            422,
+            json!({ "problems": { "password": rules::PASSWORD_RULE } }),
+        ),
+        first_admin::Begun::Failed(error) => (500, json!({ "error": error })),
+    }
+}
+
+/// Handles `POST /hospital`: checks the three fields and the authenticator code, saves the first
+/// administrator's login, then starts the main machine.
+fn new_hospital(body: &Value) -> (u16, Value) {
+    if let Some(refusal) = refuse_new_hospital(body) {
+        return refusal;
+    }
+    // Before anything else, and safe to repeat: until the marker below exists, setup can run again.
+    match first_admin::finish(field(body, "username"), field(body, "code")) {
+        first_admin::Finished::Made | first_admin::Finished::NoProviderOnThisDisk => {}
+        first_admin::Finished::WrongCode => {
+            return (422, json!({ "problems": { "code": rules::CODE_WRONG } }));
+        }
+        first_admin::Finished::Expired => return (409, json!({ "error": rules::CODE_EXPIRED })),
+        first_admin::Finished::Failed(error) => return (500, json!({ "error": error })),
     }
     let started = machine::start_main_machine(
         field(body, "hospital"),
@@ -156,6 +204,16 @@ fn new_hospital(body: &Value) -> (u16, Value) {
         field(body, "password"),
     );
     answer(500, started)
+}
+
+/// Handles `POST /node/finish`: this machine has been approved, so it becomes a node.
+fn finish_node() -> (u16, Value) {
+    match machine::is_set_up() {
+        Ok(false) => answer(500, node::finish_node()),
+        Ok(true) => (409, json!({ "error": "This machine is already set up." })),
+        // Not knowing is not "no".
+        Err(error) => (500, json!({ "error": error })),
+    }
 }
 
 /// Turns the result of a machine action into an answer.
@@ -233,43 +291,64 @@ fn state_answer() -> (u16, Value) {
     )
 }
 
-/// Routes one request.
+/// Routes one request, then wipes every string the body held: passwords are among them.
 fn route(state: &Arc<State>, request: &Request) -> (u16, Value) {
-    let body: Value = serde_json::from_slice(&request.body).unwrap_or(Value::Null);
+    let mut body: Value = serde_json::from_slice(&request.body).unwrap_or(Value::Null);
+    let answer = route_body(state, request, &body);
+    scrub(&mut body);
+    answer
+}
+
+/// Overwrites every string and number in a body before it is dropped: a request's password, or an
+/// answer's TOTP secret.
+pub(crate) fn scrub(value: &mut Value) {
+    match value {
+        Value::String(text) => text.zeroize(),
+        Value::Number(number) => *number = 0.into(),
+        Value::Array(items) => items.iter_mut().for_each(scrub),
+        Value::Object(fields) => fields.values_mut().for_each(scrub),
+        _ => {}
+    }
+}
+
+/// Answers one request from its parsed body.
+fn route_body(state: &Arc<State>, request: &Request, body: &Value) -> (u16, Value) {
     match (request.method.as_str(), request.path.as_str()) {
         ("GET", "/state") => state_answer(),
         ("GET", "/timezones") => (200, json!(status::timezones())),
-        ("POST", "/timezone") => answer(422, status::set_timezone(field(&body, "zone"))),
+        ("POST", "/timezone") => answer(422, status::set_timezone(field(body, "zone"))),
         ("GET", "/network") => (200, machine::network_check()),
         ("POST", "/hospital/check") => {
-            hospital_problems(&body).unwrap_or_else(|| (200, json!({ "ok": true })))
+            hospital_problems(body).unwrap_or_else(|| (200, json!({ "ok": true })))
         }
-        ("POST", "/hospital") => new_hospital(&body),
-        ("POST", "/network/fixed") => fixed_address(state, &body),
+        ("POST", "/hospital/admin") => begin_admin(body),
+        ("POST", "/hospital") => new_hospital(body),
+        ("POST", "/node/finish") => finish_node(),
+        ("POST", "/network/fixed") => fixed_address(state, body),
         ("POST", "/network/confirm") => settle_pending(state, machine::confirm_fixed_address),
         ("POST", "/network/undo") => settle_pending(state, machine::undo_fixed_address),
         ("POST", "/network/automatic") => use_automatic(state),
-        ("POST", "/network/prefer") => answer(422, machine::prefer_link(field(&body, "interface"))),
+        ("POST", "/network/prefer") => answer(422, machine::prefer_link(field(body, "interface"))),
         ("GET", "/wifi") => (200, wifi::status(&state.wifi_attempt)),
-        ("POST", "/wifi/power") => wifi_power(&body),
+        ("POST", "/wifi/power") => wifi_power(body),
         ("POST", "/wifi/scan") => answer(422, wifi::scan()),
         ("POST", "/wifi/connect") => answer(
             409,
             wifi::connect(
                 &state.wifi_attempt,
-                field(&body, "ssid"),
-                field(&body, "password"),
+                field(body, "ssid"),
+                field(body, "password"),
             ),
         ),
         ("POST", "/wifi/forget") => {
-            answer(422, wifi::forget(&state.wifi_attempt, field(&body, "ssid")))
+            answer(422, wifi::forget(&state.wifi_attempt, field(body, "ssid")))
         }
-        ("POST", "/power") => answer(422, machine::power(field(&body, "action"))),
+        ("POST", "/power") => answer(422, machine::power(field(body, "action"))),
         ("GET", "/update") => (200, medbrains_os_update::view::view()),
-        ("POST", "/update/action") => answer(422, updates::run_action(field(&body, "action"))),
+        ("POST", "/update/action") => answer(422, updates::run_action(field(body, "action"))),
         ("POST", "/update/settings") => answer(
             422,
-            updates::save_settings(field(&body, "address"), field(&body, "window")),
+            updates::save_settings(field(body, "address"), field(body, "window")),
         ),
         _ => (404, json!({ "error": "not found" })),
     }
@@ -289,8 +368,9 @@ fn handle(state: &Arc<State>, stream: &UnixStream) {
     let Some(request) = read_request(Deadlined { stream, deadline }) else {
         return;
     };
-    let (status, body) = route(state, &request);
+    let (status, mut body) = route(state, &request);
     respond(stream, status, &body);
+    scrub(&mut body);
 }
 
 /// Opens the socket: only root and the screen's group may connect. A socket left by the last run
@@ -322,6 +402,10 @@ fn main() -> io::Result<()> {
         "removing an abandoned setup",
         machine::remove_abandoned_seed(),
     );
+    machine::start_identity_for_setup();
+    if machine::is_node() {
+        node::drop_identity_provider();
+    }
     let state = Arc::new(State {
         network_change: AtomicU64::new(0),
         network_pending: AtomicBool::new(false),
@@ -347,7 +431,7 @@ mod tests {
     fn a_request_is_parsed_and_an_oversized_one_refused() {
         let good = "POST /power HTTP/1.1\r\nHost: h\r\nContent-Length: 2\r\n\r\n{}";
         let parsed = read_request(good.as_bytes());
-        assert!(parsed.is_some_and(|r| r.path == "/power" && r.body == b"{}"));
+        assert!(parsed.is_some_and(|r| r.path == "/power" && *r.body == b"{}"));
         let huge = "POST / HTTP/1.1\r\nContent-Length: 99999999\r\n\r\n";
         assert!(read_request(huge.as_bytes()).is_none());
     }
@@ -391,5 +475,15 @@ mod tests {
         for body in [json!({}), json!({ "on": "yes" }), serde_json::Value::Null] {
             assert_eq!(wifi_power(&body).0, 422);
         }
+    }
+
+    /// A parsed body's strings and numbers, a password or a TOTP secret among them, are wiped, however deep they sit.
+    #[test]
+    fn every_string_in_a_body_is_wiped() {
+        let mut body = json!({ "password": "Blue-River-Walks-At-7!", "list": [{ "inner": "secret" }], "n": 3 });
+        super::scrub(&mut body);
+        assert_eq!(body["password"], "");
+        assert_eq!(body["list"][0]["inner"], "");
+        assert_eq!(body["n"], 0);
     }
 }

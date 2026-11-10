@@ -60,7 +60,9 @@ impl Source {
     pub fn fetch(&self, name: &str, to: &Path, limit: u64) -> Result<(), String> {
         match self {
             Self::Folder(folder) => copy_limited(&folder.join(name), to, limit),
-            Self::Address(base, ca) => download(&format!("{base}/{name}"), ca.as_deref(), to, limit),
+            Self::Address(base, ca) => {
+                download(&format!("{base}/{name}"), ca.as_deref(), to, limit)
+            }
         }
     }
 

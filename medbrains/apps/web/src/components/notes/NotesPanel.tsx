@@ -10,10 +10,8 @@ import { MyNotes } from "./MyNotes";
 import { NoteCard } from "./NoteCard";
 import { type NoteDraft, NoteEditorModal } from "./NoteEditorModal";
 import { NotePreferencesModal } from "./NotePreferencesModal";
-import { filterMine } from "./notes-logic";
+import { filterMine, NOTES_KEY } from "./notes-logic";
 import { ShareNoteModal } from "./ShareNoteModal";
-
-export const NOTES_KEY = ["notes"];
 
 type Dialog =
   | { kind: "edit"; note?: StickyNote }

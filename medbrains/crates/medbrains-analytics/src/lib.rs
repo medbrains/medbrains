@@ -6,6 +6,7 @@ use medbrains_server_core::state::AppState;
 
 pub mod care_view;
 pub mod command_center;
+pub mod paperless;
 pub mod retrospective;
 pub mod utilization_review;
 
@@ -184,5 +185,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/retrospective/audit/{source_table}/{source_id}",
             get(retrospective::retro_audit_trail),
+        )
+        .route("/api/analytics/paperless", get(paperless::get_paperless))
+        .route(
+            "/api/analytics/paperless/refresh",
+            post(paperless::refresh_paperless),
         )
 }

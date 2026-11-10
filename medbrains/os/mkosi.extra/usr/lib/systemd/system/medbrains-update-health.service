@@ -2,7 +2,7 @@
 # boot-complete.target, and that needs this. Passing marks the version good. Failing marks it bad and restarts.
 [Unit]
 Description=Check that the new MedBrains OS version works
-After=multi-user.target medbrains-main.target medbrains-update-reconcile.service
+After=multi-user.target medbrains-main.target medbrains-node.target medbrains-update-reconcile.service
 Before=boot-complete.target
 
 [Service]

@@ -142,7 +142,12 @@ pub fn read_slots() -> Result<Slots, String> {
     let listing = run_text(
         "lsblk",
         &[
-            "--json", "--bytes", "-o", "PATH,PARTN,PARTLABEL,PARTTYPE,SIZE,TYPE", "--list", &disk,
+            "--json",
+            "--bytes",
+            "-o",
+            "PATH,PARTN,PARTLABEL,PARTTYPE,SIZE,TYPE",
+            "--list",
+            &disk,
         ],
         USUAL_LIMIT,
     )?;
@@ -433,7 +438,9 @@ pub fn copy_flushed(from: &Path, to: &Path) -> Result<(), String> {
     let mut target =
         File::create(&temporary).map_err(|e| format!("{}: {e}", temporary.display()))?;
     std::io::copy(&mut source, &mut target).map_err(|e| format!("{}: {e}", to.display()))?;
-    target.sync_all().map_err(|e| format!("{}: {e}", to.display()))?;
+    target
+        .sync_all()
+        .map_err(|e| format!("{}: {e}", to.display()))?;
     fs::rename(&temporary, to).map_err(|e| format!("{}: {e}", to.display()))?;
     state::sync_parent(to).map_err(|e| format!("{}: {e}", to.display()))
 }

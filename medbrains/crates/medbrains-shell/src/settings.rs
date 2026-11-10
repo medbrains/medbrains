@@ -3,7 +3,7 @@
 use gtk4 as gtk;
 use gtk4::prelude::{BoxExt, ToggleButtonExt, WidgetExt};
 
-use crate::{network, prefs, timezone, ui, updates};
+use crate::{main_address, network, prefs, timezone, ui, updates};
 
 /// The dark/light choice and the motion switch, applied and saved at once.
 fn appearance(css: &gtk::CssProvider) -> gtk::Box {
@@ -49,7 +49,7 @@ fn appearance(css: &gtk::CssProvider) -> gtk::Box {
 }
 
 /// The Settings page.
-pub(crate) fn page(css: &gtk::CssProvider) -> gtk::Widget {
+pub(crate) fn page(css: &gtk::CssProvider, role: &str) -> gtk::Widget {
     let body = ui::column(ui::GAP);
     body.append(&ui::label("Appearance", "heading"));
     body.append(&appearance(css));
@@ -59,6 +59,20 @@ pub(crate) fn page(css: &gtk::CssProvider) -> gtk::Widget {
     body.append(&network::panel(None));
     body.append(&ui::label("Updates", "heading"));
     body.append(&updates::panel());
+    if role == "node" {
+        body.append(&ui::label("Main machine", "heading"));
+        body.append(&main_address::panel());
+    }
+    body.append(&ui::label("This machine", "heading"));
+    let version = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+    let image = version
+        .lines()
+        .find_map(|line| line.strip_prefix("IMAGE_VERSION="));
+    let image = image.map(|value| value.trim_matches('"'));
+    body.append(&ui::label(
+        &format!("Image version: {}", image.unwrap_or("unknown")),
+        "",
+    ));
     let page = ui::page("Settings", "", &body, &ui::row(0));
     page.add_css_class("solid");
     page

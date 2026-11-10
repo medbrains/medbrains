@@ -1,92 +1,34 @@
-import { Box, TextInput, UnstyledButton } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { useState } from "react";
+import { Group, Stack, Text } from "@mantine/core";
+import { IconServer } from "@tabler/icons-react";
+import { useMutation } from "@tanstack/react-query";
 import { Alert, Button } from "@/components/ui";
-import {
-  defaultDesktopApiBase,
-  getStoredDesktopApiBase,
-  normalizeDesktopApiBase,
-  setStoredDesktopApiBase,
-} from "@/lib/desktop-runtime";
+import { desktopInvoke } from "@/lib/desktop-runtime";
 import classes from "@/pages/login.module.scss";
-import { sessionService } from "@/services/session.service";
 
-/** The desktop app's server address: test it, save it, or reset it. */
+/**
+ * On the desktop app's sign-in page: which hospital server this computer
+ * opens, and the way to pick another. The desktop forgets the server and
+ * restarts into its setup screen.
+ */
 export function DesktopConnection() {
-  const defaultApiBase = defaultDesktopApiBase();
-  const [opened, disclosure] = useDisclosure(false);
-  const [apiBase, setApiBase] = useState(
-    getStoredDesktopApiBase() ?? sessionService.getApiBase() ?? defaultApiBase,
-  );
-  const [status, setStatus] = useState<{ color: "danger" | "success"; message: string } | null>(
-    null,
-  );
-  const normalized = normalizeDesktopApiBase(apiBase);
-  const missing = () => setStatus({ color: "danger", message: "Enter a backend URL or /api." });
-
-  const save = () => {
-    if (!normalized) return missing();
-    setStoredDesktopApiBase(normalized);
-    sessionService.setApiBase(normalized);
-    window.location.reload();
-  };
-  const reset = () => {
-    setStoredDesktopApiBase(null);
-    setApiBase(defaultApiBase);
-    sessionService.setApiBase(defaultApiBase);
-    window.location.reload();
-  };
-  const test = async () => {
-    if (!normalized) return missing();
-    setStatus(null);
-    try {
-      await sessionService.testHealthAtBase(normalized);
-      setStatus({ color: "success", message: "Backend health check passed." });
-    } catch (error) {
-      setStatus({
-        color: "danger",
-        message: error instanceof Error ? error.message : "Connection failed.",
-      });
-    }
-  };
-
+  const forget = useMutation({ mutationFn: () => desktopInvoke<void>("desktop_server_forget") });
   return (
-    <Box className={classes.desktopSetup}>
-      <UnstyledButton
-        className={classes.desktopSetupToggle}
-        onClick={disclosure.toggle}
-        aria-expanded={opened}
-        aria-controls="desktop-setup-panel"
-      >
-        Desktop connection setup
-      </UnstyledButton>
-      {opened && (
-        <Box id="desktop-setup-panel" className={classes.desktopSetupPanel}>
-          <TextInput
-            label="Backend API URL"
-            description="Use /api for local dev, or enter a vendor / on-prem server URL."
-            placeholder="https://hospital.example.com/api"
-            value={apiBase}
-            onChange={(event) => {
-              setApiBase(event.currentTarget.value);
-              setStatus(null);
-            }}
-            size="sm"
-          />
-          <Box className={classes.desktopSetupActions}>
-            <Button tone="secondary" size="xs" onClick={test}>
-              Test
-            </Button>
-            <Button tone="primary" size="xs" onClick={save}>
-              Save & reload
-            </Button>
-            <Button tone="ghost" size="xs" onClick={reset}>
-              Reset
-            </Button>
-          </Box>
-          {status && <Alert tone={status.color}>{status.message}</Alert>}
-        </Box>
-      )}
-    </Box>
+    <Stack className={classes.desktopSetup} gap="xs">
+      <Group justify="space-between" wrap="nowrap" gap="sm">
+        <Text size="xs" c="var(--mb-text-secondary)">
+          This computer opens {window.location.origin}
+        </Text>
+        <Button
+          tone="ghost"
+          size="xs"
+          leftSection={<IconServer size={16} />}
+          loading={forget.isPending}
+          onClick={() => forget.mutate()}
+        >
+          Change server
+        </Button>
+      </Group>
+      {forget.isError && <Alert tone="danger">{forget.error.message}</Alert>}
+    </Stack>
   );
 }

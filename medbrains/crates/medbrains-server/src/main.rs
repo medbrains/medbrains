@@ -227,10 +227,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> = Arc::new(
         medbrains_db_topology::PostgresTopologyResolver::new(db_pool.clone()),
     );
+    // The reader is the reports pool (report_runner): its own small cap, so
+    // a burst of reports can never take the connections the wards need.
+    let reports_pool = reports_pool(&config.database_url, &pool_config).await?;
     let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> =
         Arc::new(medbrains_db_topology::TopologyRouter::new(
             db_pool.clone(),
-            db_pool.clone(),
+            reports_pool,
             topology_resolver,
         ));
 
@@ -378,6 +381,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         s3: s3_client,
         gotenberg: gotenberg_client,
         documents_store: Arc::clone(&documents_store),
+        reports: medbrains_server_core::report_runner::ReportGate::new(
+            medbrains_server_core::report_runner::ReportLimits::from_env(),
+        ),
     };
 
     // Seeding runs on the bootstrap connection, not the request pool.
@@ -394,6 +400,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DEFAULT. Cheap, idempotent, and the only thing that repairs a tenant
     // whose roles table was never populated — or was emptied.
     medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
+
+    // The live vendor-domain list, then the back-fill. Only a mistake in the
+    // list itself stops the boot: a single label or public suffix, a
+    // hospital's own site domain, or more accounts than the ceiling. One
+    // account never takes every hospital offline: an account whose flag would
+    // leave its hospital with no administrator of its own is skipped (it is
+    // still gated at request time by the domain rule) and logged as an error,
+    // which the error-tracking layer raises to platform operators.
+    let refused = medbrains_core::vendor::configured_refusals();
+    if !refused.is_empty() {
+        return Err(format!(
+            "MEDBRAINS_VENDOR_EMAIL_DOMAINS refused: {refused:?} is a single label or a public \
+             suffix, which would make every account under it a MedBrains account. Fix the \
+             setting and restart."
+        )
+        .into());
+    }
+    let domains = medbrains_core::vendor::vendor_domains();
+    let (flagged, skipped): (i32, Vec<uuid::Uuid>) =
+        sqlx::query_as(
+            "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
+        )
+            .bind(&domains)
+            .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+            .bind(medbrains_core::vendor::backfill_max())
+            .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
+            .fetch_one(&bootstrap_pool)
+            .await
+            .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;
+    sqlx::query("SELECT public.app_set_vendor_domains($1)")
+        .bind(&domains)
+        .execute(&bootstrap_pool)
+        .await?;
+    if flagged > 0 {
+        tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
+    }
+    for user_id in skipped {
+        tracing::error!(
+            %user_id,
+            "vendor-domain account not flagged: it is its hospital's last administrator. It is \
+             still refused without a grant; hand the hospital an administrator account of its \
+             own (docs/compliance/vendor-access.md)"
+        );
+    }
 
     // Every startup check, reported at once; production does not serve on a
     // failure. After seeding, so a fresh database is judged as it will run.
@@ -602,6 +652,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(permissions_policy)
         .layer(coop)
         .layer(cors)
+        // A failed request's query and JSON body, identity masked, so a refused
+        // save can be traced to its field. Off unless
+        // MEDBRAINS_LOG_FAILED_PAYLOADS=1. Inside the trace span for the path.
+        .layer(axum::middleware::from_fn(
+            medbrains_server_core::payload_log::log_failed_payload,
+        ))
         // Negotiated response compression (brotli / zstd / gzip / deflate).
         // JSON API payloads are highly repetitive → typically 70–90% smaller
         // on the wire. Picks the best algorithm from the request's
@@ -612,6 +668,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // among thousands.
         .layer(
             TraceLayer::new_for_http()
+                .make_span_with(medbrains_server_core::http_trace::make_span)
                 .on_response(medbrains_server_core::http_trace::on_response),
         )
         // A Sentry hub per request, outside the trace layer so its log lines
@@ -682,6 +739,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Room-rent auto-billing — hourly idempotent pass posting one
     // bed charge per occupied admission per hospital-local day.
     medbrains_server::services::room_rent::spawn(worker_pool.clone());
+    // Revenue leakage — daily pass queueing orders done but never billed.
+    medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
+    // Paperless meter — daily recount of the last week's documents and paper.
+    medbrains_server::services::paperless_meter::spawn(worker_pool.clone());
+    medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
     // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
     medbrains_hrms_gateway::spawn(worker_pool.clone());
 
@@ -692,7 +754,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Critical-value escalation — unacknowledged lab alerts escalate
     // to the doctor's supervisor after the tenant's ack window.
-    medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
+    // It needs the credential store to know whether SMS is set up: an
+    // escalation it cannot text is reported as blocked, never as sent.
+    medbrains_server::services::critical_alert_escalation::spawn(
+        worker_pool.clone(),
+        medbrains_server::secret_backend::build_secret_resolver().await,
+    );
+    // A code blue nobody answers is re-paged wider, a bounded number of times.
+    medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
+    // Late or missing MRD files to the supervisor; tomorrow's pull list each evening.
+    medbrains_mrd::file_requests::jobs::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
@@ -734,6 +805,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // check reaches the on-call nurse and whoever started the restraint
     // (MHCA 2017 s.97).
     medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
+    // Dictation recordings never outlive 24 hours unsaved.
+    medbrains_dictation::purge::spawn(worker_pool.clone());
 
     // Early-warning scores — an urgent or emergency NEWS2/PEWS/MEOWS nobody
     // acknowledges goes to the duty doctor, then wider (NABH/IPSG).
@@ -816,6 +889,45 @@ async fn shutdown_signal() {
     }
 }
 
+/// The pool every report, analytics and dashboard read runs on.
+///
+/// `REPORTS_DATABASE_URL` names a read replica or a low-priority role; unset,
+/// this is the primary. Either way it is a pool of its own, capped at
+/// `REPORTS_DB_POOL_MAX_CONNECTIONS` (default 4), so reports cannot exhaust
+/// the request pool. A configured replica that cannot be reached at boot is
+/// logged and the primary is used, still bounded: a replica outage must not
+/// stop the server, and the runner's bounds keep the primary safe meanwhile.
+async fn reports_pool(
+    primary_url: &str,
+    base: &medbrains_db::pool::PoolConfig,
+) -> Result<sqlx::PgPool, Box<dyn std::error::Error>> {
+    let max_connections = std::env::var("REPORTS_DB_POOL_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(4)
+        .max(1);
+    let config = medbrains_db::pool::PoolConfig {
+        max_connections,
+        min_connections: 0,
+        ..base.clone()
+    };
+    if let Ok(url) = std::env::var("REPORTS_DATABASE_URL")
+        && !url.trim().is_empty()
+    {
+        match medbrains_db::pool::create_pool_with_config(&url, &config).await {
+            Ok(pool) => {
+                tracing::info!(max_connections, "reports run on REPORTS_DATABASE_URL");
+                return Ok(pool);
+            }
+            Err(error) => tracing::error!(
+                %error,
+                "REPORTS_DATABASE_URL unreachable — reports fall back to the primary, bounded"
+            ),
+        }
+    }
+    Ok(medbrains_db::pool::create_pool_with_config(primary_url, &config).await?)
+}
+
 /// Sprint A.8 — assemble the outbox Handler Registry.
 ///
 /// Registers typed handlers for known `event_types` and a `pipeline_fallback`
@@ -883,17 +995,32 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // them sent without sending anything.
     registry.register(twilio::SmsSendHandler::new("sms.mlc_police_intimation"));
     registry.register(twilio::SmsSendHandler::new("sms.mass_casualty_alert"));
+    // The code blue page: one round of paging, then its SMS and WhatsApp per
+    // person. Unregistered, the fallback marked the page sent while no
+    // pipeline acted on it (medbrains-nursing::code_blue_alert).
+    registry.register(medbrains_nursing::code_blue_alert::CodeBlueAlertHandler);
+    registry.register(twilio::SmsSendHandler::new(
+        medbrains_nursing::code_blue_alert::SMS_EVENT,
+    ));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        medbrains_nursing::code_blue_alert::WHATSAPP_EVENT,
+    ));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.mlc_police_intimation",
     ));
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
+    // Tells an account holder their sign-in was linked to, or unlinked from, a Kanidm person.
+    registry.register(email_stub::SmtpSendHandler::new("email.account_link"));
     registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.appointment_confirmation",
     ));
     registry.register(email_stub::SmtpSendHandler::new("email.invoice_receipt"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        medbrains_payment_gateway::payment_settings_notice::EMAIL_EVENT,
+    ));
     registry.register(email_stub::SmtpSendHandler::new("email.lab_report"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.refund_notification",
@@ -969,7 +1096,7 @@ impl medbrains_outbox::handlers::pipeline_fallback::PipelineDispatcher
         user_id: uuid::Uuid,
         event_type: &str,
         payload: &serde_json::Value,
-    ) -> Result<(), String> {
+    ) -> Result<usize, String> {
         medbrains_server::events::dispatch_to_pipelines(
             pool, tenant_id, user_id, event_type, payload,
         )

@@ -189,6 +189,10 @@ impl IntoResponse for AppError {
     }
 }
 
+/// What a reader sees when a report ran past its statement timeout.
+pub const REPORT_TIMEOUT_MESSAGE: &str = "This report took too long and was stopped so it \
+     cannot slow the wards. Narrow the date range and try again.";
+
 /// Map a Postgres SQLSTATE to the HTTP status it deserves.
 ///
 /// Constraint violations and malformed input are the *client's* fault, so they
@@ -198,8 +202,9 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
     match code {
         // Foreign key violation — referenced row doesn't exist.
         Some("23503") => (StatusCode::NOT_FOUND, "not found"),
-        // Unique constraint violation — duplicate.
-        Some("23505") => (StatusCode::CONFLICT, "conflict"),
+        // Unique constraint violation — duplicate; MB409 is an edit to a
+        // signed field of a finalized record (migration 1418's edit guard).
+        Some("23505" | "MB409") => (StatusCode::CONFLICT, "conflict"),
         // Check constraint, not-null — bad input.
         Some("23514" | "23502") => (StatusCode::BAD_REQUEST, "bad request"),
         // Data exceptions — the request carried a value Postgres can't even
@@ -208,6 +213,9 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
         // cast raises it for an unknown value (`?status=bogus`), which used to
         // 500. Numeric overflow and unparseable dates are the same class.
         Some("22P02" | "22003" | "22007" | "22008") => (StatusCode::BAD_REQUEST, "bad request"),
+        // Query cancelled — a bounded read (report_runner) ran past its
+        // statement timeout. A refusal to wait, never an empty result.
+        Some("57014") => (StatusCode::SERVICE_UNAVAILABLE, "report_timeout"),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
     }
 }
@@ -253,6 +261,9 @@ fn extract_db_detail(db_err: &medbrains_db::pool::DbError) -> String {
                 Some("22P02" | "22003" | "22007" | "22008")
             ) {
                 return format!("Invalid value: {msg}");
+            }
+            if e.code().as_deref() == Some("57014") {
+                return REPORT_TIMEOUT_MESSAGE.to_owned();
             }
             // Other database errors — return the PG message directly
             msg.to_owned()
@@ -391,6 +402,7 @@ mod tests {
     fn constraint_violations_are_client_errors() {
         assert_eq!(db_error_status(Some("23503")).0, StatusCode::NOT_FOUND);
         assert_eq!(db_error_status(Some("23505")).0, StatusCode::CONFLICT);
+        assert_eq!(db_error_status(Some("MB409")).0, StatusCode::CONFLICT);
         assert_eq!(db_error_status(Some("23514")).0, StatusCode::BAD_REQUEST);
         assert_eq!(db_error_status(Some("23502")).0, StatusCode::BAD_REQUEST);
     }
@@ -419,5 +431,26 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR
         );
         assert_eq!(db_error_status(None).0, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn a_statement_timeout_is_a_named_503_not_a_500() {
+        assert_eq!(
+            db_error_status(Some("57014")),
+            (StatusCode::SERVICE_UNAVAILABLE, "report_timeout")
+        );
+    }
+}
+
+impl From<medbrains_core::secrets::sealing::SealingKeyError> for AppError {
+    /// An unset or short key is a setting to fix; a failed store is a fault, and says so.
+    fn from(error: medbrains_core::secrets::sealing::SealingKeyError) -> Self {
+        use medbrains_core::secrets::sealing::SealingKeyError;
+        match &error {
+            SealingKeyError::Unreadable { .. } => Self::Internal(error.to_string()),
+            SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => Self::ServiceUnavailable(
+                format!("This feature is not configured: {error}. Ask your administrator."),
+            ),
+        }
     }
 }

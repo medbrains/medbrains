@@ -1,14 +1,17 @@
 import { Group, Stack, Text, Textarea } from "@mantine/core";
-import type { PharmacyCatalog, PharmacyOrderItem, SetupUser } from "@medbrains/types";
+import { useDebouncedValue } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
+import type { PharmacyCatalog, PharmacyOrderItem } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, Badge, Button, Modal, Select, Table, toast } from "@/components/ui";
-import { NumberField } from "@/components/ui/Input";
-import { adminAccessService } from "@/services/adminAccess.service";
+import { Alert, Badge, Button, Checkbox, Modal, Select, Table, toast } from "@/components/ui";
+import { Input, NumberField, PasswordField } from "@/components/ui/Input";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
+import { BUY_OUTSIDE_LABEL, isBoughtOutside, isSoldHere } from "@/utils/buyOutside";
 import { SafetyFindingsPanel, useSafetyGate } from "./SafetyFindingsPanel";
 
 interface Props {
@@ -20,9 +23,15 @@ interface Props {
   isDispensing: boolean;
   /** Active drug-allergen names for the order's patient (for the dispense-time guard). */
   patientAllergens?: string[];
+  /** No drug allergy recorded and "no known allergies" never noted. */
+  allergyStatusUnknown?: boolean;
   onDispense: (payload: {
     items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
     witnessed_by?: string;
+    witness_password?: string;
+    ndps_override_reason?: string;
+    schedule_x_duplicate_ref?: string;
+    allergy_status_acknowledged?: boolean;
     allergy_override_reason?: string;
     safety_override_reason?: string;
   }) => void;
@@ -33,8 +42,16 @@ interface RowState {
   batchId: string | null;
 }
 
-const isControlled = (drug?: PharmacyCatalog): boolean =>
-  Boolean(drug?.is_controlled || drug?.drug_schedule === "X" || drug?.drug_schedule === "H1");
+/**
+ * The one meaning of "controlled", as the server's: the flag, which a Schedule
+ * X or NDPS drug always carries. H1 is scheduled, not controlled — it needs a
+ * prescription and the H1 register, not a witness.
+ */
+const isControlled = (drug: PharmacyCatalog): boolean =>
+  drug.is_controlled || drug.drug_schedule === "X" || drug.drug_schedule === "NDPS";
+
+/** Shortest retained-duplicate reference the server accepts (migration 1450's CHECK). */
+const DUPLICATE_REF_MIN_CHARS = 6;
 
 /**
  * Dispense modal — per line: FEFO batch pick + dispensed quantity (partial),
@@ -48,34 +65,55 @@ export function DispenseModal({
   items,
   isDispensing,
   patientAllergens = [],
+  allergyStatusUnknown = false,
   onDispense,
 }: Props) {
-  const { data: catalog = [] } = useQuery({
-    queryKey: ["pharmacy-catalog"],
-    queryFn: () => clinicalSupportService.listPharmacyCatalog(),
+  // This order's drugs, by id. The first hundred of the catalogue by name
+  // did not always hold them, and a controlled drug then lost its witness.
+  const catalogIds = useMemo(
+    () => [...new Set(items.map((it) => it.catalog_item_id).filter(Boolean))].sort().join(","),
+    [items],
+  );
+  const catalogQuery = useQuery({
+    queryKey: ["pharmacy-catalog", "ids", catalogIds],
+    queryFn: () => clinicalSupportService.listPharmacyCatalog({ ids: catalogIds }),
     staleTime: 300_000,
-    enabled: opened,
+    enabled: opened && catalogIds.length > 0,
   });
   const catalogById = useMemo(
-    () => Object.fromEntries((catalog as PharmacyCatalog[]).map((c) => [c.id, c])),
-    [catalog],
+    () => new Map((catalogQuery.data ?? []).map((c: PharmacyCatalog) => [c.id, c] as const)),
+    [catalogQuery.data],
   );
+  const canSkipWitness = useHasPermission(P.PHARMACY.NDPS_WITNESS_OVERRIDE);
 
-  const { data: users = [] } = useQuery({
-    queryKey: ["setup-users"],
-    queryFn: () => adminAccessService.listUsers(),
-    staleTime: 300_000,
+  // Colleagues who may dispense, by name. The user directory it read before
+  // is an administrator's, so a pharmacist's witness list was empty. The list
+  // is capped on the server, so typing searches the server, not this page.
+  const [witnessSearch, setWitnessSearch] = useState("");
+  const [witnessQuery] = useDebouncedValue(witnessSearch.trim(), 250);
+  const { data: witnesses = [] } = useQuery({
+    queryKey: ["pharmacy-dispense-witnesses", witnessQuery],
+    queryFn: () => pharmacyService.listDispenseWitnesses(witnessQuery || undefined),
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
     enabled: opened,
   });
 
-  // Lines that still have a balance to dispense.
+  // Lines that still have a balance to dispense. A line bought outside is
+  // never dispensed here; it is listed below so nobody looks for it.
   const lines = items
-    .filter((it) => !it.removed_at)
+    .filter((it) => !it.removed_at && isSoldHere(it))
     .map((it) => ({ item: it, remaining: it.quantity - it.quantity_dispensed }))
     .filter((l) => l.remaining > 0);
+  const outside = items.filter((it) => !it.removed_at && isBoughtOutside(it));
 
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [witness, setWitness] = useState<string | null>(null);
+  // Typed by the witness, at this screen, and checked on the server.
+  const [witnessPassword, setWitnessPassword] = useState("");
+  const [noWitnessReason, setNoWitnessReason] = useState("");
+  const [duplicateRef, setDuplicateRef] = useState("");
+  const [allergyAsked, setAllergyAsked] = useState(false);
   const [allergyReason, setAllergyReason] = useState("");
   const [safetyReason, setSafetyReason] = useState("");
 
@@ -107,13 +145,33 @@ export function DispenseModal({
   );
   const allergyBlocked = allergyConflicts.length > 0 && allergyReason.trim().length < 5;
 
+  /** A line's batch and quantity as edited, or the whole remainder untouched. */
   const rowFor = (itemId: string, remaining: number): RowState =>
     rows[itemId] ?? { qty: remaining, batchId: null };
+  /** Merges an edit into one line's batch and quantity. */
   const patch = (itemId: string, p: Partial<RowState>) =>
     setRows((r) => ({ ...r, [itemId]: { ...rowFor(itemId, 0), ...r[itemId], ...p } }));
 
-  const anyControlled = lines.some((l) => isControlled(catalogById[l.item.catalog_item_id ?? ""]));
-  const witnessMissing = anyControlled && !witness;
+  /** The catalogue row an order line dispenses from, once read. */
+  const drugOf = (it: PharmacyOrderItem) => catalogById.get(it.catalog_item_id ?? "");
+  // Until the order's drugs are read, whether any is controlled is unknown:
+  // shown as unknown, and the dispense waits rather than guessing "no".
+  const controlledUnknown = lines.some((l) => l.item.catalog_item_id && !drugOf(l.item));
+  const anyControlled = lines.some((l) => {
+    const drug = drugOf(l.item);
+    return drug !== undefined && isControlled(drug);
+  });
+  const anyScheduleX = lines.some((l) => drugOf(l.item)?.drug_schedule === "X");
+  // Without a witness, only someone named for it may go ahead, on a reason,
+  // and never for Schedule X.
+  const skippingWitness = anyControlled && !anyScheduleX && canSkipWitness && !witness;
+  const witnessMissing =
+    anyControlled &&
+    (skippingWitness
+      ? noWitnessReason.trim().length < 5
+      : !witness || witnessPassword.length === 0);
+  const duplicateMissing = anyScheduleX && duplicateRef.trim().length < DUPLICATE_REF_MIN_CHARS;
+  const allergyUnacknowledged = allergyStatusUnknown && !allergyAsked;
 
   const submit = () => {
     if (witnessMissing) {
@@ -139,6 +197,10 @@ export function DispenseModal({
     onDispense({
       items: payloadItems,
       witnessed_by: witness ?? undefined,
+      witness_password: witness ? witnessPassword : undefined,
+      ndps_override_reason: skippingWitness ? noWitnessReason.trim() : undefined,
+      schedule_x_duplicate_ref: anyScheduleX ? duplicateRef.trim() : undefined,
+      allergy_status_acknowledged: allergyStatusUnknown ? allergyAsked : undefined,
       allergy_override_reason: allergyConflicts.length > 0 ? allergyReason.trim() : undefined,
       safety_override_reason: safety.needsReason ? safetyReason.trim() : undefined,
     });
@@ -164,7 +226,7 @@ export function DispenseModal({
                   key={item.id}
                   item={item}
                   remaining={remaining}
-                  controlled={isControlled(catalogById[item.catalog_item_id ?? ""])}
+                  controlled={controlledState(item, drugOf(item))}
                   state={rowFor(item.id, remaining)}
                   enabled={opened}
                   onChange={(p) => patch(item.id, p)}
@@ -172,6 +234,12 @@ export function DispenseModal({
               ))}
             </Table.Tbody>
           </Table>
+        )}
+
+        {outside.length > 0 && (
+          <Alert tone="neutral" title={BUY_OUTSIDE_LABEL}>
+            <Text size="sm">{outside.map((it) => it.drug_name).join(", ")}</Text>
+          </Alert>
         )}
 
         {allergyConflicts.length > 0 && (
@@ -207,15 +275,79 @@ export function DispenseModal({
           onReasonChange={setSafetyReason}
         />
 
+        {controlledUnknown && (
+          <Alert tone={catalogQuery.isError ? "danger" : "info"}>
+            {catalogQuery.isError
+              ? "Whether these drugs are controlled could not be read. Dispensing waits until it can be."
+              : "Reading which drugs are controlled…"}
+          </Alert>
+        )}
+
+        {allergyStatusUnknown && (
+          <Alert
+            tone="warning"
+            icon={<IconAlertTriangle size={16} />}
+            title="Allergy status unknown"
+          >
+            <Checkbox
+              label="I asked the patient about drug allergies before dispensing"
+              checked={allergyAsked}
+              onChange={(e) => setAllergyAsked(e.currentTarget.checked)}
+            />
+          </Alert>
+        )}
+
+        {anyScheduleX && (
+          <Input
+            label="Retained duplicate prescription (Schedule X)"
+            description="The scan id or serial of the copy the pharmacy keeps for two years."
+            value={duplicateRef}
+            onChange={(e) => setDuplicateRef(e.currentTarget.value)}
+            error={
+              duplicateMissing
+                ? `Required for Schedule X, at least ${DUPLICATE_REF_MIN_CHARS} characters`
+                : undefined
+            }
+            required
+          />
+        )}
+
         {anyControlled && (
           <Select
-            label="Witness (second pharmacist — required for Schedule X)"
+            label="Witness (second pharmacist — required for controlled drugs)"
             placeholder="Select witness"
-            data={(users as SetupUser[]).map((u) => ({ value: u.id, label: u.full_name }))}
+            data={witnesses.map((u) => ({ value: u.id, label: u.full_name }))}
             value={witness}
             onChange={setWitness}
             searchable
-            error={witnessMissing ? "Required for controlled drugs" : undefined}
+            searchValue={witnessSearch}
+            onSearchChange={setWitnessSearch}
+            filter={({ options }) => options}
+            error={!witness && !skippingWitness ? "Required for controlled drugs" : undefined}
+          />
+        )}
+        {skippingWitness && (
+          <Textarea
+            label="Reason there is no witness"
+            description="Filed on the NDPS record for the inspector."
+            required
+            autosize
+            minRows={2}
+            value={noWitnessReason}
+            onChange={(e) => setNoWitnessReason(e.currentTarget.value)}
+            error={
+              noWitnessReason.trim().length < 5 ? "A reason (≥5 chars) is required" : undefined
+            }
+          />
+        )}
+        {anyControlled && witness && (
+          <PasswordField
+            label="Witness's password"
+            description="The witness types their own password to confirm they saw this dispense."
+            value={witnessPassword}
+            onChange={(e) => setWitnessPassword(e.currentTarget.value)}
+            autoComplete="off"
+            required
           />
         )}
 
@@ -226,7 +358,15 @@ export function DispenseModal({
           <Button
             tone="primary"
             loading={isDispensing}
-            disabled={lines.length === 0 || witnessMissing || allergyBlocked || !safety.canProceed}
+            disabled={
+              lines.length === 0 ||
+              controlledUnknown ||
+              witnessMissing ||
+              duplicateMissing ||
+              allergyUnacknowledged ||
+              allergyBlocked ||
+              !safety.canProceed
+            }
             onClick={submit}
           >
             Dispense
@@ -237,6 +377,16 @@ export function DispenseModal({
   );
 }
 
+type ControlledState = "yes" | "no" | "unknown";
+
+/** A line's controlled status: unknown while its catalogue row is not read. */
+function controlledState(item: PharmacyOrderItem, drug?: PharmacyCatalog): ControlledState {
+  if (!item.catalog_item_id) return "no";
+  if (!drug) return "unknown";
+  return isControlled(drug) ? "yes" : "no";
+}
+
+/** One line to dispense: its FEFO batch, the quantity, and its controlled status. */
 function DispenseRow({
   item,
   remaining,
@@ -247,7 +397,7 @@ function DispenseRow({
 }: {
   item: PharmacyOrderItem;
   remaining: number;
-  controlled: boolean;
+  controlled: ControlledState;
   state: RowState;
   enabled: boolean;
   onChange: (p: Partial<RowState>) => void;
@@ -270,9 +420,14 @@ function DispenseRow({
           {item.drug_name}
         </Text>
         <Group gap={4}>
-          {controlled && (
+          {controlled === "yes" && (
             <Badge tone="danger" size="xs">
               Controlled
+            </Badge>
+          )}
+          {controlled === "unknown" && (
+            <Badge tone="neutral" size="xs">
+              Controlled: unknown
             </Badge>
           )}
           <Text size="xs" c="dimmed">

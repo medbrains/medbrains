@@ -119,6 +119,9 @@ fn a_test_key_counts_only_on_a_debug_image() {
     assert!(std::fs::remove_dir_all(&dir).is_ok());
 }
 
+/// One change to a bundle or to the machine's facts.
+type Change = fn(&mut Manifest, &mut Facts);
+
 /// Each row is a way to be refused; a bundle that breaks none of them is accepted.
 #[test]
 fn each_reason_to_refuse_is_applied() {
@@ -126,16 +129,19 @@ fn each_reason_to_refuse_is_applied() {
     assert!(base.is_some());
     let Some(base) = base else { return };
     assert_eq!(refusal(&manifest(), &base), None);
-    let cases: [(fn(&mut Manifest, &mut Facts), &str); 14] = [
+    let cases: [(Change, &str); 14] = [
         (|m, f| m.expires = f.now, "run out"),
-        (|m, _| "1.3.0".clone_into(&mut m.upgrades_from), "contradict"),
-        (|m, _| "1.1.5".clone_into(&mut m.upgrades_from), "Install version 1.1.5 first"),
+        (
+            |m, _| "1.3.0".clone_into(&mut m.upgrades_from),
+            "contradict",
+        ),
+        (
+            |m, _| "1.1.5".clone_into(&mut m.upgrades_from),
+            "Install version 1.1.5 first",
+        ),
         (|m, _| m.format = 2, "format"),
         (|m, _| "x86-64".clone_into(&mut m.arch), "x86-64"),
-        (
-            |m, _| "1.2.0-beta".clone_into(&mut m.version),
-            "unreadable",
-        ),
+        (|m, _| "1.2.0-beta".clone_into(&mut m.version), "unreadable"),
         (|m, _| "1.1.0".clone_into(&mut m.version), "already"),
         (|m, _| "1.0.9".clone_into(&mut m.version), "older"),
         (|m, _| "1.3.0".clone_into(&mut m.min_version), "contradict"),
@@ -209,7 +215,10 @@ fn a_threshold_needs_that_many_different_keys() {
     let both = format!("{}{}", line("a", &first, bytes), line("b", &second, bytes));
     assert!(verify_signature(bytes, &one, &keys, 2).is_err());
     assert!(verify_signature(bytes, &twice, &keys, 2).is_err());
-    assert_eq!(verify_signature(bytes, &both, &keys, 2).map(|ids| ids.len()), Ok(2));
+    assert_eq!(
+        verify_signature(bytes, &both, &keys, 2).map(|ids| ids.len()),
+        Ok(2)
+    );
 }
 
 /// The threshold file can only raise the bar: missing, zero or junk means one.

@@ -12,7 +12,9 @@ use crate::vm::Vm;
 
 /// True if the data disk opened through its encrypted mapping.
 fn disk_opened(vm: &mut Vm) -> Result<bool, String> {
-    Ok(vm.run("findmnt -no SOURCE /var")?.contains("/dev/mapper/medbrains-data"))
+    Ok(vm
+        .run("findmnt -no SOURCE /var")?
+        .contains("/dev/mapper/medbrains-data"))
 }
 
 /// Requirement 6: the boot chain changes twice, and nobody types anything either time.
@@ -35,8 +37,14 @@ pub(crate) fn sealed_refusal(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let fingerprint = FINGERPRINT.replace("SLOT", SLOT);
     let before = vm.run(&fingerprint)?;
     let (text, code) = install_from(vm, bench, "other-seal", false)?;
-    ensure(code == 2 && text.contains("recovery key"), format!("{code} {text}"))?;
-    ensure(vm.run(&fingerprint)? == before, "a refused update wrote to the disk")
+    ensure(
+        code == 2 && text.contains("recovery key"),
+        format!("{code} {text}"),
+    )?;
+    ensure(
+        vm.run(&fingerprint)? == before,
+        "a refused update wrote to the disk",
+    )
 }
 
 /// Requirement 6: gets past the updater by hand, as a bug might. The new version stops at the recovery key
@@ -53,7 +61,10 @@ pub(crate) fn seal_prompt_rolls_back(vm: &mut Vm, bench: &Bench) -> Result<(), S
     ensure(!disk_opened(vm)?, "the wrong key opened the disk")?;
     let started = Instant::now();
     wait_version(vm, &bench.first, ROLLBACK_LIMIT)?;
-    say(&format!("      back by itself after {:.0}s", started.elapsed().as_secs_f32()));
+    say(&format!(
+        "      back by itself after {:.0}s",
+        started.elapsed().as_secs_f32()
+    ));
     vm.wait_for_server()?;
     ensure(disk_opened(vm)?, "the old version did not open the disk")
 }

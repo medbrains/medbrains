@@ -104,6 +104,9 @@ export async function ensureAuthenticated(page: Page) {
   }
 }
 
+/** A quarter of the server's one-minute sign-in window. */
+const LOGIN_LIMIT_WAIT_MS = 15_000;
+
 /**
  * Authenticate as an arbitrary seeded user (not just admin). Sets
  * cookies + localStorage so the SPA loads as that role on the next nav.
@@ -125,9 +128,17 @@ export async function loginAsRole(
   // Use the page context's own request — cookies from the response are
   // stored automatically against the request's origin without the
   // 4KB-per-cookie size cap that `context.addCookies()` enforces.
-  const resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+  // The server allows five sign-ins a minute from one address; a journey with
+  // several staff on one machine meets that limit. Wait it out, a few times.
+  let resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
     data: { username, password },
   });
+  for (let attempt = 0; resp.status() === 429 && attempt < 4; attempt += 1) {
+    await page.waitForTimeout(LOGIN_LIMIT_WAIT_MS);
+    resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+      data: { username, password },
+    });
+  }
   if (!resp.ok()) {
     throw new Error(`loginAsRole(${username}) → ${resp.status()}`);
   }

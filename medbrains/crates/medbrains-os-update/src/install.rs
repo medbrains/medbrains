@@ -81,8 +81,13 @@ fn read_manifest(source: &Source, scratch: &Path) -> Result<Manifest, Stopped> {
         .map_err(|_| refused("This update has no signature, so it was refused.".to_owned()))?;
     let dir = Path::new(paths::KEYS_DIR);
     let (keys, threshold) = (manifest::load_keys(dir), manifest::load_threshold(dir));
-    manifest::verify_signature(&bytes, &String::from_utf8_lossy(&signatures), &keys, threshold)
-        .map_err(refused)?;
+    manifest::verify_signature(
+        &bytes,
+        &String::from_utf8_lossy(&signatures),
+        &keys,
+        threshold,
+    )
+    .map_err(refused)?;
     serde_json::from_slice(&bytes)
         .map_err(|e| refused(format!("This update's description can't be read: {e}")))
 }
@@ -98,7 +103,9 @@ fn find_installable(
     let (mut source, mut manifest) = (source.clone(), read_manifest(source, scratch)?);
     for _ in 0..MAX_STEPS {
         match Version::parse(&manifest.upgrades_from) {
-            Some(from) if *current < from && Version::parse(&manifest.version) > Some(from.clone()) => {
+            Some(from)
+                if *current < from && Version::parse(&manifest.version) > Some(from.clone()) =>
+            {
                 let step = source.step(&from.to_string());
                 manifest = read_manifest(&step, scratch)?;
                 source = step;
@@ -192,7 +199,8 @@ fn seal_allows(running_key: Option<&[u8]>, new_key: Option<&[u8]>) -> bool {
 /// `OS-KEYS.md`: the seal names the key that signed the running boot file, so the new one must carry it.
 fn check_seal(staging: &Path) -> Result<(), Stopped> {
     let running = fs::read(RUNNING_PCR_KEY).ok();
-    let boot = fs::read(staging.join(manifest::BOOT_FILE)).map_err(|e| Stopped::Fault(e.to_string()))?;
+    let boot =
+        fs::read(staging.join(manifest::BOOT_FILE)).map_err(|e| Stopped::Fault(e.to_string()))?;
     if seal_allows(running.as_deref(), pe::section(&boot, PCR_KEY_SECTION)) {
         return Ok(());
     }
@@ -260,7 +268,10 @@ fn install_checked(source: &Source, retry: bool, state: &mut State) -> Result<St
     let source = &source;
     state.checked = Some(now());
     if state.stage == Stage::Waiting
-        && state.target.as_ref().is_some_and(|t| t.version == manifest.version)
+        && state
+            .target
+            .as_ref()
+            .is_some_and(|t| t.version == manifest.version)
     {
         return Err(Stopped::NothingToDo(format!(
             "Version {} is already waiting.",
@@ -317,10 +328,13 @@ pub fn install(source: &Source, retry: bool) -> Result<String, Stopped> {
     let mut state = State::load(path).map_err(Stopped::Fault)?;
     if state.stage == Stage::Applied {
         return Err(Stopped::Refused(
-            "The machine is still proving the last update. Try again when it has finished.".to_owned(),
+            "The machine is still proving the last update. Try again when it has finished."
+                .to_owned(),
         ));
     }
-    let was_waiting = (state.stage == Stage::Waiting).then(|| state.target.clone()).flatten();
+    let was_waiting = (state.stage == Stage::Waiting)
+        .then(|| state.target.clone())
+        .flatten();
     match install_checked(source, retry, &mut state) {
         Ok(version) => Ok(format!(
             "Version {version} is ready. It will be used after the next update restart."
@@ -338,17 +352,28 @@ pub fn install(source: &Source, retry: bool) -> Result<String, Stopped> {
 /// Writes how an attempt stopped. A refused bundle leaves a waiting update waiting; a failed write has
 /// already destroyed it, so that one ends.
 fn record_stop(state: &mut State, was_waiting: Option<Target>, stopped: &Stopped) {
-    let version = state.target.as_ref().map_or_else(String::new, |t| t.version.clone());
+    let version = state
+        .target
+        .as_ref()
+        .map_or_else(String::new, |t| t.version.clone());
     let wrote_slot = state.stage == Stage::Writing;
     match stopped {
         Stopped::NothingToDo(_) => {}
         Stopped::Refused(words) if !wrote_slot => {
-            state.stage = if was_waiting.is_some() { Stage::Waiting } else { Stage::Idle };
+            state.stage = if was_waiting.is_some() {
+                Stage::Waiting
+            } else {
+                Stage::Idle
+            };
             state.target = was_waiting;
             state.note(&version, Ending::Refused, words, now());
         }
         Stopped::Refused(words) | Stopped::Fault(words) if !wrote_slot => {
-            state.stage = if was_waiting.is_some() { Stage::Waiting } else { Stage::Idle };
+            state.stage = if was_waiting.is_some() {
+                Stage::Waiting
+            } else {
+                Stage::Idle
+            };
             state.target = was_waiting;
             state.note(&version, Ending::Failed, words, now());
         }
@@ -359,70 +384,5 @@ fn record_stop(state: &mut State, was_waiting: Option<Target>, stopped: &Stopped
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{Stopped, os_release_version, record_stop, seal_allows};
-    use crate::state::{Ending, Stage, State, Target};
-
-    /// A version parts of the machine agree on, in os-release's own quoting.
-    #[test]
-    fn the_version_is_read_from_os_release() {
-        let text = "ID=debian\nIMAGE_ID=\"medbrains-os\"\nIMAGE_VERSION=\"1.2.3\"\n";
-        assert_eq!(os_release_version(text).as_deref(), Some("1.2.3"));
-        assert_eq!(os_release_version("ID=debian\n"), None);
-    }
-
-    /// Requirement: an update must not leave a machine asking for a recovery key by surprise.
-    #[test]
-    fn a_boot_file_with_another_key_would_lock_a_sealed_disk() {
-        assert!(seal_allows(None, None));
-        assert!(seal_allows(None, Some(b"new")));
-        assert!(seal_allows(Some(b"key\n"), Some(b"key")));
-        assert!(!seal_allows(Some(b"key"), Some(b"other")));
-        assert!(!seal_allows(Some(b"key"), None));
-    }
-
-    /// A target at version 2.
-    fn target() -> Target {
-        Target {
-            version: "2.0.0".to_owned(),
-            min_version: "1.0.0".to_owned(),
-            security: false,
-            summary: String::new(),
-        }
-    }
-
-    /// A tampered stick must not cancel an update already waiting.
-    #[test]
-    fn a_refused_bundle_leaves_a_waiting_update_waiting() {
-        let mut state = State {
-            stage: Stage::Fetching,
-            target: Some(Target {
-                version: "3.0.0".to_owned(),
-                ..target()
-            }),
-            ..State::default()
-        };
-        record_stop(
-            &mut state,
-            Some(target()),
-            &Stopped::Refused("tampered".to_owned()),
-        );
-        assert_eq!(state.stage, Stage::Waiting);
-        assert_eq!(state.target, Some(target()));
-        assert_eq!(state.last.map(|o| o.result), Some(Ending::Refused));
-    }
-
-    /// Once the slot was being written, whatever waited there is gone, and the record must say so.
-    #[test]
-    fn a_failed_write_ends_the_attempt() {
-        let mut state = State {
-            stage: Stage::Writing,
-            target: Some(target()),
-            ..State::default()
-        };
-        record_stop(&mut state, Some(target()), &Stopped::Fault("io".to_owned()));
-        assert_eq!(state.stage, Stage::Idle);
-        assert_eq!(state.target, None);
-        assert_eq!(state.last.map(|o| o.result), Some(Ending::Failed));
-    }
-}
+#[path = "install_tests.rs"]
+mod tests;

@@ -102,11 +102,15 @@ fn refresh(panel: &Panel) {
 fn send_action(action: &'static str, problem: &gtk::Label) {
     problem.set_label("");
     let words = problem.clone();
-    api::post("/update/action", &json!({ "action": action }), move |result| {
-        if let Err(failure) = result {
-            words.set_label(&failure.text());
-        }
-    });
+    api::post(
+        "/update/action",
+        &json!({ "action": action }),
+        move |result| {
+            if let Err(failure) = result {
+                words.set_label(&failure.text());
+            }
+        },
+    );
 }
 
 /// A question that asks before a restart. Returns its box and a way to open it for one action.
@@ -194,11 +198,23 @@ pub(crate) fn panel() -> gtk::Box {
         retry: ui::button("Try that version again", ""),
         back: ui::button("", ""),
     };
-    for line in [&panel.version, &panel.headline, &panel.summary, &panel.last, &panel.problem] {
+    for line in [
+        &panel.version,
+        &panel.headline,
+        &panel.summary,
+        &panel.last,
+        &panel.problem,
+    ] {
         root.append(line);
     }
     let actions = ui::row(ui::GAP / 2);
-    for control in [&panel.apply, &panel.check, &panel.usb, &panel.retry, &panel.back] {
+    for control in [
+        &panel.apply,
+        &panel.check,
+        &panel.usb,
+        &panel.retry,
+        &panel.back,
+    ] {
         control.set_visible(false);
         actions.append(control);
     }
@@ -207,14 +223,23 @@ pub(crate) fn panel() -> gtk::Box {
     root.append(&ask);
     root.append(&settings_form(&panel.problem));
     let words = panel.problem.clone();
-    panel.check.connect_clicked(move |_| send_action("install", &words));
+    panel
+        .check
+        .connect_clicked(move |_| send_action("install", &words));
     let words = panel.problem.clone();
-    panel.usb.connect_clicked(move |_| send_action("usb", &words));
+    panel
+        .usb
+        .connect_clicked(move |_| send_action("usb", &words));
     let words = panel.problem.clone();
-    panel.retry.connect_clicked(move |_| send_action("install-retry", &words));
+    panel
+        .retry
+        .connect_clicked(move |_| send_action("install-retry", &words));
     let ask_apply = std::rc::Rc::clone(&open);
     panel.apply.connect_clicked(move |_| {
-        ask_apply("apply", "Restart this machine now? Everyone using it is disconnected until it is back.");
+        ask_apply(
+            "apply",
+            "Restart this machine now? Everyone using it is disconnected until it is back.",
+        );
     });
     panel.back.connect_clicked(move |_| {
         open("go-back", "Go back to the previous version? The machine restarts, and everyone using it is disconnected until it is back.");
@@ -248,9 +273,18 @@ mod tests {
     #[test]
     fn the_top_bar_speaks_only_when_needed() {
         assert_eq!(chip_words(&status("idle", false)), None);
-        assert_eq!(chip_words(&status("waiting", false)), Some(("Update ready", false)));
-        assert_eq!(chip_words(&status("waiting", true)), Some(("Security fix ready", true)));
-        assert_eq!(chip_words(&status("fault", false)), Some(("Updates need attention", true)));
+        assert_eq!(
+            chip_words(&status("waiting", false)),
+            Some(("Update ready", false))
+        );
+        assert_eq!(
+            chip_words(&status("waiting", true)),
+            Some(("Security fix ready", true))
+        );
+        assert_eq!(
+            chip_words(&status("fault", false)),
+            Some(("Updates need attention", true))
+        );
         let mut failed = status("idle", false);
         failed.last = Some(UpdateLast {
             result: "rolled_back".to_owned(),

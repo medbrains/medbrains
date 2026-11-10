@@ -36,6 +36,7 @@ import {
 import type {
   ReportDataById,
   ReportDefinition,
+  ReportFailure,
   ReportLoadingState,
   ReportPriority,
   ReportReadiness,
@@ -149,6 +150,17 @@ export function ReportsPage() {
     const entries = liveReportList.map(
       (report, index) => [report.id, liveReportQueries[index]?.isLoading ?? false] as const,
     );
+    return Object.fromEntries(entries);
+  }, [liveReportList, liveReportQueries]);
+  // A report that failed (timed out, busy, outage) shows its error, never an
+  // empty chart: an empty chart reads as "nothing happened".
+  const failureByReportId = useMemo<Record<string, ReportFailure>>(() => {
+    const entries = liveReportList.flatMap((report, index) => {
+      const query = liveReportQueries[index];
+      return query?.isError
+        ? ([[report.id, { error: query.error, retry: () => void query.refetch() }]] as const)
+        : [];
+    });
     return Object.fromEntries(entries);
   }, [liveReportList, liveReportQueries]);
   const runtimeData = useMemo<ReportRuntimeData>(
@@ -278,6 +290,7 @@ export function ReportsPage() {
                 loadingState={loadingState}
                 reportDataById={reportDataById}
                 loadingByReportId={loadingByReportId}
+                failureByReportId={failureByReportId}
                 onDetails={showDetails}
               />
             ))

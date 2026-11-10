@@ -254,7 +254,8 @@ pub fn refusal(manifest: &Manifest, facts: &Facts) -> Option<String> {
              {upgrades_from} first; the machine looks for it beside this update."
         ));
     }
-    version_refusal(&version, &min_version, manifest, facts).or_else(|| space_refusal(manifest, facts))
+    version_refusal(&version, &min_version, manifest, facts)
+        .or_else(|| space_refusal(manifest, facts))
 }
 
 /// The anti-rollback rules: only newer, at or above the floor, and not a known failure.

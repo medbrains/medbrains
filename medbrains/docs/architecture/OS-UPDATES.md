@@ -37,7 +37,7 @@ the system by surprise. Applying renames the boot file into `EFI/Linux/` as `med
 removes the count only once `boot-complete.target` is reached, which needs `medbrains-update-health.service`:
 
 - `/var` is on its own partition; firewall, setup service and screen run if enabled; no unit has failed.
-- On a main machine also: database and server units run, and `/api/health` says `"status":"ok"` (it answers 200 either way).
+- On a main machine also: database, server and TLS front units run, Kanidm if enabled, and `/api/health` says `"status":"ok"` (it answers 200 either way).
 - Services get 5 minutes to get there. A failure marks the entry bad and restarts at once, and the old version says why.
 - A boot stuck anywhere, health never having run: `medbrains-update-deadline.timer` survives emergency mode, needs neither
   `/var` nor the boot partition, and restarts the machine after 10 minutes. Each start used brings the old slot nearer.
@@ -152,7 +152,8 @@ own, and installs that first; the next look continues. Bounded to eight steps. P
 
 **The release rule:** a release may raise Kanidm by at most one minor, and then sets `upgrades_from` to the release that carried the
 minor before. The channel keeps that release while machines may still need it: four months, Kanidm's support window. A health check
-waits for `kanidmd.service` whenever it is enabled.
+waits for `kanidmd.service` on a main machine whenever it is enabled. Not on a node: presets enable it everywhere and its condition
+skips it there, so checking it on a node would roll back every good update.
 
 **Not built:** Kanidm's database moves on the new version's first start. Going back afterwards meets a newer database, the same as
 PostgreSQL in "The hard part" below; `kanidm-upgrade` keeps a backup and U1.3 must restore it on rollback.
@@ -205,7 +206,15 @@ migration ran. U1.3 must land before the first release whose image carries a mig
 
 ## Sizes
 
-See the measured table below. Deltas only if measured download sizes demand it. Offline sites use USB.
+Measured on the arm64 debug image of 2026-11-09 (main before this merged):
+
+| Part | Size | Room |
+|---|---|---|
+| Boot partition | 512 MiB | One boot file is 153 MB. An install removes the other slot's entry before staging the new one, so at most two are there: about 307 MB, leaving about 200 MB. Refused before writing if not |
+| System slot, each | 2 GiB, fixed when the disk is first written | 658 MiB free inside the filesystem. The partition image is the whole slot, so a bundle always fits the other slot; growing past 2 GiB would need a new layout that no update can make, so watch this number each release |
+| Data disk | the rest of the disk | Bundle plus 1 GiB kept free, checked before downloading |
+
+Compressed bundle size: not yet measured. Deltas only if measured download sizes demand it. Offline sites use USB.
 
 ## Who runs it
 
@@ -260,4 +269,6 @@ ready, Last update failed or Updates need attention. It opens Settings.
 
 ## What is proved
 
-Filled in from the run recorded in `docs/DECISIONS.md`.
+The unit tests in the crate run in CI. The QEMU scenarios in `crates/medbrains-os-test/src/update_steps.rs` ran on the branch
+before it was merged with the Pingora front, Kanidm, disk encryption and the node changes; they have not been run on the merged
+code. The next OS image trial runs them (`cargo run -p medbrains-os-test -- <image> updates <bundles>`), and its result goes here.

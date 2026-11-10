@@ -60,14 +60,16 @@ pub struct UpdateInsuranceClaimRequest {
     pub notes: Option<String>,
 }
 
+/// `GET /api/billing/insurance-claims` — the hospital's claims, newest first;
+/// the TPA pipeline reads it.
 pub async fn list_insurance_claims(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<InsuranceClaim>>, AppError> {
     require_permission(&claims, permissions::billing::corporate::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let rows = sqlx::query_as::<_, InsuranceClaim>(
         "SELECT * FROM insurance_claims WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
@@ -80,6 +82,8 @@ pub async fn list_insurance_claims(
     Ok(Json(rows))
 }
 
+/// `GET /api/billing/insurance-claims/{id}` — one claim, for a caller with
+/// access to it through the claim's link.
 pub async fn get_insurance_claim(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -97,8 +101,8 @@ pub async fn get_insurance_claim(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let claim = sqlx::query_as::<_, InsuranceClaim>(
         "SELECT * FROM insurance_claims WHERE id = $1 AND tenant_id = $2",

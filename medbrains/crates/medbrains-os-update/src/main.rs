@@ -54,8 +54,14 @@ fn configured_source() -> Result<Option<Source>, String> {
     let Ok(text) = fs::read_to_string(paths::URL_FILE) else {
         return Ok(None);
     };
-    let ca = Path::new(paths::CA_FILE).exists().then(|| PathBuf::from(paths::CA_FILE));
-    let base = format!("{}/{}", text.trim().trim_end_matches('/'), medbrains_os_update::manifest::this_arch());
+    let ca = Path::new(paths::CA_FILE)
+        .exists()
+        .then(|| PathBuf::from(paths::CA_FILE));
+    let base = format!(
+        "{}/{}",
+        text.trim().trim_end_matches('/'),
+        medbrains_os_update::manifest::this_arch()
+    );
     Source::parse(&base, ca).map(Some)
 }
 
@@ -67,7 +73,12 @@ fn run_install(args: &[String]) -> ExitCode {
         .position(|arg| arg == "--from")
         .and_then(|at| args.get(at + 1));
     let source = match from {
-        Some(text) => Source::parse(text, Path::new(paths::CA_FILE).exists().then(|| PathBuf::from(paths::CA_FILE))),
+        Some(text) => Source::parse(
+            text,
+            Path::new(paths::CA_FILE)
+                .exists()
+                .then(|| PathBuf::from(paths::CA_FILE)),
+        ),
         None => match configured_source() {
             Ok(Some(source)) => Ok(source),
             Ok(None) => {
@@ -150,7 +161,9 @@ fn main() -> ExitCode {
         Some("deadline") => finish_step(boot::deadline()),
         Some("status") => run_status(),
         _ => {
-            say("usage: medbrains-os-update install|usb|apply|go-back|tick|reconcile|health|deadline|status");
+            say(
+                "usage: medbrains-os-update install|usb|apply|go-back|tick|reconcile|health|deadline|status",
+            );
             ExitCode::from(BAD_USAGE)
         }
     }

@@ -9,6 +9,13 @@ pg_dropcluster --stop 17 main 2>/dev/null || true
 rm -rf /etc/postgresql /var/lib/postgresql/17
 ln -s /var/lib/postgresql/conf /etc/postgresql
 
+# Debian's ssl-cert makes a private key at package install, so every machine from one image would share
+# it, in the clear on the system partition. PostgreSQL listens on loopback only and turns TLS off when
+# the key is missing.
+rm -f /etc/ssl/private/ssl-cert-snakeoil.key /etc/ssl/certs/ssl-cert-snakeoil.pem
+# The same for chrony's command key, which nothing here uses: /etc/chrony/chrony.conf names no keyfile.
+rm -f /etc/chrony/chrony.keys
+
 # The time zone lives on the data partition, because the root will become read-only.
 ln -sfn /var/lib/medbrains-settings/localtime /etc/localtime
 
@@ -17,24 +24,31 @@ ln -sfn /var/lib/medbrains/config /etc/medbrains
 
 # A firewall file that does not parse would boot a machine with no firewall, so it fails the build.
 nft -c -f /etc/nftables.conf
-systemctl enable nftables chrony systemd-networkd systemd-resolved systemd-repart \
-    medbrains-firstboot medbrains-network-settings medbrains-os-setup medbrains-main.target \
-    cage-console medbrains-update-reconcile medbrains-update-health medbrains-update-deadline.timer \
-    medbrains-update-look.timer medbrains-update-quiet.timer
+# Nor may a main machine's own rules wait until a hospital's first boot to fail.
+# Its rule names the agent's user, which must exist to parse it.
+systemd-sysusers
+cat /etc/nftables.conf /usr/lib/medbrains/main-machine.nft > /tmp/whole-firewall.nft
+nft -c -f /tmp/whole-firewall.nft
+rm /tmp/whole-firewall.nft
+systemctl enable nftables chrony systemd-networkd systemd-resolved \
+    medbrains-disk-setup medbrains-disk-notice medbrains-disk-finish medbrains-network-settings medbrains-os-setup medbrains-main.target medbrains-node.target \
+    medbrains-agent medbrains-time-role cage-console medbrains-update-reconcile medbrains-update-health \
+    medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer
 systemctl mask systemd-boot-update.service
 # Nothing here may wait for the network: with a cable out this fails after two minutes, which reads as a
 # failed service and would roll back a good update. Masked, because enabling networkd brings it back.
 systemctl mask systemd-networkd-wait-online.service
 # Only medbrains-main.target starts these, and only once setup has finished, so nothing
 # answers on the network before then. Debian's packages enable them by default.
-systemctl disable caddy postgresql 2>/dev/null || true
+systemctl disable postgresql 2>/dev/null || true
 # A udev rule starts iwd when a Wi-Fi card appears, so a wired machine doesn't pay for it.
 systemctl disable iwd 2>/dev/null || true
 # chrony.service serves the LAN its time. Debian's restricted variant cannot open the port, and
 # whichever of the two starts first wins, so the LAN's time was down on some boots. chrony-wait
 # would hold the boot for the internet, which setup must never need.
 systemctl disable chronyd-restricted chrony-wait 2>/dev/null || true
-systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
+# Debug images only: build.sh stages this unit nowhere else.
+if [[ -e /usr/lib/systemd/system/kanidm-debug-account.service ]]; then systemctl enable kanidm-debug-account; fi
 systemctl set-default graphical.target
 
 # The screen's own fonts, installed by mkosi.build.chroot.

@@ -2,21 +2,13 @@
 
 import { Card, Group, Stack, Text, TextInput } from "@mantine/core";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
-import { type CodeBlueResponder, P } from "@medbrains/types";
+import { type CodeBlueEventRow, type CodeBlueResponder, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Badge, Button, toast } from "@/components/ui";
+import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
+import { CodeTeamRosterCard } from "./code-team-roster";
 import { compactId } from "./shared";
-
-interface CodeBlueRow {
-  id: string;
-  patient_id: string;
-  location: string;
-  started_at: string;
-  ended_at?: string | null;
-  outcome?: string | null;
-}
 
 export function CodeBlueTab({
   patientId,
@@ -33,6 +25,7 @@ export function CodeBlueTab({
   const canView = useHasPermission(P.NURSE.CODE_BLUE_VIEW);
   const canRecord = useHasPermission(P.NURSE.CODE_BLUE_RECORD);
   const canRespond = useHasPermission(P.NURSE.CODE_BLUE_RESPOND);
+  const canManageTeam = useHasPermission(P.NURSE.CODE_BLUE_MANAGE_TEAM);
   const me = useAuthStore((s) => s.user?.id);
   const linkedLocation = [
     wardId ? `Ward ${compactId(wardId)}` : "",
@@ -42,10 +35,9 @@ export function CodeBlueTab({
     .join(" · ");
   const [location, setLocation] = useState(linkedLocation);
   const effectiveLocation = linkedLocation || location.trim();
-  const { data } = useQuery({
+  const { data, isError: listFailed } = useQuery({
     queryKey: ["code-blue", "active"],
-    queryFn: () =>
-      nurseActivitiesService.listCodeBlue({ active_only: true }) as Promise<CodeBlueRow[]>,
+    queryFn: () => nurseActivitiesService.listCodeBlue({ active_only: true }),
     enabled: canView,
     refetchInterval: canView ? 5000 : false,
   });
@@ -137,8 +129,15 @@ export function CodeBlueTab({
           )}
         </Card>
       )}
+      {canManageTeam && <CodeTeamRosterCard />}
       {canView ? (
         <>
+          {/* An outage must not read as "no active code blue". */}
+          {listFailed && (
+            <Alert tone="danger" title="Active code blues unavailable">
+              The list could not be loaded. This is not a statement that there are none.
+            </Alert>
+          )}
           {data?.length === 0 && <Text c="dimmed">No active code blue events.</Text>}
           {data?.map((row) => (
             <Card key={row.id} withBorder padding="md">
@@ -180,14 +179,76 @@ export function CodeBlueTab({
                   )}
                 </Group>
               </Group>
+              <PagingStatus row={row} />
               <ResponderRoll responders={respondersByEvent.get(row.id) ?? []} />
             </Card>
           ))}
         </>
-      ) : (
+      ) : canRecord ? (
         <Text size="sm" c="dimmed">
           You can start code blue, but active event monitoring requires code-blue view permission.
         </Text>
+      ) : null}
+    </Stack>
+  );
+}
+
+/** Seconds after the call by which the page must have reported who it reached. */
+const PAGING_CONFIRM_SECS = 10;
+
+/** Whether a live code's page has not reported back in time. */
+export function isPagingUnconfirmed(row: CodeBlueEventRow, now: number): boolean {
+  return (
+    row.page_round >= 1 &&
+    !row.routing_note &&
+    now - new Date(row.started_at).getTime() > PAGING_CONFIRM_SECS * 1000
+  );
+}
+
+const DELIVERY_TONE = {
+  sent: "success",
+  queued: "info",
+  failed: "danger",
+  not_configured: "danger",
+} as const;
+
+/**
+ * Who the page reached and what did not go out. A warning is never silent:
+ * "SMS is not set up: only in-app alerts went out" tells the nurse to pick up
+ * the phone, and a blank would tell her the team had been texted.
+ */
+function PagingStatus({ row }: { row: CodeBlueEventRow }) {
+  return (
+    <Stack gap={4} mt="sm">
+      {row.routing_note && (
+        <Text size="sm" data-testid="code-blue-routing">
+          {row.routing_note}
+          {row.page_round > 1 ? ` (round ${row.page_round})` : ""}
+        </Text>
+      )}
+      {/* The list refetches every 5 s, so this is re-checked as time passes. */}
+      {isPagingUnconfirmed(row, Date.now()) && (
+        <Alert
+          tone="danger"
+          title="Paging not confirmed"
+          data-testid="code-blue-paging-unconfirmed"
+        >
+          The system has not confirmed who this code reached. Call the code team by phone.
+        </Alert>
+      )}
+      {row.delivery_warning && (
+        <Alert tone="warning" title="Alert delivery" data-testid="code-blue-delivery-warning">
+          {row.delivery_warning}
+        </Alert>
+      )}
+      {row.delivery.length > 0 && (
+        <Group gap="xs" wrap="wrap">
+          {row.delivery.map((d) => (
+            <Badge key={`${d.channel}-${d.status}`} tone={DELIVERY_TONE[d.status]}>
+              {d.channel.toUpperCase()} {d.status.replace("_", " ")}: {d.count}
+            </Badge>
+          ))}
+        </Group>
       )}
     </Stack>
   );

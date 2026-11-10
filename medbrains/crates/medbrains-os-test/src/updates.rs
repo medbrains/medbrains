@@ -69,7 +69,14 @@ pub(crate) fn own_tpm() -> Option<&'static str> {
 fn start_server(bundles: &Path, work: &Path) -> Result<(u16, Child, String), String> {
     let (key, cert) = (work.join("mirror.key"), work.join("mirror.pem"));
     let made = Command::new("openssl")
-        .args(["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256"])
+        .args([
+            "req",
+            "-x509",
+            "-newkey",
+            "ec",
+            "-pkeyopt",
+            "ec_paramgen_curve:P-256",
+        ])
         .args(["-nodes", "-days", "2", "-subj", "/CN=medbrains-test-mirror"])
         .args(["-addext", &format!("subjectAltName=IP:{HOST}")])
         .arg("-keyout")
@@ -119,7 +126,10 @@ fn set_up_main(vm: &mut Vm) -> Result<(), String> {
         &format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"),
         SETUP_LIMIT,
     )?;
-    ensure(answer.contains("\"ok\":true"), format!("setup answered {answer}"))?;
+    ensure(
+        answer.contains("\"ok\":true"),
+        format!("setup answered {answer}"),
+    )?;
     vm.wait_for_server()
 }
 
@@ -129,17 +139,26 @@ fn write_canaries(vm: &mut Vm, pem: &str) -> Result<(), String> {
     // first-run change out of every comparison.
     let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
     while vm.run("grep -c MEDBRAINS_SEED /var/lib/medbrains/config/env; true")? != "0" {
-        ensure(Instant::now() < deadline, "the setup lines never left the env")?;
+        ensure(
+            Instant::now() < deadline,
+            "the setup lines never left the env",
+        )?;
         sleep(POLL);
     }
-    vm.run(&format!("printf '%s' '{pem}' > /var/lib/medbrains-settings/update-ca.pem"))?;
+    vm.run(&format!(
+        "printf '%s' '{pem}' > /var/lib/medbrains-settings/update-ca.pem"
+    ))?;
     let health = vm::scaled(Duration::from_secs(HEALTH_SECONDS)).as_secs();
-    vm.run(&format!("echo {health} > /var/lib/medbrains-settings/update-health-seconds"))?;
+    vm.run(&format!(
+        "echo {health} > /var/lib/medbrains-settings/update-health-seconds"
+    ))?;
     vm.run("head -c 16M /dev/urandom > /var/lib/medbrains/os-test-canary; echo hello > /var/lib/medbrains-settings/os-test-setting")?;
     let sql = format!(
         "CREATE TABLE os_test_canary AS SELECT n, md5(n::text) AS body FROM generate_series(1,{CANARY_ROWS}) n"
     );
-    let done = vm.run(&format!("runuser -u postgres -- psql -d medbrains -Atc \"{sql}\"; sync"))?;
+    let done = vm.run(&format!(
+        "runuser -u postgres -- psql -d medbrains -Atc \"{sql}\"; sync"
+    ))?;
     ensure(done.contains("SELECT"), format!("the canary table: {done}"))
 }
 
@@ -167,8 +186,14 @@ pub(crate) fn var_snapshot(vm: &mut Vm) -> Result<String, String> {
 
 /// Fails, naming each line that changed, unless `after` equals `before`.
 pub(crate) fn same_var(before: &str, after: &str) -> Result<(), String> {
-    let changed: Vec<&str> = after.lines().filter(|line| !before.contains(*line)).collect();
-    let gone: Vec<&str> = before.lines().filter(|line| !after.contains(*line)).collect();
+    let changed: Vec<&str> = after
+        .lines()
+        .filter(|line| !before.contains(*line))
+        .collect();
+    let gone: Vec<&str> = before
+        .lines()
+        .filter(|line| !after.contains(*line))
+        .collect();
     ensure(
         changed.is_empty() && gone.is_empty(),
         format!("/var changed. New: {changed:?} Gone: {gone:?}"),
@@ -203,7 +228,11 @@ pub(crate) fn status(vm: &mut Vm) -> Result<Value, String> {
 
 /// Waits for the machine to be running `version`, however many restarts that takes. Nothing is sent
 /// while it restarts: see `Vm::wait_for_restart`.
-pub(crate) fn wait_version(vm: &mut Vm, version: &str, limit: Duration) -> Result<Duration, String> {
+pub(crate) fn wait_version(
+    vm: &mut Vm,
+    version: &str,
+    limit: Duration,
+) -> Result<Duration, String> {
     let started = Instant::now();
     let limit = vm::scaled(limit);
     loop {
@@ -229,14 +258,14 @@ pub(crate) fn wait_status(
     let deadline = Instant::now() + vm::scaled(limit);
     let mut last = Value::Null;
     while Instant::now() < deadline {
-        if let Ok(now) = vm.run_for("medbrains-os-update status", Duration::from_secs(10)) {
-            if let Ok(value) = serde_json::from_str::<Value>(&now) {
-                let got = path.iter().fold(&value, |v, key| &v[*key]);
-                if got == want {
-                    return Ok(value);
-                }
-                last = value;
+        if let Ok(now) = vm.run_for("medbrains-os-update status", Duration::from_secs(10))
+            && let Ok(value) = serde_json::from_str::<Value>(&now)
+        {
+            let got = path.iter().fold(&value, |v, key| &v[*key]);
+            if got == want {
+                return Ok(value);
             }
+            last = value;
         }
         sleep(POLL);
     }
@@ -259,7 +288,11 @@ fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
     drop(vm.cut_power());
     drop(std::fs::remove_file(&overlay));
     match &result {
-        Ok(()) => say(&format!("pass  {} ({:.0}s)", scenario.0, started.elapsed().as_secs_f32())),
+        Ok(()) => say(&format!(
+            "pass  {} ({:.0}s)",
+            scenario.0,
+            started.elapsed().as_secs_f32()
+        )),
         Err(why) => say(&format!("FAIL  {}: {why}", scenario.0)),
     }
     result.is_ok()

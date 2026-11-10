@@ -24,6 +24,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
 use medbrains_server_core::middleware::field_access::resolve_restricted_fields;
+use medbrains_server_core::report_runner::begin_tile;
 use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
@@ -335,7 +336,7 @@ pub async fn get_my_dashboard(
                  JOIN access_group_members m ON m.group_id = g.id
                  WHERE d.is_active = true AND d.user_id IS NULL
                    AND d.group_ids != '[]'::jsonb
-                   AND m.user_id = $1
+                   AND m.user_id = $1 AND m.deleted_at IS NULL
                    AND (m.expires_at IS NULL OR m.expires_at > now())
                  ORDER BY g.priority DESC, d.is_default DESC LIMIT 1",
             )
@@ -1050,8 +1051,7 @@ pub async fn get_widget_data(
 ) -> Result<Json<WidgetDataResponse>, AppError> {
     require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_tile(&state, &claims, "get_widget_data").await?;
 
     let mut widget = sqlx::query_as::<_, DashboardWidget>(
         "SELECT dw.* FROM dashboard_widgets dw
@@ -1083,7 +1083,7 @@ pub async fn get_widget_data(
         .await?;
 
     let data = resolve_widget_data(&mut tx, &widget, &filters).await?;
-    tx.commit().await?;
+    run.finish(tx, 1).await?;
 
     let restricted =
         resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
@@ -1104,8 +1104,7 @@ pub async fn batch_widget_data(
 ) -> Result<Json<Vec<WidgetDataResponse>>, AppError> {
     require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_tile(&state, &claims, "batch_widget_data").await?;
 
     let mut widgets = sqlx::query_as::<_, DashboardWidget>(
         "SELECT dw.* FROM dashboard_widgets dw
@@ -1174,7 +1173,7 @@ pub async fn batch_widget_data(
         });
     }
 
-    tx.commit().await?;
+    run.finish(tx, results.len()).await?;
     Ok(Json(results))
 }
 
@@ -1468,6 +1467,7 @@ async fn fetch_viewer_groups(
         "SELECT g.id, g.priority FROM access_groups g
          JOIN access_group_members m ON m.group_id = g.id
          WHERE m.user_id = $1 AND g.tenant_id = $2 AND g.is_active = true
+           AND m.deleted_at IS NULL
            AND (m.expires_at IS NULL OR m.expires_at > now())",
     )
     .bind(user_id)
@@ -2398,8 +2398,7 @@ pub async fn dashboard_summary(
 ) -> Result<Json<DashboardSummaryResponse>, AppError> {
     require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_tile(&state, &claims, "dashboard_summary").await?;
 
     // Total patients
     let total_patients =
@@ -2496,7 +2495,7 @@ pub async fn dashboard_summary(
     .fetch_all(&mut *tx)
     .await?;
 
-    tx.commit().await?;
+    run.finish(tx, recent.len()).await?;
 
     Ok(Json(DashboardSummaryResponse {
         total_patients,

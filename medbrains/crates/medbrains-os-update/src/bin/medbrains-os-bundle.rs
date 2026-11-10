@@ -49,15 +49,18 @@ fn keygen(prefix: &str) -> Result<(), String> {
 
 /// A partition's byte range, from a GPT in `header` and its `entries`, by the partition's name.
 fn find_partition(header: &[u8], entries: &[u8], wanted: &str) -> Option<(u64, u64)> {
-    let entry_size = usize::try_from(u32::from_le_bytes(header.get(84..88)?.try_into().ok()?)).ok()?;
+    let entry_size =
+        usize::try_from(u32::from_le_bytes(header.get(84..88)?.try_into().ok()?)).ok()?;
     if entry_size < ENTRY_LABEL_AT || header.get(..8)? != b"EFI PART" {
         return None;
     }
     entries.chunks_exact(entry_size).find_map(|entry| {
         let label: Vec<u16> = entry
             .get(ENTRY_LABEL_AT..)?
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u16::from_le_bytes(*pair))
             .take_while(|unit| *unit != 0)
             .collect();
         if String::from_utf16_lossy(&label) != wanted {
@@ -73,22 +76,34 @@ fn find_partition(header: &[u8], entries: &[u8], wanted: &str) -> Option<(u64, u
 fn extract(image: &str, wanted: &str, out: &str) -> Result<(), String> {
     let mut file = File::open(image).map_err(|e| format!("{image}: {e}"))?;
     let mut header = vec![0_u8; SECTOR as usize];
-    file.seek(SeekFrom::Start(SECTOR)).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(SECTOR))
+        .map_err(|e| e.to_string())?;
     file.read_exact(&mut header).map_err(|e| e.to_string())?;
     let field = |at: usize| -> Result<u32, String> {
         let raw = header.get(at..at + 4).and_then(|r| r.try_into().ok());
-        raw.map(u32::from_le_bytes).ok_or_else(|| "A short GPT header.".to_owned())
+        raw.map(u32::from_le_bytes)
+            .ok_or_else(|| "A short GPT header.".to_owned())
     };
     let table = u64::from(field(72)?) * SECTOR;
-    let mut entries = vec![0_u8; usize::try_from(u64::from(field(80)?) * u64::from(field(84)?)).map_err(|e| e.to_string())?];
-    file.seek(SeekFrom::Start(table)).map_err(|e| e.to_string())?;
+    let mut entries = vec![
+        0_u8;
+        usize::try_from(u64::from(field(80)?) * u64::from(field(84)?))
+            .map_err(|e| e.to_string())?
+    ];
+    file.seek(SeekFrom::Start(table))
+        .map_err(|e| e.to_string())?;
     file.read_exact(&mut entries).map_err(|e| e.to_string())?;
     let (start, size) = find_partition(&header, &entries, wanted)
         .ok_or_else(|| format!("{image} has no partition named {wanted}."))?;
-    file.seek(SeekFrom::Start(start)).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(start))
+        .map_err(|e| e.to_string())?;
     let mut target = File::create(out).map_err(|e| format!("{out}: {e}"))?;
     let copied = std::io::copy(&mut file.take(size), &mut target).map_err(|e| e.to_string())?;
-    if copied == size { Ok(()) } else { Err("The image is shorter than its partition table says.".to_owned()) }
+    if copied == size {
+        Ok(())
+    } else {
+        Err("The image is shorter than its partition table says.".to_owned())
+    }
 }
 
 /// Everything `make` needs.
@@ -131,7 +146,9 @@ fn flag<'a>(rest: &[&'a str], name: &str) -> Option<&'a str> {
 /// channel's newest bundle every week, so a machine served an old copy can tell.
 fn refresh(bundle: &str, days: &str) -> Result<(), String> {
     let dir = Path::new(bundle);
-    let days: u64 = days.parse().map_err(|_| "Days must be a number.".to_owned())?;
+    let days: u64 = days
+        .parse()
+        .map_err(|_| "Days must be a number.".to_owned())?;
     let text = fs::read(dir.join(MANIFEST_FILE)).map_err(|e| e.to_string())?;
     let mut manifest: Manifest = serde_json::from_slice(&text).map_err(|e| e.to_string())?;
     manifest.expires = days_from_now(days)?;
@@ -171,8 +188,16 @@ fn make(args: &MakeArgs<'_>) -> Result<(), String> {
         expires: days_from_now(args.expires_days)?,
         security: args.security,
         summary: args.summary.to_owned(),
-        root: RootImage { sha256, size, raw_sha256, raw_size },
-        boot: BootImage { sha256: boot_sha256, size: boot_size },
+        root: RootImage {
+            sha256,
+            size,
+            raw_sha256,
+            raw_size,
+        },
+        boot: BootImage {
+            sha256: boot_sha256,
+            size: boot_size,
+        },
     };
     let text = serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?;
     fs::write(dir.join(MANIFEST_FILE), text).map_err(|e| e.to_string())
@@ -183,7 +208,9 @@ fn sign(bundle: &str, key_id: &str, key_file: &str) -> Result<(), String> {
     let dir = Path::new(bundle);
     let text = fs::read_to_string(key_file).map_err(|e| format!("{key_file}: {e}"))?;
     let seed = STANDARD.decode(text.trim()).map_err(|e| e.to_string())?;
-    let seed: [u8; SEED_LEN] = seed.try_into().map_err(|_| "A key has 32 bytes.".to_owned())?;
+    let seed: [u8; SEED_LEN] = seed
+        .try_into()
+        .map_err(|_| "A key has 32 bytes.".to_owned())?;
     let manifest = fs::read(dir.join(MANIFEST_FILE)).map_err(|e| e.to_string())?;
     let signature = SigningKey::from_bytes(&seed).sign(&manifest);
     let mut file = File::options()
@@ -200,7 +227,16 @@ fn run(args: &[String]) -> Result<(), String> {
     match refs.as_slice() {
         ["keygen", prefix] => keygen(prefix),
         ["extract", image, name, out] => extract(image, name, out),
-        ["make", out, version, arch, min_version, root, boot, rest @ ..] => make(&MakeArgs {
+        [
+            "make",
+            out,
+            version,
+            arch,
+            min_version,
+            root,
+            boot,
+            rest @ ..,
+        ] => make(&MakeArgs {
             out,
             version,
             arch,

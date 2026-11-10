@@ -22,7 +22,10 @@ import { ipdDamaFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import { type IpdDamaRequest, P } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
+import { canSignType, useSignableTypes } from "@/hooks/useSignableTypes";
 import { clinicalActionsService } from "@/services/clinicalActions.service";
 
 interface DamaModalProps {
@@ -58,6 +61,9 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
     mode: "onTouched",
   });
   const recordType = watch("record_type");
+  const [toSign, setToSign] = useState<string | null>(null);
+  const signable = useSignableTypes();
+  const canSignForm = canSignType(signable.types?.get("dama_record"), signable.rights);
 
   const mutation = useMutation({
     mutationFn: (body: IpdDamaRequest) => {
@@ -66,7 +72,7 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
       }
       return clinicalActionsService.recordIpdDama(admissionId, body);
     },
-    onSuccess: () => {
+    onSuccess: (record) => {
       notifications.show({
         title: recordType === "dama" ? "DAMA recorded" : "LAMA recorded",
         message: "Refusal documented. MLC notified if applicable.",
@@ -76,6 +82,8 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
       void queryClient.invalidateQueries({ queryKey: ["ipd-admission", admissionId] });
       reset();
       onClose();
+      // A LAMA/DAMA form is medico-legal: the declaring doctor signs it now.
+      if (canSignForm) setToSign(record.id);
     },
   });
 
@@ -96,87 +104,125 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
   });
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Discharge / Leave Against Medical Advice"
-      size="xl"
-    >
-      <Stack gap="sm">
-        <Alert color="warning" variant="light">
-          This records a formal refusal of medical care. The patient (or authorised relative) and a
-          witness must sign. If this is an MLC, notification will fire to the police liaison.
-        </Alert>
-        {!canRecordDama && (
-          <Alert color="danger" variant="light">
-            You can view this workflow, but recording DAMA/LAMA requires IPD discharge permission.
+    <>
+      <Modal
+        opened={opened}
+        onClose={onClose}
+        title="Discharge / Leave Against Medical Advice"
+        size="xl"
+      >
+        <Stack gap="sm">
+          <Alert color="warning" variant="light">
+            This records a formal refusal of medical care. The patient (or authorised relative) and
+            a witness must sign. If this is an MLC, notification will fire to the police liaison.
           </Alert>
-        )}
-
-        <Controller
-          control={control}
-          name="record_type"
-          render={({ field }) => (
-            <Radio.Group label="Record type" value={field.value} onChange={field.onChange} required>
-              <Group mt="xs">
-                <Radio value="dama" label="DAMA — formal discharge against advice" />
-                <Radio value="lama" label="LAMA — left without formal discharge" />
-              </Group>
-            </Radio.Group>
+          {!canRecordDama && (
+            <Alert color="danger" variant="light">
+              You can view this workflow, but recording DAMA/LAMA requires IPD discharge permission.
+            </Alert>
           )}
-        />
 
-        <Controller
-          control={control}
-          name="risks_explained"
-          render={({ field }) => (
-            <Textarea
-              label="Risks explained to patient/family"
-              autosize
-              minRows={2}
-              value={field.value}
-              onChange={field.onChange}
-              error={errors.risks_explained?.message}
-              placeholder="What was explained — risk of complications, mortality, alternative care options"
-            />
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="reason_for_leaving"
-          render={({ field }) => (
-            <Textarea
-              label="Reason for leaving"
-              autosize
-              minRows={2}
-              value={field.value}
-              onChange={field.onChange}
-              placeholder="Patient-stated reason"
-            />
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="patient_signed"
-          render={({ field }) => (
-            <Checkbox
-              label="Patient signed (or thumb impression)"
-              checked={field.value}
-              onChange={(e) => field.onChange(e.currentTarget.checked)}
-              error={errors.patient_signed?.message}
-            />
-          )}
-        />
-
-        <Group grow>
           <Controller
             control={control}
-            name="relative_name"
+            name="record_type"
+            render={({ field }) => (
+              <Radio.Group
+                label="Record type"
+                value={field.value}
+                onChange={field.onChange}
+                required
+              >
+                <Group mt="xs">
+                  <Radio value="dama" label="DAMA — formal discharge against advice" />
+                  <Radio value="lama" label="LAMA — left without formal discharge" />
+                </Group>
+              </Radio.Group>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="risks_explained"
+            render={({ field }) => (
+              <Textarea
+                label="Risks explained to patient/family"
+                autosize
+                minRows={2}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.risks_explained?.message}
+                placeholder="What was explained — risk of complications, mortality, alternative care options"
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="reason_for_leaving"
+            render={({ field }) => (
+              <Textarea
+                label="Reason for leaving"
+                autosize
+                minRows={2}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Patient-stated reason"
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="patient_signed"
+            render={({ field }) => (
+              <Checkbox
+                label="Patient signed (or thumb impression)"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+                error={errors.patient_signed?.message}
+              />
+            )}
+          />
+
+          <Group grow>
+            <Controller
+              control={control}
+              name="relative_name"
+              render={({ field }) => (
+                <TextInput
+                  label="Authorised relative — name"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="relative_relation"
+              render={({ field }) => (
+                <TextInput label="Relation" value={field.value} onChange={field.onChange} />
+              )}
+            />
+          </Group>
+          <Controller
+            control={control}
+            name="relative_signed"
+            render={({ field }) => (
+              <Checkbox
+                label="Relative signed"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+                error={errors.relative_signed?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="witness_name"
             render={({ field }) => (
               <TextInput
-                label="Authorised relative — name"
+                label="Witness name (staff or independent)"
                 value={field.value}
                 onChange={field.onChange}
               />
@@ -184,88 +230,65 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
           />
           <Controller
             control={control}
-            name="relative_relation"
+            name="witness_signed"
             render={({ field }) => (
-              <TextInput label="Relation" value={field.value} onChange={field.onChange} />
+              <Checkbox
+                label="Witness signed"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+              />
             )}
           />
-        </Group>
-        <Controller
-          control={control}
-          name="relative_signed"
-          render={({ field }) => (
-            <Checkbox
-              label="Relative signed"
-              checked={field.value}
-              onChange={(e) => field.onChange(e.currentTarget.checked)}
-              error={errors.relative_signed?.message}
-            />
-          )}
-        />
 
-        <Controller
-          control={control}
-          name="witness_name"
-          render={({ field }) => (
-            <TextInput
-              label="Witness name (staff or independent)"
-              value={field.value}
-              onChange={field.onChange}
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="witness_signed"
-          render={({ field }) => (
-            <Checkbox
-              label="Witness signed"
-              checked={field.value}
-              onChange={(e) => field.onChange(e.currentTarget.checked)}
-            />
-          )}
-        />
+          <Controller
+            control={control}
+            name="is_mlc_case"
+            render={({ field }) => (
+              <Checkbox
+                label="MLC case — notify police liaison"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+              />
+            )}
+          />
 
-        <Controller
-          control={control}
-          name="is_mlc_case"
-          render={({ field }) => (
-            <Checkbox
-              label="MLC case — notify police liaison"
-              checked={field.value}
-              onChange={(e) => field.onChange(e.currentTarget.checked)}
-            />
-          )}
-        />
+          <Controller
+            control={control}
+            name="notes"
+            render={({ field }) => (
+              <Textarea
+                label="Internal notes"
+                autosize
+                minRows={2}
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
+          />
 
-        <Controller
-          control={control}
-          name="notes"
-          render={({ field }) => (
-            <Textarea
-              label="Internal notes"
-              autosize
-              minRows={2}
-              value={field.value}
-              onChange={field.onChange}
-            />
-          )}
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              color="warning"
+              loading={mutation.isPending}
+              disabled={!canRecordDama}
+              onClick={() => void submit()}
+            >
+              Record refusal
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+      {toSign && (
+        <SignWorkspace
+          opened
+          target={{ record_type: "dama_record", record_id: toSign, summary: "LAMA / DAMA form" }}
+          onClose={() => setToSign(null)}
+          onSigned={() => setToSign(null)}
         />
-
-        <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="warning"
-            loading={mutation.isPending}
-            disabled={!canRecordDama}
-            onClick={() => void submit()}
-          >
-            Record refusal
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
+      )}
+    </>
   );
 }

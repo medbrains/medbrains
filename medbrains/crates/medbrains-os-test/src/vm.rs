@@ -1,4 +1,5 @@
-//! One machine under test: a serial shell for inside, forwarded ports for outside, and its power cord.
+//! One machine under test: a serial shell for inside, forwarded ports for outside, a software TPM
+//! and a keyboard. A TPM is one folder: another folder is another chip.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -9,12 +10,11 @@ use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const BOOT_TIMEOUT: Duration = Duration::from_secs(180);
-const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(90);
-/// Printed by the firmware on every start.
-const FIRMWARE_LINE: &str = "BdsDxe";
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
+const BOOT_ID: &str = "cat /proc/sys/kernel/random/boot_id";
+const POLL: Duration = Duration::from_secs(2);
 /// The debug shell's prompt.
 const PROMPT: &str = "root@medbrains";
-const POLL: Duration = Duration::from_secs(2);
 /// Guest ports reachable through QEMU, as host name and guest port.
 const FORWARDS: [(&str, u16); 6] = [
     ("web", 443),
@@ -25,19 +25,108 @@ const FORWARDS: [(&str, u16); 6] = [
     ("edge", 7811),
 ];
 
-/// `limit`, stretched for how slow this platform is: not at all here.
-pub(crate) const fn scaled(limit: Duration) -> Duration {
-    limit
+/// What differs between the architectures an image can be tested on.
+struct Platform {
+    qemu: &'static str,
+    machine: [&'static str; 8],
+    code: &'static str,
+    vars: &'static str,
+    tpm_device: &'static str,
+    extra_devices: [&'static str; 2],
+    /// False where the guest kernel cannot drive any TPM QEMU can offer: Debian's arm64 kernel has no
+    /// MMIO TIS driver (`CONFIG_TCG_TIS` is off) and QEMU has no other TPM for `virt`. Tested on x86-64.
+    has_usable_tpm: bool,
+    /// Limits are scaled by this: x86-64 on an Apple-silicon host is emulated.
+    slowness: u32,
+    /// How long to send nothing after power on: text on the serial port during x86 firmware opens
+    /// its setup menu, and the machine then never boots.
+    firmware: Duration,
+    /// Printed by the firmware on every start, where it is: then a start is watched without sending
+    /// anything, because with two boot entries a key reaching the boot loader opens its menu.
+    firmware_line: Option<&'static str>,
+}
+
+const ARM64: Platform = Platform {
+    qemu: "qemu-system-aarch64",
+    machine: [
+        "-machine",
+        "virt",
+        "-accel",
+        if cfg!(target_os = "macos") {
+            "hvf"
+        } else {
+            "kvm"
+        },
+        "-cpu",
+        "host",
+        "-smp",
+        "4",
+    ],
+    code: "edk2-aarch64-code.fd",
+    vars: "edk2-arm-vars.fd",
+    tpm_device: "tpm-tis-device,tpmdev=tpm0,ppi=off",
+    extra_devices: ["-device", "i6300esb"],
+    has_usable_tpm: false,
+    slowness: 1,
+    firmware: Duration::ZERO,
+    firmware_line: Some("BdsDxe"),
+};
+
+const X86_64: Platform = Platform {
+    qemu: "qemu-system-x86_64",
+    machine: [
+        "-machine",
+        "q35",
+        "-accel",
+        "tcg,thread=multi",
+        "-cpu",
+        "max",
+        "-smp",
+        "4",
+    ],
+    code: "edk2-x86_64-code.fd",
+    vars: "edk2-i386-vars.fd",
+    tpm_device: "tpm-tis,tpmdev=tpm0",
+    extra_devices: ["-device", "i6300esb"],
+    has_usable_tpm: true,
+    slowness: 8,
+    firmware: Duration::from_secs(45),
+    firmware_line: None,
+};
+
+/// The platform to test: arm64, or x86-64 when `MB_OS_TEST_ARCH=x86-64`.
+fn platform() -> &'static Platform {
+    if std::env::var("MB_OS_TEST_ARCH").as_deref() == Ok("x86-64") {
+        &X86_64
+    } else {
+        &ARM64
+    }
+}
+
+/// True if this platform's guest can use a TPM, so sealed-disk scenarios can run.
+pub(crate) fn tpm_usable() -> bool {
+    platform().has_usable_tpm
+}
+
+/// `limit`, stretched for how slow this platform is.
+pub(crate) fn scaled(limit: Duration) -> Duration {
+    limit * platform().slowness
 }
 
 /// The machine's own TPM, as a folder name.
 pub(crate) const OWN_TPM: &str = "tpm-own";
-
-/// True if this platform's guest can use a TPM, so sealed-disk scenarios can run. Not on this one:
-/// Debian's arm64 kernel has no driver for the only TPM QEMU can give it (`OS-KEYS.md`).
-pub(crate) const fn tpm_usable() -> bool {
-    false
-}
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(90);
+const KEY_GAP: Duration = Duration::from_millis(60);
+const RECOVERY_KEY_GROUPS: usize = 8;
+/// The question can reach the screen before the USB keyboard works, and keys sent then are lost.
+pub(crate) const KEYBOARD_READY: Duration = Duration::from_secs(10);
+const RECOVERY_KEY_PROMPT: &str = "write down this disk's recovery key";
+const GROUP_QUESTION: &str = "type group ";
+/// The rest of the bare kernel's command line; `root=` names the image's own slot, as its boot file does.
+const BARE_KERNEL_LINE: &str = "rw luks.crypttab=no quiet loglevel=1 audit=0 console=tty1 console=ttyS0 systemd.mask=serial-getty@ttyS0.service";
+const START_QUESTION: &str = "how should this machine start";
+/// What setup says on a machine with no TPM.
+pub(crate) const NO_TPM_QUESTION: &str = "no security chip";
 
 /// A running QEMU machine on a throwaway overlay. Dropping it stops it and removes the disk.
 pub(crate) struct Vm {
@@ -48,6 +137,46 @@ pub(crate) struct Vm {
     serial: UnixStream,
     monitor: UnixStream,
     marker: u32,
+    /// The recovery key shown on the screen at first boot, once confirmed.
+    pub(crate) recovery_key: String,
+}
+
+/// A recovery key in screen text: eight dash-separated lowercase groups.
+pub(crate) fn find_recovery_key(screen: &str) -> Option<String> {
+    screen.split_whitespace().find_map(|word| {
+        let groups: Vec<&str> = word.split('-').collect();
+        let shaped = groups.len() == RECOVERY_KEY_GROUPS
+            && groups
+                .iter()
+                .all(|g| !g.is_empty() && g.chars().all(|c| c.is_ascii_lowercase()));
+        shaped.then(|| word.to_owned())
+    })
+}
+
+/// The answer to the screen's question: the group of `key` it asks for, counting from one.
+fn asked_group(screen: &str, key: &str) -> Option<String> {
+    let (_, rest) = screen.split_once(GROUP_QUESTION)?;
+    let number: usize = rest
+        .split_whitespace()
+        .next()?
+        .trim_end_matches(',')
+        .parse()
+        .ok()?;
+    key.split('-')
+        .nth(number.checked_sub(1)?)
+        .map(str::to_owned)
+}
+
+/// QEMU's name for the key that types `c`, if it has one.
+fn qemu_key(c: char) -> Option<String> {
+    match c {
+        '-' => Some("minus".to_owned()),
+        ' ' => Some("spc".to_owned()),
+        '\n' => Some("ret".to_owned()),
+        c if c.is_ascii_uppercase() => Some(format!("shift-{}", c.to_ascii_lowercase())),
+        c if c.is_ascii_lowercase() || c.is_ascii_digit() => Some(c.to_string()),
+        _ => None,
+    }
 }
 
 /// A port nothing on this host is using.
@@ -90,8 +219,32 @@ pub(crate) fn between_markers(text: &str, begin: &str, end: &str) -> Option<Stri
 }
 
 impl Vm {
-    /// Boots `image` on a new overlay and waits for a shell.
+    /// Boots `image` as a new machine and answers setup's question on its screen: confirms the recovery
+    /// key where a TPM works, and otherwise types the choice to store data unencrypted.
     pub(crate) fn start(image: &Path) -> Result<Self, String> {
+        let mut vm = Self::start_answering_key(image)?;
+        if tpm_usable() {
+            vm.type_text("\n")?;
+        }
+        Ok(vm)
+    }
+
+    /// As `start`, but stops at the question about a PIN where a TPM works.
+    pub(crate) fn start_answering_key(image: &Path) -> Result<Self, String> {
+        if !tpm_usable() {
+            let mut vm = Self::start_waiting(image, None)?;
+            vm.wait_for_screen(NO_TPM_QUESTION, scaled(BOOT_TIMEOUT))?;
+            sleep(KEYBOARD_READY);
+            vm.type_text("STORE UNENCRYPTED\n")?;
+            return Ok(vm);
+        }
+        let mut vm = Self::start_waiting(image, Some(OWN_TPM))?;
+        vm.confirm_recovery_key()?;
+        Ok(vm)
+    }
+
+    /// Boots `image` on a new overlay and waits for a shell; nothing is typed on its screen.
+    pub(crate) fn start_waiting(image: &Path, tpm: Option<&str>) -> Result<Self, String> {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| e.to_string())?
@@ -103,13 +256,16 @@ impl Vm {
             ports.push((name, free_port().map_err(|e| e.to_string())?));
         }
         let share = qemu_share()?;
-        std::fs::copy(share.join("edk2-arm-vars.fd"), dir.join("vars.fd"))
+        std::fs::copy(share.join(platform().vars), dir.join("vars.fd"))
             .map_err(|e| e.to_string())?;
         let disk = dir.join("disk.qcow2");
         make_overlay(image, &disk)?;
-        let qemu = spawn_qemu(&dir, &disk, &ports)?;
+        let qemu = spawn_qemu(&dir, &disk, &ports, tpm, &[])?;
         let serial = connect_socket(&dir.join("serial.sock"))?;
         let monitor = connect_socket(&dir.join("monitor.sock"))?;
+        monitor
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .map_err(|e| e.to_string())?;
         let mut vm = Self {
             dir,
             disk,
@@ -118,6 +274,7 @@ impl Vm {
             serial,
             monitor,
             marker: 0,
+            recovery_key: String::new(),
         };
         vm.wait_for_shell()?;
         Ok(vm)
@@ -140,12 +297,9 @@ impl Vm {
         Ok(())
     }
 
-    /// Shuts the machine down cleanly, which also flushes its disk.
-    pub(crate) fn shut_down(&mut self) -> Result<(), String> {
-        self.serial
-            .write_all(b"systemctl poweroff\n")
-            .map_err(|e| e.to_string())?;
-        let deadline = Instant::now() + SHUTDOWN_TIMEOUT;
+    /// Waits up to `limit` for the machine to turn itself off.
+    pub(crate) fn wait_for_power_off(&mut self, limit: Duration) -> Result<(), String> {
+        let deadline = Instant::now() + limit;
         while Instant::now() < deadline {
             if self.qemu.try_wait().map_err(|e| e.to_string())?.is_some() {
                 return Ok(());
@@ -155,27 +309,155 @@ impl Vm {
         Err("the machine did not turn off".to_owned())
     }
 
-    /// Powers on again from `disk`; the machine must already be off. Returns once QEMU is running, so
-    /// a machine that never gives a shell can still be watched. No TPM on this platform.
-    pub(crate) fn power_on(&mut self, disk: &Path, _tpm: Option<&str>) -> Result<(), String> {
-        self.qemu = spawn_qemu(&self.dir, disk, &self.ports)?;
-        self.serial = connect_socket(&self.dir.join("serial.sock"))?;
-        self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
-        Ok(())
+    /// Shuts the machine down cleanly, which also flushes its disk.
+    pub(crate) fn shut_down(&mut self) -> Result<(), String> {
+        self.serial
+            .write_all(b"systemctl poweroff\n")
+            .map_err(|e| e.to_string())?;
+        self.wait_for_power_off(scaled(SHUTDOWN_TIMEOUT))
     }
 
-    /// Powers on again from `disk` and waits for a shell.
+    /// Powers on again from `disk` with the TPM in folder `tpm`; the machine must already be off.
     pub(crate) fn boot(&mut self, disk: &Path, tpm: Option<&str>) -> Result<(), String> {
-        self.power_on(disk, tpm)?;
+        self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm, &[])?;
+        self.serial = connect_socket(&self.dir.join("serial.sock"))?;
+        self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
+        self.monitor
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .map_err(|e| e.to_string())?;
         self.wait_for_shell()
     }
 
     /// Restarts from inside and waits for the shell to come back.
     pub(crate) fn reboot(&mut self) -> Result<(), String> {
-        self.serial
-            .write_all(b"systemctl reboot\n")
+        self.restart_with(
+            b"systemctl reboot
+",
+        )
+    }
+
+    /// Restarts a machine waiting at the disk prompt, where systemd has no bus to ask politely on.
+    pub(crate) fn force_reboot(&mut self) -> Result<(), String> {
+        self.restart_with(
+            b"sync; systemctl --force --force reboot
+",
+        )
+    }
+
+    /// Sends a restart command and waits for a new boot. It cannot wait for the command's answer.
+    fn restart_with(&mut self, command: &[u8]) -> Result<(), String> {
+        // The old shell can answer until it is stopped, so a new boot is known by its boot id.
+        let before = self.run(BOOT_ID)?;
+        self.serial.write_all(command).map_err(|e| e.to_string())?;
+        if platform().firmware_line.is_some() {
+            self.watch_serial(scaled(BOOT_TIMEOUT), true)?;
+        }
+        let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
+        while Instant::now() < deadline {
+            if self
+                .run_for(BOOT_ID, Duration::from_secs(4))
+                .is_ok_and(|id| id != before)
+            {
+                return Ok(());
+            }
+            sleep(POLL);
+        }
+        Err("the machine did not come back from a restart".to_owned())
+    }
+
+    /// Types `text` on the machine's keyboard. Characters QEMU has no key for are an error.
+    pub(crate) fn type_text(&mut self, text: &str) -> Result<(), String> {
+        for c in text.chars() {
+            let key = qemu_key(c).ok_or_else(|| format!("no key for {c:?}"))?;
+            self.monitor
+                .write_all(format!("sendkey {key} 30\n").as_bytes())
+                .map_err(|e| e.to_string())?;
+            sleep(KEY_GAP);
+            // Only QEMU's echo, which nothing reads: drained so its buffer never fills.
+            drop(self.monitor.read(&mut [0_u8; 4096]));
+        }
+        Ok(())
+    }
+
+    /// The text on the machine's own screen.
+    pub(crate) fn screen(&mut self) -> Result<String, String> {
+        self.run("cat /dev/vcs1 | tr -s ' '")
+    }
+
+    /// Waits for `text` to appear on the machine's own screen.
+    pub(crate) fn wait_for_screen(
+        &mut self,
+        text: &str,
+        limit: Duration,
+    ) -> Result<String, String> {
+        let deadline = Instant::now() + limit;
+        let mut shown = String::new();
+        while Instant::now() < deadline {
+            shown = self.screen()?;
+            if shown.contains(text) {
+                return Ok(shown);
+            }
+            sleep(POLL);
+        }
+        let tail: String = shown
+            .chars()
+            .rev()
+            .take(300)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        Err(format!(
+            "the screen never said: {text}; it ended: {}",
+            tail.trim()
+        ))
+    }
+
+    /// Reads the recovery key off the screen, without confirming it.
+    pub(crate) fn read_recovery_key(&mut self) -> Result<String, String> {
+        let shown = self.wait_for_screen(RECOVERY_KEY_PROMPT, scaled(BOOT_TIMEOUT))?;
+        find_recovery_key(&shown).ok_or_else(|| "no recovery key on the screen".to_owned())
+    }
+
+    /// Reads the recovery key off the screen and types back its last group, as a person does.
+    pub(crate) fn confirm_recovery_key(&mut self) -> Result<(), String> {
+        let key = self.read_recovery_key()?;
+        self.type_text("\n")?;
+        let shown = self.wait_for_screen(GROUP_QUESTION, scaled(COMMAND_TIMEOUT))?;
+        if shown.contains(&key) {
+            return Err("the key stayed on the screen while being checked".to_owned());
+        }
+        let answer =
+            asked_group(&shown, &key).ok_or_else(|| "no group was asked for".to_owned())?;
+        self.type_text(&format!("{answer}\n"))?;
+        self.recovery_key = key;
+        self.wait_for_screen(START_QUESTION, scaled(COMMAND_TIMEOUT))?;
+        Ok(())
+    }
+
+    /// Power on from `disk` the way an attacker's own kernel would: from outside the disk, with no
+    /// boot file and so no stub to measure anything. The machine must already be off.
+    pub(crate) fn boot_bare_kernel(
+        &mut self,
+        disk: &Path,
+        tpm: Option<&str>,
+        image: &Path,
+    ) -> Result<(), String> {
+        let extra = vec![
+            "-kernel".to_owned(),
+            image.with_extension("vmlinuz").display().to_string(),
+            "-initrd".to_owned(),
+            image.with_extension("initrd").display().to_string(),
+            "-append".to_owned(),
+            format!("root=PARTLABEL=medbrains_{} {BARE_KERNEL_LINE}", image_version(image)?),
+        ];
+        self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm, &extra)?;
+        self.serial = connect_socket(&self.dir.join("serial.sock"))?;
+        self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
+        self.monitor
+            .set_read_timeout(Some(Duration::from_millis(5)))
             .map_err(|e| e.to_string())?;
-        self.wait_for_restart(BOOT_TIMEOUT)
+        self.wait_for_shell()
     }
 
     /// Gives a command to QEMU's monitor, such as plugging in a USB stick.
@@ -189,12 +471,14 @@ impl Vm {
         Ok(())
     }
 
-    /// Waits until a command comes back through the serial shell, sending nothing until the shell has
-    /// shown its prompt: with two boot entries, a key arriving at the boot loader opens its menu, and
-    /// the machine then waits there for a person.
+    /// Waits until a command comes back through the serial shell. Where the firmware has a line to
+    /// watch for, nothing is sent until the shell has shown its prompt.
     fn wait_for_shell(&mut self) -> Result<(), String> {
-        self.watch_serial(BOOT_TIMEOUT, false)?;
-        let deadline = Instant::now() + BOOT_TIMEOUT;
+        sleep(platform().firmware);
+        if platform().firmware_line.is_some() {
+            self.watch_serial(scaled(BOOT_TIMEOUT), false)?;
+        }
+        let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
             if self
                 .run_for("echo ready", Duration::from_secs(4))
@@ -211,13 +495,14 @@ impl Vm {
     /// next message if `restarting`, which an old prompt can't satisfy.
     fn watch_serial(&mut self, limit: Duration, restarting: bool) -> Result<(), String> {
         let (mut raw, mut buffer, deadline) = (Vec::new(), [0_u8; 16_384], Instant::now() + limit);
+        let firmware = platform().firmware_line.unwrap_or_default();
         while Instant::now() < deadline {
             if let Ok(count) = self.serial.read(&mut buffer) {
                 raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
             }
             let text = String::from_utf8_lossy(&raw);
             let shown = if restarting {
-                text.rfind(FIRMWARE_LINE).map(|at| &text[at..])
+                text.rfind(firmware).map(|at| &text[at..])
             } else {
                 Some(&*text)
             };
@@ -228,14 +513,29 @@ impl Vm {
         Err("the machine showed no prompt in time".to_owned())
     }
 
-    /// Waits, sending nothing, for the machine to restart and show a shell.
+    /// Waits for the machine to restart by itself and show a shell, sending nothing where the
+    /// platform allows; elsewhere by asking for a new boot id.
     pub(crate) fn wait_for_restart(&mut self, limit: Duration) -> Result<(), String> {
-        self.watch_serial(limit, true)
+        if platform().firmware_line.is_some() {
+            return self.watch_serial(limit, true);
+        }
+        let before = self.run(BOOT_ID)?;
+        let deadline = Instant::now() + limit;
+        while Instant::now() < deadline {
+            if self
+                .run_for(BOOT_ID, Duration::from_secs(4))
+                .is_ok_and(|id| id != before)
+            {
+                return Ok(());
+            }
+            sleep(POLL);
+        }
+        Err("the machine did not restart".to_owned())
     }
 
     /// Runs a command inside the machine with the usual time limit.
     pub(crate) fn run(&mut self, command: &str) -> Result<String, String> {
-        self.run_for(command, Duration::from_secs(30))
+        self.run_for(command, scaled(COMMAND_TIMEOUT))
     }
 
     /// Runs a command inside the machine and returns its output.
@@ -310,7 +610,7 @@ impl Vm {
 
     /// Waits for the server to answer through the front proxy.
     pub(crate) fn wait_for_server(&self) -> Result<(), String> {
-        let deadline = Instant::now() + BOOT_TIMEOUT;
+        let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
             if self.status("web", "https", "/api/health")? == 200 {
                 return Ok(());
@@ -328,6 +628,42 @@ impl Drop for Vm {
         drop(self.qemu.wait());
         drop(std::fs::remove_dir_all(&self.dir));
     }
+}
+
+/// Starts a software TPM kept in folder `name`, and returns QEMU's arguments for it. It ends when
+/// QEMU does, and its state stays in the folder.
+fn tpm_args(dir: &Path, name: &str) -> Result<Vec<String>, String> {
+    let (state, control) = (dir.join(name), dir.join(format!("{name}.sock")));
+    std::fs::create_dir_all(&state).map_err(|e| e.to_string())?;
+    let started = Command::new("swtpm")
+        .args(["socket", "--tpm2", "--daemon", "--terminate"])
+        .arg("--tpmstate")
+        .arg(format!("dir={}", state.display()))
+        .arg("--ctrl")
+        .arg(format!("type=unixio,path={}", control.display()))
+        .status()
+        .map_err(|e| format!("could not start swtpm (brew install swtpm): {e}"))?;
+    if !started.success() {
+        return Err("swtpm did not start".to_owned());
+    }
+    Ok(vec![
+        "-chardev".to_owned(),
+        format!("socket,id=tpmsock,path={}", control.display()),
+        "-tpmdev".to_owned(),
+        "emulator,id=tpm0,chardev=tpmsock".to_owned(),
+        "-device".to_owned(),
+        platform().tpm_device.to_owned(),
+    ])
+}
+
+/// The version in an image's file name, `medbrains-os_<version>.raw`, which is also its slot's name.
+fn image_version(image: &Path) -> Result<String, String> {
+    image
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .and_then(|stem| stem.rsplit_once('_'))
+        .map(|(_, version)| version.to_owned())
+        .ok_or_else(|| format!("no version in the image name {}", image.display()))
 }
 
 /// Creates an overlay on `image`, so the image itself is never written. `image` may be raw or qcow2.
@@ -352,27 +688,28 @@ pub(crate) fn make_overlay(image: &Path, overlay: &Path) -> Result<(), String> {
 }
 
 /// Starts QEMU from `disk`, with its serial port and monitor on sockets in `dir`.
-fn spawn_qemu(dir: &Path, disk: &Path, ports: &[(&str, u16)]) -> Result<Child, String> {
+fn spawn_qemu(
+    dir: &Path,
+    disk: &Path,
+    ports: &[(&str, u16)],
+    tpm: Option<&str>,
+    extra: &[String],
+) -> Result<Child, String> {
     let share = qemu_share()?;
+    let tpm = tpm.map_or_else(|| Ok(Vec::new()), |name| tpm_args(dir, name))?;
     let forwards: Vec<String> = ports
         .iter()
         .zip(FORWARDS)
         .map(|((_, host), (_, guest))| format!("hostfwd=tcp:127.0.0.1:{host}-:{guest}"))
         .collect();
-    let accel = if cfg!(target_os = "macos") {
-        "hvf"
-    } else {
-        "kvm"
-    };
-    Command::new("qemu-system-aarch64")
-        .args([
-            "-machine", "virt", "-accel", accel, "-cpu", "host", "-smp", "4", "-m", "4096",
-            "-device", "i6300esb",
-        ])
+    Command::new(platform().qemu)
+        .args(platform().machine)
+        .args(["-m", "4096"])
+        .args(platform().extra_devices)
         .arg("-drive")
         .arg(format!(
             "if=pflash,format=raw,readonly=on,file={}",
-            share.join("edk2-aarch64-code.fd").display()
+            share.join(platform().code).display()
         ))
         .arg("-drive")
         .arg(format!(
@@ -404,6 +741,8 @@ fn spawn_qemu(dir: &Path, disk: &Path, ports: &[(&str, u16)]) -> Result<Child, S
             "unix:{},server,nowait",
             dir.join("monitor.sock").display()
         ))
+        .args(tpm)
+        .args(extra)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -413,7 +752,8 @@ fn spawn_qemu(dir: &Path, disk: &Path, ports: &[(&str, u16)]) -> Result<Child, S
 /// QEMU's firmware folder, found from where its binary lives.
 fn qemu_share() -> Result<PathBuf, String> {
     let found = Command::new("sh")
-        .args(["-c", "command -v qemu-system-aarch64"])
+        .arg("-c")
+        .arg(format!("command -v {}", platform().qemu))
         .output()
         .map_err(|e| e.to_string())?;
     let binary = PathBuf::from(String::from_utf8_lossy(&found.stdout).trim());
@@ -445,7 +785,32 @@ fn connect_socket(path: &Path) -> Result<UnixStream, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{between_markers, strip_terminal_codes};
+    use super::{asked_group, between_markers, find_recovery_key, qemu_key, strip_terminal_codes};
+
+    #[test]
+    fn a_recovery_key_is_found_only_in_its_exact_shape() {
+        let key = "aa-bb-cc-dd-ee-ff-gg-hh";
+        assert_eq!(
+            find_recovery_key(&format!("write down\n {key} \nYou need")).as_deref(),
+            Some(key)
+        );
+        assert_eq!(find_recovery_key("a first-boot well-known aa-bb-cc"), None);
+        assert_eq!(find_recovery_key("AA-bb-cc-dd-ee-ff-gg-hh"), None);
+        assert_eq!(
+            asked_group("type group 3, counting", key).as_deref(),
+            Some("cc")
+        );
+        assert_eq!(asked_group("type group 9, counting", key), None);
+        assert_eq!(asked_group("type group 0, counting", key), None);
+    }
+
+    #[test]
+    fn typing_names_real_qemu_keys_and_refuses_the_rest() {
+        assert_eq!(qemu_key('-').as_deref(), Some("minus"));
+        assert_eq!(qemu_key('S').as_deref(), Some("shift-s"));
+        assert_eq!(qemu_key('\n').as_deref(), Some("ret"));
+        assert_eq!(qemu_key('$'), None);
+    }
 
     #[test]
     fn output_is_read_only_between_whole_line_markers() {

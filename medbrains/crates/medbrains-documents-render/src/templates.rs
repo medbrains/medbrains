@@ -243,8 +243,10 @@ pub(crate) async fn build_context(
             } else {
                 medbrains_billing::payer_split::Payer::Patient
             };
-            medbrains_billing::payer_split_api::split_document_context(state, claims, source_id, payer)
-                .await?
+            medbrains_billing::payer_split_api::split_document_context(
+                state, claims, source_id, payer,
+            )
+            .await?
         }
         "spectacle_prescription" => {
             medbrains_specialty::ophtho_print::spectacle_rx_context(state, claims, source_id)
@@ -380,6 +382,9 @@ mod render_tests {
             investigation_summary: None,
             condition_at_discharge: Some("Stable".to_owned()),
             follow_up_instructions: None,
+            medications_on_discharge: vec![
+                "Zincovit × 10 — Buy from outside the hospital".to_owned(),
+            ],
             signatures: Vec::new(),
         };
         let entity = serde_json::to_value(&data).unwrap_or_default();
@@ -389,6 +394,7 @@ mod render_tests {
             "Laparoscopic appendicectomy",
             "Appendicectomy",
             "Stable",
+            "Zincovit × 10 — Buy from outside the hospital",
         ] {
             assert!(html.contains(text), "{text} is on the summary: {html}");
         }

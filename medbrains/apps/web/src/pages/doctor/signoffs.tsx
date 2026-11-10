@@ -23,9 +23,11 @@ import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { StoreSubstitutionDecision } from "@/components/Doctor/StoreSubstitutionDecision";
 import { VerbalOrderRegister } from "@/components/Doctor/VerbalOrderRegister";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { type SignableTypes, useSignableTypes } from "@/hooks/useSignableTypes";
 import { signoffService } from "@/services/signoff.service";
+import { signoffAction, signoffLabel } from "./signoff-action";
 
 export function SignoffsPage() {
   useRequirePermission(P.DOCTOR.SIGNOFFS.VIEW_OWN);
@@ -37,6 +39,9 @@ export function SignoffsPage() {
   const canSeeCriticalValues = useHasPermission(P.LAB.ORDERS_LIST) && currentUserId.length > 0;
 
   const [signTarget, setSignTarget] = useState<PendingSignoffEntry | null>(null);
+  // The server's list of signable types: the inbox offers a signature only
+  // for these, so it cannot offer one the server refuses.
+  const { types, isError: typesFailed } = useSignableTypes();
 
   const {
     data: items = [],
@@ -75,6 +80,12 @@ export function SignoffsPage() {
       />
       {/* Clinical notes waiting for this doctor's signature sit with the rest
           of what they must sign (RFC-MODULE-clinical-notes, phase 3a). */}
+      {typesFailed && (
+        <Alert tone="warning" mb="sm" title="Signing is unavailable">
+          The list of signable records could not be loaded, so no Sign button is shown. Reload the
+          page to try again.
+        </Alert>
+      )}
       <UnsignedNotesCard />
       <CountersignCard />
 
@@ -88,7 +99,7 @@ export function SignoffsPage() {
           </Tabs.Tab>
           {Object.entries(grouped).map(([type, list]) => (
             <Tabs.Tab key={type} value={type}>
-              {labelFor(type)}{" "}
+              {signoffLabel(type, types)}{" "}
               <Badge ml="xs" size="xs">
                 {list.length}
               </Badge>
@@ -114,11 +125,11 @@ export function SignoffsPage() {
         </Tabs.List>
 
         <Tabs.Panel value="all" pt="md">
-          <SignoffList items={items} onSign={setSignTarget} loading={isLoading} />
+          <SignoffList items={items} types={types} onSign={setSignTarget} loading={isLoading} />
         </Tabs.Panel>
         {Object.entries(grouped).map(([type, list]) => (
           <Tabs.Panel key={type} value={type} pt="md">
-            <SignoffList items={list} onSign={setSignTarget} loading={isLoading} />
+            <SignoffList items={list} types={types} onSign={setSignTarget} loading={isLoading} />
           </Tabs.Panel>
         ))}
         {canSeeCriticalValues && (
@@ -150,10 +161,12 @@ export function SignoffsPage() {
 
 function SignoffList({
   items,
+  types,
   onSign,
   loading,
 }: {
   items: PendingSignoffEntry[];
+  types: SignableTypes | undefined;
   onSign: (item: PendingSignoffEntry) => void;
   loading: boolean;
 }) {
@@ -186,7 +199,7 @@ function SignoffList({
             <Group justify="space-between" wrap="nowrap">
               <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                 <Group gap="xs">
-                  <Badge size="xs">{labelFor(item.record_type)}</Badge>
+                  <Badge size="xs">{signoffLabel(item.record_type, types)}</Badge>
                   <Badge size="xs" tone={legalColor(item.legal_class)}>
                     {item.legal_class.replace("_", " ")}
                   </Badge>
@@ -227,22 +240,7 @@ function SignoffList({
                   </Badge>
                 )}
               </Stack>
-              {item.record_type === "refill_request" ? (
-                <RefillDecision item={item} />
-              ) : item.record_type === "store_substitution" ? (
-                <StoreSubstitutionDecision item={item} />
-              ) : (
-                <Tooltip label="Sign">
-                  <IconButton
-                    tone="primary"
-                    size="lg"
-                    onClick={() => onSign(item)}
-                    aria-label="Sign"
-                  >
-                    <IconSignature size={18} />
-                  </IconButton>
-                </Tooltip>
-              )}
+              <SignoffActionCell item={item} types={types} onSign={onSign} />
             </Group>
           </Card>
         );
@@ -251,34 +249,31 @@ function SignoffList({
   );
 }
 
-function labelFor(type: string): string {
-  switch (type) {
-    case "prescription":
-      return "Prescription";
-    case "lab_report":
-      return "Lab Report";
-    case "radiology_report":
-      return "Radiology Report";
-    case "discharge_summary":
-      return "Discharge Summary";
-    case "mlc_certificate":
-      return "MLC Certificate";
-    case "death_certificate":
-      return "Death Certificate";
-    case "fitness_certificate":
-      return "Fitness Certificate";
-    case "medical_leave_certificate":
-      return "Medical Leave";
-    case "operative_note":
-      return "Operative Note";
-    case "progress_note":
-      return "Progress Note";
-    case "refill_request":
-      return "Refill request";
-    case "store_substitution":
-      return "Substitute";
-    default:
-      return type.replace(/_/g, " ");
+/** The decision or the Sign button for one entry; nothing for a type the server does not sign. */
+function SignoffActionCell({
+  item,
+  types,
+  onSign,
+}: {
+  item: PendingSignoffEntry;
+  types: SignableTypes | undefined;
+  onSign: (item: PendingSignoffEntry) => void;
+}) {
+  switch (signoffAction(item.record_type, types)) {
+    case "refill":
+      return <RefillDecision item={item} />;
+    case "substitution":
+      return <StoreSubstitutionDecision item={item} />;
+    case "none":
+      return null;
+    case "sign":
+      return (
+        <Tooltip label="Sign">
+          <IconButton tone="primary" size="lg" onClick={() => onSign(item)} aria-label="Sign">
+            <IconSignature size={18} />
+          </IconButton>
+        </Tooltip>
+      );
   }
 }
 

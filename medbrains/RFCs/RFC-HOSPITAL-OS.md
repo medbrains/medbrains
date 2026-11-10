@@ -958,7 +958,8 @@ Published with every release. Targets below that have no figure yet get one when
   TLS or scoped tokens), so being on the network grants nothing.
 - **No open inbound for remote access.** Site links and remote support use WireGuard, which is in the
   Linux kernel. Support access is off by default, time-limited, approved by the hospital and audited.
-  There is no vendor backdoor.
+  There is no vendor backdoor. In the application this is built: a MedBrains account is refused on
+  every request without the hospital's grant (`docs/compliance/vendor-access.md`).
 - **Authenticated time.** Clinical records depend on the clock: move from `systemd-timesyncd` to
   `chrony` with NTS, and warn when the clock drifts. The appliance keeps serving the LAN its time when
   the internet is gone.
@@ -967,8 +968,8 @@ Published with every release. Targets below that have no figure yet get one when
 
 ### Networking: fast and small
 
-- **One proxy.** The D1 image uses Caddy, and we already own `medbrains-proxy` (Rust, Pingora). Measure
-  size, memory, throughput and certificate handling, then keep exactly one.
+- **One proxy.** The OS image uses `medbrains-front` from `medbrains-proxy` (Rust, Pingora). Caddy was
+  measured against it and removed (plan N2.1).
 - **Only what measures faster.** BBR congestion control, HTTP/3 for phones on poor links, kernel TLS,
   `io_uring` and eBPF are each tested against the §8i budgets and adopted only if they pay.
 - **Fewer TLS stacks.** `Cargo.lock` carries OpenSSL, `ring` and `aws-lc-rs`. Find what pulls each in,

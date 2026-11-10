@@ -2,6 +2,7 @@
 
 mod access;
 pub mod crs;
+pub mod file_requests;
 
 use axum::{
     Extension, Json,
@@ -464,6 +465,7 @@ pub async fn update_record(
 //  Handlers — Record Movements
 // ══════════════════════════════════════════════════════════
 
+/// A record's movements, newest first: where the file has been and is now.
 pub async fn list_movements(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -472,9 +474,8 @@ pub async fn list_movements(
     require_permission(&claims, permissions::mrd::records::LIST)?;
     access::open_record(&state, &claims, record_id, "list movements").await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let rows = sqlx::query_as::<_, MrdRecordMovement>(
         "SELECT * FROM mrd_record_movements \
@@ -2791,4 +2792,5 @@ pub fn router() -> axum::Router<AppState> {
             "/api/mrd/stats/admission-discharge",
             get(stats_admission_discharge),
         )
+        .merge(file_requests::router())
 }

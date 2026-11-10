@@ -185,12 +185,22 @@ pub struct CounterDay {
     pub closed_at: Option<DateTime<Utc>>,
 }
 
-/// `GET /api/pharmacy/day-close` — the last month's counter days, newest first.
+/// `?q=`: part of the counter's name.
+#[derive(Debug, Deserialize)]
+pub struct CounterDayQuery {
+    pub q: Option<String>,
+}
+
+/// `GET /api/pharmacy/day-close` — the last month's counter days, newest
+/// first, at most `LIST_LIMIT`; `?q=` narrows to counters whose name contains
+/// it, so a counter past the cap can still be found.
 pub async fn list_counter_days(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<CounterDayQuery>,
 ) -> Result<Json<Vec<CounterDay>>, AppError> {
     require_permission(&claims, permissions::pharmacy::day_close::VIEW)?;
+    let name = medbrains_server_core::search::contains_pattern(query.q.as_deref());
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, CounterDay>(
         "SELECT d.pharmacy_location_id, sl.name AS location_name, d.business_date, \
@@ -206,6 +216,7 @@ pub async fn list_counter_days(
            LEFT JOIN users cu ON cu.id = c.closed_by \
           WHERE d.tenant_id = $1 AND d.deleted_at IS NULL \
             AND d.business_date >= tenant_local_date($1, now()) - $2::int \
+            AND ($4::text IS NULL OR sl.name ILIKE $4) \
           GROUP BY d.pharmacy_location_id, sl.name, d.business_date, c.id, c.status, \
                    c.variance, cu.full_name, c.closed_at \
           ORDER BY d.business_date DESC, sl.name LIMIT $3",
@@ -213,6 +224,7 @@ pub async fn list_counter_days(
     .bind(claims.tenant_id)
     .bind(LIST_DAYS)
     .bind(LIST_LIMIT)
+    .bind(name)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

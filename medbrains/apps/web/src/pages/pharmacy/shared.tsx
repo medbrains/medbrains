@@ -297,6 +297,7 @@ export function rxReviewInputFromForm(item: PharmacyRxReviewFormItem): PharmacyR
     catalog_item_id: item.catalog_item_id,
     quantity: formIntegerOrFallback(item.quantity, 1),
     unit_price: formNumberOrFallback(item.unit_price, 0),
+    ...(item.buy_outside ? { buy_outside: true } : {}),
   };
 }
 
@@ -325,7 +326,11 @@ export function applyRxReviewItems(
   });
 }
 
-/** Lines the formulary could not match and the reviewer has not mapped yet. */
+/**
+ * Lines the formulary could not match that the reviewer has neither mapped
+ * nor confirmed as bought outside. A line is never taken as bought outside
+ * because it is unmatched: the choice is the reviewer's (owner, 2026-11-09).
+ */
 export function rxUnmappedLines(
   items: PharmacyRxDetailItem[],
   reviewItems: PharmacyRxReviewItemInput[],
@@ -333,7 +338,10 @@ export function rxUnmappedLines(
   return items.filter(
     (item) =>
       item.price_source === "unmatched" &&
-      !reviewItems.some((line) => line.prescription_item_id === item.id && line.catalog_item_id),
+      !reviewItems.some(
+        (line) =>
+          line.prescription_item_id === item.id && (line.catalog_item_id || line.buy_outside),
+      ),
   );
 }
 
@@ -609,6 +617,7 @@ export function posSaleLineQuantity(item: PharmacyPosSaleLine) {
   return formIntegerOrFallback(item.quantity, 1);
 }
 
+/** A POS line's unit price as a number; a blank field reads as zero. */
 export function posSaleLinePrice(item: PharmacyPosSaleLine) {
   return formNumberOrFallback(item.unit_price, 0);
 }
@@ -617,3 +626,6 @@ export function posSalePayloadPatientId(payload: Record<string, unknown>) {
   const patientId = payload.patient_id;
   return typeof patientId === "string" ? patientId : "";
 }
+
+/** What the server says when a bill is open and dispensing needs a reason. */
+export const UNPAID_REASON_REQUIRED = "Provide a reason to dispense unpaid";

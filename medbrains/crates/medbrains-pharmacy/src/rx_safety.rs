@@ -9,7 +9,10 @@
 //! - a WHO AWaRe Reserve antibiotic with no approved antimicrobial stewardship
 //!   request for this patient (`antibiotic_stewardship_requests`);
 //! - a medicine that is not on the hospital formulary
-//!   (`pharmacy_catalog.formulary_status`).
+//!   (`pharmacy_catalog.formulary_status`);
+//! - a look-alike sound-alike (LASA) medicine, as a caution that never blocks
+//!   (`pharmacy_catalog.is_lasa`, `lasa_group`) — the pharmacist picking from
+//!   the shelf is the one who mixes them up.
 //!
 //! A blocking finding stops the action unless someone holding that finding's
 //! override permission records a reason. Every outcome — refused, overridden or
@@ -36,9 +39,25 @@ pub const ALLERGY: &str = "DRUG_ALLERGY_CONFLICT";
 pub const INTERACTION: &str = "DRUG_INTERACTION";
 pub const RESERVE_ANTIBIOTIC: &str = "RESERVE_ANTIBIOTIC_APPROVAL_REQUIRED";
 pub const NON_FORMULARY: &str = "NON_FORMULARY_APPROVAL_REQUIRED";
+pub const LASA: &str = "LASA_LOOK_ALIKE";
+/// A Schedule H/H1/X dispense refused (no prescription, no witness, prescriber
+/// not authorised).
+pub const SCHEDULE_GATE: &str = "SCHEDULE_DISPENSE_REFUSED";
+/// A controlled (NDPS) dispense with no witness: refused, or overridden with a reason.
+pub const NDPS_WITNESS: &str = "NDPS_WITNESS_MISSING";
+/// A camp's offline dispense that had already happened and failed the
+/// Schedule H/H1 gate at sync: posted, and filed as refused for review.
+pub const CAMP_DISPENSE_EXCEPTION: &str = "CAMP_DISPENSE_EXCEPTION";
+/// A witness confirmed a controlled dispense with their own password.
+pub const WITNESS_CONFIRMED: &str = "WITNESS_CONFIRMED";
+/// Medicines handed over on an open bill, on a reason.
+pub const UNPAID_DISPENSE: &str = "UNPAID_DISPENSE";
+/// Nobody has recorded whether the patient has drug allergies: no allergy on
+/// file and "no known allergies" never ticked. Acknowledged at dispense.
+pub const ALLERGY_UNKNOWN: &str = "ALLERGY_STATUS_UNKNOWN";
 
 /// Shortest override reason `cpoe_safety_audit` accepts (its CHECK constraint).
-const MIN_REASON_CHARS: usize = 5;
+pub const MIN_REASON_CHARS: usize = 5;
 /// The most of the patient's other order lines compared for interactions.
 const ACTIVE_MED_LIMIT: i64 = 200;
 
@@ -62,12 +81,47 @@ pub fn override_permission(code: &str) -> &'static str {
     match code {
         RESERVE_ANTIBIOTIC => permissions::pharmacy::stewardship::APPROVE,
         NON_FORMULARY => permissions::pharmacy::formulary::APPROVE,
+        // The dual lock is the whole control on a narcotic: the general
+        // safety override every pharmacist holds must not lift it.
+        NDPS_WITNESS => permissions::pharmacy::ndps::WITNESS_OVERRIDE,
         _ => permissions::pharmacy::safety::OVERRIDE,
     }
 }
 
+/// Whether `claims` carries `permission`. A bypass role holds everything
+/// except the NDPS witness override, which is granted by name only.
 fn holds(claims: &Claims, permission: &str) -> bool {
-    is_bypass_role(claims) || claims.permissions.iter().any(|p| p == permission)
+    let named = claims.permissions.iter().any(|p| p == permission);
+    if permission == permissions::pharmacy::ndps::WITNESS_OVERRIDE {
+        return named;
+    }
+    is_bypass_role(claims) || named
+}
+
+/// Whether this user may dispense a controlled drug with no witness: an
+/// explicit grant of `pharmacy.ndps.witness_override`, never the bypass a
+/// super or hospital admin has for everything else.
+///
+/// A bypass role's token carries no permissions, so its grant is resolved the
+/// way a token's is (`resolve_granted_permissions`: an active role, access
+/// groups, `access_matrix` extra and temporary grants, less denied), so it
+/// agrees with [`holds`] for everyone else.
+///
+/// # Errors
+/// The database could not be read; the caller refuses, never assumes.
+pub async fn may_skip_ndps_witness(db: &sqlx::PgPool, claims: &Claims) -> Result<bool, AppError> {
+    let permission = permissions::pharmacy::ndps::WITNESS_OVERRIDE;
+    if !is_bypass_role(claims) {
+        return Ok(holds(claims, permission));
+    }
+    let granted = medbrains_server_core::permissions::resolve_granted_permissions(
+        db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    Ok(granted.iter().any(|p| p == permission))
 }
 
 /// Whether `claims` may override a blocking finding with this code.
@@ -86,6 +140,8 @@ struct LinePolicyRow {
     inn_name: Option<String>,
     formulary_status: String,
     aware_category: Option<String>,
+    is_lasa: bool,
+    lasa_group: Option<String>,
     stewardship_status: Option<String>,
 }
 
@@ -115,10 +171,12 @@ async fn resolve_lines(
     let ids: Vec<Option<Uuid>> = lines.iter().map(|l| l.catalog_item_id).collect();
     let rows = sqlx::query_as::<_, LinePolicyRow>(
         "SELECT l.idx, r.id AS catalog_item_id, r.name, r.generic_name, r.inn_name, \
-                r.formulary_status, r.aware_category, s.request_status AS stewardship_status \
+                r.formulary_status, r.aware_category, r.is_lasa, r.lasa_group, \
+                s.request_status AS stewardship_status \
            FROM unnest($2::text[], $3::uuid[]) WITH ORDINALITY AS l(drug_name, catalog_id, idx) \
            JOIN LATERAL ( \
-                SELECT c.id, c.name, c.generic_name, c.inn_name, c.formulary_status, c.aware_category \
+                SELECT c.id, c.name, c.generic_name, c.inn_name, c.formulary_status, \
+                       c.aware_category, c.is_lasa, c.lasa_group \
                   FROM pharmacy_catalog c \
                  WHERE c.tenant_id = $1 AND c.deleted_at IS NULL \
                    AND (c.id = l.catalog_id OR lower(c.name) = lower(l.drug_name) \
@@ -204,6 +262,9 @@ fn policy_findings(lines: &[RxLine], rows: &[LinePolicyRow]) -> Vec<MedicationSa
             ]);
             out.push(finding);
         }
+        if row.is_lasa {
+            out.push(lasa_caution(line, row));
+        }
         if row.formulary_status == "non_formulary" {
             let message = format!("{} is not on the hospital formulary", line.drug_name);
             let mut finding = block(NON_FORMULARY, line, Some(row.catalog_item_id), message);
@@ -218,6 +279,37 @@ fn policy_findings(lines: &[RxLine], rows: &[LinePolicyRow]) -> Vec<MedicationSa
         }
     }
     out
+}
+
+/// A caution naming the look-alike group, so the pharmacist checks the label.
+fn lasa_caution(line: &RxLine, row: &LinePolicyRow) -> MedicationSafetyWarning {
+    let group = row
+        .lasa_group
+        .as_deref()
+        .map(str::trim)
+        .filter(|g| !g.is_empty());
+    let message = group.map_or_else(
+        || {
+            format!(
+                "{} is a look-alike sound-alike medicine: check the label",
+                line.drug_name
+            )
+        },
+        |g| {
+            format!(
+                "{} is a look-alike sound-alike medicine (group {g}): check the label",
+                line.drug_name
+            )
+        },
+    );
+    MedicationSafetyWarning {
+        code: LASA.to_owned(),
+        severity: MedicationSafetySeverity::Warn,
+        message,
+        catalog_item_id: Some(row.catalog_item_id),
+        drug_name: line.drug_name.clone(),
+        detail: warning_detail(vec![("lasa_group", json!(group))]),
+    }
 }
 
 /// AWaRe Reserve and non-formulary findings only — what the prescriber must
@@ -486,6 +578,112 @@ pub fn authorize<'a>(
     Ok(Some(reason))
 }
 
+/// The controlled-drug dual-lock finding, filed when a dispense goes ahead
+/// without a witness on a recorded reason.
+pub fn ndps_witness_finding() -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: NDPS_WITNESS.to_owned(),
+        severity: MedicationSafetySeverity::Block,
+        message: "Controlled substance dispensed without a witness".to_owned(),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
+/// The pharmacist's acknowledgement that the patient's allergy status is
+/// unknown, filed with the dispense: an empty allergy list is not a clean one.
+pub fn allergy_unknown_finding() -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: ALLERGY_UNKNOWN.to_owned(),
+        severity: MedicationSafetySeverity::Warn,
+        message: "Allergy status unknown: no allergy recorded and none noted as asked; \
+                  the pharmacist acknowledged it at dispense"
+            .to_owned(),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
+/// The proof that the witness confirmed: who, checked how. Filed as a caution
+/// so it appears, dated, on the order's safety record.
+pub fn witness_confirmed_finding(witness_name: &str) -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: WITNESS_CONFIRMED.to_owned(),
+        severity: MedicationSafetySeverity::Warn,
+        message: format!("Witnessed by {witness_name}, confirmed with their own password"),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({ "method": "password" }),
+    }
+}
+
+/// An unpaid dispense, filed as overridden with the pharmacist's reason.
+pub fn unpaid_dispense_finding(complaint: &str) -> MedicationSafetyWarning {
+    MedicationSafetyWarning {
+        code: UNPAID_DISPENSE.to_owned(),
+        severity: MedicationSafetySeverity::Block,
+        message: format!("Dispensed before payment: {complaint}"),
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
+/// A refusal as the blocking finding it is filed as.
+fn refusal_finding(code: &str, refusal: &AppError) -> MedicationSafetyWarning {
+    let message = match refusal {
+        AppError::BadRequest(m) | AppError::Conflict(m) => m.clone(),
+        other => other.to_string(),
+    };
+    MedicationSafetyWarning {
+        code: code.to_owned(),
+        severity: MedicationSafetySeverity::Block,
+        message,
+        catalog_item_id: None,
+        drug_name: String::new(),
+        detail: json!({}),
+    }
+}
+
+/// File a refusal as `blocked` in the caller's transaction, for a release
+/// that commits anyway: a camp dispense that already happened.
+///
+/// # Errors
+/// A database error, which aborts the caller's transaction.
+pub async fn file_dispense_refusal_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    claims: &Claims,
+    subject: &Subject,
+    code: &str,
+    refusal: &AppError,
+) -> Result<(), AppError> {
+    record_in_tx(tx, claims, subject, &[refusal_finding(code, refusal)], None).await
+}
+
+/// File a refused scheduled or controlled dispense as `blocked`.
+///
+/// In its own transaction: the dispense's transaction rolls back with the
+/// refusal. A failure to file is logged and never replaces the refusal itself.
+pub async fn file_dispense_refusal(
+    state: &AppState,
+    claims: &Claims,
+    subject: &Subject,
+    code: &str,
+    refusal: &AppError,
+) {
+    let finding = refusal_finding(code, refusal);
+    if let Err(error) = audit_refusal(state, claims, subject, &[finding]).await {
+        tracing::error!(
+            %error,
+            patient_id = %subject.patient_id,
+            code,
+            "could not file a refused controlled-drug dispense"
+        );
+    }
+}
+
 /// `authorize`, filing a refusal as `blocked` in its own transaction — the
 /// caller's transaction rolls back with the refusal and would take the audit
 /// row with it.
@@ -695,6 +893,39 @@ mod tests {
     }
 
     #[test]
+    fn a_look_alike_drug_is_a_caution_naming_its_group() {
+        let line = RxLine {
+            drug_name: "Amoxicillin 500".to_owned(),
+            catalog_item_id: None,
+        };
+        let row = LinePolicyRow {
+            idx: 1,
+            catalog_item_id: Uuid::nil(),
+            name: "Amoxicillin 500".to_owned(),
+            generic_name: None,
+            inn_name: None,
+            formulary_status: "approved".to_owned(),
+            aware_category: None,
+            is_lasa: true,
+            lasa_group: Some("AMOX-AMOXAPINE".to_owned()),
+            stewardship_status: None,
+        };
+        let findings = policy_findings(std::slice::from_ref(&line), std::slice::from_ref(&row));
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, LASA);
+        assert!(matches!(
+            findings[0].severity,
+            MedicationSafetySeverity::Warn
+        ));
+        assert!(findings[0].message.contains("AMOX-AMOXAPINE"));
+        // A caution never stops the pharmacist.
+        assert!(matches!(
+            authorize(&claims_with(&[]), &findings, None),
+            Ok(None)
+        ));
+    }
+
+    #[test]
     fn non_formulary_is_overridden_by_formulary_approval() {
         assert_eq!(
             override_permission(NON_FORMULARY),
@@ -704,5 +935,20 @@ mod tests {
             override_permission(ALLERGY),
             permissions::pharmacy::safety::OVERRIDE
         );
+    }
+
+    #[test]
+    fn the_general_safety_override_never_lifts_the_ndps_dual_lock() {
+        let pharmacist = claims_with(&[permissions::pharmacy::safety::OVERRIDE]);
+        assert!(!can_override(&pharmacist, NDPS_WITNESS));
+        let named = claims_with(&[permissions::pharmacy::ndps::WITNESS_OVERRIDE]);
+        assert!(can_override(&named, NDPS_WITNESS));
+        // A hospital admin bypasses every other check, but not this one.
+        let admin = Claims {
+            role: "hospital_admin".to_owned(),
+            ..claims_with(&[])
+        };
+        assert!(!can_override(&admin, NDPS_WITNESS));
+        assert!(can_override(&admin, INTERACTION));
     }
 }

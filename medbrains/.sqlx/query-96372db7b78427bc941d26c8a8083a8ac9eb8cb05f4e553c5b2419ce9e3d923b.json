@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO access_group_members (group_id, user_id, tenant_id, source) SELECT g, $2, $3, 'sso' FROM unnest($1::uuid[]) AS g ON CONFLICT (group_id, user_id) DO UPDATE SET source = CASE WHEN access_group_members.deleted_at IS NULL THEN access_group_members.source ELSE 'sso' END, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "96372db7b78427bc941d26c8a8083a8ac9eb8cb05f4e553c5b2419ce9e3d923b"
+}

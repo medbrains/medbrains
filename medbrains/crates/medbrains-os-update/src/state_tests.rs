@@ -40,7 +40,10 @@ fn reconcile_always_ends_in_a_stage_that_is_true() {
                     state.reconcile(current, on_trial, 7);
                     assert!(!matches!(state.stage, Stage::Fetching | Stage::Writing));
                     if state.stage == Stage::Applied {
-                        assert!(on_trial && current == "2.0.0", "{stage:?} {current} {on_trial}");
+                        assert!(
+                            on_trial && current == "2.0.0",
+                            "{stage:?} {current} {on_trial}"
+                        );
                     }
                     if state.stage == Stage::Waiting {
                         assert_eq!(current, "1.0.0");
@@ -93,10 +96,7 @@ fn the_floor_never_falls() {
         Some("2.0.0")
     );
     assert_eq!(raised_floor(Some("2.0.0"), None).as_deref(), Some("2.0.0"));
-    assert_eq!(
-        raised_floor(None, Some("1.0.0")).as_deref(),
-        Some("1.0.0")
-    );
+    assert_eq!(raised_floor(None, Some("1.0.0")).as_deref(), Some("1.0.0"));
 }
 
 /// The failed list stays bounded, and a version that later succeeds leaves it.

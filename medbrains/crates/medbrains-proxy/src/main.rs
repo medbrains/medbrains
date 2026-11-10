@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use pingora_core::listeners::tls::TlsSettings;
 use pingora_core::prelude::*;
-use pingora_error::{Error, ErrorSource, ErrorType};
+use pingora_error::{Error, ErrorSource};
 use pingora_http::{RequestHeader, ResponseHeader, StatusCode};
 use pingora_proxy::{FailToProxy, ProxyHttp, Session, http_proxy_service};
 use std::collections::HashMap;
@@ -238,7 +238,7 @@ fn build_edge_policies(cfg: &ProxyConfig) -> Vec<EdgePolicy> {
     .map(|policy| EdgePolicy::from_config(policy, default_body_limit))
     .collect::<Vec<_>>();
 
-    policies.sort_by(|left, right| right.prefix.len().cmp(&left.prefix.len()));
+    policies.sort_by_key(|policy| std::cmp::Reverse(policy.prefix.len()));
     policies
 }
 
@@ -848,7 +848,7 @@ impl ProxyHttp for RedirectProxy {
         _session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        Err(Error::new(ErrorType::InternalError))
+        Err(Error::new(InternalError))
     }
 }
 

@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use crate::version::Version;
 
 const MAX_FAILED: usize = 8;
+/// The most of a health check's reason kept: a list of failed units can be long, and the record is bounded.
+const MAX_REASON_CHARS: usize = 600;
 
 /// Where an update has got to.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,7 +131,8 @@ impl State {
         match (self.stage, self.target.clone()) {
             (Stage::Fetching | Stage::Writing, target) => {
                 let version = target.map_or_else(String::new, |t| t.version);
-                let words = "The update was interrupted, and nothing changed. It can be started again.";
+                let words =
+                    "The update was interrupted, and nothing changed. It can be started again.";
                 self.finish(&version, Ending::Interrupted, words, now);
             }
             (Stage::Waiting | Stage::Applied, Some(target)) if target.version == current => {
@@ -188,7 +191,7 @@ impl State {
     /// The running version failed its checks: the old system reports it after the restart.
     pub fn mark_failed_health(&mut self, reason: &str) {
         self.stage = Stage::Applied;
-        self.health_reason = Some(reason.to_owned());
+        self.health_reason = Some(reason.chars().take(MAX_REASON_CHARS).collect());
     }
 }
 

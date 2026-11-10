@@ -4,6 +4,7 @@ import { type DepartmentRow, P } from "@medbrains/types";
 import { IconBuilding, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { describeLoadError } from "@/components/QueryError";
 import { lookupsService } from "@/services/lookups.service";
 import { MiniAddDepartment } from "./admin/MiniAddDepartment";
 import { SearchOrCreate } from "./SearchOrCreate";
@@ -36,7 +37,7 @@ export function DepartmentSelect({
   const [search, setSearch] = useState("");
   const canCreate = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.CREATE);
 
-  const { data: departments = [] } = useQuery({
+  const { data: departments = [], error: loadError } = useQuery({
     queryKey: ["departments-list"],
     queryFn: () => lookupsService.listDepartments(),
     staleTime: 300_000,
@@ -95,7 +96,11 @@ export function DepartmentSelect({
       required={required}
       disabled={disabled}
       size={size}
-      error={error}
+      // A failed list is not "no departments": say it did not load and why.
+      error={
+        error ??
+        (loadError ? `Departments did not load. ${describeLoadError(loadError)}` : undefined)
+      }
       leftSection={<IconBuilding size={14} />}
       emptyLabel="No departments found"
       typeToSearchLabel="No departments found"

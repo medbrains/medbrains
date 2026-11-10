@@ -31,6 +31,7 @@
 //! to a response.
 
 pub mod audit;
+pub mod bounds;
 pub mod authz;
 mod claims;
 pub mod config;
@@ -63,6 +64,16 @@ impl Actor {
         Self {
             tenant_id: claims.tenant_id,
             user_id: claims.sub,
+        }
+    }
+
+    /// No signed-in user: a background pass acting for the tenant itself
+    /// (an escalation timer, an outbox handler). Audit rows carry the nil
+    /// user, which reads as "the system", never as a person.
+    pub const fn system(tenant_id: Uuid) -> Self {
+        Self {
+            tenant_id,
+            user_id: Uuid::nil(),
         }
     }
 }

@@ -2,21 +2,11 @@
 // direct (walk-in) orders, each openable to its results.
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Card,
-  Group,
-  Modal,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
+import { Card, Group, Select, SimpleGrid, Stack, Text, Textarea, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { OpdLabOrderFormInput } from "@medbrains/schemas";
 import { opdLabOrderFormSchema } from "@medbrains/schemas";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   DuplicateOrderInfo,
   LabOrder,
@@ -39,7 +29,16 @@ import {
 import { LabOrderResults } from "@/components/Lab/LabOrderResults";
 import { RadiologyReportList } from "@/components/Radiology/RadiologyReportList";
 import { StudyImageActions } from "@/components/Radiology/StudyImageActions";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  IconButton,
+  Modal,
+  Table,
+  toast,
+} from "@/components/ui";
 import {
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
   OPD_LAB_PRIORITY_OPTIONS,
@@ -114,6 +113,11 @@ export function InvestigationsTab({
   // `/patients/{id}/lab-orders` answers `lab.orders.list`; without it the
   // query is not issued and the card says so rather than "nothing ordered".
   const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
+  const canReadLabCatalog = useHasAnyPermission([
+    P.LAB.ORDERS_LIST,
+    P.LAB.ORDERS_CREATE,
+    P.CAMP.LAB_MANAGE,
+  ]);
   // `cancel_order`: lab.orders.create, and the order is yours or you are the lab desk.
   const canCancelLab = useCanCancelOrder(P.LAB.ORDERS_CREATE, P.LAB.ORDERS_CANCEL_ANY);
   const [openVisitOrders, toggleVisitOrder] = useToggleSet();
@@ -140,11 +144,13 @@ export function InvestigationsTab({
   const { data: catalog = [] } = useQuery<LabTestCatalog[]>({
     queryKey: ["lab-catalog"],
     queryFn: () => opdService.listLabCatalog(),
+    enabled: canReadLabCatalog,
   });
 
   const { data: ordersResponse } = useQuery<LabOrderListResponse>({
     queryKey: ["lab-orders", encounterId],
     queryFn: () => opdService.listLabOrders({ encounter_id: encounterId }),
+    enabled: canListLabOrders,
   });
   const orders = ordersResponse?.orders ?? [];
 

@@ -66,6 +66,13 @@ export const nurseActivitiesService = {
     api.listCodeBlueResponders(...args),
   respondToCodeBlue: (...args: Parameters<typeof api.respondToCodeBlue>) =>
     api.respondToCodeBlue(...args),
+  getCodeBlueTeam: () => api.getCodeBlueTeam(),
+  addCodeBlueTeamMember: (...args: Parameters<typeof api.addCodeBlueTeamMember>) =>
+    api.addCodeBlueTeamMember(...args),
+  removeCodeBlueTeamMember: (...args: Parameters<typeof api.removeCodeBlueTeamMember>) =>
+    api.removeCodeBlueTeamMember(...args),
+  updateCodeBlueTeamSettings: (...args: Parameters<typeof api.updateCodeBlueTeamSettings>) =>
+    api.updateCodeBlueTeamSettings(...args),
   listEquipmentChecks: (...args: Parameters<typeof api.listEquipmentChecks>) =>
     api.listEquipmentChecks(...args),
   createEquipmentCheck: (...args: Parameters<typeof api.createEquipmentCheck>) =>

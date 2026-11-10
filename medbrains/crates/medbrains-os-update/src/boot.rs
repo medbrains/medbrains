@@ -21,14 +21,20 @@ const HEALTH_POLL: Duration = Duration::from_secs(5);
 const SERVER_HEALTH: &str = "http://127.0.0.1:3000/api/health";
 const ROLE_MAIN: &str = "/var/lib/medbrains/config/role-main";
 /// Must be running on every machine, whenever they are enabled.
-const ALWAYS_UNITS: [&str; 4] = [
+const ALWAYS_UNITS: [&str; 3] = [
     "nftables.service",
     "medbrains-os-setup.service",
     "cage-console.service",
-    "kanidmd.service",
 ];
+/// Must also be running on a main machine, whenever they are enabled. Not on a node: presets enable
+/// kanidmd everywhere and its condition skips it on a node, which must not read as a failed update.
+const MAIN_ENABLED_UNITS: [&str; 1] = ["kanidmd.service"];
 /// Must also be running on a main machine.
-const MAIN_UNITS: [&str; 2] = ["postgresql@17-main.service", "medbrains-server.service"];
+const MAIN_UNITS: [&str; 3] = [
+    "postgresql@17-main.service",
+    "medbrains-server.service",
+    "medbrains-front.service",
+];
 /// Exists only when the loader started this boot from a counted entry.
 const BOOT_COUNT_VARIABLE: &str =
     "/sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f";
@@ -46,14 +52,13 @@ fn unit_answer(verb: &str, unit: &str) -> String {
 /// that can't be asked counts as not healthy.
 fn health_problem() -> Option<String> {
     let root = disk::run_text("findmnt", &["-no", "SOURCE", "/"], USUAL_LIMIT).ok()?;
-    let var = disk::run_text("findmnt", &["-no", "SOURCE", "/var"], USUAL_LIMIT).unwrap_or_default();
+    let var =
+        disk::run_text("findmnt", &["-no", "SOURCE", "/var"], USUAL_LIMIT).unwrap_or_default();
     if var.is_empty() || var == root {
         return Some("The data disk is not mounted.".to_owned());
     }
-    for unit in ALWAYS_UNITS {
-        if unit_answer("is-enabled", unit) == "enabled" && unit_answer("is-active", unit) != "active" {
-            return Some(format!("{unit} is not running."));
-        }
+    if let Some(unit) = stopped_enabled_unit(&ALWAYS_UNITS) {
+        return Some(format!("{unit} is not running."));
     }
     let failed = disk::run_text(
         "systemctl",
@@ -70,14 +75,28 @@ fn health_problem() -> Option<String> {
     None
 }
 
+/// The first of `units` that is enabled and not running.
+fn stopped_enabled_unit<'a>(units: &[&'a str]) -> Option<&'a str> {
+    units.iter().copied().find(|unit| {
+        unit_answer("is-enabled", unit) == "enabled" && unit_answer("is-active", unit) != "active"
+    })
+}
+
 /// The first reason the main machine's server isn't healthy, or `None`.
 fn server_problem() -> Option<String> {
+    if let Some(unit) = stopped_enabled_unit(&MAIN_ENABLED_UNITS) {
+        return Some(format!("{unit} is not running."));
+    }
     for unit in MAIN_UNITS {
         if unit_answer("is-active", unit) != "active" {
             return Some(format!("{unit} is not running."));
         }
     }
-    let answer = disk::run_text("curl", &["-sS", "-m", "8", SERVER_HEALTH], Duration::from_secs(12));
+    let answer = disk::run_text(
+        "curl",
+        &["-sS", "-m", "8", SERVER_HEALTH],
+        Duration::from_secs(12),
+    );
     match answer {
         Ok(text) if health_says_ok(&text) => None,
         Ok(_) => Some("The server says its database is not working.".to_owned()),
@@ -131,7 +150,11 @@ pub fn health() -> Result<(), String> {
         state.mark_failed_health(&reason);
         drop(state.save(path));
     }
-    drop(child::run("/usr/lib/systemd/systemd-bless-boot", &["bad"], USUAL_LIMIT));
+    drop(child::run(
+        "/usr/lib/systemd/systemd-bless-boot",
+        &["bad"],
+        USUAL_LIMIT,
+    ));
     disk::run_text("systemctl", &["reboot"], USUAL_LIMIT)?;
     Err(reason)
 }
@@ -171,7 +194,11 @@ pub fn apply() -> Result<(), String> {
     let _lock = install::lock()?;
     let path = Path::new(paths::STATE_FILE);
     let mut state = State::load(path)?;
-    let Some(target) = state.target.clone().filter(|_| state.stage == Stage::Waiting) else {
+    let Some(target) = state
+        .target
+        .clone()
+        .filter(|_| state.stage == Stage::Waiting)
+    else {
         return Err("No update is waiting.".to_owned());
     };
     let staged = install::staged_boot_path(&target.version);
@@ -227,7 +254,8 @@ pub fn deadline() -> Result<(), String> {
         .next()
         .and_then(|n| n.parse::<u64>().ok())
         .ok_or_else(|| "/proc/uptime can't be read.".to_owned())?;
-    let limit = seconds_setting(paths::HEALTH_SECONDS_FILE, HEALTH_SECONDS) + DEADLINE_MARGIN_SECONDS;
+    let limit =
+        seconds_setting(paths::HEALTH_SECONDS_FILE, HEALTH_SECONDS) + DEADLINE_MARGIN_SECONDS;
     if elapsed < limit {
         return Ok(());
     }
@@ -322,7 +350,9 @@ mod tests {
     #[test]
     fn only_an_ok_status_counts_as_healthy() {
         assert!(health_says_ok(r#"{"status":"ok","postgres":"connected"}"#));
-        assert!(!health_says_ok(r#"{"status":"degraded","postgres":"disconnected"}"#));
+        assert!(!health_says_ok(
+            r#"{"status":"degraded","postgres":"disconnected"}"#
+        ));
         assert!(!health_says_ok("<html>502</html>"));
         assert!(!health_says_ok(""));
     }

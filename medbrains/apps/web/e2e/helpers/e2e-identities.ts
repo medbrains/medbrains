@@ -73,9 +73,15 @@ export async function loginForSession(
   username: string,
   password: string,
 ): Promise<AuthSession> {
-  const resp = await request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
-    data: { username, password },
-  });
+  const signIn = () =>
+    request.post(`${E2E_BACKEND_URL}/api/auth/login`, { data: { username, password } });
+  let resp = await signIn();
+  // Five sign-ins a minute per address: the teardown after a journey with
+  // several staff meets it. Wait it out, a few times.
+  for (let attempt = 0; resp.status() === 429 && attempt < 4; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+    resp = await signIn();
+  }
   if (resp.status() !== 200) {
     throw new Error(`E2E login failed for ${username}: ${resp.status()} ${await resp.text()}`);
   }

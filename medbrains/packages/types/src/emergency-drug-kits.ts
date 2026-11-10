@@ -288,7 +288,32 @@ export interface SignedRecord {
   display_image_snapshot: string | null;
   display_block: string | null;
   legal_class: "administrative" | "clinical" | "medico_legal" | "statutory_export";
+  /** When the signer last opened this exact content on the review screen. */
+  reviewed_at: string | null;
   created_at: string;
+}
+
+/** Who signs a record type as its author (`signable.rs` `Signer`). */
+export type SignableSigner = "doctor" | "nurse" | "anaesthetist" | "pathologist" | "radiologist";
+
+/** One record type the server signs: `GET /api/signatures/types`. */
+export interface SignableTypeInfo {
+  record_type: string;
+  label: string;
+  signer: SignableSigner;
+  legal_class: "administrative" | "clinical" | "medico_legal" | "statutory_export";
+  /** Always true: every signature needs a fresh password step-up. */
+  step_up: boolean;
+}
+
+/** What the review screen needs to name the record it is signing. */
+export interface SignTarget {
+  record_type: string;
+  record_id: string;
+  created_at?: string;
+  patient_name?: string | null;
+  uhid?: string | null;
+  summary?: string | null;
 }
 
 export interface SignRequest {

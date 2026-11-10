@@ -92,14 +92,6 @@ const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
     permissions::mrd::case_sheets::GENERATE,
 ];
 
-fn claims_have_permission(claims: &Claims, permission: &str) -> bool {
-    medbrains_server_core::middleware::authorization::is_bypass_role(claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|granted| granted == permission)
-}
-
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
 // ══════════════════════════════════════════════════════════
@@ -352,6 +344,56 @@ pub struct PrescriptionItemInput {
     pub route: Option<String>,
     pub instructions: Option<String>,
     pub catalog_item_id: Option<Uuid>,
+    /// Chosen on purpose: the hospital does not stock it and the patient
+    /// buys it outside. Never inferred from a missing catalogue id.
+    #[serde(default)]
+    pub buy_outside: bool,
+}
+
+/// Refuses a buy-outside line that names a catalogue item or no medicine:
+/// a stocked item is dispensed here, and an outside one needs its name.
+///
+/// # Errors
+/// `BadRequest` naming the line.
+fn check_buy_outside_lines(items: &[PrescriptionItemInput]) -> Result<(), AppError> {
+    let bad = items
+        .iter()
+        .find(|i| i.buy_outside && (i.catalog_item_id.is_some() || i.drug_name.trim().is_empty()));
+    bad.map_or(Ok(()), |i| {
+        Err(AppError::BadRequest(format!(
+            "\"{}\" is marked buy outside: give its name and leave the catalogue item empty.",
+            i.drug_name.trim()
+        )))
+    })
+}
+
+/// Writes one prescription line, with who marked it bought outside.
+async fn insert_prescription_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    prescription_id: Uuid,
+    item: &PrescriptionItemInput,
+) -> Result<PrescriptionItem, AppError> {
+    sqlx::query_as::<_, PrescriptionItem>(
+        "INSERT INTO prescription_items \
+         (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
+          route, instructions, catalog_item_id, buy_outside, buy_outside_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(prescription_id)
+    .bind(item.drug_name.trim())
+    .bind(&item.dosage)
+    .bind(&item.frequency)
+    .bind(&item.duration)
+    .bind(&item.route)
+    .bind(&item.instructions)
+    .bind(item.catalog_item_id)
+    .bind(item.buy_outside)
+    .bind(item.buy_outside.then_some(claims.sub))
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(AppError::from)
 }
 
 #[derive(Debug, Serialize)]
@@ -1112,9 +1154,11 @@ pub async fn get_encounter(
 ) -> Result<Json<Encounter>, AppError> {
     require_any_permission(&claims, OPD_ENCOUNTER_WORKSPACE_PERMISSIONS)?;
 
-    if claims_have_permission(&claims, permissions::opd::queue::VIEW)
-        && !medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
-    {
+    // The record check binds everyone who is not a bypass role. It used to
+    // run only for holders of `opd.queue.view`, so lab, pharmacy and
+    // radiology staff (who hold other workspace permissions) read any visit
+    // by id with no check at all.
+    if !medbrains_server_core::middleware::authorization::is_bypass_role(&claims) {
         let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
         medbrains_server_core::middleware::authorization::collapse(
             medbrains_server_core::middleware::authorization::outcome_of(
@@ -1465,15 +1509,14 @@ async fn charge_visit_fees(
         moment,
     )
     .await?;
-    if q.kind == "returned"
-        || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await?
-        || !medbrains_server_services::billing::is_auto_billing_enabled(
-            tx,
-            &claims.tenant_id,
-            "opd",
-        )
-        .await?
-    {
+    if q.kind == "returned" || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await? {
+        return Ok(());
+    }
+    // Setting first: the department and price lookups run only when billing
+    // is not off.
+    let setting =
+        medbrains_server_services::billing::read_auto_billing(tx, &claims.tenant_id, "opd").await?;
+    if setting == medbrains_server_services::billing::AutoBilling::Off {
         return Ok(());
     }
     let dept_code = sqlx::query_scalar::<_, String>(
@@ -1495,22 +1538,30 @@ async fn charge_visit_fees(
         q.department_id,
     )
     .await?;
-    let _ = medbrains_server_services::billing::auto_charge(
+    // `charge_or_queue` reads `auto_charge_opd`; a consult it cannot post
+    // waits on the billing desk's attention queue.
+    medbrains_server_services::billing::settle_charges(
         tx,
-        &claims.tenant_id,
-        medbrains_server_services::billing::AutoChargeInput {
-            patient_id,
-            encounter_id: Some(q.encounter_id),
-            charge_code,
-            source: "opd".to_owned(),
-            source_id: q.id,
-            quantity: 1,
-            description_override: Some(priced.description),
-            unit_price_override: priced.price,
-            tax_percent_override: None,
-        },
+        setting,
+        &[medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "opd",
+            charge: medbrains_server_services::billing::AutoChargeInput {
+                patient_id,
+                encounter_id: Some(q.encounter_id),
+                charge_code,
+                source: "opd".to_owned(),
+                source_id: q.id,
+                quantity: 1,
+                description_override: Some(priced.description),
+                unit_price_override: priced.price,
+                tax_percent_override: None,
+            },
+            apply_concessions: false,
+        }],
     )
-    .await;
+    .await?;
     Ok(())
 }
 
@@ -2637,7 +2688,7 @@ pub async fn create_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -2650,13 +2701,14 @@ pub async fn create_prescription(
     )?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
             "At least one prescription item is required".to_owned(),
         ));
     }
+    check_buy_outside_lines(&body.items)?;
 
     let order_mode = body.order_mode.as_deref().unwrap_or("written");
     if !["written", "verbal", "telephone"].contains(&order_mode) {
@@ -3017,24 +3069,7 @@ pub async fn create_prescription(
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
-        let pi = sqlx::query_as::<_, PrescriptionItem>(
-            "INSERT INTO prescription_items \
-             (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
-              route, instructions, catalog_item_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-        )
-        .bind(claims.tenant_id)
-        .bind(rx.id)
-        .bind(&item.drug_name)
-        .bind(&item.dosage)
-        .bind(&item.frequency)
-        .bind(&item.duration)
-        .bind(&item.route)
-        .bind(&item.instructions)
-        .bind(item.catalog_item_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        items.push(pi);
+        items.push(insert_prescription_item(&mut tx, &claims, rx.id, item).await?);
     }
 
     // Antimicrobial stewardship + formulary (NABH AMS / DTC): a Reserve
@@ -3133,20 +3168,11 @@ pub async fn create_prescription(
 
     tx.commit().await?;
 
-    // The prescription reached the pharmacy's queue: pharmacy staff reach the
-    // patient through this visit to dispense it.
-    if pharmacy_rx_queue_id.is_some() {
-        medbrains_authz_gate::hand_off(
-            &state,
-            &claims,
-            medbrains_authz_gate::HandOff {
-                object_type: "encounter",
-                object_id: encounter_id,
-                department_code: medbrains_authz_gate::PHARMACY,
-            },
-        )
-        .await?;
-    }
+    // The prescription reached the pharmacy's queue. The queue is scoped by
+    // the pharmacy's own permission, and what dispensing needs of the patient
+    // goes through `require_patient_pharmacy_access`. The visit is NOT handed
+    // to the Pharmacy department: that tuple opened the patient's whole
+    // record to the department, with no end (migration 1413 revokes them).
 
     let rx_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
@@ -3189,7 +3215,7 @@ pub async fn update_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<UpdatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -3211,13 +3237,14 @@ pub async fn update_prescription(
     )
     .await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
             "At least one prescription item is required".to_owned(),
         ));
     }
+    check_buy_outside_lines(&body.items)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3277,24 +3304,7 @@ pub async fn update_prescription(
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
-        let pi = sqlx::query_as::<_, PrescriptionItem>(
-            "INSERT INTO prescription_items \
-             (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
-              route, instructions, catalog_item_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-        )
-        .bind(claims.tenant_id)
-        .bind(id)
-        .bind(&item.drug_name)
-        .bind(&item.dosage)
-        .bind(&item.frequency)
-        .bind(&item.duration)
-        .bind(&item.route)
-        .bind(&item.instructions)
-        .bind(item.catalog_item_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        items.push(pi);
+        items.push(insert_prescription_item(&mut tx, &claims, id, item).await?);
     }
 
     // An edit is held to the same stewardship and formulary rules as a new
@@ -6140,6 +6150,7 @@ pub struct AdmitFromOpdResponse {
 pub async fn admit_from_opd(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
@@ -6303,11 +6314,27 @@ pub async fn admit_from_opd(
     .execute(&mut *tx)
     .await?;
 
-    // 7. Copy prescriptions from OPD to IPD (prescriptions + items)
+    // 7. Copy prescriptions from OPD to IPD (prescriptions + items). Copying
+    // writes prescriptions on the inpatient visit, so a visit that has any
+    // needs the admitting user's fresh step-up, as prescribing does; one with
+    // none admits without the password. Refused, the transaction is dropped.
+    // The gate and the copy read the same rows (live prescriptions only): a
+    // deleted OPD prescription is never revived as a live inpatient one.
+    let has_prescriptions = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM prescriptions
+            WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL) AS "exists!""#,
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if has_prescriptions {
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
+    }
     let prescriptions_result = sqlx::query(
         "WITH src AS ( \
            SELECT id AS old_id FROM prescriptions \
-           WHERE encounter_id = $1 AND tenant_id = $3 \
+           WHERE encounter_id = $1 AND tenant_id = $3 AND deleted_at IS NULL \
          ), new_rx AS ( \
            INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, notes) \
            SELECT p.tenant_id, $2, p.doctor_id, p.notes \

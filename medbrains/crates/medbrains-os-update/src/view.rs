@@ -26,7 +26,9 @@ fn headline(state: &State) -> String {
         Stage::Fetching => format!("Downloading and checking version {version}."),
         Stage::Writing => format!("Installing version {version}. The machine keeps working."),
         Stage::Waiting if target.is_some_and(|t| t.security) => {
-            format!("A security fix, version {version}, is ready. Restart when you can: nothing restarts this machine while it is in use.")
+            format!(
+                "A security fix, version {version}, is ready. Restart when you can: nothing restarts this machine while it is in use."
+            )
         }
         Stage::Waiting => format!("Version {version} is ready and waits for a restart."),
         Stage::Applied => format!("Checking that version {version} works."),
@@ -66,7 +68,11 @@ pub fn view() -> Value {
     let release = fs::read_to_string("/usr/lib/os-release").unwrap_or_default();
     let current = image_version(&release).unwrap_or("unknown");
     let has_keys = !manifest::load_keys(Path::new(paths::KEYS_DIR)).is_empty();
-    let setting = |path: &str| fs::read_to_string(path).ok().map(|text| text.trim().to_owned());
+    let setting = |path: &str| {
+        fs::read_to_string(path)
+            .ok()
+            .map(|text| text.trim().to_owned())
+    };
     let (url, window) = (setting(paths::URL_FILE), setting(paths::WINDOW_FILE));
     match State::load(Path::new(paths::STATE_FILE)) {
         Ok(state) => build_view(&state, current, has_keys, url.as_deref(), window.as_deref()),
@@ -107,7 +113,9 @@ mod tests {
     #[test]
     fn a_security_fix_is_urged_without_a_threat() {
         assert!(headline(&waiting(true)).contains("security fix"));
-        assert!(headline(&waiting(true)).contains("nothing restarts this machine while it is in use"));
+        assert!(
+            headline(&waiting(true)).contains("nothing restarts this machine while it is in use")
+        );
         assert!(!headline(&waiting(false)).contains("security"));
     }
 

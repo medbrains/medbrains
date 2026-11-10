@@ -51,7 +51,9 @@ export function RichTextEditor({
 
   // Sync external value changes into the editor (external-system integration).
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
+    // A destroyed editor (its tab unmounted) has no schema left: getHTML()
+    // threw and took the doctor's whole visit screen down with it.
+    if (editor && !editor.isDestroyed && value !== editor.getHTML()) {
       editor.commands.setContent(value, { emitUpdate: false });
     }
   }, [value, editor]);

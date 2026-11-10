@@ -17,7 +17,10 @@ use crate::apps;
 /// screen sends it the first administrator's password and Wi-Fi passwords.
 const SERVICE: &str = "/run/medbrains-console/setup.sock";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
-const TIMEOUT: Duration = Duration::from_secs(10);
+/// Long enough for a new main machine to create its database while the screen waits.
+const TIMEOUT: Duration = Duration::from_secs(60);
+/// Making the first administrator and starting the machine: both wait for the identity provider.
+const START_TIMEOUT: Duration = Duration::from_secs(150);
 /// Said when the service cannot be asked at all. A fault, so never shown as "no network".
 const NOT_ANSWERING: &str = "The machine's setup service is not answering. Try again in a moment.";
 
@@ -155,6 +158,9 @@ pub(crate) struct State {
     pub(crate) firewall: bool,
     #[serde(default)]
     pub(crate) update: UpdateStatus,
+    /// How the data disk is protected: "encrypted-tpm2", "encrypted-tpm2-pin",
+    /// "unencrypted-chosen" or "unknown".
+    pub(crate) disk: String,
     pub(crate) machine: Machine,
     pub(crate) network: Network,
 }
@@ -210,7 +216,12 @@ fn outcome(status: u16, body: Value) -> Result<Value, Failure> {
 /// One blocking exchange with the service.
 fn exchange(method: &str, path: &str, body: &str) -> Option<(u16, Value)> {
     let mut stream = UnixStream::connect(SERVICE).ok()?;
-    stream.set_read_timeout(Some(TIMEOUT)).ok()?;
+    let limit = if path.starts_with("/hospital") {
+        START_TIMEOUT
+    } else {
+        TIMEOUT
+    };
+    stream.set_read_timeout(Some(limit)).ok()?;
     stream.set_write_timeout(Some(TIMEOUT)).ok()?;
     let length = body.len();
     let request = format!(
@@ -394,7 +405,7 @@ mod tests {
     fn the_shell_understands_the_services_state() {
         let state: Result<State, _> = serde_json::from_value(json!({
             "set_up": true, "role": "main", "hospital": "City", "main_ready": false, "clock": "checking",
-            "timezone": "Asia/Kolkata", "firewall": true,
+            "timezone": "Asia/Kolkata", "firewall": true, "disk": "encrypted-tpm2",
             "machine": { "system": "running", "failed": [], "memory_total_kb": 10, "memory_available_kb": 5,  "disk_total": 8, "disk_used": 2 },
             "network": { "links": [{ "name": "en0", "kind": "ethernet", "cable": true, "addresses": ["10.0.2.15"], "speed_mbps": 1000 }],
                          "gateway": null, "default_link": null, "preferred": null, "fixed": false },
