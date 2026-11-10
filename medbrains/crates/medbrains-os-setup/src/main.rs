@@ -396,6 +396,9 @@ fn main() -> io::Result<()> {
         machine::remove_abandoned_seed(),
     );
     machine::start_identity_for_setup();
+    if machine::is_node() {
+        node::drop_identity_provider();
+    }
     let state = Arc::new(State {
         network_change: AtomicU64::new(0),
         network_pending: AtomicBool::new(false),
