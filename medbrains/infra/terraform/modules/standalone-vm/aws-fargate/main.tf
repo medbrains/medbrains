@@ -57,6 +57,7 @@ data "aws_subnets" "default" {
 # ── Networking ────────────────────────────────────────────────────────
 
 resource "aws_security_group" "alb" {
+  #checkov:skip=CKV_AWS_260: port 80 is public on purpose - ACME HTTP-01 and the HTTP->HTTPS redirect
   name        = "${var.hostname}-alb-sg"
   description = "ALB ingress 80/443"
   vpc_id      = data.aws_vpc.default.id
@@ -75,17 +76,20 @@ resource "aws_security_group" "alb" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  # The ALB only ever opens connections to its targets.
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "To Fargate tasks on the app port"
+    from_port   = var.container_port
+    to_port     = var.container_port
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.default.cidr_block]
   }
 
   tags = local.tags
 }
 
 resource "aws_security_group" "service" {
+  #checkov:skip=CKV_AWS_382: the app reaches ECR, Secrets Manager, CloudWatch Logs and the hospital-configured integrations (SMTP on any port, HL7/DICOM, ABDM/NHCX, LDAP) whose hosts and ports are set at runtime in the admin UI; outbound control for those belongs to the hospital's firewall
   name        = "${var.hostname}-svc-sg"
   description = "Fargate task ingress from ALB"
   vpc_id      = data.aws_vpc.default.id
@@ -98,6 +102,7 @@ resource "aws_security_group" "service" {
     security_groups = [aws_security_group.alb.id]
   }
   egress {
+    description = "Outbound: AWS APIs, Postgres, hospital integrations"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -119,28 +124,30 @@ resource "aws_security_group" "db" {
     protocol        = "tcp"
     security_groups = [aws_security_group.service.id]
   }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # RDS never opens connections; replies to the task are stateful.
+  egress = []
 
   tags = local.tags
 }
 
 # ── ALB ───────────────────────────────────────────────────────────────
 
-resource "aws_lb" "this" {
-  name               = "${var.hostname}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets            = data.aws_subnets.default.ids
-  tags               = local.tags
+resource "aws_lb" "this" { # NOSONAR(S6258): request logging is the app's own access log in CloudWatch; ALB logs need a regional ELB-account bucket policy for a duplicate copy
+  #checkov:skip=CKV_AWS_91: request logging is the app's own access log in CloudWatch; ALB logs would be a second copy behind a regional ELB-account bucket policy
+  #checkov:skip=CKV2_AWS_28: WAF is a paid per-hospital add-on (web ACL + rules, ~$10/mo before traffic), not a default of the cheapest tier
+  #checkov:skip=CKV2_AWS_20: this scaffold tier has no ACM certificate yet, so there is no HTTPS listener to redirect to
+  name                       = "${var.hostname}-alb"
+  internal                   = false
+  load_balancer_type         = "application"
+  security_groups            = [aws_security_group.alb.id]
+  subnets                    = data.aws_subnets.default.ids
+  drop_invalid_header_fields = true
+  enable_deletion_protection = var.deletion_protection
+  tags                       = local.tags
 }
 
 resource "aws_lb_target_group" "this" {
+  #checkov:skip=CKV_AWS_378: TLS ends at the ALB; the task is reachable only from the ALB security group inside the VPC
   name        = "${var.hostname}-tg"
   port        = var.container_port
   protocol    = "HTTP"
@@ -160,9 +167,11 @@ resource "aws_lb_target_group" "this" {
 }
 
 resource "aws_lb_listener" "http" {
+  #checkov:skip=CKV_AWS_2: this scaffold tier has no ACM certificate yet; the HTTPS listener lands with it
+  #checkov:skip=CKV_AWS_103: no HTTPS listener until the tier has an ACM certificate
   load_balancer_arn = aws_lb.this.arn
   port              = 80
-  protocol          = "HTTP"
+  protocol          = "HTTP" # NOSONAR(S5332): scaffold tier has no ACM certificate yet; the HTTPS listener lands with it
 
   default_action {
     type             = "forward"
@@ -174,6 +183,14 @@ resource "aws_lb_listener" "http" {
 
 resource "aws_ecs_cluster" "this" {
   name = "${var.hostname}-cluster"
+
+  # Per-task CPU/memory/restart metrics; the service-level alarms read
+  # nothing finer than this.
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+
   tags = local.tags
 }
 
@@ -233,7 +250,7 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
 
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/ecs/${var.hostname}"
-  retention_in_days = 30
+  retention_in_days = 365
   kms_key_id        = local.audit_kms_key_arn
   tags              = local.tags
 }
@@ -278,6 +295,7 @@ resource "aws_ecs_task_definition" "this" {
 data "aws_region" "current" {}
 
 resource "aws_ecs_service" "this" {
+  #checkov:skip=CKV_AWS_333: the default VPC has no NAT gateway, so the task needs a public IP to pull its image and reach Secrets Manager; inbound is still only the ALB security group
   name             = var.hostname
   cluster          = aws_ecs_cluster.this.id
   task_definition  = aws_ecs_task_definition.this.arn
@@ -431,7 +449,44 @@ variable "deletion_protection" {
   description = "true also forces a final snapshot on destroy. Set false in non-prod so teardown succeeds."
 }
 
+
+# Slow statements (>1 s) and every DDL go to the instance log, exported to
+# CloudWatch below. Both parameters are dynamic: no reboot to change them,
+# though attaching the group to an existing instance shows pending-reboot
+# until its next maintenance reboot.
+resource "aws_db_parameter_group" "this" {
+  name   = "${var.hostname}-pg17"
+  family = "postgres17"
+
+  parameter {
+    name  = "log_statement"
+    value = "ddl"
+  }
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+  # Already the Postgres 15+ default; pinned so a later family cannot
+  # quietly accept plaintext connections (DATABASE_URL uses sslmode=require).
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
+
+  tags = local.tags
+}
+
+# Created ahead of the export so RDS does not make a never-expiring group.
+resource "aws_cloudwatch_log_group" "postgresql" {
+  name              = "/aws/rds/instance/${var.hostname}-pg/postgresql"
+  retention_in_days = 365
+  kms_key_id        = local.audit_kms_key_arn
+  tags              = local.tags
+}
+
 resource "aws_db_instance" "this" {
+  #checkov:skip=CKV_AWS_118: enhanced monitoring needs its own IAM role and bills per-second OS metrics; basic RDS metrics plus the alarms in alarms.tf cover this single-instance tier
+  #checkov:skip=CKV_AWS_353: Performance Insights is not offered on the micro/small burstable classes this tier defaults to; turn it on with a class that supports it
   identifier        = "${var.hostname}-pg"
   engine            = "postgres"
   engine_version    = "17.2"
@@ -440,26 +495,33 @@ resource "aws_db_instance" "this" {
   # Storage-full puts Postgres read-only: writes fail, reads succeed, so
   # the screen stays alive while nothing is being recorded. Autoscaling
   # removes the failure mode; the alarm below only reports the ceiling.
-  max_allocated_storage     = 80
-  storage_type              = "gp3"
-  storage_encrypted         = true
-  kms_key_id                = local.db_kms_key_arn
-  db_name                   = "medbrains"
-  username                  = "medbrains_admin"
-  password                  = random_password.db.result
-  multi_az                  = var.multi_az
-  publicly_accessible       = false
-  db_subnet_group_name      = aws_db_subnet_group.this.name
-  vpc_security_group_ids    = [aws_security_group.db.id]
-  backup_retention_period   = 7
-  final_snapshot_identifier = "${var.hostname}-pg-final-snapshot"
-  skip_final_snapshot       = !var.deletion_protection
-  deletion_protection       = var.deletion_protection
+  max_allocated_storage               = 80
+  storage_type                        = "gp3"
+  storage_encrypted                   = true
+  kms_key_id                          = local.db_kms_key_arn
+  db_name                             = "medbrains"
+  username                            = "medbrains_admin"
+  password                            = random_password.db.result
+  multi_az                            = var.multi_az
+  publicly_accessible                 = false
+  db_subnet_group_name                = aws_db_subnet_group.this.name
+  vpc_security_group_ids              = [aws_security_group.db.id]
+  backup_retention_period             = 7
+  final_snapshot_identifier           = "${var.hostname}-pg-final-snapshot"
+  skip_final_snapshot                 = !var.deletion_protection
+  deletion_protection                 = var.deletion_protection
+  parameter_group_name                = aws_db_parameter_group.this.name
+  enabled_cloudwatch_logs_exports     = ["postgresql"]
+  iam_database_authentication_enabled = true
+  copy_tags_to_snapshot               = true
+  auto_minor_version_upgrade          = true
 
-  tags = local.tags
+  depends_on = [aws_cloudwatch_log_group.postgresql]
+  tags       = local.tags
 }
 
 resource "aws_secretsmanager_secret" "db_url" {
+  #checkov:skip=CKV2_AWS_57: rotation needs a rotation Lambda and a task restart to pick up the new URL; schedule with an RDS-managed master password
   name                    = "${var.hostname}/database-url"
   kms_key_id              = local.secrets_kms_key_arn
   recovery_window_in_days = 30
@@ -474,8 +536,48 @@ resource "aws_secretsmanager_secret_version" "db_url" {
 # ── S3 hot bucket with lifecycle to STANDARD_IA ──────────────────────
 
 resource "aws_s3_bucket" "this" {
+  #checkov:skip=CKV_AWS_144: medical records live in one region; cross-region replication doubles storage and needs a second-region key and role; recovery is covered by versioning plus the RDS backups
+  #checkov:skip=CKV2_AWS_62: nothing consumes object events from this bucket
   bucket = "${var.hostname}-mrd"
   tags   = local.tags
+}
+
+# Versioned: an overwrite or delete of a medical record is recoverable.
+# Old versions expire with the lifecycle rule below.
+resource "aws_s3_bucket_versioning" "this" {
+  bucket = aws_s3_bucket.this.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_logging" "this" {
+  bucket        = aws_s3_bucket.this.id
+  target_bucket = module.access_logs.bucket_id
+  target_prefix = "mrd/"
+}
+
+# Refuse plain HTTP: every client (SDK, CLI, presigned URL) already uses TLS.
+resource "aws_s3_bucket_policy" "this" {
+  bucket = aws_s3_bucket.this.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.this.arn, "${aws_s3_bucket.this.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.this]
+}
+
+module "access_logs" {
+  source      = "../../s3-access-logs"
+  bucket_name = "${var.hostname}-mrd-logs"
+  tags        = local.tags
 }
 
 resource "aws_s3_bucket_public_access_block" "this" {
@@ -509,6 +611,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
     transition {
       days          = var.hot_to_cold_days
       storage_class = "STANDARD_IA"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 365
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }

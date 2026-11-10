@@ -75,9 +75,17 @@ resource "aws_route53_health_check" "api" {
   }
 }
 
+# Route53 health-check alarms live in us-east-1, so the key does too.
+module "uptime_key" {
+  source    = "../sns-kms-key"
+  providers = { aws = aws.us_east_1 }
+  name      = "${var.name}-uptime-alerts"
+}
+
 resource "aws_sns_topic" "uptime" {
-  provider = aws.us_east_1
-  name     = "${var.name}-uptime-alerts"
+  provider          = aws.us_east_1
+  name              = "${var.name}-uptime-alerts"
+  kms_master_key_id = module.uptime_key.key_arn
 
   tags = {
     Project   = "medbrains"

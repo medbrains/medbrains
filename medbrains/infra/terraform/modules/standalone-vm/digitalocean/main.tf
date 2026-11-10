@@ -4,6 +4,10 @@ terraform {
       source  = "digitalocean/digitalocean"
       version = "~> 2.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.4"
+    }
   }
 }
 
@@ -21,7 +25,16 @@ variable "edge_proxy" {
 variable "region" { type = string }
 variable "size" { type = string }
 variable "image" { type = string }
-variable "ssh_public_keys" { type = list(string) }
+variable "ssh_public_keys" {
+  type        = list(string)
+  description = "Fingerprints of SSH keys registered in the DO account."
+  # A droplet created without a key gets a root password by email, and the
+  # provisioners below could not log in anyway.
+  validation {
+    condition     = length(var.ssh_public_keys) > 0
+    error_message = "ssh_public_keys must name at least one key registered in the DigitalOcean account."
+  }
+}
 variable "ssh_user" { type = string }
 variable "ssh_private_key" {
   type      = string
@@ -31,7 +44,26 @@ variable "binaries_dir" { type = string }
 variable "spa_dist_dir" { type = string }
 variable "deploy_kit_dir" { type = string }
 
+variable "ssh_allowed_cidrs" {
+  description = "CIDRs allowed to reach SSH. Empty = auto-detect the operator's current egress IP at plan time (never 0.0.0.0/0), as aws-ec2 does."
+  type        = list(string)
+  default     = []
+}
+
+locals {
+  ssh_cidrs = length(var.ssh_allowed_cidrs) > 0 ? var.ssh_allowed_cidrs : [
+    "${trimspace(data.http.operator_ip[0].response_body)}/32"
+  ]
+}
+
+# The provisioners SSH in from wherever `terraform apply` runs.
+data "http" "operator_ip" {
+  count = length(var.ssh_allowed_cidrs) == 0 ? 1 : 0
+  url   = "https://checkip.amazonaws.com"
+}
+
 resource "digitalocean_droplet" "this" {
+  #checkov:skip=CKV_DIO_2: ssh_keys comes from the caller (whose default is an empty list for non-DO shapes); the ssh_public_keys validation above refuses to plan without one
   name     = var.hostname
   region   = var.region
   size     = var.size
@@ -39,20 +71,24 @@ resource "digitalocean_droplet" "this" {
   ssh_keys = var.ssh_public_keys
 
   monitoring = true
-  ipv6       = true
-  tags       = ["medbrains", "medbrains-${var.hostname}"]
+  # Weekly droplet backups (+20% of the droplet price): this shape has no
+  # off-host backup bucket, so this is its only copy off the disk.
+  backups = true
+  ipv6    = true
+  tags    = ["medbrains", "medbrains-${var.hostname}"]
 }
 
 # Open the three ports MedBrains needs at the cloud-firewall layer.
 # Pingora owns 80/443 on the host.
 resource "digitalocean_firewall" "this" {
+  #checkov:skip=CKV_DIO_4: 80/443 are the public web entry (Pingora, ACME HTTP-01); SSH is limited to the operator CIDRs
   name        = "${var.hostname}-fw"
   droplet_ids = [digitalocean_droplet.this.id]
 
   inbound_rule {
     protocol         = "tcp"
     port_range       = "22"
-    source_addresses = ["0.0.0.0/0", "::/0"]
+    source_addresses = local.ssh_cidrs
   }
   inbound_rule {
     protocol         = "tcp"
