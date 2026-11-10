@@ -397,8 +397,18 @@ impl Vm {
             }
             sleep(POLL);
         }
-        let tail: String = shown.chars().rev().take(300).collect::<Vec<_>>().into_iter().rev().collect();
-        Err(format!("the screen never said: {text}; it ended: {}", tail.trim()))
+        let tail: String = shown
+            .chars()
+            .rev()
+            .take(300)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        Err(format!(
+            "the screen never said: {text}; it ended: {}",
+            tail.trim()
+        ))
     }
 
     /// Reads the recovery key off the screen, without confirming it.

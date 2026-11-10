@@ -357,7 +357,8 @@ fn answer_wrong_pins_until_key_asked(vm: &mut Vm) -> Result<(), String> {
         vm.type_text("wrongpin\n")?;
         sleep(scaled(SETTLE));
     }
-    vm.wait_for_screen(RECOVERY_PROMPT, scaled(SCREEN_LIMIT)).map(drop)
+    vm.wait_for_screen(RECOVERY_PROMPT, scaled(SCREEN_LIMIT))
+        .map(drop)
 }
 
 /// Past a PIN nobody knows: the first two answers go to the PIN prompt, and only then does the disk ask
