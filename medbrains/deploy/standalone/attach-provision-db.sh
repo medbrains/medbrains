@@ -7,7 +7,7 @@
 #
 # Why a dedicated role rather than reusing one that already works: on an
 # attached host the existing accounts own somebody else's data. The box this
-# was written for runs an ERP whose `alagappa_admin` owns two databases and
+# was written for runs an ERP whose `erp_admin` owns two databases and
 # 390,000 marks rows. Handing that account to a second application means any
 # bug in one can drop the other's tables, and it makes the audit question
 # "who wrote this row" unanswerable.

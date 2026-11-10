@@ -1,22 +1,22 @@
-email.alagappa.org {
+email.example-group.org {
     encode gzip
     reverse_proxy 127.0.0.1:8080
 
     # Optional: force HTTPS (Caddy handles ACME automatically)
-    tls admin@alagappa.org
+    tls admin@example-group.org
 }
 
-autodiscover.email.alagappa.org {
+autodiscover.email.example-group.org {
     reverse_proxy localhost:8080
 }
 
-charts.alagappa.org {
+charts.example-group.org {
     encode gzip
     reverse_proxy 127.0.0.1:8088
 }
 
 
-wiki.alagappa.org {
+wiki.example-group.org {
 
     encode gzip
 

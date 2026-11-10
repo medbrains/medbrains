@@ -1,20 +1,20 @@
-# `envs/standalone/alagappa/`
+# `envs/standalone/hospital-a/`
 
-End-to-end deploy of MedBrains for **Alagappa Hospital** at
-`hims.amh.org.in`. One reviewed Terraform plan produces:
+End-to-end deploy of MedBrains for **Example Hospital** at
+`hims.example-hospital.org`. One reviewed Terraform plan produces:
 
 1. An AWS EC2 instance in the configured region.
 2. Cloud firewall opening 22 / 80 / 443.
 3. Pre-built MedBrains binaries + SPA + deploy kit pushed to the host.
 4. `install.sh` run on the host (postgres-17, systemd units, Pingora
    edge proxy with Certbot-issued TLS).
-5. GoDaddy A record `hims.amh.org.in → <instance IP>`.
+5. GoDaddy A record `hims.example-hospital.org → <instance IP>`.
 
 Total wall time: 5-7 minutes.
 
 ## Manually-only prerequisites
 
-- Domain `amh.org.in` registered at GoDaddy (already done).
+- Domain `example-hospital.org` registered at GoDaddy (already done).
 - AWS account with the configured region enabled.
 - SSH keypair: generate `~/.ssh/medbrains-deploy` and add the public
   key to the DigitalOcean account under name `medbrains-deploy`.
@@ -22,7 +22,7 @@ Total wall time: 5-7 minutes.
   `medbrains-setup-tenant-dns`:
 
   ```sh
-  node medbrains/tools/setup-tenant-dns/src/index.mjs --tenant=alagappa
+  node medbrains/tools/setup-tenant-dns/src/index.mjs --tenant=hospital-a
   # Pick GoDaddy, paste API key + secret. Tool runs the API
   # pre-flight curl and aborts if the account doesn't qualify.
   ```
@@ -49,9 +49,9 @@ references these paths via `binaries_dir`, `spa_dist_dir`, and
 ## Run
 
 ```sh
-cd medbrains/infra/terraform/envs/standalone/alagappa
+cd medbrains/infra/terraform/envs/standalone/hospital-a
 cp terraform.tfvars.example terraform.tfvars   # edit the email
-source ~/.config/medbrains/alagappa.env         # or wherever your tokens live
+source ~/.config/medbrains/hospital-a.env         # or wherever your tokens live
 terraform init
 terraform plan
 terraform apply
@@ -62,7 +62,7 @@ Output:
 ```text
 public_ip    = "X.X.X.X"
 ssh_endpoint = "root@X.X.X.X"
-health_url   = "https://hims.amh.org.in/api/health"
+health_url   = "https://hims.example-hospital.org/api/health"
 ```
 
 Wait ~30 seconds for ACME, then `curl $health_url` returns

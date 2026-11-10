@@ -34,7 +34,7 @@ class HospitalBindingTest {
     ): String {
         val header = """{"alg":"EdDSA","typ":"$typ","kid":"0011223344556677"}"""
         val spkiField = spki?.let { ""","spki":"$it"""" } ?: ""
-        val payload = """{"v":1,"iss":"$apiBase","aud":"$aud","tenant":"AMH","tenant_name":"AMH Hospital",""" +
+        val payload = """{"v":1,"iss":"$apiBase","aud":"$aud","tenant":"HOSPA","tenant_name":"Example Hospital",""" +
             """"api_base":"$apiBase"$spkiField,"ik":"${b64.encodeToString(signer.public)}","jti":"bm9uY2Vub25jZW5vbmNl","iat":${now - 10},"exp":$exp}"""
         val input = b64.encodeToString(header.toByteArray()) + "." + b64.encodeToString(payload.toByteArray())
         return "medbrains://bind?t=$input." + b64.encodeToString(signer.sign(input.toByteArray()))
@@ -44,11 +44,11 @@ class HospitalBindingTest {
         try { block(); fail("expected the QR to be refused") } catch (_: BindingRefused) { }
     }
 
-    private fun stored(ikValue: String) = StoredBinding("AMH", "AMH Hospital", "https://hims.example.in", null, ikValue, "dev-1", now)
+    private fun stored(ikValue: String) = StoredBinding("HOSPA", "Example Hospital", "https://hims.example.in", null, ikValue, "dev-1", now)
 
     @Test fun a_signed_qr_is_parsed() {
         val verified = BindingVerifier.verify(qr(), now, null, allowCleartext = false)
-        assertEquals("AMH", verified.payload.tenant)
+        assertEquals("HOSPA", verified.payload.tenant)
         assertEquals("https://hims.example.in", verified.payload.api_base)
         assertEquals(ik, verified.payload.ik)
     }

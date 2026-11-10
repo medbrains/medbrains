@@ -55,7 +55,7 @@ function configFromEnv(overrides?: Partial<KiwiConfig>): KiwiConfig {
     url: overrides?.url ?? process.env["KIWI_URL"] ?? "https://medbrains-kiwi.localhost/xml-rpc/",
     username: overrides?.username ?? process.env["KIWI_USERNAME"] ?? "admin",
     password: overrides?.password ?? process.env["KIWI_PASSWORD"] ?? "admin",
-    productName: overrides?.productName ?? process.env["KIWI_PRODUCT"] ?? "Alagappa ERP",
+    productName: overrides?.productName ?? process.env["KIWI_PRODUCT"] ?? "Example ERP",
     productVersion: overrides?.productVersion ?? process.env["KIWI_VERSION"] ?? "1.0",
   };
 }

@@ -16,7 +16,7 @@ fn kavitha() -> KnownIdentifiers {
     k.add(Kind::Relative, Some("Murugan Subramanian"));
     k.add(Kind::Relative, Some("Selvi Ramasamy"));
     k.add(Kind::Phone, Some("9840012345"));
-    k.add(Kind::Uhid, Some("AMH-2026-004512"));
+    k.add(Kind::Uhid, Some("HOSPA-2026-004512"));
     k.add(Kind::Abha, Some("91-4411-2233-5566"));
     k.add(Kind::AbhaAddress, Some("kavitha.s@abdm"));
     k.add(Kind::Address, Some("14, Kamaraj Salai, Mylapore"));
@@ -39,7 +39,7 @@ fn a_tamil_nursing_note_leaves_no_one_identifiable() {
     let mut r = Redactor::new(PseudonymMap::default(), &kavitha(), today());
     let note = "Kavitha c/o chest pain since 2 days. Husband Murugan says she missed metformin. \
         Mother Selvi Ramasamy at bedside, mob 98400 12345. Seen by Dr Arunachalam Pillai. \
-        Discussed with Sr. Priya Venkatesan. UHID AMH-2026-004512, ABHA 91-4411-2233-5566 \
+        Discussed with Sr. Priya Venkatesan. UHID HOSPA-2026-004512, ABHA 91-4411-2233-5566 \
         (kavitha.s@abdm). Address 14, Kamaraj Salai, Mylapore. K+ 5.9, creatinine 1.8, \
         BP 150/90. Admitted 22/10/2026.";
     let out = r
@@ -60,7 +60,7 @@ fn a_tamil_nursing_note_leaves_no_one_identifiable() {
             "Pillai",
             "Priya",
             "Venkatesan",
-            "AMH-2026",
+            "HOSPA-2026",
             "4411",
             "kavitha.s",
             "Kamaraj",

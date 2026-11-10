@@ -13,7 +13,10 @@ import org.junit.Test
  * session; the app must read the question, not fail to decode a session.
  */
 class LoginAnswerTest {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
     private fun read(text: String) = readLoginAnswer(json, json.decodeFromString<JsonObject>(text))
 
     @Test
@@ -23,14 +26,21 @@ class LoginAnswerTest {
 
     @Test
     fun aSessionIsStillASession() {
-        val answer = read("""{"token":"t","user":{"id":"u","tenant_id":"h","username":"n","full_name":"N"},"permissions":[]}""")
+        val answer =
+            read(
+                """{"token":"t","user":{"id":"u","tenant_id":"h","username":"n","full_name":"N"},"permissions":[]}"""
+            )
         assertTrue(answer is LoginAnswer.SignedIn)
         assertEquals("h", (answer as LoginAnswer.SignedIn).session.user.tenant_id)
     }
 
     @Test
     fun theHospitalCodeIsSentOnlyWhenNamed() {
-        assertTrue(json.encodeToString(LoginRequest("n", "p", "AMH")).contains("\"hospital_code\":\"AMH\""))
+        assertTrue(
+            json.encodeToString(
+                LoginRequest("n", "p", "HOSPA")
+            ).contains("\"hospital_code\":\"HOSPA\"")
+        )
         assertFalse(json.encodeToString(LoginRequest("n", "p")).contains("hospital_code"))
     }
 }
