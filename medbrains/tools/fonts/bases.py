@@ -156,6 +156,14 @@ BASES = {
     ),
 }
 
+# IBM Plex Mono for printed documents' `.mono` text: IBM's own Latin-1 split file, unmodified, so it
+# keeps its name under the OFL (subsetting it ourselves would make a Modified Version that may not
+# be called Plex). Release @ibm/plex-mono@2.5.0, commit 2f9ba1b25957d958db71a849e85d72e3ecfb845a.
+_MONO_ZIP = "https://github.com/IBM/plex/releases/download/%40ibm/plex-mono%402.5.0/ibm-plex-mono.zip"
+_MONO_SHA = "6d23f01257663d8cc49a0d64c22ced630b79e0e2a0ac08a0da86e9a38bbc481c"
+PLEX_MONO_PRINT = Source(_MONO_ZIP, _MONO_SHA, "ibm-plex-mono/fonts/split/woff2/IBMPlexMono-Regular-Latin1.woff2")
+PLEX_MONO_LICENCE = Source(_MONO_ZIP, _MONO_SHA, "ibm-plex-mono/LICENSE.txt")
+
 NOTO = {
     "Devanagari": (
         Source(
