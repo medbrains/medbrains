@@ -13,6 +13,8 @@ const BOOT_TIMEOUT: Duration = Duration::from_secs(180);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const BOOT_ID: &str = "cat /proc/sys/kernel/random/boot_id";
 const POLL: Duration = Duration::from_secs(2);
+/// How much of the serial port a failed wait reports, so a stuck start says where it stopped.
+const SERIAL_TAIL: usize = 600;
 /// The debug shell's prompt.
 const PROMPT: &str = "root@medbrains";
 /// Guest ports reachable through QEMU, as host name and guest port.
@@ -513,7 +515,13 @@ impl Vm {
                 return Ok(());
             }
         }
-        Err("the machine showed no prompt in time".to_owned())
+        let text = strip_terminal_codes(&String::from_utf8_lossy(&raw));
+        let skip = text.chars().count().saturating_sub(SERIAL_TAIL);
+        let tail: String = text.chars().skip(skip).collect();
+        Err(format!(
+            "the machine showed no prompt in time; its serial port ended: {}",
+            tail.trim()
+        ))
     }
 
     /// Waits for the machine to restart by itself and show a shell, sending nothing where the
