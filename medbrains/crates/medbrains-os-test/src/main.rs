@@ -8,6 +8,7 @@
 
 mod disk;
 mod front;
+mod setup;
 mod tamper;
 mod update_channel;
 mod update_sealed;
@@ -35,8 +36,6 @@ const SYSCTLS: [(&str, &str); 6] = [
 ];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
-const SETUP_LIMIT: Duration = Duration::from_secs(150);
-const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const AGENT_API: &str = "http://127.0.0.1:3000/api/machine-agent";
 const AGENT_TOKEN: &str = "/var/lib/medbrains-agent/server-token";
 const TOKEN_HEADER: &str = "x-machine-agent-token";
@@ -513,41 +512,11 @@ fn checks() -> Vec<Check> {
     ]
 }
 
-/// Makes this machine a main machine, as the screen's Review does: nothing runs before that. The
-/// password is made fresh, so none is written down, and the machine is thrown away. The username is
-/// not `admin`, which setup refuses because Kanidm keeps it, and the password is a phrase, because
-/// Kanidm's strength check is what setup applies.
-fn set_up_main(vm: &mut Vm) -> Result<(), String> {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-    let body = format!(
-        r#"{{"hospital":"Test Hospital","username":"os_test_admin","password":"Night porter {stamp} keeps blue lanterns"}}"#
-    );
-    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
-    while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
-        ensure(Instant::now() < deadline, "the setup service never started")?;
-        std::thread::sleep(Duration::from_secs(2));
-    }
-    let answer = vm.run_for(
-        // The shell can answer before the setup service has opened its socket.
-        &format!(
-            "for i in $(seq 60); do test -S {SETUP_SOCKET} && break; sleep 1; done; curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"
-        ),
-        SETUP_LIMIT,
-    )?;
-    ensure(
-        answer.contains("\"ok\":true"),
-        format!("setup answered {answer}"),
-    )
-}
-
 /// Boots the image and runs every check, then the data disk scenarios; returns how many failed.
 fn run_suite(image: &Path) -> Result<usize, String> {
     let budgets: Value = serde_json::from_str(BUDGETS).map_err(|e| e.to_string())?;
     let mut vm = Vm::start(image)?;
-    set_up_main(&mut vm)?;
+    setup::set_up_main(&mut vm)?;
     vm.wait_for_server()?;
     let mut failed = 0;
     for (name, check) in checks() {
@@ -590,7 +559,7 @@ fn run_tamper(image: &Path) -> usize {
 /// Only the data disk scenarios, on a new machine.
 fn run_disk_only(image: &Path) -> Result<usize, String> {
     let mut vm = Vm::start(image)?;
-    set_up_main(&mut vm)?;
+    setup::set_up_main(&mut vm)?;
     let sealed = disk::run_sealed_disk(&mut vm, image)?;
     // One machine at a time: this one goes before the next starts.
     drop(vm);

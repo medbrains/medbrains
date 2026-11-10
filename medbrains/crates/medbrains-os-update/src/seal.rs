@@ -40,9 +40,12 @@ pub fn respond(intact: Option<bool>, on_trial: bool, previous: Option<String>) -
     }
 }
 
-/// Says `words` where a person and the logs will see them: the kernel log at a level the quiet
-/// command line still shows, which reaches the screen and the serial port.
+/// Says `words` where a person and the logs will see them: the console and the kernel log. Best
+/// effort: the action that follows must not wait on a screen.
 fn announce(words: &str) {
+    if let Ok(mut console) = OpenOptions::new().write(true).open("/dev/console") {
+        drop(writeln!(console, "\n{words}\n"));
+    }
     if let Ok(mut kmsg) = OpenOptions::new().write(true).open("/dev/kmsg") {
         drop(writeln!(kmsg, "<2>{words}"));
     }

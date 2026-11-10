@@ -10,10 +10,9 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use crate::update_steps;
 use crate::vm::{self, Vm, make_overlay};
+use crate::{setup, update_steps};
 
-const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const SETUP_LIMIT: Duration = Duration::from_secs(180);
 const POLL: Duration = Duration::from_secs(3);
 /// How long a new version gets here: long enough for the server, short enough to test a failure.
@@ -106,31 +105,6 @@ fn start_server(bundles: &Path, work: &Path) -> Result<(u16, Child, String), Str
     sleep(Duration::from_secs(1));
     let pem = std::fs::read_to_string(&cert).map_err(|e| e.to_string())?;
     Ok((port, server, pem))
-}
-
-/// Makes this machine a main machine the way the screen's Review does. The password is made fresh, so
-/// none is written down, and the machine is thrown away.
-fn set_up_main(vm: &mut Vm) -> Result<(), String> {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-    let body =
-        format!(r#"{{"hospital":"Test Hospital","username":"admin","password":"Os-{stamp}-Aa!"}}"#);
-    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
-    while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
-        ensure(Instant::now() < deadline, "the setup service never started")?;
-        sleep(POLL);
-    }
-    let answer = vm.run_for(
-        &format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"),
-        SETUP_LIMIT,
-    )?;
-    ensure(
-        answer.contains("\"ok\":true"),
-        format!("setup answered {answer}"),
-    )?;
-    vm.wait_for_server()
 }
 
 /// Writes what the scenarios later prove survived: a settings tree, a file of random bytes and a table.
@@ -313,7 +287,8 @@ pub(crate) fn run(image: &Path, bundles: &Path) -> Result<usize, String> {
         first,
         server,
     };
-    set_up_main(&mut vm)?;
+    setup::set_up_main(&mut vm)?;
+    vm.wait_for_server()?;
     write_canaries(&mut vm, &pem)?;
     vm.shut_down()?;
     let base = vm.disk();
