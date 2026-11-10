@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -36,6 +37,9 @@ def checks_for(path: str) -> dict[str, list[str]]:
         return {}
     checks: dict[str, list[str]] = {}
     if rel.startswith("crates/") and rel.endswith(".rs"):
+        # Format first, so the checks below and CI's "Rust format" job see clean code.
+        # Through stdin (sh -c), so only this file is formatted, not the modules it declares.
+        checks["rustfmt"] = ["sh", "-c", 'out=$(rustfmt --edition 2024 --config-path rustfmt.toml < "$1") || exit 0; [ "$out" = "$(cat "$1")" ] || printf "%s\\n" "$out" > "$1"', "rustfmt", rel]
         checks["authz-collapse"] = py("scripts/check_authz_collapse.py")
         checks["soft-delete-filter"] = py("scripts/check_soft_delete_filter.py")
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py", path)
@@ -48,12 +52,18 @@ def checks_for(path: str) -> dict[str, list[str]]:
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py")
     elif rel == "packages/api/src/client.ts":
         checks["api-contract"] = py("../scripts/check_api_contract.py")
-    elif rel.startswith("apps/web/src/") and rel.endswith((".ts", ".tsx")):
-        checks["biome"] = ["npx", "biome", "check", rel]
+    elif rel.startswith(("apps/web/src/", "packages/")) and rel.endswith((".ts", ".tsx")) and "/node_modules/" not in rel:
+        # --write applies Biome's formatting and safe fixes; what is left is reported.
+        checks["biome"] = ["npx", "biome", "check", "--write", rel]
         if rel.endswith(".tsx"):
             checks["raw-html"] = py("scripts/check_raw_html.py")
             checks["ui-seam"] = py("scripts/check_ui_seam.py")
             checks["ai-label"] = py("scripts/check_ai_label.py")
+    elif rel.startswith("apps/ios/") and rel.endswith(".swift"):
+        checks["swift-format"] = ["xcrun", "swift-format", "format", "--in-place",
+                                  "--configuration", "apps/ios/.swift-format", rel]
+    elif rel.startswith("apps/android/") and rel.endswith((".kt", ".kts")) and shutil.which("ktlint"):
+        checks["ktlint"] = ["ktlint", "--format", "--relative", rel]
     return checks
 
 
