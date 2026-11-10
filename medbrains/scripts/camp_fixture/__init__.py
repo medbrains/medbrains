@@ -1,1 +1,1 @@
-"""Loading the real Alagappa camp extract into MedBrains through its own API."""
+"""Loading the real Example camp extract into MedBrains through its own API."""

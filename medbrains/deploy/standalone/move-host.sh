@@ -18,7 +18,7 @@
 set -euo pipefail
 
 NEW="${1:?new host, e.g. app.medbrains.in}"
-OLD="${2:?old host, e.g. medbrains.amh.org.in}"
+OLD="${2:?old host, e.g. medbrains.example-hospital.org}"
 APPLY="${3:-}"
 ENV_FILE=/etc/medbrains/env
 CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"

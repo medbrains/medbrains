@@ -21,12 +21,12 @@ variable "hospital_id" {
 }
 
 variable "domain" {
-  description = "Public hostname the deployment serves (e.g. hims.amh.org.in)."
+  description = "Public hostname the deployment serves (e.g. hims.example-hospital.org)."
   type        = string
 }
 
 variable "zone_name" {
-  description = "Apex DNS zone (e.g. amh.org.in). Used by the env to write the A record."
+  description = "Apex DNS zone (e.g. example-hospital.org). Used by the env to write the A record."
   type        = string
 }
 

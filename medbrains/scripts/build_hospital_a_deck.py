@@ -1,5 +1,5 @@
 """
-Alagappa Hospital — In-House HMS Build Proposal.
+Example Hospital — In-House HMS Build Proposal.
 
 Research-driven. Real quotes, real vendor ages, real hidden costs.
 Forest + Copper theme. Opens in PowerPoint, Keynote, Google Slides.
@@ -139,7 +139,7 @@ def add_table(slide, x, y, w, h, rows, *, header_fill=FOREST,
 
 def add_footer(slide, num, total):
     add_text(slide, Inches(0.5), Inches(7.22), Inches(8), Inches(0.25),
-             "Alagappa Hospital  ·  In-House HMS Proposal  ·  May 2026",
+             "Example Hospital  ·  In-House HMS Proposal  ·  May 2026",
              font=MONO_FONT, size=8, color=DIMMED)
     add_text(slide, Inches(11.5), Inches(7.22), Inches(1.3), Inches(0.25),
              f"{num} / {total}", font=MONO_FONT, size=8,
@@ -937,7 +937,7 @@ add_runs(s, Inches(0.6), Inches(0.9), Inches(12.2), Inches(1.0),
           ("peer hospitals.", {"font": DISPLAY_FONT, "color": FOREST, "italic": True})],
          size=32)
 add_text(s, Inches(0.6), Inches(1.95), Inches(12), Inches(0.4),
-         "~12,000 mid-cap Indian hospitals paying ₹2–5 L/bed today. Alagappa as the seller, not Suvarna's salesman.",
+         "~12,000 mid-cap Indian hospitals paying ₹2–5 L/bed today. Example Hospital as the seller, not Suvarna's salesman.",
          size=13, color=DIMMED, italic=True)
 
 tier_rows = [
@@ -952,7 +952,7 @@ add_table(s, Inches(0.6), Inches(2.5), Inches(6.2), Inches(2.4),
 
 revenue_rows = [
     ("Year",  "Deployments", "Revenue (conservative)"),
-    ("Y1 (Alagappa internal)", "0",  "₹0"),
+    ("Y1 (Example Hospital internal)", "0",  "₹0"),
     ("Y2 — first reseller", "1",  "₹1 cr"),
     ("Y3", "3",  "₹2.5 cr"),
     ("Y4", "6",  "₹4.5 cr"),
@@ -966,7 +966,7 @@ add_table(s, Inches(7.0), Inches(2.5), Inches(5.8), Inches(2.9),
 
 add_card(s, Inches(0.6), Inches(5.65), Inches(12.2), Inches(1.45), FOG)
 add_text(s, Inches(0.85), Inches(5.78), Inches(11.6), Inches(0.4),
-         "Why Alagappa wins this market:",
+         "Why Example Hospital wins this market:",
          size=12, color=FOREST, bold=True)
 add_text(s, Inches(0.85), Inches(6.13), Inches(11.6), Inches(0.4),
          "✓  Peer-hospital trust beats vendor sales · ✓  Best reference call after 12 months live",
@@ -991,7 +991,7 @@ asks = [
     ("Approve the budget",
      "Modest 3-year envelope. Hardware + operations only. Versus ₹50–70 L upfront + AMC forever to a vendor."),
     ("Approve the team",
-     "Hire 2 senior engineers. I lead. We start in June. The team becomes Alagappa's long-term tech capability."),
+     "Hire 2 senior engineers. I lead. We start in June. The team becomes the hospital's long-term tech capability."),
     ("Approve the timeline",
      "Pilot in July. Full go-live by hospital opening day. First reseller signed by Q2 2027."),
 ]
@@ -1029,7 +1029,7 @@ add_text(s, Inches(0.85), Inches(6.7), Inches(11.6), Inches(0.4),
 add_footer(s, 18, TOTAL_SLIDES)
 
 # ─────────────────────────────────────────────────────────
-out = Path("/Users/apple/Projects/MedBrains/medbrains/docs/Alagappa_Pitch.pptx")
+out = Path("/Users/apple/Projects/MedBrains/medbrains/docs/Hospital_A_Pitch.pptx")
 out.parent.mkdir(parents=True, exist_ok=True)
 prs.save(out)
 print(f"Saved: {out}")

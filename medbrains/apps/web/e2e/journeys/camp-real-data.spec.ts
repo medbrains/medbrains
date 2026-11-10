@@ -2,7 +2,7 @@
  * Camp registration workflows, shaped by what the real data actually looks
  * like.
  *
- * Every scenario here comes from a measured characteristic of the Alagappa
+ * Every scenario here comes from a measured characteristic of the Example Hospital
  * camp extract — 1,542 registrations across three days in August 2026 — not
  * from imagining what a patient record might contain. Tidy fixtures do not
  * find bugs; this data is wrong in the specific ways a ward is wrong.

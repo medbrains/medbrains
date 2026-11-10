@@ -61,7 +61,7 @@ arrive; the alarm returns to OK on the next evaluation.
 
 ## Not covered
 
-- The old name `medbrains.amh.org.in` was probed by `envs/clients/alagappa` `module "uptime"`; behind the host move's
+- The old name `medbrains.example-hospital.org` was probed by `envs/standalone/hospital-a` `module "uptime"`; behind the host move's
   301 it would stay green with the app down. That module and its us-east-1 provider are **removed** (the next apply of
   that env destroys the check, its alarm and topic); `module.uptime_app` here is the one probe.
 - No application metrics/APM or log shipping for prod (the `observability` module targets other tiers).

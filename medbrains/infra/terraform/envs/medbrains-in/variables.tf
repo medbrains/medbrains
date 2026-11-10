@@ -1,5 +1,5 @@
 # Names are prefixed `company_` so the TF_VAR_* that infra/.env exports for the
-# prod hospital env (TF_VAR_domain=medbrains.amh.org.in …) can never fill them.
+# prod hospital env (TF_VAR_domain=medbrains.example-hospital.org …) can never fill them.
 
 variable "company_domain" {
   description = "The company domain."
