@@ -1,0 +1,11 @@
+# In the boot file's initrd: a new version that can't even reach its own system would otherwise sit at the
+# initrd's emergency prompt forever, with the root account locked. Only on a boot the loader counted, so each
+# restart uses one of its starts and the old version comes back. A proven version never reboots in a loop.
+[Unit]
+Description=Restart a new version that cannot start
+DefaultDependencies=no
+ConditionPathExists=/sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl reboot --force
