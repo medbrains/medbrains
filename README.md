@@ -5,6 +5,7 @@
 [![Free forever](https://img.shields.io/badge/💚_Free-forever-24A148?style=for-the-badge)](#why-is-it-free)
 [![For every patient](https://img.shields.io/badge/❤️_For-every_patient-DA1E28?style=for-the-badge)](#why-is-it-free)
 [![For every hospital](https://img.shields.io/badge/🏥_For-every_hospital-0F62FE?style=for-the-badge)](#who-its-for)
+[![Batteries included](https://img.shields.io/badge/🔋_Batteries-included-851B7F?style=for-the-badge)](#medbrains-os-a-hospital-in-a-box)
 [![Made with love](https://img.shields.io/badge/✨_Made_with-love-8A3FFC?style=for-the-badge)](#credits-and-contact)
 [![Website: medbrains.in](https://img.shields.io/badge/🌐_Website-medbrains.in-0F62FE?style=for-the-badge)](https://www.medbrains.in)
 
@@ -13,6 +14,8 @@
 **Software that runs a whole hospital: registration, OPD, wards, pharmacy, lab, radiology, billing.**
 
 **It is free. No licence fee, no per-user fee, ever.**
+
+**Batteries included:** the hospital software, its own operating system, built-in security, control of every machine, and compliance with each country's health rules. One install, nothing else to buy.
 
 *Every patient deserves safe care, and every hospital, big or small, rich or poor, deserves the tools to give it. Built with love for patients, for hospitals, and for well-made software, so cost never stands between them.*
 
