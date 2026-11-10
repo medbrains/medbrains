@@ -2,27 +2,33 @@
 // 'unsafe-eval', so `new Function` threw in production and every arithmetic
 // transform quietly returned its expression text instead of a number.
 
+/** Longest expression evaluated; longer text is kept as it is. */
+const MAX_EXPRESSION_LENGTH = 256;
+
 /**
- * Evaluates `+ - * /`, unary minus and parentheses over decimal numbers.
+ * Evaluates `+ - * /`, unary plus and minus, and parentheses over decimal numbers.
  * Returns null when the text is not exactly such an expression, so the caller
  * can keep the text as it is.
  */
 export function evaluateArithmetic(text: string): number | null {
-  const tokens = text.match(/\d+(?:\.\d+)?|\S/g) ?? [];
+  // A transform result is a short expression; anything longer is kept as text, which
+  // also bounds the recursion depth below.
+  if (text.length > MAX_EXPRESSION_LENGTH) return null;
+  const tokens = text.match(/\d+\.?\d*|\.\d+|\S/g) ?? [];
   let pos = 0;
 
   /** Reads a number, a parenthesised expression or a negated factor. */
   const factor = (): number | null => {
     const token = tokens[pos++];
-    if (token === "-") {
+    if (token === "-" || token === "+") {
       const value = factor();
-      return value === null ? null : -value;
+      return value === null || token === "+" ? value : -value;
     }
     if (token === "(") {
       const value = sum();
       return tokens[pos++] === ")" ? value : null;
     }
-    return token !== undefined && /^\d/.test(token) ? Number(token) : null;
+    return token !== undefined && /^\.?\d/.test(token) ? Number(token) : null;
   };
 
   /** Reads factors joined by `*` or `/`. */

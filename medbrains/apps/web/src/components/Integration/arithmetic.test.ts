@@ -16,4 +16,16 @@ describe("transform arithmetic", () => {
     expect(evaluateArithmetic("2 3")).toBeNull();
     expect(evaluateArithmetic("NaN + 1")).toBeNull();
   });
+
+  it("matches the old evaluator on edge forms", () => {
+    expect(evaluateArithmetic(".5 + 5.")).toBe(5.5);
+    expect(evaluateArithmetic("2 * +3")).toBe(6);
+    expect(evaluateArithmetic("1 / 0")).toBe(Number.POSITIVE_INFINITY);
+    expect(evaluateArithmetic("1.2.3")).toBeNull();
+  });
+
+  it("keeps long or deeply nested input as text instead of overflowing the stack", () => {
+    expect(evaluateArithmetic(`${"(".repeat(5000)}1${")".repeat(5000)}`)).toBeNull();
+    expect(evaluateArithmetic(`${"-".repeat(5000)}1`)).toBeNull();
+  });
 });
