@@ -41,7 +41,7 @@ hospital, stop a machine or read a record (§8r rule 1).
                  └───────────────────────────┬─────────────────────────────┘
                               role chosen once at first boot
                  ┌───────────────────────────┴─────────────────────────────┐
-   Administrator │ PostgreSQL  medbrains-server  Caddy   hospital root key │
+   Administrator │ PostgreSQL  medbrains-server  Pingora hospital root key │
                  ├─────────────────────────────────────────────────────────┤
      Workstation │ screen → agent → administrator. No database, no server. │
          Display │ same, showing a board; no patient records stored        │
@@ -72,7 +72,7 @@ Logo → Network → Time → Updates → Activate → This machine is…
 - **Never blocked by the internet.** No internet is a valid answer on every screen.
 - **Physical presence is the trust.** Setup listens only on the machine itself. A machine with no
   screen shows a one-time code on its serial console.
-- **Nothing is reachable early.** On an administrator machine Caddy binds to loopback until the first
+- **Nothing is reachable early.** On an administrator machine the Pingora front (`medbrains-front`) binds to loopback until the first
   administrator exists. This closes fault 3.
 - **You choose the first password.** No generated password appears on screen, and the forced-change
   panel from D1 is retired.
@@ -115,7 +115,7 @@ shows the code to approve. It never asks for hospital details, which come from t
 | Updates | One tap: Now or Later |
 | Activate | A code, or Skip |
 | "Setting up a new hospital, or connecting to one?" | One tap |
-| Administrator | **Hospital name, username, password: three fields** |
+| Administrator | **Hospital name, username, password: three fields**, then enrol an authenticator app (TOTP); the first administrator's group requires the second step |
 | Recovery key | Confirm it is saved |
 | Node | Check the code matches, tap the type |
 
@@ -405,23 +405,23 @@ from one place", never "the same control everywhere". They come after our own ma
 **Who you are versus what you may do.** Authentication proves the person. Authorization (RBAC, groups,
 per-record rules) stays entirely in MedBrains under RFC-AUTHZ, and no identity product decides it.
 
-**Choosing the identity provider (proposed, not decided; memory and fit unmeasured):**
+**Choosing the identity provider (decided: Kanidm, chosen on security over FerrisKey; see OS-BUILD-PLAN T3). The table records the comparison:**
 
 | Option | For | Against |
 |---|---|---|
 | Keycloak | Most complete, including SAML | Java; about 1 GB idle per Red Hat's guide, double the whole appliance target. Not shipped |
 | Rauthy (second candidate) | Rust, Apache-2.0, passkeys, OIDC, independent audit, Postgres optional; project states about 40 MB | Pre-1.0; one person wrote 94% of its commits; no SAML seen; a second account store to reconcile |
-| **FerrisKey (chosen, owner 2026-11-04, subject to test)** | Rust, Apache-2.0, Postgres and SQLx like ours, full web admin and admin API, OIDC, SAML provider, LDAP federation, WebAuthn, webhooks, five named maintainers | Pre-1.0 (v0.10), started 2025; recent critical and high advisories; no third-party audit seen; rate limiting and key-card allow-listing still open; images only, so we build it ourselves (no Docker in the OS); its built-in RBAC stays unused |
+| FerrisKey (owner's first choice 2026-11-04, then rejected on security) | Rust, Apache-2.0, Postgres and SQLx like ours, full web admin and admin API, OIDC, SAML provider, LDAP federation, WebAuthn, webhooks, five named maintainers | Pre-1.0 (v0.10), started 2025; recent critical and high advisories; no third-party audit seen; rate limiting and key-card allow-listing still open; images only, so we build it ourselves (no Docker in the OS); its built-in RBAC stays unused |
 | Ory Hydra + Kratos | Mature, modular, Apache-2.0, widely used | Go, two services; memory unmeasured |
-| Kanidm (fallback) | Largest community of the three (5,530 stars, 156 contributors, two main maintainers), v1.x. Rust, MPL-2.0, passkeys, OIDC, LDAPS, RADIUS, TPM offline Unix sign-in | Admin mainly by command line, against our web-only goal; own database; recent critical and unauthenticated crash advisories; no SAML seen |
+| **Kanidm (chosen)** | Largest community of the three (5,530 stars, 156 contributors, two main maintainers), v1.x. Rust, MPL-2.0, passkeys, OIDC, LDAPS, RADIUS, TPM offline Unix sign-in | Admin mainly by command line, against our web-only goal; own database; recent critical and unauthenticated crash advisories; no SAML seen |
 | Torii | Rust library, MIT | Its README says not production-ready and not audited. Rejected for now |
 | Build our own | One binary, one account store | Identity protocols are easy to get subtly wrong; needs conformance testing and an outside audit |
 
-**Plan:** test FerrisKey first (owner choice for its web console and features). `medbrains-sso-login` already
-trusts any OIDC provider and maps its groups to roles, so it could plug in with little code. Measure
-memory on the image, restrict sign-in to approved key cards, and check it can show our sign-in screen,
-be run from our console, back up with the rest, and federate upstream to a hospital's directory. If it
-fails, try Kanidm, then build our own on `webauthn-rs` and `openidconnect-rs`, with conformance tests and an audit first.
+**Plan:** Kanidm is the identity provider (`feature/os-kanidm`, T3). `medbrains-sso-login` trusts any OIDC
+provider and maps its groups to roles. Kanidm's command-line admin is covered by an Identity app in the
+launcher (T3.1). When a node joins, it wipes any Kanidm data it holds, so only the administrator machine
+keeps the account store. If Kanidm fails its acceptance tests, build our own on `webauthn-rs` and
+`openidconnect-rs`, with conformance tests and an audit first.
 SAML is added only when a real hospital app needs it.
 
 **Built on one agent and one console.** `medbrains-agent` does the work on every machine, so nodes do not

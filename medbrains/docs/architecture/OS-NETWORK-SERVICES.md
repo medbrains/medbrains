@@ -5,12 +5,12 @@ all network services built in, run from MedBrains Control (`OS-SETUP-AND-TRUST.m
 
 | Windows Server role | Built-in equivalent (candidates, not yet tested) | Priority |
 |---|---|---|
-| Active Directory: people, sign-in | Kernel identity + identity provider (FerrisKey, subject to test) | First |
+| Active Directory: people, sign-in | Kernel identity + identity provider (Kanidm) | First |
 | Group Policy | Policies through `medbrains-agent`, on our OS machines | First |
 | DNS, DHCP | Kea DHCP, a small DNS server (CoreDNS or Unbound) | Second |
 | WSUS: updates | Signed update channel and rings (§8b) | Second |
 | Certificate Services | Hospital root key (§7), issuing machine and service certificates | Second |
-| NPS: Wi-Fi and VPN sign-in (RADIUS) | FreeRADIUS (candidate; FerrisKey has none); WireGuard for VPN (exists as opt-in) | Second |
+| NPS: Wi-Fi and VPN sign-in (RADIUS) | Kanidm's RADIUS, or FreeRADIUS if it falls short; WireGuard for VPN (exists as opt-in) | Second |
 | Print server | CUPS, and direct network printing | Second |
 | File server | Samba shares, with permissions from the identity provider | Third |
 | Remote Desktop | Remote support (§8r) | Third |
