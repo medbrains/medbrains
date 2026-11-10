@@ -640,6 +640,16 @@ and `one_address_cannot_take_the_places_of_others`; duties separate, `each_duty_
   screen, pings the gateway and makes one request to the internet.
 - WebKitGTK is loaded only when MedBrains is first opened, so the desktop does not pay for it.
 
+**Its look comes from the design system.** `src/style.css` holds layout, shape and motion only: Carbon's sharp
+corners, the 8px grid, 48px controls, a 2px focus ring and transitions of at most 240 ms, all off when Settings
+asks for reduced motion. Every colour is a `@mb_*` name from `src/theme-light.css` and `src/theme-dark.css`,
+which `os/shell-tokens.py` writes from the web app's generated colours (`colors.generated.ts`), along with the
+crab mascot in `assets/crab.svg`. Change a colour in the design system, run `os/shell-tokens.py`, commit both.
+`os/shell-tokens.py --check` (`make check-shell-theme`, and the image build) fails if the files have drifted or if
+any text pair the stylesheet draws falls below WCAG 2.2 AA in either scheme. Fonts are IBM Plex Sans and Mono and
+Archivo Expanded SemiBold, a static instance (width 125, weight 600) of the web app's Archivo variable font, all
+under the SIL Open Font License (`fonts/OFL.txt`, `fonts/OFL-Archivo.txt`).
+
 **Staying on this machine.** MedBrains loads from `https://127.0.0.1:8443`, a loopback-only front end with a
 self-signed certificate, the only certificate the kiosk trusts, so there is no warning. There is no address
 bar. Each app's content filter blocks everything except its origin, `blob:` and `data:`; if it cannot be

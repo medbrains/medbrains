@@ -84,6 +84,8 @@ cp -R "$KANIDM/hpkg" "$EXTRA/usr/share/kanidm/ui/hpkg"
 if [[ "$DEBUG" == 1 ]]; then install -m 0644 /dev/null "$EXTRA/usr/lib/medbrains/debug-image"; fi
 # The MedBrains design on the one stylesheet Kanidm leaves for this: the design system's tokens, refused
 # unless they meet WCAG 2.2 AA, then our rules, and the web app's IBM Plex fonts.
+# The screen's colours and mascot are generated from the same tokens; a drifted or failing copy stops the build.
+python3 -I "$HERE/shell-tokens.py" --check >/dev/null || { echo "The shell's colours drifted or fail WCAG 2.2 AA: run os/shell-tokens.py --check" >&2; exit 1; }
 python3 -I "$HERE/kanidm-tokens.py" --check >/dev/null || { echo "Kanidm's colours fail WCAG 2.2 AA: run os/kanidm-tokens.py --check" >&2; exit 1; }
 { python3 -I "$HERE/kanidm-tokens.py"; cat "$HERE/kanidm-override.css"; } > "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
 install -d "$EXTRA/usr/share/kanidm/ui/hpkg/fonts"
