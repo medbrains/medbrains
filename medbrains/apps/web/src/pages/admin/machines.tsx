@@ -16,6 +16,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components";
 import { Alert, Badge, Button, Card, Modal, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { isRefusedAfterWrongCodes } from "./machine-refusal";
 
 const MACHINES_KEY = ["machines"];
 /** A machine is waiting on the other side of the room, so show it promptly. */
@@ -66,6 +67,7 @@ function ApproveDialog({ machine, onClose }: ApproveDialogProps) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: MACHINES_KEY }),
     onError: () => void queryClient.invalidateQueries({ queryKey: MACHINES_KEY }),
   });
+  const isRefused = approve.isError && isRefusedAfterWrongCodes(approve.error.message);
   if (approve.data) {
     return (
       <ConfirmCodeDialog label={machine.label} code={approve.data.confirm_code} onClose={onClose} />
@@ -87,13 +89,13 @@ function ApproveDialog({ machine, onClose }: ApproveDialogProps) {
         {approve.isError && <Alert tone="danger">{approve.error.message}</Alert>}
         <Group justify="flex-end">
           <Button tone="secondary" onClick={onClose}>
-            Cancel
+            {isRefused ? "Close" : "Cancel"}
           </Button>
           <Button
             tone="primary"
             onClick={() => approve.mutate()}
             loading={approve.isPending}
-            disabled={code.length !== CODE_LENGTH}
+            disabled={isRefused || code.length !== CODE_LENGTH}
             data-testid="btn-confirm-approve-machine"
           >
             Approve
@@ -202,9 +204,11 @@ function ShowCodeButton({ machine }: { machine: JoinedMachine }) {
 /** Every machine that has joined. */
 function JoinedTable({ machines, canRemove, canApprove }: JoinedTableProps) {
   const queryClient = useQueryClient();
+  const [removing, setRemoving] = useState<JoinedMachine | null>(null);
   const remove = useMutation({
     mutationFn: (id: string) => api.removeMachine(id),
     onSuccess: () => {
+      setRemoving(null);
       void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
       toast.success("Machine removed. Its access ends within 30 seconds.");
     },
@@ -254,8 +258,7 @@ function JoinedTable({ machines, canRemove, canApprove }: JoinedTableProps) {
                   <Table.Td>
                     <Button
                       tone="subtle-danger"
-                      onClick={() => remove.mutate(machine.id)}
-                      loading={remove.isPending}
+                      onClick={() => setRemoving(machine)}
                       data-testid="btn-remove-machine"
                     >
                       Remove
@@ -276,6 +279,34 @@ function JoinedTable({ machines, canRemove, canApprove }: JoinedTableProps) {
           </Table.Tbody>
         </Table>
       </Stack>
+      {removing && (
+        <Modal
+          opened
+          onClose={() => setRemoving(null)}
+          title={`Remove ${removing.label}?`}
+          size="sm"
+        >
+          <Stack gap="md">
+            <Text size="sm">
+              It stops reaching this main machine within 30 seconds and has to join again to come
+              back.
+            </Text>
+            <Group justify="flex-end">
+              <Button tone="secondary" onClick={() => setRemoving(null)}>
+                Cancel
+              </Button>
+              <Button
+                tone="danger"
+                onClick={() => remove.mutate(removing.id)}
+                loading={remove.isPending}
+                data-testid="btn-confirm-remove-machine"
+              >
+                Remove
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+      )}
     </Card>
   );
 }
