@@ -228,22 +228,52 @@ flowchart LR
 
 ## MedBrains OS: a hospital in a box
 
-MedBrains also comes as its own operating system for a small server or mini PC, so a hospital
-without an IT team can plug in one box and start.
+MedBrains is also its own operating system: a small, open OS on Debian Linux that runs every
+machine in the hospital, so a hospital without an IT team can plug in and start. It is cheap by
+design (only the server needs real hardware), simple out of the box (setup is a few plain screens,
+no command line), and built so a local IT firm can install and look after it.
 
-- **One image, everything inside:** Debian stable, PostgreSQL 17, the MedBrains server and web app,
-  and a locked screen on the machine itself, so it opens MedBrains with no separate browser.
-- **Secure by default:** on a machine with a TPM chip, the disk is encrypted and sealed to it. The firewall
-  and kernel are hardened before the first boot. A single front service handles HTTPS. Nothing runs
-  in Docker.
-- **Set up on the screen:** first boot sets the box up on its own screen, with no command line.
-  More machines can join the main one.
-- **Built for real hardware:** guards against SD-card and flash wear, overheating and power cuts.
-  GPUs and NPUs are used when present and never required.
+**One image per processor type** (x86-64 and arm64). The same OS runs on every machine; you choose
+its role on the first-boot screen. One server manages everything. Every other machine is a node on
+the smallest hardware that does its job and holds no system of record, so it can be replaced in
+minutes. Keep a standby server: one server is a single point of failure.
 
-**Status:** the first bootable image (D1). It is built and tested in virtual machines (QEMU and UTM),
-including the TPM-sealed disk on x86-64. It has **not** yet been tested on real hardware or a
-Raspberry Pi. How to build and boot it: [`medbrains/os/README.md`](medbrains/os/README.md).
+| Role | What it does | Patient data on it |
+|---|---|---|
+| Server | database, sign-in (Kanidm, with an authenticator app), certificates, the Nodes screen | yes, on an encrypted disk where there is a TPM |
+| Workstation | staff sign in and work | none, or only what offline mode needs |
+| Display | queue board or TV (joins today; the board is not built) | none |
+| Ward backup | keeps a ward running if the server or network fails (planned) | yes, encrypted |
+
+**Joining a machine:** the new machine finds the server (local discovery or a typed address) and
+shows a code; an administrator approves it on the server, and the approval is audited. A second
+code lets the new machine check that it found the real server. Removing a machine ends its access at
+once (an offline machine learns this when it reconnects). Changing a role is a deliberate reset.
+
+**Not locked to one app.** The OS opens to a desktop with a dock and a launcher, and each app runs in
+its own sandboxed view. MedBrains is one of them.
+
+**Secure by default:** firewall and kernel hardening before the first boot, the data disk sealed to
+the TPM where there is one, a single Rust front (Pingora) for HTTPS, and no Docker: every service
+runs directly on Linux under systemd.
+
+**Hardware (recommendations, not tested kits):** a Raspberry Pi 5 with 8 GB and an NVMe SSD for a
+small clinic's server; any x86-64 or arm64 PC or small server for a hospital; the smallest machine
+that drives the screen for workstations and displays. A built-in AI chip or graphics card is used
+when present and never required. See [RFC-HOSPITAL-OS §8a and §8p](medbrains/RFCs/RFC-HOSPITAL-OS.md).
+
+**Measured so far** (virtual machines on a laptop, one run each): a workstation node uses about
+300 MB of memory at its desktop; removing a machine ends its access within about 2 s; the web app's
+first page is about 320 kB compressed.
+
+**Status, and what is not done yet:** the image builds and boots in virtual machines (QEMU and UTM),
+including the TPM-sealed disk on x86-64. Not done: signed A/B updates with rollback (in review); the
+display board and the ward backup role; verified boot and machine keys in the TPM; nightly backups on
+the OS. It has not run on real hardware or a Raspberry Pi, had no outside penetration test, and no
+hospital runs it in production yet.
+
+How to build and boot it: [`medbrains/os/README.md`](medbrains/os/README.md). The plan:
+[RFC-HOSPITAL-OS](medbrains/RFCs/RFC-HOSPITAL-OS.md). On the website: [medbrains.in/os](https://www.medbrains.in/os).
 
 ## Why Rust
 
