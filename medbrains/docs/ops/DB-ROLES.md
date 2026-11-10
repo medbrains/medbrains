@@ -176,3 +176,108 @@ It creates the roles if migrations have not created them yet, and sets the dev
 password. Test it with `bash deploy/standalone/test-db-roles.sh`. The test runs
 against the dev Postgres, sets random passwords while it runs, and restores the
 dev passwords on exit.
+
+## The report database (`REPORTS_DATABASE_URL`)
+
+Reports, analytics, management KPIs, dashboard tiles and the AI query tool read
+many rows. On the primary, one heavy report can slow every clinical screen, so
+every one of those reads goes through one runner,
+`crates/medbrains-server-core/src/report_runner.rs`:
+
+| Bound | Value | Set by |
+|---|---|---|
+| Pool | its own pool, `REPORTS_DB_POOL_MAX_CONNECTIONS` (default 4) | operator |
+| Database | `REPORTS_DATABASE_URL`, else the primary (`DATABASE_URL`) | operator |
+| Statement timeout | 15 s | `REPORTS_STATEMENT_TIMEOUT_MS`, then the tenant's `reports/statement_timeout_ms` in `tenant_settings` |
+| Ceiling | 60 s; a tenant may not go below 1 s | code (`TIMEOUT_CEILING`) |
+| Idle in transaction | same as the statement timeout | code |
+| Read only | `transaction_read_only = on` | code |
+| Heavy reports per tenant at once | 2 | `REPORTS_MAX_CONCURRENT_PER_TENANT` |
+| Wait for a free slot before 429 | 5 s | `REPORTS_SLOT_WAIT_MS` |
+
+Every limit is `SET LOCAL`, so it ends with the transaction and a pooled
+connection carries nothing into the next request.
+
+- A report past its timeout answers **503** `report_timeout`: "This report took
+  too long and was stopped so it cannot slow the wards. Narrow the date range
+  and try again." It is never shown as an empty report.
+- A tenant over its cap waits up to 5 s for a slot (first come, first served,
+  so a reports page loading its tiles together takes turns), then answers **429**: "Too many reports are running for this
+  hospital right now. Wait a moment and try again."
+- Dashboard tiles and command-center KPIs are bounded the same way but take no
+  slot, because a whole shift opens them at once.
+- Each run logs one line under the `reports` tracing target with `report`,
+  `tenant_id`, `duration_ms`, `rows` and `outcome`; a run over 5 s, or one that
+  failed, logs at `WARN`. There is no slow-report screen yet: run with
+  `RUST_LOG=reports=info` and filter for the `WARN` lines.
+
+### Set up a read replica
+
+A streaming replica gives reports their own CPU and I/O. It lags the primary by
+about a second, so a report can miss the last moments. Reports and dashboards
+can live with that; clinical screens never read from it.
+
+On the primary:
+
+```bash
+sudo -u postgres psql -c "ALTER SYSTEM SET wal_level = replica"
+sudo -u postgres psql -c "ALTER SYSTEM SET max_wal_senders = 5"
+sudo -u postgres psql -c "CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD '<choose one>'"
+# pg_hba.conf: host replication replicator <replica-ip>/32 scram-sha-256
+sudo systemctl restart postgresql
+```
+
+On the replica host (same Postgres major version, empty data directory):
+
+```bash
+sudo systemctl stop postgresql
+sudo -u postgres rm -rf /var/lib/postgresql/17/main
+sudo -u postgres pg_basebackup -h <primary-ip> -U replicator \
+  -D /var/lib/postgresql/17/main -R -X stream -P
+# WAL replay can cancel a long report on a replica; give it room.
+echo "max_standby_streaming_delay = 60s" | sudo tee -a /etc/postgresql/17/main/conf.d/reports.conf
+echo "hot_standby_feedback = on" | sudo tee -a /etc/postgresql/17/main/conf.d/reports.conf
+sudo systemctl start postgresql
+```
+
+Check it. On the primary expect one `streaming` row; on the replica, `t`:
+
+```bash
+sudo -u postgres psql -c "SELECT client_addr, state FROM pg_stat_replication"
+sudo -u postgres psql -h <replica-ip> -c "SELECT pg_is_in_recovery()"
+```
+
+Point the server at it with the request role, which keeps row level security
+(the replica has the primary's roles):
+
+```bash
+REPORTS_DATABASE_URL=postgres://medbrains_app:<password>@<replica-ip>:5432/medbrains
+```
+
+### Or a low-priority role on the primary
+
+Without a replica, give reports a role of their own so the primary caps them
+separately:
+
+```bash
+sudo -u postgres psql -d medbrains <<'SQL'
+CREATE ROLE medbrains_reports LOGIN PASSWORD '<choose one>' CONNECTION LIMIT 6;
+GRANT medbrains_app TO medbrains_reports;       -- same rows, same RLS
+GRANT medbrains_ai_query TO medbrains_reports;  -- the AI query tool SETs ROLE to it
+ALTER ROLE medbrains_reports SET work_mem = '32MB';
+SQL
+```
+
+```bash
+REPORTS_DATABASE_URL=postgres://medbrains_reports:<password>@localhost:5432/medbrains
+```
+
+`medbrains_reports` must not have `BYPASSRLS` and must not be a superuser.
+
+### If the replica is down
+
+A `REPORTS_DATABASE_URL` that cannot be reached at boot is logged at `ERROR`
+and reports run on the primary, still bounded. A replica that fails later makes
+reports answer an error until it is back; clinical screens are unaffected.
+Restart the server once the replica is back, or unset the variable to run
+reports on the primary.

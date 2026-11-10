@@ -19,5 +19,13 @@ rust_decimal = { workspace = true }
 sqlx = { workspace = true }
 tracing = { workspace = true }
 
+[dev-dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
 [lints]
 workspace = true

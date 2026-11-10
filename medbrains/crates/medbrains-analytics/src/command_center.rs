@@ -48,7 +48,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
+    report_runner::begin_tile, state::AppState,
 };
 
 #[derive(sqlx::FromRow)]
@@ -447,8 +447,7 @@ pub async fn get_discharge_blockers(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::command_center::discharge::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -773,8 +772,7 @@ pub async fn all_kpis(
     require_permission(&claims, permissions::command_center::VIEW)?;
     // Aggregate KPIs.
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_tile(&state, &claims, "all_kpis").await?;
 
     let mut kpis = Vec::new();
 
@@ -894,7 +892,7 @@ pub async fn all_kpis(
         period: "30d".into(),
     });
 
-    tx.commit().await?;
+    run.finish(tx, kpis.len()).await?;
     Ok(Json(kpis))
 }
 
@@ -906,8 +904,7 @@ pub async fn kpi_detail(
     require_permission(&claims, permissions::command_center::VIEW)?;
     // Aggregate behind one KPI code.
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_tile(&state, &claims, "kpi_detail").await?;
 
     let detail = match code.as_str() {
         "alos" => {
@@ -958,6 +955,6 @@ pub async fn kpi_detail(
         }
     };
 
-    tx.commit().await?;
+    run.finish(tx, 1).await?;
     Ok(Json(detail))
 }

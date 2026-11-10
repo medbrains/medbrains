@@ -8,6 +8,7 @@ import { ReportTile } from "./report-tile";
 import type {
   ReportDataById,
   ReportDefinition,
+  ReportFailure,
   ReportFamily,
   ReportLoadingState,
   ReportRuntimeData,
@@ -20,6 +21,7 @@ export function ReportFamilyPanel({
   loadingState,
   reportDataById,
   loadingByReportId,
+  failureByReportId,
   onDetails,
 }: {
   family: ReportFamily;
@@ -28,6 +30,7 @@ export function ReportFamilyPanel({
   loadingState: ReportLoadingState;
   reportDataById: ReportDataById;
   loadingByReportId: Record<string, boolean>;
+  failureByReportId: Record<string, ReportFailure>;
   onDetails: (report: ReportDefinition) => void;
 }) {
   const FamilyIcon = family.icon;
@@ -68,6 +71,7 @@ export function ReportFamilyPanel({
                 loadingState={loadingState}
                 reportData={reportDataById[report.id]}
                 isReportLoading={loadingByReportId[report.id]}
+                failure={failureByReportId[report.id]}
                 onDetails={onDetails}
               />
             </div>

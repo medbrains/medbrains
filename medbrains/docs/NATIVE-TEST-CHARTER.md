@@ -18,6 +18,15 @@ one combined count.
 | **Evidence** | a screenshot per state, named, attached to the run | XCTAttachment / `screencap` per step |
 | **Clean device** | every run starts on a device that holds only the app under test — never the developer's shared simulator, which carries every app on the machine | `scripts/native_test_env.sh ios\|android` creates the dedicated `MedBrainsPhone` once and erases it before each run |
 
+## Next: write the test once for both apps (owner 2026-11-07)
+
+Shopify's Reflex shows the way to keep two native apps equal: share the test, not the code.
+
+1. **Core with no UI:** move the UI imports out of core and kit (2 files on iOS, 9 on Android today), so each app's logic runs headless on macOS or the JVM.
+2. **One screen contract:** every screen's model takes actions and returns state, with one place where state changes, and describes itself as JSON (name, state, accepted actions). Start with Pharmacy and Doctor.
+3. **One CLI, one test file:** a small tool drives either app's core through that contract, so each journey above is written once and must pass on both platforms before a merge.
+4. **Keep a few real end-to-end runs:** the duplicated simulator tests move to the shared suite; a handful of on-device journeys stay as the final check.
+
 ## Module rows (staff app)
 
 **Sign-in**: wrong password refused in words; correct lands on the role's first module; kept session hydrates on relaunch; sign-out returns to the form; a revoked token (server-side) signs out on the next request; unreachable server says so.
