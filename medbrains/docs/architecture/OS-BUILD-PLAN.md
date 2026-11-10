@@ -250,6 +250,8 @@ New ideas go to the parked list, not into this. Stable means every line below pa
 
 ## G. Native OS GUI (owner 2026-11-07)
 
+**Parked (owner 2026-11-10): "we don't need Slint, don't deviate for now."** The OS screens stay on the existing GTK shell (`medbrains-shell`) and the web app. Nothing in this section is built until the owner reopens it; the Slint licence question is moot until then. Draft PR #5282 (React-to-Slint converter) stays parked.
+
 The OS screen moves to a native GUI in Rust that is safe for memory and security and needs no GPU. The web app is kept for every other customer and every browser, built in parallel; neither replaces the other. Toolkit: Slint (software renderer; LinuxKMS backend draws straight to the screen with no window system), with iced (MIT, `tiny_skia` software renderer) as the fallback if Slint's licence is refused. GPUI is out: it needs a GPU. Slint's licence (GPLv3 or commercial) is the owner's decision before the first release that ships it.
 
 | Task | What | Done when | State |
