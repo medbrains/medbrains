@@ -66,6 +66,8 @@ impl MessageBuffer {
              FROM pending_messages WHERE retry_count < 100
              ORDER BY id ASC LIMIT ?1",
         )?;
+        // rusqlite 0.41 binds no `usize`; SQLite's LIMIT is a signed 64-bit integer.
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let rows = stmt.query_map([limit], |row| {
             Ok(BufferedMessage {
                 id: row.get(0)?,
