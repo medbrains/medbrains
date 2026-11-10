@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPrnFrequency } from "./prn";
+import { isPrnFrequency } from "./prn-orders";
 
 describe("isPrnFrequency", () => {
   it("recognises as-needed orders the server will ask a reason for", () => {

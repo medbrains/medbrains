@@ -6,13 +6,13 @@
 //! connected, since WebKit's helpers share the screen's group. The server is
 //! deliberately small: one connection at a time is plenty for one screen.
 
-mod child;
 mod first_admin;
 mod machine;
 mod node;
 mod peer;
 mod rules;
 mod status;
+mod updates;
 mod wifi;
 mod wifi_parse;
 
@@ -25,6 +25,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use zeroize::{Zeroize, Zeroizing};
 
+use medbrains_os_update::child;
 use serde_json::{Value, json};
 
 /// In a directory only root and the screen's group can enter; the socket's mode says the same.
@@ -343,6 +344,12 @@ fn route_body(state: &Arc<State>, request: &Request, body: &Value) -> (u16, Valu
             answer(422, wifi::forget(&state.wifi_attempt, field(body, "ssid")))
         }
         ("POST", "/power") => answer(422, machine::power(field(body, "action"))),
+        ("GET", "/update") => (200, medbrains_os_update::view::view()),
+        ("POST", "/update/action") => answer(422, updates::run_action(field(body, "action"))),
+        ("POST", "/update/settings") => answer(
+            422,
+            updates::save_settings(field(body, "address"), field(body, "window")),
+        ),
         _ => (404, json!({ "error": "not found" })),
     }
 }
