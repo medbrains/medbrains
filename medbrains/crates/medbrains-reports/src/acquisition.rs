@@ -15,7 +15,7 @@ use medbrains_core::reports::{
 };
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_any_permission,
-    state::AppState,
+    report_runner::begin_report, state::AppState,
 };
 use serde::Serialize;
 use sqlx::{Postgres, Transaction};
@@ -125,8 +125,7 @@ pub(crate) async fn data(
 ) -> Result<Json<ReportDataResponse>, AppError> {
     require_reader(claims)?;
     let (from, to) = range_of(range);
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(state, claims, "acquisition").await?;
     let response = match kind {
         ReportDataKind::CampaignAttribution => live_response(
             report_id,
@@ -143,9 +142,9 @@ pub(crate) async fn data(
             "acquisition.departments",
             campaign_by_department(&mut tx, claims.tenant_id, &from, &to).await?,
         ),
-    };
-    tx.commit().await?;
-    response
+    }?;
+    run.finish(tx, response.summary.row_count).await?;
+    Ok(response)
 }
 
 /// Bills that count: not cancelled, voided or refunded.

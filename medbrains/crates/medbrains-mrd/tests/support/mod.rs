@@ -57,6 +57,9 @@ pub(crate) fn state(db: PgPool) -> AppState {
         documents_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
             std::env::temp_dir().join("mrd-file-request-test-docs"),
         )),
+        reports: medbrains_server_core::report_runner::ReportGate::new(
+            medbrains_server_core::report_runner::ReportLimits::from_env(),
+        ),
     }
 }
 

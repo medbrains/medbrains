@@ -60,6 +60,9 @@ pub struct AppState {
     /// zero-cost and on-prem native; S3-compatible adapter is a
     /// follow-up). Downloads stream through the authenticated API.
     pub documents_store: Arc<dyn medbrains_core::object_store::ObjectStore>,
+    /// Limits and per-tenant slots for report, analytics and dashboard reads
+    /// (`crate::report_runner`). Their pool is `topology.reader_pool`.
+    pub reports: crate::report_runner::ReportGate,
 }
 
 impl std::fmt::Debug for AppState {
@@ -76,6 +79,7 @@ impl std::fmt::Debug for AppState {
             .field("topology", &"Arc<dyn TopologyDispatcher>")
             .field("authz", &"Arc<dyn AuthzBackend>")
             .field("s3", &self.s3.is_some())
+            .field("reports", &self.reports.limits())
             .finish()
     }
 }

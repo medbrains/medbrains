@@ -31,6 +31,7 @@
 //! to a response.
 
 pub mod audit;
+pub mod bounds;
 pub mod authz;
 mod claims;
 pub mod config;

@@ -1,11 +1,14 @@
 blank_issues_enabled: false
 contact_links:
   - name: 🔒 Report a security vulnerability
-    url: https://github.com/DomnicAmalan/MedBrains/security/advisories/new
+    url: https://github.com/medbrains/medbrains/security/advisories/new
     about: Please report security issues privately — never in a public issue. See SECURITY.md.
+  - name: 📖 Documentation
+    url: https://docs.medbrains.in
+    about: How-to guides for hospital staff, admins and developers.
   - name: 💬 Questions & discussions
-    url: https://github.com/DomnicAmalan/MedBrains/discussions
+    url: https://github.com/medbrains/medbrains/discussions
     about: Ask questions, share ideas, or discuss the roadmap.
   - name: 💚 Funding & partnerships
-    url: https://github.com/DomnicAmalan/MedBrains/blob/master/GRANTS.md
+    url: https://github.com/medbrains/medbrains/blob/main/GRANTS.md
     about: Funders, ministries, and health programmes — read the public-good thesis.

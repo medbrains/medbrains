@@ -421,6 +421,10 @@ check-kernel-boundary: ## Ratchet: apps reach the trusted core only through medb
 	python3 scripts/check_kernel_boundary.py --self-test
 	python3 scripts/check_kernel_boundary.py
 
+hooks: ## Install the repo git hooks (rustfmt staged Rust files, migration checks) for this clone
+	git config core.hooksPath medbrains/.githooks
+	@echo "git hooks installed: medbrains/.githooks"
+
 check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts, web first load
 	python3 scripts/check_size_budgets.py --self-test
 	python3 scripts/check_size_budgets.py
