@@ -449,7 +449,10 @@ impl Vm {
             "-initrd".to_owned(),
             image.with_extension("initrd").display().to_string(),
             "-append".to_owned(),
-            format!("root=PARTLABEL=medbrains_{} {BARE_KERNEL_LINE}", image_version(image)?),
+            format!(
+                "root=PARTLABEL=medbrains_{} {BARE_KERNEL_LINE}",
+                image_version(image)?
+            ),
         ];
         self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm, &extra)?;
         self.serial = connect_socket(&self.dir.join("serial.sock"))?;

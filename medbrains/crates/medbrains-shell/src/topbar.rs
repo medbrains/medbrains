@@ -90,8 +90,10 @@ const fn clock_note(clock: &str) -> &'static str {
     match clock.as_bytes() {
         b"verified" => "The time is confirmed by an authenticated source.",
         b"checking" => "Checking the time with a time server.",
-        _ => "This machine could not confirm the time, so it may be wrong. A workstation or display \
-              gets its time from the main machine, so check that one first.",
+        _ => {
+            "This machine could not confirm the time, so it may be wrong. A workstation or display \
+              gets its time from the main machine, so check that one first."
+        }
     }
 }
 
@@ -142,7 +144,10 @@ impl TopBar {
         update_dot.add_css_class("dot");
         update_dot.set_valign(gtk::Align::Center);
         update_chip.prepend(&update_dot);
-        let update = gtk::Button::builder().child(&update_chip).visible(false).build();
+        let update = gtk::Button::builder()
+            .child(&update_chip)
+            .visible(false)
+            .build();
         update.add_css_class("flat");
         ui::set_name(&update, "Updates: open Settings");
         let open_for_update = Rc::clone(&open_settings);
@@ -253,7 +258,8 @@ impl TopBar {
             .set_label(&ui::network_words(&state.network));
         self.clock_note.set_label(clock_note(&state.clock));
         self.time_alert.set_visible(state.clock == "unconfirmed");
-        self.main_alert.set_visible(state.role == "node" && !state.main_ready);
+        self.main_alert
+            .set_visible(state.role == "node" && !state.main_ready);
         let was_role = self.machine_role.replace(role_words(&state.role));
         if self.role.label() == was_role {
             self.role.set_label(self.machine_role.get());

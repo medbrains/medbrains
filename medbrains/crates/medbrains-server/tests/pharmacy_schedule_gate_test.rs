@@ -295,8 +295,11 @@ async fn a_verbal_schedule_x_order_is_refused() {
         })
         .await;
     let order = w.order(Some(rx), drug, 5).await;
-    w.refused(order, "Schedule X and NDPS drugs need a written prescription")
-        .await;
+    w.refused(
+        order,
+        "Schedule X and NDPS drugs need a written prescription",
+    )
+    .await;
 }
 
 #[tokio::test]

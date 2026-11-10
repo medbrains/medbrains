@@ -4,9 +4,9 @@
 
 pub mod consume;
 
-use axum::routing::{get, post};
 use axum::Json;
 use axum::extract::{Extension, Query, State};
+use axum::routing::{get, post};
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -75,7 +75,9 @@ pub async fn set_ward_par(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
     if body.par_qty < 0 {
-        return Err(AppError::BadRequest("par_qty cannot be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "par_qty cannot be negative".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -170,15 +172,9 @@ pub async fn replenish_ward(
 /// The `ward_stock` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/pharmacy/ward-stock",
-            get(list_ward_stock),
-        )
+        .route("/api/pharmacy/ward-stock", get(list_ward_stock))
         .route("/api/pharmacy/ward-stock/par", post(set_ward_par))
-        .route(
-            "/api/pharmacy/ward-stock/replenish",
-            post(replenish_ward),
-        )
+        .route("/api/pharmacy/ward-stock/replenish", post(replenish_ward))
         .route(
             "/api/pharmacy/ward-stock/consume",
             post(consume::consume_ward_stock),

@@ -21,7 +21,10 @@ const ORIGIN_PREFIX: &str = "https://127.0.0.1";
 /// WebAuthn cannot use an address and its cookies go to its own name. `/etc/hosts` points this name at
 /// this machine, and first boot adds its certificate to what the screen trusts. The screen's own name is the
 /// MedBrains app's origin, so Kanidm sends the screen back to a name no other computer resolves.
-const NAMED_ORIGINS: [&str; 2] = ["https://idm.medbrains.local:9443", "https://screen.medbrains.local:8443"];
+const NAMED_ORIGINS: [&str; 2] = [
+    "https://idm.medbrains.local:9443",
+    "https://screen.medbrains.local:8443",
+];
 const HEALTH_PREFIX: &str = "http://127.0.0.1:";
 const MAX_APPS: usize = 32;
 const MAX_MANIFEST_BYTES: u64 = 16 * 1024;
@@ -57,7 +60,10 @@ pub(crate) struct App {
 /// is anywhere but this machine. Written out so no user-info or look-alike host can slip by.
 pub(crate) fn local_origin(url: &str) -> Option<&str> {
     for origin in NAMED_ORIGINS {
-        if url.strip_prefix(origin).is_some_and(|path| path.starts_with('/')) {
+        if url
+            .strip_prefix(origin)
+            .is_some_and(|path| path.starts_with('/'))
+        {
             return Some(&url[..origin.len()]);
         }
     }
@@ -425,19 +431,32 @@ mod tests {
     /// An app may visit one more origin to sign in, and only one this file names.
     #[test]
     fn a_sign_in_origin_must_be_a_named_one_and_opens_only_that() {
-        let with = |origin: &str| GOOD.replacen('{', &format!("{{\"sign_in_origin\":\"{origin}\","), 1);
+        let with =
+            |origin: &str| GOOD.replacen('{', &format!("{{\"sign_in_origin\":\"{origin}\","), 1);
         let good = with("https://idm.medbrains.local:9443");
-        assert_eq!(names(&Dir::with("signin", &[("mail.json", &good)]), "main"), ["Mail"]);
+        assert_eq!(
+            names(&Dir::with("signin", &[("mail.json", &good)]), "main"),
+            ["Mail"]
+        );
         let bad = with("https://evil.example");
         assert!(names(&Dir::with("badsignin", &[("mail.json", &bad)]), "main").is_empty());
         assert_eq!(
             local_origin("https://screen.medbrains.local:8443/dashboard"),
             Some("https://screen.medbrains.local:8443")
         );
-        assert_eq!(local_origin("https://screen.medbrains.local:8443.evil.example/"), None);
-        let text = content_filter("https://127.0.0.1:8443", Some("https://idm.medbrains.local:9443"));
+        assert_eq!(
+            local_origin("https://screen.medbrains.local:8443.evil.example/"),
+            None
+        );
+        let text = content_filter(
+            "https://127.0.0.1:8443",
+            Some("https://idm.medbrains.local:9443"),
+        );
         let rules: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
-        assert_eq!(rules[5]["trigger"]["url-filter"], "^https://idm\\.medbrains\\.local:9443/");
+        assert_eq!(
+            rules[5]["trigger"]["url-filter"],
+            "^https://idm\\.medbrains\\.local:9443/"
+        );
         assert_eq!(rules.as_array().map(Vec::len), Some(6));
     }
 

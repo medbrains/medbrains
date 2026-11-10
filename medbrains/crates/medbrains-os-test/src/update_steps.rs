@@ -7,8 +7,8 @@ use crate::updates::{
     Bench, Scenario, ensure, open_mirror, own_tpm, running_version, same_var, say, status, url,
     var_snapshot, wait_status, wait_version,
 };
-use crate::{update_channel, update_sealed};
 use crate::vm::{self, Vm};
+use crate::{update_channel, update_sealed};
 
 /// Bundle folders, as `make-update-bundles.py` names them. `NEXT` is a real second image build.
 pub(crate) const NEXT: (&str, &str) = ("next", "1.0.2");
@@ -28,25 +28,67 @@ pub(crate) const FINGERPRINT: &str = "lsblk -nro PARTLABEL /dev/vda; ls -1 /boot
 pub(crate) fn scenarios() -> Vec<Scenario> {
     if vm::tpm_usable() {
         return vec![
-            ("a sealed disk opens by itself after an update and after going back", update_sealed::sealed_update),
-            ("a boot file signed by another key is refused before it can lock the disk", update_sealed::sealed_refusal),
-            ("a seal that does fail rolls back with nobody typing", update_sealed::seal_prompt_rolls_back),
+            (
+                "a sealed disk opens by itself after an update and after going back",
+                update_sealed::sealed_update,
+            ),
+            (
+                "a boot file signed by another key is refused before it can lock the disk",
+                update_sealed::sealed_refusal,
+            ),
+            (
+                "a seal that does fail rolls back with nobody typing",
+                update_sealed::seal_prompt_rolls_back,
+            ),
         ];
     }
     vec![
-        ("refuses unsigned, tampered, wrong and old bundles", refusals),
-        ("updates online, keeps /var, goes back, updates twice", update_cycle),
+        (
+            "refuses unsigned, tampered, wrong and old bundles",
+            refusals,
+        ),
+        (
+            "updates online, keeps /var, goes back, updates twice",
+            update_cycle,
+        ),
         ("installs from a USB stick", usb_install),
-        ("a new version that fails its checks rolls back by itself", failed_health),
-        ("a version that rolled back is not installed again by the timer", update_channel::not_retried),
-        ("a mix of two releases is refused", update_channel::mixed_refused),
-        ("a machine that missed a release catches up in order", update_channel::catches_up_in_order),
-        ("a new version that cannot even start rolls back by itself", failed_start),
-        ("a power cut during install leaves a machine that boots", power_cuts_installing),
-        ("a power cut while applying and on trial leaves a machine that boots", power_cuts_applying),
-        ("a new version proves good with the network cable out", no_network_on_trial),
+        (
+            "a new version that fails its checks rolls back by itself",
+            failed_health,
+        ),
+        (
+            "a version that rolled back is not installed again by the timer",
+            update_channel::not_retried,
+        ),
+        (
+            "a mix of two releases is refused",
+            update_channel::mixed_refused,
+        ),
+        (
+            "a machine that missed a release catches up in order",
+            update_channel::catches_up_in_order,
+        ),
+        (
+            "a new version that cannot even start rolls back by itself",
+            failed_start,
+        ),
+        (
+            "a power cut during install leaves a machine that boots",
+            power_cuts_installing,
+        ),
+        (
+            "a power cut while applying and on trial leaves a machine that boots",
+            power_cuts_applying,
+        ),
+        (
+            "a new version proves good with the network cable out",
+            no_network_on_trial,
+        ),
         ("too little disk space is refused", low_space),
-        ("a security fix waits for a person or a quiet window", waits_for_quiet),
+        (
+            "a security fix waits for a person or a quiet window",
+            waits_for_quiet,
+        ),
     ]
 }
 
@@ -64,14 +106,25 @@ pub(crate) fn ask(vm: &mut Vm, action: &str) -> Result<(), String> {
     let answer = vm.run(&format!(
         "curl -s -m 15 --unix-socket /run/medbrains-console/setup.sock -d '{{\"action\":\"{action}\"}}' http://machine/update/action"
     ))?;
-    ensure(answer.contains("\"ok\":true"), format!("{action} answered {answer}"))
+    ensure(
+        answer.contains("\"ok\":true"),
+        format!("{action} answered {answer}"),
+    )
 }
 
 /// Runs an install by hand and returns its words and exit status.
-pub(crate) fn install_from(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<(String, i32), String> {
+pub(crate) fn install_from(
+    vm: &mut Vm,
+    bench: &Bench,
+    name: &str,
+    retry: bool,
+) -> Result<(String, i32), String> {
     let flag = if retry { "--retry " } else { "" };
     let text = vm.run_for(
-        &format!("medbrains-os-update install {flag}--from {} 2>&1; echo EXIT=$?", url(bench, name)),
+        &format!(
+            "medbrains-os-update install {flag}--from {} 2>&1; echo EXIT=$?",
+            url(bench, name)
+        ),
         COMMAND_LIMIT,
     )?;
     let code = text
@@ -83,7 +136,12 @@ pub(crate) fn install_from(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) 
 }
 
 /// Installs a bundle that must succeed, and returns how long it took.
-pub(crate) fn install_ok(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) -> Result<Duration, String> {
+pub(crate) fn install_ok(
+    vm: &mut Vm,
+    bench: &Bench,
+    name: &str,
+    retry: bool,
+) -> Result<Duration, String> {
     let started = Instant::now();
     let (text, code) = install_from(vm, bench, name, retry)?;
     ensure(code == 0, format!("{name}: {text}"))?;
@@ -91,13 +149,20 @@ pub(crate) fn install_ok(vm: &mut Vm, bench: &Bench, name: &str, retry: bool) ->
 }
 
 /// Applies a waiting update through the screen's door and waits until the new version has proved good.
-pub(crate) fn apply_and_prove(vm: &mut Vm, bench: &Bench, version: &str) -> Result<Duration, String> {
+pub(crate) fn apply_and_prove(
+    vm: &mut Vm,
+    bench: &Bench,
+    version: &str,
+) -> Result<Duration, String> {
     let started = Instant::now();
     ask_restart(vm, "apply")?;
     wait_version(vm, version, RESTART_LIMIT)?;
     wait_status(vm, &["last", "version"], version, RESTART_LIMIT)?;
     let value = wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;
-    ensure(value["stage"] == "idle", format!("stage after good: {value}"))?;
+    ensure(
+        value["stage"] == "idle",
+        format!("stage after good: {value}"),
+    )?;
     let entries = vm.run("ls /boot/EFI/Linux")?;
     ensure(
         !entries.contains(&format!("{version}+")),
@@ -125,13 +190,22 @@ fn refusals(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         ("expired", "signature has run out"),
     ] {
         let (text, code) = install_from(vm, bench, name, false)?;
-        ensure(code == 2 && text.contains(expected), format!("{name}: {code} {text}"))?;
+        ensure(
+            code == 2 && text.contains(expected),
+            format!("{name}: {code} {text}"),
+        )?;
         let after = vm.run(&fingerprint)?;
-        ensure(after == before, format!("{name} wrote something: {before} / {after}"))?;
+        ensure(
+            after == before,
+            format!("{name} wrote something: {before} / {after}"),
+        )?;
         say(&format!("      refused {name}"));
     }
     let (text, code) = install_from(vm, bench, "same", false)?;
-    ensure(code == 0 && text.contains("already runs"), format!("same: {text}"))?;
+    ensure(
+        code == 0 && text.contains("already runs"),
+        format!("same: {text}"),
+    )?;
     let value = status(vm)?;
     ensure(value["stage"] == "idle", format!("stage: {value}"))
 }
@@ -142,19 +216,31 @@ fn update_cycle(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let first = bench.first.clone();
     let before = var_snapshot(vm)?;
     let loader = vm.run("sha256sum /boot/EFI/BOOT/*")?;
-    vm.run(&format!("echo {} > /var/lib/medbrains-settings/update-url", url(bench, "channel")))?;
+    vm.run(&format!(
+        "echo {} > /var/lib/medbrains-settings/update-url",
+        url(bench, "channel")
+    ))?;
     let started = Instant::now();
     ask(vm, "install")?;
     wait_status(vm, &["stage"], "waiting", INSTALL_LIMIT)?;
-    say(&format!("      download and install, screen's door: {:.0}s", started.elapsed().as_secs_f32()));
+    say(&format!(
+        "      download and install, screen's door: {:.0}s",
+        started.elapsed().as_secs_f32()
+    ));
     vm.run("rm /var/lib/medbrains-settings/update-url")?;
     vm.reboot()?;
     let value = wait_status(vm, &["stage"], "waiting", RESTART_LIMIT)?;
-    ensure(value["current"] == first.as_str(), format!("a restart applied it: {value}"))?;
+    ensure(
+        value["current"] == first.as_str(),
+        format!("a restart applied it: {value}"),
+    )?;
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
     let took = apply_and_prove(vm, bench, NEXT.1)?;
-    say(&format!("      apply to proved good: {:.0}s", took.as_secs_f32()));
+    say(&format!(
+        "      apply to proved good: {:.0}s",
+        took.as_secs_f32()
+    ));
     same_var(&before, &var_snapshot(vm)?)?;
     let after_loader = vm.run("sha256sum /boot/EFI/BOOT/*")?;
     ensure(loader == after_loader, "the boot loader changed")?;
@@ -164,7 +250,10 @@ fn update_cycle(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     open_mirror(vm, bench)?;
     same_var(&before, &var_snapshot(vm)?)?;
     let (text, code) = install_from(vm, bench, NEXT.0, false)?;
-    ensure(code == 2 && text.contains("failed on this machine"), format!("no retry: {text}"))?;
+    ensure(
+        code == 2 && text.contains("failed on this machine"),
+        format!("no retry: {text}"),
+    )?;
     install_ok(vm, bench, NEXT.0, true)?;
     apply_and_prove(vm, bench, NEXT.1)?;
     install_ok(vm, bench, AFTER.0, false)?;
@@ -173,7 +262,10 @@ fn update_cycle(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let value = status(vm)?;
     ensure(value["previous"] == NEXT.1, format!("previous: {value}"))?;
     let (text, code) = install_from(vm, bench, NEXT.0, false)?;
-    ensure(code == 2 && text.contains("older than"), format!("old signed bundle: {text}"))?;
+    ensure(
+        code == 2 && text.contains("older than"),
+        format!("old signed bundle: {text}"),
+    )?;
     // The third update overwrote the first version's slot and raised the floor to 1.0.3. A person may
     // still go back to 1.0.2, while a signed version below the floor stays refused.
     ask_restart(vm, "go-back")?;
@@ -182,14 +274,20 @@ fn update_cycle(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     open_mirror(vm, bench)?;
     same_var(&before, &var_snapshot(vm)?)?;
     let (text, code) = install_from(vm, bench, "below-floor", false)?;
-    ensure(code == 2 && text.contains("known problems"), format!("below the floor: {text}"))
+    ensure(
+        code == 2 && text.contains("known problems"),
+        format!("below the floor: {text}"),
+    )
 }
 
 /// Requirement 1: the same checks from local media. A stick arrives by hot plug, as a real one does.
 fn usb_install(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let before = var_snapshot(vm)?;
     let stick = bench.bundles.join("usb.img");
-    vm.monitor(&format!("drive_add 0 if=none,id=stick,format=raw,readonly=on,file={}", stick.display()))?;
+    vm.monitor(&format!(
+        "drive_add 0 if=none,id=stick,format=raw,readonly=on,file={}",
+        stick.display()
+    ))?;
     vm.monitor("device_add usb-storage,drive=stick,id=stick0,removable=on")?;
     sleep(Duration::from_secs(5));
     let seen = vm.run("lsblk -rno PATH,HOTPLUG,RM,FSTYPE")?;
@@ -209,12 +307,21 @@ fn failed_health(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     install_ok(vm, bench, BAD_SERVER.0, false)?;
     ask_restart(vm, "apply")?;
     let took = wait_version(vm, BAD_SERVER.1, RESTART_LIMIT)?;
-    say(&format!("      new version up after {:.0}s", took.as_secs_f32()));
+    say(&format!(
+        "      new version up after {:.0}s",
+        took.as_secs_f32()
+    ));
     let took = wait_version(vm, &bench.first, RESTART_LIMIT + RESTART_LIMIT)?;
-    say(&format!("      back by itself after {:.0}s more", took.as_secs_f32()));
+    say(&format!(
+        "      back by itself after {:.0}s more",
+        took.as_secs_f32()
+    ));
     let value = wait_status(vm, &["last", "result"], "rolled_back", RESTART_LIMIT)?;
     let words = value["last"]["words"].as_str().unwrap_or("");
-    ensure(words.contains("medbrains-server") || words.contains("server"), format!("no reason: {words}"))?;
+    ensure(
+        words.contains("medbrains-server") || words.contains("server"),
+        format!("no reason: {words}"),
+    )?;
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
     same_var(&before, &var_snapshot(vm)?)?;
@@ -230,7 +337,10 @@ fn failed_start(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let started = Instant::now();
     sleep(Duration::from_secs(20));
     let took = wait_version(vm, &bench.first, ROLLBACK_LIMIT)?;
-    say(&format!("      back by itself after {:.0}s", started.elapsed().max(took).as_secs_f32()));
+    say(&format!(
+        "      back by itself after {:.0}s",
+        started.elapsed().max(took).as_secs_f32()
+    ));
     wait_status(vm, &["last", "result"], "rolled_back", RESTART_LIMIT)?;
     vm.wait_for_server()?;
     same_var(&before, &var_snapshot(vm)?)
@@ -283,7 +393,9 @@ fn cut_and_check(vm: &mut Vm, bench: &Bench, before: &str, step: &str) -> Result
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
     same_var(before, &var_snapshot(vm)?).map_err(|e| format!("{step}: {e}"))?;
-    say(&format!("      cut {step}: boots {version}, healthy, /var unchanged"));
+    say(&format!(
+        "      cut {step}: boots {version}, healthy, /var unchanged"
+    ));
     Ok(())
 }
 
@@ -291,15 +403,33 @@ fn cut_and_check(vm: &mut Vm, bench: &Bench, before: &str, step: &str) -> Result
 fn power_cuts_installing(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let before = var_snapshot(vm)?;
     start_install(vm, bench, NEXT.0)?;
-    wait_for(vm, "test -s /var/lib/medbrains/update/staging/root.img.zst", INSTALL_LIMIT)?;
+    wait_for(
+        vm,
+        "test -s /var/lib/medbrains/update/staging/root.img.zst",
+        INSTALL_LIMIT,
+    )?;
     cut_and_check(vm, bench, &before, "while downloading")?;
     let value = status(vm)?;
     ensure(value["last"]["result"] == "interrupted", format!("{value}"))?;
-    wait_for(vm, "test ! -e /var/lib/medbrains/update/staging", RESTART_LIMIT)?;
+    wait_for(
+        vm,
+        "test ! -e /var/lib/medbrains/update/staging",
+        RESTART_LIMIT,
+    )?;
     let stages: [(&str, &str, u32, bool); 3] = [
         ("before the slot is emptied", "/usr/sbin/sfdisk", 1, false),
-        ("after the image is written, before it is named", "/usr/sbin/sfdisk", 2, false),
-        ("after it is named, before the boot file", "/usr/sbin/sfdisk", 2, true),
+        (
+            "after the image is written, before it is named",
+            "/usr/sbin/sfdisk",
+            2,
+            false,
+        ),
+        (
+            "after it is named, before the boot file",
+            "/usr/sbin/sfdisk",
+            2,
+            true,
+        ),
     ];
     for (step, real, nth, after) in stages {
         hook(vm, "sfdisk", real, nth, after)?;
@@ -308,7 +438,11 @@ fn power_cuts_installing(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         cut_and_check(vm, bench, &before, step)?;
     }
     start_install(vm, bench, NEXT.0)?;
-    wait_for(vm, "grep -q '\"stage\": \"writing\"' /var/lib/medbrains/update/state.json", INSTALL_LIMIT)?;
+    wait_for(
+        vm,
+        "grep -q '\"stage\": \"writing\"' /var/lib/medbrains/update/state.json",
+        INSTALL_LIMIT,
+    )?;
     sleep(Duration::from_secs(3));
     cut_and_check(vm, bench, &before, "while writing the slot")?;
     install_ok(vm, bench, NEXT.0, true)?;
@@ -332,13 +466,19 @@ fn power_cuts_applying(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         vm.cut_power()?;
         vm.boot(&disk, own_tpm())?;
         let version = running_version(vm)?;
-        ensure(version == NEXT.1, format!("start {attempt}: booted {version}"))?;
+        ensure(
+            version == NEXT.1,
+            format!("start {attempt}: booted {version}"),
+        )?;
         say(&format!("      cut on trial start {attempt}"));
     }
     vm.cut_power()?;
     vm.boot(&disk, own_tpm())?;
     let version = running_version(vm)?;
-    ensure(version == bench.first, format!("after three cuts: booted {version}"))?;
+    ensure(
+        version == bench.first,
+        format!("after three cuts: booted {version}"),
+    )?;
     wait_status(vm, &["last", "result"], "rolled_back", RESTART_LIMIT)?;
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
@@ -348,7 +488,10 @@ fn power_cuts_applying(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     vm.cut_power()?;
     vm.boot(&disk, own_tpm())?;
     let version = running_version(vm)?;
-    ensure(version == NEXT.1, format!("a cut after proving good: booted {version}"))?;
+    ensure(
+        version == NEXT.1,
+        format!("a cut after proving good: booted {version}"),
+    )?;
     vm.wait_for_server()?;
     same_var(&before, &var_snapshot(vm)?)
 }
@@ -372,20 +515,39 @@ fn low_space(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         .run("df -B1 --output=avail /var | tail -1 | tr -d ' '")?
         .parse()
         .map_err(|e| format!("free space: {e}"))?;
-    vm.run(&format!("fallocate -l {} /var/lib/medbrains/os-test-filler", free - 512 * 1024 * 1024))?;
+    vm.run(&format!(
+        "fallocate -l {} /var/lib/medbrains/os-test-filler",
+        free - 512 * 1024 * 1024
+    ))?;
     let (text, code) = install_from(vm, bench, NEXT.0, false)?;
-    ensure(code == 2 && text.contains("data disk"), format!("{code} {text}"))?;
+    ensure(
+        code == 2 && text.contains("data disk"),
+        format!("{code} {text}"),
+    )?;
     vm.run("rm /var/lib/medbrains/os-test-filler")?;
-    ensure(vm.run(&fingerprint)? == before, "a refused update wrote to the disk")?;
+    ensure(
+        vm.run(&fingerprint)? == before,
+        "a refused update wrote to the disk",
+    )?;
     let free: u64 = vm
         .run("ls /boot >/dev/null; df -B1 --output=avail /boot | tail -1 | tr -d ' '")?
         .parse()
         .map_err(|e| format!("free space: {e}"))?;
-    vm.run(&format!("fallocate -l {} /boot/os-test-filler || head -c {} /dev/zero > /boot/os-test-filler", free - 4096, free - 4096))?;
+    vm.run(&format!(
+        "fallocate -l {} /boot/os-test-filler || head -c {} /dev/zero > /boot/os-test-filler",
+        free - 4096,
+        free - 4096
+    ))?;
     let (text, code) = install_from(vm, bench, NEXT.0, false)?;
-    ensure(code == 2 && text.contains("boot partition"), format!("{code} {text}"))?;
+    ensure(
+        code == 2 && text.contains("boot partition"),
+        format!("{code} {text}"),
+    )?;
     vm.run("rm /boot/os-test-filler")?;
-    ensure(vm.run(&fingerprint)? == before, "a refused update wrote to the boot partition")
+    ensure(
+        vm.run(&fingerprint)? == before,
+        "a refused update wrote to the boot partition",
+    )
 }
 
 /// Requirement 5: a security fix can't silently restart a machine in use. It waits through a tick with no
@@ -393,19 +555,29 @@ fn low_space(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
 fn waits_for_quiet(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     install_ok(vm, bench, "next-security", false)?;
     let value = status(vm)?;
-    ensure(value["security"] == true, format!("not marked security: {value}"))?;
+    ensure(
+        value["security"] == true,
+        format!("not marked security: {value}"),
+    )?;
     let headline = value["headline"].as_str().unwrap_or("");
-    ensure(headline.contains("security fix"), format!("headline: {headline}"))?;
+    ensure(
+        headline.contains("security fix"),
+        format!("headline: {headline}"),
+    )?;
     let boot_id = "cat /proc/sys/kernel/random/boot_id";
     let id = vm.run(boot_id)?;
     vm.run("medbrains-os-update tick")?;
     let far_away = vm.run("date -d '+6 hours' +%H:%M")?;
     let further = vm.run("date -d '+7 hours' +%H:%M")?;
-    vm.run(&format!("echo {far_away}-{further} > /var/lib/medbrains-settings/update-window"))?;
+    vm.run(&format!(
+        "echo {far_away}-{further} > /var/lib/medbrains-settings/update-window"
+    ))?;
     vm.run("medbrains-os-update tick")?;
     let now_start = vm.run("date -d '-1 minute' +%H:%M")?;
     let now_end = vm.run("date -d '+20 minutes' +%H:%M")?;
-    vm.run(&format!("echo {now_start}-{now_end} > /var/lib/medbrains-settings/update-window"))?;
+    vm.run(&format!(
+        "echo {now_start}-{now_end} > /var/lib/medbrains-settings/update-window"
+    ))?;
     wait_for(vm, "chronyc -c tracking | grep -q Normal", RESTART_LIMIT)?;
     vm.run("exec 9<>/dev/tcp/127.0.0.1/3000")?;
     vm.run("medbrains-os-update tick")?;

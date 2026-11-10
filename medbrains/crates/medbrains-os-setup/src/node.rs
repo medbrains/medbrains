@@ -46,9 +46,18 @@ fn wipe_dir(dir: &Path) -> std::io::Result<()> {
 /// A node holds no secrets but its own key: stops the identity provider setup started, and wipes
 /// what it wrote. Safe to run on every boot of a node, so a power cut partway is finished next time.
 pub(crate) fn drop_identity_provider() {
-    drop(output("systemctl", &["disable", "--now", "kanidmd.service"]));
-    log_if_failed("removing the setup marker", absent(fs::remove_file(IDENTITY_FOR_SETUP)));
-    log_if_failed("wiping the identity provider's data", absent(wipe_dir(Path::new(KANIDM_STATE))));
+    drop(output(
+        "systemctl",
+        &["disable", "--now", "kanidmd.service"],
+    ));
+    log_if_failed(
+        "removing the setup marker",
+        absent(fs::remove_file(IDENTITY_FOR_SETUP)),
+    );
+    log_if_failed(
+        "wiping the identity provider's data",
+        absent(wipe_dir(Path::new(KANIDM_STATE))),
+    );
 }
 
 /// Something already gone is what was wanted.
@@ -62,7 +71,10 @@ fn absent(result: std::io::Result<()>) -> Result<(), String> {
 /// Writes a file in place and to the disk, so a power cut can't leave a durable role marker beside an
 /// empty trust store and a screen that can never reach its main machine.
 fn write_durably(path: &str, contents: &str) -> std::io::Result<()> {
-    let mut file = fs::OpenOptions::new().write(true).truncate(true).open(path)?;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(path)?;
     file.write_all(contents.as_bytes())?;
     file.sync_all()
 }
@@ -75,8 +87,9 @@ pub(crate) fn finish_node() -> Result<(), String> {
         // Not being able to read it is not the same as nobody having approved.
         _ => format!("This machine can't read what it joined: {error}"),
     })?;
-    let certificate = rules::joined_certificate(&joined)
-        .ok_or_else(|| "The main machine's answer could not be used. Ask to join again.".to_owned())?;
+    let certificate = rules::joined_certificate(&joined).ok_or_else(|| {
+        "The main machine's answer could not be used. Ask to join again.".to_owned()
+    })?;
     write_durably(SCREEN_CERTIFICATE, &certificate).map_err(|e| e.to_string())?;
     if let Some(hospital) = rules::joined_hospital(&joined) {
         write_atomically(status::HOSPITAL_NAME, hospital.as_bytes(), PUBLIC_FILE_MODE)?;
@@ -84,10 +97,16 @@ pub(crate) fn finish_node() -> Result<(), String> {
     write_atomically(ROLE_NODE, b"", PUBLIC_FILE_MODE)?;
     drop_identity_provider();
     // From now on its clock comes from the main machine. A failure shows on screen as unconfirmed.
-    output("systemctl", &["restart", "medbrains-time-role.service", "chrony.service"]);
-    output("systemctl", &["start", "--no-block", "medbrains-node.target"])
-        .map(|_| ())
-        .ok_or_else(|| "The services could not start.".to_owned())
+    output(
+        "systemctl",
+        &["restart", "medbrains-time-role.service", "chrony.service"],
+    );
+    output(
+        "systemctl",
+        &["start", "--no-block", "medbrains-node.target"],
+    )
+    .map(|_| ())
+    .ok_or_else(|| "The services could not start.".to_owned())
 }
 
 #[cfg(test)]

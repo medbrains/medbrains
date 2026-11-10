@@ -71,10 +71,23 @@ const fn role_word(set_up: bool, node: bool) -> &'static str {
 fn app_answers(node: bool) -> bool {
     if node {
         let certificate = crate::node::SCREEN_CERTIFICATE;
-        let args = ["-fsS", "-m", "3", "--cacert", certificate, "-o", "/dev/null", FRONT_HEALTH];
+        let args = [
+            "-fsS",
+            "-m",
+            "3",
+            "--cacert",
+            certificate,
+            "-o",
+            "/dev/null",
+            FRONT_HEALTH,
+        ];
         return output("curl", &args).is_some();
     }
-    output("curl", &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH]).is_some()
+    output(
+        "curl",
+        &["-fsS", "-m", "2", "-o", "/dev/null", SERVER_HEALTH],
+    )
+    .is_some()
 }
 
 /// The zone setting's name, or `UTC` if it was never set.
@@ -276,9 +289,18 @@ mod tests {
     fn a_node_trusts_its_main_machines_clock_only_if_that_is_set_by_something() {
         use super::has_synced_main_source as synced;
         assert!(synced("^,*,127.0.0.1,3,4,377,5,0.1,0.1,0.1,0.1\n"));
-        assert!(!synced("^,*,127.0.0.1,11,4,377,5,0.1,0.1,0.1,0.1\n"), "its own clock, stratum 10");
-        assert!(!synced("^,?,127.0.0.1,3,4,0,5,0.1,0.1,0.1,0.1\n"), "not selected");
-        assert!(!synced("^,*,192.0.2.1,3,4,377,5,0.1,0.1,0.1,0.1\n"), "not through the agent");
+        assert!(
+            !synced("^,*,127.0.0.1,11,4,377,5,0.1,0.1,0.1,0.1\n"),
+            "its own clock, stratum 10"
+        );
+        assert!(
+            !synced("^,?,127.0.0.1,3,4,0,5,0.1,0.1,0.1,0.1\n"),
+            "not selected"
+        );
+        assert!(
+            !synced("^,*,192.0.2.1,3,4,377,5,0.1,0.1,0.1,0.1\n"),
+            "not through the agent"
+        );
         assert!(!synced(""));
     }
 
@@ -318,7 +340,8 @@ mod tests {
         assert_eq!(first_number("86.13 300.2\n"), 86);
         assert_eq!(parse_df("1B-blocks Used\n 1000 200\n"), Some((1000, 200)));
         assert_eq!(parse_df(""), None);
-        let failed = "medbrains-front.service loaded failed failed Front\nx.mount loaded failed failed X\n";
+        let failed =
+            "medbrains-front.service loaded failed failed Front\nx.mount loaded failed failed X\n";
         assert_eq!(parse_failed(failed), ["medbrains-front.service", "x.mount"]);
         let zones = "# comment\nIN\t+2232+08822\tAsia/Kolkata\nAQ\t-6617\tAntarctica/Casey\tNote\n";
         assert_eq!(parse_zone_list(zones), ["Asia/Kolkata", "Antarctica/Casey"]);

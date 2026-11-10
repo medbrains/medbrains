@@ -39,7 +39,12 @@ fn ask_agent(request: &Value) -> Option<Value> {
 /// Asks the agent on a worker thread, so the screen never waits on it.
 pub(crate) fn agent(request: Value, done: impl FnOnce(Option<Value>) + 'static) {
     glib::spawn_future_local(async move {
-        done(gio::spawn_blocking(move || ask_agent(&request)).await.ok().flatten());
+        done(
+            gio::spawn_blocking(move || ask_agent(&request))
+                .await
+                .ok()
+                .flatten(),
+        );
     });
 }
 
@@ -48,9 +53,15 @@ fn decision_words(state: &str) -> Option<&'static str> {
     match state {
         "rejected" => Some("The main machine refused this machine. Ask your administrator."),
         "expired" => Some("Nobody approved this machine in time. Go back and ask again."),
-        "dropped" => Some("Newer requests pushed this one out of the list. Choose the main machine to ask again."),
-        "unreachable" => Some("The main machine could not be reached. Check the cable and try again."),
-        "mismatch" => Some("Those digits did not match, so nothing was saved. This may not be your main machine: tell your administrator before trying again."),
+        "dropped" => Some(
+            "Newer requests pushed this one out of the list. Choose the main machine to ask again.",
+        ),
+        "unreachable" => {
+            Some("The main machine could not be reached. Check the cable and try again.")
+        }
+        "mismatch" => Some(
+            "Those digits did not match, so nothing was saved. This may not be your main machine: tell your administrator before trying again.",
+        ),
         _ => None,
     }
 }
@@ -62,8 +73,14 @@ fn found_machines(answer: &Value) -> Vec<(String, String)> {
         .flatten()
         .filter_map(|machine| {
             let id = machine.get("id")?.as_str()?.to_owned();
-            let name = machine.get("name").and_then(Value::as_str).unwrap_or("Main machine");
-            let address = machine.pointer("/addresses/0").and_then(Value::as_str).unwrap_or("");
+            let name = machine
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("Main machine");
+            let address = machine
+                .pointer("/addresses/0")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             Some((format!("{name}  {address}"), id))
         })
         .collect()
@@ -95,7 +112,11 @@ impl Parts {
             self.problem.set_label(NAME_NEEDED);
             return;
         }
-        let kind = if self.display.is_active() { "display" } else { "workstation" };
+        let kind = if self.display.is_active() {
+            "display"
+        } else {
+            "workstation"
+        };
         let request = json!({ "op": "join", "id": id, "name": name, "kind": kind });
         let parts = self.clone();
         agent(request, move |answer| match answer {
@@ -107,7 +128,10 @@ impl Parts {
                 parts.poll_decision();
             }
             answer => {
-                let error = answer.as_ref().and_then(|a| a.get("error")).and_then(Value::as_str);
+                let error = answer
+                    .as_ref()
+                    .and_then(|a| a.get("error"))
+                    .and_then(Value::as_str);
                 parts.problem.set_label(error.unwrap_or(NOT_ANSWERING));
             }
         });
@@ -124,7 +148,11 @@ impl Parts {
                     again_now.set(false);
                 }
             });
-            if again.get() { glib::ControlFlow::Continue } else { glib::ControlFlow::Break }
+            if again.get() {
+                glib::ControlFlow::Continue
+            } else {
+                glib::ControlFlow::Break
+            }
         });
     }
 
@@ -219,7 +247,10 @@ fn confirm_row(problem: &gtk::Label) -> gtk::Box {
         agent(request, move |answer| match answer {
             Some(answer) if answer.get("ok").is_some() => problem.set_label(""),
             answer => {
-                let error = answer.as_ref().and_then(|a| a.get("error")).and_then(Value::as_str);
+                let error = answer
+                    .as_ref()
+                    .and_then(|a| a.get("error"))
+                    .and_then(Value::as_str);
                 problem.set_label(error.unwrap_or(NOT_ANSWERING));
             }
         });
@@ -248,7 +279,10 @@ fn address_row(form: &gtk::Box, parts: &Parts) {
         let request = json!({ "op": "find", "address": address.text().to_string() });
         let parts = parts.clone();
         agent(request, move |answer| {
-            let error = answer.as_ref().and_then(|a| a.get("error")).and_then(Value::as_str);
+            let error = answer
+                .as_ref()
+                .and_then(|a| a.get("error"))
+                .and_then(Value::as_str);
             match (error, answer.as_ref().map(found_machines)) {
                 (None, Some(machines)) => {
                     parts.problem.set_label("");
@@ -299,8 +333,17 @@ pub(crate) fn page(actions: &gtk::Box, finished: Rc<dyn Fn()>) -> gtk::Widget {
     waiting.append(&confirming);
     waiting.set_visible(false);
     let parts = Parts {
-        name, display, list, problem: problem.clone(), choosing: choosing.clone(),
-        waiting: waiting.clone(), code, status, confirming, finished, shown: Rc::default(),
+        name,
+        display,
+        list,
+        problem: problem.clone(),
+        choosing: choosing.clone(),
+        waiting: waiting.clone(),
+        code,
+        status,
+        confirming,
+        finished,
+        shown: Rc::default(),
     };
     parts.show_list(Vec::new());
     address_row(&choosing, &parts);
@@ -327,7 +370,10 @@ mod tests {
         ]});
         assert_eq!(
             found_machines(&answer),
-            vec![("City Hospital  192.168.1.20:7844".to_owned(), "abc".to_owned())]
+            vec![(
+                "City Hospital  192.168.1.20:7844".to_owned(),
+                "abc".to_owned()
+            )]
         );
         assert!(found_machines(&json!({ "error": "x" })).is_empty());
     }

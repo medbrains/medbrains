@@ -41,7 +41,11 @@ fn is_local_page(uri: &str, origin: &str) -> bool {
 
 /// True for a navigation away from this app. The content filter would block it too, but on a
 /// dead-end page; refusing it here leaves the person where they were.
-fn leaves_this_app(decision: &NavigationPolicyDecision, origin: &str, sign_in: Option<&str>) -> bool {
+fn leaves_this_app(
+    decision: &NavigationPolicyDecision,
+    origin: &str,
+    sign_in: Option<&str>,
+) -> bool {
     let target = decision
         .navigation_action()
         .and_then(|mut action| action.request())
@@ -157,7 +161,12 @@ fn forget_sign_in_on_sign_out(view: &WebView, session: &NetworkSession, origin: 
     view.connect_notify_local(Some("uri"), move |view, _| {
         if view.uri().is_some_and(|uri| is_sign_in_page(&uri, &origin)) {
             if let Some(data) = session.website_data_manager() {
-                data.clear(WebsiteDataTypes::COOKIES, gtk4::glib::TimeSpan::from_seconds(0), gtk4::gio::Cancellable::NONE, |_| {});
+                data.clear(
+                    WebsiteDataTypes::COOKIES,
+                    gtk4::glib::TimeSpan::from_seconds(0),
+                    gtk4::gio::Cancellable::NONE,
+                    |_| {},
+                );
             }
         }
     });
@@ -178,11 +187,26 @@ mod tests {
     /// Only the app's own sign-in page clears the view's cookies, not a page that merely looks like it.
     #[test]
     fn only_the_apps_own_sign_in_page_counts() {
-        assert!(is_sign_in_page("https://screen.medbrains.local:8443/login", "https://screen.medbrains.local:8443"));
-        assert!(is_sign_in_page("https://screen.medbrains.local:8443/login?sso_error=unavailable", "https://screen.medbrains.local:8443"));
-        assert!(!is_sign_in_page("https://screen.medbrains.local:8443/loginhelp", "https://screen.medbrains.local:8443"));
-        assert!(!is_sign_in_page("https://screen.medbrains.local:8443/dashboard", "https://screen.medbrains.local:8443"));
-        assert!(!is_sign_in_page("https://idm.medbrains.local:9443/login", "https://screen.medbrains.local:8443"));
+        assert!(is_sign_in_page(
+            "https://screen.medbrains.local:8443/login",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(is_sign_in_page(
+            "https://screen.medbrains.local:8443/login?sso_error=unavailable",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(!is_sign_in_page(
+            "https://screen.medbrains.local:8443/loginhelp",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(!is_sign_in_page(
+            "https://screen.medbrains.local:8443/dashboard",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(!is_sign_in_page(
+            "https://idm.medbrains.local:9443/login",
+            "https://screen.medbrains.local:8443"
+        ));
     }
 
     const ORIGIN: &str = "https://127.0.0.1:8443";

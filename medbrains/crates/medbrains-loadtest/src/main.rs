@@ -320,8 +320,17 @@ async fn shared_session(base: &str) -> Result<(String, String), String> {
     let text = resp.text().await.map_err(|e| e.to_string())?;
     let csrf = serde_json::from_str::<serde_json::Value>(&text)
         .ok()
-        .and_then(|v| v.get("csrf_token").and_then(|t| t.as_str()).map(str::to_owned))
-        .ok_or_else(|| format!("sign-in {status}: {}", text.chars().take(200).collect::<String>()))?;
+        .and_then(|v| {
+            v.get("csrf_token")
+                .and_then(|t| t.as_str())
+                .map(str::to_owned)
+        })
+        .ok_or_else(|| {
+            format!(
+                "sign-in {status}: {}",
+                text.chars().take(200).collect::<String>()
+            )
+        })?;
     Ok((cookies.join("; "), csrf))
 }
 
@@ -330,7 +339,10 @@ async fn shared_session(base: &str) -> Result<(String, String), String> {
 /// proxy sees many staff terminals instead of one address.
 pub(crate) async fn login(user: &mut GooseUser) -> TransactionResult {
     let base = user.base_url.as_str().trim_end_matches('/').to_owned();
-    let (cookie, csrf) = match SHARED_SESSION.get_or_try_init(|| shared_session(&base)).await {
+    let (cookie, csrf) = match SHARED_SESSION
+        .get_or_try_init(|| shared_session(&base))
+        .await
+    {
         Ok(found) => found.clone(),
         Err(e) => {
             eprintln!("[loadtest] {e}");
@@ -347,7 +359,10 @@ pub(crate) async fn login(user: &mut GooseUser) -> TransactionResult {
     put("x-csrf-token", &csrf);
     if std::env::var("LOADTEST_FORWARDED").is_ok() {
         let i = user.weighted_users_index;
-        put("x-forwarded-for", &format!("10.77.{}.{}", i / 250, i % 250 + 1));
+        put(
+            "x-forwarded-for",
+            &format!("10.77.{}.{}", i / 250, i % 250 + 1),
+        );
     }
     let builder = reqwest::Client::builder()
         .default_headers(headers)
