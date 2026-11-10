@@ -1,0 +1,195 @@
+---
+// MedBrains OS: what it is, the machine roles, how a machine joins, hardware and status.
+// Every line comes from src/data/os.ts, which carries the sources and the honesty rule.
+import Demo from "../components/Demo.astro";
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import { SITE } from "../consts";
+import { OS_FAQ, OS_HARDWARE, OS_JOIN, OS_MEASURED, OS_NOT_DONE, OS_ROLES, OS_WHY } from "../data/os";
+import Base from "../layouts/Base.astro";
+
+const title = "MedBrains OS: one OS for every hospital machine";
+const description = "An open operating system for hospitals: one image for every machine, a role chosen at first boot, one server for the records, small replaceable nodes.";
+const home = new URL("/", Astro.site).href;
+const url = new URL("/os", Astro.site).href;
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: home },
+      { "@type": "ListItem", position: 2, name: "MedBrains OS", item: url },
+    ],
+  },
+  { "@type": "WebPage", name: title, url, description, inLanguage: "en-IN" },
+  {
+    "@type": "FAQPage",
+    mainEntity: OS_FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+  },
+];
+---
+
+<Base title={title} description={description} schema={schema}>
+  <Header />
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <nav class="crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>MedBrains OS</span></nav>
+        <p class="eyebrow">MedBrains OS</p>
+        <h1>One OS for every machine <span>in the hospital.</span></h1>
+        <p class="lede">MedBrains OS is a small, open operating system built on Debian Linux. The same image runs on every machine; you choose what each one is for on its first-boot screen. One server keeps the records, and every other machine is a small node you can replace in minutes.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#roles-title">See the machine roles</a>
+          <a class="btn btn-ghost" href="#status-title">What is not done yet</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="paper">
+      <section class="section" aria-labelledby="why-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Why an OS</p>
+          <h2 id="why-title" class="title">A hospital in a box, without the IT department</h2>
+          <div class="grid">
+            {OS_WHY.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="roles-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Chosen on the first-boot screen</p>
+          <h2 id="roles-title" class="title">Four machine roles, one image</h2>
+          <div class="grid four">
+            {OS_ROLES.map((r) => (
+              <article class="feature">
+                <h3>{r.title}</h3>
+                <p>{r.body}</p>
+                {r.status && <p class="status">{r.status}</p>}
+              </article>
+            ))}
+          </div>
+          <p class="small">One server manages everything. Keep a standby server too: a single server is a single point of failure. The OS is not locked to one app: it opens to a desktop of apps, and MedBrains is one of them.</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="join-title">
+        <div class="wrap narrow">
+          <p class="eyebrow tag">Adding a machine</p>
+          <h2 id="join-title" class="title">How a machine joins the hospital</h2>
+          <ol class="commit">{OS_JOIN.map((s) => <li>{s}</li>)}</ol>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="hw-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Hardware</p>
+          <h2 id="hw-title" class="title">The smallest box that does the job</h2>
+          <p class="note">One image per processor type: x86-64 (Intel and AMD) and arm64. These are recommendations, not tested kits.</p>
+          <div class="split">
+            {OS_HARDWARE.map((h) => <article class="card"><h3>{h.job}</h3><p>{h.kit}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="measured-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Measured, not claimed</p>
+          <h2 id="measured-title" class="title">Numbers so far</h2>
+          <dl class="stats">
+            {OS_MEASURED.map((m) => <div class="stat"><dt>{m.label}</dt><dd>{m.value}</dd></div>)}
+          </dl>
+          <p class="small">One run each, in virtual machines on a laptop, not on hospital hardware. Full figures are in the <a href="https://github.com/medbrains/medbrains/blob/main/medbrains/os/README.md#measured">OS build notes</a>.</p>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="status-title">
+        <div class="wrap narrow">
+          <p class="eyebrow tag">Status</p>
+          <h2 id="status-title" class="title">What is not done yet</h2>
+          <ul class="commit later">{OS_NOT_DONE.map((n) => <li>{n}</li>)}</ul>
+          <p class="small">The design is public: the <a href="https://github.com/medbrains/medbrains/blob/main/medbrains/RFCs/RFC-HOSPITAL-OS.md">MedBrains OS plan</a> and its <a href="https://github.com/medbrains/medbrains/blob/main/medbrains/docs/architecture/HOSPITAL-OS-ARCHITECTURE.md">architecture</a>.</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="faq-title">
+        <div class="wrap narrow">
+          <h2 id="faq-title" class="title">Questions</h2>
+          {OS_FAQ.map((f) => <details><summary>{f.q}</summary><p>{f.a}</p></details>)}
+        </div>
+      </section>
+    </div>
+
+    <Demo source="os" />
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .hero {
+    color: #fff; padding: 72px 0 88px;
+    background:
+      radial-gradient(700px 460px at 12% 110%, var(--glow-green), transparent 65%),
+      radial-gradient(900px 500px at 80% -20%, var(--glow-blue), transparent 60%), var(--night);
+    .eyebrow { color: var(--pulse); }
+    h1 { font: 900 clamp(2.3rem, 6vw, 4.4rem) var(--display); letter-spacing: -.035em; line-height: 1.02; margin: 0 0 20px; max-width: 16ch; }
+    h1 span { color: var(--sky); }
+    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0 0 32px; }
+    .btn-ghost { color: #fff; }
+  }
+  .crumbs-dark { margin-bottom: 28px; font-size: .88rem; color: var(--night-text); a { color: #fff; } }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+  .paper { background: var(--paper); color: var(--ink); }
+  .paper .section { padding: 88px 0; }
+  .tinted { background: var(--paper-2); }
+  .narrow > * { max-width: 860px; }
+  .title { font: 800 clamp(1.7rem, 3.4vw, 2.4rem)/1.1 var(--display); letter-spacing: -.025em; margin: 0 0 32px; max-width: 26ch; }
+  .eyebrow.tag { color: var(--purple); }
+  .note { margin: -16px 0 28px; color: var(--ink-2); max-width: 70ch; }
+  .small { margin: 24px 0 0; color: var(--muted); font-size: .95rem; max-width: 80ch; a { color: var(--blue-deep); } }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .grid.four { grid-template-columns: repeat(4, 1fr); }
+  .feature {
+    padding: 26px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: var(--shadow-soft);
+    h3 { font: 800 1.12rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+  .status { margin-top: 12px !important; font: 600 .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--purple) !important; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card {
+    padding: 30px 26px; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: var(--radius-lg);
+    background: var(--paper); box-shadow: var(--shadow-soft);
+    h3 { font: 800 1.3rem var(--display); letter-spacing: -.02em; margin: 0 0 14px; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+
+  .commit {
+    margin: 0; padding: 0; list-style: none; display: grid; gap: 12px;
+    li { padding: 16px 20px 16px 24px; border-left: 4px solid var(--blue); background: var(--paper); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); font-size: 1.05rem; }
+  }
+  ol.commit { counter-reset: step; li { counter-increment: step; } li::before { content: counter(step) ". "; font-weight: 700; color: var(--ink); } }
+  .commit.later li { border-left-color: var(--purple); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 0; }
+  .stat { display: flex; flex-direction: column-reverse; padding: 26px; border: 1px solid var(--line); border-radius: 18px; }
+  dd { margin: 0 0 8px; font: 900 2.4rem var(--display); letter-spacing: -.03em; color: var(--blue-deep); }
+  dt { color: var(--ink-2); }
+
+  details { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; padding: 20px 0; font-weight: 700; font-size: 1.08rem; }
+  details p { margin: 0 0 20px; color: var(--ink-2); }
+
+  @include below(lg) { .grid, .grid.four { grid-template-columns: 1fr 1fr; } }
+  @include below(md) { .split, .stats { grid-template-columns: 1fr; } }
+  @include below(sm) {
+    .grid, .grid.four { grid-template-columns: 1fr; }
+    .paper .section { padding: 56px 0; }
+    .card { padding: 24px 20px; }
+  }
+</style>
