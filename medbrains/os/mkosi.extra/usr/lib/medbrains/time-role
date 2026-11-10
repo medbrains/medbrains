@@ -13,5 +13,10 @@ else
 server time.cloudflare.com iburst nts
 server ptbtime2.ptb.de iburst nts
 server ptbtime1.ptb.de iburst nts
+# CERT-In direction (i): India's NIC and NPL servers. They offer no NTS, so chrony's default
+# authselectmode (mix) uses them only while they agree with the authenticated sources above.
+server samay1.nic.in iburst
+server samay2.nic.in iburst
+server time.nplindia.org iburst
 SOURCES
 fi

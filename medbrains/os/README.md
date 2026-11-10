@@ -215,6 +215,9 @@ SIGTERM, so the final shutdown waited for it. Release images never had this.
 and 443 to any address until Control can hold an allowlist. **Only a main machine** adds inbound 80, 443, 9443 (identity provider), 123
 (time for the LAN), 7844 (iroh) and 7845 ("who are you?" for a typed address), from
 `usr/lib/medbrains/main-machine.nft`, and only it announces `medbrains.local` and serves time.
+Time (`usr/lib/medbrains/time-role`): a main machine uses NTS sources plus India's NIC (`samay1/samay2.nic.in`) and
+NPL (`time.nplindia.org`) servers for CERT-In direction (i); those have no NTS, so chrony uses them only while they
+agree with the authenticated ones. A node still takes time only from its main machine, through the agent's relay.
 Analysers and PACS have no outbound path until the device network gateway (task N4.2). A file that does not
 parse fails the build. Time is `chrony` with NTS, and keeps serving the LAN with the internet gone.
 
