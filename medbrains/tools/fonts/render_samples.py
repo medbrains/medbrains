@@ -125,12 +125,12 @@ def page(data: dict[str, bytes], weight: str) -> Image.Image:
 def main() -> int:
     """Render every weight and write the stacked PNG and the one-page-per-weight PDF."""
     cache = Path.home() / ".cache/medbrains-fonts"
-    plex, noto = build.fetch(build.PLEX, cache), build.fetch(build.NOTO["Devanagari"], cache)
-    original = instancer.instantiateVariableFont(build.load(plex.read(build.PLEX.member)), {"wdth": 100})
+    plex = build.BASES["plex"]
+    original = instancer.instantiateVariableFont(build.load(build.fetch(plex.font, cache)), {"wdth": 100})
     fonts = {
         "IBM Plex Sans": original,
-        "MedBrains Sans": build.medbrains_variable(plex),
-        "noto": build.load(noto.read(build.NOTO["Devanagari"].member)),
+        "MedBrains Sans": build.medbrains_variable(plex, cache),
+        "noto": build.load(build.fetch(build.NOTO["Devanagari"][0], cache)),
     }
     pages = [page(faces(fonts, weight), weight) for weight in WEIGHTS]
     sheet = Image.new("RGB", (max(p.width for p in pages), sum(p.height for p in pages)), "#ffffff")

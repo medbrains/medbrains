@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Build MedBrains Sans from a pinned IBM Plex Sans release, plus its Noto pairing for Indian scripts.
+"""Build MedBrains Sans from a pinned OFL base font, plus its Noto pairing for Indian scripts.
 
-MedBrains Sans is IBM Plex Sans with its clinical alternate (the slashed zero) made the default, so a
-dose or an ID reads the same in every app, including ones that cannot switch OpenType features on.
-Plex is under the SIL Open Font License 1.1 with the Reserved Font Name "Plex", so the derived font
-carries a new name and keeps IBM's copyright and the licence. See docs/design/fonts/MEDBRAINS-SANS.md.
+MedBrains Sans is a base family (IBM Plex Sans by default; see bases.py) with its clinical alternates
+made the default, so a dose or an ID reads the same in every app, including ones that cannot switch
+OpenType features on. The bases are under the SIL Open Font License 1.1; a Reserved Font Name never
+reaches our name records, and the base's copyright and licence travel with every copy.
+See docs/design/fonts/MEDBRAINS-SANS.md.
 
 Outputs, all committed:
 - web: one variable WOFF2 (weights 400-700) per unicode range, Latin first, so a page downloads only
@@ -14,6 +15,7 @@ Outputs, all committed:
 
     python3 -I tools/fonts/build_medbrains_sans.py            # build and install into the repo
     python3 -I tools/fonts/build_medbrains_sans.py --check    # fail if the committed files differ
+    python3 -I tools/fonts/build_medbrains_sans.py --base atkinson   # build from another base
 
 Needs the versions in tools/fonts/requirements.txt (`make fonts` / `make check-fonts` set that up).
 """
@@ -22,12 +24,8 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import io
 import sys
-import urllib.request
-import zipfile
-from dataclasses import dataclass
 from pathlib import Path
 
 from fontTools import subset
@@ -35,52 +33,21 @@ from fontTools.ttLib import TTFont, newTable
 from fontTools.ttLib.tables import ttProgram
 from fontTools.varLib import instancer
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bases import BASES, NOTO, Base, fetch  # noqa: E402
 
-@dataclass(frozen=True)
-class Source:
-    """A pinned release archive, the font inside it and its licence file."""
-
-    url: str
-    sha256: str
-    member: str
-    licence: str
-
-
-PLEX = Source(
-    url="https://github.com/IBM/plex/releases/download/%40ibm/plex-sans-variable%400.2.0/plex-sans-variable.zip",
-    sha256="f83825d527be6cd39c8971c932b9bf22688a3ad3e5ac6305b6143d02f52b87b6",
-    member="fonts/complete/ttf/IBM Plex Sans Var-Roman.ttf",
-    licence="fonts/complete/ttf/license.txt",
-)
-PLEX_RELEASE = "@ibm/plex-sans-variable@0.2.0"
-PLEX_COMMIT = "348dbb6121c34d755a6d2725c89b2abc9ffaa142"
-NOTO = {
-    "Devanagari": Source(
-        url="https://github.com/notofonts/devanagari/releases/download/NotoSansDevanagari-v2.007/NotoSansDevanagari-v2.007.zip",
-        sha256="820c7da45b1e63562cb41c0a8cac5d9a4202312043a3a040ed1325857ef469b1",
-        member="NotoSansDevanagari/unhinted/slim-variable-ttf/NotoSansDevanagari[wght].ttf",
-        licence="OFL.txt",
-    ),
-    "Tamil": Source(
-        url="https://github.com/notofonts/tamil/releases/download/NotoSansTamil-v2.004/NotoSansTamil-v2.004.zip",
-        sha256="f8284e0f200a7f29a439b4ec88280d864b2b31f8479111c5b658ba6da38b3005",
-        member="NotoSansTamil/unhinted/slim-variable-ttf/NotoSansTamil[wght].ttf",
-        licence="../OFL.txt",
-    ),
-}
 
 FAMILY = "MedBrains Sans"
 PS_FAMILY = "MedBrainsSans"
 VERSION = "0.100"
 VENDOR = "MDBR"
 OUR_COPYRIGHT = "Copyright 2026 Domnic Amalan S and MedBrains contributors (MedBrains Sans changes)."
-IBM_COPYRIGHT = "Copyright 2019 IBM Corp. All rights reserved."
 OFL_NOTICE = (
     "This Font Software is licensed under the SIL Open Font License, Version 1.1. "
     "This license is available with a FAQ at: https://openfontlicense.org"
 )
-# Name IDs allowed to mention Plex: designers, version (the source) and description (the lineage).
-PLEX_MENTION_OK = {5, 9, 10}
+# Name IDs that may name the base: copyright, version (the source), designers, description (lineage).
+BASE_MENTION_OK = {0, 5, 9, 10}
 
 # Static instances for native and GTK: weight name -> (wght, one of the four RIBBI styles?).
 STATICS = {"Light": (300, False), "Regular": (400, True), "Medium": (500, False), "SemiBold": (600, False)}
@@ -88,9 +55,6 @@ NATIVE_WEIGHTS = ("Light", "Regular", "Medium", "SemiBold")
 GTK_WEIGHTS = ("Regular", "SemiBold")
 WEB_WGHT = (400, 700)
 
-# Plex's slashed zero (stylistic set ss03 / feature `zero`), frozen into the default glyphs.
-FROZEN_ALTERNATES = {"zero": "zero.alt02", "zero.tosf": "zero.tosf.alt02"}
-DIGITS = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine")
 
 # The first-load face: ASCII, Latin-1 (µ ° ± × ÷ ² ³ ½ live here), the clinical symbols ≤ ≥ → ₹
 # and typographic punctuation. ZWJ/ZWNJ (U+200C-200F) are left to the Indic faces, which need them
@@ -125,24 +89,11 @@ ANDROID_LICENSE_DIR = REPO / "medbrains/apps/android/ui/src/main/assets/licenses
 GTK_DIR = REPO / "medbrains/crates/medbrains-shell/fonts"
 
 CSS_HEADER = """/* MedBrains Sans, generated by tools/fonts/build_medbrains_sans.py: never edit by hand.
-   IBM Plex Sans with the slashed zero by default, plus Noto Sans Devanagari and Tamil as faces of the
-   same family, matched in size (SIL OFL 1.1, see ../assets/fonts/OFL*.txt). Each face downloads only
+   {description}
+   Noto Sans Devanagari and Tamil are faces of the same family, matched in size (SIL OFL 1.1, see ../assets/fonts/OFL*.txt). Each face downloads only
    when a page draws a character in its unicode-range; index.html preloads the Latin face.
    "MedBrains Sans Fallback" is local Arial resized to the same metrics, so text does not move when
    the web font arrives. */"""
-
-
-def fetch(source: Source, cache: Path) -> zipfile.ZipFile:
-    """Download a pinned release once and refuse it unless its SHA-256 matches the pin."""
-    archive = cache / f"{source.sha256[:16]}.zip"
-    if not archive.exists():
-        cache.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(source.url, timeout=120) as response:
-            archive.write_bytes(response.read())
-    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    if digest != source.sha256:
-        raise SystemExit(f"{source.url}: sha256 {digest} is not the pinned {source.sha256}")
-    return zipfile.ZipFile(archive)
 
 
 def to_bytes(font: TTFont, flavor: str | None = None) -> bytes:
@@ -163,37 +114,61 @@ def reload(font: TTFont) -> TTFont:
     return load(to_bytes(font))
 
 
-def freeze_alternates(font: TTFont) -> None:
+def freeze_alternates(font: TTFont, alternates: dict[str, str]) -> None:
     """Copy each clinical alternate over its default glyph, outline and variations both."""
     glyf, hmtx, gvar = font["glyf"], font["hmtx"], font["gvar"]
-    for default, alternate in FROZEN_ALTERNATES.items():
+    for default, alternate in alternates.items():
         if hmtx[default][0] != hmtx[alternate][0]:
             raise SystemExit(f"{alternate} would change the advance of {default}")
         glyf[default] = copy.deepcopy(glyf[alternate])
         gvar.variations[default] = copy.deepcopy(gvar.variations[alternate])
 
 
+def single_substitutions(font: TTFont, tag: str) -> dict[str, str]:
+    """Every one-to-one substitution a GSUB feature makes, merged over scripts and lookups."""
+    gsub = font["GSUB"].table
+    indices = sorted({i for r in gsub.FeatureList.FeatureRecord if r.FeatureTag == tag for i in r.Feature.LookupListIndex})
+    mapping: dict[str, str] = {}
+    for index in indices:
+        lookup = gsub.LookupList.Lookup[index]
+        for table in lookup.SubTable:
+            table = table.ExtSubTable if lookup.LookupType == 7 else table
+            mapping.update(getattr(table, "mapping", None) or {k: v[0] for k, v in getattr(table, "alternates", {}).items()})
+    if not mapping:
+        raise SystemExit(f"feature {tag} has no single substitutions to freeze")
+    return mapping
+
+
+def freeze_features(font: TTFont, tags: tuple[str, ...]) -> None:
+    """Point the cmap at each feature's substitute glyph, in order, so the feature is always on."""
+    for tag in tags:
+        mapping = single_substitutions(font, tag)
+        for table in font["cmap"].tables:
+            table.cmap = {code: mapping.get(glyph, glyph) for code, glyph in table.cmap.items()}
+
+
 def assert_tabular_digits(font: TTFont) -> None:
     """Fail the build unless every default digit shares one advance width: tables of doses align."""
-    widths = {font["hmtx"][digit][0] for digit in DIGITS}
+    cmap = font.getBestCmap()
+    widths = {font["hmtx"][cmap[ord(digit)]][0] for digit in "0123456789"}
     if len(widths) != 1:
         raise SystemExit(f"default digits are not tabular: advances {sorted(widths)}")
 
 
-def name_records(weight: str, ribbi: bool) -> dict[int, str]:
+def name_records(base: Base, weight: str, ribbi: bool) -> dict[int, str]:
     """The name table entries for one style; RIBBI styles need no typographic family pair."""
     ps_name = f"{PS_FAMILY}-{weight}"
     records = {
-        0: f"{IBM_COPYRIGHT} {OUR_COPYRIGHT}",
+        0: f"{base.copyright} {OUR_COPYRIGHT}",
         1: FAMILY if ribbi else f"{FAMILY} {weight}",
         2: weight if ribbi else "Regular",
         3: f"{VERSION};{VENDOR};{ps_name}",
         4: FAMILY if weight == "Regular" else f"{FAMILY} {weight}",
-        5: f"Version {VERSION}; from IBM Plex Sans 3.000 ({PLEX_RELEASE}, commit {PLEX_COMMIT[:12]})",
+        5: f"Version {VERSION}; from {base.label} ({base.release}, commit {base.commit[:12]})",
         6: ps_name,
         8: "MedBrains",
-        9: "Mike Abbink, Paul van der Laan, Pieter van Rosmalen (IBM Plex Sans); MedBrains (changes)",
-        10: "Derived from IBM Plex Sans: the slashed zero is the default figure, for clinical text.",
+        9: f"{base.designers}; MedBrains (changes)",
+        10: base.description,
         11: "https://www.medbrains.in",
         13: OFL_NOTICE,
         14: "https://openfontlicense.org",
@@ -203,38 +178,44 @@ def name_records(weight: str, ribbi: bool) -> dict[int, str]:
     return records
 
 
-def rename(font: TTFont, weight: str, ribbi: bool) -> None:
-    """Replace every name that says Plex (a Reserved Font Name); keep the feature and axis labels."""
+def rename(font: TTFont, base: Base, weight: str, ribbi: bool) -> None:
+    """Replace every upstream name (and any Reserved Font Name); keep the feature and axis labels."""
     table = font["name"]
     table.names = [record for record in table.names if record.nameID >= 19]
     for record in table.names:
-        text = record.toUnicode().replace("IBMPlexSansVarRoman", PS_FAMILY)
-        record.string = text.replace("IBMPlexSansVar", PS_FAMILY)
-    for name_id, text in name_records(weight, ribbi).items():
+        text = record.toUnicode()
+        for upstream in base.ps_names:
+            text = text.replace(upstream, PS_FAMILY)
+        record.string = text
+    for name_id, text in name_records(base, weight, ribbi).items():
         table.setName(text, name_id, 3, 1, 0x409)
-    if any("Plex" in r.toUnicode() for r in table.names if r.nameID not in PLEX_MENTION_OK):
-        raise SystemExit("a name record still says Plex, a Reserved Font Name")
+    banned = base.reserved or base.ps_names[-1]
+    if any(banned in r.toUnicode() for r in table.names if r.nameID not in BASE_MENTION_OK):
+        raise SystemExit(f"a name record still says {banned}")
     font["OS/2"].achVendID = VENDOR
     font["head"].fontRevision = float(VERSION)
 
 
-def medbrains_variable(plex: zipfile.ZipFile) -> TTFont:
-    """Plex Sans' upright cut to normal width and weights 300-700, alternate frozen, renamed."""
-    font = load(plex.read(PLEX.member))
+def medbrains_variable(base: Base, cache: Path) -> TTFont:
+    """The base's upright cut to normal width and weights 300-700, clinical defaults frozen, renamed."""
+    font = load(fetch(base.font, cache))
     font["head"].modified = font["head"].created
-    font = instancer.instantiateVariableFont(font, {"wght": (300, 700), "wdth": 100})
-    freeze_alternates(font)
-    assert_tabular_digits(font)
-    rename(font, "Regular", True)
+    font = instancer.instantiateVariableFont(font, base.axes)
+    if base.copy_alternates:
+        freeze_alternates(font, base.copy_alternates)
+    freeze_features(font, base.freeze)
+    if base.tabular:
+        assert_tabular_digits(font)
+    rename(font, base, "Regular", True)
     return reload(font)
 
 
-def static_instance(variable: TTFont, weight: str) -> TTFont:
+def static_instance(variable: TTFont, base: Base, weight: str) -> TTFont:
     """One static weight, named as its own style, for platforms that register fonts by weight."""
     wght, ribbi = STATICS[weight]
     font = instancer.instantiateVariableFont(reload(variable), {"wght": wght})
     font["OS/2"].usWeightClass = wght
-    rename(font, weight, ribbi)
+    rename(font, base, weight, ribbi)
     return font
 
 
@@ -318,7 +299,7 @@ def face(file: str, codes: list[int]) -> str:
     )
 
 
-def web_outputs(variable: TTFont, noto: dict[str, TTFont]) -> dict[Path, bytes]:
+def web_outputs(variable: TTFont, base: Base, noto: dict[str, TTFont]) -> dict[Path, bytes]:
     """The web WOFF2 files (hinted Latin for low-DPI screens) and the stylesheet declaring them."""
     web = instancer.instantiateVariableFont(reload(variable), {"wght": WEB_WGHT})
     latin = smart_dropout(cut(web, LATIN, hinting=True))
@@ -328,7 +309,7 @@ def web_outputs(variable: TTFont, noto: dict[str, TTFont]) -> dict[Path, bytes]:
         WEB_DIR / f"{PS_FAMILY}-latin.woff2": to_bytes(latin, "woff2"),
         WEB_DIR / f"{PS_FAMILY}-extended.woff2": to_bytes(smart_dropout(cut(web, rest, hinting=True)), "woff2"),
     }
-    css = [CSS_HEADER, fallback_face(web)]
+    css = [CSS_HEADER.format(description=base.description), fallback_face(web)]
     for script, font in noto.items():
         files[WEB_DIR / f"NotoSans{script}.woff2"] = to_bytes(font, "woff2")
         css.append(face(f"NotoSans{script}.woff2", sorted(font.getBestCmap())))
@@ -340,31 +321,30 @@ def web_outputs(variable: TTFont, noto: dict[str, TTFont]) -> dict[Path, bytes]:
 def noto_faces(cache: Path) -> tuple[dict[str, TTFont], bytes]:
     """Noto Sans Devanagari and Tamil cut to their scripts and weights 400-700, plus their licences."""
     fonts, licences = {}, []
-    for script, source in NOTO.items():
-        archive = fetch(source, cache)
-        font = instancer.instantiateVariableFont(load(archive.read(source.member)), {"wght": WEB_WGHT})
+    for script, (source, licence) in NOTO.items():
+        font = instancer.instantiateVariableFont(load(fetch(source, cache)), {"wght": WEB_WGHT})
         fonts[script] = cut(font, INDIC_RANGES[script], hinting=False)
-        licences.append(archive.read(source.licence).decode("utf-8").replace("\r", ""))
+        text = fetch(type(source)(source.url, source.sha256, licence), cache)
+        licences.append(text.decode("utf-8").replace("\r", ""))
     return fonts, "\n\n".join(licences).encode()
 
 
-def outputs(cache: Path) -> dict[Path, bytes]:
+def outputs(cache: Path, base: Base) -> dict[Path, bytes]:
     """Every file the build installs, keyed by its path in the repository."""
-    plex = fetch(PLEX, cache)
-    variable = medbrains_variable(plex)
+    variable = medbrains_variable(base, cache)
     noto, noto_licence = noto_faces(cache)
-    files = web_outputs(variable, noto)
+    files = web_outputs(variable, base, noto)
     for weight in NATIVE_WEIGHTS:
-        data = to_bytes(smart_dropout(cut(static_instance(variable, weight), LATIN, hinting=False)))
+        data = to_bytes(smart_dropout(cut(static_instance(variable, base, weight), LATIN, hinting=False)))
         files[IOS_DIR / f"{PS_FAMILY}-{weight}.ttf"] = data
         files[ANDROID_DIR / f"medbrains_sans_{weight.lower()}.ttf"] = data
         if weight in GTK_WEIGHTS:
             files[GTK_DIR / f"{PS_FAMILY}-{weight}.ttf"] = data
     for script, font in noto.items():
         files[GTK_DIR / f"NotoSans{script}.ttf"] = to_bytes(smart_dropout(reload(font)))
-    ibm = plex.read(PLEX.licence).decode("utf-8").replace("\r", "")
+    upstream = fetch(base.licence, cache).decode("utf-8").replace("\r", "")
     for directory in (WEB_DIR, IOS_DIR, ANDROID_LICENSE_DIR, GTK_DIR):
-        files[directory / "OFL.txt"] = f"{OUR_COPYRIGHT}\n{ibm}".encode()
+        files[directory / "OFL.txt"] = f"{OUR_COPYRIGHT}\n{upstream}".encode()
     for directory in (WEB_DIR, GTK_DIR):
         files[directory / "OFL-Noto.txt"] = noto_licence
     return files
@@ -380,8 +360,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail if committed fonts differ")
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/medbrains-fonts")
+    parser.add_argument("--base", choices=sorted(BASES), default="plex", help="upstream family (default plex)")
     args = parser.parse_args()
-    files = outputs(args.cache)
+    files = outputs(args.cache, BASES[args.base])
     if args.check:
         drift = stale(files)
         for path in drift:
