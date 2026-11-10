@@ -32,6 +32,7 @@ function weatherInfo(code: number): { Icon: TablerIcon; label: string; color: st
   return { Icon: IconCloudStorm, label: "Thunderstorm", color: "#8a3ffc" };
 }
 
+/** The current time, updated every second. */
 function useClock(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffectOnce(() => {
@@ -41,7 +42,17 @@ function useClock(): Date {
   return now;
 }
 
-function ClockWidget() {
+/** The full date for the clock's tooltip, read when the tooltip opens. */
+function FullDate() {
+  return <>{new Date().toLocaleDateString([], { dateStyle: "full" })}</>;
+}
+
+/**
+ * The ticking part of the clock. Only this re-renders each second; the
+ * tooltip, its portal and the pill around it used to re-render with it on
+ * every screen, all day.
+ */
+function ClockFace() {
   const now = useClock();
   const time = now.toLocaleTimeString([], {
     hour: "2-digit",
@@ -50,15 +61,24 @@ function ClockWidget() {
   });
   const date = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
   return (
-    <Tooltip label={now.toLocaleDateString([], { dateStyle: "full" })} withArrow>
+    <>
+      <Text size="xs" fw={700} ff="var(--mb-font-mono)" className={styles.clockTime}>
+        {time}
+      </Text>
+      <Text size="xs" c="var(--mb-text-muted)" visibleFrom="xl">
+        {date}
+      </Text>
+    </>
+  );
+}
+
+/** Header clock pill: static frame and tooltip around the ticking face. */
+function ClockWidget() {
+  return (
+    <Tooltip label={<FullDate />} withArrow>
       <Group gap={6} wrap="nowrap" className={`${styles.pill} ${styles.pillClock}`}>
         <IconClock size={15} className={styles.pulse} aria-hidden />
-        <Text size="xs" fw={700} ff="var(--mb-font-mono)" className={styles.clockTime}>
-          {time}
-        </Text>
-        <Text size="xs" c="var(--mb-text-muted)" visibleFrom="xl">
-          {date}
-        </Text>
+        <ClockFace />
       </Group>
     </Tooltip>
   );

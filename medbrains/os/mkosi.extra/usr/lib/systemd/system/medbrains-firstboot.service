@@ -3,7 +3,8 @@
 # holds any of it. Idempotent; a no-op once both exist.
 [Unit]
 Description=MedBrains first boot (secrets, database cluster)
-After=local-fs.target systemd-sysusers.service systemd-tmpfiles-setup.service
+Requires=medbrains-disk-finish.service
+After=local-fs.target systemd-sysusers.service systemd-tmpfiles-setup.service medbrains-disk-finish.service
 Before=postgresql@17-main.service medbrains-server.service
 ConditionPathExists=!/var/lib/medbrains/config/.firstboot-done
 

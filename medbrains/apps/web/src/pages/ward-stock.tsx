@@ -1,7 +1,7 @@
 import { Group, NumberInput, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { LocationStockSummary, WardStockRow } from "@medbrains/types";
+import type { LocationStockSummary, WardStockConsumeCharge, WardStockRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconRefresh } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,9 +10,20 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, Modal, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
+
+/** What the nurse is told became of the patient's charge. */
+export const CONSUME_CHARGE_TEXT: Record<WardStockConsumeCharge, string> = {
+  ward_use: "Recorded as ward use.",
+  not_billable: "Not billed: this item is not charged to patients.",
+  posted: "Charged to the patient's bill.",
+  queued: "The charge could not post; the billing desk has it.",
+  disabled: "Not billed: ward-stock billing is off for this hospital.",
+  deferred: "The charge could not be worked out now; the daily check will send it to billing.",
+};
 
 export function WardStockPage() {
   useRequirePermission(P.PHARMACY.STORES_MANAGE);
@@ -29,6 +40,7 @@ export function WardStockPage() {
   const [parQty, setParQty] = useState(0);
   const [consumeRow, setConsumeRow] = useState<WardStockRow | null>(null);
   const [consumeQty, setConsumeQty] = useState(1);
+  const [consumePatient, setConsumePatient] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["ward-stock", dept],
@@ -36,7 +48,14 @@ export function WardStockPage() {
     enabled: !!dept,
   });
 
-  const { data: locations = [] } = useQuery({
+  // Hidden without its permission, and loading until it answers: an empty
+  // table here reads as "no stock anywhere".
+  const {
+    data: locations = [],
+    isLoading: locationsLoading,
+    error: locationsError,
+    refetch: refetchLocations,
+  } = useQuery({
     queryKey: ["pharmacy-location-stock"],
     queryFn: () => pharmacyService.getLocationStockDashboard(),
     enabled: canReadStockDashboard,
@@ -98,10 +117,14 @@ export function WardStockPage() {
         department_id: dept,
         catalog_item_id: consumeRow?.catalog_item_id ?? "",
         quantity: consumeQty,
+        patient_id: consumePatient || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ["ward-stock", dept] });
-      toast.success("Consumption recorded", { title: "Ward stock" });
+      const text = CONSUME_CHARGE_TEXT[r.charge];
+      if (r.charge === "queued" || r.charge === "deferred")
+        toast.warning(text, { title: "Consumption recorded" });
+      else toast.success(text, { title: "Consumption recorded" });
       consumeHandlers.close();
     },
     onError: (e: Error) => toast.error(e.message, { title: "Consume failed" }),
@@ -130,6 +153,7 @@ export function WardStockPage() {
             onClick={() => {
               setConsumeRow(r);
               setConsumeQty(1);
+              setConsumePatient("");
               consumeHandlers.open();
             }}
           >
@@ -146,13 +170,20 @@ export function WardStockPage() {
         subtitle="Per-location stock health + ward par / imprest stock"
       />
 
-      <Text fw={600}>Stock by location</Text>
-      <DataTable
-        columns={locationCols}
-        data={locations}
-        rowKey={(r) => r.location_id}
-        emptyTitle="No pharmacy locations with stock yet."
-      />
+      {canReadStockDashboard && (
+        <>
+          <Text fw={600}>Stock by location</Text>
+          <DataTable
+            columns={locationCols}
+            data={locations}
+            loading={locationsLoading}
+            error={locationsError}
+            onRetry={() => void refetchLocations()}
+            rowKey={(r) => r.location_id}
+            emptyTitle="No pharmacy locations with stock yet."
+          />
+        </>
+      )}
 
       <Text fw={600} mt="md">
         Ward par stock
@@ -219,6 +250,13 @@ export function WardStockPage() {
               onChange={(v) => setConsumeQty(typeof v === "number" ? v : 1)}
               min={1}
               max={consumeRow.on_hand}
+            />
+            <PatientSearchSelect
+              label="Used on patient"
+              placeholder="Leave empty for ward use"
+              allowCreate={false}
+              value={consumePatient}
+              onChange={setConsumePatient}
             />
             <Button onClick={() => consume.mutate()} loading={consume.isPending}>
               Consume

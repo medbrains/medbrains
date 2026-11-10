@@ -41,9 +41,12 @@ async fn two_brands(
     let other_name = format!("Brandtwo {tag}");
     // Candidates are every active brand of the ingredient in the hospital, so
     // retire what earlier runs left. The real ingredient name must stay: the
-    // never-substituted rule matches on it.
+    // never-substituted rule matches on it. Retired by the same match the
+    // candidates use (ingredient or generic name, any case), or brands other
+    // tests left under a generic name fill the candidate list first.
     sqlx::query(
-        "UPDATE pharmacy_catalog SET is_active = false WHERE tenant_id = $1 AND inn_name = $2",
+        "UPDATE pharmacy_catalog SET is_active = false WHERE tenant_id = $1 \
+           AND lower(COALESCE(inn_name, generic_name, '')) = lower($2)",
     )
     .bind(setup.tenant)
     .bind(inn)

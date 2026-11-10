@@ -20,7 +20,11 @@ struct ConsultationNoteForm: View {
     @State private var problem: String?
     @State private var error: String?
     @State private var lateReason: String?
+    /// The last signature was refused for a fresh password and not yet retried.
+    @State private var needsIdentity = false
     @State private var savedDraft = false
+    /// Signing was refused for a fresh password; the sheet asks for it.
+    @State private var confirmingIdentity = false
     @FocusState private var focus: String?
 
     init(encounterId: String, note: Note?, canSign: Bool, onChange: @escaping () async -> Void) {
@@ -41,7 +45,12 @@ struct ConsultationNoteForm: View {
             field("Assessment", $draft.assessment, "assessment")
             field("Plan", $draft.plan, "plan")
             ExamFindingsSection(findings: $draft.findings, canRecord: true)
-            if let error { CarbonNotification(kind: .error, title: "The note was not saved", message: error) }
+            if confirmingIdentity || needsIdentity {
+                CarbonNotification(kind: .info, title: "Draft saved — signing needs you to confirm it's you", message: "Enter your password to sign.")
+                    .accessibilityIdentifier("consultation-confirm-identity")
+            } else if let error {
+                CarbonNotification(kind: .error, title: "The note was not saved", message: error)
+            }
             if savedDraft {
                 CarbonNotification(kind: .success, title: "Draft saved", message: "Not part of the record until you sign it.")
                     .accessibilityIdentifier("consultation-draft-saved")
@@ -63,6 +72,9 @@ struct ConsultationNoteForm: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("consultation-form")
+        .sheet(isPresented: $confirmingIdentity) {
+            StepUpSheet { await save(sign: true) }
+        }
     }
 
     private func field(_ label: String, _ text: Binding<String>, _ key: String, error: String? = nil) -> some View {
@@ -81,6 +93,7 @@ struct ConsultationNoteForm: View {
         guard problem == nil else { return }
         busy = true
         error = nil
+        needsIdentity = false
         savedDraft = false
         focus = nil
         defer { busy = false }
@@ -101,6 +114,10 @@ struct ConsultationNoteForm: View {
             _ = try await api.sign(saved.id, lateReason: reason?.isEmpty == false ? reason : nil)
             // Signed, it joins the sheet as the record.
             await onChange()
+        } catch let failure as ApiError where failure.isStepUpRequired {
+            // The draft is saved; the signature waits for the password.
+            needsIdentity = true
+            confirmingIdentity = true
         } catch let failure as ApiError where failure.message.localizedCaseInsensitiveContains("late entry") {
             // Care written up long after it happened must say why before it is signed.
             lateReason = lateReason ?? ""

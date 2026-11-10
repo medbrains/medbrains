@@ -836,18 +836,13 @@ pub async fn create_visit(
     .await?;
 
     // Auto-bill ER consultation charge
-    if medbrains_server_services::billing::is_auto_billing_enabled(
+    medbrains_server_services::billing::charge_or_queue(
         &mut tx,
-        &claims.tenant_id,
-        "emergency",
-    )
-    .await
-    .unwrap_or(false)
-    {
-        let _ = medbrains_server_services::billing::auto_charge(
-            &mut tx,
-            &claims.tenant_id,
-            medbrains_server_services::billing::AutoChargeInput {
+        medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "emergency",
+            charge: medbrains_server_services::billing::AutoChargeInput {
                 patient_id: row.patient_id,
                 encounter_id: Some(encounter_id),
                 charge_code: "CON_EMERGENCY".to_owned(),
@@ -858,12 +853,12 @@ pub async fn create_visit(
                     "Emergency consultation - {}",
                     row.visit_number
                 )),
-                unit_price_override: None,
-                tax_percent_override: None,
+                ..Default::default()
             },
-        )
-        .await;
-    }
+            apply_concessions: false,
+        },
+    )
+    .await?;
 
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -1464,6 +1459,21 @@ pub async fn create_code_activation(
                 "rebac: failed to write code_blue_team#member tuple — backfill will retry");
     }
 
+    // Page the responders now. The insert trigger already queued this round
+    // in the outbox with the activation (the durable copy, which also covers
+    // a Code Pink raised by an infant tag); this sends the in-app alarm
+    // without waiting for the worker, and fills in who was reached.
+    // Off the request path, as for a code blue: the button returns at once.
+    let (pool, resolver, tenant_id) = (
+        state.db.clone(),
+        std::sync::Arc::clone(&state.secret_resolver),
+        claims.tenant_id,
+    );
+    let subject = medbrains_nursing::code_blue_subject::Subject::ErCode(row.id);
+    tokio::spawn(async move {
+        medbrains_nursing::code_blue_alert::page_now(&pool, tenant_id, subject, resolver.as_ref())
+            .await;
+    });
     Ok(Json(row))
 }
 

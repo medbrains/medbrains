@@ -1,0 +1,26 @@
+MedBrains: a stranger who knows a username must not be able to shut its owner out until midnight.
+Kanidm has no setting for this. After 100 wrong passwords in a UTC day it locks the account until the day
+ends; this keeps escalating instead: from 100 the wait is one minute, doubling every 25 wrong passwords to
+at most 15 minutes, so a day allows at most about 300 guesses per account and never a lock until midnight.
+The password check is not touched.
+
+--- a/server/lib/src/credential/softlock.rs
++++ b/server/lib/src/credential/softlock.rs
+@@ -106,10 +106,13 @@
+                         unlock_at: ct + Duration::from_secs(10),
+                     }
+                 } else {
+-                    LockState::Locked {
+-                        count,
+-                        reset_at,
+-                        unlock_at: reset_at,
++                    // MedBrains: no lock until the end of the UTC day, which let a stranger shut a person out
++                    // until midnight. The wait doubles every 25 wrong passwords from one minute, to at most 15.
++                    let doublings = ((count - 100) / 25).min(4) as u32;
++                    LockState::Locked {
++                        count,
++                        reset_at,
++                        unlock_at: ct + Duration::from_secs((60_u64 << doublings).min(900)),
+                     }
+                 }
+             }

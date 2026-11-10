@@ -114,6 +114,7 @@ members = [
     "crates/medbrains-pharmacy-delivery",
     "crates/medbrains-ward-stock",
     "crates/medbrains-clinical-notes",
+    "crates/medbrains-dictation",
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",
@@ -284,7 +285,7 @@ loro = "1.4"
 mdns-sd = "0.13"
 
 [patch.crates-io]
-pingora-core = { path = "vendor/pingora-core-0.9.0" }
+pingora-core = { path = "vendor/pingora-core-0.9.1" }
 sqlx = { path = "vendor/sqlx-0.8.6" }
 sqlx-macros-core = { path = "vendor/sqlx-macros-core-0.8.6" }
 

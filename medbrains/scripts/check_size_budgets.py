@@ -34,8 +34,8 @@ KERNEL = ROOT / "crates" / "medbrains-kernel"
 WEB_DIST = ROOT / "apps" / "web" / "dist"
 
 KERNEL_LINE_LIMIT = 2000
-# Bundles move with every screen, so the ceiling sits above the measurement.
-WEB_HEADROOM = 1.10
+# Bundles move with every screen, so the ceiling sits 5% above the measurement.
+WEB_HEADROOM = 1.05
 
 WEB_ENTRY = re.compile(
     r'<script\b[^>]*\bsrc="([^"]+)"|<link\b[^>]*\brel="modulepreload"[^>]*\bhref="([^"]+)"'
@@ -233,7 +233,7 @@ def self_test() -> None:
     assert compare({**live, "web_gzip": 10}, base)[1]
     assert compare({**live, "web_gzip": 9}, base) == ([], [], [])
     assert updated_baseline(live, base)["web_first_load_gzip_limit"] == 9
-    assert updated_baseline({**live, "web_gzip": 100}, base)["web_first_load_gzip_limit"] == 110
+    assert updated_baseline({**live, "web_gzip": 100}, base)["web_first_load_gzip_limit"] == 105
     print("self-test passed")
 
 

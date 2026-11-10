@@ -6,7 +6,6 @@
   position: sticky;
   top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
   z-index: 12;
-  border-left: 4px solid light-dark(var(--mantine-color-blue-6), var(--mantine-color-blue-4));
   background: var(--mb-surface);
   box-shadow: var(--mb-shadow-md);
 }
@@ -25,20 +24,8 @@
   min-width: 0;
 }
 
-.workspaceMain :global(#patient-overview),
-.workspaceMain :global(#patient-allergies),
-.workspaceMain :global(#patient-visits),
-.workspaceMain :global(#patient-prescriptions),
-.workspaceMain :global(#patient-lab),
-.workspaceMain :global(#patient-imaging),
-.workspaceMain :global(#patient-billing),
-.workspaceMain :global(#patient-appointments),
-.workspaceMain :global(#patient-family),
-.workspaceMain :global(#patient-documents),
-.workspaceMain :global(#patient-chronic),
-.workspaceMain :global(#patient-packages),
-.workspaceMain :global(#patient-notes),
-.workspaceMain :global(#patient-merge) {
+// Mantine owns the panel ids: a tab's aria-controls must name its panel.
+.workspaceMain :global([role="tabpanel"]) {
   scroll-margin-top: calc(var(--app-shell-header-height, 72px) + 212px);
 }
 

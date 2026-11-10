@@ -9,6 +9,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Badge, Button, Table, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
@@ -124,6 +125,7 @@ export function TransferLogTab({ admissionId }: { admissionId: string }) {
               <Table.Th>Transferred At</Table.Th>
               <Table.Th>Reason</Table.Th>
               <Table.Th>Clinical Summary</Table.Th>
+              <Table.Th>Signature</Table.Th>
               <Table.Th>Print</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -143,6 +145,14 @@ export function TransferLogTab({ admissionId }: { admissionId: string }) {
                   <Text size="sm" lineClamp={2}>
                     {t.clinical_summary ?? "—"}
                   </Text>
+                </Table.Td>
+                <Table.Td>
+                  <SignRecordButton
+                    recordType="transfer_note"
+                    authorId={t.transferred_by}
+                    recordId={t.id}
+                    summary={t.transfer_type.replace(/_/g, " ")}
+                  />
                 </Table.Td>
                 <Table.Td>
                   <PrintDocumentIconMenu

@@ -6,8 +6,7 @@
  * living alongside the data. Logic here, data there.
  */
 
-import type { PermissionDef } from "./permissions";
-import { PERMISSION_CODES } from "./permissions";
+import type { PermissionDef } from "./permission-catalog";
 
 export interface PermissionGroup {
   key: string;
@@ -47,11 +46,4 @@ export function buildPermissionTree(perms: PermissionDef[]): PermissionGroup[] {
   }
 
   return root.children;
-}
-
-const ALL_CODES = new Set<string>(PERMISSION_CODES);
-
-/** Whether a code is one the server actually enforces. */
-export function isValidPermissionCode(code: string): boolean {
-  return ALL_CODES.has(code);
 }

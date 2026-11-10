@@ -86,6 +86,7 @@ medbrains-pharmacy-repeats = { path = "../medbrains-pharmacy-repeats" }
 medbrains-pharmacy-delivery = { path = "../medbrains-pharmacy-delivery" }
 medbrains-ward-stock = { path = "../medbrains-ward-stock" }
 medbrains-clinical-notes = { path = "../medbrains-clinical-notes" }
+medbrains-dictation = { path = "../medbrains-dictation" }
 medbrains-app-manifest = { path = "../medbrains-app-manifest" }
 medbrains-invitations = { path = "../medbrains-invitations" }
 medbrains-news = { path = "../medbrains-news" }

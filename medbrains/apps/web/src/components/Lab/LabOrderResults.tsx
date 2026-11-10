@@ -5,6 +5,7 @@ import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconArrowDown, IconArrowUp, IconCheck } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, type BadgeTone, Table } from "@/components/ui";
 import { labService } from "@/services/lab.service";
 import { PrintLabReportButton } from "./LabReportPrint";
@@ -77,7 +78,17 @@ function DeltaCell({ result }: { result: LabResult }) {
   );
 }
 
-function ResultTable({ results }: { results: LabResult[] }) {
+/**
+ * The order's result values. `validatorId` is the order's validator, the
+ * report's author (ISO 15189 authorised signatory), who alone signs it.
+ */
+function ResultTable({
+  results,
+  validatorId,
+}: {
+  results: LabResult[];
+  validatorId: string | null;
+}) {
   return (
     <Table striped>
       <Table.Thead>
@@ -87,6 +98,7 @@ function ResultTable({ results }: { results: LabResult[] }) {
           <Table.Th>Reference range</Table.Th>
           <Table.Th>Since last</Table.Th>
           <Table.Th>Flag</Table.Th>
+          <Table.Th>Signature</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -118,6 +130,14 @@ function ResultTable({ results }: { results: LabResult[] }) {
             </Table.Td>
             <Table.Td>
               <FlagBadge flag={result.flag} />
+            </Table.Td>
+            <Table.Td>
+              <SignRecordButton
+                recordType="lab_report"
+                authorId={validatorId}
+                recordId={result.id}
+                summary={result.parameter_name}
+              />
             </Table.Td>
           </Table.Tr>
         ))}
@@ -172,7 +192,7 @@ export function LabOrderResults({ orderId }: { orderId: string }) {
         <PrintLabReportButton orderId={orderId} disabled={!isVerified} />
       </Group>
       {data.results.length > 0 ? (
-        <ResultTable results={data.results} />
+        <ResultTable results={data.results} validatorId={data.order.verified_by} />
       ) : (
         <Text size="sm" c="dimmed">
           No result values have been entered for this order yet.

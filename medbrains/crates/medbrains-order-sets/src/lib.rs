@@ -715,6 +715,7 @@ pub async fn suggest_templates(
 pub async fn activate_order_set(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<ActivateRequest>,
 ) -> Result<Json<ActivationResult>, AppError> {
     require_permission(&claims, permissions::order_sets::activation::CREATE)?;
@@ -837,6 +838,10 @@ pub async fn activate_order_set(
                     }
                 }
                 medbrains_core::order_set::OrderSetItemType::Medication => {
+                    // A medication writes a prescription: the same fresh
+                    // step-up as prescribing from the visit. Refused here, the
+                    // transaction is dropped and nothing is written.
+                    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
                     // Create one prescription per activation, add items to it
                     if prescription_id.is_none() {
                         let rx: OrderIdRow = sqlx::query_as(

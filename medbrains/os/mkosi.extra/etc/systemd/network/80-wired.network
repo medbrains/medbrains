@@ -11,3 +11,10 @@ MulticastDNS=yes
 Destination=224.0.0.0/4
 Scope=link
 Metric=1024
+
+# A DHCP server must not rename the machine: the name is in its certificate and its authority.
+[DHCPv4]
+UseHostname=no
+
+[DHCPv6]
+UseHostname=no

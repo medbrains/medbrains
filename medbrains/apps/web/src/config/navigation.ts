@@ -440,6 +440,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "myEarnings",
+        moduleCode: "billing",
         path: "/my-earnings",
         icon: "IconChartBar",
         requiredPermission: "doctor_payouts.self.view",
@@ -458,12 +459,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "tokenBoard",
+        moduleCode: "registration",
         path: "/token-board",
         icon: "IconLayoutGrid",
         requiredPermission: "front_office.queue.list",
       },
       {
         i18nKey: "tokenConsole",
+        moduleCode: "registration",
         path: "/token-console",
         icon: "IconHeadset",
         requiredPermission: "front_office.queue.manage",
@@ -475,12 +478,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     items: [
       {
         i18nKey: "patients",
+        moduleCode: "registration",
         path: "/patients",
         icon: "IconUsers",
         requiredPermission: "patients.list",
       },
       {
         i18nKey: "immunizationClinic",
+        moduleCode: "registration",
         path: "/immunization-clinic",
         icon: "IconVaccine",
         requiredPermission: "patients.immunizations.due_list",
@@ -531,24 +536,28 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "appointments",
+        moduleCode: "opd",
         path: "/opd/appointments",
         icon: "IconCalendar",
         requiredPermission: "opd.appointment.list",
       },
       {
         i18nKey: "telemedicine",
+        moduleCode: "opd",
         path: "/telemedicine",
         icon: "IconVideo",
         requiredPermission: "opd.queue.view",
       },
       {
         i18nKey: "doctorSignoffs",
+        moduleCode: "opd",
         path: "/doctor/signoffs",
         icon: "IconSignature",
         requiredPermission: "doctor.signoffs.view_own",
       },
       {
         i18nKey: "emergency",
+        moduleCode: "emergency",
         path: "/emergency",
         icon: "IconUrgent",
         requiredPermission: "emergency.visits.list",
@@ -585,12 +594,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "orderSets",
+        moduleCode: "opd",
         path: "/order-sets",
         icon: "IconListDetails",
         requiredPermission: "order_sets.templates.list",
       },
       {
         i18nKey: "chronicCare",
+        moduleCode: "opd",
         path: "/chronic-care",
         icon: "IconReportMedical",
         requiredPermission: "chronic.enrollments.list",
@@ -635,6 +646,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "pharmacy",
+        moduleCode: "pharmacy",
         path: "/pharmacy",
         icon: "IconPill",
         requiredPermission: "pharmacy.prescriptions.list",
@@ -668,6 +680,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "pharmacyFinance",
+        moduleCode: "pharmacy",
         path: "/pharmacy/finance",
         icon: "IconReceipt",
         requiredPermissions: [
@@ -740,6 +753,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "bloodBank",
+        moduleCode: "blood_bank",
         path: "/blood-bank",
         icon: "IconDroplet",
         requiredPermission: "blood_bank.donors.list",
@@ -853,24 +867,28 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "careView",
+        moduleCode: "opd",
         path: "/care-view",
         icon: "IconHeartbeat",
         requiredPermission: "care_view.view",
       },
       {
         i18nKey: "caseSheetReview",
+        moduleCode: "ipd",
         path: "/case-sheet-review",
         icon: "IconFileText",
         requiredPermission: "mrd.case_sheets.view",
       },
       {
         i18nKey: "icu",
+        moduleCode: "ipd",
         path: "/icu",
         icon: "IconHeartRateMonitor",
         requiredPermission: "icu.flowsheets.list",
       },
       {
         i18nKey: "nurseActivities",
+        moduleCode: "nursing",
         path: "/nurse",
         icon: "IconClipboardCheck",
         requiredPermissions: [
@@ -896,6 +914,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "ot",
+        moduleCode: "ot",
         path: "/ot",
         icon: "IconScissors",
         requiredPermissions: [
@@ -910,6 +929,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "dietKitchen",
+        moduleCode: "diet",
         path: "/diet-kitchen",
         icon: "IconToolsKitchen2",
         requiredPermission: "diet.orders.list",
@@ -928,6 +948,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "bedsidePortal",
+        moduleCode: "ipd",
         path: "/bedside-portal",
         icon: "IconDeviceTablet",
         requiredPermissions: [
@@ -948,6 +969,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     items: [
       {
         i18nKey: "billing",
+        moduleCode: "billing",
         path: "/billing",
         icon: "IconReceipt",
         requiredPermission: "billing.invoices.list",
@@ -976,6 +998,10 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "billing.day_close.verify",
           "billing.write_off.create",
           "billing.write_off.approve",
+          "billing.charge_attention.view",
+          "billing.charge_attention.resolve",
+          "billing.leakage.view",
+          "billing.leakage.resolve",
           "billing.audit.view",
           "billing.credit.list",
           "billing.credit.manage",
@@ -997,6 +1023,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "doctorPayouts",
+        moduleCode: "billing",
         path: "/billing/doctor-payouts",
         icon: "IconReceipt",
         requiredPermissions: [
@@ -1013,24 +1040,28 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "insurance",
+        moduleCode: "billing",
         path: "/insurance",
         icon: "IconShieldHalfFilled",
         requiredPermission: "insurance.verification.list",
       },
       {
         i18nKey: "procurement",
+        moduleCode: "inventory",
         path: "/procurement",
         icon: "IconTruck",
         requiredPermission: "procurement.vendors.list",
       },
       {
         i18nKey: "indent",
+        moduleCode: "inventory",
         path: "/indent",
         icon: "IconBoxSeam",
         requiredPermission: "indent.list",
       },
       {
         i18nKey: "materials",
+        moduleCode: "inventory",
         path: "/materials",
         icon: "IconBuildingWarehouse",
         requiredPermissions: [
@@ -1049,6 +1080,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "payroll",
+        moduleCode: "hr",
         path: "/hr/payroll",
         icon: "IconReceipt",
         requiredPermission: "hr.payroll.structures.list",
@@ -1082,12 +1114,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "scheduling",
+        moduleCode: "opd",
         path: "/scheduling",
         icon: "IconCalendarStats",
         requiredPermission: "scheduling.predictions.list",
       },
       {
         i18nKey: "commandCenter",
+        moduleCode: "reports",
         path: "/command-center",
         icon: "IconLayoutDashboard",
         requiredPermission: "command_center.view",
@@ -1136,6 +1170,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "ambulance",
+        moduleCode: "emergency",
         path: "/ambulance",
         icon: "IconAmbulance",
         requiredPermission: "ambulance.fleet.list",
@@ -1148,6 +1183,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "cssd",
+        moduleCode: "ot",
         path: "/cssd",
         icon: "IconSpray",
         requiredPermission: "cssd.instruments.list",
@@ -1160,6 +1196,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "bme",
+        moduleCode: "inventory",
         path: "/bme",
         icon: "IconDeviceDesktopAnalytics",
         requiredPermission: "bme.equipment.list",
@@ -1176,9 +1213,22 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         icon: "IconShieldCheck",
         requiredPermission: "security.intel.view",
       },
-      { i18nKey: "hr", path: "/hr", icon: "IconIdBadge2", requiredPermission: "hr.employees.list" },
+      {
+        i18nKey: "medbrainsAccess",
+        path: "/security/medbrains-access",
+        icon: "IconShieldLock",
+        requiredPermission: "security.vendor_access.view",
+      },
+      {
+        i18nKey: "hr",
+        moduleCode: "hr",
+        path: "/hr",
+        icon: "IconIdBadge2",
+        requiredPermission: "hr.employees.list",
+      },
       {
         i18nKey: "lms",
+        moduleCode: "hr",
         path: "/lms",
         icon: "IconSchool",
         requiredPermission: "lms.my_learning.view",
@@ -1214,12 +1264,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "interHospitalTransfers",
+        moduleCode: "ipd",
         path: "/inter-hospital-transfers",
         icon: "IconAmbulance",
         requiredPermission: "ipd.transfers.create",
       },
       {
         i18nKey: "interHospitalStock",
+        moduleCode: "ipd",
         path: "/inter-hospital-stock",
         icon: "IconPackage",
         requiredPermission: "ipd.transfers.create",
@@ -1243,18 +1295,21 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "healthPackages",
+        moduleCode: "specialty_other",
         path: "/health-packages",
         icon: "IconGift",
         requiredPermission: "specialty.health_packages.list",
       },
       {
         i18nKey: "testimonials",
+        moduleCode: "specialty_other",
         path: "/testimonials",
         icon: "IconStar",
         requiredPermission: "specialty.health_packages.list",
       },
       {
         i18nKey: "micrositeSettings",
+        moduleCode: "specialty_other",
         path: "/microsite-settings",
         icon: "IconSettings",
         requiredPermission: "specialty.health_packages.list",
@@ -1285,6 +1340,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "consent",
+        moduleCode: "registration",
         path: "/consent",
         icon: "IconSignature",
         requiredPermission: "consent.templates.list",
@@ -1309,9 +1365,16 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "analytics",
+        moduleCode: "reports",
         path: "/analytics",
         icon: "IconChartBar",
         requiredPermission: "analytics.view",
+      },
+      {
+        i18nKey: "paperlessMeter",
+        path: "/analytics/paperless",
+        icon: "IconFileCheck",
+        requiredPermission: "analytics.paperless.view",
       },
       {
         i18nKey: "reports",
@@ -1334,12 +1397,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "utilizationReview",
+        moduleCode: "ipd",
         path: "/utilization-review",
         icon: "IconClipboardCheck",
         requiredPermission: "ur.reviews.list",
       },
       {
         i18nKey: "caseManagement",
+        moduleCode: "ipd",
         path: "/case-management",
         icon: "IconUserSearch",
         requiredPermission: "case_mgmt.assignments.list",
@@ -1431,12 +1496,14 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "clinicalTrials",
+        moduleCode: "specialty_other",
         path: "/clinical-trials",
         icon: "IconFlask",
         requiredPermission: "specialty.clinical_trials.list",
       },
       {
         i18nKey: "longTermCare",
+        moduleCode: "ipd",
         path: "/long-term-care",
         icon: "IconReportMedical",
         requiredPermission: "ipd.nursing_assessment.list",
@@ -1486,7 +1553,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             i18nKey: "sso",
             path: "/admin/sso",
             icon: "IconLockSquareRounded",
-            requiredPermission: "admin.settings.general.manage",
+            requiredPermission: "admin.sso.providers.manage",
           },
           {
             i18nKey: "accessRequests",
@@ -1538,6 +1605,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           },
           {
             i18nKey: "flows",
+            moduleCode: "flow",
             path: "/admin/flows",
             icon: "IconRoute",
             requiredPermission: "flows.view",
@@ -1593,6 +1661,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           },
           {
             i18nKey: "doctorSchedules",
+            moduleCode: "opd",
             path: "/admin/doctor-schedules",
             icon: "IconCalendar",
             requiredPermission: "opd.schedule.list",
@@ -1605,6 +1674,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           },
           {
             i18nKey: "retrospective",
+            moduleCode: "reports",
             path: "/retrospective",
             icon: "IconHistory",
             requiredPermission: "retrospective.list",
@@ -1635,6 +1705,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           },
           {
             i18nKey: "queues",
+            moduleCode: "registration",
             path: "/admin/queues",
             icon: "IconListDetails",
             requiredPermission: "front_office.queue.config.view",

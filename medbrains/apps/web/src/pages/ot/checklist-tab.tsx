@@ -11,6 +11,7 @@ import { P } from "@medbrains/types";
 import { IconCircleCheck, IconCircleDashed } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Badge, Button, toast } from "@/components/ui";
 import { otService } from "@/services/ot.service";
 
@@ -194,6 +195,12 @@ export function ChecklistTab({ bookingId }: { bookingId: string }) {
                   {completed ? <IconCircleCheck size={14} /> : <IconCircleDashed size={14} />}
                 </ThemeIcon>
                 <Text fw={500}>{phaseLabels[phase]}</Text>
+                <SignRecordButton
+                  recordType="ot_safety_checklist"
+                  authorId={checklist?.completed_by}
+                  recordId={checklist?.id}
+                  summary={phaseLabels[phase]}
+                />
               </Group>
               {completed && (
                 <Badge tone="success" size="sm">

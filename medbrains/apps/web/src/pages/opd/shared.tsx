@@ -206,7 +206,9 @@ export function protectedOpdQueueIdentity(
 
   return {
     name: name === "—" ? fallback.patient : name,
-    token: formatQueueToken(entry.token_number),
+    // The number the patient was given, not the legacy queue integer: the
+    // vitals screen read "T019" to a nurse while the slip and board said R-037.
+    token: queueTokenLabel(entry),
     uhid: uhid === "—" ? fallback.uhid : uhid,
   };
 }

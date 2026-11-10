@@ -2,6 +2,7 @@ import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
+import { BYPASS_ROLES, useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type { CreateSsoProviderRequest, SsoProvider } from "@medbrains/types";
 import { P, ROLE_TEMPLATES } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
@@ -9,7 +10,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton, Input, Modal, Select, Switch, Table } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Modal,
+  Select,
+  Switch,
+  Table,
+} from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
 
@@ -21,13 +32,20 @@ const EMPTY: CreateSsoProviderRequest = {
   jit_enabled: true,
 };
 
+/** The OS's own Kanidm: set up by the OS and pinned by the server, so this page shows it read only. */
+const OS_PROVIDER_CODE = "kanidm";
+
 /** Every built-in role except those that bypass permission checks. */
 const DEFAULT_ROLE_OPTIONS = Object.entries(ROLE_TEMPLATES)
   .filter(([code]) => code !== "super_admin" && code !== "hospital_admin")
   .map(([value, role]) => ({ value, label: role.label }));
 
 export function SsoSettingsPage() {
-  useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
+  useRequirePermission([P.ADMIN.SETTINGS.GENERAL.MANAGE, P.ADMIN.SSO.PROVIDERS.MANAGE]);
+  // Who can sign in, and as what, is an administrator's call: the server requires a bypass role as well.
+  const hasPermission = useHasPermission(P.ADMIN.SSO.PROVIDERS.MANAGE);
+  const isAdmin = usePermissionStore((s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole));
+  const canManage = isAdmin && hasPermission;
   const qc = useQueryClient();
   const [formOpen, form] = useDisclosure(false);
   const [draft, setDraft] = useState<CreateSsoProviderRequest>(EMPTY);
@@ -51,17 +69,21 @@ export function SsoSettingsPage() {
         color: "success",
       });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Could not create", color: "danger" }),
+    onError: (err: Error) =>
+      notifications.show({ title: "Could not create", message: err.message, color: "danger" }),
   });
   const toggleMut = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
       api.updateSsoProvider(id, { is_active }),
     onSuccess: invalidate,
+    onError: (err: Error) =>
+      notifications.show({ title: "Provider not changed", message: err.message, color: "danger" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.deleteSsoProvider(id),
     onSuccess: invalidate,
+    onError: (err: Error) =>
+      notifications.show({ title: "Provider not deleted", message: err.message, color: "danger" }),
   });
 
   // Capture the input value in the handler body — reading e.currentTarget inside
@@ -89,13 +111,17 @@ export function SsoSettingsPage() {
     {
       key: "active",
       label: "Active",
-      render: (p) => (
-        <Switch
-          checked={p.is_active}
-          onChange={(e) => toggleMut.mutate({ id: p.id, is_active: e.currentTarget.checked })}
-          aria-label="Active"
-        />
-      ),
+      render: (p) =>
+        canManage ? (
+          <Switch
+            checked={p.is_active}
+            disabled={p.code === OS_PROVIDER_CODE}
+            onChange={(e) => toggleMut.mutate({ id: p.id, is_active: e.currentTarget.checked })}
+            aria-label="Active"
+          />
+        ) : (
+          <Badge tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "On" : "Off"}</Badge>
+        ),
     },
     {
       key: "actions",
@@ -105,19 +131,25 @@ export function SsoSettingsPage() {
           <Button tone="ghost" size="xs" onClick={() => setMappingsFor(p)}>
             Group mappings
           </Button>
-          <IconButton
-            tone="danger"
-            aria-label="Delete provider"
-            onClick={() =>
-              confirmDestructive({
-                title: "Delete provider",
-                message: `Delete "${p.name}"? Users will no longer be able to sign in through it.`,
-                onConfirm: () => deleteMut.mutate(p.id),
-              })
-            }
-          >
-            <IconTrash size={14} />
-          </IconButton>
+          {p.code === OS_PROVIDER_CODE ? (
+            <Badge tone="neutral">Set up by the OS</Badge>
+          ) : (
+            canManage && (
+              <IconButton
+                tone="danger"
+                aria-label="Delete provider"
+                onClick={() =>
+                  confirmDestructive({
+                    title: "Delete provider",
+                    message: `Delete "${p.name}"? Users will no longer be able to sign in through it.`,
+                    onConfirm: () => deleteMut.mutate(p.id),
+                  })
+                }
+              >
+                <IconTrash size={14} />
+              </IconButton>
+            )
+          )}
         </Group>
       ),
     },
@@ -131,18 +163,21 @@ export function SsoSettingsPage() {
         title="Single Sign-On"
         subtitle="Federate login to a corporate identity provider and map AD groups to roles & access groups"
         actions={
-          <Button
-            tone="primary"
-            leftSection={<IconPlus size={15} />}
-            onClick={() => {
-              setDraft(EMPTY);
-              form.open();
-            }}
-          >
-            Add provider
-          </Button>
+          canManage ? (
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={15} />}
+              onClick={() => {
+                setDraft(EMPTY);
+                form.open();
+              }}
+            >
+              Add provider
+            </Button>
+          ) : undefined
         }
       />
+      {!canManage && <Alert tone="info">Administrators manage sign-in providers.</Alert>}
       <DataTable columns={columns} data={providers} loading={isLoading} rowKey={(p) => p.id} />
 
       <Modal opened={formOpen} onClose={form.close} title="Add identity provider" fullScreen>
@@ -211,6 +246,15 @@ export function SsoSettingsPage() {
               setDraft((d) => ({ ...d, jit_enabled: checked }));
             }}
           />
+          <Switch
+            label="Link existing accounts by verified email"
+            description="Only for a provider you trust to own its addresses. Never links an administrator's account. Otherwise link people in Users."
+            checked={draft.link_by_email ?? false}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setDraft((d) => ({ ...d, link_by_email: checked }));
+            }}
+          />
           <Group justify="flex-end">
             <Button tone="secondary" onClick={form.close}>
               Cancel
@@ -233,13 +277,18 @@ export function SsoSettingsPage() {
         title={mappingsFor ? `Group mappings — ${mappingsFor.name}` : ""}
         fullScreen
       >
-        {mappingsFor && <GroupMappings provider={mappingsFor} />}
+        {mappingsFor && <GroupMappings provider={mappingsFor} canManage={canManage} />}
       </Modal>
     </div>
   );
 }
 
-function GroupMappings({ provider }: { provider: SsoProvider }) {
+/**
+ * A provider's directory-group mappings; adding or removing one is an administrator's alone (the role and the
+ * provider-management permission). The server refuses a mapping to an administrator role, with the reason shown
+ * here.
+ */
+function GroupMappings({ provider, canManage }: { provider: SsoProvider; canManage: boolean }) {
   const qc = useQueryClient();
   const [idpGroup, setIdpGroup] = useState("");
   const [roleCode, setRoleCode] = useState("");
@@ -268,10 +317,14 @@ function GroupMappings({ provider }: { provider: SsoProvider }) {
       setRoleCode("");
       setAccessGroupId(null);
     },
+    onError: (err: Error) =>
+      notifications.show({ title: "Mapping not added", message: err.message, color: "danger" }),
   });
   const delMut = useMutation({
     mutationFn: (id: string) => api.deleteSsoGroupMapping(id),
     onSuccess: invalidate,
+    onError: (err: Error) =>
+      notifications.show({ title: "Mapping not removed", message: err.message, color: "danger" }),
   });
 
   return (
@@ -296,50 +349,54 @@ function GroupMappings({ provider }: { provider: SsoProvider }) {
               <Table.Td>{m.role_code ?? "—"}</Table.Td>
               <Table.Td>{groups.find((g) => g.id === m.access_group_id)?.name ?? "—"}</Table.Td>
               <Table.Td>
-                <IconButton
-                  tone="danger"
-                  aria-label="Delete mapping"
-                  onClick={() => delMut.mutate(m.id)}
-                >
-                  <IconTrash size={14} />
-                </IconButton>
+                {canManage && (
+                  <IconButton
+                    tone="danger"
+                    aria-label="Delete mapping"
+                    onClick={() => delMut.mutate(m.id)}
+                  >
+                    <IconTrash size={14} />
+                  </IconButton>
+                )}
               </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
 
-      <Stack gap="xs">
-        <Input
-          label="IdP group"
-          value={idpGroup}
-          onChange={(e) => setIdpGroup(e.currentTarget.value)}
-        />
-        <Input
-          label="Role code"
-          placeholder="e.g. doctor (optional)"
-          value={roleCode}
-          onChange={(e) => setRoleCode(e.currentTarget.value)}
-        />
-        <Select
-          label="Access group"
-          placeholder="(optional)"
-          clearable
-          value={accessGroupId}
-          onChange={setAccessGroupId}
-          data={groups.map((g) => ({ value: g.id, label: g.name }))}
-        />
-        <Group justify="flex-end">
-          <Button
-            tone="primary"
-            loading={addMut.isPending}
-            disabled={!idpGroup.trim() || (!roleCode.trim() && !accessGroupId)}
-            onClick={() => addMut.mutate()}
-          >
-            Add mapping
-          </Button>
-        </Group>
-      </Stack>
+      {canManage && (
+        <Stack gap="xs">
+          <Input
+            label="IdP group"
+            value={idpGroup}
+            onChange={(e) => setIdpGroup(e.currentTarget.value)}
+          />
+          <Input
+            label="Role code"
+            placeholder="e.g. doctor (optional)"
+            value={roleCode}
+            onChange={(e) => setRoleCode(e.currentTarget.value)}
+          />
+          <Select
+            label="Access group"
+            placeholder="(optional)"
+            clearable
+            value={accessGroupId}
+            onChange={setAccessGroupId}
+            data={groups.map((g) => ({ value: g.id, label: g.name }))}
+          />
+          <Group justify="flex-end">
+            <Button
+              tone="primary"
+              loading={addMut.isPending}
+              disabled={!idpGroup.trim() || (!roleCode.trim() && !accessGroupId)}
+              onClick={() => addMut.mutate()}
+            >
+              Add mapping
+            </Button>
+          </Group>
+        </Stack>
+      )}
     </Stack>
   );
 }

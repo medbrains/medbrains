@@ -52,6 +52,8 @@ pub(crate) struct TopBar {
     zone_name: Rc<RefCell<String>>,
     firewall_dot: gtk::Box,
     firewall_words: gtk::Label,
+    disk: gtk::Box,
+    disk_words: gtk::Label,
     network_icon: gtk::Image,
     network_words: gtk::Label,
 }
@@ -63,6 +65,16 @@ fn chip(icon: &gtk::Image, words: &gtk::Label) -> gtk::Box {
     chip.append(icon);
     chip.append(words);
     chip
+}
+
+/// The warning for the data disk, if it needs one. Anything not known to be encrypted gets one, so
+/// a record nobody could read does not pass for a protected disk.
+pub(crate) fn disk_warning(disk: &str) -> Option<&'static str> {
+    match disk {
+        "encrypted-tpm2" | "encrypted-tpm2-pin" => None,
+        "unencrypted-chosen" => Some("This disk is not encrypted"),
+        _ => Some("Disk protection unknown"),
+    }
 }
 
 /// The word for the firewall, which `/state` checks by asking nftables.
@@ -118,6 +130,18 @@ impl TopBar {
         );
         firewall.prepend(&firewall_dot);
         right.append(&firewall);
+        let disk_words = ui::line("", "");
+        let disk = chip(
+            &gtk::Image::from_icon_name("drive-harddisk-symbolic"),
+            &disk_words,
+        );
+        let disk_dot = ui::column(0);
+        disk_dot.add_css_class("dot");
+        disk_dot.set_valign(gtk::Align::Center);
+        ui::set_warning(&disk_dot, true);
+        disk.prepend(&disk_dot);
+        disk.set_visible(false);
+        right.append(&disk);
         right.append(&netmenu::button(
             &chip(&network_icon, &network_words),
             open_settings,
@@ -156,6 +180,8 @@ impl TopBar {
             zone_name,
             firewall_dot,
             firewall_words,
+            disk,
+            disk_words,
             network_icon,
             network_words,
         };
@@ -191,6 +217,9 @@ impl TopBar {
         self.firewall_words
             .set_label(firewall_words(state.firewall));
         ui::set_warning(&self.firewall_dot, !state.firewall);
+        let warning = disk_warning(&state.disk);
+        self.disk.set_visible(warning.is_some());
+        self.disk_words.set_label(warning.unwrap_or_default());
         self.network_icon
             .set_icon_name(Some(netmenu::icon_name(&state.network)));
         self.network_words
@@ -277,7 +306,20 @@ fn clock_button(
 
 #[cfg(test)]
 mod tests {
-    use super::{clock_note, firewall_words};
+    use super::{clock_note, disk_warning, firewall_words};
+
+    /// Only a disk known to be encrypted goes without a warning.
+    #[test]
+    fn a_disk_not_known_to_be_encrypted_gets_a_warning() {
+        assert_eq!(disk_warning("encrypted-tpm2"), None);
+        assert_eq!(disk_warning("encrypted-tpm2-pin"), None);
+        assert_eq!(
+            disk_warning("unencrypted-chosen"),
+            Some("This disk is not encrypted")
+        );
+        assert_eq!(disk_warning("unknown"), Some("Disk protection unknown"));
+        assert_eq!(disk_warning(""), Some("Disk protection unknown"));
+    }
 
     /// The honesty rule: nothing here may claim more than the check behind it.
     #[test]

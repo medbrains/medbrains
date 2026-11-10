@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
@@ -10,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

@@ -21,6 +21,8 @@ const SERVER_HEALTH: &str = "http://127.0.0.1:3000/api/health";
 /// The main machine's health, as this machine's screen reaches it, through the agent.
 const FRONT_HEALTH: &str = "https://127.0.0.1:8443/api/health";
 const DATA_MOUNT: &str = "/var";
+/// How setup protected the data disk, written by `disk-setup`.
+const DISK_PROTECTION: &str = "/var/lib/medbrains/config/disk-protection";
 /// `local stratum 10` in `chrony.conf`: the clock of a machine with nothing to set it by.
 const UNCONFIRMED_STRATUM: u32 = 10;
 const FIREWALL_TABLE: [&str; 5] = ["-n", "list", "table", "inet", "medbrains"];
@@ -41,9 +43,17 @@ pub(crate) fn state() -> Result<Value, String> {
         "clock": clock_state(uptime_seconds, node),
         "timezone": timezone(),
         "firewall": output("nft", &FIREWALL_TABLE).is_some(),
+        "disk": disk_protection(),
         "machine": machine_health(),
         "network": machine::network_links(),
     }))
+}
+
+/// How the data disk is protected, or `unknown` if the record cannot be read: a fault must not
+/// read as a disk that is fine.
+fn disk_protection() -> String {
+    fs::read_to_string(DISK_PROTECTION)
+        .map_or_else(|_| "unknown".to_owned(), |text| text.trim().to_owned())
 }
 
 /// What this machine is, for the screen.
@@ -307,8 +317,8 @@ mod tests {
         assert_eq!(first_number("86.13 300.2\n"), 86);
         assert_eq!(parse_df("1B-blocks Used\n 1000 200\n"), Some((1000, 200)));
         assert_eq!(parse_df(""), None);
-        let failed = "caddy.service loaded failed failed Caddy\nx.mount loaded failed failed X\n";
-        assert_eq!(parse_failed(failed), ["caddy.service", "x.mount"]);
+        let failed = "medbrains-front.service loaded failed failed Front\nx.mount loaded failed failed X\n";
+        assert_eq!(parse_failed(failed), ["medbrains-front.service", "x.mount"]);
         let zones = "# comment\nIN\t+2232+08822\tAsia/Kolkata\nAQ\t-6617\tAntarctica/Casey\tNote\n";
         assert_eq!(parse_zone_list(zones), ["Asia/Kolkata", "Antarctica/Casey"]);
     }

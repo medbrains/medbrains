@@ -66,8 +66,8 @@ pub async fn list_gl_accounts(
         ],
     )?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let rows = sqlx::query_as::<_, GlAccount>(
         "SELECT * FROM gl_accounts WHERE tenant_id = $1 AND deleted_at IS NULL \
@@ -99,8 +99,8 @@ pub async fn create_gl_account(
 ) -> Result<Json<GlAccount>, AppError> {
     require_permission(&claims, permissions::billing::journal::CREATE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let row = sqlx::query_as::<_, GlAccount>(
         "INSERT INTO gl_accounts \

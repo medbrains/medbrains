@@ -88,7 +88,7 @@ curl -I https://hims.amh.org.in                        # 200 once ACME completes
 | Tail local ICD-API | `sudo docker logs -f medbrains-icd-api` |
 | Backup now (sealed, shipped, recorded) | `sudo systemctl start medbrains-pg-backup.service && journalctl -u medbrains-pg-backup -n 20` |
 | Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
-| Update binary | Replace `/usr/local/bin/medbrains-server` and `systemctl restart medbrains-server.service` |
+| Update binary | Run `install.sh`. Replacing `/usr/local/bin/medbrains-server` alone now refuses to start on a host without the event token, signature and OAuth keys, which `install.sh` adds to `/etc/medbrains/env`. Values sealed under the old development keys then stop opening: doctors re-enrol signing keys and accounts reconnect |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
 
 ## Encrypted off-site backups
@@ -162,6 +162,24 @@ RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
 
 `make test-backups` runs the kit's own tests (a local directory stands in for
 S3, with a throwaway key).
+
+## Log archive
+
+CERT-In direction (iv) wants 180 days of logs kept in India. journald is set to
+persistent, 180 days, capped at 2G (`SystemMaxUse`) with 2G kept free, so local
+logs can never fill the disk; on a busy host that is days, not months.
+
+The S3 archive is **opt-in and off by default**: set `LOG_ARCHIVE_BUCKET` (and
+optionally `LOG_ARCHIVE_PREFIX`, default `host-logs`) before running
+`install.sh`. Only then is `medbrains-log-archive.timer` enabled; it ships the
+previous day's journal (`journal.json.gz`) and plain-file logs touched that day
+(`files.tar.gz`, list in `LOG_ARCHIVE_FILES`) at about 00:20. Credentials come
+from the instance's IAM role only; no keys are written to disk or logged. The
+AWS CLI uses HTTPS; at-rest encryption is the bucket's default SSE-KMS, and the
+host's policy should allow put and list only, never get or delete. A failed run
+pages through `medbrains-alert@`, and `medbrains-host-check` pages when
+yesterday's object is missing or the clock is not NTP-synchronised.
+Backfill a day: `sudo medbrains-log-archive 2026-10-20`.
 
 ## A hospital's own domain
 

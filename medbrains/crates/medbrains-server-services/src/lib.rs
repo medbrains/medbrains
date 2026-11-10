@@ -7,8 +7,10 @@
 
 pub mod billing;
 pub mod billing_lanes;
+pub mod charge_queue;
 pub mod llm;
 pub mod mrd_lock;
 pub mod patient_identity;
 pub mod patient_match;
 pub mod pharmacy_customer;
+pub mod room_eligibility;

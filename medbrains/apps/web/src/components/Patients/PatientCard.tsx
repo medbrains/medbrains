@@ -38,8 +38,18 @@ const PRINT_WIDTH_MM = 54;
  * old 1D-only laser scanner cannot read it; any 2D imager can, and so can a
  * phone, which at a camp is often what is actually available.
  */
-export function PrintPatientCardButton({ patientId }: { patientId: string }) {
-  const canPrint = useHasPermission(P.PATIENTS.VIEW);
+export function PrintPatientCardButton({
+  patientId,
+  ariaLabel,
+}: {
+  patientId: string;
+  /** The button's name when several cards can be printed from one screen. */
+  ariaLabel?: string;
+}) {
+  // The record's own button, or the desk reprinting any patient's card.
+  const canView = useHasPermission(P.PATIENTS.VIEW);
+  const canReprint = useHasPermission(P.PATIENTS.CARD.REPRINT);
+  const canPrint = canView || canReprint;
   const cardRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<PatientCardPrintData | null>(null);
 
@@ -69,8 +79,9 @@ export function PrintPatientCardButton({ patientId }: { patientId: string }) {
         leftSection={<IconPrinter size={14} />}
         loading={fetchCard.isPending || pending !== null}
         onClick={() => fetchCard.mutate()}
+        aria-label={ariaLabel}
       >
-        Print Card
+        Print patient card
       </Button>
       {/* Encodes the UHID, not the internal id. A scanner drops what it reads
           into a search box, and every search on this path — lab worklist,

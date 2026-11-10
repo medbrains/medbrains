@@ -146,8 +146,12 @@ pub struct EmailSettings {
     pub from_address: String,
     pub from_name: String,
     pub smtp_username: String,
-    /// Reference (not the value) to the SMTP password in the secret backend.
+    /// Short name (not the value) of the SMTP password in the secret backend.
     pub smtp_password_secret: Option<String>,
+    /// Where the operator keeps that password: the key built from the short
+    /// name in this hospital's namespace, or `None` when no name is set or the
+    /// stored name is a legacy one that will not be used.
+    pub smtp_password_secret_path: Option<String>,
     /// Whether `EMAIL_FROM_ADDRESS` is present in the environment as a fallback.
     pub env_fallback: bool,
 }
@@ -196,6 +200,7 @@ pub async fn get_email_settings(
         from_address: field("from_address"),
         from_name: field("from_name"),
         smtp_username: field("smtp_username"),
+        smtp_password_secret_path: secret_path(&claims.tenant_id, &field("smtp_password_secret")),
         smtp_password_secret: Some(field("smtp_password_secret")).filter(|s| !s.is_empty()),
         env_fallback: std::env::var("EMAIL_FROM_ADDRESS").is_ok(),
     }))
@@ -211,6 +216,45 @@ pub struct UpdateEmailSettings {
     pub from_name: String,
     pub smtp_username: String,
     pub smtp_password_secret: Option<String>,
+}
+
+/// The secret-store purpose for a hospital's SMTP password
+/// (`medbrains/<env>/<tenant>/smtp-<name>`). The send path in
+/// `medbrains-outbox` uses the same constant's value.
+pub const SMTP_SECRET_PURPOSE: &str = "smtp";
+
+/// The resolver key a stored short name points at, for the screen to show the
+/// operator; `None` for an empty or illegal (legacy) name.
+fn secret_path(tenant_id: &Uuid, name: &str) -> Option<String> {
+    let env = medbrains_core::secrets::tenant_name::deploy_env();
+    medbrains_core::secrets::tenant_secret_name(&env, tenant_id, SMTP_SECRET_PURPOSE, name).ok()
+}
+
+/// Refuse email settings that would send a credential where it must not go:
+/// a password name outside the hospital's namespace, an unknown TLS mode, or
+/// a password over an unencrypted connection.
+///
+/// # Errors
+/// [`AppError::BadRequest`] with a plain message.
+fn check_email_settings(body: &UpdateEmailSettings, secret: Option<&str>) -> Result<(), AppError> {
+    if let Some(name) = secret {
+        medbrains_core::secrets::check_short_name(name)
+            .map_err(|e| AppError::BadRequest(format!("SMTP password secret: {e}")))?;
+    }
+    let tls = body.smtp_tls.trim();
+    if !matches!(tls, "" | "starttls" | "implicit" | "none") {
+        return Err(AppError::BadRequest(
+            "SMTP security must be starttls, implicit or none".to_owned(),
+        ));
+    }
+    if tls == "none" && secret.is_some() {
+        return Err(AppError::BadRequest(
+            "A mail server that takes a password needs an encrypted connection: \
+             choose starttls or implicit TLS"
+                .to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// PUT /api/admin/email-settings — non-secret email config; the SMTP password
@@ -235,6 +279,7 @@ pub async fn update_email_settings(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
+    check_email_settings(&body, secret)?;
     let value = serde_json::json!({
         "provider": provider,
         "smtp_host": body.smtp_host.trim(),
@@ -268,6 +313,7 @@ pub async fn update_email_settings(
         from_address: body.from_address.trim().to_owned(),
         from_name: body.from_name.trim().to_owned(),
         smtp_username: body.smtp_username.trim().to_owned(),
+        smtp_password_secret_path: secret.and_then(|n| secret_path(&claims.tenant_id, n)),
         smtp_password_secret: secret.map(ToOwned::to_owned),
         env_fallback: std::env::var("EMAIL_FROM_ADDRESS").is_ok(),
     }))

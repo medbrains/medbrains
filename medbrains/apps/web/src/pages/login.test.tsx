@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@/test/test-utils";
+import pkg from "../../package.json" with { type: "json" };
 import { LoginPage } from "./login";
 
 /**
@@ -65,6 +66,11 @@ async function chooseHospital(code: string) {
 }
 
 describe("LoginPage", () => {
+  it("shows the version of the app that is running", async () => {
+    render(<Remountable />, { initialEntries: ["/login"] });
+    expect(await screen.findByText(`MedBrains v${pkg.version}`)).toBeInTheDocument();
+  });
+
   it("asks a single-hospital machine for no code and offers no way to change hospital", async () => {
     noCodeAnswer.current = { ...DEFAULT, single_hospital: true };
     try {
