@@ -5,12 +5,15 @@
 //! happened. Run once at every start, before the data disk is set up, and again by udev whenever the kernel
 //! reports a block that failed.
 
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 
 use crate::boot;
 use crate::child::{self, USUAL_LIMIT};
 use crate::verity;
+
+/// More consoles than any machine has: `/proc/consoles` is read, so bound it anyway.
+const MAX_CONSOLES: usize = 8;
 
 /// Said on the screen and the serial port when there is nowhere to go back to.
 pub const STOPPED_WORDS: &str = "MedBrains stopped: the system partition failed its seal check, so it \
@@ -40,11 +43,19 @@ pub fn respond(intact: Option<bool>, on_trial: bool, previous: Option<String>) -
     }
 }
 
-/// Says `words` where a person and the logs will see them: the console and the kernel log. Best
-/// effort: the action that follows must not wait on a screen.
+/// Says `words` where a person and the logs will see them: every console, the screen and any serial port
+/// (`/dev/console` is only the last of them), and the kernel log. Best effort: the action that follows must
+/// not wait on a screen.
 fn announce(words: &str) {
-    if let Ok(mut console) = OpenOptions::new().write(true).open("/dev/console") {
-        drop(writeln!(console, "\n{words}\n"));
+    let consoles = fs::read_to_string("/proc/consoles").unwrap_or_default();
+    for name in consoles
+        .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .take(MAX_CONSOLES)
+    {
+        if let Ok(mut console) = OpenOptions::new().write(true).open(format!("/dev/{name}")) {
+            drop(write!(console, "\r\n{words}\r\n\r\n"));
+        }
     }
     if let Ok(mut kmsg) = OpenOptions::new().write(true).open("/dev/kmsg") {
         drop(writeln!(kmsg, "<2>{words}"));
