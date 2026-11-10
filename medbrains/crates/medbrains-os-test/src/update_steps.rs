@@ -384,10 +384,11 @@ fn wait_for(vm: &mut Vm, test: &str, limit: Duration) -> Result<(), String> {
     Err(format!("never true: {test}"))
 }
 
-/// Starts an install in the background, seeing any stand-ins.
+/// Starts an install in the background, seeing any stand-ins. In a subshell: the shell runner appends
+/// `; echo`, and `cmd &;` does not parse.
 fn start_install(vm: &mut Vm, bench: &Bench, name: &str) -> Result<(), String> {
     vm.run(&format!(
-        "PATH=/run/hook:$PATH nohup medbrains-os-update install --retry --from {} > /run/install.out 2>&1 &",
+        "(PATH=/run/hook:$PATH nohup medbrains-os-update install --retry --from {} > /run/install.out 2>&1 &)",
         url(bench, name)
     ))
     .map(|_| ())
@@ -479,7 +480,7 @@ fn power_cuts_applying(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let disk = vm.scratch_path("scenario.qcow2");
     install_ok(vm, bench, NEXT.0, false)?;
     hook(vm, "systemctl", "/usr/bin/systemctl", 1, false)?;
-    vm.run("PATH=/run/hook:$PATH nohup medbrains-os-update apply > /run/apply.out 2>&1 &")?;
+    vm.run("(PATH=/run/hook:$PATH nohup medbrains-os-update apply > /run/apply.out 2>&1 &)")?;
     wait_for(vm, "test -e /run/hook/hit", RESTART_LIMIT)?;
     for attempt in 1..=3 {
         vm.cut_power()?;
@@ -605,7 +606,7 @@ fn waits_for_quiet(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let value = status(vm)?;
     ensure(value["stage"] == "waiting", format!("{value}"))?;
     vm.run("exec 9<&-; sleep 2")?;
-    vm.run("nohup medbrains-os-update tick > /dev/null 2>&1 &")?;
+    vm.run("(nohup medbrains-os-update tick > /dev/null 2>&1 &)")?;
     wait_version(vm, NEXT.1, RESTART_LIMIT)?;
     wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;
     Ok(())
