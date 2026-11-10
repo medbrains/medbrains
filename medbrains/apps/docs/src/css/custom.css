@@ -1,32 +1,204 @@
-/* Carbon tokens, matching packages/design-system/src/theme. */
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-mono/400.css";
+/* MedBrains docs theme: the website colours (docs/DECISIONS, design system
+   "Website theme"), IBM Plex self-hosted, light and dark at WCAG 2.2 AA. */
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-600.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
 
 :root {
+  --mb-blue: #0f62fe;
+  --mb-purple: #851b7f;
+  --mb-surface: #ffffff;
+  --mb-raised: #f3f5f9;
+  --mb-ink: #0b1220;
+  --mb-ink-2: #3c4657;
+  --mb-line: #dde2ea;
+  --mb-link: #0043ce;
+  --mb-accent-text: #851b7f;
+
   --ifm-font-family-base: "IBM Plex Sans", system-ui, sans-serif;
-  --ifm-font-family-monospace: "IBM Plex Mono", monospace;
-  --ifm-color-primary: #0f62fe;
-  --ifm-color-primary-dark: #0043ce;
-  --ifm-color-primary-darker: #0043ce;
-  --ifm-color-primary-darkest: #002d9c;
-  --ifm-color-primary-light: #4589ff;
-  --ifm-color-primary-lighter: #78a9ff;
-  --ifm-color-primary-lightest: #a6c8ff;
-  --ifm-font-color-base: #161616;
-  --ifm-background-color: #ffffff;
-  --ifm-global-radius: 2px;
-  --ifm-code-font-size: 95%;
+  --ifm-font-family-monospace: "IBM Plex Mono", ui-monospace, monospace;
+  --ifm-font-size-base: 100%;
+  --ifm-line-height-base: 1.6;
+  --ifm-color-primary: #0043ce;
+  --ifm-color-primary-dark: #003cb9;
+  --ifm-color-primary-darker: #0039af;
+  --ifm-color-primary-darkest: #002f90;
+  --ifm-color-primary-light: #0f62fe;
+  --ifm-color-primary-lighter: #2f77fe;
+  --ifm-color-primary-lightest: #5a93fe;
+  --ifm-link-color: var(--mb-link);
+  --ifm-font-color-base: var(--mb-ink);
+  --ifm-color-content-secondary: var(--mb-ink-2);
+  --ifm-background-color: var(--mb-surface);
+  --ifm-background-surface-color: var(--mb-surface);
+  --ifm-toc-border-color: var(--mb-line);
+  --ifm-hr-background-color: var(--mb-line);
+  --ifm-table-border-color: var(--mb-line);
+  --ifm-global-radius: 4px;
+  --ifm-code-font-size: 92%;
+  --ifm-navbar-shadow: none;
+  --ifm-footer-background-color: var(--mb-raised);
+  --ifm-footer-color: var(--mb-ink-2);
+  --ifm-footer-link-color: var(--mb-link);
+  --ifm-footer-title-color: var(--mb-ink);
+  --ifm-transition-fast: 120ms;
+  --docusaurus-highlighted-code-line-bg: rgb(15 98 254 / 12%);
 }
 
+/* Dark is neutral grey, never navy. */
 [data-theme="dark"] {
+  --mb-surface: #111315;
+  --mb-raised: #17191c;
+  --mb-card: #1c1f23;
+  --mb-ink: #e6e8eb;
+  --mb-ink-2: #a9afb7;
+  --mb-line: #30343a;
+  --mb-link: #78a9ff;
+  --mb-accent-text: #ffabf0;
+
   --ifm-color-primary: #78a9ff;
-  --ifm-color-primary-dark: #4589ff;
+  --ifm-color-primary-dark: #5a95ff;
   --ifm-color-primary-darker: #4589ff;
-  --ifm-color-primary-darkest: #0f62fe;
-  --ifm-color-primary-light: #a6c8ff;
-  --ifm-color-primary-lighter: #d0e2ff;
-  --ifm-color-primary-lightest: #edf5ff;
-  --ifm-font-color-base: #f4f4f4;
-  --ifm-background-color: #161616;
+  --ifm-color-primary-darkest: #1f70ff;
+  --ifm-color-primary-light: #96bdff;
+  --ifm-color-primary-lighter: #a6c8ff;
+  --ifm-color-primary-lightest: #d0e2ff;
+  --ifm-navbar-background-color: var(--mb-raised);
+  --ifm-background-surface-color: var(--mb-raised);
+  --ifm-footer-background-color: var(--mb-raised);
+  --ifm-code-background: var(--mb-card);
+}
+
+.navbar,
+.footer {
+  border-color: var(--mb-line);
+}
+.navbar {
+  border-bottom: 1px solid var(--mb-line);
+}
+
+/* A readable measure and clear heading steps. */
+.markdown {
+  max-width: 75ch;
+}
+.markdown h1 {
+  font-size: 2rem;
+  line-height: 1.25;
+}
+.markdown h2 {
+  font-size: 1.5rem;
+  margin-top: 2.5rem;
+}
+.markdown h3 {
+  font-size: 1.2rem;
+}
+
+/* Visible 2px focus on everything (WCAG 2.2 SC 2.4.13). */
+:focus-visible {
+  outline: 2px solid var(--mb-link);
+  outline-offset: 2px;
+}
+
+/* Targets at least 24px (SC 2.5.8). */
+.menu__link,
+.menu__caret,
+.pagination-nav__link,
+.table-of-contents__link,
+.breadcrumbs__link,
+.navbar__item {
+  min-height: 24px;
+}
+
+/* Screenshots: a light frame and a caption. */
+.markdown figure {
+  margin: 1.5rem 0;
+}
+.markdown figure img,
+.markdown p > img {
+  display: block;
+  border: 1px solid var(--mb-line);
+  border-radius: var(--ifm-global-radius);
+  background: var(--mb-raised);
+  padding: 4px;
+  max-width: 100%;
+  height: auto;
+}
+.markdown figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--mb-ink-2);
+}
+
+/* Admonitions from the tokens: a left rule, a quiet surface. */
+.theme-admonition {
+  border-left-width: 4px;
+  border-radius: var(--ifm-global-radius);
+  background: var(--mb-raised);
+  color: var(--mb-ink);
+}
+.alert--info {
+  border-left-color: var(--mb-blue);
+}
+.alert--secondary {
+  border-left-color: var(--mb-purple);
+}
+.theme-admonition .admonition-heading,
+.theme-admonition [class*="admonitionHeading"] {
+  color: var(--mb-ink);
+}
+
+/* Audience cards on the home page. */
+.mb-cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  margin: 2rem 0;
+}
+.mb-card {
+  display: block;
+  padding: 1.25rem;
+  border: 1px solid var(--mb-line);
+  border-radius: 8px;
+  background: var(--mb-raised);
+  color: var(--mb-ink);
+}
+.mb-card:hover {
+  border-color: var(--mb-link);
+  text-decoration: none;
+  color: var(--mb-ink);
+}
+.mb-card strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+  color: var(--mb-link);
+}
+.mb-card span {
+  color: var(--mb-ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Feedback links under every doc. */
+.mb-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--mb-line);
+  font-size: 0.875rem;
+}
+.mb-feedback p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--mb-ink-2);
 }

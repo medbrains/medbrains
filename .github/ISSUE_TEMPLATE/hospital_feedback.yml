@@ -1,0 +1,21 @@
+name: Feedback from a hospital
+description: You use MedBrains at a hospital and want to tell us what works, what does not, or what is missing
+labels: ["hospital-feedback", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Feedback from the people who use MedBrains every day shapes what we build next.
+        **Never include real patient data**: no names, phone numbers, UHIDs or screenshots of real records.
+  - type: input
+    id: role
+    attributes:
+      label: Your role
+      placeholder: Receptionist, nurse, pharmacist, doctor, IT…
+  - type: textarea
+    id: feedback
+    attributes:
+      label: What would you like to tell us?
+      description: What you were trying to do, what happened, and what would have helped.
+    validations:
+      required: true
