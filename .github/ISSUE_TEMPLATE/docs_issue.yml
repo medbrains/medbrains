@@ -1,0 +1,19 @@
+name: 📖 Documentation problem
+description: A guide is wrong, unclear or missing
+labels: ["type:docs", "needs-triage"]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The docs.medbrains.in address, or the file in the repo.
+      placeholder: https://docs.medbrains.in/...
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+      description: What you tried to do, and where the guide let you down.
+    validations:
+      required: true

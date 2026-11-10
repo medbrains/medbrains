@@ -237,6 +237,11 @@ fn real_react_sdk_envelopes_are_kept_and_cleaned() -> TestResult {
 #[test]
 fn a_verify_token_in_a_request_url_is_removed() {
     let token = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
-    let scrubbed = crate::scrub::scrub_url(&format!("https://h.example/api/public/signatures/verify/{token}"));
-    assert_eq!(scrubbed, "https://h.example/api/public/signatures/verify/:id");
+    let scrubbed = crate::scrub::scrub_url(&format!(
+        "https://h.example/api/public/signatures/verify/{token}"
+    ));
+    assert_eq!(
+        scrubbed,
+        "https://h.example/api/public/signatures/verify/:id"
+    );
 }

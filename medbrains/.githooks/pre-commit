@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Git pre-commit hook. Install once per clone: `make hooks` (sets core.hooksPath).
+#
+# 1. rustfmt every staged Rust file, so CI's "Rust format" job never sees new drift.
+#    A file that also has unstaged edits is only checked, not rewritten, so the commit
+#    never picks up changes the person did not stage.
+# 2. The migration header and RLS checks, for staged migrations.
+set -euo pipefail
+
+TOP="$(git rev-parse --show-toplevel)"
+cd "$TOP"
+CONFIG="$TOP/medbrains/rustfmt.toml"
+
+# A while-read loop, not mapfile: macOS ships bash 3.2.
+staged="$(git diff --cached --name-only --diff-filter=ACMR -- '*.rs' | grep -v '/vendor/' || true)"
+if [ -n "$staged" ] && command -v rustfmt >/dev/null; then
+    bad=0
+    while IFS= read -r f; do
+        [ -f "$f" ] || continue
+        # Through stdin, so rustfmt formats this file only, not the modules it declares.
+        out="$(rustfmt --edition 2024 --config-path "$CONFIG" < "$f")" || { bad=1; continue; }
+        if git diff --quiet -- "$f"; then
+            [ "$out" = "$(cat "$f")" ] || { printf '%s\n' "$out" > "$f"; git add -- "$f"; }
+        elif [ "$out" != "$(cat "$f")" ]; then
+            echo "[pre-commit] $f is not rustfmt-clean and has unstaged edits; run rustfmt on it, then stage it." >&2
+            bad=1
+        fi
+    done <<< "$staged"
+    [ "$bad" = 0 ] || exit 1
+fi
+
+# Biome formats and safely fixes staged web and package files (TS, TSX, JS, JSON, CSS),
+# under the same rule as Rust: a file with unstaged edits is only checked, not rewritten.
+BIOME="$TOP/medbrains/node_modules/.bin/biome"
+web="$(git diff --cached --name-only --diff-filter=ACMR -- 'medbrains/apps/web/*' 'medbrains/packages/*' \
+  | grep -E '\.(ts|tsx|js|jsx|json|css)$' | grep -v '/node_modules/' || true)"
+if [ -n "$web" ] && [ -x "$BIOME" ]; then
+    bad=0
+    while IFS= read -r f; do
+        [ -f "$f" ] || continue
+        rel="${f#medbrains/}"
+        if git diff --quiet -- "$f"; then
+            (cd "$TOP/medbrains" && "$BIOME" check --write --no-errors-on-unmatched "$rel") || bad=1
+            git add -- "$f"
+        else
+            (cd "$TOP/medbrains" && "$BIOME" check --no-errors-on-unmatched "$rel") || bad=1
+        fi
+    done <<< "$web"
+    if [ "$bad" != 0 ]; then
+        echo "[pre-commit] fix the Biome findings above, then commit again." >&2
+        exit 1
+    fi
+fi
+
+# Native apps: swift-format for iOS (from Xcode), ktlint for Android (`brew install ktlint`).
+# Each formats only the staged file; a file with unstaged edits is only checked. A missing
+# tool skips with a note, never blocks the commit.
+native_fmt() { # <git pathspec> <name> <format cmd...>: format staged files with "$@" "<file>"
+    local spec=$1 name=$2; shift 2
+    local files; files="$(git diff --cached --name-only --diff-filter=ACMR -- "$spec" || true)"
+    [ -n "$files" ] || return 0
+    command -v "$1" >/dev/null || { echo "[pre-commit] $name not installed; skipped." >&2; return 0; }
+    while IFS= read -r f; do
+        [ -f "$f" ] || continue
+        if git diff --quiet -- "$f"; then "$@" "$f" && git add -- "$f"
+        else echo "[pre-commit] $f has unstaged edits; $name not applied to it." >&2; fi
+    done <<< "$files"
+}
+native_fmt 'medbrains/apps/ios/*.swift' swift-format \
+    xcrun swift-format format --in-place --configuration "$TOP/medbrains/apps/ios/.swift-format"
+native_fmt 'medbrains/apps/android/*.kt' ktlint ktlint --format --relative
+native_fmt 'medbrains/apps/android/*.kts' ktlint ktlint --format --relative
+
+if [ -x "$TOP/medbrains/.githooks/pre-commit-migrations.sh" ]; then
+    (cd "$TOP/medbrains" && ./.githooks/pre-commit-migrations.sh)
+fi
