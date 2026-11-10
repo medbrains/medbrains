@@ -73,14 +73,6 @@ features = [
 ]
 optional = true
 
-[dependencies.sqlx-sqlite]
-version = "=0.8.6"
-features = [
-    "offline",
-    "migrate",
-]
-optional = true
-
 [dependencies.syn]
 version = "2.0.52"
 features = [
@@ -133,7 +125,6 @@ bit-vec = [
 chrono = [
     "sqlx-core/chrono",
     "sqlx-postgres?/chrono",
-    "sqlx-sqlite?/chrono",
 ]
 default = []
 derive = []
@@ -148,7 +139,6 @@ ipnetwork = [
 json = [
     "sqlx-core/json",
     "sqlx-postgres?/json",
-    "sqlx-sqlite?/json",
 ]
 mac_address = [
     "sqlx-core/mac_address",
@@ -162,23 +152,15 @@ rust_decimal = [
     "sqlx-core/rust_decimal",
     "sqlx-postgres?/rust_decimal",
 ]
-sqlite = [
-    "_sqlite",
-    "sqlx-sqlite/bundled",
-]
-sqlite-unbundled = [
-    "_sqlite",
-    "sqlx-sqlite/unbundled",
-]
+sqlite = []
+sqlite-unbundled = []
 time = [
     "sqlx-core/time",
     "sqlx-postgres?/time",
-    "sqlx-sqlite?/time",
 ]
 uuid = [
     "sqlx-core/uuid",
     "sqlx-postgres?/uuid",
-    "sqlx-sqlite?/uuid",
 ]
 
 [lints.rust.unexpected_cfgs]

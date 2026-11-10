@@ -35,7 +35,7 @@ sha2 = { workspace = true }
 hex = "0.4"
 
 # SQLite buffer
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 
 # Print payloads arrive base64-encoded
 base64 = "0.22"
