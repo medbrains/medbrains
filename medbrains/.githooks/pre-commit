@@ -52,6 +52,25 @@ if [ -n "$web" ] && [ -x "$BIOME" ]; then
     fi
 fi
 
+# Native apps: swift-format for iOS (from Xcode), ktlint for Android (`brew install ktlint`).
+# Each formats only the staged file; a file with unstaged edits is only checked. A missing
+# tool skips with a note, never blocks the commit.
+native_fmt() { # <git pathspec> <name> <format cmd...>: format staged files with "$@" "<file>"
+    local spec=$1 name=$2; shift 2
+    local files; files="$(git diff --cached --name-only --diff-filter=ACMR -- "$spec" || true)"
+    [ -n "$files" ] || return 0
+    command -v "$1" >/dev/null || { echo "[pre-commit] $name not installed; skipped." >&2; return 0; }
+    while IFS= read -r f; do
+        [ -f "$f" ] || continue
+        if git diff --quiet -- "$f"; then "$@" "$f" && git add -- "$f"
+        else echo "[pre-commit] $f has unstaged edits; $name not applied to it." >&2; fi
+    done <<< "$files"
+}
+native_fmt 'medbrains/apps/ios/*.swift' swift-format \
+    xcrun swift-format format --in-place --configuration "$TOP/medbrains/apps/ios/.swift-format"
+native_fmt 'medbrains/apps/android/*.kt' ktlint ktlint --format --relative
+native_fmt 'medbrains/apps/android/*.kts' ktlint ktlint --format --relative
+
 if [ -x "$TOP/medbrains/.githooks/pre-commit-migrations.sh" ]; then
     (cd "$TOP/medbrains" && ./.githooks/pre-commit-migrations.sh)
 fi

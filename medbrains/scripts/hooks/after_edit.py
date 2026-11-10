@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -58,6 +59,11 @@ def checks_for(path: str) -> dict[str, list[str]]:
             checks["raw-html"] = py("scripts/check_raw_html.py")
             checks["ui-seam"] = py("scripts/check_ui_seam.py")
             checks["ai-label"] = py("scripts/check_ai_label.py")
+    elif rel.startswith("apps/ios/") and rel.endswith(".swift"):
+        checks["swift-format"] = ["xcrun", "swift-format", "format", "--in-place",
+                                  "--configuration", "apps/ios/.swift-format", rel]
+    elif rel.startswith("apps/android/") and rel.endswith((".kt", ".kts")) and shutil.which("ktlint"):
+        checks["ktlint"] = ["ktlint", "--format", "--relative", rel]
     return checks
 
 
