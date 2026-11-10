@@ -100,6 +100,7 @@ jobs:
       - run: python3 scripts/check_region_pinning.py
       - run: python3 scripts/check_no_card_logging.py
       - run: python3 scripts/check_egress_allowlist.py
+      - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
 
   docs:
     name: Every new function is documented
