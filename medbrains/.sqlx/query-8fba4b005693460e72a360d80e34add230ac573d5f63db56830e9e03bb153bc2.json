@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM pharmacy_prescriptions WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL AND status::text IN ('pending_review', 'on_hold', 'approved', 'dispensing', 'partially_dispensed') AND received_at > now() - make_interval(days => $3)) AS \"exists!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8fba4b005693460e72a360d80e34add230ac573d5f63db56830e9e03bb153bc2"
+}

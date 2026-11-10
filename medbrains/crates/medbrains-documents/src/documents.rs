@@ -1051,9 +1051,13 @@ pub async fn list_output_signatures(
 pub async fn add_output_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreateOutputSignatureRequest>,
 ) -> Result<Json<DocumentOutputSignature>, AppError> {
     require_permission(&claims, permissions::documents::GENERATE)?;
+    // A signature on a generated document is the signer's word; the same
+    // fresh step-up as every other signature.
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -1,0 +1,52 @@
+# The MedBrains server: API + web app; runs migrations as the owner at start,
+# serves requests as medbrains_app (row level security applies). SEC5 hardening.
+# Started only by medbrains-main.target, once setup has finished.
+[Unit]
+Description=MedBrains server
+ConditionPathExists=/var/lib/medbrains/config/role-main
+Requires=postgresql@17-main.service medbrains-db-init.service
+After=postgresql@17-main.service medbrains-db-init.service medbrains-firstboot.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=medbrains
+Group=medbrains
+EnvironmentFile=/etc/medbrains/env
+WorkingDirectory=/var/lib/medbrains
+ExecStart=/usr/bin/medbrains-server
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=15min
+LimitNOFILE=65536
+MemoryMax=3G
+UMask=0027
+
+ProtectSystem=strict
+ReadWritePaths=/var/lib/medbrains/objects /var/lib/medbrains/cold /var/lib/medbrains/archive /var/log/medbrains
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+DevicePolicy=closed
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources

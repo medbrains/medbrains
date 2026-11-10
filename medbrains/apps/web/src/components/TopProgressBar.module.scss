@@ -16,7 +16,9 @@ $beacon: var(--mb-pulse); // the website's heartbeat green
 }
 
 @keyframes trackFadeOut {
-  to { opacity: 0; }
+  to {
+    opacity: 0;
+  }
 }
 
 // Thin baseline
@@ -39,16 +41,32 @@ $beacon: var(--mb-pulse); // the website's heartbeat green
   background: $beacon;
   opacity: 0;
   transform: translate(-3px, -2px);
-  box-shadow: 0 0 6px color-mix(in srgb, $beacon 80%, transparent), 0 0 12px color-mix(in srgb, $beacon 40%, transparent);
+  box-shadow:
+    0 0 6px color-mix(in srgb, $beacon 80%, transparent),
+    0 0 12px color-mix(in srgb, $beacon 40%, transparent);
   animation: dotPulse 2.4s ease forwards;
 }
 
 @keyframes dotPulse {
-  0%, 35% { opacity: 0; transform: translate(-3px, -2px) scale(0.5); }
-  45% { opacity: 1; transform: translate(-3px, -2px) scale(1.5); }
-  55% { opacity: 1; transform: translate(-3px, -2px) scale(1); }
-  70% { opacity: 0.5; }
-  100% { opacity: 0; }
+  0%,
+  35% {
+    opacity: 0;
+    transform: translate(-3px, -2px) scale(0.5);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(-3px, -2px) scale(1.5);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(-3px, -2px) scale(1);
+  }
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .traceSvg {
@@ -69,14 +87,16 @@ $beacon: var(--mb-pulse); // the website's heartbeat green
 }
 
 @keyframes drawTrail {
-  to { stroke-dashoffset: 0; }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 // Bright active trace
 .activeTrace {
   fill: none;
   filter: drop-shadow(0 0 3px color-mix(in srgb, $trace 90%, transparent))
-          drop-shadow(0 0 8px color-mix(in srgb, $trace 40%, transparent));
+    drop-shadow(0 0 8px color-mix(in srgb, $trace 40%, transparent));
 }
 
 // Scan window — speeds across flat line, SLOWS at the beat, then speeds to end
@@ -85,15 +105,36 @@ $beacon: var(--mb-pulse); // the website's heartbeat green
 }
 
 @keyframes moveScan {
-  0%    { x: var(--scan-start);    animation-timing-function: ease-in; }
-  35%   { x: var(--beat-approach); animation-timing-function: cubic-bezier(0.1, 0, 0.1, 1); }
-  55%   { x: var(--beat-pass);     animation-timing-function: ease-out; }
-  100%  { x: var(--scan-end); }
+  0% {
+    x: var(--scan-start);
+    animation-timing-function: ease-in;
+  }
+  35% {
+    x: var(--beat-approach);
+    animation-timing-function: cubic-bezier(0.1, 0, 0.1, 1);
+  }
+  55% {
+    x: var(--beat-pass);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    x: var(--scan-end);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .track { animation: none; }
-  .trailTrace { animation: none; stroke-dashoffset: 0; }
-  .scanWindow { animation: none; }
-  .glowDot { animation: none; opacity: 1; }
+  .track {
+    animation: none;
+  }
+  .trailTrace {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .scanWindow {
+    animation: none;
+  }
+  .glowDot {
+    animation: none;
+    opacity: 1;
+  }
 }

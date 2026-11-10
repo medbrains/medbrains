@@ -6,7 +6,7 @@
  * step the journey is *about* is done through the screen, by the role that
  * does it in a real hospital.
  */
-import { test as base, type Browser, type Page } from "@playwright/test";
+import { test as base, type Browser, expect, type Page } from "@playwright/test";
 import { loginAsRole, routeApiDirect } from "../../helpers";
 import { type AuthContext, api, getAuthContextFromCookies } from "../../helpers/api";
 import { getE2EIdentity } from "../../helpers/e2e-identities";
@@ -37,19 +37,20 @@ export interface Hospital {
     departmentIds?: string[],
     /** Permissions taken away from what the role gives (a cashier who may not collect). */
     deniedPermissions?: string[],
-  ) => Promise<{ id: string; page: Page; password: string }>;
+  ) => Promise<{ id: string; page: Page; username: string; password: string }>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
   doctor: () => Promise<{ id: string; fullName: string }>;
   /**
    * Another doctor, in this department, logged in in their own browser —
-   * with `fieldAccess` restrictions, when the test is about them.
+   * with `fieldAccess` restrictions, when the test is about them. The
+   * username and password are for steps that sign in again or confirm it's them.
    */
   colleague: (
     department: Department,
     fieldAccess?: Record<string, "view" | "mask" | "hidden">,
-  ) => Promise<{ id: string; fullName: string; page: Page }>;
+  ) => Promise<{ id: string; fullName: string; page: Page; username: string; password: string }>;
 }
 
 const unique = () => crypto.randomUUID().slice(0, 8).toUpperCase();
@@ -113,7 +114,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         await loginAsRole(page, username, password);
         pages.push(page);
         // The password, for screens that ask the user to confirm it's them.
-        return { id: user.id, page, password };
+        return { id: user.id, page, username, password };
       },
       asAdmin: async () => {
         const page = await openPage(browser, "e2e/.auth/user.json");
@@ -154,7 +155,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         const page = await openPage(browser);
         await loginAsRole(page, username, password);
         pages.push(page);
-        return { id: user.id, fullName, page };
+        return { id: user.id, fullName, page, username, password };
       },
       setting: async (category, key, value) => {
         const rows = await api<Array<{ key: string; value: unknown }>>(
@@ -176,6 +177,18 @@ export const test = base.extend<{ hospital: Hospital }>({
 });
 
 export { expect } from "@playwright/test";
+
+/**
+ * Answer the "Confirm it's you" prompt a signature raises (step-up). It comes
+ * once per person per five minutes, so call it after the first signature a
+ * person makes in a journey.
+ */
+export async function confirmItsYou(page: Page, password: string): Promise<void> {
+  const confirm = page.getByRole("dialog", { name: "Confirm it's you" });
+  await confirm.getByLabel("Password").fill(password);
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  await expect(confirm).toBeHidden({ timeout: 15_000 });
+}
 
 const SYLLABLES = ["ka", "ri", "mo", "tha", "vel", "shan", "ni", "ra", "lu", "dev", "an", "ya"];
 

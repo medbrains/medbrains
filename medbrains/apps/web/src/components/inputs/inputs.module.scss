@@ -179,7 +179,7 @@
   gap: 8px;
 
   .num {
-    font: 400 28px/1 var(--font-display, "Fraunces", Georgia, serif);
+    font: 400 28px / 1 var(--font-display, "Fraunces", Georgia, serif);
     color: var(--fc-ink);
     font-feature-settings: "tnum";
     min-width: 60px;
@@ -672,7 +672,7 @@
       gap: 6px;
     }
     .v {
-      font: 400 26px/1 var(--font-display, "Fraunces", Georgia, serif);
+      font: 400 26px / 1 var(--font-display, "Fraunces", Georgia, serif);
       color: var(--fc-ink);
       font-feature-settings: "tnum";
       min-width: 50px;

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE device_pairing_requests SET status = 'denied' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c186f5d3b199e22bf9bd7b19fe9290cdab92c69a7376c970379971499669bf62"
+}

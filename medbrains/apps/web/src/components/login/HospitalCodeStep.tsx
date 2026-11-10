@@ -34,7 +34,7 @@ export function HospitalCodeStep({
     >
       <TextInput
         label="Hospital code"
-        description="The code your hospital gave you, e.g. AMH."
+        description="The code your hospital gave you, e.g. CITYHOSP."
         placeholder="Hospital code"
         leftSection={<IconBuildingHospital size={16} />}
         value={code}

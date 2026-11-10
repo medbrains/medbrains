@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE device_pairing_requests SET status = 'claimed', approved_by_user_id = $2, approved_at = now(), claimed_at = now(), paired_device_id = $3 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "10c64ccf76b91dfc7ffd009cba2b5cb60d27cf8bda424140defd04dbf59ecf99"
+}

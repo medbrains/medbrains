@@ -4,7 +4,7 @@
  * in it (RFC-MODULE-clinical-notes, phase 4).
  */
 import { readFile } from "node:fs/promises";
-import { api, loginAsRoleApi } from "../helpers/api";
+import { api, loginAsRoleApi, withStepUp } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
 import { getOpdDept } from "../helpers/seed-resolvers";
 import { expect, test } from "./support/world";
@@ -14,7 +14,8 @@ interface Entry {
 }
 
 test("a visit's case sheet exports as FHIR Compositions", async ({ hospital, request }) => {
-  const doctorCtx = await loginAsRoleApi(request, "doctor");
+  // Signing a note asks for the password again (step-up).
+  const doctorCtx = await withStepUp(await loginAsRoleApi(request, "doctor"));
   const patient = await createPatientApi(hospital.admin);
   const encounterId = await createEncounter(doctorCtx, patient.id, {
     departmentId: (await getOpdDept(doctorCtx)).id,

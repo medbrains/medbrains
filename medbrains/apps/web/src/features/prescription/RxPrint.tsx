@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { Button, Modal } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
+import { BUY_OUTSIDE_PRINT } from "./rxBuyOutside";
 import { dosesFreqCode, type FormularyDrug, type RxItem, repeatLabel } from "./rxModel";
 
 interface Props {
@@ -184,6 +185,7 @@ export function RxPrint({
                     )}
                     {d?.controlled && <span className="rxp-flag">NDPS</span>}
                     {d?.salt && <Box className="rxp-salt">{d.salt}</Box>}
+                    {it.buyOutside && <Box className="rxp-salt">{BUY_OUTSIDE_PRINT}</Box>}
                   </td>
                   <td>{it.strength}</td>
                   <td>{freqLabel(it)}</td>

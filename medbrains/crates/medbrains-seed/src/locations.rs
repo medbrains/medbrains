@@ -523,9 +523,9 @@ pub(super) async fn seed_locations(
         tenant_id,
         None,
         "campus",
-        "ACMS-MAIN",
-        "Alagappa Medical College — Main Campus",
-        r#"{"address": "Karaikudi, Tamil Nadu", "phone": "+91-4565-225000"}"#,
+        "MAIN",
+        "Main Campus",
+        "{}",
     )
     .await?;
 

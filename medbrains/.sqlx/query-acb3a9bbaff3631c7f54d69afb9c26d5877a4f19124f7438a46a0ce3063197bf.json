@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (\n            EXISTS (SELECT 1 FROM users\n                WHERE tenant_id = $1 AND role::text = $2 AND deleted_at IS NULL)\n            OR EXISTS (SELECT 1 FROM idp_group_mappings\n                WHERE tenant_id = $1 AND role_code = $2)\n            OR EXISTS (SELECT 1 FROM identity_providers\n                WHERE tenant_id = $1 AND default_role = $2)\n            OR EXISTS (SELECT 1 FROM user_invitations\n                WHERE tenant_id = $1 AND role = $2\n                  AND accepted_at IS NULL AND expires_at > now())\n        ) AS \"held!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "held!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "acb3a9bbaff3631c7f54d69afb9c26d5877a4f19124f7438a46a0ce3063197bf"
+}

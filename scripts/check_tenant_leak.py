@@ -68,10 +68,11 @@ def collect_violations() -> tuple[dict[str, int], int, int]:
         for i, line in enumerate(lines):
             if not any(p.search(line) for p in PATTERNS):
                 continue
-            # rustfmt moves a trailing comment after `query!(` onto its own
-            # line above the call, so the line before counts too.
-            previous = lines[i - 1] if i else ""
-            if ALLOW_COMMENT_RE.search(line) or ALLOW_COMMENT_RE.search(previous):
+            # rustfmt moves a trailing comment after `query!(` onto its own line,
+            # just inside the call, and a comment may also sit above it. So the
+            # lines either side count too.
+            nearby = lines[max(i - 1, 0) : i + 2]
+            if any(ALLOW_COMMENT_RE.search(near) for near in nearby):
                 suppressed += 1
             else:
                 count += 1

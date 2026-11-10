@@ -80,6 +80,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/admin/documents": () => import("@/pages/documents"),
   "/admin/devices": () => import("@/pages/admin/devices"),
   "/admin/paired-devices": () => import("@/pages/admin/paired-devices"),
+  "/admin/machines": () => import("@/pages/admin/machines"),
   "/admin/hospital-binding": () => import("@/pages/admin/hospital-binding"),
 };
 

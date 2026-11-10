@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@/test/test-utils";
+import pkg from "../../package.json" with { type: "json" };
 import { LoginPage } from "./login";
 
 /**
@@ -14,11 +15,15 @@ import { LoginPage } from "./login";
  */
 
 const DEFAULT: SignInOptions = {
+  single_hospital: false,
   code: "DEFAULT",
   name: "Default Hospital",
   password: true,
   providers: [],
 };
+
+/** What the server answers with no code; set for a single-hospital install. */
+const noCodeAnswer: { current: SignInOptions | null } = vi.hoisted(() => ({ current: null }));
 
 vi.mock("@medbrains/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@medbrains/api")>();
@@ -27,6 +32,7 @@ vi.mock("@medbrains/api", async (importOriginal) => {
     api: {
       ...actual.api,
       getSignInOptions: async (code?: string) => {
+        if (!code && noCodeAnswer.current) return noCodeAnswer.current;
         if (code?.toUpperCase() === "DEFAULT") return DEFAULT;
         throw new actual.ApiError("not found", 404);
       },
@@ -60,6 +66,26 @@ async function chooseHospital(code: string) {
 }
 
 describe("LoginPage", () => {
+  it("shows the version of the app that is running", async () => {
+    render(<Remountable />, { initialEntries: ["/login"] });
+    expect(await screen.findByText(`MedBrains v${pkg.version}`)).toBeInTheDocument();
+  });
+
+  it("asks a single-hospital machine for no code and offers no way to change hospital", async () => {
+    noCodeAnswer.current = { ...DEFAULT, single_hospital: true };
+    try {
+      render(<Remountable />, { initialEntries: ["/login"] });
+      await waitFor(() =>
+        expect(screen.getByTestId("login-hospital-name")).toHaveTextContent("Default Hospital"),
+      );
+      expect(screen.getByLabelText(/Username/)).toBeInTheDocument();
+      expect(screen.queryByTestId("login-hospital-code")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("login-change-hospital")).not.toBeInTheDocument();
+    } finally {
+      noCodeAnswer.current = null;
+    }
+  });
+
   it("keeps the chosen hospital across a refused attempt and a remount", async () => {
     render(<Remountable />, { initialEntries: ["/login"] });
 

@@ -1,0 +1,3 @@
+# DECISIONS.md is append-only: every PR adds rows at the end, so two PRs always
+# "conflict" there. Union merge keeps both sides' rows instead.
+medbrains/docs/DECISIONS.md merge=union

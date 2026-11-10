@@ -8,6 +8,7 @@
 //! from a database copy, and still lets registration spot the same person twice.
 
 use hmac::{Hmac, KeyInit, Mac};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use sha2::Sha256;
 use uuid::Uuid;
@@ -17,11 +18,9 @@ const KEY_NAME: &str = "MEDBRAINS_IDENTIFIER_HMAC_KEY";
 /// Development fallback only; production sets the key in the secret store.
 const DEV_KEY: &[u8] = b"medbrains-dev-identifier-hmac-key";
 
-pub(crate) async fn identifier_key(state: &AppState) -> Vec<u8> {
-    match state.secret_resolver.get(KEY_NAME).await {
-        Ok(value) if value.len() >= 32 => value.into_bytes(),
-        _ => DEV_KEY.to_vec(),
-    }
+/// The fingerprint key. A wrong one would silently stop duplicates matching, so a fault is an error.
+pub(crate) async fn identifier_key(state: &AppState) -> Result<Vec<u8>, AppError> {
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), KEY_NAME, DEV_KEY).await.map_err(AppError::from)
 }
 
 /// HMAC-SHA256 of `tenant:kind:value`, hex.
@@ -49,7 +48,7 @@ pub(crate) async fn store_group_fingerprint(
     key: &[u8],
     (tenant_id, patient_id): (Uuid, Uuid),
     aadhaar_digits: &str,
-) -> Result<(), medbrains_server_core::error::AppError> {
+) -> Result<(), AppError> {
     let group: Option<Uuid> =
         sqlx::query_scalar("SELECT group_id FROM tenants WHERE id = $1 AND group_id IS NOT NULL")
             .bind(tenant_id)

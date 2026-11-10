@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id, a.warning_code, a.severity, a.action_taken, a.message, a.override_reason, u.full_name AS \"checked_by_name?\", a.checked_at FROM cpoe_safety_audit a LEFT JOIN users u ON u.id = a.checked_by AND u.tenant_id = a.tenant_id WHERE a.tenant_id = $1 AND a.source_module = 'pharmacy' AND a.source_record_id = $2 AND a.deleted_at IS NULL ORDER BY a.checked_at DESC LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "warning_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "action_taken",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "override_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "checked_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "checked_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "ec8a0ad783547a3a88b37af42e492bbd2655369a4fb5fb01cffe0963f5f85605"
+}

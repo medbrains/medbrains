@@ -14,7 +14,7 @@ Every layer already exists somewhere:
     role -> permissions              crates/medbrains-core/src/access/roles.rs
     ui page -> api method            apps/web/src/pages/**/*.tsx
     api method -> path               packages/api/src/client.ts
-    permission label/description     packages/types/src/permissions.ts
+    permission label/description     packages/types/src/permission-catalog.ts
 
 What has never existed is the join. Nobody can answer "who can reach this
 endpoint, from which screen, and does it check the record or only the role"
@@ -140,7 +140,7 @@ def permission_constants() -> dict[str, str]:
 
 def ui_catalogue() -> dict[str, dict]:
     """`code -> {label, description}` — what the admin UI can offer."""
-    path = os.path.join(ROOT, "packages/types/src/permissions.ts")
+    path = os.path.join(ROOT, "packages/types/src/permission-catalog.ts")
     text = open(path, encoding="utf-8").read()
     out: dict[str, dict] = {}
     for block in re.finditer(

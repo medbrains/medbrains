@@ -1,0 +1,32 @@
+# Takes the seed lines, password included, out of the env once the server has used them.
+[Unit]
+Description=MedBrains seed clean-up
+ConditionPathExists=/var/lib/medbrains/config/role-main
+After=medbrains-firstboot.service systemd-tmpfiles-setup.service
+
+[Service]
+Type=exec
+ExecStart=/usr/lib/medbrains/console-status
+Restart=on-failure
+RestartSec=5s
+ProtectSystem=strict
+ReadWritePaths=/var/lib/medbrains/config
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native

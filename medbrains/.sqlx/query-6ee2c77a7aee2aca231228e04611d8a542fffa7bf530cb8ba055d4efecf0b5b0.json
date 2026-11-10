@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.id FROM dictation_sessions s WHERE s.tenant_id = $1 AND s.created_at < now() - make_interval(hours => $2) AND (EXISTS (SELECT 1 FROM dictation_audio a WHERE a.session_id = s.id) OR (s.status <> 'saved' AND EXISTS (SELECT 1 FROM dictation_content c WHERE c.session_id = s.id)) OR s.status IN ('processing', 'drafted', 'stt_failed', 'llm_failed', 'no_speech')) ORDER BY s.created_at LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6ee2c77a7aee2aca231228e04611d8a542fffa7bf530cb8ba055d4efecf0b5b0"
+}

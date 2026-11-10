@@ -64,10 +64,13 @@ async fn staff(app: &common::TestApp, admin_csrf: &str, role: &str) -> (Uuid, Cl
         .json()
         .await
         .expect("login json");
+    let csrf = login["csrf_token"].as_str().unwrap_or("").to_owned();
+    // Signing a note needs the password again (step-up), not only a session.
+    app.step_up(&client, &csrf, &password).await;
     (
         employee,
         client,
-        login["csrf_token"].as_str().unwrap_or("").to_owned(),
+        csrf,
     )
 }
 

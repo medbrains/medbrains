@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM access_group_members WHERE user_id = $1 AND tenant_id = $2 AND source = 'sso'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6354c9368925470dccf74cf9f231f16dd9590512281eff98f112d3795f4816e2"
+}

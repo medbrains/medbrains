@@ -3,6 +3,7 @@
 
 import { Group, Stack, Text } from "@mantine/core";
 import type { FieldAccessLevel, QueueEntry } from "@medbrains/types";
+import { IconHeartbeat, IconHeartOff } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components";
 import {
@@ -127,5 +128,31 @@ export function QueueVisitTypeBadge({ row }: { row: QueueEntry }) {
         </Text>
       )}
     </Stack>
+  );
+}
+
+/**
+ * Whether the nurse has taken this patient's vitals: said in words with an
+ * icon, never by colour alone. The row used to give no sign at all, so the
+ * doctor called a patient whose vitals were not yet taken.
+ */
+export function QueueVitalsCell({ row }: { row: QueueEntry }) {
+  const { t } = useTranslation("opd");
+  return row.has_vitals ? (
+    <OperationalSignal
+      icon={IconHeartbeat}
+      label={t("queueSignals.vitalsTaken")}
+      shape="pill"
+      size="xs"
+      tone="complete"
+    />
+  ) : (
+    <OperationalSignal
+      icon={IconHeartOff}
+      label={t("queueSignals.vitalsNotTaken")}
+      shape="pill"
+      size="xs"
+      tone="neutral"
+    />
   );
 }

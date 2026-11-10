@@ -2,7 +2,7 @@
 
 mod holders;
 pub mod on_call;
-pub use holders::notify_permission_holders;
+pub use holders::{notify_permission_holders, permission_holders};
 
 use axum::{
     Extension, Json,
@@ -210,12 +210,26 @@ pub struct NewNotification<'a> {
     pub action_url: Option<&'a str>,
 }
 
-/// Insert a notification row (call inside a tenant-scoped transaction).
+/// Insert a notification row (call inside a tenant-scoped transaction: a `sqlx` transaction or a kernel
+/// `Tx`, both of which deref to the connection).
 /// Returns the new row id so a caller can publish it live post-commit via
 /// [`publish_notification`]. Existing callers that write `…await?;` and discard
 /// the id keep compiling (persist-only; they gain real-time by publishing).
 pub async fn create_notification(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    notification: NewNotification<'_>,
+) -> Result<Uuid, AppError> {
+    create_notification_on(tx, tenant_id, notification).await
+}
+
+/// [`create_notification`] on a bare connection, such as a kernel unit of
+/// work (`medbrains_kernel::Tx` derefs to one). Call it inside a transaction.
+///
+/// # Errors
+/// A database fault.
+pub async fn create_notification_on(
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     notification: NewNotification<'_>,
 ) -> Result<Uuid, AppError> {
@@ -233,7 +247,7 @@ pub async fn create_notification(
     .bind(notification.entity_type)
     .bind(notification.entity_id)
     .bind(notification.action_url)
-    .fetch_one(&mut **tx)
+    .fetch_one(conn)
     .await?;
     Ok(id)
 }
@@ -302,7 +316,7 @@ pub fn publish_surface_board_signal(
     publish_to_board(
         state,
         tenant_id,
-        medbrains_server_core::notification_hub::board_topic(surface),
+        medbrains_server_core::notification_hub::board_topic(tenant_id, surface),
         kind,
         entity_type,
         entity_id,
@@ -400,9 +414,16 @@ pub async fn notifications_ws_handler(
         .and_then(|c| medbrains_server_core::middleware::auth::parse_cookie_value(c, "access_token").map(str::to_owned))
         .or(q.token)
         .ok_or(AppError::Unauthorized)?;
-    let claims = medbrains_server_core::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
+    let mut claims = medbrains_server_core::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
+    // The upgrade skips the auth middleware, so its checks run here: a token
+    // for a deactivated or deleted account, a stale permission version or a
+    // revoked device is refused before the socket opens, and the permissions
+    // the board topics are chosen by are the account's real ones. A MedBrains
+    // account is refused too: a stream cannot be masked or recorded per
+    // request, so it gets none, grant or no grant.
+    medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut claims).await?;
     let topics = socket_topics(&claims);
-    Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics)))
+    Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics, claims)))
 }
 
 /// A socket never names its own topics. Subscribing to a department stream is
@@ -412,7 +433,7 @@ pub async fn notifications_ws_handler(
 ///
 /// Capped so a malformed or oversized token cannot spawn unbounded forwarders
 /// (DEVICE-CONSTRAINED-RULES: bound every fan-out).
-fn socket_topics(claims: &Claims) -> Vec<String> {
+pub fn socket_topics(claims: &Claims) -> Vec<String> {
     const MAX_DEPARTMENT_TOPICS: usize = 64;
 
     let mut topics = Vec::with_capacity(claims.department_ids.len() + 1);
@@ -429,7 +450,7 @@ fn socket_topics(claims: &Claims) -> Vec<String> {
                 .iter()
                 .any(|needed| claims.permissions.iter().any(|held| held == needed));
         if permitted {
-            topics.push(medbrains_server_core::notification_hub::board_topic(surface));
+            topics.push(medbrains_server_core::notification_hub::board_topic(claims.tenant_id, surface));
         }
     }
     topics
@@ -477,7 +498,24 @@ const SURFACE_BOARD_PERMISSIONS: &[(&str, &[&str])] = &[
     ),
 ];
 
-async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics: Vec<String>) {
+/// How long until the token's `exp`, from now. Zero when it has passed.
+fn until_expiry(exp: usize) -> std::time::Duration {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let exp = u64::try_from(exp).unwrap_or(0);
+    std::time::Duration::from_secs(exp.saturating_sub(now))
+}
+
+/// Serve one socket until the client leaves, its token expires, or a
+/// periodic re-check of the account refuses it (or cannot be answered —
+/// fail closed: the client reconnects and is checked afresh).
+async fn handle_notifications_socket(
+    socket: WebSocket,
+    state: AppState,
+    topics: Vec<String>,
+    claims: Claims,
+) {
     let (mut sender, mut receiver) = socket.split();
 
     // One broadcast receiver per topic, merged into a single bounded queue so
@@ -517,11 +555,28 @@ async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics:
         }
     });
 
-    // Drain inbound (ping/close) until the client disconnects.
-    while let Some(result) = receiver.next().await {
-        match result {
-            Ok(Message::Close(_)) | Err(_) => break,
-            _ => {}
+    // Drain inbound (ping/close) until the client disconnects, the token
+    // expires, or the account no longer passes the checks it passed at connect.
+    let expiry = tokio::time::sleep(until_expiry(claims.exp));
+    tokio::pin!(expiry);
+    let every = state.notifications.recheck_interval();
+    let mut recheck = tokio::time::interval_at(tokio::time::Instant::now() + every, every);
+    loop {
+        tokio::select! {
+            inbound = receiver.next() => match inbound {
+                Some(Ok(Message::Close(_)) | Err(_)) | None => break,
+                Some(Ok(_)) => {}
+            },
+            () = &mut expiry => break,
+            _ = recheck.tick() => {
+                let mut current = claims.clone();
+                if medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut current)
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
         }
     }
     for forwarder in forwarders {
@@ -533,6 +588,7 @@ async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics:
 #[cfg(test)]
 mod tests {
     use super::{SURFACE_BOARD_PERMISSIONS, socket_topics};
+    use medbrains_server_core::notification_hub::board_topic;
     use medbrains_server_core::middleware::auth::Claims;
     use uuid::Uuid;
 
@@ -557,9 +613,11 @@ mod tests {
     fn a_socket_only_joins_boards_its_claims_allow() {
         let lab = claims("lab_technician", &["lab.orders.list"], &[]);
         let topics = socket_topics(&lab);
-        assert!(topics.iter().any(|t| t == "board:lab"));
+        let lab_board = board_topic(lab.tenant_id, "lab");
+        let pharmacy_board = board_topic(lab.tenant_id, "pharmacy");
+        assert!(topics.contains(&lab_board), "{topics:?}");
         assert!(
-            !topics.iter().any(|t| t == "board:pharmacy"),
+            !topics.contains(&pharmacy_board),
             "lab permissions must not open the pharmacy board: {topics:?}"
         );
     }

@@ -17,7 +17,10 @@ import java.util.concurrent.TimeUnit
  * refused a Secure cookie over plain HTTP), JSON in and out, and a 401
  * anywhere signs the session out.
  */
-class ApiError(val status: Int, message: String) : Exception(message)
+class ApiError(val status: Int, message: String, val code: String? = null) : Exception(message) {
+    /** The server wants the password again before this action (a signature). */
+    val isStepUpRequired: Boolean get() = status == 403 && code == "step_up_required"
+}
 
 class ApiClient(
     val baseUrl: String,
@@ -30,6 +33,13 @@ class ApiClient(
 ) {
     val clientName = "mobile-$variant"
     var onUnauthorized: (suspend () -> Unit)? = null
+
+    /**
+     * The last step-up proof, sent as `X-Step-Up-Token`. Memory only: the
+     * server binds it to this session and it lives five minutes.
+     */
+    @Volatile
+    private var stepUpToken: String? = null
 
     val json = Json {
         ignoreUnknownKeys = true
@@ -50,6 +60,7 @@ class ApiClient(
             .header("X-MedBrains-Client", clientName)
         val used = secrets.read(SecretKey.JWT)
         used?.let { builder.header("Authorization", "Bearer $it") }
+        stepUpToken?.let { builder.header("X-Step-Up-Token", it) }
         val requestBody = body?.toRequestBody(JSON_MEDIA)
         builder.method(method, if (method == "GET" || method == "DELETE" && body == null) null else requestBody ?: "".toRequestBody(JSON_MEDIA))
         http.newCall(builder.build()).execute().use { response ->
@@ -58,10 +69,18 @@ class ApiClient(
                 // A 401 for the token this request carried; a poll answered after a
                 // fresh sign-in must not sign the new session out.
                 if (response.code == 401 && used == secrets.read(SecretKey.JWT)) onUnauthorized?.invoke()
-                throw ApiError(response.code, errorMessage(text, response.code))
+                val error = readApiError(json, text, response.code)
+                if (error.isStepUpRequired) stepUpToken = null
+                throw error
             }
             read(response.body)
         }
+    }
+
+    /** Re-enter the password before a signature; later requests carry the proof. */
+    suspend fun stepUp(password: String) {
+        val answer = call("POST", "/api/auth/step-up", json.encodeToString(StepUpBody(password)))
+        stepUpToken = readStepUpToken(json, answer)
     }
 
     suspend inline fun <reified T> get(path: String): T = json.decodeFromString(call("GET", path))
@@ -79,9 +98,6 @@ class ApiClient(
     suspend inline fun <reified B, reified T> patch(path: String, body: B): T =
         json.decodeFromString(call("PATCH", path, json.encodeToString(body)))
 
-    private fun errorMessage(text: String, status: Int): String = runCatching {
-        json.decodeFromString<ErrorPayload>(text).let { it.detail ?: it.error }
-    }.getOrDefault("HTTP $status")
 
     private companion object {
         val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
@@ -90,3 +106,19 @@ class ApiClient(
 
 @kotlinx.serialization.Serializable
 internal data class ErrorPayload(val error: String, val detail: String? = null)
+
+@kotlinx.serialization.Serializable
+internal data class StepUpBody(val password: String)
+
+/** What `/api/auth/step-up` answers a native client. */
+@kotlinx.serialization.Serializable
+internal data class StepUpAnswer(val step_up_token: String)
+
+/** The server's error body as an [ApiError]; a body it cannot read keeps the status. */
+internal fun readApiError(json: Json, text: String, status: Int): ApiError = runCatching {
+    json.decodeFromString<ErrorPayload>(text).let { ApiError(status, it.detail ?: it.error, it.error) }
+}.getOrDefault(ApiError(status, "HTTP $status"))
+
+/** The proof in a native client's step-up answer. */
+internal fun readStepUpToken(json: Json, text: String): String =
+    json.decodeFromString<StepUpAnswer>(text).step_up_token

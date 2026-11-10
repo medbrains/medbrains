@@ -64,6 +64,19 @@ impl TestApp {
         body["csrf_token"].as_str().unwrap_or("").to_owned()
     }
 
+    /// Re-enter `password` on `client`'s session: the five-minute step-up a
+    /// signature needs. The cookie lands in the client's store.
+    pub async fn step_up(&self, client: &Client, csrf: &str, password: &str) {
+        let resp = client
+            .post(self.url("/api/auth/step-up"))
+            .header("x-csrf-token", csrf)
+            .json(&serde_json::json!({ "password": password }))
+            .send()
+            .await
+            .expect("step-up request");
+        assert_eq!(resp.status(), StatusCode::OK, "step-up failed");
+    }
+
     /// POST JSON to an endpoint with the given client.
     pub async fn post_json(
         &self,
@@ -291,7 +304,7 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
         },
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
         notifications: medbrains_server::services::notification_hub::NotificationHub::new(),
-        trusted_proxies: Arc::new(vec![]),
+        trusted_proxies: Arc::new(vec!["127.0.0.1/32".parse().expect("loopback network")]),
         system_state_cache: SystemStateCache::new(),
         outbox: outbox_registry,
         topology: topology_router,
@@ -312,7 +325,15 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
 
     // Spawn server in background
     tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("server crashed");
+        // Hundreds of tests sign in from loopback, so each request gets its own address to stay
+        // clear of per-address limits. A test that sets its own header keeps it.
+        let app = app.layer(axum::middleware::from_fn(give_each_request_an_address));
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .expect("server crashed");
     });
 
     let client = Client::builder()
@@ -381,6 +402,8 @@ pub struct Staff {
     pub client: Client,
     pub csrf: String,
     pub user_id: uuid::Uuid,
+    /// For the step-up a signature needs.
+    pub password: String,
 }
 
 /// Provision a user of `role` through the admin API (the way a hospital
@@ -453,5 +476,45 @@ pub async fn provision_staff_with(
         client,
         csrf,
         user_id,
+        password,
+    }
+}
+
+/// Adds a unique `X-Forwarded-For` from the benchmark range unless the test set one.
+async fn give_each_request_an_address(
+    mut request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+    if !request.headers().contains_key("x-forwarded-for") {
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let address = format!("198.18.{}.{}", (n >> 8) & 0xFF, n & 0xFF);
+        if let Ok(value) = address.parse() {
+            request.headers_mut().insert("x-forwarded-for", value);
+        }
+    }
+    next.run(request).await
+}
+
+/// A handler context for driving one outbox handler directly, with `secrets`
+/// as the tenant's credentials (empty = nothing configured).
+pub fn handler_ctx(
+    app: &TestApp,
+    tenant_id: uuid::Uuid,
+    event_type: &str,
+    secrets: TestSecrets,
+) -> medbrains_outbox::handler::HandlerCtx {
+    medbrains_outbox::handler::HandlerCtx {
+        pool: app.db.clone(),
+        tenant_id,
+        event_id: uuid::Uuid::new_v4(),
+        event_type: event_type.to_owned(),
+        actor_user_id: None,
+        attempts: 1,
+        secret_resolver: Arc::new(secrets),
+        http_client: Client::new(),
+        object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
+            std::env::temp_dir().join("medbrains-handler-tests"),
+        )),
     }
 }

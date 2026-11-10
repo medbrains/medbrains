@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.confirm_code AS \"confirm_code!\" FROM device_pairing_requests r\n             JOIN paired_devices d ON d.id = r.paired_device_id\n            WHERE d.id = $1 AND d.revoked_at IS NULL AND d.last_seen_at IS NULL\n              AND r.status = 'claimed' AND r.confirm_code IS NOT NULL\n            ORDER BY r.created_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "confirm_code!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "ca837424682bc9e2e22a9eb42848e61061bc9d1992004f01a808ee94b42d73e8"
+}

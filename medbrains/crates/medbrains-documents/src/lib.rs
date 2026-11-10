@@ -7,6 +7,8 @@ use medbrains_server_core::state::AppState;
 pub mod document_ingestion;
 pub mod documents;
 pub mod roi;
+pub mod signature_verify;
+pub mod signable;
 pub mod signatures;
 pub mod storage;
 
@@ -180,8 +182,12 @@ pub fn router() -> Router<AppState> {
             get(signatures::list_my_credentials),
         )
         .route(
-            "/api/signatures/preview",
-            get(signatures::preview_sign_record_get),
+            "/api/signatures/review",
+            post(signatures::review_record),
+        )
+        .route(
+            "/api/signatures/types",
+            get(signable::list_signable_types),
         )
         .route(
             "/api/signatures/sign",
@@ -194,5 +200,13 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/signatures/verify",
             post(signatures::verify_signature),
+        )
+        .route(
+            "/api/signatures/{id}/verify-link",
+            post(signature_verify::issue_verify_link),
+        )
+        .route(
+            "/api/signatures/{id}/verify-link/revoke",
+            post(signature_verify::revoke_verify_link),
         )
 }

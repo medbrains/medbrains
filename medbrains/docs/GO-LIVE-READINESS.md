@@ -147,6 +147,7 @@ on software:
 | **support** | who answers at 02:00 when the ward cannot admit a patient, and how fast |
 | **parallel running** | paper alongside the system for a period, because the first week will find things |
 | **rollback plan** | what happens if week one goes badly, decided before week one |
+| **NDPS opening balance** | controlled stock on the shelf with no receipt in the NDPS register cannot be dispensed (the register never goes below zero). Before the first controlled dispense, count each controlled drug with a second pharmacist and post the count as an Adjustment in Pharmacy → NDPS register (`docs/sops/04-pharmacy-dispensing.md`, "Opening balance"). Applies to every upgrade that brings migration 1450 too. |
 
 A hospital cannot stop admitting patients while a vendor debugs. Whatever the
 software readiness, this list decides whether the go-live survives.

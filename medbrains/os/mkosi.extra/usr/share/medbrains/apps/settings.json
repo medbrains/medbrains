@@ -1,0 +1,6 @@
+{
+  "id": "settings",
+  "name": "Settings",
+  "icon": "preferences-system-symbolic",
+  "role": "any"
+}

@@ -18,7 +18,12 @@ use medbrains_server_core::config::AppConfig;
 use sqlx::PgPool;
 
 /// Keys whose development fallback is a value in the source.
-const REQUIRED_KEYS: [&str; 1] = ["MEDBRAINS_IDENTIFIER_HMAC_KEY"];
+const REQUIRED_KEYS: [&str; 4] = [
+    "MEDBRAINS_IDENTIFIER_HMAC_KEY",
+    "MEDBRAINS_EVENT_TOKEN_KEY",
+    "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY",
+    "MEDBRAINS_OAUTH_TOKEN_KEY",
+];
 /// Keys one integration needs, with the integration's name. Production
 /// without one boots with that integration off; it never uses the
 /// development key in the source either way.
@@ -45,7 +50,7 @@ pub async fn run(
     secrets: &dyn SecretResolver,
     pools: &Pools<'_>,
 ) -> Vec<Finding> {
-    let production = config.environment == "production";
+    let production = is_production_mode(config);
     let mut found = env_checks(config, production);
     found.extend(crate::preflight_ai::checks());
     found.extend(crate::preflight_error_tracking::checks(production));
@@ -57,16 +62,28 @@ pub async fn run(
     }
     found.push(pg_version(pools.owner, production).await);
     found.push(migrations(pools.owner).await);
-    found.push(request_role(pools.request).await);
+    found.push(
+        request_role(
+            pools.request,
+            medbrains_core::secrets::sealing::is_dev_like(&config.environment),
+        )
+        .await,
+    );
     found.push(note_types(pools.owner).await);
     found.push(default_admin(pools.owner).await);
+    found.push(named_break_glass(pools.owner).await);
     found
 }
 
-/// Production refuses to serve when any check failed.
+/// True in every mode but development, so a mistyped mode keeps every protection on.
+fn is_production_mode(config: &AppConfig) -> bool {
+    config.environment != medbrains_core::secrets::sealing::DEVELOPMENT
+}
+
+/// Anything but development refuses to serve when any check failed.
 #[must_use]
 pub fn blocks_boot(config: &AppConfig, found: &[Finding]) -> bool {
-    config.environment == "production" && found.iter().any(|f| f.level == Level::Fail)
+    is_production_mode(config) && found.iter().any(|f| f.level == Level::Fail)
 }
 
 /// One log line per finding; failures and warnings at their own level.
@@ -117,7 +134,7 @@ fn env_checks(config: &AppConfig, production: bool) -> Vec<Finding> {
         Finding::fail(
             "env.mode",
             format!(
-                "MEDBRAINS_ENV={} is not a known mode, so every production protection is off",
+                "MEDBRAINS_ENV={} is not a known mode, so the server treats it as production and refuses to start",
                 config.environment
             ),
             "Set MEDBRAINS_ENV to production or development",
@@ -178,6 +195,9 @@ fn static_dir(config: &AppConfig) -> Finding {
 fn key_check_name(key: &str) -> &'static str {
     match key {
         "MEDBRAINS_IDENTIFIER_HMAC_KEY" => "secret.identifier_key",
+        "MEDBRAINS_EVENT_TOKEN_KEY" => "secret.event_token_key",
+        "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY" => "secret.signature_key",
+        "MEDBRAINS_OAUTH_TOKEN_KEY" => "secret.oauth_token_key",
         "MEDBRAINS_NHCX_SECRET_KEY" => "secret.nhcx_key",
         "MEDBRAINS_PACS_SECRET_KEY" => "secret.pacs_key",
         _ => "secret.abdm_key",
@@ -271,25 +291,46 @@ async fn migrations(pool: &PgPool) -> Finding {
     }
 }
 
-async fn request_role(pool: &PgPool) -> Finding {
-    match medbrains_kernel::health::rls_mode(pool).await {
-        Ok(mode) if !mode.enforced => Finding::warn(
-            "db.request_role",
-            format!(
-                "DATABASE_URL connects as {}, which row level security does not apply to: tenant isolation rests on each query's own WHERE",
-                mode.role
-            ),
-            "Point DATABASE_URL at medbrains_app (docs/ops/DB-ROLES.md)",
+/// Whether requests connect as a role row level security applies to.
+async fn request_role(pool: &PgPool, dev_like: bool) -> Finding {
+    let mode = medbrains_kernel::health::rls_mode(pool)
+        .await
+        .map(|m| (m.enforced, m.role))
+        .map_err(|e| e.to_string());
+    request_role_finding(mode, dev_like)
+}
+
+/// The finding for a request pool that is (`Ok((true, role))`) or is not
+/// subject to row level security, or could not be checked.
+///
+/// Owner decision, 2026-11-08: a development or test environment logs a
+/// warning and carries on; any other environment, staging and production
+/// included, refuses to start, because a request pool connected as the owner
+/// leaves tenant isolation to each query's own `WHERE`.
+fn request_role_finding(mode: Result<(bool, String), String>, dev_like: bool) -> Finding {
+    const FIX: &str = "Move DATABASE_URL to the medbrains_app role, and keep the owner in \
+                       MIGRATION_DATABASE_URL (docs/ops/DB-ROLES.md)";
+    let problem = match mode {
+        Ok((true, role)) => {
+            return Finding::ok(
+                "db.request_role",
+                format!("{role} is subject to row level security"),
+            );
+        }
+        Ok((false, role)) => format!(
+            "DATABASE_URL connects as {role}, which row level security does not apply to: \
+             tenant isolation rests on each query's own WHERE"
         ),
-        Ok(mode) => Finding::ok(
+        Err(e) => format!("could not check the request role: {e}"),
+    };
+    if dev_like {
+        Finding::warn("db.request_role", problem, FIX)
+    } else {
+        Finding::fail(
             "db.request_role",
-            format!("{} is subject to row level security", mode.role),
-        ),
-        Err(e) => Finding::warn(
-            "db.request_role",
-            format!("could not check the request role: {e}"),
-            "Check DATABASE_URL",
-        ),
+            format!("refusing to start: {problem}. Move DATABASE_URL to the medbrains_app role."),
+            FIX,
+        )
     }
 }
 
@@ -315,6 +356,36 @@ async fn note_types(pool: &PgPool) -> Finding {
         Err(e) => Finding::warn(
             "tenants.note_types",
             format!("could not count note types: {e}"),
+            "Check the owner connection",
+        ),
+    }
+}
+
+/// Hospitals still holding `tenant_settings(auth, break_glass_username)`: it is no longer read, so whoever it
+/// named lost the password route the SSO-only policy left them. Said here, not silently.
+async fn named_break_glass(pool: &PgPool) -> Finding {
+    let held = sqlx::query_scalar::<_, i64>(
+        "SELECT count(DISTINCT tenant_id) FROM tenant_settings \
+          WHERE category = 'auth' AND key = 'break_glass_username' AND deleted_at IS NULL",
+    )
+    .fetch_one(pool)
+    .await;
+    match held {
+        Ok(0) => Finding::ok(
+            "auth.break_glass",
+            "no hospital names a break-glass account",
+        ),
+        Ok(n) => Finding::warn(
+            "auth.break_glass",
+            format!(
+                "{n} hospital(s) set break_glass_username: the named break-glass setting is no longer \
+                 used; the setup administrator is the break-glass account"
+            ),
+            "Delete the auth/break_glass_username setting, and keep the setup administrator's password safe",
+        ),
+        Err(e) => Finding::warn(
+            "auth.break_glass",
+            format!("could not check the break-glass setting: {e}"),
             "Check the owner connection",
         ),
     }
@@ -415,6 +486,19 @@ mod tests {
         assert_eq!(abdm.map(|f| f.level), Some(Level::Warn));
     }
 
+    /// Each of these falls back to a key that is public in this repository.
+    #[tokio::test]
+    async fn production_refuses_without_any_key_whose_fallback_is_public() {
+        for key in REQUIRED_KEYS.into_iter().skip(1) {
+            let found = key_check(&OnlyIdentifierKey, key, true).await;
+            assert_eq!(found.level, Level::Fail, "{key}");
+            assert_ne!(
+                found.check, "secret.abdm_key",
+                "{key} needs its own check name"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn production_still_refuses_without_the_identifier_key() {
         let f = key_check(&OnlyIdentifierKey, "MEDBRAINS_NOT_SET", true).await;
@@ -425,5 +509,48 @@ mod tests {
     async fn development_lets_the_development_keys_stand_in_quietly() {
         let found = key_findings(false).await;
         assert!(found.iter().all(|f| f.level == Level::Ok), "{found:?}");
+    }
+}
+
+#[cfg(test)]
+mod request_role_tests {
+    use super::request_role_finding;
+    use medbrains_infra_settings::preflight::Level;
+
+    /// Development and test environments warn and carry on.
+    #[test]
+    fn the_owner_connection_warns_in_development() {
+        let found = request_role_finding(Ok((false, "medbrains".to_owned())), true);
+        assert_eq!(found.level, Level::Warn);
+    }
+
+    /// Any other environment refuses to start, and says what to do.
+    #[test]
+    fn the_owner_connection_refuses_to_start_elsewhere() {
+        let found = request_role_finding(Ok((false, "medbrains".to_owned())), false);
+        assert_eq!(found.level, Level::Fail);
+        assert!(found.detail.contains("medbrains_app"), "{}", found.detail);
+        assert!(found.fix.is_some_and(|f| f.contains("docs/ops/DB-ROLES.md")));
+        let unknown = request_role_finding(Err("timeout".to_owned()), false);
+        assert_eq!(unknown.level, Level::Fail, "an unanswered check is not a pass");
+    }
+
+    /// The request role passes everywhere.
+    #[test]
+    fn the_request_role_passes() {
+        let found = request_role_finding(Ok((true, "medbrains_app".to_owned())), false);
+        assert_eq!(found.level, Level::Ok);
+    }
+
+    /// The development-like names are exactly the ones the owner listed.
+    #[test]
+    fn only_the_listed_environments_are_development_like() {
+        use medbrains_core::secrets::sealing::is_dev_like;
+        for name in ["dev", "development", "test", "local", "ci"] {
+            assert!(is_dev_like(name), "{name}");
+        }
+        for name in ["staging", "production", "prod", "uat"] {
+            assert!(!is_dev_like(name), "{name}");
+        }
     }
 }

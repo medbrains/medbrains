@@ -23,6 +23,7 @@ interface RxLikeItem {
   route?: string | null;
   instructions?: string | null;
   catalog_item_id?: string | null;
+  buy_outside?: boolean;
 }
 
 import { parseInstructions, serializeTiming } from "@/lib/medication-timing-utils";
@@ -183,7 +184,8 @@ export function rxItemToInput(item: RxItem): PrescriptionItemInput {
     duration: backendDuration(item),
     route: item.route ? ROUTE_TO_BACKEND[item.route] : undefined,
     instructions: buildInstructions(item),
-    catalog_item_id: item.id,
+    // A buy-outside line names no catalogue item: its id is a local key.
+    ...(item.buyOutside ? { buy_outside: true } : { catalog_item_id: item.id }),
   };
 }
 
@@ -252,6 +254,7 @@ export function prescriptionItemsToRx(
       food: timing?.food_timing ? (FT_TO_FOOD[timing.food_timing] ?? "") : "",
       route: item.route ? (BACKEND_TO_ROUTE[item.route] ?? "oral") : undefined,
       note: timing?.custom_instruction ?? freeText,
+      ...(item.buy_outside ? { buyOutside: true } : {}),
     } satisfies RxItem;
   });
 }
