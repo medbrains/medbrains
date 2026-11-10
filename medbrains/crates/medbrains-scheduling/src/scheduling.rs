@@ -16,7 +16,7 @@ use medbrains_core::scheduling::{
 
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
+    report_runner::begin_report, state::AppState,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -191,7 +191,9 @@ pub async fn list_predictions(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM noshow_prediction_scores WHERE tenant_id = $1 AND deleted_at IS NULL");
+    let mut sql = String::from(
+        "SELECT * FROM noshow_prediction_scores WHERE tenant_id = $1 AND deleted_at IS NULL",
+    );
     let mut param_idx = 2u32;
 
     if params.patient_id.is_some() {
@@ -362,7 +364,9 @@ pub async fn list_waitlist(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM scheduling_waitlist WHERE tenant_id = $1 AND deleted_at IS NULL");
+    let mut sql = String::from(
+        "SELECT * FROM scheduling_waitlist WHERE tenant_id = $1 AND deleted_at IS NULL",
+    );
     let mut param_idx = 2u32;
 
     if params.doctor_id.is_some() {
@@ -611,7 +615,9 @@ pub async fn list_overbooking_rules(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM scheduling_overbooking_rules WHERE tenant_id = $1 AND deleted_at IS NULL");
+    let mut sql = String::from(
+        "SELECT * FROM scheduling_overbooking_rules WHERE tenant_id = $1 AND deleted_at IS NULL",
+    );
     let mut param_idx = 2u32;
 
     if params.doctor_id.is_some() {
@@ -824,7 +830,7 @@ pub async fn noshow_rates(
 ) -> Result<Json<Vec<NoshowRateRow>>, AppError> {
     require_permission(&claims, permissions::scheduling::analytics::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
+    let (mut tx, run) = begin_report(&state, &claims, "noshow_rates").await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
@@ -866,7 +872,7 @@ pub async fn noshow_rates(
 
     let rows = query.fetch_all(&mut *tx).await?;
 
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }
 

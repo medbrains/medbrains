@@ -18,7 +18,7 @@ goes live (X9).
 | 5 | Local account takes over after a service bug | Setup service on a protected socket and sandboxed (#5223) | Local user cannot bind or reach the service | doing |
 | 6 | USB boot, boot editor, keystroke injection | H5, T1, D1 USB policy | Unknown keyboard and storage refused | open |
 | 7 | Fake main machine, rogue DHCP, DNS or mDNS | Keys and matching code (J1), limits on flooding | Fake main machine refused; user must retype the code | doing |
-| 8 | Poisoned update or dependency | Signed A/B updates, key offline on hardware (U1, X2), parts list check (T1.2) | Tampered and rolled-back updates refused | open |
+| 8 | Poisoned update or dependency | Signed A/B updates, key offline on hardware (U1, X2), parts list check (T1.2) | Tampered and rolled-back updates refused | doing: refusals pass on QEMU (`refusals`, `update_cycle`); release key offline (X2) and parts list check (T1.2) open |
 | 9 | Stolen backup or export | Backups encrypted with keys held apart (U2), export audit | Backup unreadable without its key | open |
 | 10 | Web attacks on the app | CI checks, X9 penetration test | Outside test report | open |
 | 11 | Malicious third-party app | Own view, storage and limits (O8), review before install | App cannot read another's data or leave its grants | open |
@@ -27,6 +27,16 @@ goes live (X9).
 | 14 | Fake IT call for a recovery key | Two-owner rule; recovery cannot be rushed (T2, X4) | Recovery by one person refused | open |
 | 15 | Medical devices on the same network | Cannot be closed by us: separate network required, listed in the install guide; device gateway only (J3) | Guide check; gateway reaches only listed devices | open |
 | 16 | Same secret on two machines | Keys made on first boot, none in the image (X5) | Two fresh machines share no secret | open |
+
+## Known flaws in what we ship (audit 2026-11-05, details kept private)
+
+| Area | Answer | State |
+|---|---|---|
+| Front proxy: old HTTP/2 code reachable from the LAN | Caddy replaced by the Pingora front, HTTP/1.1 only, restarted and memory-capped | closed |
+| A machine in the field cannot take a fix | Signed updates (U1) before any install | open |
+| Wi-Fi driver flaw with no release yet | Main machine stays wired; radio off where a cable exists | open |
+| Parsers in the web view | Only our own origin reaches them; remove what is unused | open |
+| Installers and CI that run downloads unverified | Checksums, and Actions pinned to commits | open |
 
 ## Hardware
 

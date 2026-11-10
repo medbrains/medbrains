@@ -13,6 +13,8 @@ const BOOT_TIMEOUT: Duration = Duration::from_secs(180);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const BOOT_ID: &str = "cat /proc/sys/kernel/random/boot_id";
 const POLL: Duration = Duration::from_secs(2);
+/// The debug shell's prompt.
+const PROMPT: &str = "root@medbrains";
 /// Guest ports reachable through QEMU, as host name and guest port.
 const FORWARDS: [(&str, u16); 6] = [
     ("web", 443),
@@ -39,6 +41,9 @@ struct Platform {
     /// How long to send nothing after power on: text on the serial port during x86 firmware opens
     /// its setup menu, and the machine then never boots.
     firmware: Duration,
+    /// Printed by the firmware on every start, where it is: then a start is watched without sending
+    /// anything, because with two boot entries a key reaching the boot loader opens its menu.
+    firmware_line: Option<&'static str>,
 }
 
 const ARM64: Platform = Platform {
@@ -64,6 +69,7 @@ const ARM64: Platform = Platform {
     has_usable_tpm: false,
     slowness: 1,
     firmware: Duration::ZERO,
+    firmware_line: Some("BdsDxe"),
 };
 
 const X86_64: Platform = Platform {
@@ -85,6 +91,7 @@ const X86_64: Platform = Platform {
     has_usable_tpm: true,
     slowness: 8,
     firmware: Duration::from_secs(45),
+    firmware_line: None,
 };
 
 /// The platform to test: arm64, or x86-64 when `MB_OS_TEST_ARCH=x86-64`.
@@ -115,7 +122,8 @@ const RECOVERY_KEY_GROUPS: usize = 8;
 pub(crate) const KEYBOARD_READY: Duration = Duration::from_secs(10);
 const RECOVERY_KEY_PROMPT: &str = "write down this disk's recovery key";
 const GROUP_QUESTION: &str = "type group ";
-const BARE_KERNEL_LINE: &str = "root=PARTLABEL=medbrains-root-a rw luks.crypttab=no quiet loglevel=1 audit=0 console=tty1 console=ttyS0 systemd.mask=serial-getty@ttyS0.service";
+/// The rest of the bare kernel's command line; `root=` names the image's own slot, as its boot file does.
+const BARE_KERNEL_LINE: &str = "rw luks.crypttab=no quiet loglevel=1 audit=0 console=tty1 console=ttyS0 systemd.mask=serial-getty@ttyS0.service";
 const START_QUESTION: &str = "how should this machine start";
 /// What setup says on a machine with no TPM.
 pub(crate) const NO_TPM_QUESTION: &str = "no security chip";
@@ -251,16 +259,7 @@ impl Vm {
         std::fs::copy(share.join(platform().vars), dir.join("vars.fd"))
             .map_err(|e| e.to_string())?;
         let disk = dir.join("disk.qcow2");
-        let made = Command::new("qemu-img")
-            .args(["create", "-q", "-f", "qcow2", "-F", "raw", "-b"])
-            .arg(image)
-            .arg(&disk)
-            .arg("32G")
-            .status()
-            .map_err(|e| e.to_string())?;
-        if !made.success() {
-            return Err("could not create the overlay".to_owned());
-        }
+        make_overlay(image, &disk)?;
         let qemu = spawn_qemu(&dir, &disk, &ports, tpm, &[])?;
         let serial = connect_socket(&dir.join("serial.sock"))?;
         let monitor = connect_socket(&dir.join("monitor.sock"))?;
@@ -350,6 +349,9 @@ impl Vm {
         // The old shell can answer until it is stopped, so a new boot is known by its boot id.
         let before = self.run(BOOT_ID)?;
         self.serial.write_all(command).map_err(|e| e.to_string())?;
+        if platform().firmware_line.is_some() {
+            self.watch_serial(scaled(BOOT_TIMEOUT), true)?;
+        }
         let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
             if self
@@ -397,8 +399,18 @@ impl Vm {
             }
             sleep(POLL);
         }
-        let tail: String = shown.chars().rev().take(300).collect::<Vec<_>>().into_iter().rev().collect();
-        Err(format!("the screen never said: {text}; it ended: {}", tail.trim()))
+        let tail: String = shown
+            .chars()
+            .rev()
+            .take(300)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        Err(format!(
+            "the screen never said: {text}; it ended: {}",
+            tail.trim()
+        ))
     }
 
     /// Reads the recovery key off the screen, without confirming it.
@@ -437,7 +449,7 @@ impl Vm {
             "-initrd".to_owned(),
             image.with_extension("initrd").display().to_string(),
             "-append".to_owned(),
-            BARE_KERNEL_LINE.to_owned(),
+            format!("root=PARTLABEL=medbrains_{} {BARE_KERNEL_LINE}", image_version(image)?),
         ];
         self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm, &extra)?;
         self.serial = connect_socket(&self.dir.join("serial.sock"))?;
@@ -448,9 +460,24 @@ impl Vm {
         self.wait_for_shell()
     }
 
-    /// Waits until a command comes back through the serial shell.
+    /// Gives a command to QEMU's monitor, such as plugging in a USB stick.
+    pub(crate) fn monitor(&mut self, command: &str) -> Result<(), String> {
+        self.monitor
+            .write_all(format!("{command}\n").as_bytes())
+            .map_err(|e| e.to_string())?;
+        sleep(Duration::from_millis(500));
+        // Only QEMU's echo, which nothing reads: drained so its buffer never fills.
+        drop(self.monitor.read(&mut [0_u8; 4096]));
+        Ok(())
+    }
+
+    /// Waits until a command comes back through the serial shell. Where the firmware has a line to
+    /// watch for, nothing is sent until the shell has shown its prompt.
     fn wait_for_shell(&mut self) -> Result<(), String> {
         sleep(platform().firmware);
+        if platform().firmware_line.is_some() {
+            self.watch_serial(scaled(BOOT_TIMEOUT), false)?;
+        }
         let deadline = Instant::now() + scaled(BOOT_TIMEOUT);
         while Instant::now() < deadline {
             if self
@@ -462,6 +489,48 @@ impl Vm {
             sleep(POLL);
         }
         Err("the machine gave no shell".to_owned())
+    }
+
+    /// Reads the serial port, sending nothing, until the shell's prompt appears; after the firmware's
+    /// next message if `restarting`, which an old prompt can't satisfy.
+    fn watch_serial(&mut self, limit: Duration, restarting: bool) -> Result<(), String> {
+        let (mut raw, mut buffer, deadline) = (Vec::new(), [0_u8; 16_384], Instant::now() + limit);
+        let firmware = platform().firmware_line.unwrap_or_default();
+        while Instant::now() < deadline {
+            if let Ok(count) = self.serial.read(&mut buffer) {
+                raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+            }
+            let text = String::from_utf8_lossy(&raw);
+            let shown = if restarting {
+                text.rfind(firmware).map(|at| &text[at..])
+            } else {
+                Some(&*text)
+            };
+            if shown.is_some_and(|tail| tail.contains(PROMPT)) {
+                return Ok(());
+            }
+        }
+        Err("the machine showed no prompt in time".to_owned())
+    }
+
+    /// Waits for the machine to restart by itself and show a shell, sending nothing where the
+    /// platform allows; elsewhere by asking for a new boot id.
+    pub(crate) fn wait_for_restart(&mut self, limit: Duration) -> Result<(), String> {
+        if platform().firmware_line.is_some() {
+            return self.watch_serial(limit, true);
+        }
+        let before = self.run(BOOT_ID)?;
+        let deadline = Instant::now() + limit;
+        while Instant::now() < deadline {
+            if self
+                .run_for(BOOT_ID, Duration::from_secs(4))
+                .is_ok_and(|id| id != before)
+            {
+                return Ok(());
+            }
+            sleep(POLL);
+        }
+        Err("the machine did not restart".to_owned())
     }
 
     /// Runs a command inside the machine with the usual time limit.
@@ -585,6 +654,37 @@ fn tpm_args(dir: &Path, name: &str) -> Result<Vec<String>, String> {
         "-device".to_owned(),
         platform().tpm_device.to_owned(),
     ])
+}
+
+/// The version in an image's file name, `medbrains-os_<version>.raw`, which is also its slot's name.
+fn image_version(image: &Path) -> Result<String, String> {
+    image
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .and_then(|stem| stem.rsplit_once('_'))
+        .map(|(_, version)| version.to_owned())
+        .ok_or_else(|| format!("no version in the image name {}", image.display()))
+}
+
+/// Creates an overlay on `image`, so the image itself is never written. `image` may be raw or qcow2.
+pub(crate) fn make_overlay(image: &Path, overlay: &Path) -> Result<(), String> {
+    let format = if image.extension().is_some_and(|e| e == "qcow2") {
+        "qcow2"
+    } else {
+        "raw"
+    };
+    let made = Command::new("qemu-img")
+        .args(["create", "-q", "-f", "qcow2", "-F", format, "-b"])
+        .arg(image)
+        .arg(overlay)
+        .arg("32G")
+        .status()
+        .map_err(|e| e.to_string())?;
+    if made.success() {
+        Ok(())
+    } else {
+        Err("could not create the overlay".to_owned())
+    }
 }
 
 /// Starts QEMU from `disk`, with its serial port and monitor on sockets in `dir`.

@@ -1,0 +1,14 @@
+# At each start: says truthfully how the last update ended, clears what a power cut left behind, and notes
+# what a person could go back to.
+[Unit]
+Description=MedBrains OS update record
+RequiresMountsFor=/var
+After=local-fs.target systemd-tmpfiles-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/medbrains-os-update reconcile
+
+[Install]
+WantedBy=multi-user.target

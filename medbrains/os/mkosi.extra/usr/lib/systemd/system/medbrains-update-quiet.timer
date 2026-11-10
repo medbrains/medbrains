@@ -1,0 +1,11 @@
+# Applies a waiting update only in the quiet window, with a true clock and nobody connected.
+[Unit]
+Description=Apply a waiting update in the quiet window
+ConditionPathExists=/var/lib/medbrains-settings/update-window
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

@@ -40,7 +40,7 @@ use medbrains_core::utilization_review::{
 
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
+    report_runner::begin_report, state::AppState,
 };
 
 /// Convenience alias matching the rest of the codebase.
@@ -229,8 +229,7 @@ pub async fn create_review(
     require_permission(&claims, permissions::ur::reviews::CREATE)?;
     // Caller-named admission — weaker than a path id, but it refuses a review
     // filed against an admission outside the caller's reach.
-    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -435,8 +434,7 @@ pub async fn list_by_admission(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<UtilizationReview>>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -602,8 +600,7 @@ pub async fn create_conversion(
     require_permission(&claims, permissions::ur::conversions::CREATE)?;
     // Caller-named admission — weaker than a path id, but it refuses a review
     // filed against an admission outside the caller's reach.
-    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -643,8 +640,7 @@ pub async fn analytics_summary(
 ) -> Result<Json<UrAnalyticsSummary>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "analytics_summary").await?;
 
     // Total reviews
     let total_row =
@@ -693,7 +689,7 @@ pub async fn analytics_summary(
         0.0
     };
 
-    tx.commit().await?;
+    run.finish(tx, 1).await?;
 
     Ok(Json(UrAnalyticsSummary {
         total_reviews: total_row.count,
@@ -713,8 +709,7 @@ pub async fn los_comparison(
     require_permission(&claims, permissions::ur::reviews::LIST)?;
     // Aggregate length-of-stay comparison.
 
-    let mut tx = state.db.begin().await?;
-    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (mut tx, run) = begin_report(&state, &claims, "los_comparison").await?;
 
     let rows = sqlx::query_as::<_, LosComparisonRow>(
         "SELECT \
@@ -731,6 +726,6 @@ pub async fn los_comparison(
     .fetch_all(&mut *tx)
     .await?;
 
-    tx.commit().await?;
+    run.finish(tx, rows.len()).await?;
     Ok(Json(rows))
 }

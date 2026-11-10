@@ -421,6 +421,10 @@ check-kernel-boundary: ## Ratchet: apps reach the trusted core only through medb
 	python3 scripts/check_kernel_boundary.py --self-test
 	python3 scripts/check_kernel_boundary.py
 
+hooks: ## Install the repo git hooks (rustfmt staged Rust files, migration checks) for this clone
+	git config core.hooksPath medbrains/.githooks
+	@echo "git hooks installed: medbrains/.githooks"
+
 check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts, web first load
 	python3 scripts/check_size_budgets.py --self-test
 	python3 scripts/check_size_budgets.py
@@ -1004,7 +1008,7 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 	bash scripts/build_guard.sh --wait
 	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target. It also
 	# takes macOS ar and ranlib unless told, which index Linux objects as Mach-O and break the link.
-	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
+	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-os-update --bin medbrains-os-update -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
 	OS_TARGET_DIR=$(OS_TARGET_DIR)-kanidm os/build-kanidm.sh --arch $(or $(ARCH),arm64)
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
@@ -1012,6 +1016,10 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 os-test: ## Boot a debug image and check security, boot and memory (IMAGE=path/to/image.raw)
 	bash scripts/build_guard.sh --wait
 	cargo run -q -p medbrains-os-test -- $(IMAGE)
+
+os-test-updates: ## Prove A/B updates on real QEMU machines (IMAGE=path/to/image.raw BUNDLES=path)
+	bash scripts/build_guard.sh --wait
+	cargo run -q -p medbrains-os-test -- $(IMAGE) updates $(BUNDLES)
 
 os-boot: ## Boot the built arm64 image in QEMU (FRESH=1 for a brand-new box)
 	os/qemu-run.sh $(if $(FRESH),--fresh)

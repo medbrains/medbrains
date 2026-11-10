@@ -20,6 +20,7 @@ use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::report_runner::begin_report;
 use medbrains_server_core::state::AppState;
 
 /// A single quality-indicator computation. The frontend uses
@@ -606,7 +607,7 @@ pub async fn get_indicators(
 ) -> Result<Json<NabhRollupResponse>, AppError> {
     require_permission(&claims, permissions::quality::indicators::LIST)?;
 
-    let mut tx = state.db.begin().await?;
+    let (mut tx, run) = begin_report(&state, &claims, "nabh_indicators").await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
@@ -1249,7 +1250,7 @@ pub async fn get_indicators(
         note: Some("BMW Rules 2016 Schedule III".into()),
     });
 
-    tx.commit().await?;
+    run.finish(tx, indicators.len()).await?;
 
     let computed = indicators
         .iter()

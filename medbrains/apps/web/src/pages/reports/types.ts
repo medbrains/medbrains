@@ -93,3 +93,9 @@ export interface ReportLoadingState {
 }
 
 export type ReportDataById = Record<string, ReportDataResponse<unknown>>;
+
+/** A report whose data did not load, and how to ask again. */
+export interface ReportFailure {
+  error: unknown;
+  retry: () => void;
+}

@@ -528,6 +528,52 @@ handler is how that happens.
 5. **Both directions.** A screen with no endpoint is equally incomplete —
    `make check-api` and `check-ui-api` enforce the pair.
 
+## Apps Are Permission-Gated Bricks (MANDATORY, core rule)
+
+**Every module ships as an app brick, and permissions decide where it fits.** This is the
+core of how MedBrains is built, installed, shown and sold. Full design:
+`medbrains/docs/architecture/MODULE-BRICKS.md`.
+
+1. **One app is one brick on every layer:** its backend crate, its web package, its native
+   app and its manifest, with the same id everywhere. About 20 apps (Pharmacy, EMR, Patient
+   Registration, Billing...), each with its own side panel of screens, never one tile per screen.
+2. **Bricks connect only through the base plate:** the kernel, the shared kit, the API, events
+   and opening another app by id. No brick imports another brick's code on any layer.
+3. **The manifest declares the brick's permission modules and the bricks it depends on**,
+   generated from the Rust permission list, never written by hand.
+4. **Onboarding picks the bricks:** a hospital installs only the apps it needs (a pharmacy-only
+   customer gets Pharmacy and its dependencies), the rest switched off for the tenant and
+   refused by the server.
+5. **A machine gets a brick only when its assigned roles hold the brick's permissions**, with its
+   dependencies: a pharmacy edge has Pharmacy alone. Changing roles is the only control.
+6. **A person sees an app, and each screen in its side panel, only with its permissions.**
+   Screens they may not open are left out, not greyed. Inside a screen, fields are shown,
+   masked or hidden by data class.
+7. **Tabs and panels that belong to another brick are plugged in by that brick.** The EMR tab
+   on a patient record is declared in the EMR brick's manifest ("adds a tab to the patient
+   record") and appears only when EMR is installed for the tenant and the machine and the person
+   holds its permission. The host screen shows whatever tabs are plugged in and imports none;
+   removing a brick removes its tabs everywhere. The same holds for components a brick adds
+   elsewhere: dashboard widgets, cards on a patient summary, actions in a shared menu.
+   Every control a person can press is gated on the permission its request needs (see
+   "Authorization Is Repo-Wide Law", rule 7). Shared kit components carry no permission of
+   their own; they belong to the base plate.
+8. **Administration and settings are bricks too.** The Administration app (users, roles,
+   audit, integrations) is installed where IT works, the main machine, not on edge machines,
+   which are managed from the main machine or MedBrains Control. Each app plugs its own
+   settings section into Settings, so Pharmacy settings exist only where Pharmacy is installed
+   and only for people holding its settings permission. Machine settings on the OS screen stay
+   in the shell's Settings: everyday actions open, severe ones behind IT sign-in. Roles are the
+   control that makes bricks fit, so changing them is the most protected and audited action.
+9. **The server decides every request.** A brick being present grants nothing; the launcher,
+   the side panel and each screen's check only keep the screen honest about what the server
+   allows.
+10. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
+   set, then the person's permissions.
+
+A module that is not a brick, a screen reachable without its permission, or an app installed
+on a machine whose roles do not need it, is a defect.
+
 ## Permissions First (MANDATORY)
 
 **Every feature defines its permission before any code is written** — before the
