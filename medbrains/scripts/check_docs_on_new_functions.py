@@ -36,7 +36,7 @@ ATTRIBUTE = re.compile(r"^\s*(#\[|@)")
 EXEMPT_PATH = re.compile(
     r"(^|/)(tests?|e2e|__tests__|androidTest|vendor|node_modules|generated|build\.rs$)"
     r"|\.(test|spec)\.tsx?$|Tests?\.(swift|kt)$|_test\.py$|(^|/)test_[^/]*\.py$"
-    r"|(^|/)apps/(mobile-[^/]*|tv)/|^r8r/|packages/types/src/permissions\.ts$"
+    r"|(^|/)apps/(mobile-[^/]*|tv)/|packages/types/src/permissions\.ts$"
 )
 TRAIT_IMPL = re.compile(r"^\s*impl\b.*\bfor\b")
 
