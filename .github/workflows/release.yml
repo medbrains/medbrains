@@ -123,7 +123,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      # Its default list asks for 'tools', which the SDK no longer has, and sdkmanager then fails.
+      # AGP downloads compileSdk and build-tools itself, under the licences this accepts.
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
       - run: ./gradlew --no-daemon :app-staff:assembleRelease :app-patient:assembleRelease
       - name: Sign, or mark unsigned
         env:
@@ -151,19 +155,48 @@ jobs:
           path: apk
           retention-days: 30
 
+  build-kanidm:
+    # The identity provider the image carries, cross-compiled per arch by os/build-kanidm.sh
+    # (pinned source, lock and vendored crates; no Docker).
+    name: Build Kanidm (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86-64, arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+        with:
+          version: 0.15.2
+      # The pinned 1.99.0 and both Linux targets, from medbrains/rust-toolchain.toml.
+      - run: rustup toolchain install
+        working-directory: medbrains
+      - run: cargo install cargo-zigbuild --locked --version 0.24.0
+      - run: OS_WORK="$RUNNER_TEMP/os" medbrains/os/build-kanidm.sh --arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kanidm-${{ matrix.arch }}
+          path: ${{ runner.temp }}/os/kanidm-${{ matrix.arch }}
+          retention-days: 30
+
   os-image:
     # The appliance disk image (os/README.md), built by mkosi in a Debian
     # container on a native runner per architecture. PCR-signed only with the
     # owner's key; never a DEBUG image. Write it to a USB stick or disk.
     name: OS image (${{ matrix.arch }})
-    needs: [build-backend, build-frontend]
+    needs: [build-backend, build-frontend, build-kanidm]
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
     # trial run joins no environment and builds unsigned.
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     runs-on: ${{ matrix.runner }}
     container:
       image: debian:trixie
-      options: --privileged
+      # A volume for /var/tmp, mkosi's workspace: its build overlay cannot sit on Docker's own
+      # overlay (the same mount os/build.sh gives its Mac builder).
+      options: --privileged -v /var/tmp
     strategy:
       fail-fast: false
       matrix:
@@ -188,25 +221,31 @@ jobs:
         with:
           name: web-dist
           path: web-dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kanidm-${{ matrix.arch }}
+          path: kanidm
       - name: Build the image
         env:
           PCR_KEY: ${{ secrets.OS_PCR_KEY }}
           PCR_CERT: ${{ secrets.OS_PCR_CERT }}
-          OS_VERSION: ${{ github.ref_name }}
         run: |
+          # A trial run's ref is the branch, release/v3.33.0; a slash cannot go in a file name.
+          version=$(printf '%s' "$GITHUB_REF_NAME" | tr / -)
+          export OS_VERSION="$version"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          chmod +x bins/*
+          chmod +x bins/* kanidm/kanidmd
           suffix=-unsigned
           if [ -n "$PCR_KEY" ]; then
             printf '%s' "$PCR_KEY" > "$RUNNER_TEMP/pcr.key"; printf '%s' "$PCR_CERT" > "$RUNNER_TEMP/pcr.crt"
             export OS_PCR_KEY="$RUNNER_TEMP/pcr.key" OS_PCR_CERT="$RUNNER_TEMP/pcr.crt"; suffix=
           fi
           MEDBRAINS_SERVER_BIN="$PWD/bins/medbrains-server" MEDBRAINS_WEB_DIST="$PWD/web-dist" \
-            OS_WORK="$RUNNER_TEMP/os" medbrains/os/build.sh --arch ${{ matrix.arch }}
+            KANIDM_DIR="$PWD/kanidm" OS_WORK="$RUNNER_TEMP/os" medbrains/os/build.sh --arch ${{ matrix.arch }}
           rm -f "$RUNNER_TEMP/pcr.key"
           mkdir -p img
           raw=$(ls "$RUNNER_TEMP"/os/out-${{ matrix.arch }}/*.raw | head -1)
-          zstd -T0 -19 "$raw" -o "img/medbrains-os-${{ github.ref_name }}-${{ matrix.arch }}$suffix.raw.zst"
+          zstd -T0 -19 "$raw" -o "img/medbrains-os-$version-${{ matrix.arch }}$suffix.raw.zst"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: os-${{ matrix.arch }}
