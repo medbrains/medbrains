@@ -97,9 +97,7 @@ export function OverviewTab({ patient }: { patient: Patient }) {
                     tone={
                       a.severity === "severe" || a.severity === "life_threatening"
                         ? "danger"
-                        : a.severity === "moderate"
-                          ? "warning"
-                          : "warning"
+                        : "warning"
                     }
                     size="sm"
                   >

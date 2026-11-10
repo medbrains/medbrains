@@ -91,7 +91,7 @@ function modulesForPermissions(permissions: string[]) {
         .map((p) => p.split(".")[0])
         .filter((module): module is string => typeof module === "string" && module.length > 0),
     ),
-  ).sort();
+  ).sort((a, b) => a.localeCompare(b));
 }
 
 export function AccessRequestsPage() {

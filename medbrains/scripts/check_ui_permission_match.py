@@ -277,8 +277,8 @@ def route_to_permissions(paths: dict[str, str]) -> dict[tuple[str, str], set[str
                     code = paths.get(f"{pm.group(1)}::{pm.group(2)}")
                     if code:
                         handler_perms[(rel, fn)].add(code)
-                for name, codes in perm_sets.items():
-                    if re.search(rf"\b{name}\b", span):
+                for set_name, codes in perm_sets.items():
+                    if re.search(rf"\b{set_name}\b", span):
                         handler_perms[(rel, fn)].update(codes)
 
             for rm in RE_ROUTE.finditer(text):
@@ -387,8 +387,8 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
                 # that take a long `require_any_permission` list are exactly
                 # the ones a page should not re-type, so reading only the
                 # inline codes marked the correct fix as still ungated.
-                for name in re.findall(r"\b([A-Z][A-Z_0-9]{3,})\b", gm.group(1)):
-                    gates |= SHARED_SETS.get(name, set())
+                for set_name in re.findall(r"\b([A-Z][A-Z_0-9]{3,})\b", gm.group(1)):
+                    gates |= SHARED_SETS.get(set_name, set())
             tables = {m.group(1): m.group(2) for m in RE_TABLE.finditer(text)}
             for expr in RE_PERMISSION_GATE.findall(text):
                 source = expr
