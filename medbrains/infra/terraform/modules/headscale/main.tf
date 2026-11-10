@@ -81,6 +81,16 @@ variable "allowed_egress_cidrs" {
   description = "Egress allowed from the headscale instance (NAT GW network)"
 }
 
+variable "deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Block deleting the ALB hospitals reach the control plane through. Set false to tear down a dev env."
+}
+
+data "aws_vpc" "this" {
+  id = var.vpc_id
+}
+
 locals {
   name         = "medbrains-${var.environment}-headscale"
   derp_port    = 3478
@@ -162,11 +172,13 @@ resource "aws_security_group" "alb" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  # The ALB only opens connections to its target.
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = var.allowed_egress_cidrs
+    description = "Headscale API on the instance"
+    from_port   = local.api_port
+    to_port     = local.api_port
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.this.cidr_block]
   }
 }
 
@@ -189,10 +201,20 @@ resource "aws_security_group" "ec2" {
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  # Litestream to S3, SSM, release downloads and the Tailscale DERP map
+  # are all HTTPS; STUN probes are UDP 3478. Nothing else leaves the box.
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS - S3 (Litestream), SSM, GitHub releases, DERP map"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.allowed_egress_cidrs
+  }
+  egress {
+    description = "STUN to peer DERP servers"
+    from_port   = local.derp_port
+    to_port     = local.derp_port
+    protocol    = "udp"
     cidr_blocks = var.allowed_egress_cidrs
   }
 }
@@ -210,13 +232,15 @@ locals {
   })
 }
 
-resource "aws_instance" "headscale" {
+resource "aws_instance" "headscale" { # NOSONAR(S6329): runs in a private subnet (private_subnet_ids); associate_public_ip_address is force-new, so it is left to the subnet
+  #checkov:skip=CKV_AWS_135: t4g is EBS-optimised by default; setting the flag would stop and start the control plane
   ami                    = data.aws_ami.al2023.id
   instance_type          = var.instance_type
   subnet_id              = var.private_subnet_ids[0]
   vpc_security_group_ids = [aws_security_group.ec2.id]
   iam_instance_profile   = aws_iam_instance_profile.headscale.name
   user_data              = local.user_data
+  monitoring             = true
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -256,14 +280,18 @@ resource "aws_instance" "headscale" {
 
 # ── ALB on 443 → headscale API ────────────────────────────────────────
 
-resource "aws_lb" "headscale" {
+resource "aws_lb" "headscale" { # NOSONAR(S6258): control-plane requests are logged by headscale itself; ALB logs would be a second copy
+  #checkov:skip=CKV_AWS_91: headscale logs every registration and API call itself; ALB logs would be a second copy behind a regional ELB-account bucket policy
+  #checkov:skip=CKV2_AWS_28: the only route is the authenticated headscale API; WAF is a paid add-on with no rule that fits the Tailscale protocol
   name               = "${local.name}-alb"
   internal           = false
   load_balancer_type = "application"
   subnets            = var.public_subnet_ids
   security_groups    = [aws_security_group.alb.id]
 
-  enable_http2 = true
+  enable_http2               = true
+  drop_invalid_header_fields = true
+  enable_deletion_protection = var.deletion_protection
 }
 
 resource "aws_lb_target_group" "headscale" {

@@ -7095,6 +7095,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -7728,6 +7729,7 @@ version = "1.0.0"
 dependencies = [
  "argon2",
  "data-encoding",
+ "medbrains-os-update",
  "percent-encoding",
  "qrcodegen",
  "rustix",
@@ -7741,6 +7743,20 @@ name = "medbrains-os-test"
 version = "1.0.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "medbrains-os-update"
+version = "1.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "zeroize",
 ]
 
 [[package]]

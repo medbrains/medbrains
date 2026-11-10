@@ -503,7 +503,7 @@ export function PatientRegisterForm({
       const venue = campVenueLabel(camp);
       if (venue) options.add(venue);
     }
-    return [...options].sort();
+    return [...options].sort((a, b) => a.localeCompare(b));
   }, [camps]);
   // Names, not ids: the referrer is free text. Two doctors can share a name,
   // and a duplicate option crashes the picker — so each name once.
@@ -511,7 +511,7 @@ export function PatientRegisterForm({
     () =>
       [
         ...new Set(doctors.filter((doctor) => doctor.is_active).map((doctor) => doctor.full_name)),
-      ].sort(),
+      ].sort((a, b) => a.localeCompare(b)),
     [doctors],
   );
   const referredByFacilityOptions = useMemo(() => {
@@ -524,7 +524,7 @@ export function PatientRegisterForm({
       const venue = campVenueLabel(camp);
       if (venue) options.add(venue);
     }
-    return [...options].sort();
+    return [...options].sort((a, b) => a.localeCompare(b));
   }, [camps, facilities]);
   const phoneDialOptions = useMemo(
     () => buildPhoneCountryOptions(geoCountries, tenant?.country_id),
@@ -540,7 +540,7 @@ export function PatientRegisterForm({
         options.add(drugAllergyOptionLabel(item));
       }
     }
-    return [...options].sort();
+    return [...options].sort((a, b) => a.localeCompare(b));
   }, [drugAllergyCatalog, drugAllergiesValue, t]);
   const localizedGenderOptions = useMemo(
     () => translateEnumOptions(genderOptions, "options.gender", t),

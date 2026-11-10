@@ -112,15 +112,7 @@ function HemovigilanceView() {
       label: "Severity",
       render: (r: HemovigilanceRow) =>
         r.severity ? (
-          <Badge
-            tone={
-              r.severity === "severe" || r.severity === "fatal"
-                ? "danger"
-                : r.severity === "moderate"
-                  ? "warning"
-                  : "warning"
-            }
-          >
+          <Badge tone={r.severity === "severe" || r.severity === "fatal" ? "danger" : "warning"}>
             {r.severity}
           </Badge>
         ) : (

@@ -26,7 +26,11 @@ locals {
 }
 
 # ── Origin bucket (private; only CloudFront reads it via OAC) ──
-resource "aws_s3_bucket" "site" {
+resource "aws_s3_bucket" "site" { # NOSONAR(S6258): public marketing site, no PHI; CloudFront is the only reader
+  #checkov:skip=CKV_AWS_18: public marketing pages, no PHI; CloudFront (via OAC) is the only reader
+  #checkov:skip=CKV_AWS_144: the site is rebuilt from git on every deploy; a replica adds cost and no recovery value
+  #checkov:skip=CKV2_AWS_62: nothing consumes object events from the site bucket
+  #checkov:skip=CKV_AWS_145: public pages; SSE-KMS would need a CloudFront grant in the key policy and a KMS call per cache miss
   bucket = "medbrains-${var.environment}-marketing-${var.region}"
 }
 
@@ -42,6 +46,29 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "site" {
   bucket = aws_s3_bucket.site.id
   rule {
     apply_server_side_encryption_by_default { sse_algorithm = "AES256" }
+  }
+}
+
+# Every deploy overwrites pages; old versions go after 30 days.
+resource "aws_s3_bucket_versioning" "site" {
+  bucket = aws_s3_bucket.site.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "site" {
+  bucket = aws_s3_bucket.site.id
+  rule {
+    id     = "old-versions-and-uploads"
+    status = "Enabled"
+    filter {}
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
 }
 
@@ -102,7 +129,36 @@ resource "aws_cloudfront_function" "trailing_slash" {
   JS
 }
 
-resource "aws_cloudfront_distribution" "site" {
+# Browser hardening headers on every page.
+resource "aws_cloudfront_response_headers_policy" "site" {
+  #checkov:skip=CKV_AWS_259: includeSubDomains/preload on the company apex would pin every subdomain (mail, M365 autodiscover, hosts not yet made) to HTTPS for a year and is near-irreversible; HSTS here covers the site's own names only
+  name = "medbrains-${var.environment}-marketing-security"
+  security_headers_config {
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = false
+      override                   = true
+    }
+    content_type_options {
+      override = true
+    }
+    frame_options {
+      frame_option = "SAMEORIGIN"
+      override     = true
+    }
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+  }
+}
+
+resource "aws_cloudfront_distribution" "site" { # NOSONAR(S6258): public marketing pages; CloudFront metrics cover traffic
+  #checkov:skip=CKV_AWS_86: public marketing pages; CloudFront metrics cover traffic, and the site has its own analytics
+  #checkov:skip=CKV_AWS_68: static pages only (forms post to the app, not this origin); WAF would be cost with nothing to inspect
+  #checkov:skip=CKV2_AWS_47: no WAF on this distribution (see CKV_AWS_68)
+  #checkov:skip=CKV_AWS_310: single S3 origin; a failover origin would need a replicated second bucket
+  #checkov:skip=CKV_AWS_374: a public website; no geography to block
   enabled             = true
   default_root_object = "index.html"
   aliases             = local.aliases
@@ -121,7 +177,8 @@ resource "aws_cloudfront_distribution" "site" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
     # AWS managed "CachingOptimized" policy id (static content).
-    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
 
     function_association {
       event_type   = "viewer-request"
@@ -154,6 +211,21 @@ resource "aws_cloudfront_distribution" "site" {
 
 # ── Let CloudFront (this distribution only) read the bucket ──
 data "aws_iam_policy_document" "site" {
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.site.arn, "${aws_s3_bucket.site.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
   statement {
     actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.site.arn}/*"]

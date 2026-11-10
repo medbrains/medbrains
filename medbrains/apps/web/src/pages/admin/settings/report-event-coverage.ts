@@ -306,7 +306,7 @@ function journeyActionById() {
 function payloadKeysForEvents(events: readonly ClinicalEventName[]) {
   return [
     ...new Set(events.flatMap((eventName) => [...CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS[eventName]])),
-  ].sort();
+  ].sort((a, b) => a.localeCompare(b));
 }
 
 export function buildReportEventCoverage(

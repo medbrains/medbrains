@@ -22,7 +22,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton, Modal } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { chronicCareService } from "@/services/chronicCare.service";
 import { PROGRAM_TYPES } from "./shared";
@@ -178,11 +178,14 @@ export function ProgramsTab({ canCreate }: { canCreate: boolean }) {
         editing={editing}
         onSave={(data) => {
           if (editing) {
-            chronicCareService.updateChronicProgram(editing.id, data).then(() => {
-              void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
-              close();
-              setEditing(null);
-            });
+            chronicCareService
+              .updateChronicProgram(editing.id, data)
+              .then(() => {
+                void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
+                close();
+                setEditing(null);
+              })
+              .catch((e: Error) => toast.error(e.message, { title: "Not saved" }));
           } else {
             createMut.mutate(data);
           }

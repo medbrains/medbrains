@@ -38,8 +38,14 @@ variable "company_wal_archiving" {
 # ── Alerts topic (Mumbai): EC2 alarms + the host's own checks ───────────
 # The host publishes here too: medbrains-alert@ (OnFailure of the backup and
 # host-check units) reads ALERT_TOPIC_ARN from /etc/medbrains/env.
+module "prod_alerts_key" {
+  source = "../../modules/sns-kms-key"
+  name   = "${local.prod_name}-alerts"
+}
+
 resource "aws_sns_topic" "prod_alerts" {
-  name = "${local.prod_name}-alerts"
+  name              = "${local.prod_name}-alerts"
+  kms_master_key_id = module.prod_alerts_key.key_arn
 }
 
 resource "aws_sns_topic_subscription" "prod_alerts_email" {
@@ -148,6 +154,19 @@ resource "aws_kms_key" "prod_backups" {
   description             = "${local.prod_name} Postgres backup encryption"
   enable_key_rotation     = true
   deletion_window_in_days = 30
+  # Written out so it is reviewed, not implied: the default key policy
+  # (IAM in this account decides). The writer and WAL-G policies below are
+  # the grants.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AccountAdmin"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
 }
 
 resource "aws_kms_alias" "prod_backups" {
@@ -156,7 +175,21 @@ resource "aws_kms_alias" "prod_backups" {
 }
 
 resource "aws_s3_bucket" "prod_backups" {
+  #checkov:skip=CKV_AWS_144: these dumps are already the offsite copy of the prod host; a second-region replica doubles the cost and is a DR-plan decision, not a default
+  #checkov:skip=CKV2_AWS_62: nothing consumes object events; the host pages through SNS itself
   bucket = "${local.prod_name}-pg-backups-${data.aws_caller_identity.current.account_id}"
+}
+
+module "prod_backups_logs" {
+  source      = "../../modules/s3-access-logs"
+  bucket_name = "${local.prod_name}-pg-backups-logs-${data.aws_caller_identity.current.account_id}"
+}
+
+# Who read or listed a dump, and from where.
+resource "aws_s3_bucket_logging" "prod_backups" {
+  bucket        = aws_s3_bucket.prod_backups.id
+  target_bucket = module.prod_backups_logs.bucket_id
+  target_prefix = "pg-backups/"
 }
 
 resource "aws_s3_bucket_versioning" "prod_backups" {
@@ -261,6 +294,7 @@ resource "aws_s3_bucket_policy" "prod_backups" {
 # Expiry of a current version only lays a delete marker; the version itself
 # goes a day later (noncurrent rule), and never before its Object Lock date.
 resource "aws_s3_bucket_lifecycle_configuration" "prod_backups" {
+  #checkov:skip=CKV_AWS_300: every rule aborts incomplete uploads after 1 day, and the bucket policy plus writer policy allow writes only under these prefixes
   bucket = aws_s3_bucket.prod_backups.id
   rule {
     id     = "pg-dumps"
@@ -348,6 +382,13 @@ resource "aws_iam_policy" "prod_backup_writer" {
         Effect   = "Allow"
         Action   = "sns:Publish"
         Resource = aws_sns_topic.prod_alerts.arn
+      },
+      {
+        # The alert topic is encrypted; publishing needs its key.
+        Sid      = "PageOnFailureKey"
+        Effect   = "Allow"
+        Action   = ["kms:GenerateDataKey", "kms:Decrypt"]
+        Resource = module.prod_alerts_key.key_arn
       },
     ]
   })

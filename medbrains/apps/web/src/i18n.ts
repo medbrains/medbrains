@@ -17,7 +17,7 @@ export const SUPPORTED_LANGUAGES = [
   { code: "ar", name: "العربية", dir: "rtl" },
 ] as const;
 
-i18n
+void i18n
   .use(HttpBackend)
   .use(initReactI18next)
   .init({

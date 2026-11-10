@@ -1,12 +1,17 @@
 //! Boots a fresh debug OS image and checks what every image must do, from inside and outside.
 //!
 //!     cargo run -p medbrains-os-test -- <image.raw> [disk]
+//!     cargo run -p medbrains-os-test -- <image.raw> updates <bundles folder>
 //!
 //! `disk` runs only the data disk scenarios, `pin` only the PIN ones. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
 mod disk;
 mod front;
+mod update_channel;
+mod update_sealed;
+mod update_steps;
+mod updates;
 mod vm;
 
 use std::path::Path;
@@ -552,6 +557,10 @@ fn main() -> ExitCode {
     let result = match std::env::args().nth(2).as_deref() {
         Some("disk") => run_disk_only(image),
         Some("pin") => Ok(disk::run_pin_only(image)),
+        Some("updates") => {
+            let bundles = std::env::args().nth(3).unwrap_or_default();
+            updates::run(image, Path::new(&bundles))
+        }
         _ => run_suite(image),
     };
     match result {

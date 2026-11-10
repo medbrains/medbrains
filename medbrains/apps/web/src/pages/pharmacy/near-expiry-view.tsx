@@ -69,16 +69,7 @@ export function NearExpiryView() {
       sortValue: (row: NearExpiryRow) => row.days_until_expiry,
       accessor: (row: NearExpiryRow) => row.days_until_expiry,
       render: (row: NearExpiryRow) => (
-        <Badge
-          size="sm"
-          tone={
-            row.days_until_expiry < 30
-              ? "danger"
-              : row.days_until_expiry < 60
-                ? "warning"
-                : "warning"
-          }
-        >
+        <Badge size="sm" tone={row.days_until_expiry < 30 ? "danger" : "warning"}>
           {row.days_until_expiry}d
         </Badge>
       ),

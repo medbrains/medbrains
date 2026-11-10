@@ -37,8 +37,15 @@ variable "master_username" {
   default = "medbrains_admin"
 }
 variable "deletion_protection" {
-  type    = bool
-  default = false
+  type        = bool
+  default     = true
+  description = "Block deleting the cluster; true also takes a final snapshot. Non-prod envs pass false to allow teardown."
+}
+
+variable "monitoring_interval" {
+  type        = number
+  default     = 60
+  description = "Enhanced Monitoring granularity in seconds (0 disables)."
 }
 variable "backup_retention_days" {
   type    = number
@@ -63,6 +70,7 @@ resource "random_password" "master" {
 }
 
 resource "aws_secretsmanager_secret" "db_master" {
+  #checkov:skip=CKV2_AWS_57: rotation is the RDS-managed rotation Lambda (Phase 4, see the note above); a rotation schedule with no Lambda would fail every cycle
   name                    = "medbrains/${var.environment}/${var.region}/aurora/master"
   kms_key_id              = var.kms_key_arn
   recovery_window_in_days = var.environment == "prod" ? 30 : 7
@@ -101,10 +109,20 @@ resource "aws_security_group" "aurora" {
     cidr_blocks = ["10.10.0.0/16"]
   }
 
+  # The group is shared by the cluster and RDS Proxy. Aurora never dials
+  # out; the proxy dials Aurora (same group) and Secrets Manager.
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "RDS Proxy to Aurora"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    self        = true
+  }
+  egress {
+    description = "RDS Proxy to Secrets Manager (endpoint or regional API)"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
@@ -123,9 +141,22 @@ resource "aws_rds_cluster_parameter_group" "this" {
     value        = "1"
     apply_method = "pending-reboot"
   }
+
+  # DDL and slow statements (>1 s) to the postgresql log exported to
+  # CloudWatch. Both are dynamic - no reboot.
+  parameter {
+    name  = "log_statement"
+    value = "ddl"
+  }
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
 }
 
 resource "aws_rds_cluster" "this" {
+  #checkov:skip=CKV_AWS_139: on by default; only envs/dev passes false so its cluster can be torn down
+  #checkov:skip=CKV2_AWS_8: continuous backups (PITR, 35 days) plus the cross-region snapshot copy are the backup plan; an AWS Backup plan would be a second copy of the same snapshots
   cluster_identifier                  = local.cluster_id
   engine                              = "aurora-postgresql"
   engine_version                      = "16.6"
@@ -165,7 +196,9 @@ resource "aws_rds_cluster_instance" "writer" {
   publicly_accessible             = false
   performance_insights_enabled    = true
   performance_insights_kms_key_id = var.kms_key_arn
-  # In prod, set monitoring_interval = 60 + monitoring_role_arn for CloudWatch Enhanced Monitoring
+  monitoring_interval             = var.monitoring_interval
+  monitoring_role_arn             = var.monitoring_interval > 0 ? aws_iam_role.monitoring.arn : null
+  auto_minor_version_upgrade      = true
 }
 
 # Reader replica (multi-AZ)
@@ -178,6 +211,28 @@ resource "aws_rds_cluster_instance" "reader" {
   engine_version               = aws_rds_cluster.this.engine_version
   publicly_accessible          = false
   performance_insights_enabled = true
+  monitoring_interval          = var.monitoring_interval
+  monitoring_role_arn          = var.monitoring_interval > 0 ? aws_iam_role.monitoring.arn : null
+  auto_minor_version_upgrade   = true
+}
+
+# Enhanced Monitoring: per-second OS metrics (CPU steal, memory, I/O queue)
+# that the Serverless v2 ACU graph hides.
+resource "aws_iam_role" "monitoring" {
+  name = "${local.cluster_id}-rds-monitoring"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "monitoring.rds.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "monitoring" {
+  role       = aws_iam_role.monitoring.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 # RDS Proxy for connection pooling

@@ -38,7 +38,7 @@ export function moduleLabel(code: string): string {
 export function scopeOptions(): { value: string; label: string }[] {
   const modules = [...new Set(PERMISSIONS.map((p) => p.module))]
     .filter((m) => !NOT_OFFERED.has(m))
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
   return [CONFIG_SCOPE, ...modules].map((value) => ({ value, label: moduleLabel(value) }));
 }
 
