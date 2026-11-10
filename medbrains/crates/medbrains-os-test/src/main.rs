@@ -18,7 +18,9 @@ use vm::Vm;
 
 const BUDGETS: &str = include_str!("../budgets.json");
 const BLOCKED_MODULES: [&str; 3] = ["dccp", "sctp", "udf"];
-const SYSCTLS: [(&str, &str); 4] = [
+const SYSCTLS: [(&str, &str); 6] = [
+    ("kernel.io_uring_disabled", "1"),
+    ("kernel.io_uring_group", "977"),
     ("kernel.kptr_restrict", "2"),
     ("kernel.kexec_load_disabled", "1"),
     ("kernel.yama.ptrace_scope", "2"),
@@ -305,6 +307,29 @@ fn database_log_is_safe(vm: &mut Vm, _: &Value) -> Result<(), String> {
     )
 }
 
+/// The `io_uring` group must be ours: sysctl names it by number, so a clash hands it to another group.
+fn io_uring_group_is_ours(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let name = vm.run("getent group 977 | cut -d: -f1")?;
+    ensure(
+        name.trim() == "medbrains-uring",
+        format!("gid 977 is {:?}", name.trim()),
+    )
+}
+
+/// PostgreSQL's memory must follow the machine's, not a fixed number.
+fn database_memory_follows_the_machine(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let total = number(vm, "awk '/MemTotal/{print int($2/1024)}' /proc/meminfo")?;
+    let buffers = number(
+        vm,
+        "runuser -u postgres -- psql -Atc \"select pg_size_bytes(current_setting('shared_buffers')) / 1048576\"",
+    )?;
+    let expected = (total / 16).clamp(128, 8192);
+    ensure(
+        buffers == expected,
+        format!("{buffers} MB, expected {expected} MB for {total} MB"),
+    )
+}
+
 /// Every check, in order.
 fn checks() -> Vec<Check> {
     vec![
@@ -358,6 +383,11 @@ fn checks() -> Vec<Check> {
         ),
         ("held connections stay cheap", held_connections_stay_cheap),
         (
+            "database memory follows the machine",
+            database_memory_follows_the_machine,
+        ),
+        ("the io_uring group is ours", io_uring_group_is_ours),
+        (
             "the front offers HTTP/1.1 only",
             front::front_offers_http1_only,
         ),
@@ -402,8 +432,14 @@ fn checks() -> Vec<Check> {
             "a key and certificate that differ are replaced",
             front::mismatched_key_is_replaced,
         ),
-        ("a link in the agent's folder is refused", front::agent_link_is_refused),
-        ("a machine's tunnel keeps its own address", front::tunnel_address_is_kept),
+        (
+            "a link in the agent's folder is refused",
+            front::agent_link_is_refused,
+        ),
+        (
+            "a machine's tunnel keeps its own address",
+            front::tunnel_address_is_kept,
+        ),
         (
             "the database log holds no values and is bounded",
             database_log_is_safe,
