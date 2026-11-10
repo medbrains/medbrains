@@ -138,7 +138,9 @@ jobs:
           rustup toolchain install
           rustup target add aarch64-linux-android x86_64-linux-android
           cargo install cargo-ndk --locked --version 4.1.2
-          cargo build -p medbrains-edge-rn --release
+          # Unstripped host build: UniFFI reads its metadata from the library's symbols, and the
+          # release profile strips them (strip = true), which leaves "No UniFFI metadata found".
+          CARGO_PROFILE_RELEASE_STRIP=false cargo build -p medbrains-edge-rn --release
           cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
             --library target/release/libmedbrains_edge_rn.so --language kotlin \
             --out-dir apps/android/core/src/main/kotlin
