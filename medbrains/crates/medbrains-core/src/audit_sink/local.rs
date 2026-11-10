@@ -1,7 +1,8 @@
 //! Local-FS `AuditSink`. Used in `onprem` and `hybrid` on-prem nodes.
 //!
 //! Layout: `<base>/<tenant_id>/<segment_id>.bin`. One file per
-//! sealed segment, immutable after write (chmod 0444).
+//! sealed segment, read-only after write (chmod 0440: owner and group, never
+//! other users, since a segment records who touched which patient).
 
 use super::{AuditSink, AuditSinkError};
 use async_trait::async_trait;
@@ -64,7 +65,8 @@ impl AuditSink for LocalFsAuditSink {
             .await
             .map_err(|e| AuditSinkError::Io(format!("write {}: {e}", path.display())))?;
 
-        // chmod 0444 — immutable on disk
+        // chmod 0440: read-only on disk, and not world-readable, because the
+        // segment names who touched which patient record.
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -72,7 +74,7 @@ impl AuditSink for LocalFsAuditSink {
                 .await
                 .map_err(|e| AuditSinkError::Io(e.to_string()))?
                 .permissions();
-            perms.set_mode(0o444);
+            perms.set_mode(0o440);
             tokio::fs::set_permissions(&path, perms)
                 .await
                 .map_err(|e| AuditSinkError::Io(e.to_string()))?;
@@ -147,5 +149,19 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AuditSinkError::Backend(_)));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn sealed_segment_is_read_only_and_not_world_readable() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let sink = LocalFsAuditSink::new(dir.path());
+        let path = sink
+            .archive_segment(Uuid::new_v4(), Uuid::new_v4(), b"seg".to_vec())
+            .await
+            .unwrap();
+        let mode = std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o440);
     }
 }

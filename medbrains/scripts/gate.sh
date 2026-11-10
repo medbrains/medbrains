@@ -27,7 +27,7 @@ trap restore_buildinfo EXIT
 find packages -name '*.tsbuildinfo' -not -path '*/node_modules/*' -delete
 "$PNPM" -r --filter "./packages/**" build
 restore_buildinfo
-(cd apps/web && npx tsc --noEmit -p .)
+(cd apps/web && "$PNPM" exec tsc --noEmit -p .)
 
 step "static checks"
 make check-all
