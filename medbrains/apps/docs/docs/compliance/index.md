@@ -2,7 +2,7 @@
 title: Compliance and country regulatory packs
 sidebar_label: Compliance
 sidebar_position: 5
-description: "Coming soon: how MedBrains builds each country's health regulations into the system, starting with the India pack (ABDM, NABH, DPDP Act, NDPS and Schedule H, CERT-In), with more countries to follow."
+description: "Coming soon: how MedBrains builds each country's health rules into the system, starting with India (ABDM, NABH, DPDP, NDPS, CERT-In), with more to follow."
 ---
 
 # Compliance
