@@ -12,6 +12,13 @@ Conflicts=getty@tty1.service
 # instead of a black screen that looks like nothing happened.
 Before=medbrains-server.service medbrains-front.service
 ConditionPathExists=/dev/tty1
+# A crash comes back in a fifth of a second, not after a black pause. Ten crashes in a minute is a loop
+# that restarting will not fix: the unit fails, and boot-health takes tty1 so the screen says why.
+StartLimitIntervalSec=60
+StartLimitBurst=10
+OnFailure=medbrains-boot-health@tty1.service
+# Taking the screen back from boot-health when someone starts it again.
+Conflicts=medbrains-boot-health@tty1.service
 
 [Service]
 Type=simple
@@ -33,9 +40,14 @@ UtmpMode=user
 Environment=LP_NUM_THREADS=0 WLR_RENDERER_ALLOW_SOFTWARE=1 WLR_NO_HARDWARE_CURSORS=1 WLR_LIBINPUT_NO_DEVICES=1 GSK_RENDERER=cairo
 # The kiosk trusts this box's own two fronts, loopback and the identity provider. No warning, and no other site.
 BindReadOnlyPaths=/var/lib/medbrains-settings/local-front.pem:/etc/ssl/certs/ca-certificates.crt
-ExecStart=/usr/bin/cage -d -- /bin/sh -c 'DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus exec /usr/bin/medbrains-shell'
+# -s lets Ctrl+Alt+F2 reach the support console's boot-health view (#5383), which shows and takes no
+# input; no other console has anything on it, and Ctrl+Alt+F1 comes back here.
+ExecStart=/usr/bin/cage -d -s -- /bin/sh -c 'DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus exec /usr/bin/medbrains-shell'
 Restart=always
-RestartSec=3s
+RestartSec=200ms
+# A restart goes straight back to starting, not through failed: otherwise every crash fired OnFailure, and
+# the restart then stopped boot-health again until it hit its own limit (seen in the VM).
+RestartMode=direct
 TimeoutStopSec=5s
 NoNewPrivileges=yes
 ProtectSystem=strict

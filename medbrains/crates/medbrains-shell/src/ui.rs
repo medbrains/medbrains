@@ -149,6 +149,9 @@ pub(crate) fn health_word(machine: &Machine, main_ready: bool) -> &'static str {
     }
 }
 
+/// Where the support console's boot-health view is (os/mkosi.extra/usr/lib/medbrains/boot-health).
+const CONSOLE_HINT: &str = "Press Ctrl+Alt+F2 for details.";
+
 /// The greeting's plain sentence. It names what failed, so a person can say it on the phone.
 pub(crate) fn status_sentence(machine: &Machine, main_ready: bool, disk: &str) -> String {
     match machine.failed.as_slice() {
@@ -159,8 +162,11 @@ pub(crate) fn status_sentence(machine: &Machine, main_ready: bool, disk: &str) -
                 |warning| format!("MedBrains is running. {warning}."),
             ),
         [] => "This machine is starting.".to_owned(),
-        [one] => format!("This service has a problem: {one}"),
-        many => format!("These services have a problem: {}", many.join(", ")),
+        [one] => format!("Something failed while starting: {one}. {CONSOLE_HINT}"),
+        many => format!(
+            "Something failed while starting: {}. {CONSOLE_HINT}",
+            many.join(", ")
+        ),
     }
 }
 
@@ -292,12 +298,12 @@ mod tests {
         assert_eq!(health_word(&broken, true), "Needs attention");
         assert_eq!(
             status_sentence(&broken, true, "encrypted-tpm2"),
-            "This service has a problem: medbrains-front.service"
+            "Something failed while starting: medbrains-front.service. Press Ctrl+Alt+F2 for details."
         );
         let two = machine("degraded", &["a.service", "b.service"]);
         assert_eq!(
             status_sentence(&two, true, "encrypted-tpm2"),
-            "These services have a problem: a.service, b.service"
+            "Something failed while starting: a.service, b.service. Press Ctrl+Alt+F2 for details."
         );
         assert_eq!(
             health_word(&machine("degraded", &[]), true),

@@ -33,8 +33,11 @@ rm /tmp/whole-firewall.nft
 systemctl enable nftables chrony systemd-networkd systemd-resolved \
     medbrains-disk-setup medbrains-disk-notice medbrains-disk-finish medbrains-network-settings medbrains-os-setup medbrains-main.target medbrains-node.target \
     medbrains-agent medbrains-time-role cage-console medbrains-update-reconcile medbrains-update-health \
-    medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer
+    medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer medbrains-boot-health@tty2
 systemctl mask systemd-boot-update.service
+# AppArmor's decisions reach the journal through the audit socket. Without it the kernel prints them, rate
+# limited, and a burst of denials is lost (seen in the VM as "callbacks suppressed").
+systemctl enable systemd-journald-audit.socket
 # Nothing here may wait for the network: with a cable out this fails after two minutes, which reads as a
 # failed service and would roll back a good update. Masked, because enabling networkd brings it back.
 systemctl mask systemd-networkd-wait-online.service
@@ -62,6 +65,16 @@ usermod -s /usr/sbin/nologin postgres
 # What a login banner would show if one ever appeared: no OS name or version to aim an exploit at (CIS 1.6).
 printf 'MedBrains appliance. Authorised use only.\n' | tee /etc/issue /etc/issue.net > /etc/motd
 chmod 0644 /etc/issue /etc/issue.net /etc/motd
+
+# No program may raise its privilege through a set-user-ID or set-group-ID bit, except D-Bus's activation
+# helper, which the system bus needs. Nobody logs in, so su, passwd, mount and the rest have no one to serve
+# (CIS 7.1.13; Kicksecure's permission-hardener). The OS test lists what is left.
+find / -xdev -type f -perm /6000 ! -path /usr/lib/dbus-1.0/dbus-daemon-launch-helper -exec chmod ug-s {} +
+
+# Debian's apparmor package ships profiles in complain mode for programs this image does not have. Complain
+# mode protects nothing, so they go, and every profile left is enforced (CIS 1.3.1.4).
+mapfile -t complain < <(find /etc/apparmor.d -maxdepth 1 -type f -exec grep -l 'flags=([^)]*complain' {} +)
+rm -f "${complain[@]}"
 
 # The screen's own fonts, installed by mkosi.build.chroot.
 fc-cache -f /usr/share/fonts

@@ -11,6 +11,7 @@
     "kanidmd.service": 1.0,
     "medbrains-agent-main.service": 1.7,
     "medbrains-agent.service": 1.9,
+    "medbrains-boot-health@tty2.service": 1.1,
     "medbrains-console-status.service": 2.3,
     "medbrains-db-init.service": 2.4,
     "medbrains-disk-finish.service": 7.1,

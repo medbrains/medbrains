@@ -1,0 +1,62 @@
+# Setup and machine controls (task T1.1). Root, so this is the wall that matters: it may read the system
+# but write only the places its unit lists, and run only the programs it is built to run, never one
+# from /tmp, /var or a USB stick.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile medbrains-os-setup /usr/bin/medbrains-os-setup flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+  include <abstractions/bash>
+
+  capability chown,
+  capability dac_override,
+  capability fowner,
+  capability net_admin,
+  capability net_raw,
+  capability sys_ptrace,
+  ptrace (read),
+  signal (send, receive),
+  dbus,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network inet raw,
+  network inet6 raw,
+  network netlink raw,
+  network netlink dgram,
+  unix,
+
+  /usr/bin/medbrains-os-setup mr,
+  # The programs it runs, each in this same profile.
+  /{usr/,}bin/{bash,sh,dash,systemctl,busctl,curl,ping,ip,networkctl,chronyc,install,df,chgrp,cat,sed,grep,awk,mawk,tr,cut,head,tail,mktemp,rm,mv,cp,ln,chmod,chown,stat,sleep,timeout,setpriv,runuser,date,basename,dirname,id,printf,test,openssl,mkdir,touch,wc,sort,uniq,base64,tee,find,xargs,env,true,false,poweroff,reboot} mrix,
+  /{usr/,}sbin/{nft,ip,runuser,poweroff,reboot} mrix,
+  /usr/bin/kanidmd mrix,
+  /usr/bin/systemd-run mrix,
+  /usr/lib/medbrains/* mrix,
+  /** r,
+  /run/medbrains-console/ rw,
+  /run/medbrains-console/** rwk,
+  /run/systemd/network/ rw,
+  /run/systemd/network/** rwk,
+  /var/lib/kanidm/** rwk,
+  /var/lib/medbrains/config/ rw,
+  /var/lib/medbrains/config/** rwk,
+  /var/lib/medbrains/network/ rw,
+  /var/lib/medbrains/network/** rwk,
+  /var/lib/medbrains-settings/ rw,
+  /var/lib/medbrains-settings/** rwk,
+  /var/lib/iwd/ rw,
+  /var/lib/iwd/** rwk,
+  /run/kanidmd/** rw,
+  # chronyc's own reply socket, for the clock's state on the screen.
+  /run/chrony/chronyc.*.sock rw,
+  /run/medbrains-kanidm/** rwk,
+  owner /tmp/** rwk,
+  /dev/tty rw,
+  @{PROC}/** r,
+
+  include if exists <local/medbrains-os-setup>
+}

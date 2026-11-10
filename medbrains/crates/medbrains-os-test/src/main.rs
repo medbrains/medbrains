@@ -7,6 +7,8 @@
 //! image from outside: no SSH, and nothing on its serial port. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
+mod confinement;
+mod console;
 mod disk;
 mod front;
 mod hardening;
@@ -475,6 +477,26 @@ fn checks() -> Vec<Check> {
         (
             "the database log holds no values and is bounded",
             database_log_is_safe,
+        ),
+        (
+            "every service runs under its AppArmor profile",
+            confinement::services_confined,
+        ),
+        (
+            "AppArmor refused nothing the suite did",
+            confinement::nothing_refused,
+        ),
+        (
+            "the CIS-style hardening report has no failure",
+            confinement::cis_benchmark,
+        ),
+        (
+            "a failed service shows on the support console",
+            console::failure_shows_on_the_console,
+        ),
+        (
+            "the screen is never left black",
+            console::screen_is_never_left_black,
         ),
     ]
 }

@@ -502,7 +502,7 @@ Debian benchmark where they fit an appliance. Every entry carries a one-line rea
 - **systemd sandboxing** on every MedBrains unit, measured with `systemd-analyze security` (below) and held under
   a per-unit ceiling in `crates/medbrains-os-test/budgets.json`.
 - **No login anywhere** (X6): no SSH server; every getty, serial getty, autovt, container getty and
-  `debug-shell.service` masked; root locked; plain banners. A debug image keeps its own root shell on the serial port.
+  `debug-shell.service` masked; root and the database account have no login; plain banners. A debug image keeps its own root shell on the serial port.
 
 **What we did not take from Kicksecure, and why:**
 
@@ -525,6 +525,72 @@ writes a whole system partition and the boot partition and mounts the other slot
 system, a device list or a capability limit would break the job, and a broken updater cannot be fixed by an
 update. They get every setting that cannot get in the way. `cage-console` keeps the gaps WebKit's own sandbox needs
 (see its unit). All are still below their ceiling, which a test enforces.
+
+### AppArmor
+
+AppArmor is the kernel's active security module, and each MedBrains service runs under its own profile in
+enforce mode (`/etc/apparmor.d/`): `medbrains-server`, `medbrains-front`, `medbrains-agent`, `medbrains-os-setup`,
+`kanidmd` and `medbrains-postgres`. Each profile lists what its service reads and writes and the programs it may
+run; none may run a program from `/tmp`, `/var` or a USB stick. Setup is root, so its profile is the wall
+that matters: it reads the system but writes only its unit's paths. Debian's own `chronyd` profile gets a
+local rule for the folder our time sources live in. The suite checks each service's label and that AppArmor
+refused nothing during the run.
+
+Not profiled, and why: the updater (it writes whole partitions; a path list cannot narrow that, its bundles are
+signed instead), the screen (`cage`, the shell and WebKit, whose own bubblewrap sandbox would need a profile
+per helper; systemd confines the unit), and the short root scripts (`firstboot`, `db-init`, `disk-setup`),
+which systemd sandboxes.
+
+### Hardening report
+
+`os/tests/cis-check.sh` checks a running machine against the CIS Debian Linux Level 2 (Server) benchmark,
+numbered as in CIS Debian Linux 12 v1.1.0, and prints PASS, FAIL or LIMIT per check. Debug images carry it as
+`/usr/lib/medbrains/cis-check`; `medbrains-os-test` runs it, saves the report (`MB_OS_TEST_CIS_REPORT`, or
+`cis-report.txt` in the temporary folder) and fails on any FAIL. It is not a certified CIS-CAT run.
+
+**Why not OpenSCAP:** Debian's `ssg-debian` (0.1.76 in trixie) has no CIS profile, only ANSSI and "standard",
+and targets Debian 11 and 12, so every rule reads "not applicable" on trixie.
+
+**Accepted limits** (each a LIMIT line in the report):
+
+| Benchmark | Limit and reason |
+|---|---|
+| 1.1.1.9 usb-storage off | USB sticks carry signed updates; they mount read-only, `noexec,nosuid,nodev` |
+| 1.1.2.3, 1.1.2.5 to 1.1.2.7 separate `/home`, `/var/tmp`, `/var/log`, `/var/log/audit` | One encrypted data partition by design (§8k); nobody has a home; journald's size limits keep logs bounded |
+| 1.2 apt repositories and keys | The image has no apt sources: software changes only through signed A/B bundles |
+| 2.1.20 no web server | The MedBrains front is the product, and the only listener a stranger reaches |
+| 3.1.2 wireless off | Some wards connect over Wi-Fi; iwd starts only when a card exists |
+| 5.2.1 sudo installed | Nobody logs in; services drop privilege through systemd |
+| 5.3, 5.4.1, 5.4.3 password quality, ageing, shell timeout | No account here has a usable password or a shell; staff sign in through Kanidm, with its own strength check and lockout |
+| 6.1 AIDE | The root partition becomes dm-verity sealed (T1, separate work): a changed file stops the boot |
+| 6.3 auditd and its syscall rules | Each audited syscall is a flash write nobody on site reads; who opened which record is MedBrains' own audit log, and AppArmor denials reach the journal |
+
+### What the hardening costs
+
+Measured on the same QEMU machine (arm64, 4 vCPUs, 4 GB, debug image), main before this work (one run)
+against main with T1.1, AppArmor and the support console (two runs):
+
+| | Before | After |
+|---|---|---|
+| Boot to running (`systemd-analyze time`) | 32.6 s (kernel 0.40 s, user space 24.8 s) | 35.0 s and 32.2 s (kernel 0.50 to 0.58 s, user space 27.2 and 24.3 s) |
+| Whole machine used at rest | 774 MB | 831 MB and 814 MB (budget 850) |
+| System disk used | 1,288 MB | 1,291 MB (budget 1,300) |
+| Server after a page load | 221 MB | 230 MB |
+| A crashed screen back | 3 s of black | under 0.7 s |
+
+The two runs after differ as much as before and after do, so the boot cost is within run-to-run noise here;
+the memory difference (40 to 57 MB) is likely real and not yet attributed. More runs would settle both.
+
+### Support console
+
+Release images have no login anywhere, so a machine that does not finish starting explains itself on tty2:
+**Ctrl+Alt+F2** shows `boot-health` (issue #5383), what is still starting, the slowest steps of this boot,
+and for each failed service a reason in hospital words ("Database did not start") with its unit name underneath
+and its last 10 log lines. It only shows: no keyboard input reaches it and it runs no shell; every read is
+bounded. **Ctrl+Alt+F1** goes back. When something has failed, the desktop's sentence ends "Press Ctrl+Alt+F2
+for details". `cage -s` allows the switch; the other consoles are empty. Accepted: anyone at the screen can read
+a failed service's last log lines, which can include user names, never a database value (the database log holds
+none, see above).
 
 ## Apps on the desktop
 
@@ -704,8 +770,8 @@ restart signs you out.
 
 **No terminal on staff machines (owner's decision).** Release images have no terminal program, no debug shell, a
 locked root account and no shell on the serial port. Tried on the release image's screen, in setup, on the desktop and
-in the app: Ctrl+Shift+I and D (GTK's inspector, turned off in code), Ctrl+Shift+C, F12, Ctrl+Alt+F2 and F3, Ctrl+Alt+T.
-None opens anything. The app's right-click menu has Back, Forward, Stop and Reload, with no Inspect.
+in the app: Ctrl+Shift+I and D (GTK's inspector, turned off in code), Ctrl+Shift+C, F12, Ctrl+Alt+F3, Ctrl+Alt+T.
+None opens anything. Ctrl+Alt+F2 opens the [support console](#support-console), which only shows. The app's right-click menu has Back, Forward, Stop and Reload, with no Inspect.
 
 **Limits we chose or could not avoid:**
 - **`cage` does not show a second window.** A dialog window stayed invisible and its modal grab blocked all
@@ -885,7 +951,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
-- `tests/patients-journey.mjs`: sign in and open Patients in a real browser.
+- `tests/cis-check.sh`: the CIS-style hardening report (X16). `tests/patients-journey.mjs`: sign in and open Patients in a real browser.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
 - `build-kanidm.sh`: compiles the identity provider from its pinned release. `kanidm-override.css`: its colours.
