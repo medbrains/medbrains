@@ -72,6 +72,12 @@ variable "public_access_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "eso_secret_prefix" {
+  description = "Name prefix of the Secrets Manager secrets and SSM parameters External Secrets may read."
+  type        = string
+  default     = "medbrains/"
+}
+
 variable "karpenter_version" {
   description = "Karpenter Helm chart version."
   type        = string

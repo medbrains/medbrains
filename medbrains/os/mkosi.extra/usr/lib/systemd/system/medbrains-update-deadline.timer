@@ -1,0 +1,16 @@
+# The last resort for a trial boot stuck anywhere, including emergency mode and a disk prompt nobody
+# answers: it survives isolation and needs neither the data disk nor the boot partition.
+[Unit]
+Description=Watch a trial boot that does not finish
+DefaultDependencies=no
+IgnoreOnIsolate=yes
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Timer]
+OnActiveSec=5min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=sysinit.target

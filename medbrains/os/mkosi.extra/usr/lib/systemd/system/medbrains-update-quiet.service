@@ -1,0 +1,7 @@
+[Unit]
+Description=Apply a waiting update if the machine is quiet
+ConditionPathExists=/var/lib/medbrains-settings/update-window
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/medbrains-os-update tick

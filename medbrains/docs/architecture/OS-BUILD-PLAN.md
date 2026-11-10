@@ -83,8 +83,11 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | next |
-| U1.1 | Release channel and signed bundles, online and USB | Unsigned bundle refused | next |
+| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | doing: built and passes `make os-test-updates` on QEMU; real hardware blocked (F4), and a release with a migration needs U1.3 first |
+| U1.1 | Release channel and signed bundles, online and USB | Unsigned bundle refused | doing: built and tested with a test key; the release key is designed and not made (X2), and no channel is published |
+| U1.5 | Compare with TUF's attacks: old update served again, updates held back, mixed releases, stolen key; adopt TUF or close each gap and say how (owner 2026-11-07) | Each attack refused by a test, or a written limit (`OS-UPDATES.md`) | doing: closed without TUF metadata (expiry, one manifest per release, threshold); fast-forward with one stolen key is a written limit until threshold 2 |
+| U1.6 | A rolled-back version stays refused by automatic updates until a newer one (owner 2026-11-07) | A failed update rolls back and the timer does not reinstall it | doing: built, test `not_retried` |
+| U1.8 | Deliver a Kanidm minor upgrade each quarter; a machine that missed one catches up in order (owner 2026-11-07) | A machine two releases behind installs the one between first | doing: `upgrades_from` steps built, test `catches_up_in_order`; Kanidm rollback restore needs U1.3 |
 | U1.2 | App updates separate from the OS | App fix ships without an OS image | next |
 | U1.3 | Backup before migration; CI check that migrations stay compatible one release back | Failed migration restores by itself | next |
 | U1.4 | Main machine serves nodes; rings and windows in Control | One ward updates first; failure stops the rollout | later, needs J1, C1 |

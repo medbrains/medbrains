@@ -104,6 +104,7 @@ resource "aws_iam_role_policy_attachment" "uploads_rw" {
 # ── IAM user for non-EC2 (on-prem / bare-metal) ──────────────────────────
 
 resource "aws_iam_user" "app_uploads" {
+  #checkov:skip=CKV_AWS_273: only for hosts outside AWS (on-prem, bare metal), which have no instance role or SSO to assume; scoped to the one uploads bucket
   count = var.create_iam_user ? 1 : 0
   name  = "medbrains-${var.environment}-app-uploads"
   path  = "/medbrains/"
@@ -115,6 +116,7 @@ resource "aws_iam_user" "app_uploads" {
 }
 
 resource "aws_iam_user_policy_attachment" "app_uploads" {
+  #checkov:skip=CKV_AWS_40: one single-purpose service user; a group of one would add a resource without narrowing what it can do
   count      = var.create_iam_user ? 1 : 0
   user       = aws_iam_user.app_uploads[0].name
   policy_arn = aws_iam_policy.uploads_rw.arn
@@ -127,8 +129,10 @@ resource "aws_iam_access_key" "app_uploads" {
 
 # Store credentials in Secrets Manager so they can be injected into the server env
 resource "aws_secretsmanager_secret" "app_uploads_creds" {
+  #checkov:skip=CKV2_AWS_57: the value is an IAM access key; rotating it means a new key pushed to an off-AWS host, which a rotation Lambda cannot reach
   count                   = var.create_iam_user ? 1 : 0
   name                    = "medbrains/${var.environment}/app-uploads-credentials"
+  kms_key_id              = var.kms_key_arn != "" ? var.kms_key_arn : null
   description             = "S3 access key for MedBrains app server presigned uploads"
   recovery_window_in_days = 7
 

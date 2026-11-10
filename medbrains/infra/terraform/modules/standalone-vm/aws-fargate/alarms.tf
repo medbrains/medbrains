@@ -8,8 +8,14 @@
 # bottom with the reason it was rejected; a tier whose whole infra bill
 # is single-digit dollars cannot afford alarms that get muted.
 
+module "alerts_key" {
+  source = "../../sns-kms-key"
+  name   = "${var.hostname}-alerts"
+}
+
 resource "aws_sns_topic" "alerts" {
-  name = "${var.hostname}-alerts"
+  name              = "${var.hostname}-alerts"
+  kms_master_key_id = module.alerts_key.key_arn
 
   tags = {
     Project   = "medbrains"

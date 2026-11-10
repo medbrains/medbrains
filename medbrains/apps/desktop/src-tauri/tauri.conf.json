@@ -41,9 +41,7 @@
     "windows": {
       "wix": {
         "language": [
-          "en-IN",
-          "ta-IN",
-          "hi-IN"
+          "en-US"
         ]
       },
       "nsis": null,

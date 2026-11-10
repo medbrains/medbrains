@@ -36,8 +36,16 @@ variable "compliance_mode" {
   EOT
 }
 
+module "access_logs" {
+  source        = "../s3-access-logs"
+  bucket_name   = "medbrains-${var.environment}-s3-logs-${var.region}"
+  force_destroy = !var.compliance_mode
+}
+
 # 1. Audit archive — Object Lock compliance (prod), plain versioned (dev/test)
 resource "aws_s3_bucket" "audit_archive" {
+  #checkov:skip=CKV_AWS_144: Object Lock COMPLIANCE already makes the archive undeletable; a second-region replica needs its own locked bucket and key and doubles a 7-year bill - add it when a regional DR target is set
+  #checkov:skip=CKV2_AWS_62: nothing consumes object events from the audit archive
   bucket              = "medbrains-${var.environment}-audit-archive-${var.region}"
   force_destroy       = !var.compliance_mode
   object_lock_enabled = true
@@ -62,6 +70,29 @@ resource "aws_s3_bucket_object_lock_configuration" "audit_archive" {
 }
 
 # Clean up failed multipart uploads (silent billable leak) on every bucket.
+resource "aws_s3_bucket_logging" "audit_archive" {
+  bucket        = aws_s3_bucket.audit_archive.id
+  target_bucket = module.access_logs.bucket_id
+  target_prefix = "audit-archive/"
+}
+
+# Refuse plain HTTP: every client (SDK, CLI, presigned URL) already uses TLS.
+resource "aws_s3_bucket_policy" "audit_archive" {
+  bucket = aws_s3_bucket.audit_archive.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.audit_archive.arn, "${aws_s3_bucket.audit_archive.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.audit_archive]
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "audit_archive" {
   bucket = aws_s3_bucket.audit_archive.id
   rule {
@@ -79,6 +110,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "static" {
     status = "Enabled"
     filter {}
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
+    noncurrent_version_expiration { noncurrent_days = 30 }
   }
 }
 
@@ -102,8 +134,20 @@ resource "aws_s3_bucket_public_access_block" "audit_archive" {
 }
 
 # 2. Static assets — CloudFront origin
-resource "aws_s3_bucket" "static" {
+resource "aws_s3_bucket" "static" { # NOSONAR(S6258,S6249): public web build served through CloudFront OAC; its bucket policy is owned by the CloudFront stack, and a second aws_s3_bucket_policy here would overwrite it
+  #checkov:skip=CKV_AWS_18: public, unauthenticated web build served only through CloudFront; no PHI to account for
+  #checkov:skip=CKV_AWS_144: the web build is reproducible from git; a replica adds cost and no recovery value
+  #checkov:skip=CKV2_AWS_62: nothing consumes object events from the web build bucket
+  #checkov:skip=CKV_AWS_145: public web assets; SSE-KMS would need a CloudFront grant in the key policy and a KMS call per cache miss
   bucket = "medbrains-${var.environment}-static-${var.region}"
+}
+
+# Every deploy overwrites the build; old builds go after 30 days.
+resource "aws_s3_bucket_versioning" "static" {
+  bucket = aws_s3_bucket.static.id
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "static" {
@@ -116,15 +160,19 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "static" {
 }
 
 resource "aws_s3_bucket_public_access_block" "static" {
-  bucket                  = aws_s3_bucket.static.id
-  block_public_acls       = true
-  block_public_policy     = false # CloudFront OAC needs to read; policy added via cloudfront module
+  bucket            = aws_s3_bucket.static.id
+  block_public_acls = true
+  # CloudFront OAC reads through a service-principal policy scoped by
+  # AWS:SourceArn, which S3 does not count as public - so both stay on.
+  block_public_policy     = true
   ignore_public_acls      = true
-  restrict_public_buckets = false
+  restrict_public_buckets = true
 }
 
 # 3. Patient uploads — PHI, KMS, lifecycle to Glacier
 resource "aws_s3_bucket" "uploads" {
+  #checkov:skip=CKV_AWS_144: PHI stays in its home region until a data-residency decision names a second one; versioning covers overwrite and delete
+  #checkov:skip=CKV2_AWS_62: nothing consumes upload events; the app records each upload itself
   bucket = "medbrains-${var.environment}-uploads-${var.region}"
 }
 
@@ -173,6 +221,29 @@ resource "aws_s3_bucket_public_access_block" "uploads" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_logging" "uploads" {
+  bucket        = aws_s3_bucket.uploads.id
+  target_bucket = module.access_logs.bucket_id
+  target_prefix = "uploads/"
+}
+
+# Refuse plain HTTP: every client (SDK, CLI, presigned URL) already uses TLS.
+resource "aws_s3_bucket_policy" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.uploads.arn, "${aws_s3_bucket.uploads.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.uploads]
 }
 
 # CORS — allows the hospital frontend to PUT objects directly via presigned URLs

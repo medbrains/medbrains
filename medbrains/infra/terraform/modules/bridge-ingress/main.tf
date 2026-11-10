@@ -54,8 +54,9 @@ variable "allowed_cidrs" {
 }
 
 variable "deletion_protection" {
-  type    = bool
-  default = false
+  type        = bool
+  default     = true
+  description = "Block deleting the ALB hospitals' bridges connect through. Set false to tear down a dev env."
 }
 
 locals {
@@ -85,7 +86,9 @@ resource "aws_security_group" "alb" {
   }
 }
 
-resource "aws_lb" "bridge" {
+resource "aws_lb" "bridge" { # NOSONAR(S6258): each bridge session is logged by medbrains-server; ALB logs would be a second copy
+  #checkov:skip=CKV_AWS_91: each bridge session is logged by medbrains-server; ALB logs would be a second copy behind a regional ELB-account bucket policy
+  #checkov:skip=CKV2_AWS_28: ingress is already limited to hospital WAN CIDRs and carries a long-lived authenticated WSS stream WAF rules cannot inspect
   name               = "${local.name}-alb"
   internal           = false
   load_balancer_type = "application"
