@@ -4,7 +4,7 @@ import { toDateString } from "@/lib/date-utils";
 
 export function formatTime(time: string): string {
   const [h, m] = time.split(":");
-  const hour = parseInt(h ?? "0", 10);
+  const hour = Number.parseInt(h ?? "0", 10);
   const ampm = hour >= 12 ? "PM" : "AM";
   const h12 = hour % 12 || 12;
   return `${h12}:${m} ${ampm}`;

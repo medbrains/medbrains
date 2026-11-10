@@ -97,10 +97,10 @@ const GROUP_LABEL_KEYS = {
 } satisfies Record<string, string>;
 
 function routeObjectLabel(previousSegment: string | undefined, nextSegment: string | undefined) {
-  if (previousSegment === "patients") return nextSegment === "edit" ? "Patient" : "Patient";
+  if (previousSegment === "patients") return "Patient";
   if (previousSegment === "encounters") return "OPD Visit";
   if (previousSegment === "queue") return nextSegment === "vitals" ? "Queue Token" : "Queue";
-  if (previousSegment === "camp") return nextSegment === "work" ? "Camp" : "Camp";
+  if (previousSegment === "camp") return "Camp";
   return "Record";
 }
 

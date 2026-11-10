@@ -26,6 +26,17 @@ variable "enable_interface_endpoints" {
   description = "Billed hourly per AZ. Set false in non-prod (NAT already reaches AWS APIs)."
 }
 
+variable "flow_log_kms_key_arn" {
+  type        = string
+  default     = null
+  description = "KMS key for the flow-log group (its policy must admit logs.<region>.amazonaws.com, as modules/kms keys do). Null = CloudWatch's own encryption."
+}
+
+variable "flow_log_retention_days" {
+  type    = number
+  default = 365
+}
+
 locals {
   full_azs = [for az in var.azs : "${var.region}${az}"]
   # AZs that get a NAT GW: all of them, or just the first when single_nat_gateway.
@@ -39,17 +50,74 @@ resource "aws_vpc" "this" {
   tags                 = { Name = "medbrains-${var.environment}-${var.region}" }
 }
 
+# Rejected traffic only: what an incident review asks first ("what tried
+# to reach the DB subnet?") at a fraction of the cost of ALL, which on a
+# NAT-heavy VPC is the dominant CloudWatch bill. Switch traffic_type to
+# ALL when forensics needs accepted flows too.
+resource "aws_cloudwatch_log_group" "flow_logs" {
+  name              = "/aws/vpc/medbrains-${var.environment}-${var.region}/flow-logs"
+  retention_in_days = var.flow_log_retention_days
+  kms_key_id        = var.flow_log_kms_key_arn
+}
+
+data "aws_iam_policy_document" "flow_logs_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["vpc-flow-logs.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "flow_logs" {
+  name               = "medbrains-${var.environment}-${var.region}-flow-logs"
+  assume_role_policy = data.aws_iam_policy_document.flow_logs_assume.json
+}
+
+data "aws_iam_policy_document" "flow_logs" {
+  statement {
+    actions = [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams",
+    ]
+    resources = ["${aws_cloudwatch_log_group.flow_logs.arn}:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "flow_logs" {
+  role   = aws_iam_role.flow_logs.id
+  policy = data.aws_iam_policy_document.flow_logs.json
+}
+
+resource "aws_flow_log" "this" {
+  vpc_id          = aws_vpc.this.id
+  traffic_type    = "REJECT"
+  log_destination = aws_cloudwatch_log_group.flow_logs.arn
+  iam_role_arn    = aws_iam_role.flow_logs.arn
+}
+
+# Adopt the default security group and strip its rules: nothing in this
+# VPC is meant to use it, and anything that lands in it by accident now
+# gets no traffic instead of all of it.
+resource "aws_default_security_group" "this" {
+  vpc_id = aws_vpc.this.id
+}
+
 # Subnets — 3 AZs × {public, private, db}
 # Public: 10.10.0.0/20 → /24 per AZ
 # Private (workloads): 10.10.16.0/20 → /22 per AZ
 # DB: 10.10.32.0/24 → /26 per AZ
 
 resource "aws_subnet" "public" {
-  for_each                = toset(local.full_azs)
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = cidrsubnet(var.cidr_block, 8, index(local.full_azs, each.value))
-  availability_zone       = each.value
-  map_public_ip_on_launch = true
+  for_each          = toset(local.full_azs)
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = cidrsubnet(var.cidr_block, 8, index(local.full_azs, each.value))
+  availability_zone = each.value
+  # Only NAT gateways (EIPs) and load balancers live here; nothing that
+  # launches into a public subnet should get an address it did not ask for.
+  map_public_ip_on_launch = false
   tags = {
     Name                     = "public-${each.value}"
     "kubernetes.io/role/elb" = "1"
@@ -82,6 +150,7 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_eip" "nat" {
+  #checkov:skip=CKV2_AWS_19: this EIP belongs to a NAT gateway, not an instance
   for_each = toset(local.nat_azs)
   domain   = "vpc"
 }
@@ -157,14 +226,11 @@ resource "aws_security_group" "interface_endpoints" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
+    description = "HTTPS from inside the VPC"
     cidr_blocks = [var.cidr_block]
   }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # Endpoint ENIs never open connections; replies are stateful.
+  egress = []
 }
 
 # Interface endpoints — billed hourly per AZ. Worth it for compliance

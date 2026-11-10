@@ -306,5 +306,5 @@ export function getDeviceIntegrationI18nKeys(): string[] {
     }
   }
 
-  return [...keys].sort();
+  return [...keys].sort((a, b) => a.localeCompare(b));
 }

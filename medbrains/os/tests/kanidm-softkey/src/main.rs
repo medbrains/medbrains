@@ -180,14 +180,24 @@ async fn key_only_cannot_be_locked_out(
     failed: &mut Failures,
 ) -> Result<(), String> {
     person_in_group(admin, "staff.member", "key_only_staff").await?;
-    admin.group_account_policy_enable("key_only_staff").await.map_err(|e| format!("enable: {e:?}"))?;
+    admin
+        .group_account_policy_enable("key_only_staff")
+        .await
+        .map_err(|e| format!("enable: {e:?}"))?;
     admin
         .group_account_policy_credential_type_minimum_set("key_only_staff", "passkey")
         .await
         .map_err(|e| format!("minimum: {e:?}"))?;
     let (who, session, status) = enrol(admin, base, "staff.member").await?;
-    check(failed, "in a key-only group a person can have no password", status.primary_state == CUCredState::PolicyDeny, &format!("{:?}", status.primary_state));
-    let refused = who.idm_account_credential_update_set_password(&session, "Correct-Horse-Battery-Staple-99").await;
+    check(
+        failed,
+        "in a key-only group a person can have no password",
+        status.primary_state == CUCredState::PolicyDeny,
+        &format!("{:?}", status.primary_state),
+    );
+    let refused = who
+        .idm_account_credential_update_set_password(&session, "Correct-Horse-Battery-Staple-99")
+        .await;
     check(failed, "and the server refuses one", refused.is_err(), "");
     let status = who
         .idm_account_credential_update_passkey_init(&session)
@@ -197,22 +207,43 @@ async fn key_only_cannot_be_locked_out(
         return Err("no passkey challenge".to_owned());
     };
     let mut key = SoftPasskey::new(true);
-    let response = key.do_registration(origin.clone(), challenge).map_err(|e| format!("authenticator: {e:?}"))?;
+    let response = key
+        .do_registration(origin.clone(), challenge)
+        .map_err(|e| format!("authenticator: {e:?}"))?;
     who.idm_account_credential_update_passkey_finish(&session, "key".to_owned(), response)
         .await
         .map_err(|e| format!("finish: {e:?}"))?;
-    who.idm_account_credential_update_commit(&session).await.map_err(|e| format!("commit: {e:?}"))?;
+    who.idm_account_credential_update_commit(&session)
+        .await
+        .map_err(|e| format!("commit: {e:?}"))?;
     let started = Instant::now();
     let mut refused = 0;
     for _ in 0..150 {
-        if client(base)?.auth_simple_password("staff.member", "Wrong-Password-1").await.is_err() {
+        if client(base)?
+            .auth_simple_password("staff.member", "Wrong-Password-1")
+            .await
+            .is_err()
+        {
             refused += 1;
         }
     }
-    println!("INFO  150 password guesses took {:?}; refused {refused}", started.elapsed());
-    check(failed, "every password guess is refused", refused == 150, "");
+    println!(
+        "INFO  150 password guesses took {:?}; refused {refused}",
+        started.elapsed()
+    );
+    check(
+        failed,
+        "every password guess is refused",
+        refused == 150,
+        "",
+    );
     let result = sign_in(base, "staff.member", &mut key, origin).await;
-    check(failed, "and the person signs in at once with their key", result.is_ok(), &format!("{result:?}"));
+    check(
+        failed,
+        "and the person signs in at once with their key",
+        result.is_ok(),
+        &format!("{result:?}"),
+    );
     Ok(())
 }
 

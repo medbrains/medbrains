@@ -151,7 +151,9 @@ pub(crate) fn status_sentence(machine: &Machine, main_ready: bool, disk: &str) -
 /// anything else it could say.
 pub(crate) const fn unreachable_sentence(role: &str, main_ready: bool) -> Option<&'static str> {
     match (role.as_bytes(), main_ready) {
-        (b"node", false) => Some("Cannot reach the main machine. This machine keeps trying by itself."),
+        (b"node", false) => {
+            Some("Cannot reach the main machine. This machine keeps trying by itself.")
+        }
         _ => None,
     }
 }

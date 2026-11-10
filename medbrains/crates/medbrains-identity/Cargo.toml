@@ -23,6 +23,7 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 jsonwebtoken = { workspace = true }
 reqwest = { workspace = true }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

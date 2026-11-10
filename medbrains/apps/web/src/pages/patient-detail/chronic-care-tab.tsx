@@ -128,16 +128,7 @@ function DrugOGramSegment({ patientId }: { patientId: string }) {
           <Stack gap={4}>
             {activeAlerts.map((a) => (
               <Group key={a.id} gap="xs">
-                <Badge
-                  tone={
-                    a.severity === "contraindicated"
-                      ? "danger"
-                      : a.severity === "major"
-                        ? "warning"
-                        : "warning"
-                  }
-                  size="sm"
-                >
+                <Badge tone={a.severity === "contraindicated" ? "danger" : "warning"} size="sm">
                   {a.severity}
                 </Badge>
                 <Text size="sm">
@@ -179,7 +170,7 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
     {},
   );
 
-  const drugNames = Object.keys(drugEvents).sort();
+  const drugNames = Object.keys(drugEvents).sort((a, b) => a.localeCompare(b));
 
   // Calculate time range
   const allDates = medication_events.map((e) => new Date(e.effective_date).getTime());

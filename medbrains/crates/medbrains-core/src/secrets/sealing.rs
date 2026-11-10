@@ -16,9 +16,17 @@ const MIN_KEY_LEN: usize = 32;
 /// someone forgot to configure must fail closed, and `cargo run` must keep working.
 #[must_use]
 pub fn environment_name(raw: Option<&str>) -> String {
-    let name = raw.map(str::trim).filter(|v| !v.is_empty()).map(str::to_lowercase);
+    let name = raw
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_lowercase);
     name.unwrap_or_else(|| {
-        if cfg!(debug_assertions) { DEVELOPMENT } else { PRODUCTION }.to_owned()
+        if cfg!(debug_assertions) {
+            DEVELOPMENT
+        } else {
+            PRODUCTION
+        }
+        .to_owned()
     })
 }
 
@@ -80,7 +88,10 @@ fn decide(
         Ok(_) => Err(SealingKeyError::TooShort(name.to_owned())),
         Err(SecretError::NotFound(_)) if development => Ok(dev_key.to_vec()),
         Err(SecretError::NotFound(_)) => Err(SealingKeyError::NotSet(name.to_owned())),
-        Err(e) => Err(SealingKeyError::Unreadable { key: name.to_owned(), reason: e.to_string() }),
+        Err(e) => Err(SealingKeyError::Unreadable {
+            key: name.to_owned(),
+            reason: e.to_string(),
+        }),
     }
 }
 
@@ -108,7 +119,10 @@ mod tests {
     fn the_public_key_is_only_for_an_unset_key_in_development() {
         let unset = || Err(SecretError::NotFound("K".to_owned()));
         assert_eq!(decide(unset(), "K", DEV, true), Ok(DEV.to_vec()));
-        assert_eq!(decide(unset(), "K", DEV, false), Err(SealingKeyError::NotSet("K".to_owned())));
+        assert_eq!(
+            decide(unset(), "K", DEV, false),
+            Err(SealingKeyError::NotSet("K".to_owned()))
+        );
     }
 
     #[test]
@@ -129,7 +143,10 @@ mod tests {
             assert_eq!(short, Err(SealingKeyError::TooShort("K".to_owned())));
         }
         let long = "x".repeat(32);
-        assert_eq!(decide(Ok(long.clone()), "K", DEV, false), Ok(long.into_bytes()));
+        assert_eq!(
+            decide(Ok(long.clone()), "K", DEV, false),
+            Ok(long.into_bytes())
+        );
     }
 
     #[test]

@@ -879,11 +879,21 @@ pub async fn require_patient_pharmacy_access(
     let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     let items: Vec<(String, medbrains_authz::Relation, Uuid)> = order_ids
         .into_iter()
-        .map(|id| ("pharmacy_order".to_owned(), medbrains_authz::Relation::Viewer, id))
+        .map(|id| {
+            (
+                "pharmacy_order".to_owned(),
+                medbrains_authz::Relation::Viewer,
+                id,
+            )
+        })
         .collect();
     let reachable = match state.authz.bulk_check(&ctx, &items).await {
         Ok(results) => any(results.values().map(|&allowed| {
-            if allowed { Outcome::Allow } else { Outcome::Deny }
+            if allowed {
+                Outcome::Allow
+            } else {
+                Outcome::Deny
+            }
         })),
         Err(err) => {
             tracing::error!(target: "authz", error = %err, check = "patient_pharmacy",

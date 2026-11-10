@@ -51,15 +51,15 @@ export function BillingTab({ patientId }: { patientId: string }) {
     if (!invoices) return { total: 0, paid: 0, balance: 0 };
     return invoices.reduce(
       (acc, inv) => ({
-        total: acc.total + parseFloat(inv.total_amount),
-        paid: acc.paid + parseFloat(inv.paid_amount),
-        balance: acc.balance + parseFloat(inv.balance),
+        total: acc.total + Number.parseFloat(inv.total_amount),
+        paid: acc.paid + Number.parseFloat(inv.paid_amount),
+        balance: acc.balance + Number.parseFloat(inv.balance),
       }),
       { total: 0, paid: 0, balance: 0 },
     );
   }, [invoices]);
   const pendingInvoices = useMemo(
-    () => (invoices ?? []).filter((inv) => parseFloat(inv.balance) > 0.004),
+    () => (invoices ?? []).filter((inv) => Number.parseFloat(inv.balance) > 0.004),
     [invoices],
   );
 
@@ -311,7 +311,7 @@ export function BillingTab({ patientId }: { patientId: string }) {
                   </Text>
                 </Table.Td>
                 <Table.Td ta="right">
-                  <Text size="sm" c={parseFloat(inv.balance) > 0 ? "danger" : undefined}>
+                  <Text size="sm" c={Number.parseFloat(inv.balance) > 0 ? "danger" : undefined}>
                     {formatMoney(inv.balance)}
                   </Text>
                 </Table.Td>

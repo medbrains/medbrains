@@ -281,8 +281,12 @@ export function buildJourneyActionCoverage(
       activationEvents: action.activatesAfter,
       blockingControls: action.blockingControls ?? [],
       routeTargets: actionRouteTargets(action.id),
-      matchedSurfaceIds: matchedSurfaces.map((surface) => surface.id).sort(),
-      matchedSurfaceKinds: [...new Set(matchedSurfaces.map((surface) => surface.kind))].sort(),
+      matchedSurfaceIds: matchedSurfaces
+        .map((surface) => surface.id)
+        .sort((a, b) => a.localeCompare(b)),
+      matchedSurfaceKinds: [...new Set(matchedSurfaces.map((surface) => surface.kind))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
       missingPermissions: missingPermissions(action, permissions),
       missingActivationEvents: activationSatisfied(action, events) ? [] : action.activatesAfter,
       gaps,

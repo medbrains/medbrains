@@ -353,7 +353,11 @@ async fn the_expected_cut_follows_the_bill_when_the_list_is_read() {
     )
     .await
     .unwrap();
-    let cuts: Vec<_> = listed.data.iter().map(|r| (r.patient_id, r.amount)).collect();
+    let cuts: Vec<_> = listed
+        .data
+        .iter()
+        .map(|r| (r.patient_id, r.amount))
+        .collect();
     assert_eq!(
         cuts,
         vec![

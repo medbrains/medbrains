@@ -96,15 +96,24 @@ export function GeoSettings() {
         Promise.all([
           tenantSettingsService.getTenantSettings("units"),
           tenantSettingsService.getTenantSettings("locale"),
-        ]).then(([units, locale]) => {
-          useLocaleStore.getState().setFromTenantSettings(
-            [...units, ...locale].map((r) => ({
-              category: r.category,
-              key: r.key,
-              value: r.value,
-            })),
+        ])
+          .then(([units, locale]) => {
+            useLocaleStore.getState().setFromTenantSettings(
+              [...units, ...locale].map((r) => ({
+                category: r.category,
+                key: r.key,
+                value: r.value,
+              })),
+            );
+          })
+          // The defaults are saved; only this screen's copy is stale until reload.
+          .catch(() =>
+            notifications.show({
+              title: "Reload to see the new units",
+              message: "The defaults were saved, but this screen could not read them back.",
+              color: "yellow",
+            }),
           );
-        });
 
         void queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
 

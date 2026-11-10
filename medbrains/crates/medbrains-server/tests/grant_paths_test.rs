@@ -67,7 +67,12 @@ async fn a_role_code_rename_is_refused_when_it_would_move_codes() {
     .expect("an unheld built-in role");
     let rename = |code: &str| json!({ "code": code, "name": "Front desk renamed" });
     let url = |id: &str| app.url(&format!("/api/setup/roles/{id}"));
-    let (status, body) = send(&admin, admin.client.put(url(&system)), rename(&format!("x{t}"))).await;
+    let (status, body) = send(
+        &admin,
+        admin.client.put(url(&system)),
+        rename(&format!("x{t}")),
+    )
+    .await;
     assert_eq!(status, StatusCode::CONFLICT, "a built-in role: {body}");
 
     let (status, role) = send(
@@ -91,15 +96,21 @@ async fn a_role_code_rename_is_refused_when_it_would_move_codes() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let (status, body) = send(&admin, admin.client.put(url(&custom)), rename(&pending)).await;
     assert_eq!(status, StatusCode::CONFLICT, "to a code given out: {body}");
-    let (status, body) =
-        send(&admin, admin.client.put(url(&custom)), rename(&format!("d{t}"))).await;
+    let (status, body) = send(
+        &admin,
+        admin.client.put(url(&custom)),
+        rename(&format!("d{t}")),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "an unused custom role: {body}");
 
-    let with = |codes: &[&str]| {
-        json!({ "code": format!("d{t}"), "name": "Custom renamed", "permissions": codes })
-    };
-    let (status, body) =
-        send(&manager, manager.client.put(url(&custom)), with(&[HELD, LACKED])).await;
+    let with = |codes: &[&str]| json!({ "code": format!("d{t}"), "name": "Custom renamed", "permissions": codes });
+    let (status, body) = send(
+        &manager,
+        manager.client.put(url(&custom)),
+        with(&[HELD, LACKED]),
+    )
+    .await;
     assert_refused_naming(status, &body, "update_role with codes");
     let (status, body) = send(&manager, manager.client.put(url(&custom)), with(&[])).await;
     assert_eq!(status, StatusCode::OK, "dropping codes: {body}");
@@ -140,8 +151,12 @@ async fn every_account_path_grants_only_held_codes() {
     .await;
     assert_refused_naming(status, &body, "CSV import with a wider role");
 
-    let target = common::provision_staff_with(&app, &admin.csrf, "receptionist", &[], &[LACKED]).await;
-    let matrix = app.url(&format!("/api/setup/users/{}/access-matrix", target.user_id));
+    let target =
+        common::provision_staff_with(&app, &admin.csrf, "receptionist", &[], &[LACKED]).await;
+    let matrix = app.url(&format!(
+        "/api/setup/users/{}/access-matrix",
+        target.user_id
+    ));
     let lift = json!({ "extra_permissions": [], "denied_permissions": [] });
     let (status, body) = send(&manager, manager.client.put(&matrix), lift).await;
     assert_refused_naming(status, &body, "lifting a denial");
@@ -158,7 +173,9 @@ async fn every_account_path_grants_only_held_codes() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "an HR bypass login: {body}");
     assert!(
-        body["detail"].as_str().is_some_and(|d| d.contains("super_admin role")),
+        body["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("super_admin role")),
         "refused for the role, not something else: {body}"
     );
 }
@@ -185,8 +202,12 @@ async fn the_workbook_cannot_grant_beyond_the_caller_or_change_their_row() {
     };
     let upload = app.url("/api/setup/workbook/import");
 
-    let (status, body) =
-        send(&manager, manager.client.post(&upload), sheet(&format!("ws{t}"), WIDER_ROLE)).await;
+    let (status, body) = send(
+        &manager,
+        manager.client.post(&upload),
+        sheet(&format!("ws{t}"), WIDER_ROLE),
+    )
+    .await;
     assert_refused_naming(status, &body, "a sheet with a wider role");
 
     let (status, body) = send(&manager, manager.client.post(&upload), sheet(&me, "nurse")).await;
@@ -215,11 +236,19 @@ async fn the_onboarding_wizard_grants_only_held_roles() {
     };
     let url = app.url("/api/onboarding/setup");
 
-    let (status, body) =
-        send(&manager, manager.client.post(&url), wizard(person(&t, "ob", "super_admin"))).await;
+    let (status, body) = send(
+        &manager,
+        manager.client.post(&url),
+        wizard(person(&t, "ob", "super_admin")),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "a bypass account: {body}");
-    let (status, body) =
-        send(&manager, manager.client.post(&url), wizard(person(&t, "ow", WIDER_ROLE))).await;
+    let (status, body) = send(
+        &manager,
+        manager.client.post(&url),
+        wizard(person(&t, "ow", WIDER_ROLE)),
+    )
+    .await;
     assert_refused_naming(status, &body, "a wider account");
 }
 
@@ -231,7 +260,10 @@ async fn field_access_opens_no_wider_than_the_caller_sees() {
     let admin = admin(&app).await;
     let manager = manager_with(&app, &admin, &[]).await;
     const FIELD: &str = "patients.preferred_language";
-    let own = app.url(&format!("/api/setup/users/{}/access-matrix", manager.user_id));
+    let own = app.url(&format!(
+        "/api/setup/users/{}/access-matrix",
+        manager.user_id
+    ));
     let (status, body) = send(
         &admin,
         admin.client.put(&own),
@@ -242,13 +274,17 @@ async fn field_access_opens_no_wider_than_the_caller_sees() {
     let manager = sign_in_again(&app, &manager).await;
 
     let target = common::provision_staff(&app, &admin.csrf, "receptionist", &[]).await;
-    let matrix = app.url(&format!("/api/setup/users/{}/access-matrix", target.user_id));
-    let level = |l: &str| {
-        json!({ "extra_permissions": [], "denied_permissions": [], "field_access": { FIELD: l } })
-    };
+    let matrix = app.url(&format!(
+        "/api/setup/users/{}/access-matrix",
+        target.user_id
+    ));
+    let level = |l: &str| json!({ "extra_permissions": [], "denied_permissions": [], "field_access": { FIELD: l } });
     let (status, body) = send(&manager, manager.client.put(&matrix), level("view")).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
-    assert!(body["detail"].as_str().is_some_and(|d| d.contains(FIELD)), "{body}");
+    assert!(
+        body["detail"].as_str().is_some_and(|d| d.contains(FIELD)),
+        "{body}"
+    );
     let (status, body) = send(&manager, manager.client.put(&matrix), level("mask")).await;
     assert_eq!(status, StatusCode::OK, "as the manager sees it: {body}");
     let (status, body) = send(&manager, manager.client.put(&matrix), level("hidden")).await;

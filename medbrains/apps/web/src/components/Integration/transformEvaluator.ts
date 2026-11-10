@@ -5,6 +5,7 @@ import type {
   MappingSource,
   TransformStep,
 } from "@medbrains/types";
+import { evaluateArithmetic } from "./arithmetic";
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -109,14 +110,7 @@ function combineValues(
         result = replaceAll(result, placeholder, String(toNumber(values[i])));
         result = replaceAll(result, indexed, String(toNumber(values[i])));
       });
-      try {
-        if (/^[\d\s+\-*/().]+$/.test(result)) {
-          return new Function(`return (${result})`)() as number;
-        }
-        return result;
-      } catch {
-        return result;
-      }
+      return evaluateArithmetic(result) ?? result;
     }
     default:
       return values[0];
@@ -480,14 +474,7 @@ function applyOperation(
           let result = expr;
           result = replaceAll(result, "{{current}}", String(toNumber(input)));
           result = replaceAll(result, "{{merged}}", String(toNumber(mergeValue)));
-          try {
-            if (/^[\d\s+\-*/().]+$/.test(result)) {
-              return new Function(`return (${result})`)() as number;
-            }
-            return result;
-          } catch {
-            return result;
-          }
+          return evaluateArithmetic(result) ?? result;
         }
         default:
           return `${toStringValue(input)} ${toStringValue(mergeValue)}`;

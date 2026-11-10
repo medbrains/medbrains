@@ -440,7 +440,7 @@ pub async fn ingest_receipt(
     if updated.is_none() {
         tx.commit().await?;
         tracing::info!(
-            message = %body.message_id,
+            message_id = %body.message_id,
             status = %terminal,
             "delivery receipt matched nothing — unknown, or already terminal"
         );

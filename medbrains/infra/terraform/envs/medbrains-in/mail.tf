@@ -51,10 +51,12 @@ resource "godaddy-dns_record" "mail_from_spf" {
 
 # The app's SMTP login: may send only as this domain.
 resource "aws_iam_user" "ses_smtp" {
+  #checkov:skip=CKV_AWS_273: SES SMTP authenticates only with an IAM user's derived SMTP password; there is no SSO path for an SMTP client
   name = "medbrains-in-ses-smtp"
 }
 
 resource "aws_iam_user_policy" "ses_smtp" {
+  #checkov:skip=CKV_AWS_40: one single-purpose service user; a group of one would add a resource without narrowing what it can do (send as this domain only)
   name = "send-as-${var.company_domain}"
   user = aws_iam_user.ses_smtp.name
   policy = jsonencode({
@@ -88,8 +90,16 @@ resource "aws_sesv2_configuration_set" "mail" {
   }
 }
 
+# Bounce and complaint notices carry recipient addresses (PII).
+module "ses_feedback_key" {
+  source             = "../../modules/sns-kms-key"
+  name               = "medbrains-in-ses-feedback"
+  service_principals = ["ses.amazonaws.com"]
+}
+
 resource "aws_sns_topic" "ses_feedback" {
-  name = "medbrains-in-ses-feedback"
+  name              = "medbrains-in-ses-feedback"
+  kms_master_key_id = module.ses_feedback_key.key_arn
 }
 
 resource "aws_sns_topic_policy" "ses_feedback" {

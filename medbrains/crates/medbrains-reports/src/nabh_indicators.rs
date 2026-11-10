@@ -1,5 +1,5 @@
 // NABH KPI dashboard rollup.
-use axum::routing::{get};
+use axum::routing::get;
 //
 // Pulls aggregates from the modules we already have data for (lab,
 // radiology, ipd, opd, emergency, pharmacy, post-discharge). Each
@@ -1311,9 +1311,5 @@ async fn scalar_minutes(
 
 /// nabh_indicators routes.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route(
-            "/api/nabh/indicators",
-            get(get_indicators),
-        )
+    axum::Router::new().route("/api/nabh/indicators", get(get_indicators))
 }

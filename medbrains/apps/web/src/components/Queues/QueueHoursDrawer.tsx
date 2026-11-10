@@ -158,7 +158,7 @@ export function QueueHoursDrawer({ queue, onClose }: QueueHoursDrawerProps) {
                       <Chip.Group
                         multiple
                         value={days.value.map(String)}
-                        onChange={(value) => days.onChange(value.map(Number).sort())}
+                        onChange={(value) => days.onChange(value.map(Number).sort((a, b) => a - b))}
                       >
                         <Group gap={6} role="group" aria-labelledby={`session-days-${index}`}>
                           {WEEKDAYS.map((day, i) => (

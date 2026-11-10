@@ -34,12 +34,20 @@ pub const REFUSED_AFTER_WRONG_CODES: &str = "Three wrong codes. This request was
 
 /// What to tell the person after a wrong code, given the request's status once it was counted.
 fn wrong_code_message(status: &str) -> &'static str {
-    if status == "denied" { REFUSED_AFTER_WRONG_CODES } else { WRONG_CODE }
+    if status == "denied" {
+        REFUSED_AFTER_WRONG_CODES
+    } else {
+        WRONG_CODE
+    }
 }
 
 /// Compares without stopping at the first difference.
 pub(crate) fn constant_time_eq(a: &str, b: &str) -> bool {
-    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0_u8, |diff, (x, y)| diff | (x ^ y)) == 0
+    a.len() == b.len()
+        && a.bytes()
+            .zip(b.bytes())
+            .fold(0_u8, |diff, (x, y)| diff | (x ^ y))
+            == 0
 }
 
 /// A machine waiting for a person.
@@ -283,13 +291,18 @@ pub async fn approve_machine(
         let details = serde_json::json!({ "node_id": node_id, "label": label });
         audit(&mut tx, &claims, "machine.wrong_code", id, &details).await?;
         tx.commit().await?;
-        return Err(AppError::ForbiddenReason(wrong_code_message(&status).to_owned()));
+        return Err(AppError::ForbiddenReason(
+            wrong_code_message(&status).to_owned(),
+        ));
     }
     let device = admit_machine(&mut tx, &claims, id, (&node_id, &label, &variant)).await?;
     let details = serde_json::json!({ "node_id": node_id, "label": label, "type": variant });
     audit(&mut tx, &claims, "machine.approved", device, &details).await?;
     tx.commit().await?;
-    Ok(Json(ApprovedMachine { id: device, confirm_code: second_code(&mut tx_read(&state, &claims).await?, device).await? }))
+    Ok(Json(ApprovedMachine {
+        id: device,
+        confirm_code: second_code(&mut tx_read(&state, &claims).await?, device).await?,
+    }))
 }
 
 /// `POST /api/admin/machines/{id}/confirm-code`: the second code again, for a person who closed the
@@ -302,7 +315,14 @@ pub async fn machine_confirm_code(
     require_permission(&claims, machines::APPROVE)?;
     let mut tx = tx_read(&state, &claims).await?;
     let confirm_code = second_code(&mut tx, id).await?;
-    audit(&mut tx, &claims, "machine.confirm_code_shown", id, &serde_json::json!({})).await?;
+    audit(
+        &mut tx,
+        &claims,
+        "machine.confirm_code_shown",
+        id,
+        &serde_json::json!({}),
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(ApprovedMachine { id, confirm_code }))
 }
@@ -337,9 +357,12 @@ pub async fn reject_machine(
     require_permission(&claims, machines::APPROVE)?;
     let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     let (node_id, _, label, _) = lock_waiting(&mut tx, claims.tenant_id, id).await?;
-    sqlx::query!("UPDATE device_pairing_requests SET status = 'denied' WHERE id = $1", id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query!(
+        "UPDATE device_pairing_requests SET status = 'denied' WHERE id = $1",
+        id
+    )
+    .execute(&mut *tx)
+    .await?;
     let details = serde_json::json!({ "node_id": node_id, "label": label });
     audit(&mut tx, &claims, "machine.rejected", id, &details).await?;
     tx.commit().await?;
@@ -377,7 +400,14 @@ pub async fn remove_machine(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    audit(&mut tx, &claims, "machine.removed", id, &serde_json::json!({})).await?;
+    audit(
+        &mut tx,
+        &claims,
+        "machine.removed",
+        id,
+        &serde_json::json!({}),
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -387,9 +417,18 @@ pub fn admin_router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/admin/machines", get(list_machines))
         .route("/api/admin/machines/{id}", delete(remove_machine))
-        .route("/api/admin/machines/requests/{id}/approve", post(approve_machine))
-        .route("/api/admin/machines/{id}/confirm-code", post(machine_confirm_code))
-        .route("/api/admin/machines/requests/{id}/reject", post(reject_machine))
+        .route(
+            "/api/admin/machines/requests/{id}/approve",
+            post(approve_machine),
+        )
+        .route(
+            "/api/admin/machines/{id}/confirm-code",
+            post(machine_confirm_code),
+        )
+        .route(
+            "/api/admin/machines/requests/{id}/reject",
+            post(reject_machine),
+        )
 }
 
 #[cfg(test)]
