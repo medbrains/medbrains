@@ -6,6 +6,8 @@ describe("stripRawExpressions", () => {
     expect(stripRawExpressions("{{{name}}}")).toBe("{{name}}");
     expect(stripRawExpressions("{{&name}}")).toBe("{{name}}");
     expect(stripRawExpressions("{{{{name}}}}")).toBe("{{name}}");
+    expect(stripRawExpressions("{{~{name}~}}")).toBe("{{~name~}}");
+    expect(stripRawExpressions("{{~{name}}}")).toBe("{{~name}}");
   });
 
   it("stays fast on a long run of braces", () => {
@@ -16,6 +18,11 @@ describe("stripRawExpressions", () => {
 });
 
 describe("renderTemplate", () => {
+  it("escapes HTML even through whitespace-control triple-stash", () => {
+    const out = renderTemplate("{{~{name}~}}", { name: "<b>x</b>" });
+    expect(out).not.toContain("<b>");
+  });
+
   it("escapes HTML from a user template that asked for raw output", () => {
     const out = renderTemplate("{{{x}}}", { x: "<script>" });
     expect(JSON.stringify(out)).not.toContain("<script>");

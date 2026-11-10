@@ -110,7 +110,7 @@ function createIsolatedEnvironment(options?: TemplateOptions): typeof Handlebars
  * Only system templates (allowRawOutput=true) can use {{{raw}}}.
  */
 export function stripRawExpressions(template: string): string {
-  // {{{x}}} -> {{x}} and {{&x}} -> {{x}} (both force escaping). The body excludes "{"
+  // {{{x}}} -> {{x}}, {{~{x}~}} -> {{~x~}} and {{&x}} -> {{x}} (both force escaping). The body excludes "{"
   // so the scan stays linear; repeating until stable also unwraps {{{{raw}}}} blocks,
   // which a single pass left as {{{raw}}}. Each pass that changes anything shortens
   // the string, so the loop is bounded by its length.
@@ -118,7 +118,9 @@ export function stripRawExpressions(template: string): string {
   let previous: string;
   do {
     previous = current;
-    current = current.replace(/\{\{\{([^{}]+)\}\}\}/g, "{{$1}}").replace(/\{\{(~?)\s*&/g, "{{$1");
+    current = current
+      .replace(/\{\{(~?)\{([^{}]+)\}(~?)\}\}/g, "{{$1$2$3}}")
+      .replace(/\{\{(~?)\s*&/g, "{{$1");
   } while (current !== previous);
   return current;
 }
