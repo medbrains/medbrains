@@ -1,6 +1,6 @@
 # MedBrains OS: the sealed system partition
 
-Status: built 2026-11-10 (plan T1, "verity"). The equivalent of macOS's Signed System Volume: the system
+Status: built 2026-11-10 (plan T1, "verity"), in review; three update-apply scenarios still fail (`OS-UPDATES.md`, What is proved). The equivalent of macOS's Signed System Volume: the system
 partition is read-only and every block of it is checked against a hash the signed boot file carries. A
 system changed by anyone, online or with the disk in their hands, does not run. Class A: failure table below.
 
