@@ -24,7 +24,7 @@ Available font scheme ids:
 - `manrope_nunito` — warmer demo option
 - `nunito_manrope` — softer and friendlier
 - `system_premium` — uses system Avenir Next if available, then Manrope/Nunito Sans
-- `previous_ibm_plex` — active default: IBM Plex Sans, Noto Sans, system fallback
+- `previous_ibm_plex` — active default: MedBrains Sans (derived from IBM Plex Sans, OFL; see `docs/design/fonts/MEDBRAINS-SANS.md`), Noto Sans, system fallback
 
 ## Selection Rule
 

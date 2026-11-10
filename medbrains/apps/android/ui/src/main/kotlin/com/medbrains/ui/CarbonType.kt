@@ -8,7 +8,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /**
- * MedBrains Sans (IBM Plex Sans with the slashed zero by default), bundled as res/font
+ * MedBrains Sans (IBM Plex Sans with Atkinson Hyperlegible Next's b d p q l 1, slashed zero,
+ * spacing +12, Regular cut at weight 440), bundled as res/font
  * (SIL OFL 1.1, assets/licenses/OFL.txt). Built by tools/fonts/build_medbrains_sans.py.
  */
 val MedBrainsSans = FontFamily(

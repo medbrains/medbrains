@@ -260,7 +260,8 @@ export const letterSpacing = {
 } as const;
 
 /**
- * Font stacks. Sans is MedBrains Sans (IBM Plex Sans, slashed zero by default; see
+ * Font stacks. Sans is MedBrains Sans (IBM Plex Sans with Atkinson Hyperlegible Next's
+ * b d p q l 1, slashed zero, spacing +12, body at weight 440; see
  * docs/design/fonts/MEDBRAINS-SANS.md), self-hosted by `styles/fonts.css`, whose family also carries
  * Noto Sans Devanagari and Tamil by unicode-range. Noto's Devanagari headline sits at its Latin cap
  * height and Plex's cap height is 98% of Noto's, so they pair at the same size with no adjustment.

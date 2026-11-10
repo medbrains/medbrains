@@ -2,8 +2,8 @@ import CoreText
 import SwiftUI
 import UIKit
 
-/// MedBrains Sans (IBM Plex Sans with the slashed zero by default) and IBM Plex
-/// Mono, bundled with the package (SIL OFL 1.1, Fonts/OFL.txt) and
+/// MedBrains Sans (IBM Plex Sans with Atkinson Hyperlegible Next's b d p q l 1,
+/// slashed zero, spacing +12, Regular cut at weight 440) and IBM Plex Mono, bundled with the package (SIL OFL 1.1, Fonts/OFL.txt) and
 /// registered once at launch. Every size is Dynamic-Type relative so a
 /// nurse who scales text still gets the Carbon scale, larger.
 public enum CarbonType {
