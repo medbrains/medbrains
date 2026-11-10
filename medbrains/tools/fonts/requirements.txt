@@ -1,0 +1,5 @@
+# Pinned so the committed fonts rebuild byte for byte (make check-fonts).
+fonttools==4.68.0
+brotli==1.2.1
+# Only the review sheet (tools/fonts/render_samples.py) needs Pillow; its wheels bundle raqm.
+pillow==13.0.0

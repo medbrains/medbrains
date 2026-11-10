@@ -476,7 +476,7 @@ in software, and everything else moves by under 20. Cairo stays.
 **Kanidm's look.** Every page Kanidm draws (sign-in, password change, people, groups, both themes) is dressed through the one
 stylesheet it loads after its own, so its templates are not patched. `kanidm-tokens.py` prints the design system's `--mb-*` tokens
 for its light and dark themes from `packages/design-system`, and the build refuses tokens that miss WCAG 2.2 AA; `kanidm-override.css`
-uses only those, with square corners, bottom-rule fields, IBM Plex from the web app and a 2px focus outline.
+uses only those, with square corners, bottom-rule fields, MedBrains Sans and IBM Plex Mono from the web app and a 2px focus outline.
 
 ## Linux hardening
 

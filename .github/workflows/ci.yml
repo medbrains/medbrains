@@ -168,6 +168,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_size_budgets.py --self-test
           python3 medbrains/scripts/check_size_budgets.py
+      # The committed MedBrains Sans files must be exactly what the pinned build makes, so nobody
+      # edits a font by hand and the IBM Plex source stays recorded.
+      - name: Committed fonts match their build
+        run: |
+          python3 -m pip install --quiet -r medbrains/tools/fonts/requirements.txt
+          python3 -I medbrains/tools/fonts/build_medbrains_sans.py --check
       # The TypeScript SDK and its conformance suite run under `pnpm run test`
       # (web job); the Python SDK has no other runner.
       - name: Python SDK speaks the extension protocol

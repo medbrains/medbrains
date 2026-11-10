@@ -258,10 +258,17 @@ export const letterSpacing = {
   capsLoose: "0.14em",
 } as const;
 
-/** Font stacks. Web uses IBM Plex; native apps map these to their installed RN font families. */
+/**
+ * Font stacks. Sans is MedBrains Sans (IBM Plex Sans, slashed zero by default; see
+ * docs/design/fonts/MEDBRAINS-SANS.md), self-hosted by `styles/fonts.css`, whose family also carries
+ * Noto Sans Devanagari and Tamil by unicode-range. Noto's Devanagari headline sits at its Latin cap
+ * height and Plex's cap height is 98% of Noto's, so they pair at the same size with no adjustment.
+ * "MedBrains Sans Fallback" is local Arial resized to the same metrics, shown until the font
+ * arrives, so nothing moves on swap. Other Indian scripts use Noto where the device has it.
+ */
 export const fontFamily = {
-  sans: "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Tamil', sans-serif",
-  display: "'IBM Plex Sans', 'IBM Plex Serif', Georgia, serif",
+  sans: "'MedBrains Sans', 'MedBrains Sans Fallback', 'Noto Sans Bengali', 'Noto Sans Telugu', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Oriya', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', sans-serif",
+  display: "'MedBrains Sans', 'MedBrains Sans Fallback', 'IBM Plex Serif', Georgia, serif",
   mono: "'IBM Plex Mono', 'SF Mono', ui-monospace, Menlo, monospace",
 } as const;
 
