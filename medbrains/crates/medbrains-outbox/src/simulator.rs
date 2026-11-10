@@ -39,10 +39,13 @@ pub async fn capture(
     // bypass RLS on every deployment.
     let fail = |error: sqlx::Error| HandlerError::Transient(format!("simulator capture: {error}"));
     let mut tx = ctx.pool.begin().await.map_err(fail)?;
-    sqlx::query!("SELECT set_config('app.tenant_id', $1, true)", ctx.tenant_id.to_string())
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(fail)?;
+    sqlx::query!(
+        "SELECT set_config('app.tenant_id', $1, true)",
+        ctx.tenant_id.to_string()
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(fail)?;
     let id = sqlx::query_scalar!(
         "INSERT INTO simulated_messages \
            (tenant_id, channel, recipient, event_type, subject, body, attachments, \
@@ -95,18 +98,21 @@ mod tests {
         let payload = json!({
             "template_name": "patient_welcome",
             "components": [{ "type": "body", "parameters": [
-                { "type": "text", "text": "Asha" }, { "type": "text", "text": "AMH-000123" }
+                { "type": "text", "text": "Asha" }, { "type": "text", "text": "HOSPA-000123" }
             ]}]
         });
         assert_eq!(
             whatsapp_text(&payload).as_deref(),
-            Some("[patient_welcome] Asha · AMH-000123")
+            Some("[patient_welcome] Asha · HOSPA-000123")
         );
     }
 
     #[test]
     fn free_text_wins_and_nothing_to_show_is_none() {
-        assert_eq!(whatsapp_text(&json!({ "text": "hi" })).as_deref(), Some("hi"));
+        assert_eq!(
+            whatsapp_text(&json!({ "text": "hi" })).as_deref(),
+            Some("hi")
+        );
         assert_eq!(whatsapp_text(&json!({ "to": "+91" })), None);
     }
 }

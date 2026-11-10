@@ -112,7 +112,7 @@ mod tests {
             <p>Total: {{ invoice.total }}</p>
         {% endblock content %}"#;
         let ctx = serde_json::json!({
-            "branding": { "hospital_name": "Alagappa Hospital" },
+            "branding": { "hospital_name": "Example Hospital" },
             "watermark": "duplicate",
             "invoice": { "number": "INV-000123", "total": "1,250.00" },
             "document_number": "BIL-20260612-0001",
@@ -120,7 +120,7 @@ mod tests {
         let html = render_html(template, &ctx).expect("render");
         assert!(html.contains("Invoice INV-000123"));
         assert!(html.contains("1,250.00"));
-        assert!(html.contains("Alagappa Hospital"));
+        assert!(html.contains("Example Hospital"));
         assert!(html.contains("DUPLICATE"));
     }
 

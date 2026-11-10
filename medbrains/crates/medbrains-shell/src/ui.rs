@@ -9,11 +9,13 @@ use crate::api::{Machine, Network};
 /// Space between controls. Carbon's 8px mini-unit, doubled.
 pub(crate) const GAP: i32 = 16;
 /// Width of a form on the setup screens.
-const FORM_WIDTH: i32 = 640;
+pub(crate) const FORM_WIDTH: i32 = 640;
 /// Longest line of text, in characters, so a sentence wraps instead of widening its card.
 const MEASURE: i32 = 64;
 /// How long a page takes to fade in.
 const FADE_MS: u32 = 160;
+/// The crab, the design system's mascot, as `os/shell-tokens.py` draws it in the brand colours.
+const CRAB: &[u8] = include_bytes!("../assets/crab.svg");
 const KIB: u64 = 1024;
 const MIB: u64 = KIB * KIB;
 const GIB: u64 = KIB * MIB;
@@ -37,6 +39,21 @@ pub(crate) fn line(text: &str, class: &str) -> gtk::Label {
     let label = label(text, class);
     label.set_wrap(false);
     label
+}
+
+/// The mascot at a size. It only decorates, so a screen reader passes over it, and a picture that
+/// will not load leaves an empty space, never an error.
+pub(crate) fn mascot(size: i32) -> gtk::Image {
+    let image = gtk::Image::builder()
+        .pixel_size(size)
+        .accessible_role(gtk::AccessibleRole::Presentation)
+        .build();
+    image.add_css_class("mascot");
+    let picture = gtk::gdk::Texture::from_bytes(&gtk::glib::Bytes::from_static(CRAB));
+    if let Ok(texture) = picture {
+        image.set_paintable(Some(&texture));
+    }
+    image
 }
 
 /// A push button with text.

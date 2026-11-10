@@ -143,7 +143,7 @@ permission. Built from the `@/components/ui` seam; no new page monster (extract 
 
 ## 9. Implemented: Humanex adapter (2026-10-09)
 
-Alagappa runs **Humanex** as its HRMIS (system of record for employee master,
+The first client hospital runs **Humanex** as its HRMIS (system of record for employee master,
 lifecycle, attendance, leave, training, appraisals). P1 ships it as the first
 adapter, ahead of Frappe HR / Darwinbox.
 

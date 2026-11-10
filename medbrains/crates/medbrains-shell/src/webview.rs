@@ -64,6 +64,9 @@ const NETWORK_PROCESS_LIMIT_MB: u32 = 128;
 /// Share of the limit at which caches are dropped, then compiled code too.
 const CONSERVATIVE_SHARE: f64 = 0.5;
 const STRICT_SHARE: f64 = 0.65;
+// Caches go before compiled code, and both well before the limit, so the page slows a little rather
+// than running out. Checked when the shell is compiled.
+const _: () = assert!(CONSERVATIVE_SHARE < STRICT_SHARE && STRICT_SHARE < 1.0);
 
 /// The memory pressure thresholds for one WebKit process.
 fn pressure(limit_mb: u32) -> MemoryPressureSettings {
@@ -174,15 +177,7 @@ fn forget_sign_in_on_sign_out(view: &WebView, session: &NetworkSession, origin: 
 
 #[cfg(test)]
 mod tests {
-    use super::{CONSERVATIVE_SHARE, STRICT_SHARE, is_local_page, is_sign_in_page};
-
-    /// Caches go before compiled code, and both well before the limit, so the page slows a
-    /// little rather than running out.
-    #[test]
-    fn memory_is_given_back_in_order_before_the_limit() {
-        assert!(CONSERVATIVE_SHARE < STRICT_SHARE);
-        assert!(STRICT_SHARE < 1.0);
-    }
+    use super::{is_local_page, is_sign_in_page};
 
     /// Only the app's own sign-in page clears the view's cookies, not a page that merely looks like it.
     #[test]

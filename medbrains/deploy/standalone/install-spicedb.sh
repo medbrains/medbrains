@@ -2,7 +2,7 @@
 # Install and manage SpiceDB — the ReBAC graph index MedBrains checks
 # relationships against.
 #
-# This existed on the Alagappa host for months as a hand-installed service
+# This existed on the first client's host for months as a hand-installed service
 # nobody could rebuild: a binary somebody fetched, a unit somebody wrote, a
 # database somebody created, and a schema somebody loaded. It worked, and it
 # would not have survived losing the host. That is the gap this closes.

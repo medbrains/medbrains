@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import MedBrainsKit
 
 /// A username shared by two hospitals is answered with a question, never a
@@ -18,7 +19,8 @@ final class LoginAnswerTests: XCTestCase {
     }
 
     func testASessionIsStillASession() throws {
-        let json = #"{"token":"t","user":{"id":"u","tenant_id":"h","username":"n","full_name":"N"},"permissions":[],"department_ids":[]}"#
+        let json =
+            #"{"token":"t","user":{"id":"u","tenant_id":"h","username":"n","full_name":"N"},"permissions":[],"department_ids":[]}"#
         guard case .signedIn(let session) = try decode(json) else {
             return XCTFail("read as a question")
         }
@@ -28,9 +30,13 @@ final class LoginAnswerTests: XCTestCase {
     func testTheHospitalCodeIsSentOnlyWhenNamed() throws {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
-        let named = String(decoding: try encoder.encode(LoginRequest(username: "n", password: "p", hospitalCode: "AMH")), as: UTF8.self)
-        let unnamed = String(decoding: try encoder.encode(LoginRequest(username: "n", password: "p", hospitalCode: nil)), as: UTF8.self)
-        XCTAssertTrue(named.contains(#""hospital_code":"AMH""#))
+        let named = String(
+            decoding: try encoder.encode(
+                LoginRequest(username: "n", password: "p", hospitalCode: "HOSPA")), as: UTF8.self)
+        let unnamed = String(
+            decoding: try encoder.encode(
+                LoginRequest(username: "n", password: "p", hospitalCode: nil)), as: UTF8.self)
+        XCTAssertTrue(named.contains(#""hospital_code":"HOSPA""#))
         XCTAssertFalse(unnamed.contains("hospital_code"))
     }
 }

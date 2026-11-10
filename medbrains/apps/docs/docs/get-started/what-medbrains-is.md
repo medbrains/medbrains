@@ -1,7 +1,7 @@
 ---
 title: What MedBrains is
 sidebar_position: 2
-description: "MedBrains is free, open-source hospital management software that runs on any OS, works out of the box, follows Indian regulations and creates local IT jobs."
+description: "MedBrains is free, open-source hospital management software that runs on any OS, works out of the box, builds in each country's health regulations and creates local IT jobs, for hospitals anywhere in the world."
 ---
 
 # What MedBrains is

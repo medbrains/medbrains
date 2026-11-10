@@ -2,7 +2,7 @@
 # Create the PACS cloud-copy bucket and a key that can only write to it.
 # Run from an admin workstation with AWS credentials:
 #
-#   ./create-backup-bucket.sh alagappa
+#   ./create-backup-bucket.sh hospital-a
 #
 # Bucket: private, versioned (a deleted image stays recoverable), encrypted,
 # in Mumbai (images stay in India), images moved to cheaper storage after 30
