@@ -86,6 +86,9 @@ fn found_machines(answer: &Value) -> Vec<(String, String)> {
         .collect()
 }
 
+/// Machines found: the words shown for each, and its id.
+type Pairs = Vec<(String, String)>;
+
 /// The parts of the page that change.
 #[derive(Clone)]
 struct Parts {
@@ -101,7 +104,7 @@ struct Parts {
     confirming: gtk::Box,
     finished: Rc<dyn Fn()>,
     /// What the list shows now.
-    shown: Rc<RefCell<Option<Vec<(String, String)>>>>,
+    shown: Rc<RefCell<Option<Pairs>>>,
 }
 
 impl Parts {
