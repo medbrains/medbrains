@@ -6,6 +6,7 @@
 [![For every patient](https://img.shields.io/badge/❤️_For-every_patient-DA1E28?style=for-the-badge)](#why-is-it-free)
 [![For every hospital](https://img.shields.io/badge/🏥_For-every_hospital-0F62FE?style=for-the-badge)](#who-its-for)
 [![Made with love](https://img.shields.io/badge/✨_Made_with-love-8A3FFC?style=for-the-badge)](#credits-and-contact)
+[![Website: medbrains.in](https://img.shields.io/badge/🌐_Website-medbrains.in-0F62FE?style=for-the-badge)](https://www.medbrains.in)
 
 # MedBrains
 
@@ -24,7 +25,7 @@
 [![Rust](https://img.shields.io/badge/Rust-2024_·_1.95+-0F62FE?logo=rust&logoColor=white)](#why-rust)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-0F62FE.svg)](./CONTRIBUTING.md)
 
-[Website](https://medbrains.in) · [Features](#features) · [Releases](#release-status) · [Quick start](#quick-start) · [MedBrains OS](#medbrains-os-a-hospital-in-a-box) · [Roadmap](#roadmap) · [Sponsor](#sponsor-the-work) · [Contribute](#contributing)
+[Website](https://www.medbrains.in) · [Features](#features) · [Releases](#release-status) · [Quick start](#quick-start) · [MedBrains OS](#medbrains-os-a-hospital-in-a-box) · [Roadmap](#roadmap) · [Sponsor](#sponsor-the-work) · [Contribute](#contributing)
 
 </div>
 
@@ -257,14 +258,31 @@ its own sandboxed view. MedBrains is one of them.
 the TPM where there is one, a single Rust front (Pingora) for HTTPS, and no Docker: every service
 runs directly on Linux under systemd.
 
-**Hardware (recommendations, not tested kits):** a Raspberry Pi 5 with 8 GB and an NVMe SSD for a
-small clinic's server; any x86-64 or arm64 PC or small server for a hospital; the smallest machine
-that drives the screen for workstations and displays. A built-in AI chip or graphics card is used
-when present and never required. See [RFC-HOSPITAL-OS §8a and §8p](medbrains/RFCs/RFC-HOSPITAL-OS.md).
+**Hardware (recommendations, not tested kits).** Worked out from virtual-machine measurements. None
+of this has run on a real Raspberry Pi or PC yet, and sizing a hospital server for a large site waits
+on a load test. The same table, with a diagram, is on [medbrains.in/os](https://www.medbrains.in/os).
+
+| Machine | Minimum | Recommended | Why |
+|---|---|---|---|
+| Server, small clinic | 4 cores, 8 GB RAM, 64 GB SSD | Raspberry Pi 5 8 GB with an NVMe SSD | the whole machine uses about 1.2 GB with a user signed in; the database, sign-in and server all run here |
+| Server, hospital | 8 cores, 16 GB RAM, 512 GB NVMe SSD | 16–32 GB RAM, mirrored SSDs, a TPM, a UPS, plus a standby server | the database grows with patients; the server program itself is 88 MB |
+| Workstation | 2 cores, 4 GB RAM, 32 GB storage | any small PC or arm64 board that drives the screen | the node desktop uses about 300 MB, plus about 320 MB for an open page |
+| Display or TV board | 2 cores, 2–4 GB RAM | a Pi-class board | holds no patient data |
+| Optional | a GPU or AI chip | used when present, never required | on-box AI, imaging hints |
+
+**Measured sizes** (one run each, in virtual machines; details in
+[`medbrains/os/README.md`](medbrains/os/README.md#measured)):
+
+| What | Size |
+|---|---|
+| Download (compressed with zstd) | 478 MB |
+| Installed system | 1,158 MB (the ≤ 1 GB target is not met yet) |
+| Data disk after first boot | 216 MB |
+| Web app first page | about 308 KB with zstd, 328 KB with gzip |
 
 **Measured so far** (virtual machines on a laptop, one run each): a workstation node uses about
-300 MB of memory at its desktop; removing a machine ends its access within about 2 s; the web app's
-first page is about 320 kB compressed.
+300 MB of memory at its desktop; removing a machine ends its access within about 2 s. Hardware
+tiers in the plan: [RFC-HOSPITAL-OS §8a and §8p](medbrains/RFCs/RFC-HOSPITAL-OS.md).
 
 **Status, and what is not done yet:** the image builds and boots in virtual machines (QEMU and UTM),
 including the TPM-sealed disk on x86-64. Not done: signed A/B updates with rollback (in review); the
@@ -273,7 +291,7 @@ the OS. It has not run on real hardware or a Raspberry Pi, had no outside penetr
 hospital runs it in production yet.
 
 How to build and boot it: [`medbrains/os/README.md`](medbrains/os/README.md). The plan:
-[RFC-HOSPITAL-OS](medbrains/RFCs/RFC-HOSPITAL-OS.md). On the website: [medbrains.in/os](https://www.medbrains.in/os).
+[RFC-HOSPITAL-OS](medbrains/RFCs/RFC-HOSPITAL-OS.md).
 
 ## Why Rust
 

@@ -1,0 +1,127 @@
+---
+// /os hardware hero: one server, the nodes that join it over approval lines, and the measured sizes.
+// Plays once (about 4 s) when scrolled into view, then settles. With reduced motion the global rule
+// removes every animation, and the resting state below is the final frame.
+import { OS_DIAGRAM, OS_HARDWARE_CAVEAT, OS_SIZES } from "../data/os";
+
+const { server, download, nodes, alt } = OS_DIAGRAM;
+// Node card centres along the top row, and where each approval line meets the server.
+const xs = [100, 300, 500];
+const ends = [250, 300, 350];
+---
+
+<section class="hw" aria-labelledby="hw-hero-title">
+  <div class="wrap">
+    <div class="copy">
+      <p class="eyebrow">The hardware</p>
+      <h2 id="hw-hero-title">One server. Small machines that join it.</h2>
+      <p class="lede">The server keeps the records. Every other machine is a small node: an administrator approves it on the server, and it can be replaced in minutes.</p>
+    </div>
+
+    <div class="facts">
+      <dl class="sizes">
+        {OS_SIZES.map((s) => <div><dt>{s.label}</dt><dd>{s.value}</dd></div>)}
+      </dl>
+      <p class="caveat">Measured once each in virtual machines. {OS_HARDWARE_CAVEAT}</p>
+    </div>
+
+    <figure class="net reveal">
+      <svg viewBox="0 0 600 420" role="img" aria-labelledby="hw-net-desc">
+        <desc id="hw-net-desc">{alt}</desc>
+        {nodes.map((n, i) => (
+          <g style={`--i:${i}`}>
+            <path
+              class:list={["line", { planned: n.planned }]}
+              d={`M${xs[i]} 122 C${xs[i]} 190 ${ends[i]} 180 ${ends[i]} 248`}
+              pathLength="1"
+            />
+            <g class="node">
+              <rect class:list={["card", { planned: n.planned }]} x={xs[i] - 85} y="30" width="170" height="92" rx="14" />
+              <rect class="screen" x={xs[i] - 70} y="46" width="22" height="16" rx="3" />
+              <text class="name" x={xs[i] - 70} y="88">{n.name}</text>
+              <text class="fig" x={xs[i] - 70} y="110">{n.figure}</text>
+            </g>
+            {!n.planned && (
+              <g class="ok">
+                <circle cx={xs[i] + 62} cy="54" r="11" />
+                <path d={`M${xs[i] + 57} 54 l4 4 l7 -8`} />
+              </g>
+            )}
+          </g>
+        ))}
+        <g class="server">
+          <rect class="box" x="180" y="250" width="240" height="120" rx="16" />
+          <rect class="bay" x="200" y="270" width="200" height="18" rx="4" />
+          <rect class="bay" x="200" y="296" width="200" height="18" rx="4" />
+          <circle class="led" cx="388" cy="279" r="4" />
+          <circle class="led" cx="388" cy="305" r="4" />
+          <text class="name" x="200" y="342">{server.name}</text>
+          <text class="fig" x="200" y="360">{server.figure}</text>
+        </g>
+        <text class="dl" x="300" y="402" text-anchor="middle">{download}</text>
+      </svg>
+    </figure>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .hw {
+    color: #fff; padding: 88px 0;
+    background: radial-gradient(800px 480px at 90% 40%, var(--glow-blue), transparent 65%), var(--night-2);
+    border-top: 1px solid var(--night-line);
+    // Desktop: words and sizes on the left, the diagram on the right. Narrow: words, diagram, sizes.
+    .wrap { display: grid; grid-template-columns: 1fr 1.1fr; grid-template-areas: "copy net" "facts net"; column-gap: 56px; align-items: center; }
+    .eyebrow { color: var(--pulse); }
+    h2 { font: 800 clamp(1.8rem, 4vw, 2.8rem)/1.08 var(--display); letter-spacing: -.03em; margin: 0 0 18px; max-width: 20ch; }
+    .lede { color: var(--night-text); font-size: 1.08rem; max-width: 52ch; margin: 0 0 28px; }
+  }
+  .sizes {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0;
+    background: var(--night-line); border: 1px solid var(--night-line); border-radius: var(--radius); overflow: hidden;
+    div { display: flex; flex-direction: column-reverse; padding: 16px 18px; background: var(--night-2); }
+    dd { margin: 0 0 4px; font: 800 1.6rem var(--display); letter-spacing: -.02em; color: var(--sky); }
+    dt { color: var(--night-text); font-size: .9rem; }
+  }
+  .caveat { margin: 18px 0 0; color: var(--night-text); font-size: .92rem; max-width: 60ch; }
+
+  .copy { grid-area: copy; }
+  .facts { grid-area: facts; }
+  .net { grid-area: net; margin: 0; }
+  svg { display: block; width: 100%; height: auto; max-width: 600px; margin: 0 auto; overflow: visible; }
+  .card, .box { fill: var(--night-3); stroke: var(--night-line); stroke-width: 1.5; }
+  .card.planned { fill: none; stroke-dasharray: 6 6; }
+  .box { stroke: var(--blue); stroke-width: 2; }
+  .screen { fill: none; stroke: var(--sky); stroke-width: 2; }
+  .bay { fill: var(--night-2); stroke: var(--night-line); }
+  .led { fill: var(--pulse); }
+  .name { font: 800 20px var(--display); fill: #fff; }
+  .fig { font: 600 16px var(--mono); fill: var(--sky); }
+  .dl { font: 600 17px var(--mono); fill: var(--night-text); letter-spacing: .04em; }
+  .line { fill: none; stroke: var(--sky); stroke-width: 2.5; stroke-linecap: round; }
+  .line.planned { stroke: var(--night-text); stroke-dasharray: .02 .025; opacity: .6; }
+  .ok circle { fill: var(--pulse); }
+  .ok path { fill: none; stroke: var(--night); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  // One pass, about 4 s: the server, then each node joins (card, approval line, approved tick).
+  // `both` holds the start frame until the delay ends; the resting state is the final frame.
+  .server, .dl { animation: rise .6s ease both; }
+  .dl { animation-delay: .4s; }
+  .node { animation: rise .5s ease both; animation-delay: calc(.8s + var(--i) * 1.1s); }
+  .line { stroke-dasharray: 1; animation: draw .6s ease-out both; animation-delay: calc(1.1s + var(--i) * 1.1s); }
+  .line.planned { animation-name: fade; }
+  .ok { animation: fade .3s ease both; animation-delay: calc(1.7s + var(--i) * 1.1s); }
+  .net:not(.in) * { animation-play-state: paused; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes fade { from { opacity: 0; } }
+
+  @include below(lg) { .hw .wrap { grid-template-columns: 1fr; grid-template-areas: "copy" "net" "facts"; row-gap: 32px; } }
+  @include below(sm) {
+    .hw { padding: 56px 0; }
+    .sizes { grid-template-columns: 1fr; }
+    .net { margin: 0 -12px; } // the diagram's labels need every pixel at phone width
+  }
+</style>

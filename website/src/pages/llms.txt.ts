@@ -4,7 +4,7 @@ import { FAQ, MODULE_GROUPS, SURFACES, TRUST } from "../data/content";
 import { GUIDE_LIST, RESOURCES, TOOLS } from "../data/guides";
 import { MODULE_PAGES } from "../data/modules";
 import { COMMITMENTS as AI_COMMITMENTS, DATA_LIVE, DATA_NEXT, HOW_WE_CHECK, LIVE, PROTECTION, SCOPE } from "../data/ai-safety";
-import { OS_JOIN, OS_NOT_DONE, OS_ROLES } from "../data/os";
+import { OS_HARDWARE, OS_HARDWARE_CAVEAT, OS_JOIN, OS_NOT_DONE, OS_ROLES } from "../data/os";
 import { CHARGES, PASS_THROUGH, PILOT, SEVA, STEPS, SUPPORT_US } from "../data/pricing";
 import { getPosts } from "../lib/blog";
 
@@ -55,6 +55,8 @@ export const GET: APIRoute = async ({ site }) => {
     "- One open operating system (Debian-based, x86-64 and arm64) for every machine in the hospital; the role is chosen on the first-boot screen. One server holds the records; other machines are small, replaceable nodes.",
     ...OS_ROLES.map((r) => `- ${r.title}: ${r.body}${r.status ? ` (${r.status.toLowerCase()})` : ""}`),
     ...OS_JOIN.map((j) => `- Joining: ${j}`),
+    ...OS_HARDWARE.map((h) => `- Hardware, ${h.machine.toLowerCase()} (recommendation, not a tested kit): minimum ${h.minimum}; recommended ${h.recommended}. ${h.why}`),
+    `- Hardware: ${OS_HARDWARE_CAVEAT}`,
     ...OS_NOT_DONE.map((n) => `- Not done yet: ${n}`),
     link("MedBrains OS", "/os", "the hospital operating system: machine roles, joining, hardware and status"),
     "",
