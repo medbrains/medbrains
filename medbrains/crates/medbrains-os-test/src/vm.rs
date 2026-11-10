@@ -677,8 +677,9 @@ pub(crate) fn image_version(image: &Path) -> Result<String, String> {
         .ok_or_else(|| format!("no version in the image name {}", image.display()))
 }
 
-/// Boots `disk` with no TPM and records its serial port, sending nothing, until the shell's prompt shows,
-/// `stop_at` shows, or `limit` passes. For a machine expected not to start: the caller judges the text.
+/// Boots `disk` with no TPM and records its serial port, sending nothing, until `stop_at` shows or `limit`
+/// passes. For a machine expected not to start: the caller judges the text. The debug shell's prompt is no
+/// end: it appears early, before a later stop.
 pub(crate) fn serial_of_boot(
     disk: &Path,
     stop_at: &str,
@@ -702,7 +703,7 @@ pub(crate) fn serial_of_boot(
             raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
         }
         let text = String::from_utf8_lossy(&raw);
-        if text.contains(PROMPT) || text.contains(stop_at) {
+        if text.contains(stop_at) {
             break;
         }
     }

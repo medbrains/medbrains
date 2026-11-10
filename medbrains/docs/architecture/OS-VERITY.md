@@ -119,13 +119,17 @@ PCR 4 joined the seal (DECISIONS 2026-11-05). Not closed by this work: see "Open
 
 ## Sizes and time
 
+Measured on the arm64 debug image of 2026-11-10.
+
 | | Before | Now |
 |---|---|---|
-| Image | ESP 512 MiB + 2 × 2 GiB | + 2 × 32 MiB tree partitions; slots and their 658 MiB free unchanged |
-| Bundle | root + boot file | + the tree, 32 MiB raw, about 16 MiB compressed |
-| Install | write + read back 2 GiB | + 32 MiB written and read back, + one full read of the slot by `veritysetup verify` |
+| Disk image | 4,832,907,264 bytes | 4,900,016,128 bytes: + 64 MiB, the two 32 MiB tree partitions |
+| System slot | 2 GiB, 658 MiB free inside | unchanged: the tree has its own partition |
+| Hash tree | | 16,916,480 bytes (16.1 MiB) over 2 GiB; fits its 32 MiB partition twice over |
+| Bundle | root 370 MB + boot file 146 MB compressed | + `verity.img.zst`, 10.1 MB |
+| Install | write + read back 2 GiB | + 16 MiB written and read back, + one full read of the slot by `veritysetup verify` |
 
-Boot time: measured with `systemd-analyze` in the PR's evidence.
+Boot time: see "Evidence".
 
 ## Open
 

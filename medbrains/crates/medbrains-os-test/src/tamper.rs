@@ -2,9 +2,9 @@
 //!
 //! As someone with the disk in their hands could do it (`docs/architecture/OS-VERITY.md`). One byte of a
 //! file the system reads at every start is changed in a copy of the image, in two places: `os-release`,
-//! read before the system starts, which the initrd must stop on; and the data disk's setup script, read
-//! once the system runs, which the seal check must stop on, through dm-verity's event. Each start must
-//! stop before the data disk is set up, and say so on the screen and the serial port.
+//! read as the system starts, which the seal check at start finds; and the data disk's setup script, read
+//! later, which only dm-verity's event can report. Each start must stop before the data disk is set up,
+//! and say so on the screen and the serial port.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -18,8 +18,6 @@ use medbrains_os_update::seal::STOPPED_WORDS;
 use crate::ensure;
 use crate::vm::{image_version, make_overlay, serial_of_boot};
 
-/// What the initrd says when the system does not start (`os/trial-initrd`).
-const INITRD_NOTICE: &str = "MedBrains could not start its system";
 /// The start of what the seal check says when it stops a running machine.
 const NOTICE: &str = "MedBrains stopped: the system partition failed its seal check";
 /// The first line of `disk-setup` after its shebang: read by bash on the first start, after the initrd.
@@ -58,8 +56,7 @@ pub(crate) fn changed_system_does_not_start(image: &Path) -> Result<(), String> 
         "the notice and the product disagree",
     )?;
     let os_release = format!("IMAGE_VERSION=\"{version}\"");
-    stops_with(image, os_release.as_bytes(), INITRD_NOTICE)
-        .map_err(|e| format!("os-release: {e}"))?;
+    stops_with(image, os_release.as_bytes(), NOTICE).map_err(|e| format!("os-release: {e}"))?;
     stops_with(image, DISK_SETUP_LINE.as_bytes(), NOTICE).map_err(|e| format!("disk-setup: {e}"))
 }
 
