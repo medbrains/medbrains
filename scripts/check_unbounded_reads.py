@@ -2,7 +2,7 @@
 """
 Unbounded multi-row read check.
 
-CLAUDE.md makes bounding a rule: "bound every loop/traversal/fan-out (depth
+ENGINEERING.md makes bounding a rule: "bound every loop/traversal/fan-out (depth
 caps, LIMIT, no unbounded growth)". The codebase mostly follows it — 198
 `query_as` SELECTs carry a LIMIT — but a query with neither a LIMIT nor a
 WHERE returns the whole table for the tenant, and grows with the tenant.

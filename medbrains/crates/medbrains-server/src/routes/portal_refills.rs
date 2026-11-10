@@ -72,13 +72,7 @@ pub async fn portal_request_refill(
     )
     .await?;
     if let Some(choice) = &delivery {
-        record_choice(
-            &mut tx,
-            claims.tenant_id,
-            Source::Refill(request.id),
-            choice,
-        )
-        .await?;
+        record_choice(&mut tx, claims.tenant_id, Source::Refill(request.id), choice).await?;
     }
     tx.commit().await?;
     Ok(Json(request))

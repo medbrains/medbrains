@@ -1,0 +1,183 @@
+#!/bin/bash
+# Sets the identity provider's rules, connects MedBrains to it, and checks the rules on every start.
+#
+#   Staff sign in with a password. A narrow IT group, mb_it_admins, needs a second step, a key or a
+#   one-time code. Hospitals that want approved key models set them per group; nothing here stops that.
+#   Control's service account gets the narrow groups and no others. idm_people_admins may reset people in
+#   idm_admins, so it reaches administrator; that is why the check below refuses it and anything else.
+#
+#   kanidm-setup rules    the rules and Control's account, once; setup runs this before the admin exists
+#   kanidm-setup          the rules if not yet done, connects MedBrains if not yet done, then checks
+#   kanidm-setup check    fail if Control holds anything but the narrow groups
+set -euo pipefail
+
+. /usr/lib/medbrains/kanidm-lib.sh
+
+# Root's own folder, never Kanidm's: root writing in a folder kanidm owns would follow a link kanidm left there.
+OWN=/var/lib/medbrains/config/kanidm
+STATE=$OWN/setup-done
+CONNECTED=$OWN/connect-done
+# Written by kanidm-first-admin: the first administrator's username and Kanidm UUID.
+FIRST_ADMIN=$OWN/first-admin
+TOKEN_FILE=/var/lib/medbrains/config/idp-control-token
+# A read-only token for the MedBrains server's link screen: names, UUIDs and mail of people, nothing else.
+DIRECTORY=mb_directory
+DIRECTORY_TOKEN=/var/lib/medbrains/config/idp-directory-token
+DIRECTORY_GROUP=idm_account_mail_read
+SERVER_USER=medbrains
+CONTROL=mb_control
+LOGO=/usr/share/medbrains/shell/logo.svg
+CLIENT=medbrains
+EXTRA_STEP_GROUP=mb_it_admins
+NARROW_GROUPS=(idm_people_on_boarding idm_service_desk idm_oauth2_admins)
+# These grant nothing. idm_high_privilege is a taint a narrow group passes on: it protects Control from
+# lesser administrators, such as a service desk resetting it.
+EVERYONE_GROUPS=(idm_all_accounts idm_high_privilege)
+SERVER_WAIT_TRIES=120
+
+# Puts our name and logo on its pages. Only the system administrator may. A failure here costs looks only.
+set_brand() {
+    local system
+    system="$(admin_token admin)" || return 0
+    printf '["MedBrains"]' | json_body_as "$system" -o /dev/null -X PUT "$ORIGIN/v1/domain/_attr/domain_display_name" ||
+        echo "could not set the name" >&2
+    api_as "$system" -o /dev/null -F "image=@$LOGO;type=image/svg+xml;filename=logo.svg" "$ORIGIN/v1/domain/_image" ||
+        echo "could not set the logo" >&2
+}
+
+# The group whose members need a second step. Kanidm's policy is per group: `mfa` is a password with a
+# one-time code, or a key. It is checked when a credential is saved, not at sign-in: os/README.md.
+make_extra_step_group() {
+    local admin="$1"
+    printf '{"attrs":{"name":["%s"]}}' "$EXTRA_STEP_GROUP" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group" 2>/dev/null || true
+    printf '["account_policy"]' | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$EXTRA_STEP_GROUP/_attr/class"
+    printf '["mfa"]' | json_body_as "$admin" -o /dev/null -X PUT "$ORIGIN/v1/group/$EXTRA_STEP_GROUP/_attr/credential_type_minimum"
+}
+
+# Sets the rules and makes Control's account. The marker comes last, so a power cut repeats it.
+set_up() {
+    local admin group token
+    set_brand
+    admin="$(admin_token idm_admin)"
+    [[ -n "$admin" ]] || { echo "could not sign in as idm_admin" >&2; return 1; }
+    printf '["any"]' | json_body_as "$admin" -o /dev/null -X PUT "$ORIGIN/v1/group/idm_all_persons/_attr/credential_type_minimum"
+    make_extra_step_group "$admin"
+    # An account left by a power cut is fine: its token below replaces the file.
+    printf '{"attrs":{"name":["%s"],"displayname":["MedBrains Control"],"entry_managed_by":["idm_admins"]}}' "$CONTROL" |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/service_account" 2>/dev/null || true
+    for group in "${NARROW_GROUPS[@]}"; do
+        printf '["%s"]' "$CONTROL" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$group/_attr/member"
+    done
+    token="$(printf '{"label":"control","expiry":null,"read_write":true,"compact":false}' |
+        json_body_as "$admin" "$ORIGIN/v1/service_account/$CONTROL/_api_token" | tr -d '"')"
+    [[ -n "$token" ]] || { echo "no token for Control" >&2; return 1; }
+    install -m 0600 /dev/null "$TOKEN_FILE.new"
+    printf '%s\n' "$token" > "$TOKEN_FILE.new"
+    mv "$TOKEN_FILE.new" "$TOKEN_FILE"
+    install -d -m 0750 "$OWN"
+    touch "$STATE"
+}
+
+# The directory account the server's link screen reads people through: read only, in the one group that may
+# read people's names, UUIDs and mail. Its token is the server's alone.
+make_directory_account() {
+    local admin="$1" token
+    printf '{"attrs":{"name":["%s"],"displayname":["MedBrains directory (read only)"],"entry_managed_by":["idm_admins"]}}' "$DIRECTORY" |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/service_account" 2>/dev/null || true
+    printf '["%s"]' "$DIRECTORY" | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/group/$DIRECTORY_GROUP/_attr/member"
+    token="$(printf '{"label":"directory","expiry":null,"read_write":false,"compact":false}' |
+        json_body_as "$admin" "$ORIGIN/v1/service_account/$DIRECTORY/_api_token" | tr -d '"')"
+    [[ -n "$token" ]] || { echo "no token for the directory account" >&2; return 1; }
+    install -m 0400 -o "$SERVER_USER" -g "$SERVER_USER" /dev/null "$DIRECTORY_TOKEN.new"
+    printf '%s\n' "$token" > "$DIRECTORY_TOKEN.new"
+    mv "$DIRECTORY_TOKEN.new" "$DIRECTORY_TOKEN"
+}
+
+# Runs one statement on MedBrains' database, as the machine's superuser, and prints the answer.
+medbrains_sql() {
+    runuser -u postgres -- psql -X -tAq -d medbrains -c "$1"
+}
+
+# Makes MedBrains sign in through Kanidm: a public client, with PKCE and no secret to keep, open to everyone
+# Kanidm knows, with new people getting MedBrains' least role until an administrator gives them one.
+connect_medbrains() {
+    local admin url tenant try
+    for ((try = 0; try < SERVER_WAIT_TRIES; try++)); do
+        [[ "$(medbrains_sql "SELECT count(*) FROM information_schema.tables WHERE table_name = 'identity_providers'" 2>/dev/null)" == 1 ]] &&
+            tenant="$(medbrains_sql "SELECT id FROM tenants ORDER BY created_at LIMIT 1" 2>/dev/null)" && [[ -n "$tenant" ]] && break
+        sleep 5
+    done
+    [[ -n "${tenant:-}" ]] || { echo "MedBrains' database never became ready" >&2; return 1; }
+    admin="$(admin_token idm_admin)"
+    printf '{"attrs":{"name":["%s"],"displayname":["MedBrains"],"oauth2_rs_origin_landing":["https://medbrains.local/"],"oauth2_strict_redirect_uri":["true"]}}' "$CLIENT" |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/_public" 2>/dev/null || true
+    printf '["https://medbrains.local/api/auth/sso/callback","https://screen.medbrains.local:8443/api/auth/sso/callback"]' |
+        json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/$CLIENT/_attr/oauth2_rs_origin"
+    printf '["openid","email","profile"]' | json_body_as "$admin" -o /dev/null "$ORIGIN/v1/oauth2/$CLIENT/_scopemap/idm_all_persons"
+    # Kanidm asks each person once before sharing their name with MedBrains. Off if it lets us; only a click if not.
+    printf '{"attrs":{"oauth2_consent_prompt_enable":["false"]}}' | json_body_as "$admin" -o /dev/null -X PATCH "$ORIGIN/v1/oauth2/$CLIENT" 2>/dev/null ||
+        echo "the sign-in consent prompt stays on" >&2
+    api_as "$admin" -o /dev/null -F "image=@$LOGO;type=image/svg+xml;filename=logo.svg" "$ORIGIN/v1/oauth2/$CLIENT/_image" ||
+        echo "could not set the application's logo" >&2
+    url="https://idm.medbrains.local:9443/oauth2/openid/$CLIENT/.well-known/openid-configuration"
+    medbrains_sql "INSERT INTO identity_providers (tenant_id, code, name, protocol, discovery_url, client_id, jit_enabled, is_active)
+        SELECT '$tenant', 'kanidm', 'MedBrains account', 'oidc', '$url', '$CLIENT', true, true
+        WHERE NOT EXISTS (SELECT 1 FROM identity_providers WHERE tenant_id = '$tenant' AND code = 'kanidm')" >/dev/null
+    link_first_admin "$tenant"
+    make_directory_account "$admin"
+    install -d -m 0750 "$OWN"
+    touch "$CONNECTED"
+}
+
+# Links the first administrator's MedBrains account to its Kanidm login by Kanidm's UUID, which is the `sub`
+# MedBrains receives. Nothing else is linked automatically, and never by email: anyone who can make a Kanidm
+# person can give it any address. Waits for the server to have made the account from setup's seed.
+link_first_admin() {
+    local tenant="$1" username uuid try linked
+    read -r username uuid < "$FIRST_ADMIN" || { echo "no first administrator recorded" >&2; return 1; }
+    [[ "$username" =~ ^[a-z][a-z0-9_]*$ && "$uuid" =~ ^[0-9a-f-]{36}$ ]] || { echo "the first administrator's record is not valid" >&2; return 1; }
+    for ((try = 0; try < SERVER_WAIT_TRIES; try++)); do
+        linked="$(medbrains_sql "UPDATE users SET idp_id = p.id, external_subject = '$uuid'
+            FROM identity_providers p WHERE p.tenant_id = '$tenant' AND p.code = 'kanidm'
+            AND users.tenant_id = '$tenant' AND users.username = '$username'
+            AND (users.idp_id IS NULL OR (users.idp_id = p.id AND users.external_subject = '$uuid'))
+            RETURNING users.id" 2>/dev/null | head -1)"
+        [[ -n "$linked" ]] && return 0
+        sleep 5
+    done
+    echo "could not link the first administrator" >&2
+    return 1
+}
+
+# Prints the groups Control's own token says it holds, one name per line.
+control_groups() {
+    api_as "$(cat "$TOKEN_FILE")" "$ORIGIN/v1/self" |
+        sed -n 's/.*"memberof":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | sed 's/^"//; s/@.*//; s/"$//' | grep -v '^$'
+}
+
+# Fails, naming the group, if Control holds anything outside the narrow set. An unknown answer fails too.
+check() {
+    local allowed group groups
+    groups="$(control_groups)" || { echo "could not read Control's groups" >&2; return 1; }
+    [[ -n "$groups" ]] || { echo "could not read Control's groups" >&2; return 1; }
+    allowed=" ${NARROW_GROUPS[*]} ${EVERYONE_GROUPS[*]} "
+    while read -r group; do
+        if [[ "$allowed" != *" $group "* ]]; then
+            echo "Control's account holds $group, outside its narrow set. Remove it." >&2
+            return 1
+        fi
+    done <<<"$groups"
+}
+
+wait_for_kanidm
+case "${1:-}" in
+    check) check ;;
+    rules)
+        [[ -e "$STATE" ]] || set_up
+        ;;
+    *)
+        [[ -e "$STATE" ]] || set_up
+        [[ -e "$CONNECTED" ]] || connect_medbrains
+        check
+        ;;
+esac

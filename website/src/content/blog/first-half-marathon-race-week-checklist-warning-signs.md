@@ -1,6 +1,6 @@
 ---
 title: "First half-marathon: injury warning signs and a race-week checklist"
-description: "Your first half-marathon in India: how to taper, a race-week checklist, safe drinking in the heat, who needs a heart check, and red flags on race day."
+description: "Your first half-marathon: how to taper, a race-week checklist, safe drinking in the heat, who needs a heart check, and red flags on race day."
 summary: "Cut your running by about half over the last two weeks but keep some faster running. Drink to thirst, not at every station: drinking far more than you sweat can cause dangerous hyponatraemia. See a doctor first if you get chest pain or faint on exercise. On race day, chest pain, collapse or confusion means the medical tent or 112."
 date: 2026-10-25
 category: patient-education
@@ -62,7 +62,7 @@ cover:
   alt: "Soft 3D clay illustration of a blue running shoe on a round pedestal beside a stopwatch, a water bottle and a blue shield with a white tick, with floating icons for a heart, a water drop and a medical cross"
 ---
 
-India's road-running season runs through the cooler months, and for many
+The road-running season runs through the cooler months, and for many
 people this is the year of their first 21.1 km. The Vedanta Delhi Half
 Marathon was run on 18 October 2026. The Freshworks Chennai Marathon, which
 includes a half marathon, is on Sunday 3 January 2027, and the Tata Mumbai
@@ -156,7 +156,7 @@ principle, less volume but not zero intensity, holds for beginners too.
 
 ## Drinking on the course: why more is not better
 
-Indian races are often humid, and the instinct is to drink at every station.
+Races in warm cities are often humid, and the instinct is to drink at every station.
 That instinct can be dangerous.
 
 **Exercise-associated hyponatraemia** is a low blood sodium level that

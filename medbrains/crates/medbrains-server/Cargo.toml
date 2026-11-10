@@ -15,6 +15,7 @@ medbrains-db = { path = "../medbrains-db" }
 medbrains-db-migrations = { path = "../medbrains-db-migrations" }
 medbrains-seed = { path = "../medbrains-seed" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-nabh = { path = "../medbrains-nabh" }
 medbrains-signing = { path = "../medbrains-signing" }
 medbrains-notifications = { path = "../medbrains-notifications" }
@@ -85,12 +86,14 @@ medbrains-pharmacy-repeats = { path = "../medbrains-pharmacy-repeats" }
 medbrains-pharmacy-delivery = { path = "../medbrains-pharmacy-delivery" }
 medbrains-ward-stock = { path = "../medbrains-ward-stock" }
 medbrains-clinical-notes = { path = "../medbrains-clinical-notes" }
+medbrains-dictation = { path = "../medbrains-dictation" }
 medbrains-app-manifest = { path = "../medbrains-app-manifest" }
 medbrains-invitations = { path = "../medbrains-invitations" }
 medbrains-news = { path = "../medbrains-news" }
 medbrains-notes = { path = "../medbrains-notes" }
 medbrains-marketing = { path = "../medbrains-marketing" }
 medbrains-vte = { path = "../medbrains-vte" }
+medbrains-health-intel = { path = "../medbrains-health-intel" }
 medbrains-pharmacy-cash-drawer = { path = "../medbrains-pharmacy-cash-drawer" }
 medbrains-device-pairing = { path = "../medbrains-device-pairing" }
 medbrains-nhcx-callback = { path = "../medbrains-nhcx-callback" }
@@ -105,7 +108,10 @@ medbrains-hrms-gateway = { path = "../medbrains-hrms-gateway" }
 medbrains-setup = { path = "../medbrains-setup" }
 medbrains-history-import = { path = "../medbrains-history-import" }
 medbrains-research = { path = "../medbrains-research" }
+medbrains-knowledge = { path = "../medbrains-knowledge" }
+medbrains-sop-flows = { path = "../medbrains-sop-flows" }
 medbrains-it-security = { path = "../medbrains-it-security" }
+medbrains-security-intel = { path = "../medbrains-security-intel" }
 medbrains-assets = { path = "../medbrains-assets" }
 medbrains-bme = { path = "../medbrains-bme" }
 medbrains-tv = { path = "../medbrains-tv" }
@@ -116,6 +122,7 @@ medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }
 medbrains-approvals-api = { path = "../medbrains-approvals-api" }
 medbrains-api-keys-api = { path = "../medbrains-api-keys-api" }
+medbrains-connected-apps = { path = "../medbrains-connected-apps" }
 medbrains-materials = { path = "../medbrains-materials" }
 medbrains-facilities = { path = "../medbrains-facilities" }
 medbrains-documents = { path = "../medbrains-documents" }
@@ -182,6 +189,7 @@ schemars = { workspace = true }
 mlua = { workspace = true }
 anyhow = { workspace = true }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
+medbrains-authz-spicedb = { path = "../medbrains-authz-spicedb" }
 aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio"] }
 aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
 # Optional secrets backend — only compiled when the `aws-secrets` feature is on,

@@ -13,10 +13,8 @@ rust-version.workspace = true
 # knows nothing about axum or about storage — those are the -api and -store
 # crates, which is what lets these rules be tested without either.
 #
-# r8r is a separate project with its own repository, tests and release cadence,
-# consumed here as a package. It sits beside this workspace as a submodule, so
-# the version in use is a commit somebody chose rather than whatever happens to
-# be on a colleague's disk.
+# r8r is its own Cargo workspace (Apache-2.0), kept in this repository at
+# `r8r/` beside `medbrains/` so a plain clone builds with no private parts.
 [dependencies]
 r8r-workflow = { path = "../../../r8r/crates/workflow" }
 r8r-core = { path = "../../../r8r/crates/core" }

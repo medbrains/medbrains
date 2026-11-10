@@ -1,6 +1,3 @@
-# Funding sources for MedBrains — open health infrastructure (Digital Public Good).
-# See GRANTS.md for the public-good thesis and how funding is used.
+# Funding for MedBrains, free and open hospital software (see GRANTS.md and funding.json).
 github: [DomnicAmalan]
-# open_collective: medbrains
-# Add ko-fi / liberapay / custom links as accounts are created:
-# custom: ["https://github.com/DomnicAmalan/MedBrains/blob/master/GRANTS.md"]
+custom: ["https://github.com/medbrains/medbrains#sponsor-the-work"]

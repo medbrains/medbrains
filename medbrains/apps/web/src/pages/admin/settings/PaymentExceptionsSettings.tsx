@@ -16,8 +16,8 @@ const TILE_COLOR: Record<string, string> = {
 
 function ReconTile({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
-    <Card withBorder padding="sm" radius="md">
-      <Text size="xs" c="dimmed" tt="uppercase">
+    <Card withBorder padding="sm">
+      <Text size="xs" c="dimmed">
         {label}
       </Text>
       <Text fw={700} size="lg" ff="monospace" c={TILE_COLOR[tone]}>

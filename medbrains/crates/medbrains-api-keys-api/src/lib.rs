@@ -11,7 +11,10 @@
 //! **Nobody can mint a key stronger than themselves.** Without that,
 //! `admin.api_keys.create` is a route to every permission in the system: grant
 //! a clerk the ability to issue keys and they can issue one that prescribes.
-//! The check is in [`refuse_escalation`].
+//! The check is `refuse_escalation_now`, against the creator's codes as they
+//! stand now, not as their session token captured them. Bypass roles hold
+//! everything; what they still cannot do is put a wildcard or a bypass role on
+//! a key, which `mint` refuses regardless of who is asking.
 //!
 //! The secret is returned exactly once, by the create call. It is stored only
 //! as a hash, so there is no second chance and no support path that recovers
@@ -30,7 +33,8 @@ use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError,
-    middleware::{auth::Claims, authorization::is_bypass_role, authorization::require_permission},
+    middleware::{auth::Claims, authorization::require_permission},
+    permissions::refuse_escalation_now,
     state::AppState,
 };
 use serde::{Deserialize, Serialize};
@@ -110,32 +114,6 @@ pub struct KeySummary {
     pub rate_limit_per_minute: i32,
 }
 
-/// Refuse to mint a key carrying permissions the caller does not hold.
-///
-/// Bypass roles may grant anything the key layer itself permits — they already
-/// hold every permission, so requiring them to enumerate would be theatre.
-/// What they still cannot do is put a wildcard or a bypass role on a key;
-/// `mint` refuses those regardless of who is asking.
-fn refuse_escalation(claims: &Claims, requested: &[String]) -> Result<(), AppError> {
-    if is_bypass_role(claims) {
-        return Ok(());
-    }
-    let mut missing: Vec<&str> = requested
-        .iter()
-        .map(String::as_str)
-        .filter(|code| !claims.permissions.iter().any(|held| held == code))
-        .collect();
-
-    if missing.is_empty() {
-        return Ok(());
-    }
-    missing.sort_unstable();
-    Err(AppError::ForbiddenReason(format!(
-        "You cannot grant a key permissions you do not hold yourself: {}.",
-        missing.join(", ")
-    )))
-}
-
 /// The longest name slug that still fits `svc_<slug>_<8-char id>` in 30.
 const MAX_SLUG: usize = 30 - "svc_".len() - 1 - 8;
 
@@ -170,6 +148,8 @@ fn service_username(name: &str, id: Uuid) -> String {
     }
 }
 
+/// Issue an API key with its service account. The key's codes must all be
+/// ones the creator holds now.
 async fn create(
     State(state): State<AppState>,
     axum::Extension(claims): axum::Extension<Claims>,
@@ -177,7 +157,7 @@ async fn create(
 ) -> Result<Json<CreatedKey>, AppError> {
     require_permission(&claims, permissions::admin::api_keys::CREATE)?;
     let Json(body) = body?;
-    refuse_escalation(&claims, &body.permissions)?;
+    refuse_escalation_now(&state.db, &claims, &body.permissions, "a key").await?;
 
     let name = body.name.trim().to_owned();
     if name.is_empty() {
@@ -298,12 +278,14 @@ async fn list(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // `key_hash` is never selected. There is nothing useful a console does
     // with it and every place it travels is another place it can leak.
+    // Connected apps' short-lived OAuth tokens live on their own screen.
     let rows = sqlx::query_as::<_, KeySummary>(
         "SELECT k.id, k.name, k.description, k.key_prefix, k.permissions, k.expires_at, \
          k.last_used_at, k.revoked_at, k.created_at, u.full_name AS created_by_name, \
          k.rate_limit_per_minute \
          FROM api_keys k LEFT JOIN users u ON u.id = k.created_by \
-         WHERE k.tenant_id = $1 ORDER BY k.created_at DESC LIMIT 500",
+         WHERE k.tenant_id = $1 AND k.connected_app_id IS NULL \
+         ORDER BY k.created_at DESC LIMIT 500",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

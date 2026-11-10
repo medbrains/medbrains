@@ -11,6 +11,7 @@ name: FHIR validator
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
     paths:
       - "medbrains/crates/medbrains-fhir/**"
@@ -34,8 +35,13 @@ env:
   CARGO_TERM_COLOR: always
   SQLX_OFFLINE: true
 
+permissions:
+  contents: read
+
 jobs:
   validate:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: HL7 validator (ndhm.in 6.5.0)
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -43,16 +49,18 @@ jobs:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: "17"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/cache@v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -61,7 +69,7 @@ jobs:
           key: ${{ runner.os }}-cargo-fhir-${{ hashFiles('medbrains/**/Cargo.lock') }}
       # The validator jar, the IG package and the FHIR core packages the
       # validator pulls in; the script re-checks the pinned hashes.
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/medbrains-fhir
@@ -73,7 +81,7 @@ jobs:
       - name: Validate (tx.fhir.org)
         if: github.event_name != 'pull_request'
         run: python3 scripts/check_fhir_validator.py --tx https://tx.fhir.org/r4
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: fhir-validator-report

@@ -30,6 +30,10 @@ export interface PrescriptionItem {
   discontinued_by: string | null;
   discontinue_reason: string | null;
   catalog_item_id: string | null;
+  /** Chosen by the prescriber: bought outside, never dispensed or billed. */
+  buy_outside: boolean;
+  /** Who marked it bought outside. */
+  buy_outside_by: string | null;
 }
 
 export interface PrescriptionItemInput {
@@ -40,6 +44,8 @@ export interface PrescriptionItemInput {
   route?: string;
   instructions?: string;
   catalog_item_id?: string;
+  /** The hospital does not stock it: the patient buys it outside. */
+  buy_outside?: boolean;
 }
 
 export type RxOrderMode = "written" | "verbal" | "telephone";
@@ -2179,6 +2185,8 @@ export interface PatientIdentity {
   uhid: string;
   full_name: string;
   gender: Gender;
+  /** Whole years; null when not recorded or not readable whole by the caller. */
+  age_years: number | null;
 }
 
 export interface LabOrderListResponse {
@@ -2222,6 +2230,9 @@ export interface LabOrderDetailResponse {
   /** What the catalogue says this test is measured in. Absent when the
    *  catalogue row has been retired since the order was placed. */
   test: LabTestDefaults | null;
+  /** Who the order is for (name, UHID, sex, age): the lab reaches the order,
+   *  not the patient's record. */
+  patient: PatientIdentity | null;
 }
 
 export interface LabTestDefaults {
@@ -2363,6 +2374,35 @@ export interface LabCriticalAlert {
   readback_value: string | null;
   readback_verified: boolean;
   created_at: string;
+  /** Escalation rounds sent so far (0 = not escalated). */
+  escalation_tier: number;
+  escalated_at: string | null;
+  /** Why the last escalation could not be sent. */
+  escalation_blocked_reason: string | null;
+  /** The documented lab-to-clinician phone calls, oldest first (list only). */
+  calls?: LabCriticalCall[] | null;
+}
+
+/** One lab-to-clinician phone call for a critical value (NABL read-back). Append-only. */
+export interface LabCriticalCall {
+  id: string;
+  alert_id: string;
+  called_by: string;
+  received_by: string;
+  called_at: string;
+  attempts: number;
+  /** What the receiver read back. */
+  readback_value: string;
+  /** Whether it matched the reported value; decided by the server. */
+  readback_confirmed: boolean;
+}
+
+/** Record one critical-value phone call. */
+export interface RecordCriticalCallRequest {
+  received_by: string;
+  called_at?: string;
+  attempts: number;
+  readback_value: string;
 }
 
 export interface LabReagentLot {
@@ -3668,6 +3708,8 @@ export interface PharmacyCatalog {
   sold_online: boolean;
   /** Online: pickup only, a unit at a time. */
   habit_forming: boolean;
+  /** Charge the patient when used from ward stock; off for overhead items. */
+  is_patient_billable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3757,6 +3799,10 @@ export interface PharmacyOrderItem {
   removed_by: string | null;
   remove_reason: string | null;
   created_at: string;
+  /** Bought outside, not dispensed here: no catalogue item, no price. */
+  buy_outside: boolean;
+  /** Who chose or confirmed it: the prescriber, or the reviewing pharmacist. */
+  buy_outside_by: string | null;
 }
 
 /** A dispensable batch (FEFO order) for a catalog item. */
@@ -3851,7 +3897,9 @@ export interface PharmacyOrderItemInput {
   catalog_item_id?: string;
   drug_name: string;
   quantity: number;
+  /** Zero for a line with no catalogue item: nothing here sells it. */
   unit_price: number;
+  buy_outside?: boolean;
 }
 
 export interface PharmacyOrderDetailResponse {
@@ -3923,6 +3971,8 @@ export interface UpdatePharmacyCatalogRequest {
   barcode?: string;
   refill_policy?: RefillPolicy;
   needs_cold_chain?: boolean;
+  /** Charge the patient when used from ward stock. */
+  is_patient_billable?: boolean;
 }
 
 export interface CreateStockTransactionRequest {

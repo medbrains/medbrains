@@ -13,7 +13,7 @@
 ---
 
 These rules **supersede** the "Forest + Copper" and "Experian" sections in
-`CLAUDE.md`. When a rule conflicts with a Mantine default, the rule wins. When
+`ENGINEERING.md`. When a rule conflicts with a Mantine default, the rule wins. When
 unsure, copy a screen that already follows these (OPD encounter, pharmacy order,
 cashier counter).
 

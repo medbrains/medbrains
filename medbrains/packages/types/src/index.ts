@@ -93,6 +93,8 @@ export * from "./blood-group";
 export * from "./care-view";
 export type { ClinicalScoreRow, RecordScoreRequest } from "./care-view-scores";
 export * from "./cath-lab";
+export * from "./charge-attention";
+export * from "./mrd-file-requests";
 export * from "./chronic-care";
 export * from "./claim-settlements";
 export * from "./clinical-identity-forms";
@@ -120,8 +122,8 @@ export * from "./dashboard-widget-builder";
 export * from "./device-binding";
 export * from "./device-integration";
 export * from "./diagnosis-coding";
+export * from "./dictation";
 export * from "./doctor-payouts";
-export * from "./flow";
 export * from "./documents-module";
 export * from "./dpdp-compliance";
 export * from "./early-warning";
@@ -165,6 +167,7 @@ export {
 } from "./event-actions.js";
 export * from "./field-access-catalogue";
 export * from "./field-mapping";
+export * from "./flow";
 export * from "./form-builder";
 export * from "./form-master";
 export * from "./form-runtime";
@@ -173,6 +176,7 @@ export * from "./form-versioning";
 export * from "./grn-scan";
 export * from "./group-identity";
 export * from "./growth";
+export * from "./health-intel";
 export * from "./history-import";
 export * from "./hl7-adt";
 export * from "./housekeeping";
@@ -184,6 +188,8 @@ export * from "./ipd-clinical-expansion";
 export * from "./ipd-phase2";
 export * from "./ipd-phase3a";
 export * from "./ipd-post-discharge";
+export * from "./kernel";
+export * from "./knowledge-changes";
 export * from "./locale-units";
 export * from "./marketing";
 export * from "./maternity-obgyn";
@@ -201,6 +207,7 @@ export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";
 export * from "./palliative-mortuary-nuclear";
+export * from "./paperless";
 export type {
   PatientContextSignal,
   PatientContextSignalKind,
@@ -260,12 +267,9 @@ export {
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export * from "./patient-registration";
 export * from "./payment-links";
-export type { PermissionDef } from "./permissions.js";
-export {
-  P,
-  PERMISSIONS,
-  ROLE_TEMPLATES,
-} from "./permissions.js";
+export type { PermissionDef } from "./permission-catalog.js";
+export { PERMISSIONS, ROLE_TEMPLATES } from "./permission-catalog.js";
+export { P } from "./permissions.js";
 export * from "./pharmacy-counter-close";
 export * from "./pharmacy-credit-indents";
 export * from "./pharmacy-delivery";
@@ -301,11 +305,13 @@ export * from "./psychiatry";
 export * from "./queues";
 export * from "./regulatory-compliance";
 export * from "./research-exports";
+export * from "./revenue-alerts";
 export * from "./schema-registry";
 export * from "./screen-layout-zone";
 export * from "./screen-system";
 export * from "./setup-config";
 export * from "./snomed";
+export * from "./sop-flows";
 export * from "./tenant-facility";
 export type {
   BillingQueueLaneDefinition,
@@ -379,6 +385,7 @@ export {
   tokenBoardSurfaceFlowLabelKey,
 } from "./token-board-surfaces.js";
 export * from "./uhi";
+export * from "./vendor-access";
 export type {
   WorkflowSignalShape,
   WorkflowSignalShapeDefinition,
@@ -1444,6 +1451,14 @@ export interface LeaveRequest {
   updated_at: string;
 }
 
+/** A leave as the HR list returns it — with whose it is and what they have left. */
+export interface LeaveListRow extends LeaveRequest {
+  employee_name: string;
+  department_id?: string;
+  /** Balance for this leave type in the leave's year; null when no balance row exists. */
+  remaining_balance: number | null;
+}
+
 export interface OnCallSchedule {
   id: string;
   tenant_id: string;
@@ -1725,9 +1740,45 @@ export interface CreateLeaveRequestInput {
   leave_type: string;
   start_date: string;
   end_date: string;
-  days?: number;
+  /** Days are counted by the server; a half day is a single date. */
   is_half_day?: boolean;
   reason?: string;
+}
+
+/** A restricted holiday is optional, so leave over it still counts that day. */
+export type HolidayKind = "national" | "regional" | "restricted";
+
+export interface Holiday {
+  id: string;
+  holiday_date: string;
+  name: string;
+  kind: HolidayKind;
+}
+
+export interface HolidayInput {
+  holiday_date: string;
+  name: string;
+  kind: HolidayKind;
+}
+
+/** `GET /hr/holidays` — holidays in a window and the weekly offs (0 = Sunday … 6 = Saturday). */
+export interface HolidayCalendar {
+  holidays: Holiday[];
+  weekly_offs: number[];
+}
+
+export interface WeeklyOffsInput {
+  weekly_offs: number[];
+}
+
+/** `GET /hr/leaves/preview` — the days a leave would take, counted by the server's rule. */
+export interface LeaveDayCount {
+  /** A decimal, sent as a string such as "4" or "0.5". */
+  days: string;
+  /** Maternity leave counts calendar days. */
+  counts_calendar_days: boolean;
+  weekly_offs: number[];
+  holidays: Holiday[];
 }
 /** One application from a department the caller heads (`GET /hr/me/team-leaves`). */
 export interface TeamLeave {
@@ -5264,6 +5315,9 @@ export interface AddIncidentNoteRequest {
   description: string;
 }
 
+export type FindingStatus = "open" | "in_progress" | "resolved" | "accepted";
+
+/** A security finding: entered by hand, or raised by a continuous check (`check_key` set). */
 export interface Vulnerability {
   id: string;
   tenant_id: string;
@@ -5274,13 +5328,22 @@ export interface Vulnerability {
   affected_component: string;
   discovered_at: string;
   discovered_by: string | null;
-  remediation_status: string | null;
+  remediation_status: FindingStatus | null;
   remediation_notes: string | null;
   remediation_deadline: string | null;
   remediated_at: string | null;
   remediated_by: string | null;
   created_at: string;
   updated_at: string;
+  check_key: string | null;
+  finding_key: string | null;
+  evidence: Record<string, unknown>;
+  how_to_fix: string | null;
+  owner_id: string | null;
+  last_seen_at: string;
+  occurrences: number;
+  reopened_count: number;
+  incident_id: string | null;
 }
 
 export interface CreateVulnerabilityRequest {
@@ -5290,13 +5353,57 @@ export interface CreateVulnerabilityRequest {
   severity: CertInSeverity;
   affected_component: string;
   discovered_at: string;
-  discovered_by?: string;
   remediation_deadline?: string;
 }
 
+export interface VulnerabilityQuery {
+  severity?: CertInSeverity;
+  status?: FindingStatus;
+}
+
 export interface UpdateVulnerabilityRequest {
-  remediation_status?: string;
+  remediation_status?: FindingStatus;
   remediation_notes?: string;
+  owner_id?: string;
+}
+
+/** A continuous security check's latest heartbeat. */
+export interface SecurityCheckRun {
+  check_key: string;
+  started_at: string;
+  finished_at: string;
+  findings_count: number;
+  outcome: "ok" | "error" | "not_applicable";
+  error: string | null;
+  recent_errors: number;
+}
+
+export interface SecurityCheckStatus {
+  key: string;
+  label: string;
+  every_secs: number;
+  last: SecurityCheckRun | null;
+}
+
+export interface PostureItem {
+  check: string;
+  label: string;
+  status: "pass" | "fail" | "unknown";
+  detail: string;
+  fix: string | null;
+}
+
+export interface PostureReport {
+  started_at: string;
+  finished_at: string;
+  outcome: "ok" | "error" | "not_applicable";
+  error: string | null;
+  detail: { items?: PostureItem[] };
+}
+
+export interface OpenedIncident {
+  incident_id: string;
+  created: boolean;
 }
 
 export interface ComplianceRequirement {
@@ -5410,8 +5517,10 @@ export interface EmailSettings {
   from_address: string;
   from_name: string;
   smtp_username: string;
-  /** Reference (not the value) to the SMTP password in the secret backend. */
+  /** Short name (not the value) of the SMTP password in the secret backend. */
   smtp_password_secret: string | null;
+  /** Where that password is kept, in this hospital's namespace; null when unset or a legacy name. */
+  smtp_password_secret_path: string | null;
   env_fallback: boolean;
 }
 
@@ -5931,6 +6040,51 @@ export interface DevicePairingRequest {
   created_at: string;
 }
 
+/** The digits a person types on a machine, to prove this is really its main machine. */
+export interface ApprovedMachine {
+  id: string;
+  confirm_code: string;
+}
+
+/** A machine waiting for a person. Its code is on its own screen only: a person must read it there. */
+export interface WaitingMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  address: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+/** A request a newer one pushed out of the waiting list. */
+export interface DroppedRequest {
+  label: string;
+  address: string | null;
+  reason: string;
+  created_at: string;
+}
+
+/** A machine that has joined this hospital's main machine. */
+export interface JoinedMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  online: boolean;
+  awaiting_confirmation: boolean;
+  screen_address: string | null;
+  paired_at: string;
+  last_seen_at: string | null;
+}
+
+/** The Nodes screen in one call. */
+export interface MachineList {
+  waiting: WaitingMachine[];
+  machines: JoinedMachine[];
+  dropped: DroppedRequest[];
+  given_up: number;
+  joining_paused: boolean;
+}
+
 /** What the QR on a printed prescription resolves to. */
 export interface VerifiedMedication {
   drug_name: string;
@@ -6048,6 +6202,83 @@ export interface CreatedApiKey {
   acts_as: string;
 }
 
+// ── Connected apps (RFC-HOSPITAL-OS C1) ──────────────────────────────────────
+//
+// A vendor app or extension, registered from its manifest and approved by a
+// person who sees what it reads and where the data goes.
+
+/** One place an extension sends hospital data — the privacy label's core. */
+export interface ManifestDestination {
+  name: string;
+  url: string;
+  purpose: string;
+}
+
+/** The one manifest every extension carries (docs/extensions/manifest.schema.json). */
+export interface ExtensionManifest {
+  manifestVersion: 1;
+  kind: "service" | "smart-app" | "mcp-tool" | "wasm-block";
+  name: string;
+  purpose: string;
+  publisher: { name: string; url?: string; contact?: string };
+  version: string;
+  permissions: string[];
+  reads?: string[];
+  events?: string[];
+  dataClasses: string[];
+  sendsDataTo?: ManifestDestination[];
+  webhookUrl?: string;
+  redirectUris?: string[];
+}
+
+export interface ConnectedApp {
+  id: string;
+  client_id: string;
+  /** e.g. `mbcs_a3f2c1` — identifies the current secret, never the secret. */
+  secret_prefix: string;
+  name: string;
+  publisher: string;
+  purpose: string;
+  version: string;
+  manifest: ExtensionManifest;
+  permissions: string[];
+  status: "pending" | "approved" | "revoked";
+  has_webhook: boolean;
+  approved_at: string | null;
+  approved_by_name: string | null;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+  secret_rotated_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+/** Shown once, on register and on rotate. Nothing can recover them. */
+export interface ConnectedAppCredentials {
+  id: string;
+  client_id: string;
+  client_secret: string;
+  webhook_signing_secret: string | null;
+}
+
+export interface ConnectedAppDelivery {
+  id: string;
+  event_type: string;
+  attempt: number;
+  status: "delivered" | "retrying" | "failed";
+  response_status: number | null;
+  error: string | null;
+  created_at: string;
+}
+
+/** RFC 6749 client-credentials token response. */
+export interface OAuthTokenResponse {
+  access_token: string;
+  token_type: "Bearer";
+  expires_in: number;
+  scope: string;
+}
+
 /** Where the hospital's events are sent (#224). The secret is never listed. */
 export interface WebhookSubscription {
   id: string;
@@ -6157,7 +6388,7 @@ export interface CreateInstallmentRequest {
 }
 
 export type { PermissionGroup } from "./permission-helpers";
-export { buildPermissionTree, isValidPermissionCode } from "./permission-helpers";
+export { buildPermissionTree } from "./permission-helpers";
 
 /** One nurse rostered onto a ward's shift. */
 export interface NurseRosterEntry {
@@ -6192,6 +6423,13 @@ export interface CodeBlueResponder {
   seconds_after_call: number;
 }
 
+/** SMS or WhatsApp messages of one code blue in one delivery state. */
+export interface CodeBlueDelivery {
+  channel: "sms" | "whatsapp";
+  status: "queued" | "sent" | "not_configured" | "failed";
+  count: number;
+}
+
 /** An arrest in progress, as the code blue list returns it. */
 export interface CodeBlueEventRow {
   id: string;
@@ -6201,6 +6439,44 @@ export interface CodeBlueEventRow {
   started_at: string;
   ended_at?: string | null;
   outcome?: string | null;
+  /** Rounds of paging so far; one more each window nobody answers. */
+  page_round: number;
+  last_paged_at?: string | null;
+  /** Who the latest round reached, in words. */
+  routing_note?: string | null;
+  /** What did not go out, e.g. "SMS is not set up: only in-app alerts went out". */
+  delivery_warning?: string | null;
+  delivery: CodeBlueDelivery[];
+}
+
+/** 1 code team, 2 duty medical officer, 3 medical superintendent. */
+export type CodeTeamTier = 1 | 2 | 3;
+
+/** One person on the code-blue roster. */
+export interface CodeTeamMember {
+  id: string;
+  user_id: string;
+  full_name: string;
+  /** Which code's roster: `code_blue`, `code_pink`, … */
+  code_type: string;
+  tier: CodeTeamTier;
+}
+
+/** Someone who can be put on the code-blue roster. */
+export interface CodeTeamCandidate {
+  id: string;
+  full_name: string;
+  role: string;
+}
+
+/** The code-blue roster screen in one call. */
+export interface CodeTeamRoster {
+  members: CodeTeamMember[];
+  candidates: CodeTeamCandidate[];
+  /** Seconds without a response before the next round of paging. */
+  response_secs: number;
+  /** Rounds of paging at most. */
+  max_rounds: number;
 }
 
 /** One emergency code called on the floor — fire, abduction, disaster, and the rest. */

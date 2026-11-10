@@ -239,7 +239,7 @@ export function SafetyTab({
             <Stack gap="sm">
               <Group justify="space-between">
                 <Group gap="xs">
-                  <ThemeIcon color={latestPainStatus.color} variant="light" radius="md">
+                  <ThemeIcon color={latestPainStatus.color} variant="light">
                     <IconAlertTriangle size={18} />
                   </ThemeIcon>
                   <Text fw={700}>Pain</Text>
@@ -332,7 +332,7 @@ export function SafetyTab({
             <Stack gap="sm">
               <Group justify="space-between">
                 <Group gap="xs">
-                  <ThemeIcon color={latestFallStatus.color} variant="light" radius="md">
+                  <ThemeIcon color={latestFallStatus.color} variant="light">
                     <IconShieldCheck size={18} />
                   </ThemeIcon>
                   <Text fw={700}>Fall Risk</Text>
@@ -406,7 +406,7 @@ export function SafetyTab({
             <Stack gap="sm">
               <Group justify="space-between">
                 <Group gap="xs">
-                  <ThemeIcon color={latestWoundStatus.color} variant="light" radius="md">
+                  <ThemeIcon color={latestWoundStatus.color} variant="light">
                     <IconBandage size={18} />
                   </ThemeIcon>
                   <Text fw={700}>Wounds</Text>

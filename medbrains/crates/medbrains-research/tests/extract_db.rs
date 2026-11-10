@@ -1,7 +1,8 @@
 //! The extract against a real database: the SQL reads what the release
-//! needs, keeps to the hospital, and leaves medico-legal stays out. Runs when
-//! `RESEARCH_TEST_DATABASE_URL` names a migrated scratch database (it plants
-//! and removes two hospitals); does nothing otherwise.
+//! needs, keeps to the hospital, and leaves medico-legal stays out. Runs
+//! against [`common::database`] (it plants and removes two hospitals).
+
+mod common;
 
 use chrono::NaiveDate;
 use medbrains_research::{datasets, deid};
@@ -53,12 +54,9 @@ fn clear() -> String {
 
 #[tokio::test]
 async fn an_extract_keeps_to_its_hospital_and_leaves_restricted_records_out() {
-    let Ok(url) = std::env::var("RESEARCH_TEST_DATABASE_URL") else {
+    let Some(db) = common::database().await else {
         return;
     };
-    let db = sqlx::PgPool::connect(&url)
-        .await
-        .unwrap_or_else(|e| panic!("{e}"));
     sqlx::raw_sql(&clear())
         .execute(&db)
         .await

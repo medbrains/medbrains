@@ -14,11 +14,10 @@ async fn an_enquiry_cohort_counts_the_people_it_matched() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     // A source nothing else in the database uses, so the count is exact
     // rather than "at least".
@@ -75,11 +74,10 @@ async fn re_running_a_cohort_drops_members_who_no_longer_match() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     let source = format!("src-{}", &Uuid::new_v4().to_string()[..8]);
     let mut contacts = Vec::new();
@@ -147,10 +145,7 @@ async fn re_running_a_cohort_drops_members_who_no_longer_match() {
     .fetch_one(&app.db)
     .await
     .expect("count members");
-    assert_eq!(
-        rows, 1,
-        "the stored membership must match the reported count"
-    );
+    assert_eq!(rows, 1, "the stored membership must match the reported count");
 }
 
 /// A clinical cohort refuses to refresh, and says why.
@@ -168,11 +163,10 @@ async fn a_clinical_cohort_cannot_be_refreshed_from_the_marketing_side() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     // Inserted directly: creating one through the API needs
     // `cohorts.clinical_define`, and what is under test is the refresh path.
@@ -219,28 +213,26 @@ async fn a_cohort_can_ask_for_cold_unconverted_enquiries_from_one_ward() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
-    let patient_id: Uuid =
-        sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 LIMIT 1")
-            .bind(tenant_id)
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded patient");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
+    let patient_id: Uuid = sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 LIMIT 1")
+        .bind(tenant_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded patient");
 
     let ward = format!("Ward-{}", &Uuid::new_v4().to_string()[..8]);
     let mut wanted = Vec::new();
 
     // (converted, last_contacted_days_ago, in_ward, should_match)
     let cases: [(bool, Option<i32>, bool, bool); 5] = [
-        (true, None, true, false),     // already a patient
-        (false, Some(1), true, false), // rung yesterday
-        (false, None, false, false),   // wrong ward
-        (true, Some(40), true, false), // in ward and cold, but converted
-        (false, Some(30), true, true), // in ward, cold, unconverted
+        (true, None, true, false),        // already a patient
+        (false, Some(1), true, false),    // rung yesterday
+        (false, None, false, false),      // wrong ward
+        (true, Some(40), true, false),    // in ward and cold, but converted
+        (false, Some(30), true, true),    // in ward, cold, unconverted
     ];
 
     for (i, (converted, contacted_days, in_ward, should_match)) in cases.iter().enumerate() {
@@ -266,11 +258,7 @@ async fn a_cohort_can_ask_for_cold_unconverted_enquiries_from_one_ward() {
         )
         .bind(tenant_id)
         .bind(contact_id)
-        .bind(if *in_ward {
-            ward.clone()
-        } else {
-            "Elsewhere".to_owned()
-        })
+        .bind(if *in_ward { ward.clone() } else { "Elsewhere".to_owned() })
         .execute(&app.db)
         .await
         .expect("insert touchpoint");
@@ -341,10 +329,7 @@ async fn a_cohort_can_ask_for_cold_unconverted_enquiries_from_one_ward() {
     .expect("read members");
 
     for id in &wanted {
-        assert!(
-            members.contains(id),
-            "a matching enquiry was left out: {id}"
-        );
+        assert!(members.contains(id), "a matching enquiry was left out: {id}");
     }
     assert!(
         members.contains(&never_contacted),

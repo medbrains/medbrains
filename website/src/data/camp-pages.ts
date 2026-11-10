@@ -11,7 +11,7 @@ const link = (href: string, text: string) => `<a href="${href}">${text}</a>`;
 const hub: ModulePage = {
   slug: "health-camp-software",
   title: "Health Camp Software & Medical Camp Management | MedBrains",
-  description: "Health camp software for Indian hospitals, NGOs and programme teams: plan the camp, register once, run stations, refer, follow up and report, even offline.",
+  description: "Health camp software for hospitals, NGOs and programme teams: plan the camp, register once, run stations, refer, follow up and report, even offline.",
   eyebrow: "Health camps",
   h1: "Health camp software that runs the camp and feeds the hospital",
   intro: "MedBrains is health camp software, a medical camp management system, for hospitals and the NGOs and programme teams that run camps with them. It plans the camp, registers each person once, moves them through registration, vitals, doctor and pharmacy on one number, keeps working when the network drops, and brings every record, sample and referral back into the hospital's own patient record.",
@@ -95,7 +95,7 @@ const government: ModulePage = {
   slug: "government-medical-camp-software",
   parent: "health-camp-software",
   title: "Government Medical Camp Software for Districts | MedBrains",
-  description: "Government medical camp software for district and programme camps in India: screening, coded diagnoses, tracked referrals, one record per person, offline.",
+  description: "Government medical camp software for district and programme camps: screening, coded diagnoses, tracked referrals, one record per person, offline.",
   eyebrow: "Government medical camps",
   h1: "Government medical camp software for district and programme camps",
   intro: "Government medical camp software has to do three things a register cannot: count every person screened without counting anyone twice, follow each referral until the person reaches the hospital, and hand the programme officer numbers that add up. MedBrains does all three, offline when it has to, on the same patient record the hospital uses.",
@@ -115,7 +115,7 @@ const government: ModulePage = {
         { title: "Register once", body: "Each person gets a camp number. If they already have a record at the hospital they are linked to it; if not, they get a UHID marked as a camp registration. The father's or spouse's name is captured, because that is how rural registers tell two people with the same name apart." },
         { title: "Screen", body: "Vitals, random blood sugar and HbA1c, haemoglobin, BMI and visual acuity, a history checklist, findings, ICD-coded diagnoses and advice. Several diagnoses can be coded from one screening." },
         { title: "Refer and track", body: "A referral records the receiving facility and department, urgency, reason, transport, whether an ambulance is needed and an attendant's contact. Its status is updated as the person moves, so a referral is a list to work through, not a number in a register." },
-        { title: "Follow up and close", body: "Follow-ups are scheduled per person and marked completed, missed or cancelled. The readiness checklist names an owner for the post-camp sync, the biomedical waste hand-off, referral reconciliation and incident review, so closing the camp is somebody\'s job." },
+        { title: "Follow up and close", body: "Follow-ups are scheduled per person and marked completed, missed or cancelled. The readiness checklist names an owner for the post-camp sync, the biomedical waste hand-off, referral reconciliation and incident review, so closing the camp is somebody\'s job. Our free <a href=\"/resources/health-camp-planning-checklist\">health camp planning checklist</a> covers the same steps on paper." },
       ],
     },
     {

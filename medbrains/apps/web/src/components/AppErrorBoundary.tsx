@@ -148,7 +148,7 @@ class AppErrorBoundaryInner extends Component<BoundaryProps, BoundaryState> {
 
     return (
       <Container size="md" py="xl">
-        <Paper withBorder radius="md" p="xl">
+        <Paper withBorder p="xl">
           <Stack gap="lg">
             <Alert
               color="danger"

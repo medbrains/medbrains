@@ -1,12 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/medbrains-os-test",
+    "crates/medbrains-os-setup",
+    "crates/medbrains-agent",
     "crates/medbrains-server",
     "crates/medbrains-automation",
     "crates/medbrains-automation-store",
     "crates/medbrains-automation-api",
     "crates/medbrains-core",
     "crates/medbrains-research",
+    "crates/medbrains-knowledge",
+    "crates/medbrains-sop-flows",
     "crates/medbrains-ai-eval",
     "crates/medbrains-anthropic-auth",
     "crates/medbrains-authz-gate",
@@ -22,6 +27,7 @@ members = [
     "crates/medbrains-approvals-api",
     "crates/medbrains-api-keys",
     "crates/medbrains-api-keys-api",
+    "crates/medbrains-connected-apps",
     "crates/medbrains-db",
     "crates/medbrains-db-migrations",
     "crates/medbrains-abdm",
@@ -32,6 +38,7 @@ members = [
     "crates/medbrains-print",
     "crates/medbrains-proxy",
     "crates/medbrains-authz",
+    "crates/medbrains-authz-spicedb",
     "crates/medbrains-crypto",
     "crates/medbrains-fhir",
     "crates/medbrains-outbox",
@@ -107,11 +114,16 @@ members = [
     "crates/medbrains-pharmacy-delivery",
     "crates/medbrains-ward-stock",
     "crates/medbrains-clinical-notes",
+    "crates/medbrains-dictation",
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",
     "crates/medbrains-notes",
     "crates/medbrains-vte",
+    "crates/medbrains-health-intel",
+    "crates/medbrains-security-intel",
+    "crates/medbrains-kernel",
+    "crates/medbrains-health-services",
     "crates/medbrains-pharmacy-cash-drawer",
     "crates/medbrains-device-pairing",
     "crates/medbrains-nhcx-callback",
@@ -175,7 +187,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.97.1"
 license-file = "../LICENSE"
@@ -273,7 +285,7 @@ loro = "1.4"
 mdns-sd = "0.13"
 
 [patch.crates-io]
-pingora-core = { path = "vendor/pingora-core-0.9.0" }
+pingora-core = { path = "vendor/pingora-core-0.9.1" }
 sqlx = { path = "vendor/sqlx-0.8.6" }
 sqlx-macros-core = { path = "vendor/sqlx-macros-core-0.8.6" }
 

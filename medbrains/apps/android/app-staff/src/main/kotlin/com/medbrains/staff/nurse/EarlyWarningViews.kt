@@ -33,7 +33,7 @@ import com.medbrains.ui.Eyebrow
 import com.medbrains.ui.NotificationKind
 import com.medbrains.ui.carbon
 
-/** Minimum touch target (Material / CLAUDE.md ≥44). */
+/** Minimum touch target (Material / ENGINEERING.md ≥44). */
 private val TOUCH = 48.dp
 
 /** One-of picker for a short option list; selecting the chosen one again clears it (not charted). */

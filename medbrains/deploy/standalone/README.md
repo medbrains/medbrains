@@ -43,7 +43,13 @@ secrets. Picks up where it left off if interrupted.
 
 ## What the installer does
 
-1. Installs system packages: Docker, `certbot`, `openssl`.
+1. Installs system packages: Docker, `certbot`, `openssl`, and turns on
+   automatic OS security updates (`os-auto-updates.sh`: Debian/Ubuntu
+   security archive only, nightly at 03:30 after the backups, no automatic
+   reboot unless `OS_UPDATE_REBOOT=1`; logs in `/var/log/unattended-upgrades/`).
+   Skipped on an attach host unless `OS_AUTO_UPDATES=1`. MedBrains itself is
+   never updated by apt — it updates through its signed releases
+   (`docs/SECURITY-RELEASE-PROCESS.md`).
 2. Creates `medbrains` system user + directory tree under
    `/var/lib/medbrains/`.
 3. Writes `/etc/medbrains/env` (postgres password, Ed25519 JWT
@@ -82,7 +88,7 @@ curl -I https://hims.amh.org.in                        # 200 once ACME completes
 | Tail local ICD-API | `sudo docker logs -f medbrains-icd-api` |
 | Backup now (sealed, shipped, recorded) | `sudo systemctl start medbrains-pg-backup.service && journalctl -u medbrains-pg-backup -n 20` |
 | Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
-| Update binary | Replace `/usr/local/bin/medbrains-server` and `systemctl restart medbrains-server.service` |
+| Update binary | Run `install.sh`. Replacing `/usr/local/bin/medbrains-server` alone now refuses to start on a host without the event token, signature and OAuth keys, which `install.sh` adds to `/etc/medbrains/env`. Values sealed under the old development keys then stop opening: doctors re-enrol signing keys and accounts reconnect |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
 
 ## Encrypted off-site backups
@@ -157,6 +163,24 @@ RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
 `make test-backups` runs the kit's own tests (a local directory stands in for
 S3, with a throwaway key).
 
+## Log archive
+
+CERT-In direction (iv) wants 180 days of logs kept in India. journald is set to
+persistent, 180 days, capped at 2G (`SystemMaxUse`) with 2G kept free, so local
+logs can never fill the disk; on a busy host that is days, not months.
+
+The S3 archive is **opt-in and off by default**: set `LOG_ARCHIVE_BUCKET` (and
+optionally `LOG_ARCHIVE_PREFIX`, default `host-logs`) before running
+`install.sh`. Only then is `medbrains-log-archive.timer` enabled; it ships the
+previous day's journal (`journal.json.gz`) and plain-file logs touched that day
+(`files.tar.gz`, list in `LOG_ARCHIVE_FILES`) at about 00:20. Credentials come
+from the instance's IAM role only; no keys are written to disk or logged. The
+AWS CLI uses HTTPS; at-rest encryption is the bucket's default SSE-KMS, and the
+host's policy should allow put and list only, never get or delete. A failed run
+pages through `medbrains-alert@`, and `medbrains-host-check` pages when
+yesterday's object is missing or the clock is not NTP-synchronised.
+Backfill a day: `sudo medbrains-log-archive 2026-10-20`.
+
 ## A hospital's own domain
 
 A hospital names its domain in **Settings → Organization** and proves it on
@@ -190,6 +214,7 @@ Certbot once the domain is proven and add its route to the proxy config.
 | File | Purpose |
 |---|---|
 | `install.sh` | Idempotent bootstrap script |
+| `os-auto-updates.sh` | unattended OS security updates: window, reboot policy, logging (`test-os-auto-updates.sh` checks it) |
 | `PingoraProxy.toml.tmpl` | Pingora edge proxy template |
 | `medbrains-proxy.service` | systemd unit for the Pingora edge proxy |
 | `copy-medbrains-proxy-cert` | Certbot deploy hook that copies renewed certs into `/etc/medbrains/tls` |

@@ -89,11 +89,11 @@ function IndicatorCard({ indicator }: { indicator: NabhIndicator }) {
   const delta = deltaLabel(indicator);
 
   return (
-    <Card withBorder radius="md" padding="md">
+    <Card withBorder padding="md">
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" gap="xs">
           <Stack gap={2}>
-            <Text size="xs" fw={800} tt="uppercase" c="dimmed" ff="monospace">
+            <Text size="xs" fw={800} c="dimmed" ff="monospace">
               {indicator.code}
             </Text>
             <Badge color={category.color} variant="light" size="xs">
@@ -187,7 +187,7 @@ export function NabhIndicatorMatrix({ search = "" }: NabhIndicatorMatrixProps) {
 
   if (!canView) {
     return (
-      <Card withBorder radius="md" padding="md">
+      <Card withBorder padding="md">
         <Text fw={700}>NABH quality indicators</Text>
         <Text size="sm" c="dimmed">
           Restricted by permission: {P.QUALITY.INDICATORS_LIST}
@@ -197,16 +197,16 @@ export function NabhIndicatorMatrix({ search = "" }: NabhIndicatorMatrixProps) {
   }
 
   return (
-    <Card withBorder radius="md" padding="lg" pos="relative">
+    <Card withBorder padding="lg" pos="relative">
       <LoadingOverlay visible={isLoading} />
       <Stack gap="md">
         <Group justify="space-between" align="flex-start">
           <Group align="flex-start">
-            <ThemeIcon color="red" size={44} radius="md" variant="light">
+            <ThemeIcon color="red" size={44} variant="light">
               <IconFilterCheck size={24} />
             </ThemeIcon>
             <Stack gap={2}>
-              <Text size="xs" fw={800} tt="uppercase" c="red">
+              <Text size="xs" fw={800} c="red">
                 NABH evidence matrix
               </Text>
               <Title order={3}>Quality indicators catalog</Title>
@@ -264,7 +264,6 @@ export function NabhIndicatorMatrix({ search = "" }: NabhIndicatorMatrixProps) {
               <Button
                 key={category}
                 size="xs"
-                radius="xl"
                 variant={category === activeCategory ? "filled" : "light"}
                 color={category === activeCategory ? meta.color : "gray"}
                 onClick={() => setActiveCategory(category)}

@@ -231,3 +231,17 @@ fn real_react_sdk_envelopes_are_kept_and_cleaned() -> TestResult {
     assert!(!session.contains("HeadlessChrome"), "no user agent");
     Ok(())
 }
+
+/// A public verify link is the whole credential for its check; the URL an
+/// error report carries must not hold it, whatever digits the token has.
+#[test]
+fn a_verify_token_in_a_request_url_is_removed() {
+    let token = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+    let scrubbed = crate::scrub::scrub_url(&format!(
+        "https://h.example/api/public/signatures/verify/{token}"
+    ));
+    assert_eq!(
+        scrubbed,
+        "https://h.example/api/public/signatures/verify/:id"
+    );
+}

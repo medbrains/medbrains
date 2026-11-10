@@ -15,6 +15,7 @@ use axum::routing::get;
 use axum::{
     Json,
     extract::{Path, Query, State},
+    http::HeaderMap,
     response::Redirect,
 };
 use axum_extra::extract::CookieJar;
@@ -32,6 +33,8 @@ use medbrains_server_core::{
     middleware::auth::{Claims, encode_jwt},
     middleware::authorization::BYPASS_ROLES,
     middleware::cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
+    os_identity,
+    permissions::resolve_permissions_on,
     state::AppState,
 };
 
@@ -43,15 +46,38 @@ fn public_base() -> String {
     std::env::var("MEDBRAINS_PUBLIC_BASE_URL")
         .unwrap_or_else(|_| "https://127.0.0.1:8443".to_owned())
 }
-fn callback_uri() -> String {
-    format!("{}/api/auth/sso/callback", public_base())
+/// The base to come back to. A sign-in from the machine's own screen stays on the screen's own address:
+/// `MEDBRAINS_SSO_SCREEN_BASE` names it. The front gives every request the machine's name as its Host, so
+/// the screen is known by its address, which the front writes into `X-Forwarded-For` itself.
+fn base_for(headers: &HeaderMap) -> String {
+    let screen = std::env::var("MEDBRAINS_SSO_SCREEN_BASE").ok();
+    let client = headers
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok());
+    screen_base(screen.as_deref(), client).unwrap_or_else(public_base)
 }
 
-async fn secret_key(state: &AppState) -> Vec<u8> {
-    match state.secret_resolver.get(SSO_SECRET_KEY).await {
-        Ok(v) if v.len() >= 32 => v.into_bytes(),
-        _ => DEV_SSO_SECRET_KEY.to_vec(),
-    }
+/// The screen's base, if this request came from the machine itself. The front admits 127.0.0.1 and ::1
+/// only from the machine; a node's tunnel arrives from another 127.x address. Pure, so it is tested.
+fn screen_base(screen: Option<&str>, client: Option<&str>) -> Option<String> {
+    let screen = screen?;
+    matches!(client, Some("127.0.0.1" | "::1")).then(|| screen.to_owned())
+}
+
+/// Where the identity provider sends the browser back, on the address the sign-in started from.
+fn callback_uri(base: &str) -> String {
+    format!("{base}/api/auth/sso/callback")
+}
+
+/// The key that seals SSO client secrets at rest: the same one on write (admin) and read (sign-in).
+async fn secret_key(state: &AppState) -> Result<Vec<u8>, AppError> {
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        SSO_SECRET_KEY,
+        DEV_SSO_SECRET_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 /// URL-safe random token of `bytes` entropy (state/nonce/PKCE verifier).
@@ -82,17 +108,93 @@ struct LoginProvider {
     group_claim: String,
     default_role: Option<String>,
     jit_enabled: bool,
+    /// Which provider: the OS's own Kanidm is `kanidm`.
+    code: String,
+    /// Whether a verified email from it may find an existing local account (migration 1406).
+    link_by_email: bool,
 }
 
+/// The provider a sign-in uses. The OS's own Kanidm keeps only its id and settings from the row: where it is
+/// reached and which client `MedBrains` is are pinned by the server (`os_identity`), so an edited row cannot send
+/// a sign-in elsewhere.
 async fn load_provider(state: &AppState, id: Uuid) -> Result<LoginProvider, AppError> {
-    sqlx::query_as::<_, LoginProvider>(
+    let mut provider = sqlx::query_as::<_, LoginProvider>(
         "SELECT id, tenant_id, protocol, discovery_url, client_id, client_secret_enc, \
-         group_claim, default_role, jit_enabled FROM sso_provider_for_login($1)",
+         group_claim, default_role, jit_enabled, code, link_by_email FROM sso_provider_for_login($1)",
     )
     .bind(id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or(AppError::NotFound)
+    .ok_or(AppError::NotFound)?;
+    if provider.code == OS_KANIDM_CODE {
+        "oidc".clone_into(&mut provider.protocol);
+        provider.discovery_url = Some(os_identity::discovery_url());
+        provider.client_id = Some(os_identity::CLIENT_ID.to_owned());
+        provider.client_secret_enc = None;
+    }
+    Ok(provider)
+}
+
+/// The HTTP client for a provider's server-side calls: the OS's Kanidm only ever on loopback.
+fn provider_client(provider: &LoginProvider) -> Result<reqwest::Client, AppError> {
+    if provider.code == OS_KANIDM_CODE {
+        os_identity::kanidm_client(PROVIDER_TIMEOUT)
+    } else {
+        reqwest::Client::builder().timeout(PROVIDER_TIMEOUT).build()
+    }
+    .map_err(|e| AppError::Internal(format!("http client: {e}")))
+}
+
+/// How long a call to the identity provider may take. A provider that hangs must not hang the sign-in page.
+const PROVIDER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Where the login page says the identity provider is not answering, in plain words.
+const PROVIDER_UNAVAILABLE: &str = "/login?sso_error=unavailable";
+/// Where the login page says sign-in was cancelled or refused.
+const PROVIDER_REFUSED: &str = "/login?sso_error=1";
+/// Where the login page says the sign-in matches an account that an administrator has to link first.
+const LINK_NEEDED: &str = "/login?sso_error=link";
+/// Where the login page says an administrator's account needs a Kanidm person in the high-privilege group.
+const ADMIN_GROUP_NEEDED: &str = "/login?sso_error=admin_group";
+/// Where the login page says that group could not be checked, so an administrator's sign-in stopped.
+const ADMIN_GROUP_UNCHECKED: &str = "/login?sso_error=admin_group_unchecked";
+/// The OS's own Kanidm, as kanidm-setup registers it. Every sign-in through it asks for a fresh login, because
+/// its pages run on shared computers and its session would otherwise sign the next person in.
+const OS_KANIDM_CODE: &str = os_identity::KANIDM_CODE;
+/// Accounts an email address never claims, whatever the provider says: a takeover of one is the whole hospital.
+const NEVER_LINKED_BY_EMAIL: [&str; 2] = ["super_admin", "hospital_admin"];
+/// Names a new account never takes, nor these with digits or underscores after them: they read as the system's
+/// own, or as an administrator's.
+const RESERVED_USERNAMES: [&str; 14] = [
+    "admin",
+    "administrator",
+    "root",
+    "system",
+    "superadmin",
+    "super_admin",
+    "hospital_admin",
+    "support",
+    "security",
+    "idm_admin",
+    "anonymous",
+    "medbrains",
+    "sysadmin",
+    "it",
+];
+
+/// True for a name a new account may not take: a reserved one, or a reserved one with digits or underscores
+/// after it, such as `admin0`.
+fn is_reserved_username(name: &str) -> bool {
+    let stem = name.trim_end_matches(|c: char| c.is_ascii_digit() || c == '_');
+    RESERVED_USERNAMES.contains(&stem)
+}
+
+/// Where a provider's error on the callback sends the person: its own outage reads as "not answering", so a
+/// clinician is not told their sign-in was refused when the service was down.
+fn callback_error_target(error: &str) -> &'static str {
+    match error {
+        "server_error" | "temporarily_unavailable" => PROVIDER_UNAVAILABLE,
+        _ => PROVIDER_REFUSED,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,15 +205,41 @@ struct Discovery {
     jwks_uri: String,
 }
 
-async fn fetch_discovery(url: &str) -> Result<Discovery, AppError> {
-    reqwest::Client::new()
+/// The provider's `OpenID` discovery document. For the OS's Kanidm it must name the pinned issuer, and its
+/// server-side endpoints move onto loopback; a document naming any other host is refused.
+async fn fetch_discovery(
+    client: &reqwest::Client,
+    url: &str,
+    is_kanidm: bool,
+) -> Result<Discovery, AppError> {
+    let discovery = client
         .get(url)
         .send()
         .await
         .map_err(|e| AppError::Internal(format!("oidc discovery: {e}")))?
         .json::<Discovery>()
         .await
-        .map_err(|e| AppError::Internal(format!("oidc discovery parse: {e}")))
+        .map_err(|e| AppError::Internal(format!("oidc discovery parse: {e}")))?;
+    if !is_kanidm {
+        return Ok(discovery);
+    }
+    pin_kanidm(discovery).ok_or_else(|| {
+        AppError::Internal("Kanidm's discovery names another issuer or host".to_owned())
+    })
+}
+
+/// Kanidm's discovery document held to the pinned issuer, with its token and key endpoints on loopback. The
+/// authorization endpoint stays public, because the browser follows it, but must be Kanidm's own.
+fn pin_kanidm(discovery: Discovery) -> Option<Discovery> {
+    if discovery.issuer != os_identity::issuer() {
+        return None;
+    }
+    os_identity::to_loopback(&discovery.authorization_endpoint)?;
+    Some(Discovery {
+        token_endpoint: os_identity::to_loopback(&discovery.token_endpoint)?,
+        jwks_uri: os_identity::to_loopback(&discovery.jwks_uri)?,
+        ..discovery
+    })
 }
 
 // ── public providers list (login page) ──────────────────────────────────────
@@ -162,6 +290,7 @@ pub async fn oidc_authorize(
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
     Query(q): Query<AuthorizeQuery>,
+    headers: HeaderMap,
 ) -> Result<Redirect, AppError> {
     let provider = load_provider(&state, provider_id).await?;
     if provider.protocol != "oidc" {
@@ -175,7 +304,13 @@ pub async fn oidc_authorize(
         .client_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("provider has no client_id".to_owned()))?;
-    let discovery = fetch_discovery(discovery_url).await?;
+    let client = provider_client(&provider)?;
+    let is_kanidm = provider.code == OS_KANIDM_CODE;
+    let Ok(discovery) = fetch_discovery(&client, discovery_url, is_kanidm).await.inspect_err(|e| {
+        tracing::warn!(error = %e, "identity provider not answering; sending the person back to sign-in");
+    }) else {
+        return Ok(Redirect::to(&format!("{}{PROVIDER_UNAVAILABLE}", base_for(&headers))));
+    };
 
     let state_tok = random_token(32)?;
     let nonce = random_token(32)?;
@@ -195,11 +330,17 @@ pub async fn oidc_authorize(
     .execute(&mut *medbrains_db::pool::tenant_conn(&state.db, &provider.tenant_id).await?)
     .await?;
 
+    let base = base_for(&headers);
+    let prompt = if provider.code == OS_KANIDM_CODE || base != public_base() {
+        "&prompt=login"
+    } else {
+        ""
+    };
     let url = format!(
-        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256",
+        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}&code_challenge={}&code_challenge_method=S256{prompt}",
         discovery.authorization_endpoint,
         enc(client_id),
-        enc(&callback_uri()),
+        enc(&callback_uri(&base)),
         enc("openid email profile"),
         state_tok,
         nonce,
@@ -235,6 +376,12 @@ struct IdClaims {
     sub: String,
     #[serde(default)]
     email: Option<String>,
+    #[serde(default, deserialize_with = "bool_or_string")]
+    email_verified: bool,
+    #[serde(default)]
+    preferred_username: Option<String>,
+    #[serde(default)]
+    tid: Option<String>,
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -243,9 +390,22 @@ struct IdClaims {
     extra: serde_json::Map<String, serde_json::Value>,
 }
 
+/// Reads `email_verified`, which some providers send as the string "true".
+fn bool_or_string<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    Ok(match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Bool(value) => value,
+        serde_json::Value::String(value) => value.eq_ignore_ascii_case("true"),
+        _ => false,
+    })
+}
+
 struct SsoIdentity {
     subject: String,
     email: Option<String>,
+    /// The provider says it verified `email`. Entra does not, and lets a tenant set it to anything.
+    email_verified: bool,
+    /// For naming a new account only. Never for finding one: providers let it change.
+    preferred_username: Option<String>,
     name: Option<String>,
     groups: Vec<String>,
 }
@@ -254,12 +414,14 @@ struct SsoIdentity {
 pub async fn oidc_callback(
     State(state): State<AppState>,
     Query(q): Query<CallbackQuery>,
+    headers: HeaderMap,
 ) -> Result<(CookieJar, Redirect), AppError> {
+    let base = base_for(&headers);
     if let Some(err) = q.error {
         tracing::warn!(error = %err, "sso callback returned an error");
         return Ok((
             CookieJar::new(),
-            Redirect::to(&format!("{}/login?sso_error=1", public_base())),
+            Redirect::to(&format!("{base}{}", callback_error_target(&err))),
         ));
     }
     let state_tok = q.state.ok_or(AppError::Unauthorized)?;
@@ -285,17 +447,26 @@ pub async fn oidc_callback(
     .ok_or(AppError::Unauthorized)?;
 
     let provider = load_provider(&state, auth.provider_id).await?;
-    let discovery = fetch_discovery(
+    let client = provider_client(&provider)?;
+    let Ok(discovery) = fetch_discovery(
+        &client,
         provider
             .discovery_url
             .as_deref()
             .ok_or(AppError::Unauthorized)?,
+        provider.code == OS_KANIDM_CODE,
     )
-    .await?;
+    .await
+    .inspect_err(|e| tracing::warn!(error = %e, "identity provider not answering on the way back")) else {
+        return Ok((
+            CookieJar::new(),
+            Redirect::to(&format!("{base}{PROVIDER_UNAVAILABLE}")),
+        ));
+    };
     let client_id = provider.client_id.clone().ok_or(AppError::Unauthorized)?;
     let client_secret = match provider.client_secret_enc.as_deref() {
         Some(enc) => {
-            let key = secret_key(&state).await;
+            let key = secret_key(&state).await?;
             Some(
                 medbrains_crypto::aead::decrypt_token::<String>(&key, SSO_SECRET_CONTEXT, enc)
                     .map_err(|_| AppError::Internal("sso secret decrypt".to_owned()))?,
@@ -305,25 +476,36 @@ pub async fn oidc_callback(
     };
 
     // Exchange the code for tokens (PKCE verifier proves this is the same client).
-    let tokens = exchange_code(
+    // A provider that stops answering here reads as "not answering", never as a refused sign-in.
+    let tokens = match exchange_code(
+        &client,
         &discovery.token_endpoint,
         &code,
         &client_id,
         client_secret.as_deref(),
         &auth.pkce_verifier,
+        &callback_uri(&base),
     )
-    .await?;
+    .await
+    {
+        Err(AppError::ServiceUnavailable(e)) => return Ok(unavailable(&base, &e)),
+        other => other?,
+    };
 
     // Validate the id_token end-to-end and pull the identity + groups.
-    let identity = validate_id_token(
-        &discovery.jwks_uri,
-        &discovery.issuer,
+    let identity = match validate_id_token(
+        &client,
+        &discovery,
         &tokens.id_token,
         &client_id,
         &auth.nonce,
         &provider.group_claim,
     )
-    .await?;
+    .await
+    {
+        Err(AppError::ServiceUnavailable(e)) => return Ok(unavailable(&base, &e)),
+        other => other?,
+    };
 
     // Federate (find / link / JIT-create + group sync), mint a session.
     let mut tx = state.db.begin().await?;
@@ -333,10 +515,30 @@ pub async fn oidc_callback(
             // Authenticated at the IdP but refused here (no authorized role, or
             // JIT disabled for a new user) — audit the refused attempt.
             let _ = tx.rollback().await;
-            audit_sso_denied(&state, &provider, &identity).await;
+            audit_sso_denied(&state, &provider, &identity, NOT_PROVISIONED).await;
+            if matches!(e, AppError::Conflict(_)) {
+                return Ok((
+                    CookieJar::new(),
+                    Redirect::to(&format!("{base}{LINK_NEEDED}")),
+                ));
+            }
             return Err(e);
         }
     };
+
+    if provider.code == OS_KANIDM_CODE
+        && let Some(target) = admin_sign_in_refusal(
+            &mut tx,
+            (provider.tenant_id, fed.user_id),
+            &fed.role,
+            || os_identity::is_high_privilege_person(&identity.subject, &identity.groups),
+        )
+        .await?
+    {
+        let _ = tx.rollback().await;
+        audit_sso_denied(&state, &provider, &identity, NOT_HIGH_PRIVILEGE).await;
+        return Ok((CookieJar::new(), Redirect::to(&format!("{base}{target}"))));
+    }
 
     // Compliance audit (parity with password login) — who logged in via which
     // IdP, the groups presented, the role/access-groups synced, and the outcome.
@@ -408,19 +610,73 @@ pub async fn oidc_callback(
     // Land the user on the SPA; the cookie authenticates the session.
     let return_to = auth.return_to.unwrap_or_else(|| "/dashboard".to_owned());
     let target = if return_to.starts_with('/') {
-        format!("{}{return_to}", public_base())
+        format!("{base}{return_to}")
     } else {
-        format!("{}/dashboard", public_base())
+        format!("{base}/dashboard")
     };
     Ok((jar, Redirect::to(&target)))
 }
 
+/// Where a Kanidm sign-in to an administrator's account is refused to, or `None` when it may go on.
+///
+/// An administrator's account is a bypass role or any `admin.*` power; it is refused when its person is not in
+/// the high-privilege group, or when that cannot be read. Checked at
+/// every sign-in, not only when the account was linked, so a person later dropped from the group, or an
+/// account later made an administrator, does not keep the way in. `is_member` asks Kanidm, and is asked only
+/// for an administrator's account; the callback passes [`os_identity::is_high_privilege_person`]. `conn` is
+/// the sign-in's own transaction, so an admin power from an access group this sign-in just synced counts.
+///
+/// # Errors
+/// When the account's permissions cannot be resolved.
+pub async fn admin_sign_in_refusal<F, Fut>(
+    conn: &mut sqlx::PgConnection,
+    (tenant_id, user_id): (Uuid, Uuid),
+    role: &str,
+    is_member: F,
+) -> Result<Option<&'static str>, AppError>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<bool, AppError>>,
+{
+    let permissions = resolve_permissions_on(conn, tenant_id, user_id, role).await?;
+    if !os_identity::needs_high_privilege(role, &permissions) {
+        return Ok(None);
+    }
+    Ok(privilege_target(is_member().await))
+}
+
+/// The high-privilege answer as a sign-in outcome: a member goes on, a non-member is refused, and a directory
+/// that cannot be read stops the sign-in and says so, never reading as either.
+fn privilege_target(answer: Result<bool, AppError>) -> Option<&'static str> {
+    match answer {
+        Ok(true) => None,
+        Ok(false) => Some(ADMIN_GROUP_NEEDED),
+        Err(e) => {
+            tracing::warn!(error = %e, "could not read Kanidm's high-privilege group at sign-in");
+            Some(ADMIN_GROUP_UNCHECKED)
+        }
+    }
+}
+
+/// Logs why the provider is not answering and sends the person back to sign-in, which says so in plain words.
+fn unavailable(base: &str, why: &str) -> (CookieJar, Redirect) {
+    tracing::warn!(error = %why, "identity provider not answering on the way back");
+    (
+        CookieJar::new(),
+        Redirect::to(&format!("{base}{PROVIDER_UNAVAILABLE}")),
+    )
+}
+
+/// Exchanges the authorization code for tokens. A transport failure is `ServiceUnavailable`; a refusal by the
+/// provider is `Unauthorized`, with the provider's own reason logged.
 async fn exchange_code(
+    client: &reqwest::Client,
     token_endpoint: &str,
     code: &str,
     client_id: &str,
     client_secret: Option<&str>,
     pkce_verifier: &str,
+    redirect: &str,
 ) -> Result<TokenResponse, AppError> {
     let mut form = vec![
         ("grant_type", "authorization_code"),
@@ -428,17 +684,16 @@ async fn exchange_code(
         ("client_id", client_id),
         ("code_verifier", pkce_verifier),
     ];
-    let redirect = callback_uri();
-    form.push(("redirect_uri", &redirect));
+    form.push(("redirect_uri", redirect));
     if let Some(secret) = client_secret {
         form.push(("client_secret", secret));
     }
-    let response = reqwest::Client::new()
+    let response = client
         .post(token_endpoint)
         .form(&form)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("token exchange: {e}")))?;
+        .map_err(|e| AppError::ServiceUnavailable(format!("token exchange: {e}")))?;
 
     // The identity provider explains its own refusals — "invalid_client" when
     // the app is confidential and we sent no secret, "invalid_grant" for a
@@ -450,7 +705,7 @@ async fn exchange_code(
     let body = response
         .text()
         .await
-        .map_err(|e| AppError::Internal(format!("token exchange body: {e}")))?;
+        .map_err(|e| AppError::ServiceUnavailable(format!("token exchange body: {e}")))?;
 
     serde_json::from_str::<TokenResponse>(&body).map_err(|_| {
         tracing::warn!(
@@ -462,22 +717,25 @@ async fn exchange_code(
     })
 }
 
+/// Checks the id token against the provider's keys, issuer, client and nonce. A key set that cannot be fetched
+/// is `ServiceUnavailable`; a token that fails any check is `Unauthorized`.
 async fn validate_id_token(
-    jwks_uri: &str,
-    issuer: &str,
+    client: &reqwest::Client,
+    discovery: &Discovery,
     id_token: &str,
     client_id: &str,
     expected_nonce: &str,
     group_claim: &str,
 ) -> Result<SsoIdentity, AppError> {
-    let jwks = reqwest::Client::new()
-        .get(jwks_uri)
+    let issuer = discovery.issuer.as_str();
+    let jwks = client
+        .get(&discovery.jwks_uri)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("jwks fetch: {e}")))?
+        .map_err(|e| AppError::ServiceUnavailable(format!("jwks fetch: {e}")))?
         .json::<JwkSet>()
         .await
-        .map_err(|e| AppError::Internal(format!("jwks parse: {e}")))?;
+        .map_err(|e| AppError::ServiceUnavailable(format!("jwks parse: {e}")))?;
 
     let header = decode_header(id_token).map_err(|_| AppError::Unauthorized)?;
     let kid = header.kid.ok_or(AppError::Unauthorized)?;
@@ -507,12 +765,27 @@ async fn validate_id_token(
         return Err(AppError::Unauthorized);
     }
 
+    if !tenant_matches_issuer(issuer, claims.tid.as_deref()) {
+        return Err(AppError::Unauthorized);
+    }
+
     Ok(SsoIdentity {
         subject: claims.sub,
         email: claims.email,
+        email_verified: claims.email_verified,
+        preferred_username: claims.preferred_username,
         name: claims.name,
         groups: extract_groups(&claims.extra, group_claim),
     })
+}
+
+/// False if the token names a tenant other than the one in the issuer's path. Entra's v2.0 issuer holds
+/// the tenant id, so the two must agree. Providers with no `tid`, or no id in the issuer, have nothing
+/// to compare.
+fn tenant_matches_issuer(issuer: &str, tid: Option<&str>) -> bool {
+    let Some(tid) = tid else { return true };
+    let issuer_tenant = issuer.split('/').find(|part| Uuid::parse_str(part).is_ok());
+    issuer_tenant.is_none_or(|tenant| tenant.eq_ignore_ascii_case(tid))
 }
 
 /// Extract IdP groups from the id_token claim, tolerating the shapes real IdPs
@@ -549,7 +822,9 @@ fn group_value_as_string(v: &serde_json::Value) -> Option<String> {
 
 /// Resolve mapped (role, access-group-ids) from the provider's group mappings
 /// against the user's IdP groups. The first matching mapping that names a role
-/// wins (single role); all matching access groups are collected. Pure + tested.
+/// wins (single role); all matching access groups are collected. A mapping to a
+/// bypass role grants nothing and is logged: the admin API refuses one, so a row
+/// that names one was written some other way. Pure + tested.
 fn resolve_group_targets(
     mappings: &[(String, Option<String>, Option<Uuid>)],
     user_groups: &HashSet<String>,
@@ -558,6 +833,13 @@ fn resolve_group_targets(
     let mut access_groups: Vec<Uuid> = Vec::new();
     for (group, role_code, ag) in mappings {
         if !user_groups.contains(group) {
+            continue;
+        }
+        if let Some(rc) = role_code
+            .as_ref()
+            .filter(|rc| BYPASS_ROLES.contains(&rc.as_str()))
+        {
+            tracing::warn!(idp_group = %group, role = %rc, "ignored a directory-group mapping to an administrator role");
             continue;
         }
         if role.is_none()
@@ -574,6 +856,28 @@ fn resolve_group_targets(
     (role, access_groups)
 }
 
+/// The role and access groups this provider's mappings give a person in `groups`.
+///
+/// Read in the sign-in's own transaction (tenant context set). A stored mapping to a bypass role gives nothing
+/// ([`resolve_group_targets`]).
+///
+/// # Errors
+/// When the mappings cannot be read.
+pub async fn mapped_targets(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    provider_id: Uuid,
+    groups: &[String],
+) -> Result<(Option<String>, Vec<Uuid>), AppError> {
+    let mappings = sqlx::query_as::<_, (String, Option<String>, Option<Uuid>)>(
+        "SELECT idp_group, role_code, access_group_id FROM idp_group_mappings WHERE provider_id = $1",
+    )
+    .bind(provider_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    let user_groups: HashSet<String> = groups.iter().cloned().collect();
+    Ok(resolve_group_targets(&mappings, &user_groups))
+}
+
 struct Federated {
     user_id: Uuid,
     role: String,
@@ -586,6 +890,8 @@ struct Federated {
     access_groups: usize,
 }
 
+/// Find, link or create the account an SSO identity signs in as, apply its
+/// mapped role (never a bypass role) and re-sync its SSO group memberships.
 async fn federate_user(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     provider: &LoginProvider,
@@ -593,14 +899,7 @@ async fn federate_user(
 ) -> Result<Federated, AppError> {
     medbrains_db::pool::set_tenant_context(tx, &provider.tenant_id).await?;
 
-    let mappings = sqlx::query_as::<_, (String, Option<String>, Option<Uuid>)>(
-        "SELECT idp_group, role_code, access_group_id FROM idp_group_mappings WHERE provider_id = $1",
-    )
-    .bind(provider.id)
-    .fetch_all(&mut **tx)
-    .await?;
-    let user_groups: HashSet<String> = identity.groups.iter().cloned().collect();
-    let (mapped_role, access_groups) = resolve_group_targets(&mappings, &user_groups);
+    let (mapped_role, access_groups) = mapped_targets(tx, provider.id, &identity.groups).await?;
 
     // A mapped directory group decides the role. Without one, a returning or
     // linked account keeps the role an administrator gave it — overwriting it
@@ -629,32 +928,32 @@ async fn federate_user(
             (id, role, "returning")
         }
         None => {
-            let linked =
-                match identity.email.as_deref() {
-                    // Service accounts are not claimable.
-                    //
-                    // This branch adopts an existing local account when the IdP
-                    // asserts its email, which is the right behaviour for a person
-                    // moving to SSO. For an API key's identity it is a takeover:
-                    // the UPDATE below sets `idp_id` and a role from the IdP, so
-                    // anyone able to assert that address at the IdP would turn a
-                    // machine identity into their own login — and every row the
-                    // key had written would now belong to them.
-                    //
-                    // And only in this provider's hospital. The tenant context set
-                    // above is enforced by row level security, which a superuser
-                    // connection does not apply: an email match across hospitals
-                    // let one hospital's IdP adopt another hospital's account.
-                    Some(email) => sqlx::query_scalar::<_, Uuid>(
-                        "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
-                     AND is_service_account = false AND tenant_id = $2",
-                    )
-                    .bind(email)
-                    .bind(provider.tenant_id)
-                    .fetch_optional(&mut **tx)
-                    .await?,
-                    None => None,
-                };
+            let linked = match identity
+                .email
+                .as_deref()
+                .filter(|_| identity.email_verified && provider.link_by_email)
+            {
+                // Only an email the provider says it verified. Entra's `email` claim is whatever
+                // the tenant typed, so trusting it let any person sign in as a local account
+                // with that address, including the first administrator (nOAuth).
+                //
+                // Service accounts are not claimable.
+                //
+                // This branch adopts an existing local account when the IdP
+                // asserts its email, which is the right behaviour for a person
+                // moving to SSO. For an API key's identity it is a takeover:
+                // the UPDATE below sets `idp_id` and a role from the IdP, so
+                // anyone able to assert that address at the IdP would turn a
+                // machine identity into their own login — and every row the
+                // key had written would now belong to them.
+                //
+                // And only in this provider's hospital. The tenant context set
+                // above is enforced by row level security, which a superuser
+                // connection does not apply: an email match across hospitals
+                // let one hospital's IdP adopt another hospital's account.
+                Some(email) => email_link_candidate(tx, provider.tenant_id, email).await?,
+                None => None,
+            };
             match linked {
                 Some(id) => {
                     let role = sqlx::query_scalar::<_, String>(
@@ -687,22 +986,7 @@ async fn federate_user(
         }
     };
 
-    // Re-sync SSO-managed access-group memberships (never touch 'manual' grants).
-    sqlx::query("DELETE FROM access_group_members WHERE user_id = $1 AND source = 'sso'")
-        .bind(user_id)
-        .execute(&mut **tx)
-        .await?;
-    for ag in &access_groups {
-        sqlx::query(
-            "INSERT INTO access_group_members (group_id, user_id, tenant_id, source) \
-             VALUES ($1, $2, $3, 'sso') ON CONFLICT (group_id, user_id) DO NOTHING",
-        )
-        .bind(ag)
-        .bind(user_id)
-        .bind(provider.tenant_id)
-        .execute(&mut **tx)
-        .await?;
-    }
+    sync_sso_memberships(tx, provider.tenant_id, user_id, &access_groups).await?;
 
     let perm_version = sqlx::query_scalar::<_, i32>("SELECT perm_version FROM users WHERE id = $1")
         .bind(user_id)
@@ -717,6 +1001,77 @@ async fn federate_user(
         access_groups: access_groups.len(),
     })
 }
+
+/// The local account an SSO sign-in asserting `email` may adopt, if any.
+///
+/// Only an account not yet federated, not a service account, in this
+/// hospital, and not holding a bypass role. An administrator's account is
+/// never adopted by an email match: whoever can assert that address at the
+/// directory would otherwise sign in as the administrator. Such a sign-in
+/// falls through to a new, ordinary account instead. The row is locked, so a
+/// promotion to administrator cannot land between this check and the link.
+pub async fn email_link_candidate(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    email: &str,
+) -> Result<Option<Uuid>, AppError> {
+    Ok(sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
+         AND is_service_account = false AND tenant_id = $2 AND role::text <> ALL($3) \
+         FOR UPDATE",
+    )
+    .bind(email)
+    .bind(tenant_id)
+    .bind(NEVER_LINKED_BY_EMAIL.as_slice())
+    .fetch_optional(&mut **tx)
+    .await?)
+}
+
+/// Make `user_id`'s SSO-sourced access-group memberships exactly `groups`,
+/// never touching ones an administrator added by hand.
+///
+/// The delete is a soft delete (the table's guardrail), so the row stays and a
+/// plain `ON CONFLICT DO NOTHING` would leave every membership deleted from
+/// the second sign-in on. The insert brings a deleted row back instead, and a
+/// row an administrator removed becomes SSO-managed when the directory puts
+/// the person back in the group. Public so the integration suite can sign the
+/// same person in twice.
+pub async fn sync_sso_memberships(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    groups: &[Uuid],
+) -> Result<(), AppError> {
+    sqlx::query!(
+        "DELETE FROM access_group_members WHERE user_id = $1 AND tenant_id = $2 AND source = 'sso'",
+        user_id,
+        tenant_id
+    )
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query!(
+        "INSERT INTO access_group_members (group_id, user_id, tenant_id, source) \
+         SELECT g, $2, $3, 'sso' FROM unnest($1::uuid[]) AS g \
+         ON CONFLICT (group_id, user_id) DO UPDATE SET \
+           source = CASE WHEN access_group_members.deleted_at IS NULL \
+                         THEN access_group_members.source ELSE 'sso' END, \
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+        groups,
+        user_id,
+        tenant_id
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// The audit reason for a sign-in federation refused.
+const NOT_PROVISIONED: &str =
+    "not provisioned: a new user and just-in-time accounts are off for this provider";
+/// The audit reason for an administrator's account whose Kanidm person is not, or could not be shown to be, in
+/// the high-privilege group.
+const NOT_HIGH_PRIVILEGE: &str =
+    "administrator's account: the Kanidm person is not shown to be in the high-privilege group";
 
 /// What a new sign-in with no mapped directory group gets: dashboard only,
 /// until an administrator assigns the real role.
@@ -744,7 +1099,12 @@ async fn tell_admins_of_new_staff(
         .as_deref()
         .or(identity.email.as_deref())
         .unwrap_or("A new member of staff");
-    let body = format!("{who} signed in with single sign-on and needs a role.");
+    let sign_in_name = identity.preferred_username.as_deref().unwrap_or("unnamed");
+    let body = format!(
+        "{who} signed in with single sign-on (sign-in name {sign_in_name}, ID {}) and needs a role. \
+         If they already have an account, link it in Users and remove this one.",
+        identity.subject
+    );
     notify_permission_holders(
         tx,
         provider.tenant_id,
@@ -769,13 +1129,18 @@ async fn tell_admins_of_new_staff(
 /// but is not authorized here (no matching group mapping + no default role, or
 /// JIT disabled for a new user). Uses its own tx so it survives the rolled-back
 /// federation tx. `user_id` is null (no session was created).
-async fn audit_sso_denied(state: &AppState, provider: &LoginProvider, identity: &SsoIdentity) {
+async fn audit_sso_denied(
+    state: &AppState,
+    provider: &LoginProvider,
+    identity: &SsoIdentity,
+    reason: &str,
+) {
     let details = serde_json::json!({
         "provider_id": provider.id,
         "external_subject": identity.subject,
         "email": identity.email,
         "groups": identity.groups,
-        "reason": "not provisioned: a new user and just-in-time accounts are off for this provider",
+        "reason": reason,
     });
     let Ok(mut tx) = state.db.begin().await else {
         return;
@@ -809,8 +1174,9 @@ async fn audit_sso_denied(state: &AppState, provider: &LoginProvider, identity: 
 /// constraint (`^[a-z][a-z0-9_]{2,29}$`).
 fn base_username(identity: &SsoIdentity) -> String {
     let seed = identity
-        .email
+        .preferred_username
         .as_deref()
+        .or(identity.email.as_deref())
         .and_then(|e| e.split('@').next())
         .unwrap_or(&identity.subject);
     let mut s: String = seed
@@ -832,32 +1198,50 @@ fn base_username(identity: &SsoIdentity) -> String {
     s
 }
 
+/// The email for a new account. An unverified one must not sit in another person's way, so if a
+/// local account already has it the new account gets a placeholder.
+async fn new_account_email(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    provider: &LoginProvider,
+    identity: &SsoIdentity,
+    username: &str,
+) -> Result<String, AppError> {
+    let placeholder = format!("{username}@sso.local");
+    let Some(email) = identity.email.as_deref() else {
+        return Ok(placeholder);
+    };
+    let taken = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND lower(email) = lower($2))",
+    )
+    .bind(provider.tenant_id)
+    .bind(email)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(if taken { placeholder } else { email.to_owned() })
+}
+
 async fn jit_create(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     provider: &LoginProvider,
     identity: &SsoIdentity,
     role: &str,
 ) -> Result<Uuid, AppError> {
-    let base = base_username(identity);
-    // Ensure uniqueness within the tenant.
-    let mut username = base.clone();
-    for suffix in 0..1000 {
-        let taken = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)",
-        )
-        .bind(provider.tenant_id)
-        .bind(&username)
-        .fetch_one(&mut **tx)
-        .await?;
-        if !taken {
-            break;
-        }
-        username = format!("{}{suffix}", base.chars().take(24).collect::<String>());
+    // A reserved name, or one an account already has, is never taken or varied with a digit: the person is told
+    // to ask IT, who links the existing account instead of a look-alike growing beside it.
+    let username = base_username(identity);
+    let taken = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)",
+    )
+    .bind(provider.tenant_id)
+    .bind(&username)
+    .fetch_one(&mut **tx)
+    .await?;
+    if taken || is_reserved_username(&username) {
+        return Err(AppError::Conflict(format!(
+            "the sign-in name {username} needs an administrator to link it"
+        )));
     }
-    let email = identity
-        .email
-        .clone()
-        .unwrap_or_else(|| format!("{username}@sso.local"));
+    let email = new_account_email(tx, provider, identity, &username).await?;
     let full_name = identity
         .name
         .clone()
@@ -890,8 +1274,11 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        STAFF_ROLE, SsoIdentity, base_username, extract_groups, new_user_role, pkce_challenge,
-        resolve_group_targets,
+        ADMIN_GROUP_NEEDED, ADMIN_GROUP_UNCHECKED, Discovery, IdClaims, NEVER_LINKED_BY_EMAIL,
+        PROVIDER_REFUSED, PROVIDER_UNAVAILABLE, STAFF_ROLE, SsoIdentity, base_username,
+        callback_error_target, extract_groups, is_reserved_username, new_user_role, pin_kanidm,
+        pkce_challenge, privilege_target, resolve_group_targets, screen_base,
+        tenant_matches_issuer,
     };
 
     fn groups(items: &[&str]) -> HashSet<String> {
@@ -942,6 +1329,36 @@ mod tests {
         assert_eq!(ags, vec![ag1, ag2]);
     }
 
+    /// A mapping row to a bypass role, however it got there, grants nothing at sign-in: not the role, and not
+    /// the access group on the same row. The next mapping's role still applies.
+    #[test]
+    fn a_mapping_to_a_bypass_role_has_no_effect() {
+        let ag = Uuid::new_v4();
+        let mappings = vec![
+            ("it".to_owned(), Some("super_admin".to_owned()), Some(ag)),
+            ("it".to_owned(), Some("hospital_admin".to_owned()), None),
+            ("nurses".to_owned(), Some("nurse".to_owned()), None),
+        ];
+        let (role, ags) = resolve_group_targets(&mappings, &groups(&["it"]));
+        assert!(role.is_none());
+        assert!(ags.is_empty());
+        let (role, _) = resolve_group_targets(&mappings, &groups(&["it", "nurses"]));
+        assert_eq!(role.as_deref(), Some("nurse"));
+    }
+
+    /// An administrator's Kanidm sign-in goes on only for a person shown to be in the high-privilege group; an
+    /// unreadable directory stops it with its own message, not "refused" and not "allowed".
+    #[test]
+    fn an_administrators_kanidm_sign_in_needs_the_group_and_fails_closed() {
+        use medbrains_server_core::error::AppError;
+        assert_eq!(privilege_target(Ok(true)), None);
+        assert_eq!(privilege_target(Ok(false)), Some(ADMIN_GROUP_NEEDED));
+        assert_eq!(
+            privilege_target(Err(AppError::ServiceUnavailable("down".to_owned()))),
+            Some(ADMIN_GROUP_UNCHECKED)
+        );
+    }
+
     #[test]
     fn no_matching_groups_yields_nothing() {
         let mappings = vec![("doctors".to_owned(), Some("doctor".to_owned()), None)];
@@ -972,6 +1389,8 @@ mod tests {
         let id = SsoIdentity {
             subject: "abc-123".to_owned(),
             email: Some("Jane.Doe@hospital.org".to_owned()),
+            email_verified: false,
+            preferred_username: None,
             name: None,
             groups: vec![],
         };
@@ -979,6 +1398,139 @@ mod tests {
         assert!(u.starts_with("jane"));
         assert!(u.chars().next().unwrap().is_ascii_lowercase());
         assert!(u.len() >= 3 && u.len() <= 30);
+    }
+
+    #[test]
+    fn a_new_account_is_named_from_preferred_username_when_there_is_no_email() {
+        let id = SsoIdentity {
+            subject: "9f8e7d6c-0000-4000-8000-000000000000".to_owned(),
+            email: None,
+            email_verified: false,
+            preferred_username: Some("Asha.Rao@hospital.org".to_owned()),
+            name: None,
+            groups: vec![],
+        };
+        assert!(base_username(&id).starts_with("asha"));
+    }
+
+    /// The sign-in name wins over the email's local part, so a person given `admin@…` is not named `admin`.
+    #[test]
+    fn a_new_account_is_named_from_the_sign_in_name_not_the_email() {
+        let id = SsoIdentity {
+            subject: "9f8e7d6c-0000-4000-8000-000000000001".to_owned(),
+            email: Some("admin@medbrains.localhost".to_owned()),
+            email_verified: true,
+            preferred_username: Some("mallory".to_owned()),
+            name: None,
+            groups: vec![],
+        };
+        assert_eq!(base_username(&id), "mallory");
+    }
+
+    /// A new account never takes a reserved name or a look-alike of one with digits after it.
+    #[test]
+    fn a_new_account_never_takes_a_reserved_name_or_a_look_alike() {
+        for name in [
+            "admin",
+            "admin0",
+            "admin_12",
+            "root",
+            "idm_admin",
+            "super_admin",
+            "it",
+        ] {
+            assert!(is_reserved_username(name), "{name}");
+        }
+        for name in ["ward_nurse", "administrator_asha", "admins", "edith"] {
+            assert!(!is_reserved_username(name), "{name}");
+        }
+        assert_eq!(NEVER_LINKED_BY_EMAIL, ["super_admin", "hospital_admin"]);
+    }
+
+    /// Kanidm's discovery must name the pinned issuer and its own host; its server-side endpoints go to loopback.
+    #[test]
+    fn kanidms_discovery_is_held_to_the_pinned_issuer_and_host() {
+        let doc = |issuer: &str, token: &str| Discovery {
+            issuer: issuer.to_owned(),
+            authorization_endpoint: "https://idm.medbrains.local:9443/ui/oauth2".to_owned(),
+            token_endpoint: token.to_owned(),
+            jwks_uri: "https://idm.medbrains.local:9443/oauth2/openid/medbrains/public_key.jwk"
+                .to_owned(),
+        };
+        let issuer = "https://idm.medbrains.local:9443/oauth2/openid/medbrains";
+        let pinned = pin_kanidm(doc(issuer, "https://idm.medbrains.local:9443/oauth2/token"));
+        assert!(pinned.as_ref().is_some_and(|d| {
+            d.token_endpoint == "https://idm.medbrains.local:8444/oauth2/token"
+                && d.jwks_uri.starts_with("https://idm.medbrains.local:8444/")
+                && d.authorization_endpoint
+                    .starts_with("https://idm.medbrains.local:9443/")
+        }));
+        assert!(
+            pin_kanidm(doc(
+                "https://evil.example/oauth2/openid/medbrains",
+                "https://idm.medbrains.local:9443/oauth2/token"
+            ))
+            .is_none()
+        );
+        assert!(pin_kanidm(doc(issuer, "https://evil.example/oauth2/token")).is_none());
+    }
+
+    /// The provider's own outage on the way back reads as "not answering", anything else as refused.
+    #[test]
+    fn an_outage_on_the_callback_is_not_called_a_refusal() {
+        assert_eq!(
+            callback_error_target("temporarily_unavailable"),
+            PROVIDER_UNAVAILABLE
+        );
+        assert_eq!(callback_error_target("server_error"), PROVIDER_UNAVAILABLE);
+        assert_eq!(callback_error_target("access_denied"), PROVIDER_REFUSED);
+    }
+
+    /// Only the machine's own screen stays on its address, and only where the image names it.
+    #[test]
+    fn only_the_machines_own_screen_comes_back_to_the_screen() {
+        let screen = Some("https://127.0.0.1:8443");
+        assert_eq!(screen_base(screen, Some("127.0.0.1")).as_deref(), screen);
+        assert_eq!(screen_base(screen, Some("::1")).as_deref(), screen);
+        // A node's tunnel, a LAN computer, a list someone typed, nothing at all.
+        assert_eq!(screen_base(screen, Some("127.4.5.6")), None);
+        assert_eq!(screen_base(screen, Some("10.0.2.20")), None);
+        assert_eq!(screen_base(screen, Some("127.0.0.1, 10.0.2.20")), None);
+        assert_eq!(screen_base(screen, None), None);
+        assert_eq!(screen_base(None, Some("127.0.0.1")), None);
+    }
+
+    #[test]
+    fn a_token_from_another_tenant_does_not_match_the_issuer() {
+        let issuer = "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0";
+        assert!(tenant_matches_issuer(
+            issuer,
+            Some("72F988BF-86F1-41AF-91AB-2D7CD011DB47")
+        ));
+        assert!(!tenant_matches_issuer(
+            issuer,
+            Some("00000000-0000-4000-8000-000000000000")
+        ));
+        assert!(tenant_matches_issuer(issuer, None));
+        assert!(tenant_matches_issuer(
+            "https://idm.hospital.test/oauth2/openid/app",
+            Some("x")
+        ));
+    }
+
+    #[test]
+    fn email_is_verified_only_if_the_provider_says_so() {
+        let parse = |verified: &str| {
+            let text = format!(r#"{{"sub":"s","aud":"a"{verified}}}"#);
+            serde_json::from_str::<IdClaims>(&text)
+                .map(|c| c.email_verified)
+                .unwrap_or_default()
+        };
+        assert!(parse(r#","email_verified":true"#));
+        assert!(parse(r#","email_verified":"true""#));
+        assert!(!parse(""));
+        assert!(!parse(r#","email_verified":false"#));
+        assert!(!parse(r#","email_verified":"false""#));
     }
 }
 

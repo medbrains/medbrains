@@ -123,8 +123,7 @@ pub async fn request_portal_otp(
         return Ok(ack);
     }
 
-    let Some(tenant_id) = sqlx::query_scalar::<_, Uuid>(
-        // allow-raw-sql: dynamic patient portal queries
+    let Some(tenant_id) = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: dynamic patient portal queries
         "SELECT id FROM tenants WHERE code = $1 AND is_active = true",
     )
     .bind(&body.tenant_code)
@@ -166,8 +165,7 @@ pub(crate) async fn issue_code(
     tenant_id: Uuid,
     phone: &str,
 ) -> Result<(), AppError> {
-    let recent: i64 = sqlx::query_scalar(
-        // allow-raw-sql: dynamic patient portal queries
+    let recent: i64 = sqlx::query_scalar( // allow-raw-sql: dynamic patient portal queries
         "SELECT COUNT(*) FROM patient_portal_otps \
           WHERE tenant_id = $1 AND phone = $2 \
             AND created_at > now() - make_interval(mins => $3)",
@@ -186,8 +184,7 @@ pub(crate) async fn issue_code(
     let otp = format!("{:06}", u32::from_le_bytes(buf) % 1_000_000);
 
     // Asking for a new code retires the old one, so only the latest works.
-    sqlx::query(
-        // allow-raw-sql: dynamic patient portal queries
+    sqlx::query( // allow-raw-sql: dynamic patient portal queries
         "UPDATE patient_portal_otps SET used_at = now() \
          WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL",
     )
@@ -196,8 +193,7 @@ pub(crate) async fn issue_code(
     .execute(&mut **tx)
     .await?;
 
-    sqlx::query(
-        // allow-raw-sql: dynamic patient portal queries
+    sqlx::query( // allow-raw-sql: dynamic patient portal queries
         "INSERT INTO patient_portal_otps (tenant_id, phone, otp_hash, expires_at) \
          VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
     )
@@ -239,8 +235,7 @@ pub(crate) async fn check_code(
     phone: &str,
     code: &str,
 ) -> Result<Option<Uuid>, AppError> {
-    let row: Option<(Uuid, String, i32)> = sqlx::query_as(
-        // allow-raw-sql: dynamic patient portal queries
+    let row: Option<(Uuid, String, i32)> = sqlx::query_as( // allow-raw-sql: dynamic patient portal queries
         "SELECT id, otp_hash, attempts FROM patient_portal_otps \
          WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL AND expires_at > now() \
          ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
@@ -344,8 +339,7 @@ pub async fn verify_portal_otp(
     let phone = body.phone.trim();
     let denied = || AppError::Unauthorized;
 
-    let tenant_id = sqlx::query_scalar::<_, Uuid>(
-        // allow-raw-sql: dynamic patient portal queries
+    let tenant_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: dynamic patient portal queries
         "SELECT id FROM tenants WHERE code = $1 AND is_active = true",
     )
     .bind(&body.tenant_code)
@@ -362,9 +356,10 @@ pub async fn verify_portal_otp(
     };
 
     // A family often shares one mobile: never pick one of them silently.
-    let people =
-        medbrains_server_services::pharmacy_customer::people_with_phone(&mut tx, tenant_id, phone)
-            .await?;
+    let people = medbrains_server_services::pharmacy_customer::people_with_phone(
+        &mut tx, tenant_id, phone,
+    )
+    .await?;
     let patient_id = if let Some(id) = body.patient_id {
         people.iter().find(|p| p.id == id).map(|p| p.id)
     } else if people.len() > 1 {
@@ -404,8 +399,7 @@ pub async fn portal_bills(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalInvoice>(
-        // allow-raw-sql: dynamic patient portal queries
+    let rows = sqlx::query_as::<_, PortalInvoice>( // allow-raw-sql: dynamic patient portal queries
         "SELECT id, invoice_number, status::text AS status, total_amount, paid_amount, \
                 (total_amount - paid_amount) AS balance_due, created_at \
          FROM invoices \
@@ -454,8 +448,7 @@ pub async fn portal_lab_reports(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalLabReport>(
-        // allow-raw-sql: dynamic patient portal queries
+    let rows = sqlx::query_as::<_, PortalLabReport>( // allow-raw-sql: dynamic patient portal queries
         "SELECT lo.id AS order_id, t.name AS test_name, r.parameter_name, r.value, \
                 r.unit, r.normal_range, r.flag::text AS flag, r.created_at AS reported_at \
          FROM lab_results r \
@@ -507,8 +500,7 @@ pub async fn portal_prescriptions(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalPrescriptionItem>(
-        // allow-raw-sql: dynamic patient portal queries
+    let rows = sqlx::query_as::<_, PortalPrescriptionItem>( // allow-raw-sql: dynamic patient portal queries
         "SELECT p.id AS prescription_id, i.drug_name, i.dosage, i.frequency, i.duration, \
                 p.created_at AS prescribed_at \
          FROM prescriptions p \
@@ -544,8 +536,7 @@ pub async fn portal_appointments(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalAppointment>(
-        // allow-raw-sql: dynamic patient portal queries
+    let rows = sqlx::query_as::<_, PortalAppointment>( // allow-raw-sql: dynamic patient portal queries
         "SELECT a.id, a.appointment_date, a.status::text AS status, d.name AS department_name \
          FROM appointments a \
          LEFT JOIN departments d ON d.id = a.department_id AND d.tenant_id = a.tenant_id \

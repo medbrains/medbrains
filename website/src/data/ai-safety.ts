@@ -2,7 +2,7 @@
 //
 // Honesty rule (2026-10-25): LIVE lists only what origin/main does today, each line checked
 // against the code named beside it. COMMITMENTS are policy we hold ourselves to; the redaction
-// layer, the AI actor in the audit log and India-hosted models are being built now (phase 0)
+// layer, the AI actor in the audit log and Mumbai-hosted models are being built now (phase 0)
 // and must move to LIVE only once merged and deployed.
 
 /** What AI in MedBrains is for, and what it never does (founder rule, 2026-10-25). */
@@ -53,7 +53,7 @@ export const PROTECTION = [
   "Names, phone numbers, UHID, ABHA, Aadhaar, PAN, bank, card and UPI details and policy numbers are replaced with placeholders before any AI model sees the data.",
   "Sensitive categories, including HIV status, mental health, PCPNDT and medico-legal records, are left out entirely.",
   "Each task gets only the fields it needs, nothing else from the record.",
-  "Patient data goes to AI models hosted in India (AWS Mumbai) by default, with no third-party routers in between.",
+  "Patient data goes to AI models hosted in AWS Mumbai (ap-south-1) by default, with no third-party routers in between.",
   "No patient data is used to train AI models.",
   "If any protection fails, the AI does not run, and says so.",
 ];
@@ -72,7 +72,7 @@ export const DATA_LIVE = [
   { title: "Every access audited", body: "Who saw or changed what, and when." },
   // docs/ops/BACKUP-RESTORE.md: nightly pg_dump + hourly host check.
   { title: "Daily backups", body: "A full database backup every day, and an hourly check that the latest one landed." },
-  { title: "Hosted in India, or on your servers", body: "Our hosting runs in AWS Mumbai. Or install MedBrains on your own servers and patient data never leaves the building." },
+  { title: "Hosted in AWS Mumbai, or on your servers", body: "Our hosting runs in AWS Mumbai. Or install MedBrains on your own servers and patient data never leaves the building." },
 ];
 
 /** Data safety commitments still being completed. */
@@ -92,7 +92,7 @@ export const AI_FAQ = [
   { q: "Does MedBrains AI diagnose or suggest treatment?", a: "No. It does not diagnose, and it never decides, places or signs an order: diagnosis, treatment and dose stay with the clinician. Today the assistant can write out a prescription a clinician asks for, checked against the patient's allergies and drug safety rules, as text the clinician decides whether to use. New AI features are limited to operational checks and data quality, such as a missing pre-auth document or an unacknowledged critical result." },
   { q: "Can the AI see records I cannot?", a: "No. The assistant reads through the same screens and permissions as the person using it, and every lookup is on the audit trail." },
   { q: "Is patient data used to train AI models?", a: "No. We do not use patient data to train AI models." },
-  { q: "Where does the AI run?", a: "For patient data our standard is AI models hosted in India (AWS Mumbai), with no third-party routers in between. Each hospital's AI provider is set in its own settings." },
+  { q: "Where does the AI run?", a: "For patient data our standard is AI models hosted in AWS Mumbai (ap-south-1), with no third-party routers in between. Each hospital's AI provider is set in its own settings." },
   { q: "What happens if the protections fail?", a: "The AI does not run. You see a message that it could not run safely, and the work carries on without it." },
   { q: "Who owns our hospital's data?", a: "Your hospital does. We process patient data only on your instructions, export it whenever you ask, and return and delete it when you leave." },
   { q: "Is MedBrains certified?", a: "We do not claim certifications we do not hold. MedBrains is built for ABDM, NHCX and UHI but not yet certified by NHA, and we act as a data processor under the DPDP Act, 2023." },

@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!\", tenant_id AS \"tenant_id!\",\n                  client_secret_hash AS \"client_secret_hash!\", status AS \"status!\",\n                  permissions AS \"permissions!\", service_user_id AS \"service_user_id!\",\n                  name AS \"name!\"\n             FROM public.app_connected_app_by_client_id($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "client_secret_hash!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "permissions!",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "service_user_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "name!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "4371fbbfb941547037ac9700ec6013ab1521e0192220abfa76ca5304638c2f12"
+}

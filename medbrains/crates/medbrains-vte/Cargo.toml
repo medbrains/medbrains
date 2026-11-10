@@ -6,16 +6,24 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
-medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
-medbrains-db = { path = "../medbrains-db" }
+medbrains-health-services = { path = "../medbrains-health-services" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 sqlx = { workspace = true }
 chrono = { workspace = true }
+
+[dev-dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+axum = { workspace = true }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

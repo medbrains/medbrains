@@ -6,7 +6,7 @@
 //! yesterday's roster row can still be the active one). Department
 //! match preferred, hospital-wide (NULL department) rows as fallback.
 
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -18,7 +18,7 @@ pub struct OnCallContact {
 }
 
 pub async fn current_on_call(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant_id: Uuid,
     department_id: Option<Uuid>,
 ) -> Result<Option<OnCallContact>, AppError> {
@@ -50,7 +50,7 @@ pub async fn current_on_call(
     )
     .bind(tenant_id)
     .bind(department_id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(&mut *tx)
     .await?;
 
     Ok(row.map(|(user_id, phone)| OnCallContact { user_id, phone }))

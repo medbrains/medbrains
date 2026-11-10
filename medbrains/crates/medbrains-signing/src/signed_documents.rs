@@ -34,6 +34,7 @@ pub fn to_print_signatures(
             display_image_url: s.display_image_url,
             display_block: s.display_block,
             verify_ref: s.verify_ref,
+            verify_url: s.verify_url,
             legal_class: s.legal_class,
         })
         .collect()
@@ -50,6 +51,9 @@ pub struct SignatureForPrint {
     pub display_block: Option<String>,
     /// Hex-encoded signature_id for verification footer.
     pub verify_ref: String,
+    /// The public check page the print's QR opens, when the record has a
+    /// live link and the deployment knows its public address.
+    pub verify_url: Option<String>,
     /// Legal weight class — drives watermark styling on the PDF.
     pub legal_class: String,
 }
@@ -63,6 +67,30 @@ struct SigRow {
     display_block: Option<String>,
     legal_class: String,
     signer_name: Option<String>,
+    verify_token: Option<String>,
+}
+
+/// The public check page for a verify token, at `MEDBRAINS_PUBLIC_BASE_URL`
+/// (the same base the bill QR uses). `None` without a base: a QR pointing at
+/// an address nobody outside can reach is worse than none.
+#[must_use]
+pub fn verify_url(token: Option<&str>) -> Option<String> {
+    let base = std::env::var("MEDBRAINS_PUBLIC_BASE_URL").ok()?;
+    token.map(|t| format!("{}/verify/signature/{t}", base.trim_end_matches('/')))
+}
+
+/// A row as the print needs it.
+fn to_print(r: SigRow) -> SignatureForPrint {
+    SignatureForPrint {
+        signed_at: r.signed_at,
+        signer_user_id: r.signer_user_id,
+        signer_name: r.signer_name,
+        display_image_url: r.display_image_snapshot,
+        display_block: r.display_block,
+        verify_ref: r.id.to_string(),
+        verify_url: verify_url(r.verify_token.as_deref()),
+        legal_class: r.legal_class,
+    }
 }
 
 /// Fetch the latest primary signature for a record. Returns None if
@@ -78,16 +106,21 @@ pub async fn fetch_signature_for_print(
         SigRow,
         "SELECT sr.id, sr.signed_at, sr.signer_user_id, \
                 sr.display_image_snapshot, sr.display_block, sr.legal_class, \
-                COALESCE(dp.display_name, u.full_name) AS signer_name \
+                COALESCE(dp.display_name, u.full_name) AS signer_name, \
+                vl.token AS \"verify_token?\" \
          FROM signed_records sr \
          LEFT JOIN doctor_profiles dp \
             ON dp.user_id = sr.signer_user_id \
            AND dp.tenant_id = sr.tenant_id \
          LEFT JOIN users u ON u.id = sr.signer_user_id \
+         LEFT JOIN signature_verify_links vl \
+            ON vl.signed_record_id = sr.id AND vl.tenant_id = sr.tenant_id \
+           AND vl.revoked_at IS NULL AND vl.deleted_at IS NULL \
          WHERE sr.tenant_id = $1 \
            AND sr.record_type = $2 \
            AND sr.record_id = $3 \
            AND sr.signer_role = 'primary' \
+           AND sr.deleted_at IS NULL \
          ORDER BY sr.signed_at DESC \
          LIMIT 1",
         tenant_id,
@@ -97,15 +130,7 @@ pub async fn fetch_signature_for_print(
     .fetch_optional(&mut **tx)
     .await?;
 
-    Ok(row.map(|r| SignatureForPrint {
-        signed_at: r.signed_at,
-        signer_user_id: r.signer_user_id,
-        signer_name: r.signer_name,
-        display_image_url: r.display_image_snapshot,
-        display_block: r.display_block,
-        verify_ref: r.id.to_string(),
-        legal_class: r.legal_class,
-    }))
+    Ok(row.map(to_print))
 }
 
 /// Fetch all signatures for a record (primary + co-signers + attestors)
@@ -117,37 +142,42 @@ pub async fn fetch_all_signatures_for_print(
     record_type: &str,
     record_id: Uuid,
 ) -> Result<Vec<SignatureForPrint>, AppError> {
+    fetch_signatures_for_records(tx, tenant_id, record_type, &[record_id]).await
+}
+
+/// Every signature on any of `record_ids`, in one query, oldest first: a
+/// visit's several prescriptions, an order's several results.
+pub async fn fetch_signatures_for_records(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    record_type: &str,
+    record_ids: &[Uuid],
+) -> Result<Vec<SignatureForPrint>, AppError> {
     let rows = sqlx::query_as!(
         SigRow,
         "SELECT sr.id, sr.signed_at, sr.signer_user_id, \
                 sr.display_image_snapshot, sr.display_block, sr.legal_class, \
-                COALESCE(dp.display_name, u.full_name) AS signer_name \
+                COALESCE(dp.display_name, u.full_name) AS signer_name, \
+                vl.token AS \"verify_token?\" \
          FROM signed_records sr \
          LEFT JOIN doctor_profiles dp \
             ON dp.user_id = sr.signer_user_id \
            AND dp.tenant_id = sr.tenant_id \
          LEFT JOIN users u ON u.id = sr.signer_user_id \
+         LEFT JOIN signature_verify_links vl \
+            ON vl.signed_record_id = sr.id AND vl.tenant_id = sr.tenant_id \
+           AND vl.revoked_at IS NULL AND vl.deleted_at IS NULL \
          WHERE sr.tenant_id = $1 \
            AND sr.record_type = $2 \
-           AND sr.record_id = $3 \
+           AND sr.record_id = ANY($3) \
+           AND sr.deleted_at IS NULL \
          ORDER BY sr.signed_at LIMIT 5000",
         tenant_id,
         record_type,
-        record_id,
+        record_ids,
     )
     .fetch_all(&mut **tx)
     .await?;
 
-    Ok(rows
-        .into_iter()
-        .map(|r| SignatureForPrint {
-            signed_at: r.signed_at,
-            signer_user_id: r.signer_user_id,
-            signer_name: r.signer_name,
-            display_image_url: r.display_image_snapshot,
-            display_block: r.display_block,
-            verify_ref: r.id.to_string(),
-            legal_class: r.legal_class,
-        })
-        .collect())
+    Ok(rows.into_iter().map(to_print).collect())
 }

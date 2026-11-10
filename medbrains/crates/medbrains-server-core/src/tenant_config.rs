@@ -33,16 +33,17 @@ pub async fn setting_value(
     tenant_id: &Uuid,
     key: &str,
 ) -> Result<Option<serde_json::Value>, AppError> {
-    let value = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = $2 AND key = $3 AND deleted_at IS NULL",
-    )
-    .bind(*tenant_id)
-    .bind(keys::CATEGORY)
-    .bind(key)
-    .fetch_optional(&mut **tx)
-    .await?;
-    Ok(value)
+    setting_in(tx, tenant_id, keys::CATEGORY, key).await
+}
+
+/// The hospital's value for `category`/`key` in `tenant_settings`, if set.
+pub async fn setting_in(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: &Uuid,
+    category: &str,
+    key: &str,
+) -> Result<Option<serde_json::Value>, AppError> {
+    Ok(medbrains_kernel::config::setting_in(conn, tenant_id, category, key).await?)
 }
 
 pub async fn setting_i32(

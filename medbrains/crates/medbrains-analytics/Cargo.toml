@@ -9,6 +9,8 @@ rust-version.workspace = true
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
+medbrains-documents = { path = "../medbrains-documents" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 axum = { workspace = true }
@@ -18,6 +20,10 @@ sqlx = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

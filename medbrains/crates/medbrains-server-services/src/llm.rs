@@ -8,7 +8,8 @@
 //! machine's AWS identity ([`medbrains_anthropic_auth`], see [`anthropic`]).
 //! Other providers' keys resolve through the configured
 //! [`SecretResolver`](medbrains_core::secrets::SecretResolver) when an
-//! `api_key_secret` reference is set, else from their environment variable.
+//! `api_key_secret` short name is set (always inside the hospital's own
+//! namespace, see [`AI_SECRET_PURPOSE`]), else from their environment variable.
 
 use medbrains_core::ai_redact::Redacted;
 use rig::DynModel;
@@ -35,6 +36,9 @@ pub struct AiConfig {
     /// Tenant opt-out: `ai.config.assistant_enabled = false` disables the chat
     /// assistant while leaving the extraction features (code/course-gen) working.
     pub enabled: bool,
+    /// Where a local (`ollama`) model is served, when a feature names its own
+    /// machine (dictation's `llm_url`); `None` reads `OLLAMA_API_BASE_URL`.
+    pub base_url: Option<String>,
 }
 
 impl std::fmt::Debug for AiConfig {
@@ -103,9 +107,7 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         "ollama" => String::new(),
         "anthropic" => anthropic::access_token().await?,
         _ => match str_field("api_key_secret") {
-            Some(secret) => state.secret_resolver.get(secret).await.map_err(|e| {
-                AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
-            })?,
+            Some(name) => tenant_key(state, tenant_id, name).await?,
             None => {
                 let env_var = match provider.as_str() {
                     "bedrock" => "BEDROCK_API_KEY",
@@ -125,6 +127,35 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         model,
         api_key,
         enabled,
+        base_url: None,
+    })
+}
+
+/// Secret-store purpose of a hospital's AI provider key: its short name in
+/// `ai.config.api_key_secret` resolves to `medbrains/<env>/<tenant>/ai-<name>`.
+pub const AI_SECRET_PURPOSE: &str = "ai";
+
+/// The hospital's own AI key, named by the short name it stored.
+///
+/// A stored name outside the hospital's namespace is refused and logged
+/// before the resolver is asked.
+///
+/// # Errors
+/// `BadRequest` when the name is refused or the secret cannot be read.
+async fn tenant_key(state: &AppState, tenant_id: &Uuid, name: &str) -> Result<String, AppError> {
+    use medbrains_core::secrets::{TenantSecretError, resolve_tenant_secret};
+    resolve_tenant_secret(
+        state.secret_resolver.as_ref(),
+        tenant_id,
+        AI_SECRET_PURPOSE,
+        name,
+    )
+    .await
+    .map_err(|e| {
+        if matches!(e, TenantSecretError::Refused(_)) {
+            tracing::warn!(%tenant_id, "ai: stored api_key_secret is outside the hospital's namespace; refused");
+        }
+        AppError::BadRequest(format!("The AI provider key could not be used: {e}"))
     })
 }
 
@@ -260,7 +291,24 @@ where
     T: schemars::JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
 {
     let cfg = resolve_config(state, tenant_id).await?;
-    let extractor = rig_agent::extractor::ExtractorBuilder::<T>::new(completion_model(&cfg)?)
+    extract_with(&cfg, preamble, prompt).await
+}
+
+/// [`extract`] with a provider the caller has already chosen: a feature that
+/// must stay on the hospital's own model (dictation) passes a local config
+/// rather than the tenant's assistant provider. Same [`Redacted`] rule.
+///
+/// # Errors
+/// `BadRequest` when the model cannot be built or the call fails.
+pub async fn extract_with<T>(
+    cfg: &AiConfig,
+    preamble: &Redacted,
+    prompt: &Redacted,
+) -> Result<T, AppError>
+where
+    T: schemars::JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
+{
+    let extractor = rig_agent::extractor::ExtractorBuilder::<T>::new(completion_model(cfg)?)
         .append_preamble(preamble.for_model())
         .max_tokens(u64::from(medbrains_core::ai_guard::MAX_ANSWER_TOKENS))
         .build();
@@ -297,8 +345,10 @@ pub fn completion_model(cfg: &AiConfig) -> Result<DynModel<Completion>, AppError
             .completion(model)
             .into(),
         "ollama" => {
-            let base = std::env::var("OLLAMA_API_BASE_URL")
-                .unwrap_or_else(|_| "http://localhost:11434".to_owned());
+            let base = cfg.base_url.clone().unwrap_or_else(|| {
+                std::env::var("OLLAMA_API_BASE_URL")
+                    .unwrap_or_else(|_| "http://localhost:11434".to_owned())
+            });
             OllamaConfig::new()
                 .with_base_url(base)
                 .client()

@@ -34,8 +34,7 @@ async fn ensure_slot_not_past(
     date: NaiveDate,
     slot_end: NaiveTime,
 ) -> Result<(), AppError> {
-    let ended = sqlx::query_scalar::<_, bool>(
-        // allow-raw-sql: slot-in-the-past check on the hospital clock
+    let ended = sqlx::query_scalar::<_, bool>( // allow-raw-sql: slot-in-the-past check on the hospital clock
         "SELECT ($2::date + $3::time) < timezone( \
                 COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), now())",
     )
@@ -199,8 +198,7 @@ pub async fn book_appointment(
     // A patient recorded as deceased must not have a new appointment booked — scheduling
     // future care for the deceased is a data-integrity / medico-legal error. Correct the
     // death record if this was recorded in error.
-    if sqlx::query_scalar::<_, bool>(
-        // allow-raw-sql: deceased patient check before booking
+    if sqlx::query_scalar::<_, bool>( // allow-raw-sql: deceased patient check before booking
         "SELECT is_deceased FROM patients WHERE id = $1 AND tenant_id = $2",
     )
     .bind(body.patient_id)
@@ -214,13 +212,7 @@ pub async fn book_appointment(
         ));
     }
 
-    ensure_slot_not_past(
-        &mut tx,
-        claims.tenant_id,
-        body.appointment_date,
-        body.slot_end,
-    )
-    .await?;
+    ensure_slot_not_past(&mut tx, claims.tenant_id, body.appointment_date, body.slot_end).await?;
     let appointment_type = body.appointment_type.unwrap_or(AppointmentType::NewVisit);
 
     // Slot-capacity gate. Two reasons we may skip it:
@@ -239,8 +231,7 @@ pub async fn book_appointment(
     // The schedule rows are still useful — they drive the slot picker UI,
     // doctor availability calendars, and the analytics dashboard. They
     // just don't gate booking.
-    let enforce_cap = sqlx::query_scalar::<_, Option<serde_json::Value>>(
-        // allow-raw-sql: slot cap enforcement setting
+    let enforce_cap = sqlx::query_scalar::<_, Option<serde_json::Value>>( // allow-raw-sql: slot cap enforcement setting
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'appointments' AND key = 'enforce_slot_cap'",
     )
@@ -252,8 +243,7 @@ pub async fn book_appointment(
     .unwrap_or(false);
 
     if enforce_cap && appointment_type != AppointmentType::FollowUp {
-        let booked: i64 = sqlx::query_scalar(
-            // allow-raw-sql: slot capacity count
+        let booked: i64 = sqlx::query_scalar( // allow-raw-sql: slot capacity count
             "SELECT COUNT(*) FROM appointments \
              WHERE doctor_id = $1 AND appointment_date = $2 AND slot_start = $3 \
              AND status NOT IN ('cancelled', 'no_show')",
@@ -265,8 +255,7 @@ pub async fn book_appointment(
         .await?;
 
         let day_of_week = body.appointment_date.weekday().num_days_from_sunday() as i32;
-        let max_patients: Option<i32> = sqlx::query_scalar(
-            // allow-raw-sql: doctor schedule capacity lookup
+        let max_patients: Option<i32> = sqlx::query_scalar( // allow-raw-sql: doctor schedule capacity lookup
             "SELECT max_patients FROM doctor_schedules \
              WHERE doctor_id = $1 AND day_of_week = $2 AND is_active = true",
         )
@@ -293,8 +282,7 @@ pub async fn book_appointment(
     for recurrence_index in 0..count {
         let date = build_recurrence_date(&body, recurrence_index);
 
-        let row = sqlx::query_as::<_, Appointment>(
-            // allow-raw-sql: appointment insert with recurrence
+        let row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: appointment insert with recurrence
             "INSERT INTO appointments \
              (tenant_id, patient_id, doctor_id, department_id, \
               appointment_date, slot_start, slot_end, appointment_type, \
@@ -330,8 +318,7 @@ pub async fn book_appointment(
     if body.doctor_id != claims.sub
         && let Some(appt) = first_row.as_ref()
     {
-        let patient_name: String = sqlx::query_scalar(
-            // allow-raw-sql: booking notification patient name lookup
+        let patient_name: String = sqlx::query_scalar( // allow-raw-sql: booking notification patient name lookup
             "SELECT COALESCE(NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), uhid) \
              FROM patients WHERE id = $1 AND tenant_id = $2",
         )
@@ -444,15 +431,8 @@ pub async fn reschedule_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    ensure_slot_not_past(
-        &mut tx,
-        claims.tenant_id,
-        body.appointment_date,
-        body.slot_end,
-    )
-    .await?;
-    let row = sqlx::query_as::<_, Appointment>(
-        // allow-raw-sql: appointment reschedule update
+    ensure_slot_not_past(&mut tx, claims.tenant_id, body.appointment_date, body.slot_end).await?;
+    let row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: appointment reschedule update
         "UPDATE appointments SET \
          appointment_date = $1, slot_start = $2, slot_end = $3, \
          status = 'scheduled', updated_at = now() \
@@ -492,8 +472,7 @@ pub async fn cancel_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, Appointment>(
-        // allow-raw-sql: appointment cancel update
+    let row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: appointment cancel update
         "UPDATE appointments SET \
          status = 'cancelled', cancel_reason = $1, \
          cancelled_at = now(), updated_at = now() \
@@ -511,8 +490,7 @@ pub async fn cancel_appointment(
     // cancellation doesn't leave the patient billed for a visit that
     // never happened (audit P1: manual reversal only).
     if let Some(encounter_id) = row.encounter_id {
-        let queue: Option<(Uuid, String)> = sqlx::query_as(
-            // allow-raw-sql: cancel looks up OPD queue for cleanup
+        let queue: Option<(Uuid, String)> = sqlx::query_as( // allow-raw-sql: cancel looks up OPD queue for cleanup
             "SELECT id, status::text FROM opd_queues \
              WHERE tenant_id = $1 AND encounter_id = $2 \
              ORDER BY created_at DESC LIMIT 1",
@@ -531,8 +509,7 @@ pub async fn cancel_appointment(
                 ));
             }
 
-            sqlx::query(
-                // allow-raw-sql: cancel cancels OPD queue entry
+            sqlx::query( // allow-raw-sql: cancel cancels OPD queue entry
                 "UPDATE opd_queues SET status = 'cancelled'::queue_status, updated_at = now() \
                  WHERE id = $1 AND tenant_id = $2",
             )
@@ -556,8 +533,7 @@ pub async fn cancel_appointment(
             .await?;
         }
 
-        sqlx::query(
-            // allow-raw-sql: cancel cancels encounter
+        sqlx::query( // allow-raw-sql: cancel cancels encounter
             "UPDATE encounters SET status = 'cancelled'::encounter_status \
              WHERE id = $1 AND tenant_id = $2 AND status = 'open'::encounter_status",
         )
@@ -567,8 +543,7 @@ pub async fn cancel_appointment(
         .await?;
 
         // TV token board cleanup — drop any live token for this patient.
-        sqlx::query(
-            // allow-raw-sql: cancel cleans up TV queue tokens
+        sqlx::query( // allow-raw-sql: cancel cleans up TV queue tokens
             "UPDATE queue_tokens SET status = 'cancelled' \
              WHERE tenant_id = $1 AND patient_id = $2 AND token_date = CURRENT_DATE \
                AND status IN ('waiting', 'called')",
@@ -600,8 +575,7 @@ pub async fn check_in_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut row = sqlx::query_as::<_, Appointment>(
-        // allow-raw-sql: check-in appointment status update
+    let mut row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: check-in appointment status update
         "UPDATE appointments SET \
          status = 'checked_in', checked_in_at = now(), updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 AND status IN ('scheduled', 'confirmed') \
@@ -623,8 +597,7 @@ pub async fn check_in_appointment(
             "booked"
         };
 
-        let encounter_id = sqlx::query_scalar::<_, Uuid>(
-            // allow-raw-sql: check-in creates encounter
+        let encounter_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: check-in creates encounter
             "INSERT INTO encounters \
              (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
               encounter_date, visit_type, created_by) \
@@ -644,8 +617,7 @@ pub async fn check_in_appointment(
 
         let token = crate::routes::opd::generate_opd_token(&mut tx, &claims.tenant_id).await?;
 
-        let queue_id = sqlx::query_scalar::<_, Uuid>(
-            // allow-raw-sql: check-in creates OPD queue entry
+        let queue_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: check-in creates OPD queue entry
             "INSERT INTO opd_queues \
              (tenant_id, encounter_id, department_id, doctor_id, token_number, \
               status, queue_date) \
@@ -661,8 +633,7 @@ pub async fn check_in_appointment(
         .fetch_one(&mut *tx)
         .await?;
 
-        row = sqlx::query_as::<_, Appointment>(
-            // allow-raw-sql: check-in links encounter to appointment
+        row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: check-in links encounter to appointment
             "UPDATE appointments SET encounter_id = $1, token_number = $2, updated_at = now() \
              WHERE id = $3 AND tenant_id = $4 RETURNING *",
         )
@@ -767,8 +738,7 @@ pub async fn complete_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, Appointment>(
-        // allow-raw-sql: complete appointment status update
+    let row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: complete appointment status update
         "UPDATE appointments SET \
          status = 'completed', completed_at = now(), updated_at = now() \
          WHERE id = $1 AND status IN ('checked_in', 'in_consultation') \
@@ -780,8 +750,7 @@ pub async fn complete_appointment(
     // An appointment that exists but was never checked in is not missing: say
     // what has to happen first instead of answering 404.
     let Some(row) = row else {
-        let status = sqlx::query_scalar::<_, String>(
-            // allow-raw-sql: explain why completion was refused
+        let status = sqlx::query_scalar::<_, String>( // allow-raw-sql: explain why completion was refused
             "SELECT status::text FROM appointments WHERE id = $1",
         )
         .bind(id)
@@ -817,8 +786,7 @@ pub async fn mark_appointment_no_show(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, Appointment>(
-        // allow-raw-sql: no-show appointment status update
+    let row = sqlx::query_as::<_, Appointment>( // allow-raw-sql: no-show appointment status update
         "UPDATE appointments SET \
          status = 'no_show', updated_at = now() \
          WHERE id = $1 AND status IN ('scheduled', 'confirmed') \

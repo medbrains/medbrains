@@ -204,7 +204,7 @@ export function SetupCenterPage() {
         {SEGMENTS.map((seg) => (
           <Card key={seg.id} withBorder padding="md">
             <Group gap="xs" mb="xs">
-              <ThemeIcon variant="light" color="indigo" size={32} radius="md">
+              <ThemeIcon variant="light" color="indigo" size={32}>
                 <seg.icon size={18} />
               </ThemeIcon>
               <Stack gap={0} style={{ flex: 1 }}>
@@ -221,12 +221,7 @@ export function SetupCenterPage() {
               {seg.items.map((item) => (
                 <Group key={item.label} justify="space-between" gap="xs">
                   <Group gap={6}>
-                    <ThemeIcon
-                      variant="light"
-                      size={18}
-                      radius="xl"
-                      color={itemDone(item) ? "teal" : "gray"}
-                    >
+                    <ThemeIcon variant="light" size={18} color={itemDone(item) ? "teal" : "gray"}>
                       {itemDone(item) ? <IconCheck size={11} /> : <IconCircle size={11} />}
                     </ThemeIcon>
                     <Text size="sm">{item.label}</Text>

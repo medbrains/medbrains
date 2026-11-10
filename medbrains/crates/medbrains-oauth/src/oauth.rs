@@ -77,12 +77,9 @@ struct ProviderCreds {
     client_secret: String,
 }
 
-/// AEAD master key — from the secret store, dev fallback otherwise.
-async fn oauth_token_key(state: &AppState) -> Vec<u8> {
-    match state.secret_resolver.get(OAUTH_TOKEN_KEY_SECRET).await {
-        Ok(value) if value.len() >= 32 => value.into_bytes(),
-        _ => DEV_OAUTH_TOKEN_KEY.to_vec(),
-    }
+/// AEAD master key from the secret store. The development key is for development only.
+async fn oauth_token_key(state: &AppState) -> Result<Vec<u8>, AppError> {
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), OAUTH_TOKEN_KEY_SECRET, DEV_OAUTH_TOKEN_KEY).await.map_err(AppError::from)
 }
 
 fn encrypt<T: Serialize>(key: &[u8], value: &T) -> Result<String, AppError> {
@@ -218,7 +215,7 @@ async fn store_tokens(
     token: TokenResponse,
     connected_by: Option<Uuid>,
 ) -> Result<OAuthConnection, AppError> {
-    let key = oauth_token_key(state).await;
+    let key = oauth_token_key(state).await?;
     let access_enc = encrypt(&key, &token.access_token)?;
     let refresh_enc = match token.refresh_token.as_ref() {
         Some(rt) => Some(encrypt(&key, rt)?),
@@ -281,7 +278,7 @@ pub async fn get_valid_token(
     .ok_or_else(|| AppError::ServiceUnavailable(format!("{provider} is not connected")))?;
     tx.commit().await?;
 
-    let key = oauth_token_key(state).await;
+    let key = oauth_token_key(state).await?;
     let fresh = conn
         .expires_at
         .is_none_or(|exp| exp > Utc::now() + Duration::seconds(60));

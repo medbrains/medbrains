@@ -172,7 +172,7 @@ export function DltTab() {
 
   return (
     <Stack>
-      <Card withBorder padding="sm" radius="md">
+      <Card withBorder padding="sm">
         <Text size="sm" c="dimmed">
           India SMS regulation (TRAI TCCCPR 2018): every commercial / transactional SMS must use a
           registered DLT template. The SMS dispatcher refuses to send when{" "}

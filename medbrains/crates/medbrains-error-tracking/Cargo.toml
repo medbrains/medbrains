@@ -7,6 +7,7 @@ rust-version.workspace = true
 description = "Sentry SDK reporting to a self-hosted Rustrak, with every report scrubbed of patient data"
 
 [dependencies]
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 axum = { workspace = true }

@@ -27,10 +27,7 @@ async fn approved_run(
              VALUES ($1, $2, 'test') RETURNING id",
         )
         .bind(tenant_id)
-        .bind(format!(
-            "+919{}",
-            &Uuid::new_v4().as_u128().to_string()[..9]
-        ))
+        .bind(format!("+919{}", &Uuid::new_v4().as_u128().to_string()[..9]))
         .fetch_one(db)
         .await
         .expect("insert contact");
@@ -86,11 +83,10 @@ async fn approved_run(
 async fn a_run_records_who_it_reached_and_why_it_skipped_the_rest() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     // Six recipients, two of whom have consented.
     let (run_id, _) = approved_run(&app.db, tenant_id, 6, 2).await;
@@ -107,11 +103,7 @@ async fn a_run_records_who_it_reached_and_why_it_skipped_the_rest() {
         .expect("start json");
 
     assert_eq!(body["queued"].as_u64(), Some(2), "only the consenting two");
-    assert_eq!(
-        body["blocked"].as_u64(),
-        Some(4),
-        "the rest are recorded, not dropped"
-    );
+    assert_eq!(body["blocked"].as_u64(), Some(4), "the rest are recorded, not dropped");
     assert_eq!(
         body["blocked_by_reason"]["no_consent"].as_u64(),
         Some(4),
@@ -148,11 +140,10 @@ async fn a_run_records_who_it_reached_and_why_it_skipped_the_rest() {
 async fn a_dispatched_run_queues_through_the_existing_outbox() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     let (run_id, _) = approved_run(&app.db, tenant_id, 3, 3).await;
 
@@ -163,11 +154,7 @@ async fn a_dispatched_run_queues_through_the_existing_outbox() {
         .send()
         .await
         .expect("start run");
-    assert!(
-        res.status().is_success(),
-        "start rejected: {:?}",
-        res.status()
-    );
+    assert!(res.status().is_success(), "start rejected: {:?}", res.status());
 
     let queued: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM outbox_events o \
@@ -196,11 +183,10 @@ async fn a_dispatched_run_queues_through_the_existing_outbox() {
 async fn a_run_cannot_be_dispatched_twice() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     let (run_id, _) = approved_run(&app.db, tenant_id, 2, 2).await;
     let start = || {
@@ -234,11 +220,10 @@ async fn a_run_cannot_be_dispatched_twice() {
 async fn an_empty_cohort_is_refused_rather_than_sent_to_nobody() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     let (run_id, _) = approved_run(&app.db, tenant_id, 0, 0).await;
 
@@ -257,10 +242,7 @@ async fn an_empty_cohort_is_refused_rather_than_sent_to_nobody() {
         .fetch_one(&app.db)
         .await
         .expect("read status");
-    assert_eq!(
-        status, "approved",
-        "and the run stays dispatchable once fixed"
-    );
+    assert_eq!(status, "approved", "and the run stays dispatchable once fixed");
 }
 
 /// Put one message into a known state and return its id.
@@ -286,11 +268,10 @@ async fn message_in_state(db: &sqlx::PgPool, tenant_id: Uuid, state: &str) -> Uu
 async fn a_delivery_receipt_records_what_the_provider_reported() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     let message_id = message_in_state(&app.db, tenant_id, "sent").await;
     // Unique per run: `mkt_messages_provider` is a unique index per tenant and
@@ -342,11 +323,10 @@ async fn a_delivery_receipt_records_what_the_provider_reported() {
 async fn a_late_receipt_does_not_overwrite_a_terminal_state() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     let message_id = message_in_state(&app.db, tenant_id, "sent").await;
     let post = |status: &'static str| {

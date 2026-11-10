@@ -229,6 +229,9 @@ INTENTIONALLY_OPEN = {
     "/api/device-pairing/pair": "one-time device_pairing_tokens row, expiring and single-use",
     "/api/device-pairing/device-code": "device-code flow: the code is the credential",
     "/api/device-pairing/device-token": "device-code flow: polling with the device code",
+    "/api/machine-agent/join": "the agent on this machine, with its token file; files a request that grants nothing",
+    "/api/machine-agent/join/{node_id}": "the agent on this machine, with its token file",
+    "/api/machine-agent/sync": "the agent on this machine, with its token file",
     "/api/bridge/register": "bridge agents authenticate with agent_key, not a session",
     "/api/bridge/heartbeat": "agent_key; refuses with Unauthorized when it does not match",
     "/api/integrations/nhcx/hcx/v1/{resource}/{action}": "NHCX gateway callback; RS256 gateway JWT verified, then JWE decrypted",
@@ -615,7 +618,7 @@ ELEMENT_GUARD = re.compile(r"\buseHas(?:All|Any)?Permissions?\s*\(")
 def web_pages() -> list[dict]:
     """Every page component, and whether it guards itself.
 
-    `CLAUDE.md` requires `useRequirePermission()` at the top of every page. A
+    `ENGINEERING.md` requires `useRequirePermission()` at the top of every page. A
     page without it renders for anyone who can reach the route, and the only
     thing standing between them and the data is the API refusing — which, per
     the backend half of this audit, it often does not.

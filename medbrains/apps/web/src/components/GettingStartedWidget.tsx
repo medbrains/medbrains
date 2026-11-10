@@ -79,12 +79,7 @@ export function GettingStartedWidget() {
               {items.map((item) => (
                 <Group key={item.label} gap={6} justify="space-between">
                   <Group gap={6}>
-                    <ThemeIcon
-                      variant="light"
-                      size={18}
-                      radius="xl"
-                      color={item.done ? "teal" : "gray"}
-                    >
+                    <ThemeIcon variant="light" size={18} color={item.done ? "teal" : "gray"}>
                       {item.done ? <IconCheck size={11} /> : <IconCircle size={11} />}
                     </ThemeIcon>
                     <Text size="sm" td={item.done ? "line-through" : undefined}>

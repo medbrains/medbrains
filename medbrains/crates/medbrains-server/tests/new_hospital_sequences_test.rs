@@ -10,13 +10,7 @@ use reqwest::StatusCode;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-async fn post(
-    client: &reqwest::Client,
-    app: &common::TestApp,
-    csrf: &str,
-    path: &str,
-    body: Value,
-) -> Value {
+async fn post(client: &reqwest::Client, app: &common::TestApp, csrf: &str, path: &str, body: Value) -> Value {
     let resp = client
         .post(app.url(path))
         .header("x-csrf-token", csrf)
@@ -47,24 +41,15 @@ async fn a_new_hospital_can_register_a_patient_and_open_an_opd_visit() {
     .await
     .expect("new hospital");
 
-    let seq_types: Vec<String> =
-        sqlx::query_scalar("SELECT seq_type FROM sequences WHERE tenant_id = $1 ORDER BY seq_type")
-            .bind(tenant)
-            .fetch_all(&app.db)
-            .await
-            .expect("sequences");
-    for required in [
-        "ADVANCE",
-        "CORPORATE_INVOICE",
-        "INDENT",
-        "INVOICE",
-        "OPD_TOKEN",
-        "UHID",
-    ] {
-        assert!(
-            seq_types.iter().any(|s| s == required),
-            "{required} missing: {seq_types:?}"
-        );
+    let seq_types: Vec<String> = sqlx::query_scalar(
+        "SELECT seq_type FROM sequences WHERE tenant_id = $1 ORDER BY seq_type",
+    )
+    .bind(tenant)
+    .fetch_all(&app.db)
+    .await
+    .expect("sequences");
+    for required in ["ADVANCE", "CORPORATE_INVOICE", "INDENT", "INVOICE", "OPD_TOKEN", "UHID"] {
+        assert!(seq_types.iter().any(|s| s == required), "{required} missing: {seq_types:?}");
     }
 
     let username = format!("sqadmin_{}", suffix.to_lowercase());
@@ -87,10 +72,7 @@ async fn a_new_hospital_can_register_a_patient_and_open_an_opd_visit() {
     .await
     .expect("department");
 
-    let client = reqwest::Client::builder()
-        .cookie_store(true)
-        .build()
-        .expect("client");
+    let client = reqwest::Client::builder().cookie_store(true).build().expect("client");
     let resp = client
         .post(app.url("/api/auth/login"))
         .json(&json!({ "username": username, "password": "admin123", "hospital_code": code }))

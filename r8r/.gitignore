@@ -1,0 +1,6 @@
+/target
+node_modules
+editor-ui/dist
+*.sqlite
+*.sqlite-*
+.r8r-encryption-key

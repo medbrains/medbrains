@@ -90,13 +90,24 @@ pub fn upsert_sql(entity: &str, doc: &Value) -> Option<&'static str> {
                  days = EXCLUDED.days, is_half_day = EXCLUDED.is_half_day, reason = EXCLUDED.reason,
                  status = EXCLUDED.status, external_synced_at = now(), updated_at = now()"
         }
+        // The HRMS's used/balance never include leave filed and approved in
+        // MedBrains (the pull is one-way), so the days MedBrains' approvals
+        // drew (`balance_deducted`, still outstanding) go on top — a later
+        // pull neither erases those draws nor counts HRMS-pulled leave twice.
         "leave_balances" => {
             "INSERT INTO leave_balances (tenant_id, employee_id, leave_type, year, opening, earned, used, balance,
                  external_source, external_synced_at)
-             SELECT $1, (SELECT id FROM employees WHERE tenant_id = $1 AND employee_code = d->>'employee_code'),
-                    (d->>'leave_type')::leave_type, (d->>'year')::int, (d->>'opening')::numeric,
-                    (d->>'earned')::numeric, (d->>'used')::numeric, (d->>'balance')::numeric, 'humanex', now()
+             SELECT $1, e.id, k.leave_type, k.year, (d->>'opening')::numeric, (d->>'earned')::numeric,
+                    (d->>'used')::numeric + t.drawn, (d->>'balance')::numeric - t.drawn, 'humanex', now()
              FROM (SELECT $2::jsonb AS d) x
+             LEFT JOIN employees e ON e.tenant_id = $1 AND e.employee_code = x.d->>'employee_code'
+             CROSS JOIN LATERAL (SELECT (x.d->>'leave_type')::leave_type AS leave_type,
+                                        (x.d->>'year')::int AS year) k
+             CROSS JOIN LATERAL (SELECT coalesce(sum(l.balance_deducted), 0) AS drawn FROM leave_requests l
+                                  WHERE l.tenant_id = $1 AND l.employee_id = e.id
+                                    AND l.leave_type = k.leave_type
+                                    AND EXTRACT(YEAR FROM l.start_date)::int = k.year
+                                    AND l.status = 'approved' AND l.deleted_at IS NULL) t
              ON CONFLICT (tenant_id, employee_id, leave_type, year) DO UPDATE SET
                  opening = EXCLUDED.opening, earned = EXCLUDED.earned, used = EXCLUDED.used,
                  balance = EXCLUDED.balance, external_source = EXCLUDED.external_source,

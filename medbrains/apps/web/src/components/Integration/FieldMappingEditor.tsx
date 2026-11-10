@@ -524,7 +524,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
           <UnstyledButton onClick={() => setAvailableOpen((v) => !v)} style={{ width: "100%" }}>
             <Group gap={4}>
               {availableOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+              <Text size="xs" fw={700} c="dimmed">
                 Available Fields
               </Text>
               <Badge size="xs" variant="light" color="slate">
@@ -562,7 +562,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
           label={
             <Group gap={4}>
               <IconTransform size={12} />
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ fontSize: 10 }}>
+              <Text size="xs" fw={700} c="dimmed" style={{ fontSize: 10 }}>
                 Field Mappings
               </Text>
               <Badge size="xs" variant="light" color="slate">

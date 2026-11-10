@@ -1,0 +1,742 @@
+# MedBrains engineering guide
+
+## Project Overview
+
+MedBrains is a multi-tenant Hospital Management System (HMS) covering 67+ modules across clinical, administrative, financial, and infrastructure domains. The system follows a 7-layer configuration architecture, stored in PostgreSQL.
+
+**Always consult the RFC documents before making domain, architectural, or tech stack decisions.**
+
+---
+
+## RFC Documents
+
+All RFCs live in `RFCs/` at the project root.
+
+| File | Description |
+|------|-------------|
+| `RFC-HMS-2026-001.docx` | **Core HMS specification** — 67 modules, 7-layer configuration architecture, multi-tenant design |
+| `RFC-HMS-2026-UNIFIED-v2.docx` | **Unified v2 specification** — consolidated module definitions and integration patterns |
+| `RFC-HMS-2026-002-Workflows.docx` / `.pdf` | **Workflows** — 120+ workflow templates, cross-module automation, form builder, rules engine |
+| `RFC-HMS-v2.1-Continuation.pdf` | **Extended modules** — Psychiatry, Infrastructure, Patient Experience, Medical College; full module inventory |
+| `RFC-HMS-2026-003-TechStack (1).docx` | **Tech stack DRAFT** — detailed dev standards, clippy rules, CI/CD gates, SQLx strategy |
+| `RFC-HMS-2026-003-TechStack (2).docx` | **Tech stack APPROVED** — finalized stack decisions (Mantine v7, React Native CLI + Paper v5, pnpm + Turborepo) |
+| `ACMSRC_HMS_Evaluation_Checklists.docx` | **Evaluation checklists** — 34 department checklists, 700+ criteria from NABH/JCI standards |
+| `RFC-NATIVE-MOBILE.md` | **Native device apps (APPROVED 2026-09-13)** — SwiftUI + Compose/M3 Expressive + Compose for TV replace React Native; supersedes the mobile/TV rows of RFC-003 |
+
+### RFC Priority
+
+**RFC-003 "TechStack (2)" is the APPROVED version.** When the two TechStack RFCs conflict, always follow File 2 (APPROVED). File 1 is a superseded draft.
+
+### Known Conflicts Between RFC Versions
+
+| Decision | APPROVED (File 2) | DRAFT (File 1) |
+|----------|-------------------|----------------|
+| Web UI library | Mantine v7 | Shadcn/UI + Tailwind CSS 4 |
+| Mobile framework | **Native: SwiftUI (iOS) + Jetpack Compose / Material 3 Expressive (Android)** per `RFCs/RFC-NATIVE-MOBILE.md` (supersedes React Native CLI + Paper v5) | React Native Expo |
+| TV displays | **Native: Kotlin + Compose for TV** per `RFCs/RFC-NATIVE-MOBILE.md` (supersedes React Native) | React Native for TV |
+| Monorepo tools | pnpm + Turborepo | Not specified |
+| Linting (JS/TS) | ESLint + Prettier (overridden — using Biome) | ESLint (mentioned) |
+
+---
+
+## Tech Stack (Canonical — per APPROVED RFC)
+
+### Backend
+
+| Layer | Technology |
+|-------|------------|
+| Language | Rust (edition 2024, MSRV 1.95; toolchain pinned 1.99.0) |
+| Web framework | Axum 0.8 + Tower 0.5 |
+| Async runtime | Tokio 1.54.1+ (full features; 1.54.0 is yanked and denied) |
+| Serialization | serde + serde_json |
+| Error handling | thiserror (library crates), anyhow (application edges) |
+| Logging | tracing + tracing-subscriber (structured, JSON) |
+| Auth | jsonwebtoken (JWT), argon2 (password hashing) |
+
+### Databases
+
+| Database | Purpose |
+|----------|---------|
+| PostgreSQL 17+ (the migrations use `transaction_timeout`) | **Single source of truth** — tenants, users, patients, departments, workflows, config (`tenant_settings`), sequences/UHID, bed state. Declarative partitioning + retention for high-volume tables; Citus-ready sharding by `tenant_id`. |
+| Redis / Dragonfly | Cache layer + hot real-time state (future) |
+| DuckDB / columnar warehouse | Analytics & research, off the OLTP path (future) |
+| Meilisearch | Full-text search (future) |
+| NATS JetStream | Event streaming / async (future) |
+
+> **YottaDB was removed.** Every workload it was speced for (config trees, UHID sequences, real-time bed state) is served by PostgreSQL — `tenant_settings`, the `sequences` table (atomic `UPDATE … RETURNING`), and `bed_states`. See `memory/project_oss_and_datastore_decisions.md`.
+
+### SQL
+
+- **SQLx** with compile-time checked macros (`sqlx::query!`, `sqlx::query_as!`, `sqlx::query_scalar!`)
+- `.sqlx/` offline metadata is committed; normal build/check/test/deploy runs with `SQLX_OFFLINE=true`
+- `cargo sqlx prepare` runs only against local/CI/staging schema databases, never production
+- Transaction-scoped RLS: `set_tenant_context(&mut tx, tenant_id)` per request
+- Migrations via `sqlx::migrate!()` embedded at compile time.
+
+### Web Frontend
+
+| Layer | Technology |
+|-------|------------|
+| Framework | React 19 + TypeScript 7 |
+| Bundler | Vite 8 |
+| UI library | **Mantine 9** |
+| Styling | **SCSS** (no Tailwind, no CSS-in-JS) |
+| Routing | React Router 8 |
+| Server state | TanStack Query 5 |
+| Client state | Zustand 5 |
+| Forms | React Hook Form 7 + Zod 4 |
+| Linting | **Biome 2** (lint + format) |
+| Fonts | **Inter Tight** (UI), **Fraunces** (display/editorial), **JetBrains Mono** (code/metadata) |
+
+### Mobile
+
+| Layer | Technology |
+|-------|------------|
+| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; React Native CLI + Paper is the outgoing stack, no new RN screens |
+| UI library | Apple HIG system components (incl. iPhone Duo adaptivity) / Material 3 Expressive (`MaterialExpressiveTheme`) |
+| Navigation | React Navigation v7 |
+| Offline storage | SwiftData / Room, keys in Keychain / Keystore; offline authz + CRDT via the Rust core (`crates/medbrains-edge-rn`, UniFFI Swift + Kotlin) |
+
+### TV Displays
+
+| Layer | Technology |
+|-------|------------|
+| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; React Native outgoing |
+| Real-time | WebSocket-driven updates |
+
+### Monorepo
+
+| Tool | Purpose |
+|------|---------|
+| pnpm | Package manager (all JS/TS packages) |
+| Turborepo | Build orchestration, caching |
+| Shared packages | `@medbrains/schemas`, `@medbrains/types`, `@medbrains/api`, `@medbrains/stores`, `@medbrains/utils` |
+
+---
+
+## Current Codebase vs APPROVED RFC
+
+The codebase is being aligned to the APPROVED RFC. Known divergences:
+
+| Current | RFC Target | Status |
+|---------|------------|--------|
+| React Router 8 | React Router v7 | Aligned (newer major) |
+| Mantine 9 + SCSS | Mantine v7 + SCSS | Aligned (newer major) |
+| Biome | Biome | Aligned |
+| pnpm 10 | pnpm | Aligned |
+| Zustand 5 | Zustand | Aligned |
+| TanStack Query 5 | TanStack Query v5 | Aligned |
+| Axum 0.8 + SQLx 0.8 | Axum 0.8 + SQLx | Aligned |
+
+---
+
+## Design System — Website theme (LOCKED 2026-10-24)
+
+The app uses **the colours of www.medbrains.in** (source of truth: `website/src/styles/global.scss`, mirrored as the `Site/*` primitives in `packages/design-system/src/theme/figma-varspec.json`). Supersedes Forest + Copper. Only colour changed: component shapes stay as the design system defines them.
+
+| Role | Light | Dark |
+|------|-------|------|
+| Surface / raised | paper `#ffffff` / paper-2 `#f3f5f9` | **neutral greys** (`Dark/*`): bg `#111315` / raised `#17191c` / card `#1c1f23` / elevated `#24272c`, never navy (website navy tired the eye in the app, founder 2026-10-24) |
+| Text | ink `#0b1220`, ink-2 `#3c4657`, muted `#5d677a` | `#e6e8eb`, muted `#a9afb7` |
+| Lines | `#dde2ea` | `#30343a` |
+| Primary fill | **MedBrains blue `#0F62FE`** (exact, both schemes; white on it) | same |
+| Small blue text/links | blue-deep `#0043ce` | sky `#78a9ff` |
+| Live / success dot | pulse green `#42be65` | same |
+| Secondary brand accent | **purple `#851B7F`** (white on it; small text `#851B7F` / `#FFABF0` on night) — `tone="accent"` badges/buttons/icons, unread counts, "new" markers, highlights, second chart series, AI, crab/orb accents; never a banner or page background | same |
+
+- Colour only via `--mb-*` tokens; never raw hex in components. Emergency codes below stay fixed.
+- Shape: unchanged — Carbon sharp corners, bottom-rule inputs, the design-system elevation tokens.
+- Fonts: IBM Plex Sans (UI), IBM Plex Mono (labels, UHIDs, timestamps), Archivo expanded (display, KPI numerals).
+- Mascots: `Crab` (geometric = small system spots, line = clinical empty states/print, medic = patient-facing, chibi = big moments) and `AiOrb` (halo = inline AI, glass = assistant chat, blob = voice, pulse = clinical-AI/vitals) from the `@/components/ui` seam. ECG loader stays the default loader.
+
+### Emergency Code Layer (fixed, safety-critical)
+
+Six codes, fixed hexes, identical on every deployment regardless of theme:
+`--code-blue` `#1E63B8` (cardiac), `--code-red` `#C8102E` (fire), `--code-pink` `#E24C94` (abduction), `--code-black` `#0a0a0a` (bomb), `--code-yellow` `#E6B422` (disaster), `--code-orange` `#E86A1F` (hazmat).
+
+---
+
+## Git Workflow
+
+- **Feature branches**: `feature/<name>` branched from `master`
+- Each feature developed in isolation, merged via PR
+- Do NOT commit directly to `master` — always use feature branches
+- Commit messages: imperative, concise, explain "why" not "what"
+- **Record decisions:** a PR that makes or reverses a decision adds a row to `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was rejected
+
+---
+
+## Project Structure
+
+```
+medbrains/
+├── Cargo.toml                    # Rust workspace root
+├── rust-toolchain.toml           # Stable toolchain + clippy + rustfmt
+├── rustfmt.toml                  # Formatting rules
+├── docker-compose.yml            # PostgreSQL 16
+├── .env / .env.example           # Environment configuration
+├── MedBrains_Features.xlsx       # Master feature tracker (2,030+ features)
+├── RFCs/                         # Specification documents
+│   ├── RFC-HMS-2026-001.docx     # Core HMS specification
+│   ├── RFC-HMS-2026-002-*.docx   # Workflows
+│   ├── RFC-HMS-2026-003-*.docx   # Tech stack
+│   └── modules/                  # Per-module RFCs
+│       └── RFC-MODULE-onboarding.md  # Onboarding & Setup (IN PROGRESS)
+├── crates/
+│   ├── medbrains-core/           # Domain types — zero framework deps
+│   ├── medbrains-db/             # PostgreSQL via SQLx, migrations, audit
+│   └── medbrains-server/         # Axum HTTP server, routes, middleware
+├── apps/
+│   ├── web/                      # React 19 + Mantine 9 + SCSS
+│   ├── ios/                      # SwiftUI apps: MedBrainsStaff / Patient / Camp / Vendor + Core/Kit/UI packages
+│   ├── android/                  # Compose apps: app-staff / patient / camp / vendor / tv + core/kit/ui modules
+│   ├── mobile-*/, tv/            # React Native (outgoing — deleted per app at parity)
+└── packages/
+    ├── types/                    # Shared TypeScript interfaces
+    ├── api/                      # HTTP client (auth methods only currently)
+    ├── stores/                   # Zustand auth store + TanStack Query client
+    ├── schemas/                  # Zod schemas (placeholder)
+    └── utils/                    # Utilities (placeholder)
+```
+
+---
+
+## Coding Standards
+
+### Rust
+
+- **Edition 2024**, minimum Rust version **1.95** (workspace `rust-version`; toolchain pinned to 1.99.0)
+- `unsafe` code is **forbidden**
+- **Strict clippy** — `clippy::all` denied, `clippy::pedantic` + `clippy::nursery` warned
+- The following are **denied** (will not compile):
+  - `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`
+  - `dbg_macro`, `print_stdout`, `print_stderr`
+  - `wildcard_imports`, `string_to_string`, `clone_on_ref_ptr`
+- Use `?` operator for error propagation. Return `Result<T, E>` from fallible functions.
+- Use `thiserror` for defining error types. Use `anyhow` only at application boundaries (main, route handlers).
+- Format with `cargo fmt` (rustfmt.toml enforces max_width=100, Unix newlines, crate-level import grouping).
+
+#### Never start a build while one is running (MANDATORY)
+
+**Run `scripts/build_guard.sh` before any `cargo build`, `check`, `test` or
+`clippy`.** It exits 0 when the machine is free and 1 when it is not.
+
+This workspace is ~119 crates and 1,200 dependencies. One `cargo check` takes
+the machine to a load average of 4; a full build takes half an hour. Two at
+once do not take twice as long — they thrash, and on a laptop they can take the
+machine down and lose whatever else was running with it.
+
+Disk is the other way a build kills a machine: `/tmp/mb-target` and the
+in-repo `target/` hold ~61 GB between them, and a build that fills the volume
+corrupts its own cache. The guard warns below 20 GB free.
+
+**Never kill another job to unblock your own.** The guard classifies what it
+finds, and only `--reap` stops anything, and only jobs it can prove are stale:
+
+| class | meaning | may be stopped |
+|---|---|---|
+| `agent` | `CARGO_TARGET_DIR=/tmp/mb-target`, a check/test/clippy — a verification run that can simply be redone | yes, with `--reap` |
+| `stale` | no CPU for over three minutes — probably wedged | yes, with `--reap` |
+| `operator` | a `--release` build or a `--target` cross-compile — somebody's deploy artefact | **never**, ask first |
+| `unknown` | cannot be attributed | **never**, ask first |
+
+A release cross-compile is thirty-five minutes of somebody's afternoon.
+Killing it to save ninety seconds is a bad trade, and making it silently is
+worse. `--wait` blocks until the machine is free; that is usually the right
+answer.
+
+Stale jobs are stopped with `TERM`, never `KILL` — cargo removes its lock file
+on the way out, and a `-9` leaves a lock that blocks the next run with a
+"waiting for file lock" message that explains nothing.
+
+#### Cross-compilation
+
+- **`cargo-zigbuild` is the only cross-compile path.** No `cross` (cross-rs), no docker emulation, no QEMU. Operator's mac (arm64) → server (x86_64) is the common direction; zigbuild handles glibc ABI cleanly.
+- Setup: `brew install zig && cargo install cargo-zigbuild`.
+- Canonical command: `cargo zigbuild --release --target=x86_64-unknown-linux-gnu -p <crate>`. Output lands at `target/x86_64-unknown-linux-gnu/release/`.
+- Build locally on the operator's mac, scp the ELF to the server. Never run `cargo build` on the production EC2 — keeps server CPU/RAM focused on serving requests, not compilation.
+- The deploy.sh script (`deploy.sh`) and the standalone-deploy `make build-starter` target both follow this pattern.
+
+### SQL
+
+- **Compile-time SQL only** via `sqlx::query!`, `sqlx::query_as!`, and `sqlx::query_scalar!`.
+- Normal build/check/test/deploy uses committed `.sqlx/` metadata with `SQLX_OFFLINE=true`.
+- Run `make prepare-sqlx` only against a migrated local/CI/staging schema database after query or migration changes. Never run SQLx metadata generation against production.
+- Every tenant-scoped table has `tenant_id` column with Row-Level Security (RLS).
+- Set tenant context per request via `set_tenant_context(&mut tx, &tenant_id)`.
+- **Migration pitfalls**: no `NOW()` in index predicates (use `IS NULL`), no duplicate enum names across migrations, wrap seed INSERTs in `IF EXISTS (SELECT 1 FROM tenants)` guard.
+
+### TypeScript / React
+
+- **Plan UI before build** — for any story that adds/changes a screen, write a short UI plan (placement, layout, primitives, surface, all states, permissions) and agree it BEFORE coding. Use plan mode for non-trivial screens. See `medbrains/docs/ui-plan-before-build.md`. Pairs with the design rules in `medbrains/docs/UI_GUIDELINES.md`.
+- Build UI from the **`@/components/ui` seam** (Button/IconButton/Badge/Alert/Card/Input/Select/Switch/Checkbox/Table/Tooltip/Modal/Panel/ThemeIcon/SignatureHero), not raw `@mantine/core`. Buttons/badges use semantic `tone=...`. **One overlay: `Modal` only** — `fullScreen` for real work, a `sm`/`md` dialog for short tasks; no drawers. New page leaks are blocked by `make check-ui-seam`.
+- **NEVER hand-roll raw HTML elements — always use a component.** This is a hard rule, including when porting a design/mockup. Order of preference: (1) the **`@/components/ui` seam** primitive; (2) if the seam lacks it, the **Mantine component**, customised via `classNames`/`styles`/`theme` (e.g. `Chip` for selectable chips, `NumberInput`/seam `NumberField` for steppers, `SegmentedControl` for toggles) — never a hand-built `<button>`/`<input>`/`<select>`/`<table>`. No raw `<button>`, `<input>`, `<select>`, `<textarea>`, `<table>`, or custom +/- steppers.
+- **Layout uses Mantine layout primitives, not raw `<div>`** — `Box` (styled surface / `component="aside"` etc.), `Stack` (vertical), `Group` (horizontal), `SimpleGrid`/`Grid` (grids), `Flex`. A bare `<div>` in a component is a smell; reach for `Box` at minimum. Keep the module `classNames` on these for SCSS layout/positioning.
+- **Icons come from `@tabler/icons-react` components — never inline `<svg>`/`<path>` in TSX.** For a genuinely custom glyph with no tabler equivalent, add the `.svg` to `apps/web/src/assets/` and import it (wire `vite-plugin-svgr` for `import Icon from "./x.svg?react"` if a React-component import is needed). Inline SVG markup is not allowed.
+- **Custom components follow the Mantine pattern** ([custom-components](https://mantine.dev/styles/styles-api/), [polymorphic](https://mantine.dev/guides/polymorphic-components/)). When adding a `@/components/ui` primitive: **wrap** the Mantine component (don't reimplement), use the **`factory`/`forwardRef`** API so `ref` + all native props pass through, expose Mantine's **`classNames`/`styles`/`vars`** so callers can theme parts, make it **polymorphic** via `createPolymorphicComponent` where an element swap makes sense (e.g. Button as `a`/`Link`), and drive colour **only from theme tokens** (`--mb-*` / semantic `tone`), never inline hexes or gradients. No per-component colour in SCSS — SCSS is layout only; the **theme is the single source of truth**.
+- **Accessibility is mandatory (WCAG 2.2 AA)** — for everyone, including specially-abled users; it's a patient-safety requirement. Keyboard-operable everything (no `div`/`span` `onClick` — use `<button>` or `role`+`tabIndex`+`onKeyDown`), visible ≥2px focus indicator (WCAG 2.2 SC 2.4.13 — don't remove `outline`), ≥24px target size (SC 2.5.8), accessible auth/allow paste (SC 3.3.8), `aria-label` on every icon-only control, real labels + wired errors on inputs, never colour-alone for meaning, honour `prefers-reduced-motion`. Enforced by **strict Biome a11y rules** (all `error`) + the `@/components/ui` seam. **Full WCAG 2.2 rules: `medbrains/docs/WCAG-2.2-RULES.md`**; ARIA index: `medbrains/docs/ACCESSIBILITY.md`.
+- **Carbon layout + motion + iconography are LAW** — spacing/grid follow `medbrains/docs/CARBON-LAYOUT-RULES.md` (8px mini-unit, 2x grid, sharp corners, token spacing — never literal px; layout via Mantine primitives not `<div>`). Motion follows `medbrains/docs/CARBON-MOTION-RULES.md` (productive vs expressive, duration/easing tokens, ≤240ms UI feedback, reduced-motion fallback required, pausable auto-play). Icons follow `medbrains/docs/CARBON-ICONOGRAPHY-RULES.md` (one family = tabler, sizes 16/20/24/32, monochrome from tokens, real glyphs not letter-abbreviations, `aria-label` on icon-only controls; UI-icons vs app-icons distinction). Photography follows `medbrains/docs/CARBON-PHOTOGRAPHY-RULES.md` (authentic/human/dignified, no generic stock, patient privacy — no identifiable patients/PHI, scrim behind text). Data viz follows `medbrains/docs/CARBON-DATAVIZ-RULES.md` (right chart for the question, honest zero-baseline scales + clinical reference ranges, Carbon palettes, colour-blind-safe + never colour-alone, text/data-table alternative; **`@mantine/charts` for standard charts, `echarts` only for marks it lacks — heatmap/sankey/treemap/gauge/boxplot — never `@carbon/charts` (not installed), never hand-rolled SVG; `recharts` is `@mantine/charts`' peer, don't import or remove it**). Colour follows `medbrains/docs/CARBON-COLOR-RULES.md` (semantic `--mb-*` tokens only, never raw hex; layer elevation; support + fixed emergency colours; light and dark themes, both WCAG 2.2 AA). Typography follows `medbrains/docs/CARBON-TYPOGRAPHY-RULES.md` (IBM Plex; 14px body clinical density; tokens not px; sentence-case hierarchy). Content/voice follows `medbrains/docs/CARBON-CONTENT-RULES.md` (plain + human + sentence case, fix-oriented errors, clinical accuracy, inclusive/accessible content, i18n). **Index: `medbrains/docs/DESIGN-RULES.md`.**
+- **Per-surface design is LAW — the 10 Commandments (`medbrains/docs/DEVICE-SURFACE-DESIGN-RULES.md`)** — the right design system per surface, with IBM Carbon as brand/tokens layered on (never a per-surface fork, never raw hex). (1) Right design system per surface — never force the web Carbon 2x-grid onto TV/mobile. (2) Carbon is the brand, not the layout — tokens from `@medbrains/design-system`. (3) TV = 10-foot UI — default focus + D-pad directional logic + an **obvious** focus state (`hasTVPreferredFocus`/`TVFocusGuideView`). (4) TV overscan safe area — 48dp L/R, 27dp T/B; light-on-dark, large type. (5) Mobile = Carbon-for-RN + Material 3/Apple HIG; **touch targets ≥44px**. (6) Kiosk = self-service touch (big targets, linear flow, forgiving timeouts). (7) Virtualize + bound everything (`FlatList`, no `ScrollView.map`). (8) Fail safe, never blank (error boundary per screen + last-good render). (9) Share, never copy (`@medbrains/*`, diverge by variant not fork). (10) Accessible everywhere (WCAG 2.2 AA — visible focus, target size, never colour-alone). Pairs with the constrained-device Power-of-Ten below.
+- **Constrained-device code is LAW (`medbrains/docs/DEVICE-CONSTRAINED-RULES.md`)** — before writing ANY code for a low-end surface (all `TV-*`, `Desktop-Kiosk`, all `Mobile-*`, `headless-edge`, `headless-iot` — everything except web/`ui-desktop`), obey the "Power of Ten": bound every loop/list/queue/cache (no unbounded growth), zero leaks (tear down every timer/socket/listener), virtualize every list (`FlatList`+`getItemLayout`, slim DTOs), bound the network (timeout+capped-retry+backoff), keep the JS thread free (native-driver animations, no heavy work in render/gestures), minimize re-renders (memoize + store selectors), efficient structures up front (DSA mandatory, not optional), **share via `@medbrains/*` never copy-paste**, small bundle/fast cold-start, and fail-safe (error boundary per screen + offline last-good render, never a blank board). Memory must be **flat over uptime** and under the per-surface budget (TV ≤120 MB, mobile ≤200 MB). Run the pre-code checklist in that doc.
+- **Light and dark themes (decided 2026-09-26)** — the app defaults to dark with a header switcher. Both themes must meet WCAG 2.2 AA contrast; colour comes only from theme tokens (`packages/design-system/src/theme`), each defined for both schemes. `e2e/accessibility/theme-contrast.spec.ts` must pass in both.
+- Strict TypeScript (`strict: true`)
+- **Biome** for linting and formatting (`biome check`, `biome format`)
+- Mantine 9 components — do not use raw HTML elements when a Mantine component exists
+- SCSS modules for custom styling
+- All API calls through TanStack Query — no raw `fetch` in components
+- Zod schemas for runtime validation of API responses
+
+### Dead Code & Cleanup Rules
+
+- **Remove dead code immediately** — do not leave unused imports, variables, functions, types, or commented-out code. If something is no longer referenced, delete it.
+- **No backwards-compatibility shims** — do not rename unused variables with `_` prefix, re-export removed types, or add `// removed` comments. Just delete.
+- **No speculative code** — do not add code "for later". If it's not used right now, it doesn't belong.
+
+### API Contract Rule
+
+- **Every API method** added to `packages/api/src/client.ts` MUST have a corresponding route handler in the backend `routes/mod.rs`.
+- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in the frontend `client.ts`.
+- Run `make check-api` to verify. This is a blocking check — no module is complete until the contract passes.
+- The script (`scripts/check_api_contract.py`) statically parses both files — no running server required.
+
+### useEffect Policy
+
+- **Avoid `useEffect` unless absolutely necessary.** Most state synchronization can be handled declaratively.
+- **Allowed uses**: external system integration (WebSocket listeners, DOM event listeners, third-party library init), one-time setup on mount (`useEffectOnce` from `react-use`).
+- **Prefer `useEffectOnce`** (from `react-use`) over `useEffect(() => { ... }, [])` for mount-only side effects.
+- **Never use `useEffect` for**: derived state (use `useMemo` or compute inline), state sync between React state variables (lift state up or use a single source of truth), data fetching (use TanStack Query), navigation side effects (use React Router loaders/actions or event handlers).
+- When tempted to write `useEffect`, first ask: "Can this be an event handler, a `useMemo`, or a TanStack Query instead?"
+
+---
+
+## Document Everything (MANDATORY)
+
+**Everything is documented from the start, because recovering it later is far harder.**
+
+1. **Every function** has a doc comment saying what it does and why it exists, in every language:
+   Rust, TypeScript, Swift, Kotlin, Python. Say what the name cannot. Tests and generated files are
+   exempt. `make check-docs` and CI fail on any function a branch adds or changes without one.
+   Existing functions get theirs when they are touched.
+2. **Every decision** gets a row in `medbrains/docs/DECISIONS.md` in the same PR: what, why, what was
+   rejected. Reversals add a new row; history is never edited.
+3. **Every failure that could recur** gets a row there too: what happened, the cause, the fix.
+4. **Every module and feature** has its RFC or guide updated in the same PR, and every build or setup
+   has the exact commands to repeat it.
+
+The repository is the source of truth; any wiki is a mirror. It is public, so no secrets, patient
+data, server details, or private partner, client or banking information.
+
+## OS Principles Are Law (MANDATORY)
+
+MedBrains is an appliance OS for hospitals (`medbrains/RFCs/RFC-HOSPITAL-OS.md`). Every change,
+in every crate, app and script, follows **`medbrains/docs/OS-PRINCIPLES.md`**: the OSTEP pillars
+(virtualisation, concurrency, persistence), the Saltzer–Schroeder security principles (economy of
+mechanism, fail-safe defaults, complete mediation, open design, separation of privilege, least
+privilege, least common mechanism, psychological acceptability), the Unix rules, and the reliability
+rules (crash-only, idempotent, bounded, stable interfaces, observable, graceful degradation), plus
+hardware safety (RFC-HOSPITAL-OS §8o), and the flight rules (section 7: NASA's Power of Ten for Rust,
+failure tables, fault injection, physics limits, proven algorithms). Apps reach shared concerns only through the kernel
+(`make check-kernel-boundary`), and the kernel holds nothing about hospitals
+(`make check-kernel-no-domain`). A design that breaks a principle needs a written reason in its RFC;
+"it was quicker" is not a reason.
+
+## Code Quality Bar
+
+Senior-architect standard. Project-specific rules:
+
+- **Naming**: functions `verb+noun` (`createPatient`); booleans `is/has/can/should`; hooks `use*`; types PascalCase no `I` prefix.
+- **Function design**: ≤20 lines, ≤3 params (else options object), early returns, no swallowed errors.
+- **Components**: one per file, props interface at top, separate data/presentation/styling, memoize derived data.
+- **API**: RESTful resources, `{ data, meta }` or `{ error, details }`, pagination on lists, meaningful HTTP codes.
+- **Errors**: typed (thiserror / TS classes), user-friendly UI msg, never expose stack traces.
+- **Avoid**: god objects, prop drilling, premature optimization, magic numbers, copy-paste, deep nesting.
+- **Boy Scout Rule** — improve files you touch; never increase tech debt.
+- **DSA + dynamic programming everywhere (LAW)** — reach for the right **data structure & algorithm** for every non-trivial problem, and use **dynamic programming / memoization** to eliminate repeated work. This is a cost/latency requirement, not a nicety: every compute cycle and DB round-trip is money. Concretely: model reachability/permission/graph problems as **graph traversals with a visited-set memo** (see `RFCs/RFC-ACCESS-RESOLUTION-GRAPH.md` — access resolution is a bounded BFS with DP), **bound every loop/traversal/fan-out** (depth caps, `LIMIT`, no unbounded growth), **cache/memoize overlapping subproblems** (resolve a department/group/config once per request, not per item), prefer **set/map membership over linear scans**, **batch** N queries into one (`ANY($1)`, a single `JOIN`, a recursive CTE) instead of N round-trips, and pick structures with the right complexity up front (hash for lookup, heap for top-K, interval trees for ranges). Applies to Rust server, SQL, and TS/React alike — **mandatory** on constrained surfaces (TV/mobile/edge, see `docs/DEVICE-CONSTRAINED-RULES.md`), **expected and measured** on web/server. When a naive O(n²)/N+1/unbounded solution is the quick path, that's a smell — name the ceiling and use the efficient structure. See `memory/feedback_dsa_dynamic_programming_everywhere.md`.
+
+### Testing Rules
+
+- **Static checks** (`make check-all`): Must pass before a module is considered complete.
+  Includes: `check-api` (path matching), `check-ui-api` (page↔method coverage), `check-types` (field contracts).
+- **Smoke tests** (`make smoke-test`): Run against a live dev server after adding new endpoints.
+  Auto-generated — re-run `make generate-smoke` after adding API methods.
+- **E2E tests**: Each major module should have at least one E2E scenario test.
+  Skeletons generated via `make generate-e2e` — fill in assertions manually.
+- **Test helpers**: Shared helpers in `apps/web/e2e/helpers.ts` — `routeApiDirect()`, `ensureAuthenticated()`, `navigateTo()`, `getAuthToken()`.
+- **Generated files**: Smoke test specs (`e2e/smoke/*.smoke.spec.ts`) are auto-generated and gitignored. Do not edit them directly — modify the generator script instead.
+
+---
+
+## Permission-Based UI Patterns
+
+The system uses a multi-layer permission architecture. Every page and action must follow these patterns.
+
+### Permission Definitions
+
+- **Single source of truth**: `packages/types/src/permissions.ts`
+- **111 permissions** across 8 modules: dashboard, patients, opd, lab, pharmacy, billing, ipd, admin
+- **Typed constant**: Import `P` for autocomplete — `P.ADMIN.USERS.CREATE` instead of `"admin.users.create"`
+- **Hierarchical codes**: dot-separated — `module.resource.action` (e.g., `admin.users.create`, `opd.visit.update`)
+
+### Permission Store (Zustand)
+
+- **Store**: `packages/stores/src/permission-store.ts` — `usePermissionStore`
+- **Bypass roles**: `super_admin` and `hospital_admin` return `true` for ALL permission checks
+- **Loaded on login**: `ProtectedRoute` calls `GET /auth/me` → `setPermissions(role, permissions[])`
+- **Resolution formula**: `effective = (role_permissions ∪ user.access_matrix.extra) − user.access_matrix.denied`
+
+### Page-Level Guards
+
+Every page component MUST call `useRequirePermission()` at the top. This redirects unauthorized users to `/dashboard`.
+
+```tsx
+export function UsersPage() {
+  useRequirePermission(P.ADMIN.USERS.LIST);  // guard — redirects if denied
+  // ... rest of page
+}
+```
+
+- **Hook**: `apps/web/src/hooks/useRequirePermission.ts`
+- **One permission per page** — use the `.LIST` or `.VIEW` permission for the module
+
+### Element-Level Visibility
+
+`useHasPermission(code)` / `useHasAllPermissions(codes[])` (AND) / `useHasAnyPermission(codes[])` (OR) — all from `@medbrains/stores`. Gate buttons, ActionIcons, form elements: `{canCreate && <Button>...}`.
+
+### Standard Page Pattern
+
+```tsx
+export function ModulePage() {
+  useRequirePermission(P.MODULE.LIST);
+  const canCreate = useHasPermission(P.MODULE.CREATE);
+  const { data, isLoading } = useQuery({ queryKey: [...], queryFn: ... });
+  return (
+    <div>
+      <PageHeader title="..." actions={canCreate ? <Button>Add</Button> : undefined} />
+      <DataTable columns={columns} data={data} ... />
+    </div>
+  );
+}
+```
+
+### Permission Tree UI (Admin Pages)
+
+For role/user permission editing, use the `PermissionGroupNode` component pattern:
+
+- **`buildPermissionTree(PERMISSIONS)`** converts flat permission codes into a hierarchical accordion tree
+- **`PermissionGroupNode`** renders recursive accordions with checkboxes, select-all, filter, and count badges
+- Used in: `admin/roles.tsx` (role permission editor) and `admin/users.tsx` (per-user override drawer)
+- **Per-user overrides**: `UserPermissionOverrideDrawer` has two sections — Extra Permissions (green) and Denied Permissions (red)
+
+### Built-In Roles & Seeding
+
+- **11 built-in roles** are seeded into the `roles` table with `is_system = true` on tenant creation
+- Permissions for each role are defined in `crates/medbrains-server/src/seed.rs` (must stay in sync with frontend `ROLE_TEMPLATES`)
+- **Bypass roles** (super_admin, hospital_admin): stored with empty permissions array — the frontend/backend bypasses checks entirely
+- **Custom roles**: created via Admin → Roles page, stored in `roles` table, permissions editable via accordion tree
+
+### Backend Permission Checks
+
+- **Route-level**: `require_permission(&claims, "admin.users.list")?;` — returns 403 if denied
+- **Permission resolution** (`routes/auth.rs:resolve_permissions`): queries `roles` table for role permissions, then applies `users.access_matrix` overrides (extra/denied)
+
+---
+
+## When to Consult RFCs
+
+- **Module specifications** (what a module does, its entities, its workflows) → `RFC-HMS-2026-001.docx`, `RFC-HMS-2026-UNIFIED-v2.docx`
+- **Workflow design** (step sequences, form builders, automation rules) → `RFC-HMS-2026-002-Workflows.docx`
+- **Extended/specialty modules** (Psychiatry, Medical College, Patient Experience) → `RFC-HMS-v2.1-Continuation.pdf`
+- **Tech stack decisions** (libraries, tools, CI/CD, deployment) → `RFC-HMS-2026-003-TechStack (2).docx` (APPROVED)
+- **Quality/compliance criteria** (NABH, JCI, department checklists) → `ACMSRC_HMS_Evaluation_Checklists.docx`
+
+---
+
+## Regulatory & Compliance Norms (MANDATORY)
+
+**Before any feature, check applicable norms.** Hospital domain — non-compliance = legal/accreditation/safety risk. When in doubt, over-comply.
+
+### Pre-Implementation Checklist
+
+1. **Indian law**: NDPS Act 1985 (narcotics), D&C Act 1940 (drug scheduling), CDSCO Schedule H/H1/X/G, Clinical Establishments Act 2010, PNDT/PCPNDT, MTP Act, Mental Healthcare Act 2017, BMW Rules 2016, Consumer Protection Act 2019.
+2. **Accreditation**: NABH/JCI — see `ACMSRC_HMS_Evaluation_Checklists.docx` (34 dept checklists). Key: patient ID, medication safety, infection control, consent.
+3. **Clinical coding**: Drugs → WHO INN + ATC + RxNorm/SNOMED. Diagnoses → ICD-10/11. Procedures → CPT/ICD-10-PCS. Labs → LOINC.
+4. **Pharmacology**: drug schedule, NDPS register + dual-lock, formulary/DTC, AWaRe stewardship, DDI checks, allergy cross-check, LASA flags, dose validation, batch/lot tracking, FEFO expiry.
+5. **Interop**: HL7 FHIR R4, ABDM Health ID, DICOM, HL7 v2.
+6. **Safety**: IPSG (ID, med safety, surgery, falls, infection, comms), informed consent, incident/near-miss reporting.
+
+### How to Apply
+
+- **Step 0 of Module Workflow**: research norms before coding
+- **Schema**: regulatory fields from start (e.g. `pharmacy_catalog` needs `drug_schedule, is_controlled, inn_name, atc_code`; `lab_test_catalog` needs `loinc_code`; `diagnoses.icd_code`)
+- **Frontend**: regulatory badges (Schedule H, controlled-substance icon, LASA warning)
+- **Backend**: enforce — reject Schedule X without duplicate record, block NDPS dispensing without register entry
+- **Audit**: log who prescribed/dispensed/witnessed
+
+### Domain Norm References
+
+| Domain | Key Norms |
+|--------|-----------|
+| Pharmacy | NDPS, D&C, Schedule H/H1/X, INN, ATC, AWaRe (CDSCO/WHO) |
+| Laboratory | NABL, LOINC, critical-value reporting |
+| Radiology | DICOM, AERB, PCPNDT |
+| Blood Bank | D&C Part XII-B, National Blood Policy (NACO) |
+| IPD/Nursing | 5 Rights, fall risk (NABH/IPSG) |
+| OPD | 2-ID, consent, referral (NABH/IPSG) |
+| Billing | GST healthcare, CGHS/ECHS, TPA formats |
+| Admin | EHR standards, IT Act privacy |
+| Emergency | MLC docs, mandatory reporting (IPC/CrPC) |
+| Infection Control | BMW 2016, AMS, HAI surveillance |
+
+---
+
+## Ticket / Story Execution Workflow
+
+When picking up a ticket or story (incl. the generated stories in `medbrains/docs/backlog/stories/`), do NOT jump straight to code. Always:
+
+1. **Research the real-world scenario first** — who actually uses this, in what hospital workflow, and what are the real business rules and edge cases? Read the relevant RFC(s), the existing code paths (`ccc search`), the regulatory norms, and how similar features behave. Confirm what exists vs what's missing (many backlog tickets are already partly done).
+2. **Expand into scenario-based, business-logic acceptance criteria** — the generated stories carry only generic module-tailored AC. Rewrite them as concrete **Given/When/Then scenarios** grounded in real-world use, covering the actual business logic and edge cases: happy path, conflict/error states, permission-denied, the regulatory rule, boundary values, and what the system does to which records/users. Not a generic checklist — real scenarios (e.g. "Given a Schedule-X drug with no duplicate record, When the pharmacist dispenses, Then the system blocks it and logs the attempt"). Agree them if non-trivial (plan mode).
+3. **Then start** — implement to the scenario AC, following the Module Build Workflow below; verify each scenario; ship one focused PR.
+
+## Every Change Ships Its UI (MANDATORY)
+
+**For every change, the UI change is needed.** A piece of work is not finished
+at the API boundary. Backend and frontend land together, in the same phase, and
+the phase is verified through the screen — not through `curl`.
+
+This is not a style preference; it is the specific failure this codebase keeps
+repeating. `stations`, `camp_counters`, `staff_location_assignments` and
+`doctor_schedules` all shipped with full schema, CRUD handlers, permissions,
+API-client methods and types — and **zero rows**, for months, because no screen
+ever created one. The location hierarchy has 75 seeded rows and 38 tables
+referencing it; the queue could still not name a room. Work that stops at the
+handler is how that happens.
+
+**The rule:**
+
+1. **Plan the screen with the endpoint**, not after it. A migration, a new
+   column, a new route or a fixed one names the screen it changes before any of
+   it is written. Pairs with **Plan UI before build** above.
+2. **A phase ends on the screen.** Verify by using the feature in the running
+   app, as the role that would use it. A 200 from `curl` is evidence the API
+   works, never evidence the feature exists.
+3. **Seed data needs a maker.** If a table is seeded, the screen that creates,
+   edits and retires those rows ships with it — otherwise the seed is the only
+   data that will ever exist.
+4. **A change with genuinely no surface must say so, explicitly**, and name the
+   screen it unblocks: a scheduled job, a router-wiring fix, a backfill. Say
+   "backend-only, unblocks X" out loud. Never let it pass silently as "done".
+5. **Both directions.** A screen with no endpoint is equally incomplete —
+   `make check-api` and `check-ui-api` enforce the pair.
+
+## Apps Are Permission-Gated Bricks (MANDATORY, core rule)
+
+**Every module ships as an app brick, and permissions decide where it fits.** This is the
+core of how MedBrains is built, installed, shown and sold. Full design:
+`medbrains/docs/architecture/MODULE-BRICKS.md`.
+
+1. **One app is one brick on every layer:** its backend crate, its web package, its native
+   app and its manifest, with the same id everywhere. About 20 apps (Pharmacy, EMR, Patient
+   Registration, Billing...), each with its own side panel of screens, never one tile per screen.
+2. **Bricks connect only through the base plate:** the kernel, the shared kit, the API, events
+   and opening another app by id. No brick imports another brick's code on any layer.
+3. **The manifest declares the brick's permission modules and the bricks it depends on**,
+   generated from the Rust permission list, never written by hand.
+4. **Onboarding picks the bricks:** a hospital installs only the apps it needs (a pharmacy-only
+   customer gets Pharmacy and its dependencies), the rest switched off for the tenant and
+   refused by the server.
+5. **A machine gets a brick only when its assigned roles hold the brick's permissions**, with its
+   dependencies: a pharmacy edge has Pharmacy alone. Changing roles is the only control.
+6. **A person sees an app, and each screen in its side panel, only with its permissions.**
+   Screens they may not open are left out, not greyed. Inside a screen, fields are shown,
+   masked or hidden by data class.
+7. **Tabs and panels that belong to another brick are plugged in by that brick.** The EMR tab
+   on a patient record is declared in the EMR brick's manifest ("adds a tab to the patient
+   record") and appears only when EMR is installed for the tenant and the machine and the person
+   holds its permission. The host screen shows whatever tabs are plugged in and imports none;
+   removing a brick removes its tabs everywhere. The same holds for components a brick adds
+   elsewhere: dashboard widgets, cards on a patient summary, actions in a shared menu.
+   Every control a person can press is gated on the permission its request needs (see
+   "Authorization Is Repo-Wide Law", rule 7). Shared kit components carry no permission of
+   their own; they belong to the base plate.
+8. **Administration and settings are bricks too.** The Administration app (users, roles,
+   audit, integrations) is installed where IT works, the main machine, not on edge machines,
+   which are managed from the main machine or MedBrains Control. Each app plugs its own
+   settings section into Settings, so Pharmacy settings exist only where Pharmacy is installed
+   and only for people holding its settings permission. Machine settings on the OS screen stay
+   in the shell's Settings: everyday actions open, severe ones behind IT sign-in. Roles are the
+   control that makes bricks fit, so changing them is the most protected and audited action.
+9. **The server decides every request.** A brick being present grants nothing; the launcher,
+   the side panel and each screen's check only keep the screen honest about what the server
+   allows.
+10. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
+   set, then the person's permissions.
+
+A module that is not a brick, a screen reachable without its permission, or an app installed
+on a machine whose roles do not need it, is a defect.
+
+## Permissions First (MANDATORY)
+
+**Every feature defines its permission before any code is written** — before the
+handler, before the page, before the button. Authorization is step 0, not a
+finishing task.
+
+Every authorization defect found in the 2026-08-15 audit came from this being
+done last: 154 routes shipped unguarded, 105 permissions existed in Rust that
+the admin UI could not grant, two pages guarded on codes only TypeScript knew
+about (so every non-bypass user was redirected away), and three patient-safety
+print endpoints were gated on `admin.roles.list` by copy-paste.
+
+**The order:**
+
+1. **Define in Rust** — `crates/medbrains-core/src/permissions.rs`, with a `///`
+   doc comment. The first sentence becomes the UI label, the rest the
+   description, so writing the constant writes the UI copy. Keep the first
+   sentence under ~48 characters.
+2. **Generate the UI catalogue** — `python3 scripts/generate_permissions_ts.py`.
+   **Never hand-edit `packages/types/src/permissions.ts`** — it is generated
+   from the Rust constants, including `ROLE_TEMPLATES` from `BUILT_IN_ROLES`.
+3. **Grant it to roles** — `crates/medbrains-core/src/access/roles.rs`. The
+   compiler validates the reference; a typo does not build.
+4. **Guard the backend** — `require_permission(&claims, permissions::…)`, or
+   `Authorized<P>` / `AllOf<..>` / `AnyOf<..>`.
+5. **Gate the UI** — `useRequirePermission` on the route component,
+   `useHasPermission` on any control that triggers a mutating call.
+6. **Prove it** — `make check-permissions` and `make check-role-templates` must
+   pass. For anything touching PHI, call it with an API key that lacks the
+   permission and confirm a 403.
+
+A permission added only to TypeScript enforces nothing. Rust is the single
+source of truth; TypeScript is generated from it.
+
+---
+
+## Authorization Is Repo-Wide Law (MANDATORY)
+
+**Spec: `RFCs/RFC-AUTHZ-2026-001-Design-and-Grammar.md`.** Read it before
+touching anything that decides who may see or do what. It is not advisory and
+it is not scoped to "the authz crate" — it binds **every module, every app,
+every API, every code path**.
+
+There is no module that opts out. A hospital system leaks through the one
+screen nobody audited, and every authorization defect found in the 2026-08-15
+audit was in code whose author believed authorization was somebody else's file.
+
+**The unit of compliance is the module, and every module must satisfy all
+four axes:**
+
+| Axis | What it means | Enforced by |
+|---|---|---|
+| **API** | every route has a permission, and a per-record check if it touches PHI | `check-permission-enforcement` |
+| **App** | every surface — web, 16 mobile, 14 TV, kiosk, desktop — gates the control *and* the query | `check-ui-api`, per-surface review |
+| **Code** | no authz error collapsed into `false`; three outcomes, always | `check-authz-collapse` |
+| **Data** | every redactable field declares its class; denial mode follows from it | `check-field-classes` |
+
+**The rules that apply everywhere, without exception:**
+
+1. **Permissions first** — defined in Rust before the handler, the page, or the
+   button. See the section above.
+2. **A fault is not a refusal.** Three outcomes — allow, deny, **unknown**.
+   Never `.unwrap_or(false)`, `?? false`, or `.is_ok()` on an authorization
+   result. A denial answers 404 so as not to be an existence oracle; an outage
+   answering 404 tells a clinician the record does not exist.
+3. **No unscoped checks.** `patient.update` is meaningless; `update` on
+   `patient:456` is a decision.
+4. **The service layer is the guard, not HTTP.** HL7 ingest, jobs, the Tauri
+   bridge and the CLI all bypass Axum. Middleware-only authorization leaves them
+   open.
+5. **Denial mode comes from the data class, never the call site.** Otherwise the
+   same HIV result is masked on one screen and hidden on another.
+6. **A list must never render an outage as emptiness.** A blank ward reads as a
+   fact about the ward.
+7. **The control's gate must match the permission its call requires.** A tab
+   gated on `.list` containing a button that needs `.create` promises what the
+   server will refuse.
+8. **Reads gate the query, not just the control** — a screen without the
+   permission must not issue the fetch.
+9. **One round trip per screen.** Bulk-check and list-filter; never `check()` in
+   a loop.
+10. **Both backends must agree.** A policy whose answer depends on which engine
+    responded is not a policy.
+
+**A missing permission is created, never worked around.** When a handler,
+screen, tab or button has no permission that fits, the answer is a **new
+permission**, defined in Rust first and generated outward — not reuse of a
+loosely-related code, and never `admin.roles.list` because it was nearest to
+hand (three patient-safety print endpoints shipped that way). Follow the
+Permissions First order above in full: define with a `///` doc comment, generate
+the catalogue, grant it to the roles that need it, guard the backend, gate the
+UI, prove it. Widening an existing permission to cover a new action is the same
+mistake wearing a different hat — it silently grants that action to everyone who
+already held the code.
+
+**Coverage is tracked, not remembered.** `make authz-ledger` reports conformance
+per module across all four axes. A module is not "done" because someone looked
+at it; it is done when the ledger says so.
+
+**When the grammar (§2B) lands, the vocabulary is generated** — `schema.zed`,
+`relations.rs`, `permissions.rs` and `permissions.ts` all come from one source.
+Until then, hand-edits to any of them must keep parity
+(`make check-relation-parity`).
+
+---
+
+## Module Build Workflow
+
+Every module follows this. No skipping.
+
+0. **Regulatory norms** — laws, NABH/JCI checklist, regulatory fields/rules/UI indicators. Document in `RFCs/RFC-MODULE-<name>.md`.
+1. **Pick from Excel** — `MedBrains_Features.xlsx`. Priority P1 Patient→OPD→Billing, P2 Lab→Pharmacy→IPD, P3 rest.
+2. **Identify masters** — master tables, enums, configs, deps on other modules.
+3. **Write Module RFC** — scope, regulatory reqs, entities (with regulatory fields), masters, REST endpoints, backend rules, frontend pages + indicators, workflow integrations, platform scope.
+4. **Mark In Progress** in Excel via openpyxl script.
+5. **DB layer** — migration `crates/medbrains-db/src/migrations/NNN_<module>.sql`, masters first, RLS, indexes.
+6. **Backend** — types in `medbrains-core/src/<module>.rs`, handlers in `medbrains-server/src/routes/<module>.rs`, register in `routes/mod.rs`. `cargo clippy` clean.
+7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/client.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
+   - **7b Mobile (if Mobile=Y)**: native, both platforms in lockstep — `apps/ios/…/Features/<Module>/` (SwiftUI) and `apps/android/app-*/…/<module>/` (Compose), per `RFCs/RFC-NATIVE-MOBILE.md`.
+   - **7c TV (if TV=Y)**: `apps/tv/src/screens/<Module>/`, D-pad focus nav, WebSocket realtime, large fonts.
+8. **Static checks** — `make check-all` (check-api, check-ui-api, check-types). `make generate-smoke`.
+9. **Smoke tests** — `make dev-backend && make smoke-test`.
+10. **Mark Done/Partial** in Excel.
+11. **Final verify** — `cargo clippy && pnpm typecheck && pnpm build`.
+
+---
+
+## Feature Tracking
+
+- **Master spreadsheet**: `MedBrains_Features.xlsx` (2,030+ features across 12 sheets)
+- **Sheets**: Onboarding & Setup, Clinical, Diagnostics & Support, Admin & Operations, Specialty & Academic, IT Security & Infrastructure, TV Displays & Queue, Printing & Forms, Mobile Apps, Technical Infrastructure, Regulatory & Compliance, Multi-Hospital & Vendors
+- **Columns**: S.No, Module, Sub-Module, Feature, Source, Priority, Status, RFC Ref, Web, Mobile, TV
+- **Status values**: Pending, In Progress, Done, Partial, Deferred
+
+### Excel Editing
+
+- **Tool**: Python 3 + `openpyxl` (always use openpyxl for reading/writing .xlsx files)
+- **Scripts**: `scripts/` directory for Excel update scripts
+- **Pattern**: Write a Python script in `scripts/`, run with `python3 scripts/<name>.py`
+- **Never** edit Excel manually — always use openpyxl scripts for traceability
+- **Styling**: Module headers use `D6E4F0` fill + bold, sub-module headers use `E9EFF7` fill + bold, features use thin borders + wrap text
+
+---
+
+## Current Codebase State (Skeleton)
+
+The codebase has been cleared to skeleton. Only infrastructure remains:
+
+| Layer | What's Kept | What's Cleared |
+|-------|-------------|----------------|
+| **Frontend** | Login, App Shell, routing, theme, auth store | All module pages (empty placeholders) |
+| **Backend** | Auth routes, health check, middleware, seed | All module routes (empty files) |
+| **Database** | Migrations 001 + 002 (35 tables exist) | No new migrations yet |
+| **Packages** | Auth types, auth API methods, stores | Module types & API methods removed |
+| **Core** | All Rust domain types preserved | — |
+
+---
+
+## Key Architectural Patterns
+
+1. **Multi-tenancy**: Every tenant-scoped table uses `tenant_id` + PostgreSQL RLS. Tenant context is set per-request via middleware.
+2. **7-layer configuration**: Global → Tenant → Campus → Building → Floor → Department → User. Stored in PostgreSQL (`tenant_settings`, hierarchical keys resolved by layer).
+3. **Workflow engine**: Templates define step sequences as JSONB. Instances track execution state. Step logs provide audit trails.
+4. **PostgreSQL primitives** (formerly YottaDB globals): config in `tenant_settings`, atomic counters/UHID via the `sequences` table (`UPDATE … RETURNING`), real-time bed state in `bed_states` — all tenant-scoped under RLS.
+5. **Compile-time safety**: All SQL queries verified at compile time. Strict clippy lints catch common errors before runtime.
+6. **Permission system**: 111 permissions across 8 modules. `P.MODULE.ACTION` typed constants. Page guards via `useRequirePermission()`, element visibility via `useHasPermission()`. Roles stored in `roles` table with JSONB permissions array. Per-user overrides via `users.access_matrix` (`{ extra: [], denied: [] }`). `super_admin`/`hospital_admin` bypass all checks.

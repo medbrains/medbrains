@@ -26,6 +26,10 @@ const GLOBAL_TABLES: &[&str] = &[
     "cds_ingredient_incompatibility",
     "cds_lab_reference",
     "cds_state_formulary",
+    // Which lab results confirm which notifiable disease: national rules with
+    // no tenant_id, seeded by migration 1230, read by notifiable_detect_lab().
+    // A hospital's own additions live in notifiable_state_overrides, under RLS.
+    "notifiable_lab_rules",
     // Device driver marketplace; install_count is a global counter.
     "device_adapter_catalog",
     // Code registries: events and entity schemas.
@@ -40,6 +44,8 @@ const GLOBAL_TABLES: &[&str] = &[
     "regulatory_bodies",
     // Public medical news, ingested once for everybody.
     "news_feed_articles",
+    "health_intel_terms",
+    "health_intel_heartbeats",
     "partition_config",
     // SNOMED CT release, loaded once per install.
     "snomed_codes",
@@ -68,6 +74,7 @@ const READ_ONLY_FOR_APP: &[&str] = &[
     "cds_ingredient_incompatibility",
     "cds_lab_reference",
     "cds_state_formulary",
+    "notifiable_lab_rules",
     "event_registry",
     "event_schemas",
     "module_entity_schemas",

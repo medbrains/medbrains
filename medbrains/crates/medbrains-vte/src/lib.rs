@@ -12,10 +12,10 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_health_services::patient::require_patient_access;
+use medbrains_kernel::{Actor, Claims, require_permission};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct VteRiskAssessment {
@@ -113,7 +113,7 @@ pub async fn create_vte_assessment(
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
     // A VTE risk score is a clinical assessment of the patient the body
     // names, not of the ward.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_patient_access(&state, &claims, body.patient_id).await?;
     if let Some(t) = body.prophylaxis_type.as_deref()
         && !["pharmacological", "mechanical", "none"].contains(&t)
     {
@@ -126,8 +126,7 @@ pub async fn create_vte_assessment(
     // High-risk patients need thromboprophylaxis unless a documented bleeding risk contraindicates it.
     let prophylaxis_recommended = high_risk && !body.has_bleeding_risk;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let row = sqlx::query_as::<_, VteRiskAssessment>(&format!(
         "INSERT INTO vte_risk_assessments \
          (tenant_id, patient_id, admission_id, active_cancer, previous_vte, reduced_mobility, \
@@ -172,8 +171,11 @@ pub async fn list_vte_assessments(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<VteRiskAssessment>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // The path names one patient, so the list is that patient's or nothing:
+    // a refusal answers 404 and an authorisation fault 503 — never `[]`,
+    // which would read as "no VTE risk recorded" for a patient at risk.
+    require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, VteRiskAssessment>(&format!(
         "SELECT {VTE_COLS} FROM vte_risk_assessments \
          WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 200"
@@ -184,6 +186,16 @@ pub async fn list_vte_assessments(
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// vte routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/vte-assessments", post(create_vte_assessment))
+        .route(
+            "/api/patients/{patient_id}/vte-assessments",
+            get(list_vte_assessments),
+        )
 }
 
 #[cfg(test)]
@@ -222,14 +234,4 @@ mod tests {
         r.recent_trauma_surgery = true; // +2
         assert_eq!(padua_score(&r), 6);
     }
-}
-
-/// vte routes.
-pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/vte-assessments", post(create_vte_assessment))
-        .route(
-            "/api/patients/{patient_id}/vte-assessments",
-            get(list_vte_assessments),
-        )
 }

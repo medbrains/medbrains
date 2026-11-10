@@ -316,6 +316,12 @@ export function PatientRegisterForm({
   // the patient was registered, the queue step failed into a warning, and the
   // patient simply was not in the queue. Every time, because it is the default.
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  // Opening the visit after registering only helps someone who works the
+  // visit. A front desk that may queue a patient but not update the visit was
+  // dropped on the doctor's workup screen, every read on it refused, with no
+  // way to print the patient's card from there.
+  const canUpdateOpdVisit = useHasPermission(P.OPD.VISIT_UPDATE);
+  const canWorkOpdVisit = canCreateOpdVisit && canUpdateOpdVisit;
   const canVerifyAbha = useHasPermission(P.ABDM.ABHA.MANAGE);
   const {
     register,
@@ -392,7 +398,7 @@ export function PatientRegisterForm({
       // patient registered and silently not queued.
       create_opd_visit: (initialValues?.create_opd_visit ?? !isEdit) && canCreateOpdVisit,
       open_opd_after_registration:
-        (initialValues?.open_opd_after_registration ?? !isEdit) && canCreateOpdVisit,
+        (initialValues?.open_opd_after_registration ?? !isEdit) && canWorkOpdVisit,
     },
   });
   const [activeStep, setActiveStep] = useState(0);
@@ -1683,21 +1689,23 @@ export function PatientRegisterForm({
                       )}
                     />
                   </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <Controller
-                      control={control}
-                      name="open_opd_after_registration"
-                      render={({ field }) => (
-                        <Checkbox
-                          aria-label={t("registrationForm.aria.openOpdAfterRegistration")}
-                          label={t("registrationForm.label.openOpdAfterQueue")}
-                          checked={(field.value ?? false) && Boolean(createOpdVisit)}
-                          disabled={!createOpdVisit}
-                          onChange={(event) => field.onChange(event.currentTarget.checked)}
-                        />
-                      )}
-                    />
-                  </Grid.Col>
+                  {canWorkOpdVisit && (
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Controller
+                        control={control}
+                        name="open_opd_after_registration"
+                        render={({ field }) => (
+                          <Checkbox
+                            aria-label={t("registrationForm.aria.openOpdAfterRegistration")}
+                            label={t("registrationForm.label.openOpdAfterQueue")}
+                            checked={(field.value ?? false) && Boolean(createOpdVisit)}
+                            disabled={!createOpdVisit}
+                            onChange={(event) => field.onChange(event.currentTarget.checked)}
+                          />
+                        )}
+                      />
+                    </Grid.Col>
+                  )}
                 </Grid>
               </FormRow>
             )}

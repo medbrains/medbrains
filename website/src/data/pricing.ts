@@ -53,7 +53,7 @@ export const CHARGES: Charge[] = [
       "Help desk and support, bug fixes and monitoring",
       "Daily backups, checked",
       "Small configuration changes as you grow",
-      "Hosting in India (AWS Mumbai) if we run it for you; on your own server, AMC covers support",
+      "Hosting in AWS Mumbai (ap-south-1) if we run it for you; on your own server, AMC covers support",
     ],
   },
 ];
@@ -133,7 +133,7 @@ export const PRICING_FAQ = [
   { q: "Why is it free?", a: "Software that sits unused helps no patient. What makes a hospital system work is setting it up well, training the people who use it and keeping it running, so that is what we charge for." },
   { q: "How does MedBrains make money?", a: "From implementation, customisation and AMC. We take no money from pharmaceutical companies or advertisers, and we never sell clinical data." },
   { q: "What does implementation include?", a: "Configuring your departments, tariffs, forms and masters, bringing your patients and masters across, training every team on its own screens, and a named go-live lead with close support after go-live." },
-  { q: "What does AMC cover?", a: "Help desk and support, bug fixes, monitoring, checked daily backups and small configuration changes. If we host MedBrains for you, hosting in India is part of the AMC; on your own server, AMC covers support." },
+  { q: "What does AMC cover?", a: "Help desk and support, bug fixes, monitoring, checked daily backups and small configuration changes. If we host MedBrains for you, hosting in AWS Mumbai is part of the AMC; on your own server, AMC covers support." },
   { q: "Is AMC mandatory?", a: "No, but we recommend it. AMC is how your system stays monitored, backed up and supported after go-live, and it is required if we host MedBrains for you, because hosting is part of it." },
   { q: "What if we don't renew AMC?", a: "The software keeps working, updates stay free and your data stays yours. Support and monitoring stop. If we host MedBrains for you, we give 30 days' notice and a full export of your data before hosting stops." },
   { q: "Can we try it before we commit?", a: "Yes. After the free assessment you get a free 1-month pilot: MedBrains set up on our hosting for the departments and modules agreed in writing before it starts, for your teams to use on real work. There is no obligation to continue. If you go ahead, your pilot data carries over; if you do not, we export it to you and delete it on request." },

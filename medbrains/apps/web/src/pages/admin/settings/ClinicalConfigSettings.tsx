@@ -86,7 +86,7 @@ function VitalParametersCard({
   isPending: boolean;
 }) {
   return (
-    <Card padding="md" radius="md" withBorder>
+    <Card padding="md" withBorder>
       <Title order={5} mb="sm">
         Vital Parameters
       </Title>
@@ -134,7 +134,7 @@ function RosSystemsCard({
   };
 
   return (
-    <Card padding="md" radius="md" withBorder>
+    <Card padding="md" withBorder>
       <Group justify="space-between" mb="sm">
         <div>
           <Title order={5}>Review of Systems</Title>
@@ -200,7 +200,7 @@ function ConsultationSectionsCard({
   isPending: boolean;
 }) {
   return (
-    <Card padding="md" radius="md" withBorder>
+    <Card padding="md" withBorder>
       <Title order={5} mb="sm">
         Consultation Sections
       </Title>
@@ -227,7 +227,7 @@ function OrderSetTemplatesCard() {
   const navigate = useNavigate();
 
   return (
-    <Card padding="md" radius="md" withBorder>
+    <Card padding="md" withBorder>
       <Group justify="space-between" wrap="nowrap">
         <div>
           <Title order={5}>Order Set Templates</Title>
@@ -277,7 +277,7 @@ function DischargeChecklistCard({
   };
 
   return (
-    <Card padding="md" radius="md" withBorder>
+    <Card padding="md" withBorder>
       <Group justify="space-between" mb="sm">
         <div>
           <Title order={5}>Discharge Checklist</Title>
@@ -345,7 +345,7 @@ function RecordingFrequencyCard({
   const isDirty = local !== frequency;
 
   return (
-    <Card padding="md" radius="md" withBorder>
+    <Card padding="md" withBorder>
       <Title order={5} mb="sm">
         Recording Frequency
       </Title>

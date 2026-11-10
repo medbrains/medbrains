@@ -1,0 +1,10 @@
+# Tests may unwrap: a panic there is the failure report.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+
+# NASA Power of 10 rule 4: functions stay short enough to read whole.
+too-many-lines-threshold = 60
+cognitive-complexity-threshold = 15
+too-many-arguments-threshold = 8

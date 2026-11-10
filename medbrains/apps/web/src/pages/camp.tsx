@@ -294,7 +294,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
             <Box className={classes.contextRail}>
               <Stack gap="sm">
                 <Stack gap={2}>
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  <Text size="xs" fw={700} c="dimmed">
                     Camp workspace
                   </Text>
                   <Text size="sm" fw={700}>
@@ -319,7 +319,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                 />
                 <Divider />
                 <Stack gap="xs">
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  <Text size="xs" fw={700} c="dimmed">
                     Navigate
                   </Text>
                   {workTabs.map((tab) => (
@@ -337,7 +337,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                 </Stack>
                 <Divider />
                 <Stack gap="xs">
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  <Text size="xs" fw={700} c="dimmed">
                     Actions
                   </Text>
                   <Button

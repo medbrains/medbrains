@@ -60,17 +60,9 @@ pub fn jwt(alg: &str, mut claims: Value, key: &[u8]) -> String {
     let exp = chrono::Utc::now().timestamp() + 60;
     claims["exp"] = json!(exp);
     let part = |v: &Value| URL_SAFE_NO_PAD.encode(v.to_string());
-    let input = format!(
-        "{}.{}",
-        part(&json!({ "alg": alg, "typ": "JWT" })),
-        part(&claims)
-    );
+    let input = format!("{}.{}", part(&json!({ "alg": alg, "typ": "JWT" })), part(&claims));
     let pkey = PKey::private_key_from_pem(key).expect("private key");
-    let digest = if alg == "RS512" {
-        MessageDigest::sha512()
-    } else {
-        MessageDigest::sha256()
-    };
+    let digest = if alg == "RS512" { MessageDigest::sha512() } else { MessageDigest::sha256() };
     let mut signer = Signer::new(digest, &pkey).expect("signer");
     signer.update(input.as_bytes()).expect("sign input");
     let signature = signer.sign_to_vec().expect("signature");
@@ -122,15 +114,9 @@ async fn spawn_mock(state: MockState) -> String {
             body: body.clone(),
         });
         if body["grantType"] != "client_credentials" {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "message": "grantType is required" })),
-            );
+            return (StatusCode::BAD_REQUEST, Json(json!({ "message": "grantType is required" })));
         }
-        (
-            StatusCode::OK,
-            Json(json!({ "accessToken": "session-token", "expiresIn": 1200 })),
-        )
+        (StatusCode::OK, Json(json!({ "accessToken": "session-token", "expiresIn": 1200 })))
     }
     let app = Router::new()
         .route("/sessions", post(sessions))
@@ -210,13 +196,7 @@ impl World {
     }
 
     /// A callback with any bearer token, naming any `X-HIP-ID`.
-    pub async fn callback_as(
-        &self,
-        path: &str,
-        token: &str,
-        hip_id: &str,
-        body: Value,
-    ) -> StatusCode {
+    pub async fn callback_as(&self, path: &str, token: &str, hip_id: &str, body: Value) -> StatusCode {
         let resp = reqwest::Client::new()
             .post(self.app.url(path))
             .bearer_auth(token)

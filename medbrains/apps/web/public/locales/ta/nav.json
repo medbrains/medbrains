@@ -65,6 +65,7 @@
   "integrationHub": "உள்ளமைந்த பைப்லைன்கள்",
   "formTemplates": "படிவங்கள்",
   "apiKeys": "API விசைகள்",
+  "connectedApps": "இணைக்கப்பட்ட செயலிகள்",
   "webhooks": "வெப்ஹூக்குகள்",
   "screenBuilder": "திரை உருவாக்கி",
   "doctorSchedules": "மருத்துவர் அட்டவணைகள்",
@@ -109,6 +110,8 @@
   "devices": "சாதன ஒருங்கிணைப்பு",
   "scheduling": "ஸ்மார்ட் அட்டவணைப்படுத்தல்",
   "security": "பாதுகாப்பு",
+  "securityIntel": "பாதுகாப்பு நுண்ணறிவு",
+  "medbrainsAccess": "MedBrains அணுகல்",
   "analytics": "பகுப்பாய்வு மற்றும் டாஷ்போர்டுகள்",
   "reports": "அறிக்கை மையம்",
   "audit": "தணிக்கைப் பதிவு",
@@ -117,6 +120,7 @@
   "documentTemplates": "ஆவண வார்ப்புருக்கள்",
   "groupFavorites": "பிடித்தவை",
   "healthPulse": "ஹெல்த் பல்ஸ்",
+  "healthIntel": "சுகாதார நுண்ணறிவு",
   "lms": "கற்றல் (LMS)",
   "nabhIndicators": "NABH குறிகாட்டிகள்",
   "pairedDevices": "இணைக்கப்பட்ட சாதனங்கள்",
@@ -124,8 +128,11 @@
   "materials": "பொருள் மேலாண்மை",
   "approvals": "ஒப்புதல்கள்",
   "historyImport": "வரலாற்றை இறக்குமதி செய்",
+  "kernel": "கர்னல்",
   "onboardingWorkbook": "தொடக்க அமைப்புப் பணிப்புத்தகம்",
   "doctorPayouts": "மருத்துவர் கொடுப்பனவுகள்",
   "myEarnings": "என் வருமானம்",
-  "researchExports": "ஆராய்ச்சி தரவு ஏற்றுமதி"
+  "researchExports": "ஆராய்ச்சி தரவு ஏற்றுமதி",
+  "knowledgeChanges": "அறிவு மாற்றங்கள்",
+  "flows": "பணிப்பாய்வுகள்"
 }

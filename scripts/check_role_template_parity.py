@@ -7,7 +7,7 @@ The permission set of a role is written twice:
     crates/medbrains-core/src/access/roles.rs   BUILT_IN_ROLES, seeded into
                                                 the roles table on tenant
                                                 creation
-    packages/types/src/permissions.ts           ROLE_TEMPLATES, what the admin
+    packages/types/src/permission-catalog.ts    ROLE_TEMPLATES, what the admin
                                                 UI prefills a new custom role
                                                 with
 
@@ -46,6 +46,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TS = REPO_ROOT / "medbrains" / "packages" / "types" / "src" / "permissions.ts"
+CATALOG = REPO_ROOT / "medbrains" / "packages" / "types" / "src" / "permission-catalog.ts"
 RS = REPO_ROOT / "medbrains" / "crates" / "medbrains-core" / "src" / "permissions.rs"
 ROLES = REPO_ROOT / "medbrains" / "crates" / "medbrains-core" / "src" / "access" / "roles.rs"
 BASELINE = REPO_ROOT / "scripts" / ".role_template_parity_baseline.json"
@@ -115,9 +116,8 @@ def ts_permission_constants(text: str) -> dict[str, str]:
 
 
 def ts_templates() -> dict[str, set[str]]:
-    text = TS.read_text(encoding="utf-8")
-    constants = ts_permission_constants(text)
-    section = text.split("export const ROLE_TEMPLATES", 1)[1]
+    constants = ts_permission_constants(TS.read_text(encoding="utf-8"))
+    section = CATALOG.read_text(encoding="utf-8").split("export const ROLE_TEMPLATES", 1)[1]
     templates: dict[str, set[str]] = {}
     pattern = r"\n  ([a-z_0-9]+):\s*\{\s*\n\s*label:.*?permissions:\s*\[(.*?)\n\s*\],"
     for match in re.finditer(pattern, section, re.S):

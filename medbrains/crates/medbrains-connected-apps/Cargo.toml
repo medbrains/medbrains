@@ -1,0 +1,26 @@
+[package]
+name = "medbrains-connected-apps"
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+medbrains-api-keys = { path = "../medbrains-api-keys" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+axum = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+getrandom = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

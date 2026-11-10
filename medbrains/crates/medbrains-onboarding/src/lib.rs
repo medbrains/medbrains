@@ -20,6 +20,7 @@ use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::{Claims, encode_jwt},
+        client_ip::ClientIp,
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
     },
     state::AppState,
@@ -135,6 +136,7 @@ pub struct InitResponse {
 #[allow(clippy::too_many_lines)]
 pub async fn init(
     State(state): State<AppState>,
+    client_ip: Option<Extension<ClientIp>>,
     headers: axum::http::HeaderMap,
     Json(body): Json<InitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -148,7 +150,7 @@ pub async fn init(
             "Tell us about your facility to start a trial".to_owned(),
         ));
     }
-    let signup_ip = trial::client_ip(&headers);
+    let signup_ip = client_ip.map(|Extension(ip)| ip.as_str());
     if is_trial {
         trial::throttle(&state.db, signup_ip.as_deref()).await?;
     }
@@ -640,6 +642,11 @@ fn is_module_enabled_for_edition(hospital_type: &str, code: &str) -> bool {
     }
 }
 
+/// Run the onboarding wizard once, in one transaction.
+///
+/// It writes the hospital's details, facilities, departments, roles, first
+/// staff accounts, modules and sequences. The staff accounts' roles must be
+/// within the caller's own.
 #[allow(clippy::too_many_lines)]
 pub async fn setup(
     State(state): State<AppState>,
@@ -654,6 +661,14 @@ pub async fn setup(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
+    // The wizard's accounts are grants like any other: a caller outside the
+    // bypass roles (the first administrator is one) gives only roles within
+    // their own codes, and never a bypass role. The wizard's roles are created
+    // with no codes, so they grant nothing to check.
+    let mut roles: Vec<&str> = body.users.iter().map(|u| u.role.as_str()).collect();
+    roles.sort_unstable();
+    roles.dedup();
+    medbrains_server_core::permissions::refuse_roles_beyond_own(&state.db, &claims, &roles).await?;
 
     // ── Idempotency check ───────────────────────────────
     let already_complete: bool = sqlx::query_scalar(
@@ -1331,6 +1346,7 @@ pub async fn setup(
     .map_err(AppError::from)?;
 
     tx.commit().await?;
+    medbrains_server_core::middleware::entitlement::invalidate_modules(claims.tenant_id);
 
     tracing::info!(tenant_id = %claims.tenant_id, "Onboarding setup completed");
 
@@ -1548,6 +1564,7 @@ pub async fn apply_edition(
     .await?;
 
     tx.commit().await?;
+    medbrains_server_core::middleware::entitlement::invalidate_modules(claims.tenant_id);
     Ok(Json(serde_json::json!({
         "hospital_type": body.hospital_type,
         "enabled": enabled.len(),

@@ -307,7 +307,7 @@ export function TableValueBadge({
       size={size}
       leftSection={
         Icon ? (
-          <ThemeIcon color={color} variant="light" size={iconBoxSize} radius="xl">
+          <ThemeIcon color={color} variant="light" size={iconBoxSize}>
             <Icon size={iconSize} stroke={2.4} />
           </ThemeIcon>
         ) : undefined

@@ -36,6 +36,7 @@ import {
 import type {
   ReportDataById,
   ReportDefinition,
+  ReportFailure,
   ReportLoadingState,
   ReportPriority,
   ReportReadiness,
@@ -151,6 +152,17 @@ export function ReportsPage() {
     );
     return Object.fromEntries(entries);
   }, [liveReportList, liveReportQueries]);
+  // A report that failed (timed out, busy, outage) shows its error, never an
+  // empty chart: an empty chart reads as "nothing happened".
+  const failureByReportId = useMemo<Record<string, ReportFailure>>(() => {
+    const entries = liveReportList.flatMap((report, index) => {
+      const query = liveReportQueries[index];
+      return query?.isError
+        ? ([[report.id, { error: query.error, retry: () => void query.refetch() }]] as const)
+        : [];
+    });
+    return Object.fromEntries(entries);
+  }, [liveReportList, liveReportQueries]);
   const runtimeData = useMemo<ReportRuntimeData>(
     () => ({
       opdFootfall: (reportDataById["opd-registration-arrivals"]?.rows ??
@@ -188,7 +200,7 @@ export function ReportsPage() {
         icon={<IconFileAnalytics size={28} />}
       />
 
-      <Card withBorder radius="md" padding="md" className={styles.searchPanel}>
+      <Card withBorder padding="md" className={styles.searchPanel}>
         <Stack gap="sm">
           <Group align="flex-start" justify="space-between">
             <TextInput
@@ -215,7 +227,6 @@ export function ReportsPage() {
                   key={priority}
                   tone={priorityFilter === priority ? "primary" : "secondary"}
                   size="xs"
-                  radius="xl"
                   onClick={() => setReportParam("priority", priority, "all")}
                 >
                   {priority === "all" ? "All priority" : priority}
@@ -229,7 +240,6 @@ export function ReportsPage() {
                 key={readiness}
                 tone={readinessFilter === readiness ? "primary" : "secondary"}
                 size="xs"
-                radius="xl"
                 onClick={() => setReportParam("readiness", readiness, "all")}
               >
                 {readiness === "all" ? "All readiness" : READINESS_META[readiness].label}
@@ -245,7 +255,7 @@ export function ReportsPage() {
       </Card>
 
       <div className={styles.layout}>
-        <Card withBorder radius="md" padding="sm" className={`${styles.sidebar} ${styles.navCard}`}>
+        <Card withBorder padding="sm" className={`${styles.sidebar} ${styles.navCard}`}>
           <Stack gap="xs">
             {reportFamilies.map((family) => {
               const Icon = family.icon;
@@ -280,11 +290,12 @@ export function ReportsPage() {
                 loadingState={loadingState}
                 reportDataById={reportDataById}
                 loadingByReportId={loadingByReportId}
+                failureByReportId={failureByReportId}
                 onDetails={showDetails}
               />
             ))
           ) : (
-            <Card withBorder radius="md" padding="lg">
+            <Card withBorder padding="lg">
               <Text fw={700}>No matching reports</Text>
               <Text c="dimmed" size="sm">
                 Try another chart, table, module, priority, or readiness filter.
@@ -303,14 +314,14 @@ export function ReportsPage() {
         {selectedReport && (
           <Stack gap="md">
             <SimpleGrid cols={{ base: 1, md: 4 }}>
-              <Card withBorder radius="md" padding="md">
-                <Text size="xs" fw={800} tt="uppercase" c="dimmed">
+              <Card withBorder padding="md">
+                <Text size="xs" fw={800} c="dimmed">
                   Data version
                 </Text>
                 <Text size="sm">{formatReportDataStatus(reportDataById[selectedReport.id])}</Text>
               </Card>
-              <Card withBorder radius="md" padding="md">
-                <Text size="xs" fw={800} tt="uppercase" c="dimmed">
+              <Card withBorder padding="md">
+                <Text size="xs" fw={800} c="dimmed">
                   Summary report version
                 </Text>
                 <Text size="sm">
@@ -318,8 +329,8 @@ export function ReportsPage() {
                   {PRIORITY_META[selectedReport.priority].label}
                 </Text>
               </Card>
-              <Card withBorder radius="md" padding="md">
-                <Text size="xs" fw={800} tt="uppercase" c="dimmed">
+              <Card withBorder padding="md">
+                <Text size="xs" fw={800} c="dimmed">
                   Source version
                 </Text>
                 <Text size="sm">
@@ -327,8 +338,8 @@ export function ReportsPage() {
                     reportSourceLabel(selectedReport)}
                 </Text>
               </Card>
-              <Card withBorder radius="md" padding="md">
-                <Text size="xs" fw={800} tt="uppercase" c="dimmed">
+              <Card withBorder padding="md">
+                <Text size="xs" fw={800} c="dimmed">
                   Generated
                 </Text>
                 <Text size="sm">{formatGeneratedAt(reportDataById[selectedReport.id])}</Text>

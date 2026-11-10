@@ -281,11 +281,7 @@ async fn the_settings_switch_opens_and_closes_the_form() {
             .send()
             .await
             .expect("put web-form");
-        assert!(
-            saved.status().is_success(),
-            "switch refused: {:?}",
-            saved.status()
-        );
+        assert!(saved.status().is_success(), "switch refused: {:?}", saved.status());
 
         let read: serde_json::Value = app
             .client

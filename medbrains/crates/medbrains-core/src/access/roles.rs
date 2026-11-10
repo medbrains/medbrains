@@ -31,6 +31,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            permissions::health::intel::VIEW,
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             // A doctor sees only their own earnings (a per-record check).
             permissions::doctor_payouts::self_service::VIEW,
             permissions::terminology::snomed::VIEW,
@@ -62,6 +66,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::profile::VIEW_OWN,
             permissions::doctor::profile::UPDATE_OWN,
             permissions::doctor::signature::SIGN,
+            // The consultant's countersignature on a resident's or a
+            // colleague's record (signer_role co_signer).
+            permissions::doctor::signature::CO_SIGN,
             permissions::doctor::signature::VERIFY,
             permissions::doctor::signoffs::VIEW_OWN,
             permissions::doctor::signoffs::VERBAL_REGISTER,
@@ -112,6 +119,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::consents::PRINT,
             permissions::opd::consents::REPRINT,
             permissions::opd::consents::REVOKE,
+            // Dictates their own consultation notes; a draft only, reviewed
+            // section by section before it is saved.
+            permissions::opd::dictation::USE,
             // Emergency clinical work
             permissions::emergency::visits::LIST,
             permissions::emergency::visits::UPDATE,
@@ -165,6 +175,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ipd::wristband::PRINT,
             permissions::ipd::wristband::REPRINT,
             permissions::ipd::discharge::CREATE,
+            // Physiotherapy clearance on a discharge track is a clinician's
+            // call (a physiatrist, or a hospital's own physiotherapist role).
+            permissions::ipd::discharge::PHYSIO_CLEARANCE,
             permissions::ipd::discharge_summary::CREATE,
             permissions::ipd::bed_dashboard::VIEW,
             permissions::ipd::reports::VIEW,
@@ -261,6 +274,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::VIEW,
             permissions::mrd::case_sheets::GENERATE,
             permissions::mrd::case_sheets::PRINT,
+            // The consultation's paper-file chip and digital summary.
+            permissions::mrd::file_request::STATUS,
+            // Ask for the file by hand when the chip reads "not requested".
+            permissions::mrd::file_request::CREATE,
             // Order Sets
             permissions::order_sets::templates::LIST,
             permissions::order_sets::templates::VIEW,
@@ -405,6 +422,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::pmr::psychometric::MANAGE,
             permissions::specialty::psychiatry::restraint::MANAGE,
             // A doctor is paged by the code blue and answers it like a nurse does.
+            // They see the active codes too: the phone apps raise the emergency flash
+            // only for holders of `.view`, and a doctor who could answer but never
+            // saw the alarm was not paged in any useful sense.
+            permissions::nurse::code_blue::VIEW,
             permissions::nurse::code_blue::RESPOND,
             permissions::ai::assistant::USE,
         ],
@@ -414,6 +435,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             permissions::abdm::records::VIEW,
             permissions::abdm::consent::VIEW,
             permissions::terminology::snomed::VIEW,
@@ -427,6 +450,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
+            // Signs the MAR, vitals and charting she recorded (signable.rs).
+            permissions::nurse::signature::SIGN,
             permissions::clinical_notes::MARK_IN_ERROR,
             permissions::home_health::LIST,
             permissions::home_health::MANAGE,
@@ -727,6 +752,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // shift registered.
             permissions::patients::FIND,
             permissions::patients::VIEW,
+            // A lost card is reprinted by whoever is on the desk.
+            permissions::patients::card::REPRINT,
             permissions::patients::group_identity::VIEW,
             permissions::patients::CREATE,
             permissions::patients::UPDATE,
@@ -735,6 +762,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::queue::LIST,
             permissions::opd::queue::VIEW,
             permissions::opd::visit::CREATE,
+            // The front desk that registered the visit asks for its file
+            // when the automatic request did not happen.
+            permissions::mrd::file_request::CREATE,
             permissions::opd::TOKEN_MANAGE,
             permissions::opd::appointment::LIST,
             permissions::opd::appointment::CREATE,
@@ -809,6 +839,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Lab Technician",
         description: "Lab staff — orders, results, QC, phlebotomy, outsourced",
         permissions: &[
+            // The laboratory drafts changes to its critical-value rules as
+            // knowledge change sets; a quality officer or the hospital
+            // administrator approves them (author != approver).
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::CREATE,
             permissions::billing::collect::LAB,
             permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
@@ -839,6 +874,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::results::VERIFY,
             permissions::lab::results::AMEND,
             permissions::lab::results::ANALYSER_REVIEW,
+            permissions::lab::results::CRITICAL_CALL,
             permissions::lab::qc::LIST,
             permissions::lab::qc::CREATE,
             permissions::lab::qc::MANAGE,
@@ -877,6 +913,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
+            // Pharmacists propose drug interaction changes; the change goes
+            // live only after a second person approves and applies it.
+            permissions::pharmacy::interactions::MANAGE,
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::CREATE,
             permissions::billing::collect::PHARMACY,
             permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
@@ -910,6 +953,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::dispensing::PARTIAL,
             permissions::pharmacy::dispensing::CANCEL,
             permissions::pharmacy::dispensing::VOID,
+            permissions::pharmacy::dispensing::UNPAID_OVERRIDE,
             permissions::pharmacy::stock::MANAGE,
             permissions::pharmacy::ndps::LIST,
             permissions::pharmacy::ndps::MANAGE,
@@ -997,6 +1041,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Billing Clerk",
         description: "Billing staff — invoices, payments, advances, corporate, reports",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1013,6 +1059,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::payments::CREATE,
             permissions::billing::payments::VOID,
             permissions::billing::payments::RECONCILE,
+            permissions::billing::payment_settings::VIEW,
             // The central cashier collects every department's dues (#4885).
             permissions::billing::collect::CROSS,
             permissions::billing::counter_display::PUBLISH,
@@ -1038,6 +1085,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::day_close::CREATE,
             permissions::billing::day_close::VERIFY,
             permissions::billing::write_off::CREATE,
+            // The desk works the automatic charges clinical actions could not post.
+            permissions::billing::charge_attention::VIEW,
+            permissions::billing::charge_attention::RESOLVE,
+            // and the orders done for a patient that never reached a bill.
+            permissions::billing::leakage::VIEW,
+            permissions::billing::leakage::RESOLVE,
             // Records insurer settlements; approving them stays with finance.
             permissions::billing::claims::settlement::RECORD,
             permissions::billing::audit::VIEW,
@@ -1079,6 +1132,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::prior_auth::CREATE,
             permissions::insurance::prior_auth::UPDATE,
             permissions::insurance::prior_auth::SUBMIT,
+            // Pre-auths nearly used up and rooms above the policy limit.
+            permissions::insurance::enhancement::VIEW,
+            permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
+            permissions::insurance::room_eligibility::VIEW,
+            permissions::insurance::room_eligibility::RESOLVE,
+            permissions::insurance::room_eligibility::CONFIGURE,
             permissions::insurance::appeals::LIST,
             permissions::insurance::appeals::CREATE,
             permissions::insurance::rules::LIST,
@@ -1269,6 +1329,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Audit Officer",
         description: "Audit & compliance — read-only access across modules",
         permissions: &[
+            // Read-only: security intelligence findings and check health.
+            permissions::security::intel::VIEW,
+            // Read-only: what MedBrains staff were allowed and what they did.
+            permissions::security::vendor_access::VIEW,
+            // Auditors read knowledge changes and download their proofs.
+            permissions::knowledge::change_sets::LIST,
             // Read-only: the privacy pack and its gaps.
             permissions::regulatory::dpdp::VIEW,
             permissions::terminology::snomed::ANALYTICS,
@@ -1284,6 +1350,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::audit::ACCESS_VIEW,
             permissions::audit::REVIEW,
             permissions::admin::history_import::VIEW,
+            // The audit chain verdict is audit evidence.
+            permissions::admin::kernel::VIEW,
+            // Which outside apps hold which data is audit evidence too.
+            permissions::admin::connected_apps::VIEW,
             permissions::audit::processors::LIST,
             permissions::audit::processors::MANAGE,
             permissions::patients::privacy_requests::LIST,
@@ -1309,6 +1379,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::prescriptions::VIEW,
             permissions::billing::invoices::LIST,
             permissions::billing::invoices::VIEW,
+            // Read-only: charges that went unposted are a revenue-leakage audit.
+            permissions::billing::charge_attention::VIEW,
+            permissions::billing::leakage::VIEW,
             permissions::insurance::nhcx::VIEW,
             permissions::pharmacy::day_close::VIEW,
             permissions::admin::access_requests::LIST,
@@ -1354,6 +1427,28 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            // The resuscitation committee keeps the code-blue team roster.
+            permissions::nurse::code_blue::MANAGE_TEAM,
+            permissions::health::intel::VIEW,
+            // Clinical governance signs off knowledge changes drafted by the
+            // pharmacy and laboratory, applies them and starts rollbacks. It
+            // drafts only flow switch changes (it holds no other area's
+            // manage permission), and the four-eyes CHECK keeps it from
+            // approving its own.
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::CREATE,
+            // SOP flows: the quality officer runs the switchboards, proposes
+            // switch changes and approves other people's (RFC-SOP-FLOWS §9.3).
+            permissions::flows::VIEW,
+            permissions::flows::SWITCH,
+            permissions::flows::PUBLISH,
+            // ...and is a flow designer: builds and tests draft tracks
+            // (RFC-SOP-FLOWS §11.4).
+            permissions::flows::BUILD,
+            permissions::knowledge::change_sets::APPROVE,
+            permissions::knowledge::change_sets::APPLY,
+            permissions::knowledge::change_sets::ROLLBACK,
             // Quality & compliance runs the privacy pack: it names the
             // officers, drafts the policies and records the drills; a
             // hospital administrator approves and publishes them.
@@ -1367,6 +1462,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.
             permissions::analytics::management::VIEW,
+            // How paperless the hospital is, measured (NABH IMS).
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             // ABDM adoption and DHIS are measured as a compliance programme.
             permissions::abdm::dashboard::VIEW,
             // NMC advertising and the Drugs and Magic Remedies Act are
@@ -1504,6 +1602,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "MRD Officer",
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
+            // Medical records runs the scanning and the file room the meter
+            // counts.
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             permissions::terminology::snomed::VIEW,
             // Statutory reporting runs through medical records where there is
             // no infection control officer.
@@ -1538,6 +1640,16 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            // The runner's queue: fetch, deliver, be told when one is late.
+            permissions::mrd::file_request::VIEW,
+            permissions::mrd::file_request::FULFIL,
+            permissions::mrd::file_request::SUPERVISE,
+            permissions::mrd::file_request::STATUS,
+            // Medical records answers "is this paper genuine?" for insurers
+            // and courts, and withdraws a copy's public link when asked.
+            permissions::doctor::signature::VERIFY,
+            permissions::mrd::verify_links::ISSUE,
+            permissions::mrd::verify_links::REVOKE,
             // File-room work needs patient demographics + encounter lookup.
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,
@@ -1664,6 +1776,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::devices::pairing::PAIRED_REVOKE,
             permissions::devices::pairing::ROSTER_READ,
             permissions::devices::pairing::TOKEN_CREATE,
+            permissions::devices::machines::VIEW,
+            permissions::devices::machines::APPROVE,
+            permissions::devices::machines::REMOVE,
             permissions::devices::binding::ISSUE,
             permissions::devices::binding::LIST,
             permissions::devices::binding::REVOKE,
@@ -1906,6 +2021,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Infection Control Officer",
         description: "HAI surveillance, antibiotic stewardship, biowaste, hand hygiene",
         permissions: &[
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            permissions::health::intel::VIEW,
             permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
@@ -2025,6 +2142,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::hr::leave::CREATE,
             permissions::hr::leave::APPROVE,
             permissions::hr::leave::MANAGE,
+            permissions::hr::holiday::MANAGE,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::hr::payroll::runs::CREATE,
@@ -2067,10 +2185,72 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         ],
     },
     BuiltInRole {
+        code: "medical_superintendent",
+        name: "Medical Superintendent",
+        description: "Clinical head of the hospital — second approver of clinical flow changes",
+        permissions: &[
+            // Management is told when the hospital's UPI ID or link terms change.
+            permissions::billing::payment_settings::NOTIFIED,
+            // This week vs usual, public notices, heat and air (RFC-OSINT §4).
+            permissions::health::intel::VIEW,
+            // Clinical flows (discharge, referrals, admission, orders) change
+            // only with the medical superintendent's approval as well as the
+            // quality officer's (RFC-SOP-FLOWS §9.3).
+            permissions::flows::VIEW,
+            permissions::flows::PUBLISH,
+            // Medical administration designs clinical tracks too (§11).
+            permissions::flows::BUILD,
+            permissions::knowledge::change_sets::LIST,
+            permissions::knowledge::change_sets::APPROVE,
+            // The clinical head is the second approver before MedBrains staff
+            // see patient data unmasked (docs/compliance/vendor-access.md).
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
+            // Sees who is in discharge from the control room.
+            permissions::ipd::admissions::LIST,
+            permissions::ipd::admissions::VIEW,
+            permissions::quality::indicators::LIST,
+            // Medical administration answers for the move off paper.
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
+            permissions::admin::settings::READ,
+            permissions::dashboard::VIEW,
+            permissions::notes::USE,
+        ],
+    },
+    BuiltInRole {
+        code: "it_security_officer",
+        name: "IT Security Officer",
+        description: "Watches security intelligence, owns findings, opens security incidents",
+        permissions: &[
+            // Security → Intelligence (RFC-OSINT §6).
+            permissions::security::intel::VIEW,
+            permissions::security::intel::MANAGE,
+            // Gives, approves and ends MedBrains support access. Approving
+            // their own request is refused by the server, so one officer alone
+            // cannot open patient data unmasked.
+            permissions::security::vendor_access::VIEW,
+            permissions::security::vendor_access::GRANT,
+            permissions::security::vendor_access::APPROVE_UNMASKED,
+            permissions::security::vendor_access::REVOKE,
+            // Opens and follows incidents raised from findings.
+            permissions::security::incidents::LIST,
+            permissions::security::incidents::CREATE,
+            permissions::security::incidents::UPDATE,
+            // Can cut a suspect machine off at once, and cannot let a new one in.
+            permissions::devices::machines::VIEW,
+            permissions::devices::machines::REMOVE,
+            // Not LINK_IDENTITY or admin.sso.providers.manage: identity management is administrators only.
+            permissions::dashboard::VIEW,
+        ],
+    },
+    BuiltInRole {
         code: "insurance_officer",
         name: "Insurance Officer",
         description: "Eligibility, prior auth, claim submission, appeals",
         permissions: &[
+            // Sees where a patient is in discharge and who holds it up.
+            permissions::flows::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -2080,6 +2260,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::prior_auth::CREATE,
             permissions::insurance::prior_auth::UPDATE,
             permissions::insurance::prior_auth::SUBMIT,
+            // Pre-auths nearly used up and rooms above the policy limit.
+            permissions::insurance::enhancement::VIEW,
+            permissions::insurance::enhancement::REQUEST,
+            permissions::insurance::preauth_missing::DISMISS,
+            permissions::insurance::room_eligibility::VIEW,
+            permissions::insurance::room_eligibility::RESOLVE,
+            permissions::insurance::room_eligibility::CONFIGURE,
             permissions::insurance::appeals::LIST,
             permissions::insurance::appeals::CREATE,
             permissions::insurance::dashboard::VIEW,

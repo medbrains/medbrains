@@ -8,6 +8,7 @@ import { ReportTile } from "./report-tile";
 import type {
   ReportDataById,
   ReportDefinition,
+  ReportFailure,
   ReportFamily,
   ReportLoadingState,
   ReportRuntimeData,
@@ -20,6 +21,7 @@ export function ReportFamilyPanel({
   loadingState,
   reportDataById,
   loadingByReportId,
+  failureByReportId,
   onDetails,
 }: {
   family: ReportFamily;
@@ -28,19 +30,20 @@ export function ReportFamilyPanel({
   loadingState: ReportLoadingState;
   reportDataById: ReportDataById;
   loadingByReportId: Record<string, boolean>;
+  failureByReportId: Record<string, ReportFailure>;
   onDetails: (report: ReportDefinition) => void;
 }) {
   const FamilyIcon = family.icon;
   return (
-    <Card withBorder radius="md" padding="lg">
+    <Card withBorder padding="lg">
       <Stack gap="md">
         <Group justify="space-between" align="flex-start">
           <Group align="flex-start">
-            <ThemeIcon color={family.accent} size={44} radius="md">
+            <ThemeIcon color={family.accent} size={44}>
               <FamilyIcon size={24} />
             </ThemeIcon>
             <Stack gap={2}>
-              <Text size="xs" fw={800} tt="uppercase" c="dimmed">
+              <Text size="xs" fw={800} c="dimmed">
                 {family.eyebrow}
               </Text>
               <Title order={3}>{family.title}</Title>
@@ -68,6 +71,7 @@ export function ReportFamilyPanel({
                 loadingState={loadingState}
                 reportData={reportDataById[report.id]}
                 isReportLoading={loadingByReportId[report.id]}
+                failure={failureByReportId[report.id]}
                 onDetails={onDetails}
               />
             </div>

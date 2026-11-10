@@ -47,7 +47,7 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Dose Adherence
           </Text>
           <Text fw={700} size="xl">
@@ -60,7 +60,7 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
           />
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Doses
           </Text>
           <Group gap="xs" mt="xs">
@@ -76,7 +76,7 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
           </Group>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Refills
           </Text>
           <Group gap="xs" mt="xs">
@@ -92,7 +92,7 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
           </Group>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Appointments
           </Text>
           <Group gap="xs" mt="xs">

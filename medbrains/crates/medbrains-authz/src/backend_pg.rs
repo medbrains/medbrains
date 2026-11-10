@@ -78,7 +78,7 @@ impl AuthzBackend for PgAuthzBackend {
         // Single-round-trip resolution: the four subject-match paths (direct
         // user / role / department / group) are OR-ed into one `EXISTS` instead
         // of up to four sequential queries (DSA: batch N round-trips into 1 —
-        // see CLAUDE.md). Semantics are byte-for-byte identical to the previous
+        // see ENGINEERING.md). Semantics are byte-for-byte identical to the previous
         // sequential checks.
         //
         // Multi-hop traversal (department hierarchy, nested groups, tuple-set
@@ -128,6 +128,7 @@ impl AuthzBackend for PgAuthzBackend {
                             WHERE m.tenant_id = rt.tenant_id
                               AND m.user_id = $8
                               AND m.group_id::text = rt.subject_id
+                              AND m.deleted_at IS NULL
                               AND (m.expires_at IS NULL OR m.expires_at > now())
                          ))
                    )
@@ -251,6 +252,7 @@ impl AuthzBackend for PgAuthzBackend {
                       OR (subject_type = 'group' AND subject_id IN (
                            SELECT group_id::text FROM access_group_members
                            WHERE tenant_id = $1 AND user_id = $7
+                             AND deleted_at IS NULL
                              AND (expires_at IS NULL OR expires_at > now())
                       ))
                    )

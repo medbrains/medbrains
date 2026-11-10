@@ -24,7 +24,13 @@ on:
   push:
     branches: [master, main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
+    # Words alone cannot break the product, so they do not spend a build.
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.png"
+      - "**/*.excalidraw"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,15 +42,54 @@ env:
   # The committed .sqlx metadata. CI has no database, and must not need one.
   SQLX_OFFLINE: true
 
+permissions:
+  contents: read
+
 jobs:
+  # What changed, so each job runs only when its part of the tree did. A skipped job
+  # counts as passing for required checks. Anything unexpected (a new branch, a
+  # force-push, a diff that cannot be computed) runs everything.
+  changes:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: "What changed"
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+      web: ${{ steps.diff.outputs.web }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          set -u
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
+             || ! files=$(git diff --name-only "$BASE" "$HEAD"); then
+            echo "rust=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          printf '%s\n' "$files"
+          ci='^\.github/workflows/ci\.yml$'
+          rust='^medbrains/(crates/|Cargo\.(toml|lock)|\.sqlx/|rust-toolchain|rustfmt|deny\.toml|clippy\.toml|\.cargo/)'
+          web='^medbrains/(apps/web/|packages/|package\.json|pnpm-(lock|workspace)\.yaml|turbo\.json|biome\.json|\.nvmrc|tsconfig)'
+          echo "rust=$(grep -qE "$rust|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "web=$(grep -qE "$web|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   # ── Blocking: run against master and verified green ──────────────
 
   audit-checks:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Audit checks (RLS, sharing, egress, PCI)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -56,12 +101,30 @@ jobs:
       - run: python3 scripts/check_no_card_logging.py
       - run: python3 scripts/check_egress_allowlist.py
 
+  docs:
+    name: Every new function is documented
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python3 medbrains/scripts/check_docs_on_new_functions.py --self-test
+      - run: python3 medbrains/scripts/check_docs_on_new_functions.py "origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
   contracts:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: API + UI contracts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -69,6 +132,8 @@ jobs:
         run: python3 scripts/check_api_contract.py
       - name: Page API references resolve
         run: python3 scripts/check_ui_api_coverage.py
+      - name: Decorative effects only ever go down
+        run: python3 medbrains/scripts/check_ui_slop.py
       - name: Pages build from the @/components/ui seam
         run: python3 medbrains/scripts/check_ui_seam.py
       - name: No raw interactive HTML in shipped JSX
@@ -81,8 +146,34 @@ jobs:
       # same 404 / empty list it answers a real refusal with.
       - name: No authorization check collapses its error
         run: python3 medbrains/scripts/check_authz_collapse.py
+      # Apps reach tenancy, authz, audit, sequences, storage and config only
+      # through medbrains-kernel; existing direct access is baselined, never grown.
+      - name: Kernel boundary only gets better
+        run: |
+          python3 medbrains/scripts/check_kernel_boundary.py --self-test
+          python3 medbrains/scripts/check_kernel_boundary.py
+      # The kernel is technical only (RFC-HOSPITAL-OS §3a): patients, consent and
+      # billing live above it, in its dependencies and its words alike.
+      - name: Kernel has no domain crates or words
+        run: |
+          python3 medbrains/scripts/check_kernel_no_domain.py --self-test
+          python3 medbrains/scripts/check_kernel_no_domain.py
+      # Kernel lines and dependencies, package and crate counts. Reads files only.
+      # This job has no web build, so the web job re-runs it for first-load JS.
+      - name: Size budgets hold
+        run: |
+          python3 medbrains/scripts/check_size_budgets.py --self-test
+          python3 medbrains/scripts/check_size_budgets.py
+      # The TypeScript SDK and its conformance suite run under `pnpm run test`
+      # (web job); the Python SDK has no other runner.
+      - name: Python SDK speaks the extension protocol
+        working-directory: medbrains/sdks/python
+        run: python3 -m unittest discover -s tests
 
   rust-fmt:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Rust format (TODO: 1053 diffs on master)"
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -90,8 +181,10 @@ jobs:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: rustfmt
       # Not blocking: `cargo fmt --check` reports 1053 diffs across the tree.
@@ -100,24 +193,26 @@ jobs:
       - run: cargo fmt --all -- --check
 
   web:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     name: Web typecheck, lint, test, build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/r8r
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.R8R_READ_TOKEN }}
+          persist-credentials: false
       # `with:` inputs are resolved from the repo root — `defaults.run` does not
       # apply to them — so every path here is root-relative even though the
       # steps below run in `medbrains/`. There is an untracked `.nvmrc` at the
       # root that would resolve locally and not exist on a runner.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: medbrains/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
           cache: pnpm
@@ -133,79 +228,55 @@ jobs:
       # Scoped to the web app and its dependencies. A full `turbo run build`
       # takes 35 minutes because it compiles the Tauri desktop shell, which is
       # not worth paying on every PR; the full build is measured separately.
-      - run: pnpm turbo run build --filter=@medbrains/web...
-      - run: pnpm run typecheck
-      - run: pnpm run test
+      # MedBrains web and the packages it uses. The outgoing React Native apps
+      # are reference only, and desktop, docs and storybook are not this gate.
+      - run: pnpm turbo run build typecheck test --filter=@medbrains/web...
+      - name: Web first-load JS stays under its ceiling
+        run: python3 scripts/check_size_budgets.py
 
   web-lint:
-    name: "Web lint (TODO: noArrayIndexKey in web, deps in mobile-patient)"
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    name: "Web lint"
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/r8r
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.R8R_READ_TOKEN }}
-      - uses: pnpm/action-setup@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: medbrains/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
           cache: pnpm
           cache-dependency-path: medbrains/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run lint
-
-  full-build:
-    name: "Full build incl. desktop (TODO: 35 min — needs splitting)"
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    defaults:
-      run:
-        working-directory: medbrains
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/r8r
-        with:
-          token: ${{ secrets.R8R_READ_TOKEN }}
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: medbrains/package.json
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: medbrains/.nvmrc
-          cache: pnpm
-          cache-dependency-path: medbrains/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      # Passes, but the Tauri shell dominates. Left non-blocking until the
-      # desktop build is a separate workflow on its own trigger.
-      - run: pnpm run build
-
-  # ── Known-failing: measured, not enforced ────────────────────────
-  #
-  # Each of these fails on master today. They run so the number is visible on
-  # every PR and can be watched going down. Flip to blocking as each clears.
+      - run: pnpm turbo run lint --filter=@medbrains/web...
 
   rust-clippy:
-    name: "Rust clippy (TODO: cannot pass --all-targets)"
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    name: "Rust clippy"
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/r8r
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.R8R_READ_TOKEN }}
-      - uses: dtolnay/rust-toolchain@stable
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -214,34 +285,42 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/**/Cargo.toml') }}
 
       # Library code is clean and is the bar worth holding first.
-      - name: Clippy (lib)
-        run: cargo clippy --workspace -- -D warnings
-
-      # Test modules are not. They use unwrap/expect/panic freely, which the
-      # workspace lints deny — see access_log.rs, allergy.rs, boundary_filter.rs,
-      # dose_safety.rs, mar_schedule.rs, object_store/*, db/pool.rs.
-      - name: Clippy (all targets)
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # Every crate except the desktop GUI tree, which needs GTK on the runner.
+      # Denied lints fail on their own; pedantic and nursery are warnings by
+      # project policy (ENGINEERING.md), so -D warnings would overrule it.
+      - run: cargo clippy --workspace --exclude medbrains-desktop
 
   schema-and-tenancy:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "Schema + tenancy"
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
       # Every RLS-enabled table must carry a policy (0 gaps as of 2026-10-12;
       # the app runs as medbrains_app, NOBYPASSRLS, migration 0981).
       - name: RLS coverage
-        run: python3 scripts/check_rls.py
+        run: |
+          python3 scripts/check_rls.py --self-test
+          python3 scripts/check_rls.py
 
       # 4 raw SQL statements in routes/. Exactly the class of query the
       # backstop above is meant to catch.
       - name: No raw SQL in routes
         run: python3 scripts/check_tenant_leak.py
+
+      # Every module name (route checks, menu tags, seed rows, permission groups) comes from
+      # crates/medbrains-core/src/bricks.rs. Bricks with no server check may only fall.
+      - name: App bricks
+        run: python3 scripts/check_bricks.py
 
       - name: Migration headers
         run: python3 scripts/migration_header_lint.py
@@ -252,19 +331,21 @@ jobs:
         run: python3 scripts/check_tracing_spans.py
 
   rust-test:
-    name: "Rust tests (TODO: unverified in CI)"
+    # A draft PR spends no build; marking it ready for review runs everything.
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    name: "Rust tests"
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
       run:
         working-directory: medbrains
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/r8r
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.R8R_READ_TOKEN }}
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/cache@v4
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -272,6 +353,27 @@ jobs:
             medbrains/target
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
 
-      # Non-blocking until it has been seen to pass on a runner: several suites
-      # want a database, and which ones has not been established here.
-      - run: cargo test --workspace
+      # Non-blocking until it has been seen to pass on a runner.
+      # medbrains-printing links against CUPS.
+      # The integration suite needs PostgreSQL. It runs directly on the runner, because
+      # the OS rule is no Docker. These credentials exist only on this throwaway machine.
+      - name: System packages and PostgreSQL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcups2-dev postgresql-common
+          # The migrations need 17 (`transaction_timeout`), and the runner's default is older.
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo systemctl stop postgresql
+          for cluster in $(pg_lsclusters -h | awk '{print $1"/"$2}'); do
+            sudo pg_dropcluster --stop "${cluster%/*}" "${cluster#*/}"
+          done
+          sudo apt-get install -y postgresql-17
+          pg_lsclusters -h | grep -q '^17 ' || sudo pg_createcluster 17 main
+          sudo pg_ctlcluster 17 main start
+          pg_lsclusters
+          sudo -u postgres psql -c "CREATE ROLE medbrains SUPERUSER LOGIN PASSWORD 'ci_only'"
+          sudo -u postgres createdb -O medbrains medbrains
+      # Report every failing test, not just the first binary's.
+      - run: cargo test --workspace --exclude medbrains-desktop --no-fail-fast
+        env:
+          DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains

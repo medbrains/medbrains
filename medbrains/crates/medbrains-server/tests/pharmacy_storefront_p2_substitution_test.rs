@@ -39,6 +39,20 @@ async fn two_brands(
     let tag = &Uuid::new_v4().simple().to_string()[..6];
     let prescribed_name = format!("Brandone {tag}");
     let other_name = format!("Brandtwo {tag}");
+    // Candidates are every active brand of the ingredient in the hospital, so
+    // retire what earlier runs left. The real ingredient name must stay: the
+    // never-substituted rule matches on it. Retired by the same match the
+    // candidates use (ingredient or generic name, any case), or brands other
+    // tests left under a generic name fill the candidate list first.
+    sqlx::query(
+        "UPDATE pharmacy_catalog SET is_active = false WHERE tenant_id = $1 \
+           AND lower(COALESCE(inn_name, generic_name, '')) = lower($2)",
+    )
+    .bind(setup.tenant)
+    .bind(inn)
+    .execute(&app.db)
+    .await
+    .expect("retire earlier brands");
     let prescribed = item(app, setup, &brand(&prescribed_name, inn)).await;
     let other = item(app, setup, &brand(&other_name, inn)).await;
     stock(app, setup, other, None, 100, 400).await;

@@ -29,6 +29,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/infection-control": () => import("@/pages/infection-control"),
   "/mrd": () => import("@/pages/mrd"),
   "/security": () => import("@/pages/security"),
+  "/security/intelligence": () => import("@/pages/security/intelligence/SecurityIntelligencePage"),
   "/insurance": () => import("@/pages/insurance"),
   "/analytics": () => import("@/pages/analytics"),
   "/reports": () => import("@/pages/reports"),
@@ -79,6 +80,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/admin/documents": () => import("@/pages/documents"),
   "/admin/devices": () => import("@/pages/admin/devices"),
   "/admin/paired-devices": () => import("@/pages/admin/paired-devices"),
+  "/admin/machines": () => import("@/pages/admin/machines"),
   "/admin/hospital-binding": () => import("@/pages/admin/hospital-binding"),
 };
 

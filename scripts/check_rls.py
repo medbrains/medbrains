@@ -8,6 +8,8 @@ Statically parses every SQL migration under crates/medbrains-db-migrations/src/m
   - Detect ALTER TABLE ... ENABLE ROW LEVEL SECURITY
   - Detect CREATE POLICY tenant_isolation_<name> ON <table>
   - Detect SELECT apply_tenant_rls('<name>') helper calls
+  - Detect plpgsql `FOREACH t IN ARRAY ARRAY[...] LOOP` bodies that both enable
+    RLS and create a policy on the loop variable
   - Parse migration header `RLS-Posture:` declarations
 
 Also fails when ANY table (tenant_id or not) has RLS enabled and no policy.
@@ -22,9 +24,14 @@ Exit codes:
     1  One or more gaps OR malformed migration headers
 """
 
+import contextlib
+import io
 import re
 import sys
+import tempfile
 from pathlib import Path
+
+from migration_header_lint import IMMUTABLE_APPLIED, VALID_POSTURES, normalize_posture
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # The migrations moved to their own crate. This pointed at the old path, so
@@ -52,38 +59,17 @@ GLOBAL_TABLES = {
     "cds_ingredient_incompatibility", "cds_lab_reference", "cds_state_formulary",
     "device_adapter_catalog", "event_registry", "event_schemas", "module_entity_schemas",
     "geo_countries", "geo_districts", "geo_states", "geo_subdistricts", "geo_towns",
-    "regulatory_bodies", "news_feed_articles", "partition_config",
+    "regulatory_bodies", "news_feed_articles", "partition_config", "notifiable_lab_rules",
+    "health_intel_terms", "health_intel_heartbeats",
     "snomed_codes", "snomed_concept", "snomed_description", "snomed_refset_member",
     "snomed_relationship", "snomed_release", "snomed_transitive_closure", "omop_concept_map",
     "tenants", "hospital_groups", "hospital_regions",
-}
-
-# Synonyms authors actually wrote. A migration that has been applied anywhere
-# cannot be edited — `sqlx` validates its checksum, and changing one stops the
-# server with `VersionMismatch` — so a posture that says the right thing in
-# different words is accepted rather than corrected in place. Learned the hard
-# way: adding a header to an applied migration took the server down on the next
-# restart.
-POSTURE_SYNONYMS = {
-    "tenant-scoped (per table)": "tenant-scoped",
-    "not-tenant-scoped": "not-applicable",
-    "unchanged": "not-applicable",
-    "none": "not-applicable",
 }
 
 # The last migration applied before the header rule could be enforced. Raising
 # this excuses a new migration from declaring its posture, which is the one
 # thing it must not do.
 HEADER_EXEMPT_THROUGH = 1016
-
-VALID_POSTURES = {
-    "tenant-scoped",
-    "department-scoped",
-    "tenant+dept",
-    "bypass-only",
-    "catalog",
-    "not-applicable",
-}
 
 CREATE_TABLE_RE = re.compile(
     r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)\s*(?:PARTITION|;)",
@@ -132,6 +118,11 @@ RENAME_TABLE_RE = re.compile(
     re.IGNORECASE,
 )
 
+RLS_LOOP_RE = re.compile(
+    r"FOREACH\s+(\w+)\s+IN\s+ARRAY\s+ARRAY\s*\[(.*?)\]\s*LOOP(.*?)END\s+LOOP",
+    re.IGNORECASE | re.DOTALL,
+)
+
 HEADER_KEY_RE = re.compile(r"--\s*([A-Za-z][A-Za-z\-]+)\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 
@@ -139,6 +130,47 @@ def strip_sql_comments(sql: str) -> str:
     sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
     sql = re.sub(r"--[^\n]*", "", sql)
     return sql
+
+
+def rls_loop_tables(sql: str) -> set[str]:
+    """Tables a `FOREACH` loop both enables RLS on and creates a policy on.
+
+    Both must be in one loop body and take the loop variable: a loop that only
+    enables leaves every query returning zero rows, so it earns nothing here and
+    its tables are still reported.
+    """
+    covered: set[str] = set()
+    for var, names, body in RLS_LOOP_RE.findall(sql):
+        enables = re.search(
+            r"EXECUTE\s+format\(\s*'ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?%\d*\$?I"
+            rf"\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY'\s*,\s*{var}\s*\)",
+            body,
+            re.IGNORECASE,
+        )
+        creates = re.search(
+            r"EXECUTE\s+format\(\s*'CREATE\s+POLICY\s[^']*?\sON\s+(?:public\.)?%\d*\$?I\b"
+            rf"[^;]*?,\s*{var}\b[^;]*;",
+            body,
+            re.IGNORECASE,
+        )
+        if enables and creates:
+            covered.update(name.lower() for name in re.findall(r"'(\w+)'", names))
+    return covered
+
+
+def header_error(name: str, mig_no: int, header: dict[str, str]) -> str | None:
+    """Why a migration's RLS-Posture header is unacceptable, if it is."""
+    if mig_no <= HEADER_EXEMPT_THROUGH or name in IMMUTABLE_APPLIED:
+        return None
+    written = header.get("RLS-Posture")
+    if not written:
+        return f"{name}: missing 'RLS-Posture:' header"
+    if normalize_posture(written) not in VALID_POSTURES:
+        return (
+            f"{name}: invalid RLS-Posture '{written}' "
+            f"(allowed: {', '.join(sorted(VALID_POSTURES))})"
+        )
+    return None
 
 
 def parse_header(sql: str) -> dict[str, str]:
@@ -157,14 +189,14 @@ def parse_header(sql: str) -> dict[str, str]:
     return {m.group(1): m.group(2) for m in HEADER_KEY_RE.finditer(text)}
 
 
-def main() -> int:
-    if not MIGRATIONS_DIR.exists():
-        print(f"ERROR: migrations dir not found: {MIGRATIONS_DIR}", file=sys.stderr)
+def main(migrations_dir: Path = MIGRATIONS_DIR) -> int:
+    if not migrations_dir.exists():
+        print(f"ERROR: migrations dir not found: {migrations_dir}", file=sys.stderr)
         return 2
 
-    files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    files = sorted(migrations_dir.glob("*.sql"))
     if not files:
-        print(f"ERROR: no migrations found in {MIGRATIONS_DIR}", file=sys.stderr)
+        print(f"ERROR: no migrations found in {migrations_dir}", file=sys.stderr)
         return 2
 
     tenant_tables: dict[str, str] = {}        # table -> first_seen_migration
@@ -181,27 +213,13 @@ def main() -> int:
         header = parse_header(raw)
         sql = strip_sql_comments(raw)
 
-        # Header validation — only enforce for new migrations from 123 onward
-        # Migration number is leading zero-padded prefix.
+        # Applied migrations cannot gain a header: `sqlx` holds their checksum and
+        # editing one stops the server. What matters for them is actual coverage,
+        # verified below. The header is a rule for migrations written from here on.
         m = re.match(r"(\d+)_", path.name)
-        mig_no = int(m.group(1)) if m else 0
-        # 22 migrations at or below 1016 have no header and never will: they
-        # have been applied, so `sqlx` holds their checksum and editing one
-        # stops the server. What matters for them is actual coverage, which
-        # this check verifies below and which is currently complete. The header
-        # is a rule for migrations written from here on.
-        if 124 <= mig_no <= HEADER_EXEMPT_THROUGH:
-            pass
-        elif mig_no > HEADER_EXEMPT_THROUGH:
-            posture = header.get("RLS-Posture")
-            posture = POSTURE_SYNONYMS.get(posture.strip().lower(), posture) if posture else posture
-            if not posture:
-                header_errors.append(f"{path.name}: missing 'RLS-Posture:' header")
-            elif posture not in VALID_POSTURES:
-                header_errors.append(
-                    f"{path.name}: invalid RLS-Posture '{posture}' "
-                    f"(allowed: {', '.join(sorted(VALID_POSTURES))})"
-                )
+        error = header_error(path.name, int(m.group(1)) if m else 0, header)
+        if error:
+            header_errors.append(error)
 
         # CREATE TABLE detection
         for match in CREATE_TABLE_RE.finditer(sql):
@@ -255,6 +273,10 @@ def main() -> int:
             tname = match.group(1).lower()
             rls_enabled.add(tname)
             policies_on.add(tname)
+
+        looped = rls_loop_tables(sql)
+        rls_enabled |= looped
+        policies_on |= looped
 
     # Compute gaps
     bypass_postures = {"bypass-only", "catalog", "not-applicable"}
@@ -317,5 +339,40 @@ def main() -> int:
     return 0
 
 
+def run_on_migration(name: str, sql: str) -> tuple[int, str]:
+    """Run the whole check over one throwaway migration."""
+    with tempfile.TemporaryDirectory() as folder:
+        (Path(folder) / name).write_text(sql, encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = main(Path(folder))
+    return code, out.getvalue()
+
+
+def self_test() -> int:
+    """Prove the loop rule and the header exceptions cannot let a gap through."""
+    head = "-- RLS-Posture: tenant-scoped\n\n"
+    table = "CREATE TABLE public.t_a (id UUID, tenant_id UUID NOT NULL);\n"
+    enable = "EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);"
+    policy = "EXECUTE format('CREATE POLICY p_%s ON public.%I USING (true)', t, t);"
+    loop = "DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY['t_a'] LOOP {} END LOOP; END $$;"
+
+    code, _ = run_on_migration("9001_x.sql", head + table + loop.format(enable + policy))
+    assert code == 0, "a loop that enables and creates a policy is coverage"
+    for body in (enable, policy):
+        code, out = run_on_migration("9001_x.sql", head + table + loop.format(body))
+        assert code == 1 and "t_a" in out, f"half a loop must stay reported: {body}"
+    code, out = run_on_migration("9001_x.sql", table + loop.format(enable + policy))
+    assert code == 1 and "missing 'RLS-Posture:'" in out, "a new migration needs a header"
+
+    assert header_error("1094_analyzer_orders.sql", 1094, {}) is None
+    assert header_error("1094_other.sql", 1094, {}), "exceptions are by file name, not number"
+    wording = {"RLS-Posture": "tenant-scoped (existing table; policies unchanged)"}
+    assert header_error("9001_x.sql", 9001, wording) is None
+    assert header_error("9001_x.sql", 9001, {"RLS-Posture": "public (x)"}), "still validated"
+    print("check_rls self-test passed")
+    return 0
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(self_test() if "--self-test" in sys.argv else main())

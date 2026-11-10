@@ -11,3 +11,37 @@ export interface VerifiedBill {
   paid_amount: string;
   status: string;
 }
+
+/**
+ * What the QR on a signed print confirms: who signed which kind of document,
+ * when, whether the key still stands, and whether the record is unchanged.
+ * Never the patient or the clinical content.
+ */
+export interface CheckedSignedDocument {
+  status: "unchanged" | "changed" | "signed_before_checks";
+  document_type: string;
+  signer_name: string;
+  signer_registration: string | null;
+  signer_council: string | null;
+  facility: string;
+  signed_at: string;
+  key_status: "active" | "revoked" | "unknown";
+  key_revoked_on: string | null;
+  /** Null when the signature predates online checking. */
+  unchanged: boolean | null;
+  /** The stored hash still verifies against the signer's key. */
+  signature_intact: boolean;
+}
+
+/** The hospital withdrew this document's public check link. */
+export interface WithdrawnSignatureLink {
+  status: "withdrawn";
+  withdrawn_on: string;
+}
+
+export type PublicSignatureCheck = CheckedSignedDocument | WithdrawnSignatureLink;
+
+/** A signed record's live public check link. */
+export interface SignatureVerifyLink {
+  token: string;
+}

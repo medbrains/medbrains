@@ -36,20 +36,14 @@ async fn a_diet_order_answered_200_is_a_diet_order_that_exists() {
     let status = resp.status();
     let order: Value = resp.json().await.expect("diet json");
     assert!(status.is_success(), "{status}: {order}");
-    let order_id: Uuid = order["id"]
-        .as_str()
-        .and_then(|s| s.parse().ok())
-        .expect("order id");
+    let order_id: Uuid = order["id"].as_str().and_then(|s| s.parse().ok()).expect("order id");
 
     let saved: i64 = sqlx::query_scalar("SELECT count(*) FROM diet_orders WHERE id = $1")
         .bind(order_id)
         .fetch_one(&app.db)
         .await
         .expect("count");
-    assert_eq!(
-        saved, 1,
-        "the order the client was told about was committed"
-    );
+    assert_eq!(saved, 1, "the order the client was told about was committed");
 
     // And it was billed, to the patient rather than to a made-up encounter.
     let billed: Option<Option<Uuid>> = sqlx::query_scalar(

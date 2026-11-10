@@ -34,7 +34,7 @@ export function EmergencyVisitContextRail({
     <Box className={classes.contextRail}>
       <Stack gap="sm">
         <Stack gap={2}>
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+          <Text size="xs" fw={700} c="dimmed">
             {t("workspace.title")}
           </Text>
           <Text size="sm" fw={700}>
@@ -44,7 +44,7 @@ export function EmergencyVisitContextRail({
         <EmergencyVisitSignals visit={visit} />
         <Divider />
         <Stack gap="xs">
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+          <Text size="xs" fw={700} c="dimmed">
             {t("workspace.navigate")}
           </Text>
           <Button

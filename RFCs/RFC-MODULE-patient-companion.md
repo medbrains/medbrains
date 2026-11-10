@@ -27,7 +27,7 @@ The asymmetry is the opportunity: Helix has to guess what a number means. We are
 
 **2.1 AGPL and the App Store.** Apple's distribution terms conflict with GPLv3/AGPLv3 (the FSF's position; VLC was pulled in 2011 over GPLv2). An AGPL binary is not straightforwardly shippable on the App Store. **Resolution:** the copyright is ours, so we dual-license exactly as MedBrains already does — repo stays AGPL for others, our binary ships under our commercial licence. This works *only* while every dependency is ours or permissive. Pulling in one third-party GPL/AGPL library breaks it. Worth a `LICENSING.md` in the app and a dependency-licence check in CI before the first store submission.
 
-**2.2 The stack has already diverged from the approved RFC.** CLAUDE.md records React Native CLI (bare) as APPROVED and Expo as the superseded draft. In practice **four of five mobile apps are Expo** — `mobile-patient`, `mobile-staff`, `mobile-camp`, `mobile-vendor`; only `apps/mobile` is RN CLI. This matters specifically because of phase 2: Expo has no first-party HealthKit module, so wearable ingest needs a config plugin plus a dev build (`@kingstinct/react-native-healthkit` or equivalent), where RN CLI has direct native access. **Decide before phase 2, not during it** — either bless Expo in the RFC and accept the plugin path, or move this one app to bare.
+**2.2 The stack has already diverged from the approved RFC.** ENGINEERING.md records React Native CLI (bare) as APPROVED and Expo as the superseded draft. In practice **four of five mobile apps are Expo** — `mobile-patient`, `mobile-staff`, `mobile-camp`, `mobile-vendor`; only `apps/mobile` is RN CLI. This matters specifically because of phase 2: Expo has no first-party HealthKit module, so wearable ingest needs a config plugin plus a dev build (`@kingstinct/react-native-healthkit` or equivalent), where RN CLI has direct native access. **Decide before phase 2, not during it** — either bless Expo in the RFC and accept the plugin path, or move this one app to bare.
 
 ---
 
@@ -95,7 +95,7 @@ The operator's call: this ships to **both** self-serve users and hospital patien
 
 The existing six modules (appointments, bills, consent, family-share, lab-reports, prescriptions) already serve the hospital patient. What neither audience has is a **reason to open the app on a day nothing is scheduled**. That is the daily loop, and it is phase 1 for both.
 
-**Theme: both light and dark**, also the operator's call. Helix, Whoop and Oura are dark because a consumer health app is opened at 6am and 11pm. `buildDeviceTheme` already supports both. This contradicts CLAUDE.md's "Light theme only", which is written for the clinical web surface — **that rule needs scoping to the staff/web surfaces explicitly**, or this app is permanent drift. Amend it as part of phase 1, do not just diverge.
+**Theme: both light and dark**, also the operator's call. Helix, Whoop and Oura are dark because a consumer health app is opened at 6am and 11pm. `buildDeviceTheme` already supports both. This contradicts ENGINEERING.md's "Light theme only", which is written for the clinical web surface — **that rule needs scoping to the staff/web surfaces explicitly**, or this app is permanent drift. Amend it as part of phase 1, do not just diverge.
 
 ---
 
@@ -128,7 +128,7 @@ Their information design is excellent and is not the protectable part. Their nam
 - `Today` screen: hero ring, one-line verdict, baseline/confidence chip, cards for the day's medications, latest observations, next appointment.
 - Manual entry: medications with reminder times, observations with explicit units.
 - Adherence: taken / skipped / missed, and a streak built from it.
-- **Both themes**, and the CLAUDE.md amendment that makes dark legitimate here.
+- **Both themes**, and the ENGINEERING.md amendment that makes dark legitimate here.
 - Works with no hospital. For a linked patient the same screen is fed by their chart.
 - Exit criterion: a person with no hospital finds it worth opening daily.
 
@@ -175,5 +175,5 @@ Note the bridge is **biomedical HL7 kit**, not consumer wearables. Different pip
 2. **Pricing.** Helix does not publish one. Subscription, one-off, or hardware-subsidised?
 3. **India first?** ABDM/ABHA is already integrated (`abdm.abha.*` permissions exist and are now grantable) — a standalone app that can pull a real ABHA record is a materially stronger phase-3 story than a single hospital link.
 5. **Which calculators ship, and how framed.** Thirty-five exist in the reference; a dozen are clinically useful and built on published formulas. eGFR via CKD-EPI is the sharp case: useful to a renal patient, and one careless sentence away from being a diagnosis.
-6. **CLAUDE.md amendment for the theme rule** (§6) — scope "light theme only" to the web/staff surfaces, or this app is drift rather than a decision.
+6. **ENGINEERING.md amendment for the theme rule** (§6) — scope "light theme only" to the web/staff surfaces, or this app is drift rather than a decision.
 4. **Who owns the refusal list** (§3) — it needs a clinician's sign-off, not an engineer's judgement.

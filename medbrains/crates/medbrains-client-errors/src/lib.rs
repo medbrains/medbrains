@@ -5,7 +5,9 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use medbrains_core::ai_redact::redact_for_record;
-use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_kernel::Claims;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ClientErrorReportRequest {

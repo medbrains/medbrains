@@ -29,7 +29,7 @@ function PrintDataField({
 }) {
   return (
     <Box>
-      <Text className="print-label" size="xs" c="dimmed" tt="uppercase">
+      <Text className="print-label" size="xs" c="dimmed">
         {label}
       </Text>
       <Text className="print-value" size="sm" fw={600}>

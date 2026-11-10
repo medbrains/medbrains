@@ -100,7 +100,7 @@ interface SoapTimelineProps {
 export function SoapTimeline({ historyNotes, isLoading, soapText }: SoapTimelineProps) {
   const sectionTimelines = useMemo(() => buildSectionTimelines(historyNotes), [historyNotes]);
   return (
-    <Card withBorder radius="md" className={styles.noteShell}>
+    <Card withBorder className={styles.noteShell}>
       <Group justify="space-between" mb="sm">
         <Group gap="xs">
           <IconCalendarStats size={16} />

@@ -43,6 +43,7 @@ import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
 import { AddOnTestSection } from "./add-on-test";
+import { CriticalCall } from "./critical-call";
 import { CumulativeTrendDrawer } from "./cumulative-drawer";
 import {
   flagColors,
@@ -415,6 +416,21 @@ export function LabOrderDetail({
           {order.status.replace(/_/g, " ")}
         </Badge>
       </Group>
+      {/* Who the tube is for, from the order itself: the lab reaches the
+          order, not the patient's record, so the banner below stays empty
+          for lab staff while this line always names the patient. */}
+      <Group gap="sm">
+        <PatientNameCell
+          patientId={order.patient_id}
+          identity={data.patient ?? undefined}
+          showGender
+        />
+        {data.patient?.age_years != null && (
+          <Text size="sm" c="dimmed">
+            {data.patient.age_years} y
+          </Text>
+        )}
+      </Group>
       <PatientContextBanner patientId={order.patient_id} hideLoadingState collectLane="lab" />
       {/* The laboratory prints more than any other department, and most of
           these documents had a data endpoint and no renderer. `lab-report` and
@@ -505,18 +521,21 @@ export function LabOrderDetail({
                   `lab.results.update`, which a nurse does not hold. They were
                   shown the NABH read-back control, typed the value a critical
                   result needs documenting against, and got a 403. */}
-              {canUpdateResults && (
-                <Button
-                  tone="subtle-danger"
-                  size="xs"
-                  onClick={() => {
-                    setReadback("");
-                    setAckAlert(a);
-                  }}
-                >
-                  Acknowledge
-                </Button>
-              )}
+              <Group gap="xs">
+                <CriticalCall alert={a} />
+                {canUpdateResults && (
+                  <Button
+                    tone="subtle-danger"
+                    size="xs"
+                    onClick={() => {
+                      setReadback("");
+                      setAckAlert(a);
+                    }}
+                  >
+                    Acknowledge
+                  </Button>
+                )}
+              </Group>
             </Group>
           ))}
         </Alert>
@@ -569,11 +588,15 @@ export function LabOrderDetail({
             the system checks it against this order to prevent wrong-blood-in-tube.
           </Alert>
 
-          <Card withBorder padding="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+          <Card withBorder padding="md">
+            <Text size="xs" c="dimmed" fw={600}>
               Collecting from
             </Text>
-            <PatientNameCell patientId={order.patient_id} showUhid={false} />
+            <PatientNameCell
+              patientId={order.patient_id}
+              identity={data.patient ?? undefined}
+              showUhid={false}
+            />
           </Card>
 
           <Input

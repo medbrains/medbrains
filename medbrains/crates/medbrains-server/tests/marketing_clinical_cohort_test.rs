@@ -24,11 +24,10 @@ async fn a_clinical_cohort_carries_identities_and_no_reason() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
 
     // A patient who has never had an encounter is dormant by any window.
     let suffix = &Uuid::new_v4().to_string()[..8];
@@ -62,11 +61,7 @@ async fn a_clinical_cohort_carries_identities_and_no_reason() {
         .json()
         .await
         .expect("contact json");
-    let contact_id: Uuid = contact["id"]
-        .as_str()
-        .unwrap_or_default()
-        .parse()
-        .expect("contact id");
+    let contact_id: Uuid = contact["id"].as_str().unwrap_or_default().parse().expect("contact id");
 
     let cohort: serde_json::Value = app
         .client
@@ -84,11 +79,7 @@ async fn a_clinical_cohort_carries_identities_and_no_reason() {
         .await
         .expect("cohort json");
 
-    let cohort_id: Uuid = cohort["id"]
-        .as_str()
-        .unwrap_or_default()
-        .parse()
-        .expect("cohort id");
+    let cohort_id: Uuid = cohort["id"].as_str().unwrap_or_default().parse().expect("cohort id");
     assert_eq!(cohort["criteria_kind"].as_str(), Some("clinical"));
     assert!(
         cohort["criteria"].is_null(),
@@ -108,10 +99,7 @@ async fn a_clinical_cohort_carries_identities_and_no_reason() {
             .fetch_one(&app.db)
             .await
             .expect("read cohort");
-    assert!(
-        stored_criteria.is_none(),
-        "criteria is NULL in the row itself"
-    );
+    assert!(stored_criteria.is_none(), "criteria is NULL in the row itself");
 
     let is_member: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM mkt_cohort_members \
@@ -122,10 +110,7 @@ async fn a_clinical_cohort_carries_identities_and_no_reason() {
     .fetch_one(&app.db)
     .await
     .expect("membership");
-    assert!(
-        is_member,
-        "a patient with no encounters is dormant by any window"
-    );
+    assert!(is_member, "a patient with no encounters is dormant by any window");
 
     // There is nowhere on the member row for a reason to live. If somebody
     // adds one, this fails before check-marketing-wall ever runs.
@@ -181,9 +166,7 @@ async fn cohort_size_returns_a_count_and_not_the_people() {
         .expect("size json");
 
     assert!(size["size"].is_number(), "size is a number");
-    let keys: Vec<&str> = size
-        .as_object()
-        .map(|o| o.keys().map(String::as_str).collect())
+    let keys: Vec<&str> = size.as_object().map(|o| o.keys().map(String::as_str).collect())
         .unwrap_or_default();
     assert_eq!(
         keys,

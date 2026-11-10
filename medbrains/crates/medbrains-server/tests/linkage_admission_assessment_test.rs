@@ -26,73 +26,20 @@ async fn assessment_tasks(app: &common::TestApp, admission_id: Uuid) -> Vec<Opti
     .expect("nursing_tasks query")
 }
 
-/// A ward of its own with one vacant bed on it. The seed's beds belong to no
-/// ward, and a shared bed is taken by whichever run admitted to it last.
-async fn vacant_ward_bed(app: &common::TestApp, tenant_id: Uuid) -> (Uuid, Uuid) {
-    // Upper case: location codes are A-Z, 0-9 and hyphens.
-    let suffix = Uuid::new_v4().simple().to_string().to_uppercase();
-    let ward_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO wards (tenant_id, code, name, total_beds) VALUES ($1, $2, $3, 1) RETURNING id",
-    )
-    .bind(tenant_id)
-    .bind(format!("LAA-{}", &suffix[..10]))
-    .bind(format!("Linkage ward {}", &suffix[..6]))
-    .fetch_one(&app.db)
-    .await
-    .expect("insert ward");
-    let bed_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO locations (tenant_id, level, code, name) \
-         VALUES ($1, 'bed', $2, $3) RETURNING id",
-    )
-    .bind(tenant_id)
-    .bind(format!("LAA-BED-{}", &suffix[..10]))
-    .bind(format!("Bed {}", &suffix[..4]))
-    .fetch_one(&app.db)
-    .await
-    .expect("insert bed location");
-    sqlx::query(
-        "INSERT INTO ward_bed_mappings (tenant_id, ward_id, bed_location_id) VALUES ($1, $2, $3)",
-    )
-    .bind(tenant_id)
-    .bind(ward_id)
-    .bind(bed_id)
-    .execute(&app.db)
-    .await
-    .expect("map bed to ward");
-    // A bed location gets its state row by trigger; give it the ward.
-    sqlx::query(
-        "INSERT INTO bed_states (tenant_id, location_id, ward_id) VALUES ($1, $2, $3) \
-         ON CONFLICT (tenant_id, location_id) DO UPDATE SET ward_id = EXCLUDED.ward_id",
-    )
-    .bind(tenant_id)
-    .bind(bed_id)
-    .bind(ward_id)
-    .execute(&app.db)
-    .await
-    .expect("bed state");
-    (ward_id, bed_id)
-}
-
 #[tokio::test]
 async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_ward() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
 
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
-    let (ward_id, bed_id) = vacant_ward_bed(&app, tenant_id).await;
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
+    let (ward_id, bed_id) = common::vacant_ward_bed(&app, tenant_id).await;
     let bed_id = bed_id.to_string();
 
-    let depts: Value = app
-        .get(&app.client, "/api/setup/departments")
-        .await
-        .json()
-        .await
-        .expect("depts");
+    let depts: Value = app.get(&app.client, "/api/setup/departments").await.json().await.expect("depts");
     let department_id = depts
         .as_array()
         .and_then(|a| a.first())
@@ -167,40 +114,27 @@ async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_w
     let id_str = admission_id.to_string();
 
     let emitted = app.outbox_rows("ipd.admission.created", &id_str).await;
-    assert_eq!(
-        emitted.len(),
-        1,
-        "create_admission must queue exactly one event"
-    );
+    assert_eq!(emitted.len(), 1, "create_admission must queue exactly one event");
     // The outbox stores the whole envelope; the domain payload is nested. The
     // dispatcher unwraps it — this test hands over the envelope exactly as
     // the worker would, so that unwrapping is under test too.
     let envelope = &emitted[0];
     assert_eq!(
-        envelope["payload"]["ward_id"]
-            .as_str()
-            .and_then(|s| s.parse::<Uuid>().ok()),
+        envelope["payload"]["ward_id"].as_str().and_then(|s| s.parse::<Uuid>().ok()),
         Some(ward_id),
         "the event must carry the bed's ward, or the pipeline has nothing to roster against"
     );
 
     // Consume twice: one task, assigned to the rostered nurse.
-    app.dispatch(tenant_id, "ipd.admission.created", envelope)
-        .await;
-    app.dispatch(tenant_id, "ipd.admission.created", envelope)
-        .await;
+    app.dispatch(tenant_id, "ipd.admission.created", envelope).await;
+    app.dispatch(tenant_id, "ipd.admission.created", envelope).await;
     let tasks = assessment_tasks(&app, admission_id).await;
-    assert_eq!(
-        tasks,
-        vec![Some(nurse_user_id)],
-        "exactly one assessment, assigned, after two deliveries"
-    );
+    assert_eq!(tasks, vec![Some(nurse_user_id)], "exactly one assessment, assigned, after two deliveries");
 
     // No ward in the payload: nothing is written. An unassigned task would sit
     // on nobody's list and make the register look attended to.
     let wardless = json!({ "admission_id": admission_id, "patient_id": patient_id });
-    app.dispatch(tenant_id, "ipd.admission.created", &wardless)
-        .await;
+    app.dispatch(tenant_id, "ipd.admission.created", &wardless).await;
     assert_eq!(assessment_tasks(&app, admission_id).await.len(), 1);
 
     // Leave the shift as we found it.

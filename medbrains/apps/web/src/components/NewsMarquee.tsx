@@ -99,7 +99,6 @@ export function NewsMarquee() {
         <HoverCard
           width={360}
           shadow="md"
-          radius="md"
           position="bottom-start"
           openDelay={200}
           closeDelay={80}

@@ -19,7 +19,8 @@ use super::gateway::Hip;
 use crate::{error::AppError, routes::abdm::abha::secret_key};
 
 /// Why a mental-health care context is not linked.
-const MENTAL_HEALTH_WITHHELD: &str = "Mental-health record: not shared through ABDM without the hospital's setting and the \
+const MENTAL_HEALTH_WITHHELD: &str =
+    "Mental-health record: not shared through ABDM without the hospital's setting and the \
      patient's consent to that category (MHCA 2017 s.23)";
 
 pub(super) const TOKEN_CONTEXT: &[u8] = b"abdm-link-token";
@@ -212,15 +213,7 @@ pub async fn request_link(
     // MHCA s.23: a psychiatric record leaves the hospital only with the
     // hospital's setting on and the patient's consent to that category.
     if !shareable {
-        return mark(
-            db,
-            tenant_id,
-            &ids,
-            "not_linked",
-            Some(MENTAL_HEALTH_WITHHELD),
-            None,
-        )
-        .await;
+        return mark(db, tenant_id, &ids, "not_linked", Some(MENTAL_HEALTH_WITHHELD), None).await;
     }
     if let Some(reason) = patient.blocked_reason() {
         return mark(db, tenant_id, &ids, "not_linked", Some(reason), None).await;

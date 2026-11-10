@@ -189,6 +189,10 @@ impl IntoResponse for AppError {
     }
 }
 
+/// What a reader sees when a report ran past its statement timeout.
+pub const REPORT_TIMEOUT_MESSAGE: &str = "This report took too long and was stopped so it \
+     cannot slow the wards. Narrow the date range and try again.";
+
 /// Map a Postgres SQLSTATE to the HTTP status it deserves.
 ///
 /// Constraint violations and malformed input are the *client's* fault, so they
@@ -198,8 +202,9 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
     match code {
         // Foreign key violation — referenced row doesn't exist.
         Some("23503") => (StatusCode::NOT_FOUND, "not found"),
-        // Unique constraint violation — duplicate.
-        Some("23505") => (StatusCode::CONFLICT, "conflict"),
+        // Unique constraint violation — duplicate; MB409 is an edit to a
+        // signed field of a finalized record (migration 1418's edit guard).
+        Some("23505" | "MB409") => (StatusCode::CONFLICT, "conflict"),
         // Check constraint, not-null — bad input.
         Some("23514" | "23502") => (StatusCode::BAD_REQUEST, "bad request"),
         // Data exceptions — the request carried a value Postgres can't even
@@ -208,6 +213,9 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
         // cast raises it for an unknown value (`?status=bogus`), which used to
         // 500. Numeric overflow and unparseable dates are the same class.
         Some("22P02" | "22003" | "22007" | "22008") => (StatusCode::BAD_REQUEST, "bad request"),
+        // Query cancelled — a bounded read (report_runner) ran past its
+        // statement timeout. A refusal to wait, never an empty result.
+        Some("57014") => (StatusCode::SERVICE_UNAVAILABLE, "report_timeout"),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
     }
 }
@@ -254,6 +262,9 @@ fn extract_db_detail(db_err: &medbrains_db::pool::DbError) -> String {
             ) {
                 return format!("Invalid value: {msg}");
             }
+            if e.code().as_deref() == Some("57014") {
+                return REPORT_TIMEOUT_MESSAGE.to_owned();
+            }
             // Other database errors — return the PG message directly
             msg.to_owned()
         }
@@ -267,6 +278,22 @@ fn extract_db_detail(db_err: &medbrains_db::pool::DbError) -> String {
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> Self {
         Self::Database(medbrains_db::pool::DbError::Sqlx(err))
+    }
+}
+
+/// How a kernel failure answers over HTTP: each variant becomes the `AppError` of
+/// the same name, so the kernel moving below this crate changed no status or body.
+impl From<medbrains_kernel::KernelError> for AppError {
+    fn from(err: medbrains_kernel::KernelError) -> Self {
+        use medbrains_kernel::KernelError as K;
+        match err {
+            K::Database(e) => Self::Database(e),
+            K::Forbidden => Self::Forbidden,
+            K::NotFound => Self::NotFound,
+            K::BadRequest(msg) => Self::BadRequest(msg),
+            K::ServiceUnavailable(msg) => Self::ServiceUnavailable(msg),
+            K::Internal(msg) => Self::Internal(msg),
+        }
     }
 }
 
@@ -305,12 +332,77 @@ impl From<argon2::password_hash::Error> for AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::{StatusCode, db_error_status};
+    use super::{AppError, StatusCode, db_error_status};
+    use axum::response::IntoResponse;
+    use medbrains_kernel::KernelError;
+
+    /// The status and body a client would receive.
+    async fn answer(err: AppError) -> (StatusCode, Vec<u8>) {
+        let response = err.into_response();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .map(|b| b.to_vec())
+            .unwrap_or_default();
+        (status, body)
+    }
+
+    /// Moving the kernel below this crate must not change a byte on the wire:
+    /// a failure through the kernel answers as the `AppError` it always was,
+    /// with the status pinned so a shared regression cannot pass unnoticed.
+    #[tokio::test]
+    async fn a_kernel_failure_answers_exactly_as_the_app_error_did() {
+        let msg = || "why".to_owned();
+        let db = || sqlx::Error::RowNotFound;
+        let cases: Vec<(KernelError, AppError, StatusCode)> = vec![
+            (
+                KernelError::Forbidden,
+                AppError::Forbidden,
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                KernelError::NotFound,
+                AppError::NotFound,
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                KernelError::BadRequest(msg()),
+                AppError::BadRequest(msg()),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                KernelError::ServiceUnavailable(msg()),
+                AppError::ServiceUnavailable(msg()),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            (
+                KernelError::Internal(msg()),
+                AppError::Internal(msg()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                KernelError::from(db()),
+                AppError::from(db()),
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                KernelError::from(sqlx::Error::PoolClosed),
+                AppError::from(sqlx::Error::PoolClosed),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+        ];
+        for (kernel, app, status) in cases {
+            let expected = answer(app).await;
+            assert_eq!(expected.0, status);
+            assert_eq!(answer(AppError::from(kernel)).await, expected);
+        }
+    }
 
     #[test]
     fn constraint_violations_are_client_errors() {
         assert_eq!(db_error_status(Some("23503")).0, StatusCode::NOT_FOUND);
         assert_eq!(db_error_status(Some("23505")).0, StatusCode::CONFLICT);
+        assert_eq!(db_error_status(Some("MB409")).0, StatusCode::CONFLICT);
         assert_eq!(db_error_status(Some("23514")).0, StatusCode::BAD_REQUEST);
         assert_eq!(db_error_status(Some("23502")).0, StatusCode::BAD_REQUEST);
     }
@@ -339,5 +431,26 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR
         );
         assert_eq!(db_error_status(None).0, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn a_statement_timeout_is_a_named_503_not_a_500() {
+        assert_eq!(
+            db_error_status(Some("57014")),
+            (StatusCode::SERVICE_UNAVAILABLE, "report_timeout")
+        );
+    }
+}
+
+impl From<medbrains_core::secrets::sealing::SealingKeyError> for AppError {
+    /// An unset or short key is a setting to fix; a failed store is a fault, and says so.
+    fn from(error: medbrains_core::secrets::sealing::SealingKeyError) -> Self {
+        use medbrains_core::secrets::sealing::SealingKeyError;
+        match &error {
+            SealingKeyError::Unreadable { .. } => Self::Internal(error.to_string()),
+            SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => Self::ServiceUnavailable(
+                format!("This feature is not configured: {error}. Ask your administrator."),
+            ),
+        }
     }
 }

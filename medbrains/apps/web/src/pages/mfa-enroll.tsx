@@ -48,7 +48,7 @@ export function MfaEnrollPage() {
 
   return (
     <Stack align="center" justify="center" mih="100vh" p="md">
-      <Paper withBorder shadow="sm" p="xl" radius="md" maw={460} w="100%">
+      <Paper withBorder p="xl" maw={460} w="100%">
         {recoveryCodes === null ? (
           <form onSubmit={form.handleSubmit((values) => activateMutation.mutate(values))}>
             <Stack>

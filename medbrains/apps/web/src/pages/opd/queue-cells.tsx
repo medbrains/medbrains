@@ -3,6 +3,7 @@
 
 import { Group, Stack, Text } from "@mantine/core";
 import type { FieldAccessLevel, QueueEntry } from "@medbrains/types";
+import { IconHeartbeat, IconHeartOff } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components";
 import {
@@ -47,12 +48,9 @@ export function QueueAppointmentMarker({ row }: { row: QueueEntry }) {
 
   if (!row.appointment_id) {
     return (
-      <OperationalSignal
-        label={t("queueSignals.directQueue")}
-        shape="pill"
-        size="xs"
-        tone="neutral"
-      />
+      <Text size="sm" c="dimmed">
+        {t("queueSignals.directQueue")}
+      </Text>
     );
   }
 
@@ -111,19 +109,50 @@ export function QueueVisitTypeBadge({ row }: { row: QueueEntry }) {
       </Stack>
     );
   }
+  const tone = queueVisitTypeTone(visitType);
   return (
     <Stack gap={2}>
-      <OperationalSignal
-        label={queueVisitTypeLabel(t, visitType)}
-        shape={queueVisitTypeShape(visitType)}
-        size="xs"
-        tone={queueVisitTypeTone(visitType)}
-      />
+      {tone === "neutral" ? (
+        <Text size="sm">{queueVisitTypeLabel(t, visitType)}</Text>
+      ) : (
+        <OperationalSignal
+          label={queueVisitTypeLabel(t, visitType)}
+          shape={queueVisitTypeShape(visitType)}
+          size="xs"
+          tone={tone}
+        />
+      )}
       {visitType === "camp" && row.camp_name && (
         <Text size="xs" c="dimmed" lineClamp={1}>
           {row.camp_name}
         </Text>
       )}
     </Stack>
+  );
+}
+
+/**
+ * Whether the nurse has taken this patient's vitals: said in words with an
+ * icon, never by colour alone. The row used to give no sign at all, so the
+ * doctor called a patient whose vitals were not yet taken.
+ */
+export function QueueVitalsCell({ row }: { row: QueueEntry }) {
+  const { t } = useTranslation("opd");
+  return row.has_vitals ? (
+    <OperationalSignal
+      icon={IconHeartbeat}
+      label={t("queueSignals.vitalsTaken")}
+      shape="pill"
+      size="xs"
+      tone="complete"
+    />
+  ) : (
+    <OperationalSignal
+      icon={IconHeartOff}
+      label={t("queueSignals.vitalsNotTaken")}
+      shape="pill"
+      size="xs"
+      tone="neutral"
+    />
   );
 }

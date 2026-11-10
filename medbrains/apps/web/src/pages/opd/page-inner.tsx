@@ -49,7 +49,12 @@ import type {
 } from "../opd-queue-actions";
 import { resolveOpdQueueRowActions } from "../opd-queue-actions";
 import { isStaleRowError } from "./queue-action-error";
-import { QueueAppointmentMarker, QueuePatientCell, QueueVisitTypeBadge } from "./queue-cells";
+import {
+  QueueAppointmentMarker,
+  QueuePatientCell,
+  QueueVisitTypeBadge,
+  QueueVitalsCell,
+} from "./queue-cells";
 import { OpdRegistrationPolicyToggle } from "./registration-policy-toggle";
 import {
   appointmentVisitType,
@@ -95,6 +100,7 @@ export function OpdPageInner() {
   const emit = useClinicalEmit();
   const navigate = useNavigate();
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
+  const canListAppointments = useHasPermission(P.OPD.APPOINTMENT_LIST);
   const canViewQueue = useHasPermission(P.OPD.QUEUE_VIEW);
   const canManageToken = useHasPermission(P.OPD.TOKEN_MANAGE);
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
@@ -196,7 +202,10 @@ export function OpdPageInner() {
   const { data: todayAppointments = [], isLoading: loadingAppointments } = useQuery({
     queryKey: ["opd-appointments", appointmentParams],
     queryFn: () => opdService.listAppointments(appointmentParams),
-    enabled: canCreate || canManageToken,
+    // The list needs opd.appointment.list. Gated on visit.create or
+    // token.manage, a doctor sent it on every queue refresh and was refused,
+    // and the panel then said there were no appointments today.
+    enabled: canListAppointments,
   });
 
   const appointmentCheckInMutation = useMutation({
@@ -410,12 +419,14 @@ export function OpdPageInner() {
       sortValue: (row: QueueEntry) => row.token_number,
       accessor: (row: QueueEntry) => queueTokenLabel(row),
       render: (row: QueueEntry) => (
-        <OperationalSignal
-          label={t("queueSignals.token")}
-          shape="token"
-          tone={queueStatusTone(row.status)}
-          value={queueTokenLabel(row)}
-        />
+        <Text
+          size="sm"
+          fw={700}
+          ff="var(--mb-font-mono, monospace)"
+          style={{ whiteSpace: "nowrap" }}
+        >
+          {queueTokenLabel(row)}
+        </Text>
       ),
     },
     {
@@ -471,6 +482,13 @@ export function OpdPageInner() {
         ),
     },
     {
+      key: "has_vitals",
+      label: t("queueColumns.vitals"),
+      accessor: (row: QueueEntry) =>
+        row.has_vitals ? t("queueSignals.vitalsTaken") : t("queueSignals.vitalsNotTaken"),
+      render: (row: QueueEntry) => <QueueVitalsCell row={row} />,
+    },
+    {
       key: "status",
       label: t("queueColumns.status"),
       render: (row: QueueEntry) => (
@@ -488,19 +506,12 @@ export function OpdPageInner() {
       render: (row: QueueEntry) => <QueueAppointmentMarker row={row} />,
     },
     {
-      key: "queue_date",
-      label: t("queueColumns.date"),
-      sortable: true,
-      accessor: (row: QueueEntry) => row.queue_date,
-      render: (row: QueueEntry) => <Text size="sm">{row.queue_date}</Text>,
-    },
-    {
       key: "actions",
       label: t("queueColumns.actions"),
       requiredPermissions: [P.OPD.QUEUE_VIEW, P.OPD.VISIT_UPDATE, P.OPD.VITALS.CREATE],
       permissionMode: "any",
       render: (row: QueueEntry) => (
-        <Group gap="xs">
+        <Group gap="xs" wrap="nowrap">
           {resolveOpdQueueRowActions(row, queueActionPermissions).map((action) =>
             renderQueueAction(action, row),
           )}
@@ -624,16 +635,18 @@ export function OpdPageInner() {
               />
             </Group>
           </Stack>
-          <TodayAppointmentsPanel
-            appointments={todayAppointments}
-            appointmentDate={appointmentDate}
-            loading={loadingAppointments}
-            canCheckIn={canCreate}
-            checkingInId={appointmentCheckInMutation.variables?.id}
-            isCheckingIn={appointmentCheckInMutation.isPending}
-            patientNameAccess={patientNameAccess}
-            onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
-          />
+          {canListAppointments && (
+            <TodayAppointmentsPanel
+              appointments={todayAppointments}
+              appointmentDate={appointmentDate}
+              loading={loadingAppointments}
+              canCheckIn={canCreate}
+              checkingInId={appointmentCheckInMutation.variables?.id}
+              isCheckingIn={appointmentCheckInMutation.isPending}
+              patientNameAccess={patientNameAccess}
+              onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
+            />
+          )}
           {/* A filter over one table, not tabs: tabs with no panels told a
               screen reader each one controlled a panel that did not exist
               (axe aria-valid-attr-value). */}

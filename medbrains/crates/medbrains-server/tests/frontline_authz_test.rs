@@ -91,19 +91,31 @@ async fn tenant(app: &common::TestApp) -> Uuid {
         .expect("tenant")
 }
 
-/// Links `user` to a new employee record and returns its id.
+/// Links `user` to a new employee record, with casual leave to spend in
+/// 2031 (filing is refused beyond the balance), and returns its id.
 async fn employee(app: &common::TestApp, user: Uuid) -> Uuid {
     let tag = &Uuid::new_v4().simple().to_string()[..8];
-    sqlx::query_scalar(
+    let tenant = tenant(app).await;
+    let id = sqlx::query_scalar(
         "INSERT INTO employees (tenant_id, employee_code, first_name, user_id) \
          VALUES ($1, $2, 'Frontline', $3) RETURNING id",
     )
-    .bind(tenant(app).await)
+    .bind(tenant)
     .bind(format!("FL-{tag}"))
     .bind(user)
     .fetch_one(&app.db)
     .await
-    .expect("employee")
+    .expect("employee");
+    sqlx::query(
+        "INSERT INTO leave_balances (tenant_id, employee_id, leave_type, year, opening, balance) \
+         VALUES ($1, $2, 'casual', 2031, 10, 10)",
+    )
+    .bind(tenant)
+    .bind(id)
+    .execute(&app.db)
+    .await
+    .expect("balance");
+    id
 }
 
 fn leave(employee_id: Option<Uuid>) -> Value {
@@ -112,7 +124,6 @@ fn leave(employee_id: Option<Uuid>) -> Value {
         "leave_type": "casual",
         "start_date": "2031-03-02",
         "end_date": "2031-03-03",
-        "days": 2,
     })
 }
 

@@ -18,12 +18,7 @@ async fn first_department(app: &common::TestApp, client: &reqwest::Client) -> Va
     depts[0]["id"].clone()
 }
 
-async fn new_patient(
-    app: &common::TestApp,
-    client: &reqwest::Client,
-    csrf: &str,
-    phone: &str,
-) -> Value {
+async fn new_patient(app: &common::TestApp, client: &reqwest::Client, csrf: &str, phone: &str) -> Value {
     client
         .post(app.url("/api/patients"))
         .header("x-csrf-token", csrf)
@@ -58,27 +53,15 @@ async fn appointments_cannot_be_booked_in_the_past_or_completed_unseen() {
     };
     let today = chrono::Utc::now().date_naive();
 
-    let resp = book((today - chrono::Duration::days(1)).to_string())
-        .await
-        .expect("past");
+    let resp = book((today - chrono::Duration::days(1)).to_string()).await.expect("past");
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-    let resp = book((today + chrono::Duration::days(2)).to_string())
-        .await
-        .expect("future");
-    assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "{}",
-        resp.text().await.unwrap_or_default()
-    );
+    let resp = book((today + chrono::Duration::days(2)).to_string()).await.expect("future");
+    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
     let appointment: Value = resp.json().await.expect("appointment");
     let resp = app
         .client
-        .put(app.url(&format!(
-            "/api/opd/appointments/{}/complete",
-            appointment["id"].as_str().expect("id")
-        )))
+        .put(app.url(&format!("/api/opd/appointments/{}/complete", appointment["id"].as_str().expect("id"))))
         .header("x-csrf-token", &csrf)
         .send()
         .await
@@ -114,10 +97,7 @@ async fn an_er_mlc_names_the_configured_police_station() {
     .execute(&app.db)
     .await
     .expect("admin");
-    let client = reqwest::Client::builder()
-        .cookie_store(true)
-        .build()
-        .expect("client");
+    let client = reqwest::Client::builder().cookie_store(true).build().expect("client");
     let login: Value = client
         .post(app.url("/api/auth/login"))
         .json(&json!({ "username": username, "password": "admin123", "hospital_code": code }))
@@ -136,11 +116,7 @@ async fn an_er_mlc_names_the_configured_police_station() {
         .send()
         .await
         .expect("settings");
-    assert!(
-        resp.status().is_success(),
-        "{}",
-        resp.text().await.unwrap_or_default()
-    );
+    assert!(resp.status().is_success(), "{}", resp.text().await.unwrap_or_default());
     let patient = new_patient(&app, &client, &csrf, "9990000517").await;
     let resp = client
         .post(app.url("/api/emergency/visits"))
@@ -149,23 +125,14 @@ async fn an_er_mlc_names_the_configured_police_station() {
         .send()
         .await
         .expect("er visit");
-    assert!(
-        resp.status().is_success(),
-        "{}",
-        resp.text().await.unwrap_or_default()
-    );
+    assert!(resp.status().is_success(), "{}", resp.text().await.unwrap_or_default());
     let visit: Value = resp.json().await.expect("visit json");
 
     let station: Option<String> = sqlx::query_scalar(
         "SELECT police_station FROM mlc_cases WHERE tenant_id = $1 AND er_visit_id = $2",
     )
     .bind(tenant)
-    .bind(
-        visit["id"]
-            .as_str()
-            .and_then(|s| s.parse::<Uuid>().ok())
-            .expect("visit id"),
-    )
+    .bind(visit["id"].as_str().and_then(|s| s.parse::<Uuid>().ok()).expect("visit id"))
     .fetch_one(&app.db)
     .await
     .expect("mlc case");

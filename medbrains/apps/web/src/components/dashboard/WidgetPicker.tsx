@@ -71,7 +71,7 @@ export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
         )}
         {groups.map(([category, items]) => (
           <Stack key={category} gap={6} role="group" aria-label={category}>
-            <Text size="xs" tt="uppercase" fw={600} c="dimmed">
+            <Text size="xs" fw={600} c="dimmed">
               {category}
             </Text>
             {items.map((t) => (

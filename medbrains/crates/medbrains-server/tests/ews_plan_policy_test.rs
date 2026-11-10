@@ -68,6 +68,7 @@ async fn scale_2_is_a_doctors_prescription_and_the_policy_refuses_unsafe_setting
         client: app.client.clone(),
         csrf: csrf.clone(),
         user_id: Uuid::nil(),
+        password: "admin123".to_owned(),
     };
     let (_, mut policy) = send(
         &admin,

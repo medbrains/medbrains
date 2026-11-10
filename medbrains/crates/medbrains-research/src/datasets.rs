@@ -9,7 +9,7 @@
 
 use chrono::NaiveDate;
 use serde_json::Value;
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 use super::deid::{Field, Kind, RawRow};
@@ -353,7 +353,7 @@ pub enum ReadError {
 /// # Errors
 /// An unknown dataset, too many rows, or a database error.
 pub async fn read(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut PgConnection,
     tenant: Uuid,
     dataset: &str,
     (from, to): (NaiveDate, NaiveDate),
@@ -364,7 +364,7 @@ pub async fn read(
         .bind(tenant)
         .bind(from)
         .bind(to)
-        .fetch_all(&mut **tx)
+        .fetch_all(&mut *tx)
         .await?;
     if rows.len() > MAX_ROWS {
         return Err(ReadError::TooMany);

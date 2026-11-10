@@ -48,6 +48,8 @@ data class SectionPatch(val code: String, val text: String? = null, val data: Js
 
 /** The case-sheet calls, one per route the screen uses. */
 class NotesApi(private val client: ApiClient) {
+    /** The password again before a signature; the client then carries the proof. */
+    suspend fun stepUp(password: String) = client.stepUp(password)
     suspend fun list(encounterId: String): List<Note> = client.get("/api/encounters/$encounterId/clinical-notes")
     suspend fun startConsultation(encounterId: String, sections: List<SectionPatch>): Note =
         client.post("/api/encounters/$encounterId/clinical-notes", NewNote("consultation", sections))

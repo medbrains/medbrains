@@ -13,11 +13,13 @@ use std::{
 };
 
 use axum::{
-    extract::{ConnectInfo, Request, State},
+    extract::{Request, State},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
 };
+
+use super::client_ip::ClientIp;
 
 /// Maximum login attempts per IP within the window.
 const MAX_ATTEMPTS: usize = 5;
@@ -204,36 +206,40 @@ pub async fn storefront_rate_limit_middleware(
     next.run(request).await
 }
 
-/// Extract client IP — tries `ConnectInfo`, `X-Forwarded-For`, `X-Real-IP`.
+/// Public verify checks (the QR on a prescription or a signed document), per
+/// IP per minute. A counter scanning a pile of papers stays well under it; a
+/// script trying tokens does not. Inferred, not from a spec.
+const PUBLIC_VERIFY_PER_MINUTE: usize = 30;
+
+/// The public verify pages: anybody may ask, nobody may ask fast. The tokens
+/// are 256 random bits, so this bounds the cost of guessing rather than being
+/// what stops it.
+pub async fn public_verify_rate_limit_middleware(
+    State(limiter): State<RateLimiter>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if let Some(ip) = extract_client_ip(&request)
+        && !limiter.check_and_record_class(
+            ip,
+            "public_verify",
+            PUBLIC_VERIFY_PER_MINUTE,
+            WINDOW_SECS,
+        )
+    {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(serde_json::json!({
+                "error": "too_many_requests",
+                "detail": "Too many checks. Please wait a minute and try again.",
+            })),
+        )
+            .into_response();
+    }
+    next.run(request).await
+}
+
+/// The address worked out by `client_ip_middleware`, never read from headers here.
 fn extract_client_ip(request: &Request) -> Option<IpAddr> {
-    // Try ConnectInfo (direct connection)
-    if let Some(connect_info) = request
-        .extensions()
-        .get::<ConnectInfo<std::net::SocketAddr>>()
-    {
-        return Some(connect_info.0.ip());
-    }
-
-    // Try X-Forwarded-For header (first IP in chain)
-    if let Some(forwarded) = request
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        && let Some(first_ip) = forwarded.split(',').next()
-        && let Ok(ip) = first_ip.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-
-    // Try X-Real-IP header
-    if let Some(real_ip) = request
-        .headers()
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        && let Ok(ip) = real_ip.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-
-    None
+    request.extensions().get::<ClientIp>().map(|ip| ip.0)
 }

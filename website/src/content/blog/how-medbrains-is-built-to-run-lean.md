@@ -168,7 +168,7 @@ everything on a single box on the hospital network, including on Windows Server.
 
 ## When the internet goes down
 
-Indian hospitals cannot assume the link to the cloud stays up all day.
+Hospitals cannot assume the link to the cloud stays up all day.
 
 - **On-premises installs** keep working over the hospital network regardless of
   the internet.

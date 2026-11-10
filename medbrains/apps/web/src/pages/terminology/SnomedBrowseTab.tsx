@@ -26,7 +26,7 @@ interface ConceptListProps {
 function ConceptList({ title, concepts, total, onPick }: ConceptListProps) {
   return (
     <Stack gap={4}>
-      <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+      <Text size="xs" fw={700} c="dimmed">
         {title}
         {total !== undefined && total > concepts.length
           ? ` · first ${concepts.length} of ${total}`

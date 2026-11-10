@@ -13,8 +13,10 @@ import {
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import {
+  FREQUENCY_NOT_RECOGNISED,
   foodTimingLabel,
   frequencyToDefaultSlots,
+  isRecognisedFrequency,
   parseInstructions,
   ROUTE_COLORS,
 } from "@/lib/medication-timing-utils";
@@ -75,6 +77,8 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
   const grouped = useMemo(() => {
     const timeGroups = new Map<TimeOfDay, GroupedDrug[]>();
     const prnDrugs: GroupedDrug[] = [];
+    // An unknown spelling yields no slots too; it is never filed as "as needed".
+    const unrecognisedDrugs: GroupedDrug[] = [];
     for (const grp of TIME_GROUPS) timeGroups.set(grp.slot, []);
 
     for (const item of items) {
@@ -104,7 +108,7 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
       };
 
       if (slots.length === 0) {
-        prnDrugs.push(drug);
+        (isRecognisedFrequency(item.frequency) ? prnDrugs : unrecognisedDrugs).push(drug);
       } else {
         for (const slot of slots) {
           timeGroups.get(slot)?.push(drug);
@@ -112,7 +116,7 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
       }
     }
 
-    return { timeGroups, prnDrugs };
+    return { timeGroups, prnDrugs, unrecognisedDrugs };
   }, [items]);
 
   return (
@@ -133,7 +137,7 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
         if (drugs.length === 0) return null;
 
         return (
-          <Card key={slot} padding="sm" radius="md" withBorder className={classes.timeGroupCard}>
+          <Card key={slot} padding="sm" withBorder className={classes.timeGroupCard}>
             <Group gap="xs" mb="xs">
               {icon}
               <div>
@@ -158,8 +162,27 @@ export function PharmacyDispensingView({ items, patientName, uhid }: PharmacyDis
         );
       })}
 
+      {grouped.unrecognisedDrugs.length > 0 && (
+        <Card padding="sm" withBorder className={classes.timeGroupCard}>
+          <Group gap="xs" mb="xs">
+            <IconAlertCircle size={18} />
+            <Text fw={600} size="sm">
+              {FREQUENCY_NOT_RECOGNISED}
+            </Text>
+            <Badge size="sm" variant="light" color="danger" ml="auto">
+              {grouped.unrecognisedDrugs.length}
+            </Badge>
+          </Group>
+          <Stack gap={4}>
+            {grouped.unrecognisedDrugs.map((drug, idx) => (
+              <DrugRow key={idx} drug={drug} />
+            ))}
+          </Stack>
+        </Card>
+      )}
+
       {grouped.prnDrugs.length > 0 && (
-        <Card padding="sm" radius="md" withBorder className={classes.timeGroupCard}>
+        <Card padding="sm" withBorder className={classes.timeGroupCard}>
           <Group gap="xs" mb="xs">
             <IconAlertCircle size={18} />
             <div>

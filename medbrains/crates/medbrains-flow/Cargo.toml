@@ -3,6 +3,7 @@ name = "medbrains-flow"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
+license-file.workspace = true
 
 # MedBrains Flow (#4901): the live crowd and wait view of the building, a
 # licensed add-on. Read-only over clinical tables; writes only `flow_*`.

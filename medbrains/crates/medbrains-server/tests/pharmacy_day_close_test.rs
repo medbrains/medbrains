@@ -56,10 +56,7 @@ async fn pharmacist(app: &common::TestApp, admin_csrf: &str, tenant: Uuid) -> (C
     )
     .await;
     assert!(status.is_success(), "create pharmacist: {status} {body}");
-    let client = Client::builder()
-        .cookie_store(true)
-        .build()
-        .expect("client");
+    let client = Client::builder().cookie_store(true).build().expect("client");
     let login: Value = client
         .post(app.url("/api/auth/login"))
         .json(&json!({ "username": username, "password": password }))
@@ -69,10 +66,7 @@ async fn pharmacist(app: &common::TestApp, admin_csrf: &str, tenant: Uuid) -> (C
         .json()
         .await
         .expect("login json");
-    (
-        client,
-        login["csrf_token"].as_str().unwrap_or("").to_owned(),
-    )
+    (client, login["csrf_token"].as_str().unwrap_or("").to_owned())
 }
 
 #[tokio::test]
@@ -96,15 +90,8 @@ async fn a_counter_day_closes_once_counted_explained_and_reopens_only_by_a_super
     let (ph, ph_csrf) = pharmacist(&app, &admin, tenant).await;
 
     // The shift: ₹500 float, ₹250 cash taken at the counter.
-    let (status, drawer) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        "/api/pharmacy/cash-drawers",
-        json!({ "pharmacy_location_id": counter, "opening_float": 500 }),
-    )
-    .await;
+    let (status, drawer) = call(&app, &ph, &ph_csrf, Method::POST, "/api/pharmacy/cash-drawers",
+        json!({ "pharmacy_location_id": counter, "opening_float": 500 })).await;
     assert!(status.is_success(), "open drawer: {status} {drawer}");
     let drawer_id = drawer["id"].as_str().unwrap_or_default().to_owned();
     let business_date = sqlx::query_scalar::<_, chrono::NaiveDate>(
@@ -130,26 +117,13 @@ async fn a_counter_day_closes_once_counted_explained_and_reopens_only_by_a_super
     };
 
     // A drawer still open: the day cannot be counted yet.
-    let (status, body) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        "/api/pharmacy/day-close",
-        close_body(json!({ "500": 1, "100": 2, "50": 1 }), None),
-    )
-    .await;
+    let (status, body) = call(&app, &ph, &ph_csrf, Method::POST, "/api/pharmacy/day-close",
+        close_body(json!({ "500": 1, "100": 2, "50": 1 }), None)).await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
 
-    let (status, _) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::PUT,
+    let (status, _) = call(&app, &ph, &ph_csrf, Method::PUT,
         &format!("/api/pharmacy/cash-drawers/{drawer_id}/close"),
-        json!({ "actual_close_amount": 750 }),
-    )
-    .await;
+        json!({ "actual_close_amount": 750 })).await;
     assert!(status.is_success());
 
     let report: Value = ph
@@ -162,111 +136,46 @@ async fn a_counter_day_closes_once_counted_explained_and_reopens_only_by_a_super
         .json()
         .await
         .expect("report json");
-    assert!(
-        (money(&report["report"]["summary"]["expected_cash"]) - 750.0).abs() < 0.001,
-        "{report}"
-    );
+    assert!((money(&report["report"]["summary"]["expected_cash"]) - 750.0).abs() < 0.001, "{report}");
     assert!((money(&report["report"]["tenders"][0]["collected"]) - 250.0).abs() < 0.001);
-    assert!(
-        report["close_refusal"].is_null(),
-        "the cashier who worked it may close it: {report}"
-    );
+    assert!(report["close_refusal"].is_null(), "the cashier who worked it may close it: {report}");
 
     // ₹700 counted against ₹750: a short count needs its reason.
     let short = json!({ "500": 1, "100": 2 });
-    let (status, _) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        "/api/pharmacy/day-close",
-        close_body(short.clone(), None),
-    )
-    .await;
+    let (status, _) = call(&app, &ph, &ph_csrf, Method::POST, "/api/pharmacy/day-close",
+        close_body(short.clone(), None)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, closed) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        "/api/pharmacy/day-close",
-        close_body(short, Some("₹50 change given twice")),
-    )
-    .await;
+    let (status, closed) = call(&app, &ph, &ph_csrf, Method::POST, "/api/pharmacy/day-close",
+        close_body(short, Some("₹50 change given twice"))).await;
     assert!(status.is_success(), "{closed}");
     assert_eq!(closed["status"], "closed");
-    assert!(
-        (money(&closed["variance"]) + 50.0).abs() < 0.001,
-        "{closed}"
-    );
+    assert!((money(&closed["variance"]) + 50.0).abs() < 0.001, "{closed}");
     let close_id = closed["id"].as_str().unwrap_or_default().to_owned();
 
     // Closed means closed: no second close, no new drawer dated to it.
-    let (status, _) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        "/api/pharmacy/day-close",
-        close_body(json!({ "500": 1 }), Some("again please")),
-    )
-    .await;
+    let (status, _) = call(&app, &ph, &ph_csrf, Method::POST, "/api/pharmacy/day-close",
+        close_body(json!({ "500": 1 }), Some("again please"))).await;
     assert_eq!(status, StatusCode::CONFLICT);
-    let (status, _) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        "/api/pharmacy/cash-drawers",
-        json!({ "pharmacy_location_id": counter, "opening_float": 100 }),
-    )
-    .await;
+    let (status, _) = call(&app, &ph, &ph_csrf, Method::POST, "/api/pharmacy/cash-drawers",
+        json!({ "pharmacy_location_id": counter, "opening_float": 100 })).await;
     assert_eq!(status, StatusCode::CONFLICT);
 
     // The cashier cannot undo their own close; a supervisor can, with a reason.
     let reopen = format!("/api/pharmacy/day-close/{close_id}/reopen");
-    let (status, _) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        &reopen,
-        json!({ "reason": "recount" }),
-    )
-    .await;
+    let (status, _) =
+        call(&app, &ph, &ph_csrf, Method::POST, &reopen, json!({ "reason": "recount" })).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, _) = call(
-        &app,
-        &app.client,
-        &admin,
-        Method::POST,
-        &reopen,
-        json!({ "reason": "no" }),
-    )
-    .await;
+    let (status, _) =
+        call(&app, &app.client, &admin, Method::POST, &reopen, json!({ "reason": "no" })).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, reopened) = call(
-        &app,
-        &app.client,
-        &admin,
-        Method::POST,
-        &reopen,
-        json!({ "reason": "The ₹50 was found in the till drawer" }),
-    )
-    .await;
+    let (status, reopened) = call(&app, &app.client, &admin, Method::POST, &reopen,
+        json!({ "reason": "The ₹50 was found in the till drawer" })).await;
     assert!(status.is_success(), "{reopened}");
     assert_eq!(reopened["status"], "reopened");
 
     // Counted again, exactly this time, on the same record.
-    let (status, again) = call(
-        &app,
-        &ph,
-        &ph_csrf,
-        Method::POST,
-        "/api/pharmacy/day-close",
-        close_body(json!({ "500": 1, "100": 2, "50": 1 }), None),
-    )
-    .await;
+    let (status, again) = call(&app, &ph, &ph_csrf, Method::POST, "/api/pharmacy/day-close",
+        close_body(json!({ "500": 1, "100": 2, "50": 1 }), None)).await;
     assert!(status.is_success(), "{again}");
     assert_eq!(again["id"].as_str(), Some(close_id.as_str()));
     assert!(money(&again["variance"]).abs() < 0.001);
@@ -281,10 +190,7 @@ async fn a_counter_day_closes_once_counted_explained_and_reopens_only_by_a_super
         .expect("list json");
     let ours = days
         .as_array()
-        .and_then(|d| {
-            d.iter()
-                .find(|r| r["close_id"].as_str() == Some(close_id.as_str()))
-        })
+        .and_then(|d| d.iter().find(|r| r["close_id"].as_str() == Some(close_id.as_str())))
         .cloned()
         .unwrap_or(Value::Null);
     assert_eq!(ours["status"], "closed", "{days}");

@@ -65,6 +65,7 @@
   "integrationHub": "अंतर्निहित पाइपलाइन",
   "formTemplates": "फ़ॉर्म",
   "apiKeys": "API कुंजियाँ",
+  "connectedApps": "कनेक्टेड ऐप्स",
   "webhooks": "वेबहुक",
   "screenBuilder": "स्क्रीन बिल्डर",
   "doctorSchedules": "डॉक्टर शेड्यूल",
@@ -109,6 +110,8 @@
   "devices": "डिवाइस एकीकरण",
   "scheduling": "स्मार्ट शेड्यूलिंग",
   "security": "सुरक्षा",
+  "securityIntel": "सुरक्षा इंटेलिजेंस",
+  "medbrainsAccess": "MedBrains पहुँच",
   "analytics": "एनालिटिक्स एवं डैशबोर्ड",
   "reports": "रिपोर्ट केंद्र",
   "audit": "ऑडिट ट्रेल",
@@ -117,6 +120,7 @@
   "documentTemplates": "दस्तावेज़ टेम्पलेट",
   "groupFavorites": "पसंदीदा",
   "healthPulse": "हेल्थ पल्स",
+  "healthIntel": "स्वास्थ्य इंटेलिजेंस",
   "lms": "लर्निंग (LMS)",
   "nabhIndicators": "NABH संकेतक",
   "pairedDevices": "युग्मित डिवाइस",
@@ -124,8 +128,11 @@
   "materials": "सामग्री प्रबंधन",
   "approvals": "अनुमोदन",
   "historyImport": "इतिहास आयात करें",
+  "kernel": "कर्नेल",
   "onboardingWorkbook": "ऑनबोर्डिंग वर्कबुक",
   "doctorPayouts": "डॉक्टर भुगतान",
   "myEarnings": "मेरी कमाई",
-  "researchExports": "शोध डेटा निर्यात"
+  "researchExports": "शोध डेटा निर्यात",
+  "knowledgeChanges": "ज्ञान परिवर्तन",
+  "flows": "प्रवाह"
 }

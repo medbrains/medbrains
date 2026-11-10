@@ -156,7 +156,7 @@ export default defineConfig({
       },
       dependencies: ["setup"],
       testIgnore:
-        /(mock|smoke\/api|writes|crud|forms|analytics|rbac|scenarios|journeys|accessibility|robustness|linkages|screens|payments-live)\/.*\.spec\.ts/,
+        /(mock|smoke\/api|writes|crud|forms|analytics|rbac|scenarios|journeys|accessibility|robustness|linkages|screens|payments-live|perf)\/.*\.spec\.ts/,
     },
 
     {
@@ -171,6 +171,19 @@ export default defineConfig({
         trace: "on",
       },
       dependencies: ["setup"],
+    },
+
+    // Startup cost and shift-long heap (e2e/perf), against a production build
+    // served by `vite preview`. Run on demand: `make perf-web`.
+    {
+      name: "perf",
+      testMatch: /perf\/.*\.perf\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "perf-webkit",
+      testMatch: /perf\/.*\.perf\.spec\.ts/,
+      use: { ...devices["Desktop Safari"] },
     },
 
     {

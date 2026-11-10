@@ -26,8 +26,10 @@ use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 
 pub mod geofence;
+pub mod holidays;
 pub mod leave;
 pub mod leave_approval;
+pub mod leave_rules;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -621,6 +623,10 @@ pub async fn update_my_profile(
     }))
 }
 
+/// Create an employee record, optionally provisioning a linked login. The
+/// login's role is a grant, so it must be within the caller's own codes.
+/// Linking an existing login is refused on the caller's own or an
+/// administrator's, as editing that account would be.
 pub async fn create_employee(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -634,6 +640,11 @@ pub async fn create_employee(
     // Auto-provision a linked login if requested and not already linked. Admin supplies
     // the initial password; must_change_password forces a rotation on first sign-in.
     // Mirrors admin user-create — no secret generation/return.
+    // Linking an existing login hands it to whoever ends this employment next,
+    // so it follows the same rules as editing that account.
+    if let Some(user_id) = body.user_id {
+        refuse_login_change(&mut tx, &claims, user_id).await?;
+    }
     let mut effective_user_id = body.user_id;
     if body.provision_login.unwrap_or(false) && effective_user_id.is_none() {
         let mut errors = ValidationErrors::new();
@@ -658,6 +669,10 @@ pub async fn create_employee(
         if errors.has_errors() {
             return Err(AppError::ValidationFailed(errors));
         }
+        // The login's role is a grant: an HR clerk gives only what they hold,
+        // and never a bypass role.
+        medbrains_server_core::permissions::refuse_roles_beyond_own(&state.db, &claims, &[role])
+            .await?;
         let password_hash = Argon2::default()
             .hash_password(password.as_bytes())
             .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
@@ -733,6 +748,43 @@ pub async fn create_employee(
     Ok(Json(row))
 }
 
+/// Refuse linking an employee record to login `user_id`, or ending their
+/// employment, when that changes access the caller may not change.
+///
+/// Ending employment deactivates the login and drops its groups; linking hands
+/// the login to whoever HR terminates next. Both are edits to that account, so
+/// the Users screen's rules hold: a caller outside the bypass roles cannot do
+/// either to their own login or to an administrator's.
+async fn refuse_login_change(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    medbrains_server_core::permissions::refuse_self_change(claims, user_id)?;
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(user_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    match role {
+        Some(role) => medbrains_server_core::permissions::refuse_bypass_target(claims, &role),
+        None => Err(AppError::BadRequest(
+            "That login does not exist in this hospital".to_owned(),
+        )),
+    }
+}
+
+/// Whether `status` ends employment, so the linked login loses its access.
+/// `active` and `on_leave` keep access; every other status revokes it.
+const fn ends_employment(status: EmployeeStatus) -> bool {
+    !matches!(status, EmployeeStatus::Active | EmployeeStatus::OnLeave)
+}
+
+/// Edit an employee record. Moving it to a status that ends employment
+/// revokes the linked login's access; that, and re-linking the record to a
+/// login, are refused on the caller's own login or an administrator's.
 pub async fn update_employee(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -743,6 +795,14 @@ pub async fn update_employee(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (linked_before, status_before): (Option<Uuid>, EmployeeStatus) = sqlx::query_as(
+        "SELECT user_id, status FROM employees WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let row = sqlx::query_as::<_, Employee>(
         "UPDATE employees SET \
@@ -806,16 +866,16 @@ pub async fn update_employee(
     .await?;
 
     // Offboarding security: moving an employee to a terminal/blocked status must revoke
-    // ALL their access — previously nothing happened, so a terminated employee kept their
-    // login, refresh tokens, group permissions and VPN. active/on_leave keep access.
-    let revokes_access = matches!(
-        row.status,
-        EmployeeStatus::Suspended
-            | EmployeeStatus::Resigned
-            | EmployeeStatus::Terminated
-            | EmployeeStatus::Retired
-            | EmployeeStatus::Absconding
-    );
+    // ALL their access — their login, refresh tokens, group permissions and VPN.
+    // Only the move does it: editing a phone number on a record that was already
+    // terminal must not lock out whichever login is linked to it now.
+    let revokes_access = ends_employment(row.status) && !ends_employment(status_before);
+    let relinked = row.user_id.is_some() && row.user_id != linked_before;
+    if let Some(user_id) = row.user_id
+        && (relinked || revokes_access)
+    {
+        refuse_login_change(&mut tx, &claims, user_id).await?;
+    }
     if revokes_access && let Some(user_id) = row.user_id {
         // Deactivate the login + bump perm_version so any cached JWT stops resolving.
         sqlx::query(
@@ -2417,6 +2477,16 @@ pub fn router() -> axum::Router<AppState> {
             get(leave_approval::list_team_leaves),
         )
         .route("/api/hr/leaves/{id}/cancel", put(leave::cancel_leave))
+        .route("/api/hr/leaves/preview", get(holidays::preview_leave_days))
+        .route(
+            "/api/hr/holidays",
+            get(holidays::list_holidays).post(holidays::create_holiday),
+        )
+        .route(
+            "/api/hr/holidays/{id}",
+            put(holidays::update_holiday).delete(holidays::delete_holiday),
+        )
+        .route("/api/hr/weekly-offs", put(holidays::set_weekly_offs))
         .route("/api/hr/on-call", get(list_on_call).post(create_on_call))
         .route(
             "/api/hr/training-programs",

@@ -1,43 +1,26 @@
-use medbrains_authz::AuthzContext;
 use medbrains_authz::decision::Outcome;
 use medbrains_core::permissions;
 use uuid::Uuid;
 
 use crate::{error::AppError, middleware::auth::Claims};
 
-/// Roles that bypass all permission checks.
-pub const BYPASS_ROLES: &[&str] = &["super_admin", "hospital_admin"];
-
-/// Returns `true` if the user's role bypasses all permission/scope checks.
-pub fn is_bypass_role(claims: &Claims) -> bool {
-    BYPASS_ROLES.contains(&claims.role.as_str())
-}
+// Decided in the kernel. Re-exported because this module is the one handlers use
+// for every other scope check (department, ownership, board) and these return no
+// HTTP type, so there is nothing for a caller to gain by importing them elsewhere.
+pub use medbrains_kernel::authz::{BYPASS_ROLES, authz_context, is_bypass_role, outcome_of};
 
 /// Require the user to have a specific permission.
 /// `super_admin` and `hospital_admin` bypass all checks.
 pub fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
-    if is_bypass_role(claims) {
-        return Ok(());
-    }
-    if claims.permissions.iter().any(|p| p == perm) {
-        return Ok(());
-    }
-    Err(AppError::Forbidden)
+    Ok(medbrains_kernel::authz::require_permission(claims, perm)?)
 }
 
 /// Require the user to have at least one of the specified permissions.
 /// `super_admin` and `hospital_admin` bypass all checks.
 pub fn require_any_permission(claims: &Claims, perms: &[&str]) -> Result<(), AppError> {
-    if is_bypass_role(claims) {
-        return Ok(());
-    }
-    if perms
-        .iter()
-        .any(|perm| claims.permissions.iter().any(|p| p == perm))
-    {
-        return Ok(());
-    }
-    Err(AppError::Forbidden)
+    Ok(medbrains_kernel::authz::require_any_permission(
+        claims, perms,
+    )?)
 }
 
 /// Whether these claims may read a wall board's live contents.
@@ -110,26 +93,6 @@ pub fn require_ownership(
     Err(AppError::Forbidden)
 }
 
-/// Build a `medbrains-authz::AuthzContext` from JWT claims.
-///
-/// Bridge from request-time identity (Claims) to the resource-scoped
-/// permission resolver (`state.authz.check(...)`). Bypass roles are
-/// flagged so the SpiceDB backend short-circuits without a network
-/// round-trip.
-///
-/// Group memberships are NOT loaded here — the resolver looks them up
-/// from `access_group_members` so JWTs stay small. If hot-path latency
-/// ever demands it, add a `groups` Vec to Claims + populate at login.
-pub fn authz_context(claims: &Claims) -> AuthzContext {
-    AuthzContext {
-        tenant_id: claims.tenant_id,
-        user_id: claims.sub,
-        role: claims.role.clone(),
-        department_ids: claims.department_ids.clone(),
-        is_bypass: is_bypass_role(claims),
-    }
-}
-
 /// Check if user owns a resource (non-error version).
 ///
 /// Returns `true` for bypass roles, or if `created_by` / `assigned_id`
@@ -196,79 +159,11 @@ mod tests {
     }
 }
 
-/// Turn a backend answer into a three-valued outcome.
-///
-/// The reason this is not `.unwrap_or(false)`: a refusal and an outage are
-/// different facts, and the endpoints here answer a denial with `NotFound` so
-/// as not to be an existence oracle. Collapse the two and a SpiceDB outage
-/// tells a clinician at the bedside that the encounter **does not exist** —
-/// not that the system is unwell. Failing closed is right; failing closed
-/// while lying about why is not.
-///
-/// Not every `Err` is an outage, and treating them alike is its own bug.
-/// `AuthzError` carries both *decisions* and *failures*:
-///
-/// - `Forbidden` / `CaveatFailed` are answers. The engine evaluated the
-///   question and the answer was no. These are `Deny`.
-/// - `UnknownObjectType` / `InvalidRelation` / `ExpansionDepthExceeded` are
-///   our own bugs — a registry gap or a runaway rewrite. They deny, but a 503
-///   would send an operator to check infrastructure that is perfectly healthy,
-///   and no amount of retrying fixes a missing registry entry.
-/// - `Backend` / `Other` are the genuine "could not ask" cases. Only these are
-///   `Unknown`, because only these are worth retrying.
-///
-/// The error is logged here because this is the only place that still holds
-/// it. Above this line it is an `Outcome` and the cause is gone.
-pub fn outcome_of(result: Result<bool, medbrains_authz::AuthzError>, what: &str) -> Outcome {
-    use medbrains_authz::AuthzError as E;
-    match result {
-        Ok(true) => Outcome::Allow,
-        Ok(false) => Outcome::Deny,
-        Err(err @ (E::Forbidden { .. } | E::CaveatFailed(_))) => {
-            tracing::debug!(target: "authz", error = %err, check = what, "access refused");
-            Outcome::Deny
-        }
-        Err(
-            err @ (E::UnknownObjectType(_)
-            | E::InvalidRelation { .. }
-            | E::ExpansionDepthExceeded(_)),
-        ) => {
-            tracing::error!(target: "authz", error = %err, check = what,
-                "authorization misconfigured — denying; retrying will not help");
-            Outcome::Deny
-        }
-        Err(err @ E::AccessSetTooLarge { .. }) => {
-            // Unknown, emphatically not Deny. The subject almost certainly can
-            // see these records — there are simply too many to enumerate — so
-            // denying would hand a clinician an empty list of patients they
-            // are entitled to. Unlike the cases above, retrying will not help
-            // either: this needs a narrower query, which is a code change.
-            tracing::error!(target: "authz", error = %err, check = what,
-                "access set too large to enumerate — refusing as 503, not as absent");
-            Outcome::Unknown
-        }
-        Err(err @ (E::Backend(_) | E::Other(_))) => {
-            tracing::error!(target: "authz", error = %err, check = what,
-                "authorization backend unavailable — refusing as 503, not as absent");
-            Outcome::Unknown
-        }
-    }
-}
-
-/// Collapse at the boundary, and only at the boundary.
-///
-/// `Deny` becomes `NotFound` deliberately (not `Forbidden`) so the endpoint
-/// does not confirm that a record exists to someone who may not see it.
-/// `Unknown` becomes 503, which is the whole point: retryable, alertable, and
-/// distinguishable from "there is no such patient".
+/// Collapse at the boundary, and only at the boundary: `Deny` answers 404 so as
+/// not to confirm a record exists, `Unknown` answers 503 so an outage never reads
+/// as "there is no such patient". The decision is `medbrains_kernel::authz::collapse`.
 pub fn collapse(outcome: Outcome) -> Result<(), AppError> {
-    match outcome {
-        Outcome::Allow => Ok(()),
-        Outcome::Deny => Err(AppError::NotFound),
-        Outcome::Unknown => Err(AppError::ServiceUnavailable(
-            "authorization backend unavailable".to_owned(),
-        )),
-    }
+    Ok(medbrains_kernel::authz::collapse(outcome)?)
 }
 
 #[cfg(test)]

@@ -31,7 +31,9 @@ export function WaitingRoom() {
                 size="sm"
               >
                 {w.acuity}
-                {w.red_flags && w.red_flags.length > 0 ? ` · ${w.red_flags.length}🚩` : ""}
+                {w.red_flags && w.red_flags.length > 0
+                  ? ` · ${w.red_flags.length} red ${w.red_flags.length === 1 ? "flag" : "flags"}`
+                  : ""}
               </Badge>
             )}
             <Text size="sm">{w.patient_name ?? "Patient"}</Text>

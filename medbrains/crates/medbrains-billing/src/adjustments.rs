@@ -443,6 +443,7 @@ pub async fn create_credit_note(
     Ok(Json(filter_credit_note_amounts(note, &restricted_fields)))
 }
 
+/// Apply a credit note to a bill, taking the audit chain before the bill's row.
 pub async fn apply_credit_note(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -483,6 +484,7 @@ pub async fn apply_credit_note(
     .await?
     .ok_or_else(|| AppError::BadRequest("Credit note source invoice not found".to_owned()))?;
 
+    medbrains_db::pool::take_audit_chain_first(&mut tx, &claims.tenant_id).await?;
     let target_invoice = sqlx::query_as::<_, (Uuid, InvoiceStatus, Decimal, Decimal)>(
         "SELECT patient_id, status, total_amount, paid_amount \
          FROM invoices \

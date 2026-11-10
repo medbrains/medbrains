@@ -269,16 +269,20 @@ async fn a_conversation_does_not_follow_the_clinician_to_another_patient() {
     let (second, _) = patient_with_critical_value(&app, tenant, admin, ("Arun", "Prakash")).await;
     // A keyless local provider, so the turn is refused before any model call.
     let previous: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings WHERE tenant_id = $1 AND category = 'ai' AND key = 'config'",
+        "SELECT value FROM tenant_settings \
+          WHERE tenant_id = $1 AND category = 'ai' AND key = 'config' AND deleted_at IS NULL",
     )
     .bind(tenant)
     .fetch_optional(&app.db)
     .await
     .expect("settings");
+    // Back to life if an earlier run's cleanup soft-deleted it: the guardrail
+    // turns the DELETE below into that, and a dead row reads as no config.
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'ai', 'config', '{\"provider\":\"ollama\"}') \
-         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+         ON CONFLICT (tenant_id, category, key) DO UPDATE \
+         SET value = EXCLUDED.value, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
     )
     .bind(tenant)
     .execute(&app.db)

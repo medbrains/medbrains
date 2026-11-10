@@ -41,6 +41,7 @@ import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { patientsService } from "@/services/patients.service";
+import { RegisterMatches } from "./patients/register-matches";
 import { PatientRegisterPageInner } from "./patients/register-page-inner";
 import classes from "./patients.module.scss";
 
@@ -79,10 +80,7 @@ function buildFullName(patient: Patient): string {
 function formatMoney(value: number | string | null | undefined): string {
   const parsed = Number(value ?? 0);
   const amount = Number.isFinite(parsed) ? parsed : 0;
-  return amount.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function genderIcon(gender: string) {
@@ -367,7 +365,7 @@ function PatientsPageInner() {
       <Card withBorder className={classes.directoryCommandBar}>
         <Group justify="space-between" align="flex-end" gap="md">
           <Stack gap={2}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               {t("directory.commandTitle")}
             </Text>
             <Group gap="xs">
@@ -384,6 +382,7 @@ function PatientsPageInner() {
             <TextInput
               placeholder={t("placeholder.searchByUhid,Name,OrPhone...")}
               leftSection={<IconSearch size={16} />}
+              aria-label={t("directory.searchLabel")}
               value={search}
               onChange={(e) => handleSearchChange(e.currentTarget.value)}
               size="sm"
@@ -434,6 +433,7 @@ function PatientsPageInner() {
         virtualRowHeight={72}
         tableMaxHeight="calc(100vh - 360px)"
       />
+      <RegisterMatches search={debouncedSearch} shown={data?.patients} />
     </Stack>
   );
 }

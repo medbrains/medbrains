@@ -31,7 +31,7 @@ export function ErrorScreen({
         <ThemeIcon tone={tone} variant="light" size={56} aria-hidden="true">
           {icon}
         </ThemeIcon>
-        <Text size="xs" ff="monospace" tt="uppercase" c="dimmed" fw={600}>
+        <Text size="xs" ff="monospace" c="dimmed" fw={600}>
           {eyebrow}
         </Text>
         <Title order={1} size="h2">

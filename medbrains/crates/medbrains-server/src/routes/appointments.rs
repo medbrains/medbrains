@@ -20,6 +20,55 @@ pub use schedules::{
     create_exception, create_schedule, delete_exception, delete_schedule, get_available_slots,
     list_exceptions, list_schedules, update_schedule,
 };
+/// Doctor schedules, slots and booked appointments: the OPD app's own routes, put behind the
+/// `opd` brick switch. The kiosk, public booking and reminder routes are mounted elsewhere.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{delete, get, put};
+    axum::Router::new()
+        .route(
+            "/api/opd/schedules",
+            get(list_schedules).post(create_schedule),
+        )
+        .route(
+            "/api/opd/schedules/{id}",
+            put(update_schedule).delete(delete_schedule),
+        )
+        .route(
+            "/api/opd/schedule-exceptions",
+            get(list_exceptions).post(create_exception),
+        )
+        .route(
+            "/api/opd/schedule-exceptions/{id}",
+            delete(delete_exception),
+        )
+        .route(
+            "/api/opd/doctors/{doctor_id}/slots",
+            get(get_available_slots),
+        )
+        .route(
+            "/api/opd/appointments",
+            get(list_appointments).post(book_appointment),
+        )
+        .route("/api/opd/appointments/{id}", get(get_appointment))
+        .route(
+            "/api/opd/appointments/{id}/reschedule",
+            put(reschedule_appointment),
+        )
+        .route("/api/opd/appointments/{id}/cancel", put(cancel_appointment))
+        .route(
+            "/api/opd/appointments/{id}/check-in",
+            put(check_in_appointment),
+        )
+        .route(
+            "/api/opd/appointments/{id}/complete",
+            put(complete_appointment),
+        )
+        .route(
+            "/api/opd/appointments/{id}/no-show",
+            put(mark_appointment_no_show),
+        )
+}
+
 pub use types::{
     AppointmentWithPatient, BookAppointmentRequest, CancelRequest, CreateExceptionRequest,
     CreateScheduleRequest, KioskCheckinRequest, KioskCheckinResponse, ListAppointmentsQuery,

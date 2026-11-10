@@ -10,14 +10,10 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
-use medbrains_server_core::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{is_bypass_role, require_permission},
-    },
-    state::AppState,
-};
+use medbrains_kernel::authz::is_bypass_role;
+use medbrains_kernel::{Actor, Claims, require_permission};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::state::AppState;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -62,7 +58,7 @@ const CLOSE_SELECT: &str = "\
      WHERE c.tenant_id = $1 AND c.deleted_at IS NULL";
 
 async fn close_row(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut medbrains_kernel::Tx,
     tenant_id: Uuid,
     location: Uuid,
     date: NaiveDate,
@@ -85,7 +81,7 @@ fn holds(claims: &Claims, permission: &str) -> bool {
 
 /// Why this caller cannot close this day now, if they cannot.
 async fn close_refusal(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut medbrains_kernel::Tx,
     claims: &Claims,
     report: &ZReport,
     close: Option<&DayCloseRow>,
@@ -95,14 +91,14 @@ async fn close_refusal(
         .fetch_one(&mut **tx)
         .await?;
     let worked_it = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS (SELECT 1 FROM pharmacy_cash_drawers WHERE tenant_id = $1 \
+        "SELECT EXISTS (SELECT 1 FROM pharmacy_cash_drawers WHERE tenant_id = $1 \
                AND pharmacy_location_id = $2 AND business_date = $3 \
                AND cashier_user_id = $4 AND deleted_at IS NULL)",
-        )
-        .bind(claims.tenant_id)
-        .bind(report.pharmacy_location_id)
-        .bind(report.business_date)
-        .bind(claims.sub)
+    )
+    .bind(claims.tenant_id)
+    .bind(report.pharmacy_location_id)
+    .bind(report.business_date)
+    .bind(claims.sub)
     .fetch_one(&mut **tx)
     .await?;
     Ok(if close.is_some_and(|c| c.status == "closed") {
@@ -119,7 +115,10 @@ async fn close_refusal(
     } else if !holds(claims, permissions::pharmacy::day_close::CLOSE) {
         Some("Your role cannot close a counter day".to_owned())
     } else if !worked_it && !holds(claims, permissions::pharmacy::day_close::REOPEN) {
-        Some("Only a cashier who worked this counter that day, or a supervisor, can close it".to_owned())
+        Some(
+            "Only a cashier who worked this counter that day, or a supervisor, can close it"
+                .to_owned(),
+        )
     } else {
         None
     })
@@ -146,11 +145,21 @@ pub async fn get_day_report(
     Query(q): Query<DayQuery>,
 ) -> Result<Json<DayReport>, AppError> {
     require_permission(&claims, permissions::pharmacy::day_close::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let report =
-        z_report_in_tx(&mut tx, claims.tenant_id, q.pharmacy_location_id, q.business_date).await?;
-    let close = close_row(&mut tx, claims.tenant_id, q.pharmacy_location_id, q.business_date).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
+    let report = z_report_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        q.pharmacy_location_id,
+        q.business_date,
+    )
+    .await?;
+    let close = close_row(
+        &mut tx,
+        claims.tenant_id,
+        q.pharmacy_location_id,
+        q.business_date,
+    )
+    .await?;
     let close_refusal = close_refusal(&mut tx, &claims, &report, close.as_ref()).await?;
     tx.commit().await?;
     Ok(Json(DayReport {
@@ -176,14 +185,23 @@ pub struct CounterDay {
     pub closed_at: Option<DateTime<Utc>>,
 }
 
-/// `GET /api/pharmacy/day-close` — the last month's counter days, newest first.
+/// `?q=`: part of the counter's name.
+#[derive(Debug, Deserialize)]
+pub struct CounterDayQuery {
+    pub q: Option<String>,
+}
+
+/// `GET /api/pharmacy/day-close` — the last month's counter days, newest
+/// first, at most `LIST_LIMIT`; `?q=` narrows to counters whose name contains
+/// it, so a counter past the cap can still be found.
 pub async fn list_counter_days(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<CounterDayQuery>,
 ) -> Result<Json<Vec<CounterDay>>, AppError> {
     require_permission(&claims, permissions::pharmacy::day_close::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let name = medbrains_server_core::search::contains_pattern(query.q.as_deref());
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as::<_, CounterDay>(
         "SELECT d.pharmacy_location_id, sl.name AS location_name, d.business_date, \
                 COUNT(*) AS drawers, COUNT(*) FILTER (WHERE d.status = 'open') AS open_drawers, \
@@ -198,6 +216,7 @@ pub async fn list_counter_days(
            LEFT JOIN users cu ON cu.id = c.closed_by \
           WHERE d.tenant_id = $1 AND d.deleted_at IS NULL \
             AND d.business_date >= tenant_local_date($1, now()) - $2::int \
+            AND ($4::text IS NULL OR sl.name ILIKE $4) \
           GROUP BY d.pharmacy_location_id, sl.name, d.business_date, c.id, c.status, \
                    c.variance, cu.full_name, c.closed_at \
           ORDER BY d.business_date DESC, sl.name LIMIT $3",
@@ -205,6 +224,7 @@ pub async fn list_counter_days(
     .bind(claims.tenant_id)
     .bind(LIST_DAYS)
     .bind(LIST_LIMIT)
+    .bind(name)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -232,8 +252,7 @@ pub async fn close_day(
     let counted = day_close_rules::counted_total(&body.denominations)?;
     day_close_rules::check_float(body.float_carried_forward, counted)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     // Lock the day's drawers: none opens, closes or moves while it is counted.
     sqlx::query(
         "SELECT id FROM pharmacy_cash_drawers WHERE tenant_id = $1 \
@@ -245,16 +264,26 @@ pub async fn close_day(
     .bind(body.business_date)
     .execute(&mut *tx)
     .await?;
-    let report =
-        z_report_in_tx(&mut tx, claims.tenant_id, body.pharmacy_location_id, body.business_date)
-            .await?;
-    let existing =
-        close_row(&mut tx, claims.tenant_id, body.pharmacy_location_id, body.business_date).await?;
+    let report = z_report_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        body.pharmacy_location_id,
+        body.business_date,
+    )
+    .await?;
+    let existing = close_row(
+        &mut tx,
+        claims.tenant_id,
+        body.pharmacy_location_id,
+        body.business_date,
+    )
+    .await?;
     if let Some(refusal) = close_refusal(&mut tx, &claims, &report, existing.as_ref()).await? {
         return Err(AppError::Conflict(refusal));
     }
     let expected = report.summary.expected_cash;
-    let reason = day_close_rules::variance_reason(counted - expected, body.variance_reason.as_deref())?;
+    let reason =
+        day_close_rules::variance_reason(counted - expected, body.variance_reason.as_deref())?;
     let totals = serde_json::to_value(&report)
         .map_err(|e| AppError::Internal(format!("day-close totals: {e}")))?;
     let denominations = serde_json::to_value(&body.denominations)
@@ -301,9 +330,14 @@ pub async fn close_day(
     .bind(id)
     .execute(&mut *tx)
     .await?;
-    let row = close_row(&mut tx, claims.tenant_id, body.pharmacy_location_id, body.business_date)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let row = close_row(
+        &mut tx,
+        claims.tenant_id,
+        body.pharmacy_location_id,
+        body.business_date,
+    )
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -323,10 +357,11 @@ pub async fn reopen_day(
     require_permission(&claims, permissions::pharmacy::day_close::REOPEN)?;
     let reason = body.reason.trim();
     if reason.chars().count() < REASON_MIN_CHARS {
-        return Err(AppError::BadRequest("Say why the day is being reopened".to_owned()));
+        return Err(AppError::BadRequest(
+            "Say why the day is being reopened".to_owned(),
+        ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let reopened: Option<(Uuid, NaiveDate)> = sqlx::query_as(
         "UPDATE pharmacy_day_closes SET status = 'reopened', reopened_by = $3, \
                 reopened_at = now(), reopen_reason = $4 \
@@ -339,8 +374,8 @@ pub async fn reopen_day(
     .bind(reason)
     .fetch_optional(&mut *tx)
     .await?;
-    let (location, date) =
-        reopened.ok_or_else(|| AppError::Conflict("Only a closed day can be reopened".to_owned()))?;
+    let (location, date) = reopened
+        .ok_or_else(|| AppError::Conflict("Only a closed day can be reopened".to_owned()))?;
     let row = close_row(&mut tx, claims.tenant_id, location, date)
         .await?
         .ok_or(AppError::NotFound)?;

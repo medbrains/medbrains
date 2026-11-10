@@ -56,9 +56,6 @@ async fn a_doctor_created_as_a_user_is_on_the_doctors_page() {
     assert_eq!(doctors[0]["user_id"], ids[0].to_string());
     assert_eq!(doctors[0]["display_name"], format!("Doctor {suffix}"));
     assert_eq!(doctors[0]["subspecialty"], "Cardiology");
-    assert!(
-        doctors[0]["mci_number"].is_null(),
-        "registration left for the admin"
-    );
+    assert!(doctors[0]["mci_number"].is_null(), "registration left for the admin");
     assert_eq!(doctors[0]["is_active"], true);
 }

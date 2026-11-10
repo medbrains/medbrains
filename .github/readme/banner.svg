@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="t d">
+  <title id="t">MedBrains</title>
+  <desc id="d">Free hospital software, made with love for patients, hospitals and well-made software.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F62FE"/>
+      <stop offset="0.55" stop-color="#8A3FFC"/>
+      <stop offset="1" stop-color="#EE5396"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3DDBD9" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#3DDBD9"/>
+      <stop offset="1" stop-color="#3DDBD9" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="380" rx="24" fill="url(#bg)"/>
+  <polyline points="0,288 520,288 545,288 562,270 580,308 600,256 618,288 680,288 1200,288"
+            fill="none" stroke="url(#pulse)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  <g font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" fill="#FFFFFF" text-anchor="middle">
+    <text x="600" y="120" font-size="78" font-weight="700" letter-spacing="1">MedBrains</text>
+    <text x="600" y="178" font-size="30" font-weight="500">Software that runs a whole hospital. Free, forever.</text>
+    <text x="600" y="228" font-size="22" opacity="0.92">Every patient deserves safe care. Every hospital deserves the tools to give it.</text>
+    <text x="600" y="350" font-size="20" opacity="0.95">Made with ♥ for patients, for hospitals, and for well-made software</text>
+  </g>
+</svg>

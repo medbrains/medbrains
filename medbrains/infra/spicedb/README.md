@@ -61,7 +61,7 @@ schema change is a coordinated rollout — never a one-sided edit.
 
 ## Related code
 
-- Cloud: `crates/medbrains-authz/src/backend_spicedb.rs`
+- Cloud: `crates/medbrains-authz-spicedb/src/backend_spicedb.rs`
 - Edge: `crates/medbrains-edge/src/authz_cache.rs`
 - Wire: `crates/medbrains-server/src/services/spicedb_watch.rs`
 - Module: `infra/terraform/modules/spicedb/`

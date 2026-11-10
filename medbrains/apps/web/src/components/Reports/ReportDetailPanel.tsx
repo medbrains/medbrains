@@ -121,7 +121,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
       </Stack>
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
-        <Card withBorder radius="md" padding="md">
+        <Card withBorder padding="md">
           <Stack gap="xs">
             <Text fw={800}>Summary report version</Text>
             <Text size="sm" c="dimmed">
@@ -135,7 +135,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
           </Stack>
         </Card>
 
-        <Card withBorder radius="md" padding="md">
+        <Card withBorder padding="md">
           <Stack gap="xs">
             <Text fw={800}>Data version</Text>
             <Text size="sm">Backend source: {report.dataSource}</Text>
@@ -151,7 +151,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
       </SimpleGrid>
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
-        <Card withBorder radius="md" padding="md">
+        <Card withBorder padding="md">
           <Stack gap="xs">
             <Text fw={800}>Prediction and anticipation</Text>
             {insights.predictions.map((item) => (
@@ -167,7 +167,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
           </Stack>
         </Card>
 
-        <Card withBorder radius="md" padding="md">
+        <Card withBorder padding="md">
           <Stack gap="xs">
             <Text fw={800}>Management interpretation</Text>
             {insights.detailNotes.map((item) => (
@@ -181,7 +181,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
 
       <SimpleGrid cols={{ base: 1, md: 3 }}>
         <Stack gap={6}>
-          <Text size="xs" fw={800} c="blue" tt="uppercase">
+          <Text size="xs" fw={800} c="blue">
             Data contract
           </Text>
           {report.sourceEvents.length > 0 && (
@@ -200,7 +200,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
           ))}
         </Stack>
         <Stack gap={6}>
-          <Text size="xs" fw={800} c="red" tt="uppercase">
+          <Text size="xs" fw={800} c="red">
             Validation and safety
           </Text>
           {validationChecks(report).map((item) => (
@@ -210,7 +210,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
           ))}
         </Stack>
         <Stack gap={6}>
-          <Text size="xs" fw={800} c="green" tt="uppercase">
+          <Text size="xs" fw={800} c="green">
             Management actions
           </Text>
           {insights.actions.map((action) => (
@@ -221,7 +221,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
         </Stack>
       </SimpleGrid>
 
-      <Card withBorder radius="md" padding="md">
+      <Card withBorder padding="md">
         <Stack gap="xs">
           <Text fw={800}>AI interactions later</Text>
           {insights.aiInteractions.map((item) => (
@@ -236,7 +236,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Stack gap={6}>
-          <Text size="xs" fw={800} c="red" tt="uppercase">
+          <Text size="xs" fw={800} c="red">
             Red flags
           </Text>
           {insights.redFlags.map((flag) => (
@@ -246,7 +246,7 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
           ))}
         </Stack>
         <Stack gap={6}>
-          <Text size="xs" fw={800} c="green" tt="uppercase">
+          <Text size="xs" fw={800} c="green">
             Good data signals
           </Text>
           {insights.appreciation.map((flag) => (

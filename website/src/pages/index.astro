@@ -6,6 +6,7 @@ import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
 import Hero from "../components/Hero.astro";
 import Intelligence from "../components/Intelligence.astro";
+import Mission from "../components/Mission.astro";
 import Proof from "../components/Proof.astro";
 import Rail from "../components/Rail.astro";
 import Statement from "../components/Statement.astro";
@@ -27,7 +28,7 @@ const schema = [
     logo: new URL("/apple-touch-icon.png", Astro.site).href,
     email: SITE.email,
     address: { "@type": "PostalAddress", addressLocality: "Karaikudi", addressRegion: "Tamil Nadu", addressCountry: "IN" },
-    contactPoint: { "@type": "ContactPoint", telephone: `+${WHATSAPP.number}`, contactType: "sales", areaServed: "IN", availableLanguage: ["en", "ta"] },
+    contactPoint: { "@type": "ContactPoint", telephone: `+${WHATSAPP.number}`, contactType: "sales", availableLanguage: ["en", "ta"] },
     sameAs: SAME_AS,
   },
   { "@type": "WebSite", "@id": `${home}#site`, name: SITE.brand, url: home, inLanguage: "en-IN", publisher: org },
@@ -38,7 +39,7 @@ const schema = [
     applicationSubCategory: "Hospital management software",
     operatingSystem: "Web, iOS, Android",
     url: home,
-    description: "OPD, IPD, lab, pharmacy, billing and native staff and patient apps for Indian hospitals and clinics.",
+    description: "OPD, IPD, lab, pharmacy, billing and native staff and patient apps for hospitals and clinics.",
     featureList: MODULE_GROUPS.flatMap((g) => g.items),
     provider: org,
   },
@@ -50,14 +51,15 @@ const schema = [
 ---
 
 <Base
-  title={`Hospital Management Software India: HMS & HIMS | ${SITE.brand}`}
-  description="Hospital management software for India: OPD, IPD, lab, pharmacy, GST billing and patient apps on one record. An NABH-aligned HMS built for ABDM."
+  title={`Free Hospital Management Software: HMS & HIMS | ${SITE.brand}`}
+  description="Free, open-source hospital management software: OPD, IPD, lab, pharmacy, GST billing and patient apps on one record. An NABH-aligned HMS built for ABDM."
   schema={schema}
 >
   <Header />
   <main id="main">
     <Hero />
     <Proof />
+    <Mission />
     <Statement text="One patient. One record. Every department. Nothing typed twice." accent={["record.", "twice."]} />
     <Story />
     <Rail />

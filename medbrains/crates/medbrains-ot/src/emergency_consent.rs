@@ -12,7 +12,6 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum_extra::extract::CookieJar;
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
@@ -93,14 +92,14 @@ fn booking_refusal(b: &BookingState) -> Option<&'static str> {
 pub async fn certify_emergency_consent(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Path(booking_id): Path<Uuid>,
     Json(body): Json<CertifyEmergencyConsentRequest>,
 ) -> Result<Json<OtBookingConsents>, AppError> {
     require_permission(&claims, permissions::ot::consent::EMERGENCY_OVERRIDE)?;
     guard_booking(&state, &claims, booking_id).await?;
     // The doctor proves it is them now, not whoever left a session open.
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

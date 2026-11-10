@@ -1,6 +1,6 @@
 ---
 title: "Dengue at home: warning signs, platelet myths and when to go to hospital"
-description: "Dengue in India: the warning signs to watch for as the fever falls, why the platelet count and papaya leaf mislead, and when to go to hospital."
+description: "Dengue: the warning signs to watch for as the fever falls, why the platelet count and papaya leaf mislead, and when to go to hospital."
 summary: "Most people with dengue recover at home with rest, fluids and paracetamol. The risky time is the day or two after the fever falls: go to hospital at once for belly pain, repeated vomiting, bleeding, drowsiness, fast breathing or cold, clammy skin, whatever the platelet count says."
 date: 2026-10-24
 category: patient-education
@@ -9,15 +9,15 @@ featured: false
 tags: ["Dengue", "Fever", "Mosquito-borne disease", "Platelets", "Public health", "Monsoon"]
 faq:
   - q: "At what platelet count should a dengue patient be admitted?"
-    a: "There is no single number. India's national dengue guideline says platelet counts are unreliable for predicting bleeding, and doctors decide on admission from warning signs, blood pressure, hydration, the haematocrit trend and risk factors such as pregnancy, infancy, old age or diabetes. A falling count is a reason to stay in close touch with your doctor, not a reason to panic or demand a transfusion."
+    a: "There is no single number. The national dengue guideline (NCVBDC) says platelet counts are unreliable for predicting bleeding, and doctors decide on admission from warning signs, blood pressure, hydration, the haematocrit trend and risk factors such as pregnancy, infancy, old age or diabetes. A falling count is a reason to stay in close touch with your doctor, not a reason to panic or demand a transfusion."
   - q: "Does papaya leaf juice cure dengue?"
     a: "No. A 2019 systematic review of nine small trials found platelet counts rose a little faster with papaya extract, but the evidence was low quality and none of the trials looked at shock, serious bleeding or death. The authors concluded that routine use cannot be recommended. Raw leaf juice can also bring on vomiting, which makes it harder to keep fluids down."
   - q: "Can I take ibuprofen or aspirin for dengue fever?"
     a: "No. WHO strongly recommends against anti-inflammatory painkillers such as ibuprofen, diclofenac, naproxen and aspirin in suspected dengue, because they raise the risk of bleeding. Use paracetamol at the dose your doctor or the label gives, and never more than 4 g a day for an adult."
   - q: "Which dengue test should I get, and when?"
-    a: "India's national guideline matches the test to the day of fever: the NS1 antigen test for samples taken on days 1 to 5, and the IgM antibody test after day 5. A negative NS1 late in the illness does not rule dengue out. Your doctor will usually also order a complete blood count, and may test for malaria."
-  - q: "Is there a dengue vaccine in India?"
-    a: "India's drugs regulator approved Takeda's Qdenga in July 2026 for people aged 4 to 60, given as two doses three months apart, but its launch date and price had not been announced. India's own vaccine, DengiAll, is still in a phase 3 trial. Neither changes what to do if you have dengue now."
+    a: "The national guideline (NCVBDC) matches the test to the day of fever: the NS1 antigen test for samples taken on days 1 to 5, and the IgM antibody test after day 5. A negative NS1 late in the illness does not rule dengue out. Your doctor will usually also order a complete blood count, and may test for malaria."
+  - q: "Is there a dengue vaccine?"
+    a: "The drugs regulator CDSCO approved Takeda's Qdenga in July 2026 for people aged 4 to 60, given as two doses three months apart, but its launch date and price had not been announced. DengiAll, a vaccine developed with ICMR, is still in a phase 3 trial. Neither changes what to do if you have dengue now."
 sources:
   - title: "World Health Organization. Dengue and severe dengue, fact sheet (21 August 2025)"
     url: "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue"
@@ -154,7 +154,7 @@ guideline and WHO's 2025 clinical guideline agree on the basics.
   and severe illness.
 - **Antibiotics.** Dengue is a virus. Antibiotics do nothing for it, may
   cause side effects and add to antibiotic resistance. Our guide to
-  [antimicrobial resistance in India](/blog/antimicrobial-resistance-india)
+  [antimicrobial resistance](/blog/antimicrobial-resistance-india)
   explains why that matters.
 - **Rest is not optional.** Bed rest is part of the national guideline's
   home-care advice. Do not go back to work, school or the gym the day the
@@ -162,11 +162,11 @@ guideline and WHO's 2025 clinical guideline agree on the basics.
 
 ## The platelet trap
 
-Almost every Indian family with a dengue patient ends up staring at the
+Almost every family with a dengue patient ends up staring at the
 platelet count. It falls, everyone panics, and someone starts calling blood
 banks. Here is what the evidence actually says.
 
-**The number does not predict bleeding well.** India's national guideline
+**The number does not predict bleeding well.** The national guideline
 states plainly that platelet counts are unreliable for predicting bleeding.
 What makes dengue dangerous is mostly fluid leaking out of the blood vessels,
 which a platelet count does not measure. That is why doctors also watch the
@@ -239,7 +239,7 @@ until dengue has been ruled out.
 
 **Go to hospital the same day, without waiting for the next blood test, if
 the person with dengue has any of these.** They are the warning signs listed
-by WHO and India's national guideline, and they often appear as the fever
+by WHO and the national guideline, and they often appear as the fever
 comes down:
 
 - **severe pain in the abdomen,** especially on the upper right side, or
@@ -272,7 +272,7 @@ fingertip. The aim of watching at home is to get the patient there in time.
 
 The *Aedes* mosquito breeds in clean, still water close to where people
 live. It bites mainly in the daytime, so a bed net at night is only part of
-the answer. CDC's advice translates easily to Indian homes:
+the answer. CDC's advice is easy to follow at home:
 
 - **Once a week, empty, scrub, cover or throw out anything holding water:**
   desert coolers, flower-pot saucers, buckets, drums, old tyres, the tray
@@ -296,14 +296,14 @@ explains how hotter, wetter seasons give mosquitoes more chances to breed.
 
 ## What about a vaccine?
 
-There is news here. India's drugs regulator approved Takeda's dengue vaccine,
+There is news here. The drugs regulator CDSCO approved Takeda's dengue vaccine,
 Qdenga, in July 2026, for people aged 4 to 60. It is given as two injections
 three months apart, and the company must run a safety and effectiveness
 study in India after launch. At the time of approval, its launch date, price
 and any use in government programmes had not been announced. WHO currently
 recommends Qdenga for children aged 6 to 16 in places with high transmission.
 
-India's own vaccine, DengiAll, developed by Panacea Biotec with ICMR, began a
+DengiAll, a vaccine developed by Panacea Biotec with ICMR, began a
 phase 3 trial in August 2024 with more than 10,335 adults at 19 sites in 18
 states and union territories. Ask your doctor whether a vaccine makes sense
 for your family once it is available. In the meantime, no vaccine changes

@@ -346,10 +346,10 @@ pub async fn make_payment_link(app: &common::TestApp, setup: &Setup, txn: Uuid) 
         event_type: handler.event_type().to_owned(),
         actor_user_id: None,
         attempts: 0,
-        secret_resolver: Arc::new(
-            common::TestSecrets::default()
-                .with(medbrains_payment_gateway::razorpay::API_BASE_OVERRIDE, base),
-        ),
+        secret_resolver: Arc::new(common::TestSecrets::default().with(
+            medbrains_payment_gateway::razorpay::API_BASE_OVERRIDE,
+            base,
+        )),
         http_client: reqwest::Client::new(),
         object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
             std::env::temp_dir().join("medbrains-test-docs"),

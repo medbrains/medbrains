@@ -1,0 +1,45 @@
+// Layout and motion only; colour comes from theme tokens on the elements.
+.canvas {
+  width: 100%;
+}
+
+// A junction is a diamond on the line.
+.diamond {
+  transform: rotate(45deg) scale(0.85);
+}
+
+// A route change fades the changed lines in (productive motion, under 240ms).
+.canvas :global(.react-flow__edge-path) {
+  animation: draw var(--mb-duration-medium) var(--mb-easing-standard);
+}
+
+@keyframes draw {
+  from {
+    stroke-opacity: 0;
+  }
+  to {
+    stroke-opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas :global(.react-flow__edge-path) {
+    animation: none;
+  }
+}
+
+.handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+// The builder's "+" sits in the gap after a station, on the line.
+.insert {
+  position: absolute;
+  top: 0;
+  right: calc(-1 * var(--mantine-spacing-md));
+}
+
+.stationName {
+  border-radius: 2px;
+}

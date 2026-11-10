@@ -44,7 +44,7 @@ export function OutcomesTab() {
     <Stack gap="md">
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Total Active Enrollments
           </Text>
           <Text fw={700} size="xl">
@@ -52,7 +52,7 @@ export function OutcomesTab() {
           </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Programs with Enrollments
           </Text>
           <Text fw={700} size="xl">
@@ -60,7 +60,7 @@ export function OutcomesTab() {
           </Text>
         </Card>
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Breakdown by Type
           </Text>
           <Stack gap={4} mt="xs">
@@ -104,7 +104,7 @@ function OutcomeDetailCards({ dashboard }: { dashboard: OutcomeDashboardResponse
     <Stack gap="md">
       {dashboard.adherence_rate !== null && (
         <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" tt="uppercase">
+          <Text size="xs" c="dimmed">
             Overall Adherence
           </Text>
           <Progress

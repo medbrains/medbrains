@@ -28,20 +28,13 @@ async fn a_reminder_set_for_a_patient_is_listed() {
         .client
         .post(app.url("/api/opd/reminders"))
         .header("x-csrf-token", &csrf)
-        .json(
-            &json!({ "patient_id": patient, "reminder_type": "follow_up",
-                       "reminder_date": "2026-12-01", "title": "Review HbA1c" }),
-        )
+        .json(&json!({ "patient_id": patient, "reminder_type": "follow_up",
+                       "reminder_date": "2026-12-01", "title": "Review HbA1c" }))
         .send()
         .await
         .expect("create");
     let status = created.status();
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "{}",
-        created.text().await.unwrap_or_default()
-    );
+    assert_eq!(status, StatusCode::OK, "{}", created.text().await.unwrap_or_default());
 
     for query in [format!("?patient_id={patient}"), String::new()] {
         let resp = app

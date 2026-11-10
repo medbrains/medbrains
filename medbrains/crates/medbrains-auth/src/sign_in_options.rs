@@ -30,6 +30,8 @@ pub(crate) struct IdentityProvider {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct SignInOptions {
+    /// This install serves one hospital, so the page offers no way to change it.
+    pub(crate) single_hospital: bool,
     pub(crate) code: String,
     pub(crate) name: String,
     /// Username and password are accepted. When a hospital turns passwords
@@ -86,6 +88,7 @@ pub(crate) async fn sign_in_options(
     let password_off =
         disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
     Ok(Json(Some(SignInOptions {
+        single_hospital: crate::hospital::is_single_hospital(),
         code,
         name,
         password: !password_off,

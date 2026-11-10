@@ -17,11 +17,10 @@ async fn sample_rejections_count_orders_never_recollected() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid =
-        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-            .fetch_one(&app.db)
-            .await
-            .expect("a seeded tenant");
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
     let user_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE tenant_id = $1 LIMIT 1")
         .bind(tenant_id)
         .fetch_one(&app.db)

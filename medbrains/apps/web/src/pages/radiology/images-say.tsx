@@ -13,7 +13,7 @@ interface ImagesSayProps {
 function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (
     <Stack gap={0}>
-      <Text size="xs" c="dimmed" tt="uppercase">
+      <Text size="xs" c="dimmed">
         {label}
       </Text>
       <Text size="sm" ff={mono ? "monospace" : undefined}>

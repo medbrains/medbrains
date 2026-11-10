@@ -121,3 +121,6 @@ infra/.env.bak.*
 *.tsbuildinfo
 scripts/demo-seed/state.json
 scripts/demo-seed/extra_state.json
+
+# Local object store (generated documents: notes, wristbands, prescriptions). Never commit.
+data/objects/

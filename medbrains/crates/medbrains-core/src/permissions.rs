@@ -3,27 +3,8 @@
 //! Single source of truth for all permission codes, mirroring
 //! the frontend `P` object in `packages/types/src/permissions.ts`.
 //!
-//! TODO (next iteration): add a flat `PERMISSIONS: &[PermissionDef]`
-//! array alongside the hierarchical const modules so the access
-//! manifest can iterate them without macros. See
-//! `crates/medbrains-core/src/access/mod.rs` for the consolidated
-//! access table this should plug into.
-
-/// Permission count surfaced to the runtime manifest API. Hardcoded
-/// for now until the hierarchical `pub const` tree is consolidated
-/// into a flat array (see TODO above). Mirrors the count in
-/// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 848;
-
-/// Returns all known permission codes. Currently hardcoded — see
-/// TODO above. The CI check `make check-permissions-sync` (planned)
-/// will validate this against `packages/types/src/permissions.ts`.
-#[must_use]
-pub const fn all_codes() -> Vec<&'static str> {
-    // Placeholder — once the flat array lands this returns &[&str].
-    // For now the manifest API just exposes the count.
-    Vec::new()
-}
+//! The flat list of every code, for questions such as "every code in module
+//! `opd`", is `crate::access::catalogue::all_codes`, read from this file.
 
 pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
@@ -74,6 +55,18 @@ pub mod patients {
     pub const CREATE: &str = "patients.create";
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
+
+    pub mod card {
+        /// Reprint any patient's card at the desk.
+        ///
+        /// A returning patient who lost the card is usually served by a
+        /// receptionist who did not register them, and `patients.view` reaches
+        /// only patients the caller has a relationship with. This reprints the
+        /// identity card for any patient in the hospital: name, UHID, age, sex,
+        /// phone and registration date, the same identity the desk lookup
+        /// already shows. Never the address, the email or the chart.
+        pub const REPRINT: &str = "patients.card.reprint";
+    }
 
     pub mod group_identity {
         /// See a patient's records at other group hospitals.
@@ -307,6 +300,17 @@ pub mod opd {
         pub const LIST: &str = "opd.schedule.list";
         pub const MANAGE: &str = "opd.schedule.manage";
     }
+
+    pub mod dictation {
+        /// Dictate a consultation note.
+        ///
+        /// Record or upload the doctor's own voice on an OPD visit they can
+        /// see. It is transcribed on the hospital's machine and drafted into
+        /// the consultation note for the doctor to accept, edit or reject
+        /// section by section; nothing is filed until they save, and
+        /// medicines still go through the prescription safety checks.
+        pub const USE: &str = "opd.dictation.use";
+    }
 }
 
 pub mod lab {
@@ -382,6 +386,13 @@ pub mod lab {
         /// guessed. This lets a technologist read them, attach them to the
         /// right order, or dismiss them with a reason.
         pub const ANALYSER_REVIEW: &str = "lab.results.analyser_review";
+        /// Record the critical-value phone call.
+        ///
+        /// NABL and NABH ask for the lab-to-clinician call to be documented:
+        /// who called, who took the call, when, how many attempts, and that
+        /// the value was read back. A technologist makes the call, so this is
+        /// separate from acknowledging, which the clinician does.
+        pub const CRITICAL_CALL: &str = "lab.results.critical_call";
     }
 
     pub mod qc {
@@ -470,6 +481,13 @@ pub mod pharmacy {
         pub const PARTIAL: &str = "pharmacy.dispensing.partial";
         pub const CANCEL: &str = "pharmacy.dispensing.cancel";
         pub const VOID: &str = "pharmacy.dispensing.void";
+        /// Hand over an unpaid bill's medicines on a reason.
+        ///
+        /// Credit patients, scheme beneficiaries and staff are served before
+        /// they pay. The reason is written with the dispense, against the
+        /// patient, for the cashier and the auditor to see. Without this grant
+        /// an open bill means payment first.
+        pub const UNPAID_OVERRIDE: &str = "pharmacy.dispensing.unpaid_override";
     }
 
     pub mod stock {
@@ -553,6 +571,13 @@ pub mod pharmacy {
     pub mod ndps {
         pub const LIST: &str = "pharmacy.ndps.list";
         pub const MANAGE: &str = "pharmacy.ndps.manage";
+        /// Dispense a controlled drug with no witness.
+        ///
+        /// The NDPS dual lock may be bypassed only on a recorded reason, and
+        /// only by someone the hospital names for it: the medication-safety
+        /// override every pharmacist holds no longer covers it. Granted to no
+        /// built-in role. Never covers Schedule X, which always needs a witness.
+        pub const WITNESS_OVERRIDE: &str = "pharmacy.ndps.witness_override";
     }
 
     pub mod stores {
@@ -702,6 +727,16 @@ pub mod pharmacy {
         pub const OVERRIDE: &str = "pharmacy.safety.override";
     }
 
+    /// The hospital's own drug-drug interaction rules.
+    pub mod interactions {
+        /// Propose changes to drug interaction rules.
+        ///
+        /// Draft additions, edits and removals of drug-drug interaction rules
+        /// as knowledge change sets. A change goes live only after a second
+        /// person approves it; this does not open the direct editor.
+        pub const MANAGE: &str = "pharmacy.interactions.manage";
+    }
+
     pub mod reconciliation {
         pub const MANAGE: &str = "pharmacy.reconciliation.manage";
     }
@@ -744,6 +779,32 @@ pub mod billing {
         /// for a counter, set its keys and test that it answers. Keys are
         /// write-only: no screen ever shows a stored secret.
         pub const CONFIGURE: &str = "billing.payments.configure";
+    }
+
+    /// The billing screen's own payment settings: the hospital's UPI ID and
+    /// its payment-link terms. Provider keys are not part of it.
+    pub mod payment_settings {
+        /// View billing payment settings.
+        /// See the hospital's UPI ID and its payment-link terms (part
+        /// payments, least part, days a link stays open, reminders).
+        pub const VIEW: &str = "billing.payment_settings.view";
+        /// Change billing payment settings.
+        /// Change the hospital's UPI ID and its payment-link terms.
+        pub const MANAGE: &str = "billing.payment_settings.manage";
+        /// Told of payment settings changes.
+        /// Receive a notification, and an email where one is on file, each
+        /// time the UPI ID or the payment-link terms change: what changed,
+        /// who changed it and when. Hospital administrators are always told.
+        pub const NOTIFIED: &str = "billing.payment_settings.notified";
+    }
+
+    /// When the insurance desk is warned that a pre-auth is nearly used up.
+    pub mod preauth_alerts {
+        /// Set the pre-auth alert threshold.
+        /// Choose the share of a pre-auth's approved amount, 1 to 100%, at
+        /// which the insurance desk is warned that an inpatient's running
+        /// bill is nearing it (80% until set). Hospital-wide.
+        pub const CONFIGURE: &str = "billing.preauth_alerts.configure";
     }
 
     /// Taking a patient's money at a department desk (#4885).
@@ -869,6 +930,44 @@ pub mod billing {
     pub mod write_off {
         pub const CREATE: &str = "billing.write_off.create";
         pub const APPROVE: &str = "billing.write_off.approve";
+    }
+
+    /// Automatic charges a clinical action could not post.
+    pub mod charge_attention {
+        /// See charges needing attention.
+        ///
+        /// Open the billing desk's queue of automatic charges — a diet order,
+        /// an OT completion, an ER registration — that could not be posted,
+        /// with why, so nothing done for a patient goes unbilled unseen.
+        pub const VIEW: &str = "billing.charge_attention.view";
+        /// Post or dismiss charges needing attention.
+        ///
+        /// Post a queued charge onto the patient's bill, or dismiss it with a
+        /// reason when it should not be billed. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.charge_attention.resolve";
+    }
+
+    /// Revenue leakage: services done for a patient that were never billed.
+    pub mod leakage {
+        /// See done-but-unbilled orders.
+        ///
+        /// See lab tests, imaging and procedures that were completed for a
+        /// patient but have no charge on any bill, with the tariff amount and
+        /// how many days each has waited.
+        pub const VIEW: &str = "billing.leakage.view";
+        /// Post, dismiss or rescan unbilled orders.
+        ///
+        /// Post an unbilled order's charge onto the patient's bill, dismiss
+        /// it with a reason (package-included, free by policy, duplicate), or
+        /// run the unbilled-orders check now. Who and when is recorded.
+        pub const RESOLVE: &str = "billing.leakage.resolve";
+        /// Name the patient on an unnamed implant.
+        ///
+        /// Name or change the patient a consignment implant was used on when
+        /// the store recorded it on no one. This rewrites the store's
+        /// consignment usage record, which the vendor is paid from, so it is
+        /// kept apart from posting and dismissing. Every naming is audited.
+        pub const NAME_IMPLANT_RECIPIENT: &str = "billing.leakage.name_implant_recipient";
     }
 
     pub mod claims {
@@ -1018,6 +1117,11 @@ pub mod ipd {
 
     pub mod discharge {
         pub const CREATE: &str = "ipd.discharge.create";
+        /// Clear a patient from physiotherapy.
+        ///
+        /// Record that physiotherapy has seen the patient and cleared them
+        /// for discharge, at a flow's "Physiotherapy clearance" station.
+        pub const PHYSIO_CLEARANCE: &str = "ipd.discharge.physio_clearance";
     }
 
     pub mod beds {
@@ -1857,6 +1961,15 @@ pub mod hr {
         pub const MANAGE: &str = "hr.leave.manage";
     }
 
+    pub mod holiday {
+        /// Keep the holiday list and weekly offs.
+        ///
+        /// Adds, edits and removes the hospital's holidays and sets which
+        /// weekdays are weekly offs. Leave days are counted from these, so
+        /// changing them changes how much leave every later request takes.
+        pub const MANAGE: &str = "hr.holiday.manage";
+    }
+
     pub mod roster {
         pub const LIST: &str = "hr.roster.list";
         pub const MANAGE: &str = "hr.roster.manage";
@@ -2386,6 +2499,49 @@ pub mod mrd {
     pub mod storage {
         pub const MANAGE: &str = "mrd.storage.manage";
     }
+
+    pub mod file_request {
+        /// See the paper-file requests queue.
+        /// Every open request for a patient's physical file — who it is for,
+        /// where it is shelved, where it must go and how long is left — plus
+        /// the night-before pull list, the back-scanning order and the
+        /// delivery times.
+        pub const VIEW: &str = "mrd.file_request.view";
+        /// Pick up and deliver requested paper files.
+        /// The runner's scans: the file barcode at the shelf ("picked") and
+        /// at the clinic ("delivered"), each written as a record movement;
+        /// marking a file not found; and building the pull list on demand.
+        pub const FULFIL: &str = "mrd.file_request.fulfil";
+        /// Be told when a requested file is late or missing.
+        /// Receives the escalation when a file request passes its due time
+        /// or a runner cannot find the file.
+        pub const SUPERVISE: &str = "mrd.file_request.supervise";
+        /// See whether a visit's paper file has arrived.
+        /// The consultation's file chip (requested, on the way, arrived),
+        /// for visits the caller can open. Nothing clinical: the summary
+        /// beside it needs `opd.diagnoses.list` and `patients.view`.
+        pub const STATUS: &str = "mrd.file_request.status";
+        /// Ask for a visit's paper file by hand.
+        /// The remedy when a visit reads "File: not requested" (the
+        /// automatic request failed or the file was shelved after the visit
+        /// was created): writes the request the visit would have written,
+        /// for a visit the caller can open.
+        pub const CREATE: &str = "mrd.file_request.create";
+    }
+
+    pub mod verify_links {
+        /// Show a signed record's public check link.
+        /// Gives the link an outsider (an insurer, a court, another
+        /// hospital) opens from the QR on the paper, minting a new one when
+        /// the last was withdrawn. The page it opens names the document type,
+        /// the signer and whether it is unchanged, never the patient.
+        pub const ISSUE: &str = "mrd.verify_links.issue";
+        /// Withdraw a signed record's public check link.
+        /// The QR on every copy already printed then answers that the
+        /// hospital withdrew it, and on which date. The signature itself is
+        /// untouched.
+        pub const REVOKE: &str = "mrd.verify_links.revoke";
+    }
 }
 
 pub mod facilities {
@@ -2483,6 +2639,50 @@ pub mod security {
     pub mod debriefs {
         pub const LIST: &str = "security.debriefs.list";
         pub const CREATE: &str = "security.debriefs.create";
+    }
+
+    pub mod intel {
+        /// View security intelligence findings.
+        ///
+        /// Security → Intelligence: the posture checklist, vulnerable
+        /// packages, honeytoken alarms and each continuous check's last and
+        /// next run (RFC-OSINT §5). Read-only.
+        pub const VIEW: &str = "security.intel.view";
+        /// Assign, close and escalate security findings.
+        ///
+        /// Takes ownership of a finding, changes its status (in progress,
+        /// resolved, risk accepted) and opens an incident from it in the
+        /// breach register (opening also needs security.incidents.create).
+        pub const MANAGE: &str = "security.intel.manage";
+    }
+
+    /// MedBrains staff reaching this hospital's data. Under DPDP the hospital
+    /// is the Data Fiduciary and MedBrains its Data Processor, so every
+    /// support or engineering session needs the hospital's own, scoped,
+    /// time-limited grant (`docs/compliance/vendor-access.md`). No grant, no
+    /// access — whatever role the MedBrains account holds.
+    pub mod vendor_access {
+        /// See MedBrains access grants and their actions.
+        ///
+        /// Security → MedBrains access: every grant this hospital gave
+        /// MedBrains support or engineering staff, active and past, and every
+        /// request made under each one.
+        pub const VIEW: &str = "security.vendor_access.view";
+        /// Give MedBrains staff time-limited access.
+        ///
+        /// Names the MedBrains person, the reason, the modules (or
+        /// configuration only) and an expiry of at most 72 hours. Patient data
+        /// stays masked unless a second person approves unmasked access.
+        pub const GRANT: &str = "security.vendor_access.grant";
+        /// Approve unmasked MedBrains access.
+        ///
+        /// The second approval an unmasked grant needs before it opens. The
+        /// approver must be a different person from the one who asked for it.
+        pub const APPROVE_UNMASKED: &str = "security.vendor_access.approve_unmasked";
+        /// End MedBrains access at once.
+        ///
+        /// Revokes a grant; the MedBrains person's next request is refused.
+        pub const REVOKE: &str = "security.vendor_access.revoke";
     }
 }
 
@@ -2738,6 +2938,14 @@ pub mod specialty {
         /// diagnosis — the disclosure is the diagnosis, not the trial. It was
         /// gated on `list`, which every trial user holds.
         pub const SCREEN: &str = "specialty.clinical_trials.screen";
+        /// Send a trial's data to its sponsor.
+        ///
+        /// The export leaves the hospital, so it is not listing. It was gated
+        /// on `list`, and returned every participant's name. It is now
+        /// pseudonymised (subject keys and trial numbers, never names or
+        /// identifiers) and each export is audited with its subject count.
+        /// Held by no built-in role: grant it to the trial coordinator.
+        pub const EXPORT: &str = "specialty.clinical_trials.export";
     }
 
     /// Health packages — priced bundles sold at the front desk.
@@ -2956,6 +3164,54 @@ pub mod insurance {
         pub const CREATE: &str = "insurance.prior_auth.create";
         pub const UPDATE: &str = "insurance.prior_auth.update";
         pub const SUBMIT: &str = "insurance.prior_auth.submit";
+    }
+
+    /// A pre-authorisation nearly used up by the running bill.
+    pub mod enhancement {
+        /// See pre-auths nearly used up.
+        ///
+        /// See insured inpatients whose running bill has reached 80% of the
+        /// amount the payer approved, or whose approval could not be read,
+        /// with the approved amount and the bill so far.
+        pub const VIEW: &str = "insurance.enhancement.view";
+        /// Request a pre-auth enhancement.
+        ///
+        /// Ask the payer for more on a pre-auth that is nearly used up: the
+        /// extra amount is recorded on the pre-auth, which is marked as an
+        /// enhancement for sending, and the alert closes. Who and when is kept.
+        pub const REQUEST: &str = "insurance.enhancement.request";
+    }
+
+    /// An insured inpatient with no usable pre-auth on the visit.
+    pub mod preauth_missing {
+        /// Dismiss a "no usable pre-auth" alert.
+        ///
+        /// Close the alert on an insured inpatient with no usable pre-auth
+        /// when none is coming: the family pays cash, the treatment is not
+        /// covered, or another reason written down. Who, when and why is kept.
+        pub const DISMISS: &str = "insurance.preauth_missing.dismiss";
+    }
+
+    /// A room above the policy's room rent limit.
+    pub mod room_eligibility {
+        /// See rooms above the policy limit.
+        ///
+        /// See inpatients placed in a room dearer than their policy's
+        /// eligible room rent, with the share of room-linked charges the
+        /// insurer may cut in proportion.
+        pub const VIEW: &str = "insurance.room_eligibility.view";
+        /// Record consent for a higher room.
+        ///
+        /// Record that the patient or a named relative agreed to pay the
+        /// proportionate deduction for a room above the policy limit, which
+        /// closes the alert.
+        pub const RESOLVE: &str = "insurance.room_eligibility.resolve";
+        /// Set a policy's room rent limit.
+        ///
+        /// Record the eligible room rent from the policy schedule or e-card,
+        /// in rupees a day or as a percentage of the sum insured, so rooms
+        /// can be checked against it at admission and transfer.
+        pub const CONFIGURE: &str = "insurance.room_eligibility.configure";
     }
 
     pub mod appeals {
@@ -3269,6 +3525,28 @@ pub mod admin {
         pub const UPDATE: &str = "admin.users.update";
         pub const DELETE: &str = "admin.users.delete";
         pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
+        /// Link an account to a sign-in person.
+        ///
+        /// Link or unlink a MedBrains account to a person in the hospital's own
+        /// sign-in service, chosen by name and ID. An email address never links
+        /// an account there, so existing staff are linked here. Administrators
+        /// only; the server also requires a bypass role.
+        pub const LINK_IDENTITY: &str = "admin.users.link_identity";
+    }
+
+    /// Single sign-on providers.
+    pub mod sso {
+        /// The identity providers staff sign in through.
+        pub mod providers {
+            /// Add, change or remove sign-in providers.
+            ///
+            /// Add, change, switch off or delete an outside identity provider,
+            /// and map its directory groups to roles and access groups. Whoever
+            /// holds this decides who can sign in and as what. The machine's own
+            /// sign-in service is pinned by the OS and cannot be changed here.
+            /// Administrators only; the server also requires a bypass role.
+            pub const MANAGE: &str = "admin.sso.providers.manage";
+        }
     }
 
     /// Oversight of the approvals platform.
@@ -3321,6 +3599,23 @@ pub mod admin {
         pub const MANAGE: &str = "admin.webhooks.manage";
     }
 
+    /// Vendor apps and extensions the hospital lets in (RFC-HOSPITAL-OS C1).
+    pub mod connected_apps {
+        /// See connected apps and what they may read.
+        ///
+        /// Each app's manifest and privacy label — the permissions it holds,
+        /// the kinds of data it touches and where it sends them — when it was
+        /// last used and whether its event deliveries are landing. Shows no
+        /// patient data and no secrets.
+        pub const VIEW: &str = "admin.connected_apps.view";
+        /// Register, approve, revoke and re-key connected apps.
+        ///
+        /// Lets an outside app act in the hospital with the permissions in
+        /// its manifest, or cuts it off at once. Nobody can approve an app
+        /// wider than themselves.
+        pub const MANAGE: &str = "admin.connected_apps.manage";
+    }
+
     /// The software's own crash reports, from the self-hosted error tracker.
     pub mod error_tracking {
         /// See how often the software is failing.
@@ -3329,6 +3624,17 @@ pub mod admin {
         /// release that did not crash, and a link to the error tracker. The
         /// reports are about the software and carry no patient data.
         pub const VIEW: &str = "admin.error_tracking.view";
+    }
+
+    /// The kernel: the trusted core every module goes through.
+    pub mod kernel {
+        /// See whether the kernel is doing its job.
+        ///
+        /// When the audit chain was last verified and whether it held, whether
+        /// the database enforces hospital separation, which authorisation
+        /// engine is answering, how settings are resolved, and which modules
+        /// already go only through the kernel. Shows no patient data.
+        pub const VIEW: &str = "admin.kernel.view";
     }
 
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
@@ -3455,6 +3761,16 @@ pub mod admin {
 
         pub mod regulatory {
             pub const MANAGE: &str = "admin.settings.regulatory.manage";
+        }
+
+        pub mod dictation {
+            /// Configure note dictation services.
+            ///
+            /// Where speech is transcribed (the hospital's own whisper server
+            /// by default) and which local model drafts the note. Turning on
+            /// the cloud transcription service sends doctors' recordings off
+            /// the premises, so it is a separate, deliberate setting.
+            pub const MANAGE: &str = "admin.settings.dictation.manage";
         }
 
         /// Read tenant configuration.
@@ -3730,6 +4046,20 @@ pub mod analytics {
         /// general analytics access.
         pub const VIEW: &str = "analytics.management.view";
     }
+
+    pub mod paperless {
+        /// See the paperless meter.
+        ///
+        /// The share of clinical documents made in the system, signed
+        /// digitally and legally signed, by department and day, and the paper
+        /// still in use. Counts only; no patient or clinician is named.
+        pub const VIEW: &str = "analytics.paperless.view";
+        /// Recount the paperless meter now.
+        ///
+        /// Rebuilds the meter's daily counts for recent days instead of
+        /// waiting for the nightly pass.
+        pub const REFRESH: &str = "analytics.paperless.refresh";
+    }
 }
 
 pub mod command_center {
@@ -3801,6 +4131,26 @@ pub mod devices {
         /// right means a leaked appliance token enumerates the whole
         /// estate. This is the one thing an appliance needs.
         pub const ROSTER_READ: &str = "devices.pairing.roster.read";
+    }
+
+    /// MedBrains OS machines that join this hospital's main machine.
+    pub mod machines {
+        /// See machines and their join requests.
+        ///
+        /// Lists the machines waiting to join, and every joined machine with
+        /// its name, type, status and when it was last seen. It does not show
+        /// the code a person must read from a machine's own screen.
+        pub const VIEW: &str = "devices.machines.view";
+        /// Approve or reject a machine that asks to join.
+        ///
+        /// Lets a machine onto the hospital's network of screens. It is a
+        /// separate duty from removing one, and each decision is audited.
+        pub const APPROVE: &str = "devices.machines.approve";
+        /// Remove a joined machine.
+        ///
+        /// Ends the machine's access at once, so a lost or retired machine can
+        /// be cut off by somebody who cannot admit new ones.
+        pub const REMOVE: &str = "devices.machines.remove";
     }
 
     /// Signed QR codes that bind a staff or patient app to this hospital.
@@ -3932,6 +4282,15 @@ pub mod ai {
 }
 
 pub mod nurse {
+    pub mod signature {
+        /// Sign own nursing entries.
+        ///
+        /// Put a digital signature on the medication administrations, vitals,
+        /// ICU chart entries, OT checklists, transfusions and triage this
+        /// nurse recorded. Needs a nurse profile with a licence number and a
+        /// fresh password step-up.
+        pub const SIGN: &str = "nurse.signature.sign";
+    }
     pub mod profile {
         pub const VIEW: &str = "nurse.profile.view";
         pub const MANAGE: &str = "nurse.profile.manage";
@@ -4053,6 +4412,13 @@ pub mod nurse {
         /// the activation reaches, so the team lead can see who is coming.
         /// The first response is also the arrival time NABH measures.
         pub const RESPOND: &str = "nurse.code_blue.respond";
+        /// Set who a code blue pages.
+        ///
+        /// The code team, the duty medical officer and the medical
+        /// superintendent, in that order of escalation. Without a roster the
+        /// page falls back to the ward's shift team, then to every clinician,
+        /// and says so on the code-blue screen.
+        pub const MANAGE_TEAM: &str = "nurse.code_blue.manage_team";
     }
     pub mod equipment {
         pub const VIEW: &str = "nurse.equipment.view";
@@ -4267,5 +4633,88 @@ pub mod uhi {
         /// request blood inventory management, a lab request walk-in lab
         /// ordering (and sample management for a home collection).
         pub const RESPOND: &str = "uhi.requests.respond";
+    }
+}
+
+/// Knowledge change sets (RFC-KNOWLEDGE-CHANGE-SETS).
+///
+/// Edits to the clinical knowledge a hospital runs on (drug interactions,
+/// critical lab values), drafted, previewed for who they affect, approved by a
+/// second person, applied atomically, rolled back, and proven to an auditor.
+pub mod knowledge {
+    pub mod change_sets {
+        /// See knowledge changes and their history.
+        ///
+        /// Drafts, approvals, applied changes and rollbacks to drug
+        /// interactions and critical lab values, with each impact report and
+        /// the proof an auditor can re-check.
+        pub const LIST: &str = "knowledge.change_sets.list";
+        /// Draft and preview knowledge changes.
+        ///
+        /// Propose edits to drug interactions or critical lab values and see
+        /// which prescriptions, orders and results they would affect. Also
+        /// needs the area's own manage permission.
+        pub const CREATE: &str = "knowledge.change_sets.create";
+        /// Approve someone else's knowledge change.
+        ///
+        /// A second person approves or rejects a previewed change after
+        /// seeing the same diff and impact. Nobody approves their own.
+        pub const APPROVE: &str = "knowledge.change_sets.approve";
+        /// Apply approved knowledge changes.
+        ///
+        /// Make an approved change live, all items or none. Refused when the
+        /// live data changed since preview.
+        pub const APPLY: &str = "knowledge.change_sets.apply";
+        /// Roll back an applied knowledge change.
+        ///
+        /// Starts a new change set that reverses an applied one; it is
+        /// previewed and approved like any other.
+        pub const ROLLBACK: &str = "knowledge.change_sets.rollback";
+    }
+}
+
+/// SOP flows (RFC-SOP-FLOWS).
+///
+/// The routes patients and tasks take, such as IPD discharge. Hospital staff
+/// flip switches on library flows; the tracks
+/// themselves are built in code review, not granted by a permission. Every
+/// registered action a flow runs keeps its own permission.
+pub mod flows {
+    /// See flows, switchboards and the control room.
+    ///
+    /// Read a flow's route, its switches and locked safety signals, where
+    /// patients are on it now, and a patient's discharge ticket.
+    pub const VIEW: &str = "flows.view";
+    /// Propose switch changes on a flow.
+    ///
+    /// Flip switches on a flow's switchboard, preview the new route and who
+    /// it affects, and propose it as a knowledge change set. Nothing changes
+    /// until it is approved and applied.
+    pub const SWITCH: &str = "flows.switch";
+    /// Approve and apply flow switch changes.
+    ///
+    /// Approve someone else's proposed switch change and make it live. A
+    /// clinical flow needs both the quality officer and the medical
+    /// superintendent to approve.
+    pub const PUBLISH: &str = "flows.publish";
+    /// Build and test draft tracks for a flow.
+    ///
+    /// Arrange a flow's stations and branches from registered building
+    /// blocks, run its safety checks, dry run and what-if replay. Drafts
+    /// never affect patients; proposing one is a switch change set that the
+    /// quality officer and medical superintendent approve.
+    pub const BUILD: &str = "flows.build";
+}
+
+/// Health intelligence: what the hospital is seeing against its usual.
+pub mod health {
+    pub mod intel {
+        /// See health intelligence.
+        ///
+        /// Read the hospital's notifiable-disease counts this week against its
+        /// own usual (aggregate only, small counts suppressed), public outbreak
+        /// notices for the region, weather and air-quality advisories, and
+        /// whether each feed and recompute is still running.
+        pub const VIEW: &str = "health.intel.view";
     }
 }

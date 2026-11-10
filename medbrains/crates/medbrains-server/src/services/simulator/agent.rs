@@ -105,16 +105,8 @@ pub async fn run_agent(
         } else {
             &[]
         };
-        let (gen_summary, steps, findings) = drive(
-            state,
-            claims,
-            cells,
-            truncated,
-            profile.verify,
-            sweep_roles,
-            &context,
-        )
-        .await;
+        let (gen_summary, steps, findings) =
+            drive(state, claims, cells, truncated, profile.verify, sweep_roles, &context).await;
         passed += gen_summary.passed;
         rejected += gen_summary.rejected;
         server_errors += gen_summary.server_errors;
@@ -272,19 +264,12 @@ async fn run_sweep(
             let outcome = client.call("GET", endpoint, &Value::Null).await;
             swept += 1;
             if outcome.status >= 500 || outcome.status == 0 {
-                let severity = if outcome.status == 0 {
-                    "high"
-                } else {
-                    "critical"
-                };
+                let severity = if outcome.status == 0 { "high" } else { "critical" };
                 acc.findings.push(confirmed(finding(
                     &cell,
                     "error",
                     severity,
-                    format!(
-                        "GET {endpoint} → HTTP {} (server error) as {role}",
-                        outcome.status
-                    ),
+                    format!("GET {endpoint} → HTTP {} (server error) as {role}", outcome.status),
                     None,
                 )));
                 acc.summary.errors += 1;
@@ -298,13 +283,7 @@ fn empty_with_finding(msg: &str) -> (RunSummary, Vec<StepRecord>, Vec<FindingRec
     (
         RunSummary::default(),
         Vec::new(),
-        vec![confirmed(finding(
-            &json!({}),
-            "workflow",
-            "medium",
-            msg,
-            None,
-        ))],
+        vec![confirmed(finding(&json!({}), "workflow", "medium", msg, None))],
     )
 }
 
@@ -380,8 +359,7 @@ async fn resolve_goals(
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     if !profile.goals.is_empty() {
         for role in &profile.roles {
-            map.entry(role.clone())
-                .or_insert_with(|| profile.goals.clone());
+            map.entry(role.clone()).or_insert_with(|| profile.goals.clone());
         }
         return map;
     }
@@ -404,10 +382,7 @@ async fn resolve_goals(
 /// The resolved goals for a role, falling back to the static map if the run's
 /// goal resolution somehow missed it.
 fn cell_goals(goals_map: &HashMap<String, Vec<String>>, role: &str) -> Vec<String> {
-    goals_map
-        .get(role)
-        .cloned()
-        .unwrap_or_else(|| role_goals(role))
+    goals_map.get(role).cloned().unwrap_or_else(|| role_goals(role))
 }
 
 fn build_cells(
@@ -604,9 +579,7 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
         };
 
         let call =
-            match decision::choose_action(ctx.state, &ctx.tenant_id, &preamble, &prompt, &tools)
-                .await
-            {
+            match decision::choose_action(ctx.state, &ctx.tenant_id, &preamble, &prompt, &tools).await {
                 Ok(Some(c)) => c,
                 Ok(None) => {
                     acc.findings.push(finding(
@@ -634,22 +607,11 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
             break;
         }
         if call.name == "report_finding" {
-            let message = call
-                .arguments
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let message = call.arguments.get("message").and_then(Value::as_str).unwrap_or("");
             if !message.is_empty() {
-                let kind = call
-                    .arguments
-                    .get("kind")
-                    .and_then(Value::as_str)
-                    .unwrap_or("workflow");
-                let severity = call
-                    .arguments
-                    .get("severity")
-                    .and_then(Value::as_str)
-                    .unwrap_or("info");
+                let kind = call.arguments.get("kind").and_then(Value::as_str).unwrap_or("workflow");
+                let severity =
+                    call.arguments.get("severity").and_then(Value::as_str).unwrap_or("info");
                 acc.findings.push(finding(
                     &cell_json,
                     sanitize_kind(kind),
@@ -958,11 +920,7 @@ async fn provision_demo_user(
 ) -> Result<Option<String>, AppError> {
     use argon2::{Argon2, PasswordHasher};
 
-    let password = if role == "doctor" {
-        "doctor123"
-    } else {
-        "test123"
-    };
+    let password = if role == "doctor" { "doctor123" } else { "test123" };
     let hash = Argon2::default()
         .hash_password(password.as_bytes())
         .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?
@@ -1018,10 +976,7 @@ async fn provision_demo_user(
             tracing::info!(role, username = %u, ?dept, "simulator provisioned demo actor");
         }
         None => {
-            tracing::warn!(
-                role,
-                "simulator cannot provision actor: not a valid user_role"
-            );
+            tracing::warn!(role, "simulator cannot provision actor: not a valid user_role");
         }
     }
     Ok(inserted)
@@ -1062,9 +1017,7 @@ pub async fn persist_findings(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        RunSummary, categorize, grade_status, role_goals, sanitize_kind, sanitize_severity,
-    };
+    use super::{RunSummary, categorize, grade_status, role_goals, sanitize_kind, sanitize_severity};
 
     #[test]
     fn grade_status_splits_rejected_from_server_error() {
@@ -1081,16 +1034,8 @@ mod tests {
     fn role_goals_are_role_specific() {
         // A nurse gets a vitals goal, not the receptionist's registration one.
         assert!(role_goals("nurse")[0].to_lowercase().contains("vitals"));
-        assert!(
-            role_goals("receptionist")[0]
-                .to_lowercase()
-                .contains("register")
-        );
-        assert!(
-            role_goals("doctor")
-                .iter()
-                .any(|g| g.to_lowercase().contains("encounter"))
-        );
+        assert!(role_goals("receptionist")[0].to_lowercase().contains("register"));
+        assert!(role_goals("doctor").iter().any(|g| g.to_lowercase().contains("encounter")));
         // An unknown role still gets a safe explore-only goal (non-empty).
         assert!(!role_goals("security_guard").is_empty());
     }

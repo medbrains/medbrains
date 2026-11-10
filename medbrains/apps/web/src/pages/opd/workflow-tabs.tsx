@@ -71,6 +71,7 @@ import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/co
 import { DiagnosisCodeSelect } from "@/components/Clinical/DiagnosisCodeSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -134,7 +135,7 @@ export function RxHistoryTab({ patientId }: { patientId: string }) {
   return (
     <Stack gap="sm">
       {(history as PrescriptionHistoryItem[]).map((h) => (
-        <Card key={h.prescription.id} padding="sm" radius="md" withBorder>
+        <Card key={h.prescription.id} padding="sm" withBorder>
           <Group gap={8} mb="xs">
             <Badge size="xs">{new Date(h.encounter_date).toLocaleDateString()}</Badge>
             {h.doctor_name && (
@@ -281,7 +282,7 @@ export function CertificatesTab({
       )}
 
       {certificates.map((cert) => (
-        <Card key={cert.id} padding="sm" radius="md" withBorder>
+        <Card key={cert.id} padding="sm" withBorder>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconCertificate size={16} color="var(--mantine-color-blue-5)" />
@@ -292,9 +293,17 @@ export function CertificatesTab({
                 </Text>
               )}
             </Group>
-            <Text size="xs" c="dimmed">
-              {new Date(cert.issued_date).toLocaleDateString()}
-            </Text>
+            <Group gap={8}>
+              <Text size="xs" c="dimmed">
+                {new Date(cert.issued_date).toLocaleDateString()}
+              </Text>
+              <SignRecordButton
+                recordType="medical_certificate"
+                authorId={cert.doctor_id}
+                recordId={cert.id}
+                summary={cert.certificate_type.replace(/_/g, " ")}
+              />
+            </Group>
           </Group>
           {cert.diagnosis && (
             <Text size="sm">
@@ -881,7 +890,7 @@ export function ProceduresTab({
       )}
 
       {formOpened && (
-        <Card padding="sm" radius="md" withBorder>
+        <Card padding="sm" withBorder>
           <Stack gap="xs">
             <Controller
               control={control}
@@ -1167,7 +1176,7 @@ export function ReferralsTab({
       )}
 
       {(referrals as ReferralWithNames[]).map((ref) => (
-        <Card key={ref.id} padding="sm" radius="md" withBorder>
+        <Card key={ref.id} padding="sm" withBorder>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconArrowRight size={16} color="var(--mantine-color-blue-5)" />
@@ -1181,6 +1190,12 @@ export function ReferralsTab({
                 {ref.status}
               </Badge>
             </Group>
+            <SignRecordButton
+              recordType="referral"
+              authorId={ref.from_doctor_id}
+              recordId={ref.id}
+              summary={`${ref.from_department_name ?? ""} to ${ref.to_department_name ?? ""}`}
+            />
             <Text size="xs" c="dimmed">
               {new Date(ref.created_at).toLocaleDateString()}
             </Text>
@@ -1611,7 +1626,7 @@ export function FeedbackTab({
       ) : (
         <Stack gap="sm">
           {feedback.map((fb) => (
-            <Card key={fb.id} padding="sm" radius="md" withBorder>
+            <Card key={fb.id} padding="sm" withBorder>
               <Group justify="space-between" mb="xs">
                 <Text size="sm" c="dimmed">
                   {new Date(fb.submitted_at).toLocaleDateString()}
@@ -1936,7 +1951,7 @@ export function DocketTab() {
           Loading...
         </Text>
       ) : d ? (
-        <Card padding="md" radius="md" withBorder>
+        <Card padding="md" withBorder>
           <Text size="lg" fw={600} mb="sm">
             Daily Docket — {d.docket_date}
           </Text>

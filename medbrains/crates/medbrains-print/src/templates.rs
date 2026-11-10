@@ -562,6 +562,8 @@ const DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
 {% if discharge.investigation_summary %}<p style="white-space:pre-wrap;"><strong>Investigations:</strong> {{ discharge.investigation_summary }}</p>{% endif %}
 {% if discharge.condition_at_discharge %}<p><strong>Condition at discharge:</strong> {{ discharge.condition_at_discharge }}</p>{% endif %}
 {% if discharge.follow_up_instructions %}<p style="white-space:pre-wrap;"><strong>Follow-up:</strong> {{ discharge.follow_up_instructions }}</p>{% endif %}
+{% if discharge.medications_on_discharge %}<h3 class="brand" style="margin-top:8px;">Medicines on discharge</h3>
+<ul>{% for m in discharge.medications_on_discharge %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
 {% endblock content %}"#;
 
 const DISCHARGE_SAMPLE: &str = r#"{

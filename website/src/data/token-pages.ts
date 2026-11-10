@@ -13,7 +13,7 @@ const link = (href: string, text: string) => `<a href="${href}">${text}</a>`;
 const hub: ModulePage = {
   slug: "opd-queue-management",
   title: "OPD Queue Management System & Token Display | MedBrains",
-  description: "An OPD queue management system for Indian hospitals and clinics: tokens at the desk or kiosk, TV boards with voice calls, priority lanes and missed patients.",
+  description: "An OPD queue management system for hospitals and clinics: tokens at the desk or kiosk, TV boards with voice calls, priority lanes and missed patients.",
   eyebrow: "Queues and tokens",
   h1: "An OPD queue management system the whole waiting room can read",
   intro: "An OPD queue management system gives every patient a token number when they arrive, calls that number on a screen and over the speaker when the doctor is ready, and keeps the order fair while people with a reason to go first are moved up. MedBrains does this for OPD, registration, lab collection, pharmacy and billing on one token system, with boards that run on any TV with a browser.",
@@ -48,7 +48,7 @@ const hub: ModulePage = {
     {
       title: "What is not built yet",
       body: [
-        "There are no WhatsApp token updates. An SMS when an OPD token is called exists but is off by default and is not yet tied to the DLT-registered templates Indian SMS rules require, so do not plan a waiting room around it. Tokens are not shown in the MedBrains patient app yet; the kiosk QR is how a patient follows their place. There is no separate Android TV app: the boards run in the TV's browser. ABHA Scan &amp; Share is built for ABDM; MedBrains is not yet certified by the National Health Authority.",
+        "There are no WhatsApp token updates. An SMS when an OPD token is called exists but is off by default and is not yet tied to the DLT-registered templates TRAI's SMS rules require, so do not plan a waiting room around it. Tokens are not shown in the MedBrains patient app yet; the kiosk QR is how a patient follows their place. There is no separate Android TV app: the boards run in the TV's browser. ABHA Scan &amp; Share is built for ABDM; MedBrains is not yet certified by the National Health Authority.",
       ],
     },
     {
@@ -87,7 +87,7 @@ const clinic: ModulePage = {
   slug: "clinic-token-management-system",
   parent: "opd-queue-management",
   title: "Clinic Token Management System for Doctors | MedBrains",
-  description: "A clinic token management system for small clinics and single doctors in India: walk-ins and bookings in one queue, a token display on one TV, voice calls.",
+  description: "A clinic token management system for small clinics and single doctors: walk-ins and bookings in one queue, a token display on one TV, voice calls.",
   eyebrow: "Clinic token system",
   h1: "A clinic token management system for one doctor or a few",
   intro: "A clinic token management system replaces the receptionist calling out names with a number on a screen. The patient gets a token when they arrive, sits where they can see the TV, and goes in when the number is called. MedBrains gives a small clinic the same token system a hospital uses, set up for one queue and one screen.",
@@ -119,7 +119,7 @@ const clinic: ModulePage = {
     {
       title: "SMS and WhatsApp: what to expect",
       body: [
-        "We get asked this most often, so plainly: MedBrains does not send WhatsApp token updates. An SMS when a token is called exists for OPD, but it is off by default and not yet tied to the DLT-registered templates that Indian SMS rules require, so a clinic should not count on it today. The phone status page from the kiosk QR is the way a patient follows their token without watching the TV.",
+        "We get asked this most often, so plainly: MedBrains does not send WhatsApp token updates. An SMS when a token is called exists for OPD, but it is off by default and not yet tied to the DLT-registered templates that TRAI's SMS rules require, so a clinic should not count on it today. The phone status page from the kiosk QR is the way a patient follows their token without watching the TV.",
       ],
     },
     {
@@ -163,7 +163,7 @@ const hospital: ModulePage = {
     {
       title: "Why hospitals outgrow a single token machine",
       body: [
-        "A stand-alone token dispenser knows nothing about the patient. The registration desk issues one number, the doctor's assistant calls names, the lab hands out paper slips and the pharmacy has its own counter display. The patient carries four numbers, nobody can say how long anyone waited, and a patient who is in the wrong department simply waits in the wrong queue.",
+        "A stand-alone token dispenser knows nothing about the patient. The registration desk issues one number, the doctor's assistant calls names, the lab hands out paper slips and the pharmacy has its own counter display. The patient carries four numbers, nobody can say how long anyone waited, and a patient who is in the wrong department simply waits in the wrong queue. To see where your own queue backs up, try the free <a href=\"/resources/opd-wait-time-calculator\">OPD waiting time calculator</a>.",
         "When tokens come from the hospital's own registration and orders, the queue knows which department a visit is for, what the doctor ordered and when the bill was raised, so the next token is issued at the moment it is needed.",
       ],
     },

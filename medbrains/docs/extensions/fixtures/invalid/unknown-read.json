@@ -1,0 +1,37 @@
+{
+  "manifestVersion": 1,
+  "kind": "service",
+  "name": "Ward census sync",
+  "purpose": "Sends each new admission's patient and encounter ids to the regional bed dashboard.",
+  "publisher": {
+    "name": "Example Health Tech",
+    "url": "https://example-health.dev",
+    "contact": "security@example-health.dev"
+  },
+  "version": "1.0.0",
+  "permissions": [
+    "patients.view",
+    "opd.queue.view"
+  ],
+  "reads": [
+    "Patient",
+    "Encounter",
+    "MedicationRequest"
+  ],
+  "events": [
+    "patient.created"
+  ],
+  "dataClasses": [
+    "routine",
+    "identifying"
+  ],
+  "sendsDataTo": [
+    {
+      "name": "Regional bed dashboard (India, Mumbai region)",
+      "url": "https://beds.example-health.dev",
+      "purpose": "Show bed availability to the district control room"
+    }
+  ],
+  "webhookUrl": "https://beds.example-health.dev/hooks/medbrains",
+  "$expect": "is not readable in protocol v1"
+}

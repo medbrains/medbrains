@@ -107,10 +107,7 @@ async fn expire_ai_prompts(
         summary.insert("ai_messages_expired".to_owned(), serde_json::json!(blanked));
     }
     if unmapped > 0 {
-        summary.insert(
-            "ai_pseudonym_maps_dropped".to_owned(),
-            serde_json::json!(unmapped),
-        );
+        summary.insert("ai_pseudonym_maps_dropped".to_owned(), serde_json::json!(unmapped));
     }
     Ok(())
 }
@@ -186,7 +183,7 @@ pub async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
                 "outbox_events",
                 format!(
                     "DELETE FROM outbox_events WHERE tenant_id = $1 \
-                     AND status IN ('sent', 'skipped_unconfigured') \
+                     AND status IN ('sent', 'skipped_unconfigured', 'undelivered') \
                      AND created_at < now() - make_interval(days => {outbox_days})"
                 ),
             ),

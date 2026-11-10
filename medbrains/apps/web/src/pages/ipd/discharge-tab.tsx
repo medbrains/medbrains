@@ -8,6 +8,7 @@ import { IconDoor } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useClinicalEmit } from "@/components";
+import { PatientTicket } from "@/components/Flows/PatientTicket";
 import { Badge, Button, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
@@ -101,6 +102,7 @@ export function DischargeTab({
 
   return (
     <Stack>
+      <PatientTicket admissionId={admissionId} patientId={patientId} />
       {canViewChecklist && items.length === 0 && (
         <Group gap="xs">
           <Text size="sm" c="dimmed">

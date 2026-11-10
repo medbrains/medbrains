@@ -1,0 +1,16 @@
+/* The website theme (ENGINEERING.md, design system), light, as GTK colours. */
+@define-color mb_wall_a #f3f5f9;
+@define-color mb_wall_b #dbe6ff;
+@define-color mb_wall_c #78a9ff;
+@define-color mb_grid rgba(15, 98, 254, 0.05);
+@define-color mb_bg #f3f5f9;
+@define-color mb_bar rgba(255, 255, 255, 0.94);
+@define-color mb_card rgba(255, 255, 255, 0.92);
+@define-color mb_dock rgba(255, 255, 255, 0.94);
+@define-color mb_tile #f3f5f9;
+@define-color mb_tile_hover #dde2ea;
+@define-color mb_line #dde2ea;
+@define-color mb_text #0b1220;
+@define-color mb_muted #5d677a;
+@define-color mb_accent #0043ce;
+@define-color mb_warning #a2191f;

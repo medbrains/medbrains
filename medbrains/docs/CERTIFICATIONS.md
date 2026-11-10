@@ -203,7 +203,7 @@ Conformance rather than certification, but buyers ask for evidence.
 
 | | |
 |---|---|
-| **WCAG 2.2 AA** | already mandated in `CLAUDE.md` and enforced by Biome a11y rules |
+| **WCAG 2.2 AA** | already mandated in `ENGINEERING.md` and enforced by Biome a11y rules |
 | **VPAT** | a self-declaration of WCAG conformance; scores in procurement, costs days |
 | **EN 301 549** | the EU procurement form of the same thing |
 | **ISO 9001** | general quality management; sometimes asked for in tenders |

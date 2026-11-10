@@ -1,5 +1,10 @@
 [env]
 SQLX_OFFLINE = "true"
+# The server's integration tests share one hospital in one database, and most
+# of what they set is hospital-wide. Run in parallel they overwrite each other's
+# settings and fail as if the product were broken (17 did, first run on CI). See
+# crates/medbrains-server/tests/main.rs.
+RUST_TEST_THREADS = "1"
 
 # `[resolver] feature-unification = "workspace"` used to sit here. Stable cargo
 # ignores it without -Zfeature-unification, so it never did what it said. The

@@ -118,6 +118,7 @@ import type {
   ApprovalRequestSummary,
   ApproveClaimSettlementRequest,
   ApproveDisposalRequest,
+  ApprovedMachine,
   ApproveIndentRequest,
   ApproveRejectRequest,
   ApproveWriteOffRequest,
@@ -197,6 +198,7 @@ import type {
   BillingLaneInput,
   BillingLaneName,
   BillingPackage,
+  BillingPaymentSettings,
   BillingQueueDisplay,
   BillingServicePackage,
   BillingSummaryReport,
@@ -297,6 +299,8 @@ import type {
   CensusWardRow,
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
+  ChargeAttentionItem,
+  ChargeAttentionSummary,
   ChargeMaster,
   ChartPage,
   ChartQuery,
@@ -352,7 +356,10 @@ import type {
   CmsSettings,
   CmsSubscriber,
   CmsTag,
+  CodeBlueEventRow,
   CodeBlueResponder,
+  CodeTeamRoster,
+  CodeTeamTier,
   CodeTestRequest,
   CodeTestResult,
   CollectionEfficiencyReport,
@@ -392,6 +399,9 @@ import type {
   ComponentSlipPrintData,
   ConcessionListResponse,
   ConfirmPoliceReceiptRequest,
+  ConnectedApp,
+  ConnectedAppCredentials,
+  ConnectedAppDelivery,
   // Orchestration Engine
   ConnectorHealthCheckResponse,
   ConnectorRow,
@@ -851,6 +861,7 @@ import type {
   CreateUrReviewRequest,
   CreateUserHospitalAssignment,
   CreateVaccinationRequest,
+  CreateVendorAccessGrant,
   CreateVendorRequest,
   CreateVirtualAccountRequest,
   CreateVirtualAccountResponse,
@@ -966,6 +977,7 @@ import type {
   DialysisSession,
   DialysisSlot,
   Dialyzer,
+  DictationConfig,
   DietOrder,
   // Diet & Kitchen
   DietTemplate,
@@ -979,6 +991,10 @@ import type {
   DischargeSummary,
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
+  DismissChargeAttentionRequest,
+  DismissPreauthRequest,
+  // Pharmacy Phase 2
+  DispenseWitness,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -1053,6 +1069,7 @@ import type {
   EndoscopyScope,
   EnergyAnalytics,
   EnrollmentWithCourse,
+  EnvironmentView,
   EodDigestHistory,
   EodDigestSubscription,
   EquipmentBreakdownReportPrintData,
@@ -1107,15 +1124,25 @@ import type {
   FireMockDrillReportPrintData,
   // Phase 3 Print Data - Clinical Charts
   FlowAlert,
+  FlowBuilder,
   FlowConfigZone,
+  FlowControlRoom,
   FlowDecision,
+  FlowDetail,
   FlowFloorLive,
   FlowFloorSetup,
   FlowFloorSummary,
   FlowForecast,
   FlowHistoryPoint,
+  FlowImpactReport,
   FlowRecommendation,
+  FlowRunRequest,
+  FlowSaveDraft,
   FlowSourceInput,
+  FlowSummary,
+  FlowSwitches,
+  FlowTestDrive,
+  FlowTicket,
   FlowZoneConfigInput,
   FlowZoneDetail,
   FluidBalanceChartPrintData,
@@ -1192,6 +1219,7 @@ import type {
   HealthDataSharing,
   HealthDataSource,
   HealthDataType,
+  HealthIntel,
   HealthPackage,
   HealthResponse,
   HeldAnalyserMessage,
@@ -1202,6 +1230,9 @@ import type {
   HistoryImportBatchRequest,
   HistoryImportResult,
   HistoryImportSettings,
+  Holiday,
+  HolidayCalendar,
+  HolidayInput,
   HomeCarePackage,
   HomeCareReferral,
   HomeCollectionStatsRow,
@@ -1341,11 +1372,19 @@ import type {
   JobStats,
   JournalEntry,
   JournalEntryDetail,
+  KanidmPerson,
+  KernelHealth,
   KioskCheckinResult,
   KitchenAudit,
   KitchenInventory,
   KitchenMenu,
   KitchenMenuItem,
+  KnowledgeArea,
+  KnowledgeChangeSet,
+  KnowledgeChangeSetDetail,
+  KnowledgeChangeSetFilter,
+  KnowledgeLiveRow,
+  KnowledgeProof,
   KpiTile,
   LabAnalyzerWorklistRow,
   LabB2bClient,
@@ -1354,6 +1393,7 @@ import type {
   LabCalibration,
   LabCollectionCenter,
   LabCriticalAlert,
+  LabCriticalCall,
   LabCrossmatchLink,
   LabCytologyReport,
   LabEqasResult,
@@ -1397,6 +1437,8 @@ import type {
   LeaveActionRequest,
   LeaveApplicationPrintData,
   LeaveBalance,
+  LeaveDayCount,
+  LeaveListRow,
   LeaveRequest,
   LicenseDashboardItem,
   LinenCondemnation,
@@ -1433,6 +1475,7 @@ import type {
   LtcMedication,
   LungProtectiveRequest,
   LungProtectiveResult,
+  MachineList,
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
@@ -1514,17 +1557,24 @@ import type {
   MpiMatchRequest,
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
+  // MRD
+  MrdBackscanItem,
   MrdBirthRegister,
   MrdCaseSheetCompletenessResponse,
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
-  // MRD
+  MrdDeliveryTimeRow,
+  MrdDigitalSummary,
+  MrdFileRequest,
+  MrdFileScanRequest,
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
+  MrdPullListBuilt,
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
+  MrdVisitFileStatus,
   MyDayResponse,
   MyProfileResponse,
   MyShiftResponse,
@@ -1534,6 +1584,7 @@ import type {
   NabhRollupResponse,
   NablDocumentSummary,
   NablQualityReportPrintData,
+  NamePatientChargeAttentionRequest,
   NdpsListResponse,
   NdpsRegisterEntry,
   NdpsRegisterPrintData,
@@ -1541,6 +1592,7 @@ import type {
   NearExpiryRow,
   NeedleStickIncident,
   NewbornRecord,
+  NewKnowledgeChangeSet,
   NewResearchExport,
   News2Request,
   News2Result,
@@ -1585,6 +1637,7 @@ import type {
   OAuthConnection,
   OAuthExchangeRequest,
   OAuthProviderInfo,
+  OAuthTokenResponse,
   OccHealthAnalytics,
   OccHealthDrugScreen,
   OccHealthExposure,
@@ -1612,6 +1665,7 @@ import type {
   OpdProcedureConsentPrintData,
   OpdRegistrationPolicy,
   OpenCampRegistrationEncounterRequest,
+  OpenedIncident,
   OperationNotesPrintData,
   OphthoExam,
   OrderBasketDraft,
@@ -1655,6 +1709,9 @@ import type {
   PaediatricFluidResult,
   PainAssessment,
   PainAssessmentPrintData,
+  PaperlessQuery,
+  PaperlessRebuilt,
+  PaperlessReport,
   PaRequirementRule,
   Patient,
   PatientAccessLogRow,
@@ -1753,6 +1810,7 @@ import type {
   PharmacyDeliveryList,
   PharmacyDestructionLog,
   PharmacyDispatchStatus,
+  PharmacyDispenseContext,
   PharmacyDrugRecall,
   PharmacyEmergencyKit,
   PharmacyOrder,
@@ -1767,13 +1825,13 @@ import type {
   PharmacyQueueDisplay,
   PharmacyReturn,
   PharmacyRxDetailResponse,
+  PharmacySafetyRecordRow,
   PharmacySalesRow,
   PharmacyStockTransaction,
   PharmacyStoreAssignment,
   PharmacyStoreIndent,
   PharmacySubstitute,
   PharmacyTransferRequest,
-  // Pharmacy Phase 2
   PharmacyValidationResult,
   PickLine,
   PincodeResult,
@@ -1803,7 +1861,9 @@ import type {
   PostNhcxPaymentRequest,
   PostnatalRecord,
   PostopOrdersPrintData,
+  PostureReport,
   PreAuthorizationRequest,
+  PreauthAlertSettings,
   PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
@@ -1860,6 +1920,7 @@ import type {
   PublicInvite,
   PublicPrivacyContact,
   PublicShareLink,
+  PublicSignatureCheck,
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
@@ -1939,6 +2000,7 @@ import type {
   RecordAdherenceRequest,
   RecordBedsideVideoViewRequest,
   RecordClaimSettlementRequest,
+  RecordCriticalCallRequest,
   RecordCrsRegistrationRequest,
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
@@ -1989,6 +2051,7 @@ import type {
   RepeatRow,
   ReportCatalogResponse,
   ReportDataResponse,
+  RequestEnhancementRequest,
   Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
@@ -2017,12 +2080,16 @@ import type {
   ReturnResult,
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
+  RevenueAlert,
+  RevenueAlertKind,
   ReviewBreakGlassRequest,
   ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
   ReviewPostAction,
+  ReviewRequest,
   ReviewRoiInput,
   ReviewStewardshipRequest,
+  ReviewSummary,
   RevokeConsentRequest,
   RevokeCredentialRequest,
   RevokePassRequest,
@@ -2030,6 +2097,11 @@ import type {
   RoiAccessInput,
   RoiAccessLogRow,
   RoiRequest,
+  RoomCheck,
+  RoomConsentInput,
+  RoomConsentWitness,
+  RoomRentLimit,
+  RoomRentLimitInput,
   RoomTurnaround,
   RoomUtilization,
   RunPayoutsRequest,
@@ -2065,6 +2137,7 @@ import type {
   SecurityAccessLog,
   SecurityBandMatchResult,
   SecurityCamera,
+  SecurityCheckStatus,
   SecurityCodeDebrief,
   SecurityIncident,
   SecurityIncidentUpdate,
@@ -2083,6 +2156,7 @@ import type {
   ServiceBondAgreementPrintData,
   ServiceRow,
   ServiceTimeStats,
+  SessionView,
   SetCampusFenceRequest,
   SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
@@ -2095,7 +2169,9 @@ import type {
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
+  SignableTypeInfo,
   SignatureCredential,
+  SignatureVerifyLink,
   SignBasketRequest,
   SignBasketResponse,
   SignedRecord,
@@ -2132,6 +2208,7 @@ import type {
   // Specialty Clinical: Other Specialties
   SpecialtyTemplate,
   SsoGroupMapping,
+  SsoLink,
   SsoProvider,
   SsoPublicProvider,
   StaffAttendanceReportPrintData,
@@ -2245,6 +2322,7 @@ import type {
   TvDisplay,
   UhiRequest,
   UhiSettingsView,
+  UnbilledScanResult,
   UnifiedAsset,
   UnmatchedStudy,
   UnmatchedStudyStatus,
@@ -2270,6 +2348,7 @@ import type {
   UpdateBedStatusRequest,
   UpdateBedsideRequestStatusPayload,
   UpdateBedsideVideoRequest,
+  UpdateBillingPaymentSettings,
   UpdateBirthRecordRequest,
   UpdateBmeBreakdownStatusRequest,
   UpdateBmeCalibrationRequest,
@@ -2403,6 +2482,7 @@ import type {
   UpdatePipelineStatusRequest,
   UpdatePostopRecordRequest,
   UpdatePreAuthRequest,
+  UpdatePreauthAlertSettings,
   UpdatePreopAssessmentRequest,
   UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
@@ -2463,6 +2543,7 @@ import type {
   UrStatusConversion,
   UserFacilityAssignment,
   UserHospitalAssignment,
+  UserImportResult,
   UserWithAssignments,
   // Utilization Review
   UtilizationReview,
@@ -2470,6 +2551,8 @@ import type {
   VedAnalysisRow,
   // Procurement
   Vendor,
+  VendorAccessEvent,
+  VendorAccessGrant,
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
@@ -2504,6 +2587,7 @@ import type {
   VoidMedicalCertificateRequest,
   VteRiskAssessment,
   Vulnerability,
+  VulnerabilityQuery,
   WaitEstimate,
   // IPD Phase 2
   WaitingRoomItem,
@@ -2515,6 +2599,8 @@ import type {
   WardGridResponse,
   WardListRow,
   WardOnDutyRow,
+  WardStockConsumeRequest,
+  WardStockConsumeResponse,
   WardStockRow,
   WaterQualityTestPrintData,
   WebhookDelivery,
@@ -2536,6 +2622,7 @@ import type {
   WoundCertificatePrintData,
   WristbandPrintData,
 } from "@medbrains/types";
+
 import { getApiBase } from "./config.js";
 
 // Re-export type guards for use by consumers
@@ -2592,8 +2679,20 @@ export {
 // Import for internal use
 import {
   describeShapeDrift,
+  flowBuilderResponseSchema,
+  flowControlRoomResponseSchema,
+  flowDetailResponseSchema,
+  flowImpactResponseSchema,
+  flowListResponseSchema,
+  flowTestDriveResponseSchema,
+  flowTicketOrNullResponseSchema,
+  flowTicketResponseSchema,
   invoiceDetailResponseSchema,
   invoiceListResponseSchema,
+  knowledgeChangeSetDetailResponseSchema,
+  knowledgeChangeSetListResponseSchema,
+  knowledgeLiveRowsResponseSchema,
+  knowledgeProofResponseSchema,
   labOrderDetailResponseSchema,
   labOrderListResponseSchema,
   labResultListResponseSchema,
@@ -3296,6 +3395,22 @@ export const api = {
   getErrorTrackingClientConfig: () =>
     request<ErrorTrackingClientConfig>("/public/error-tracking/config"),
   getErrorTrackingSummary: () => request<ErrorTrackingSummary>("/admin/error-tracking/summary"),
+  getKernelHealth: () => request<KernelHealth>("/admin/kernel"),
+  getHealthIntel: () => request<HealthIntel>("/health-intel"),
+  /** The paperless meter for a range of days (default: the last 30). */
+  getPaperless: (params?: PaperlessQuery) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined) qs.set(k, String(v));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<PaperlessReport>(`/analytics/paperless${suffix}`);
+  },
+  /** Recount the paperless meter's last `days` days now. */
+  refreshPaperless: (days?: number) =>
+    request<PaperlessRebuilt>("/analytics/paperless/refresh", {
+      method: "POST",
+      body: JSON.stringify({ days }),
+    }),
+  getHealthEnvironment: () => request<EnvironmentView>("/health-intel/environment"),
   refreshToken: async (): Promise<RefreshResponse> => {
     const resp = await refreshSession();
     if (!resp) {
@@ -3330,7 +3445,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(user_id ? { user_id } : {}),
     }),
-  changePassword: (data: { current_password: string; new_password: string }) =>
+  changePassword: (data: { current_password: string; new_password: string; email?: string }) =>
     request<{ status: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify(data),
@@ -3494,6 +3609,44 @@ export const api = {
   listWebhookDeliveries: (id: string) =>
     request<WebhookDelivery[]>(`/admin/webhooks/${id}/deliveries`),
 
+  // ── connected apps (RFC-HOSPITAL-OS C1) ──────────────────────────────────
+  listConnectedApps: () => request<ConnectedApp[]>("/admin/connected-apps"),
+  /** Register from a manifest. The response carries the credentials, once. */
+  registerConnectedApp: (manifest: unknown) =>
+    request<ConnectedAppCredentials>("/admin/connected-apps", {
+      method: "POST",
+      body: JSON.stringify({ manifest }),
+    }),
+  approveConnectedApp: (id: string) =>
+    request<{ approved: boolean }>(`/admin/connected-apps/${id}/approve`, { method: "POST" }),
+  /** Cuts the app off at once: its tokens are revoked in the same transaction. */
+  revokeConnectedApp: (id: string, reason?: string) =>
+    request<{ revoked: boolean; tokens_revoked: number }>(`/admin/connected-apps/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  rotateConnectedAppSecret: (id: string) =>
+    request<ConnectedAppCredentials>(`/admin/connected-apps/${id}/rotate-secret`, {
+      method: "POST",
+    }),
+  listConnectedAppDeliveries: (id: string) =>
+    request<ConnectedAppDelivery[]>(`/admin/connected-apps/${id}/deliveries`),
+  /**
+   * OAuth 2.0 client credentials. Called by connected apps (see `@medbrains/sdk`),
+   * not by the web app; here so the contract check pairs the route.
+   */
+  oauthToken: (clientId: string, clientSecret: string, scope?: string) =>
+    request<OAuthTokenResponse>("/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+        ...(scope ? { scope } : {}),
+      }).toString(),
+    }),
+
   // ── central approvals ─────────────────────────────────────────────────────
   //
   // One set of methods for every request type. What a request *is* — its form,
@@ -3583,6 +3736,126 @@ export const api = {
   listHistoryImportBatches: () => request<HistoryImportBatch[]>("/history-import/batches"),
   getHistoryImportBatch: (id: string) =>
     request<HistoryImportBatch>(`/history-import/batches/${id}`),
+  listKnowledgeChangeSets: (filter: KnowledgeChangeSetFilter = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(filter).filter((e): e is [string, string] => Boolean(e[1])),
+    ).toString();
+    return checkedRequest<KnowledgeChangeSet[]>(
+      knowledgeChangeSetListResponseSchema,
+      `/knowledge/change-sets${qs ? `?${qs}` : ""}`,
+    );
+  },
+  getKnowledgeChangeSet: (id: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}`,
+    ),
+  createKnowledgeChangeSet: (data: NewKnowledgeChangeSet) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      "/knowledge/change-sets",
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  previewKnowledgeChangeSet: (id: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/preview`,
+      { method: "POST" },
+    ),
+  approveKnowledgeChangeSet: (id: string, note?: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/approve`,
+      { method: "POST", body: JSON.stringify({ note }) },
+    ),
+  rejectKnowledgeChangeSet: (id: string, note?: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/reject`,
+      { method: "POST", body: JSON.stringify({ note }) },
+    ),
+  applyKnowledgeChangeSet: (id: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/apply`,
+      { method: "POST" },
+    ),
+  rollbackKnowledgeChangeSet: (id: string, reason: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/rollback`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
+  getKnowledgeChangeSetProof: (id: string) =>
+    checkedRequest<KnowledgeProof>(
+      knowledgeProofResponseSchema,
+      `/knowledge/change-sets/${id}/proof`,
+    ),
+  listKnowledgeLiveRows: (area: KnowledgeArea) =>
+    checkedRequest<KnowledgeLiveRow[]>(
+      knowledgeLiveRowsResponseSchema,
+      `/knowledge/areas/${area}/rows`,
+    ),
+  listFlows: () => checkedRequest<FlowSummary[]>(flowListResponseSchema, "/flows"),
+  getFlow: (code: string) =>
+    checkedRequest<FlowDetail>(flowDetailResponseSchema, `/flows/${encodeURIComponent(code)}`),
+  previewFlowImpact: (code: string, switches: FlowSwitches) =>
+    checkedRequest<FlowImpactReport>(
+      flowImpactResponseSchema,
+      `/flows/${encodeURIComponent(code)}/impact`,
+      { method: "POST", body: JSON.stringify({ switches }) },
+    ),
+  getFlowControlRoom: (code: string) =>
+    checkedRequest<FlowControlRoom>(
+      flowControlRoomResponseSchema,
+      `/flows/${encodeURIComponent(code)}/control-room`,
+    ),
+  startFlow: (code: string, subjectId: string) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/start`,
+      { method: "POST" },
+    ),
+  getFlowTicket: (code: string, subjectId: string) =>
+    checkedRequest<FlowTicket | null>(
+      flowTicketOrNullResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/ticket`,
+    ),
+  runFlowStation: (code: string, subjectId: string, data: FlowRunRequest) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/run`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  getFlowBuilder: (code: string) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build`,
+    ),
+  saveFlowDraft: (code: string, data: FlowSaveDraft) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/draft`,
+      { method: "PUT", body: JSON.stringify(data) },
+    ),
+  discardFlowDraft: (code: string) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/draft`,
+      { method: "DELETE" },
+    ),
+  dryRunFlowDraft: (code: string, revision: number) =>
+    checkedRequest<FlowTestDrive>(
+      flowTestDriveResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/dry-run`,
+      { method: "POST", body: JSON.stringify({ revision }) },
+    ),
+  completeFlowTask: (code: string, subjectId: string, station: string) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/tasks/${station}/complete`,
+      { method: "POST" },
+    ),
   listResearchExports: () => request<ResearchExport[]>("/research/exports"),
   createResearchExport: (data: NewResearchExport) =>
     request<ResearchExport>("/research/exports", { method: "POST", body: JSON.stringify(data) }),
@@ -4228,7 +4501,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   importUsers: (data: CsvImportRequest) =>
-    request<CsvImportResult>("/setup/users/import", {
+    request<UserImportResult>("/setup/users/import", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -4758,6 +5031,16 @@ export const api = {
     }),
   deleteSsoProvider: (id: string) =>
     request<{ deleted: boolean }>(`/admin/sso/providers/${id}`, { method: "DELETE" }),
+  listKanidmPeople: (q: string) =>
+    request<KanidmPerson[]>(`/admin/identity/kanidm/people?q=${encodeURIComponent(q)}`),
+  getUserSsoLink: (userId: string) => request<SsoLink | null>(`/admin/users/${userId}/sso-link`),
+  linkUserSso: (userId: string, subject: string) =>
+    request<SsoLink>(`/admin/users/${userId}/sso-link`, {
+      method: "PUT",
+      body: JSON.stringify({ subject }),
+    }),
+  unlinkUserSso: (userId: string) =>
+    request<{ unlinked: boolean }>(`/admin/users/${userId}/sso-link`, { method: "DELETE" }),
   listSsoGroupMappings: (providerId: string) =>
     request<SsoGroupMapping[]>(`/admin/sso/providers/${providerId}/mappings`),
   createSsoGroupMapping: (providerId: string, data: CreateSsoGroupMappingRequest) =>
@@ -5160,6 +5443,32 @@ export const api = {
     request<Note>(`/clinical-notes/${noteId}/entered-in-error`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+
+  // ── AI notes from dictation (RFC-MODULE-ai-dictation) ──
+  /** The recording is the body; the server transcribes it and drafts the note. */
+  createDictation: (
+    encounterId: string,
+    audio: Blob,
+    durationMs: number,
+    source: "recorded" | "uploaded",
+  ) =>
+    request<SessionView>(
+      `/opd/encounters/${encounterId}/dictations?duration_ms=${Math.round(durationMs)}&source=${source}`,
+      { method: "POST", body: audio, headers: { "Content-Type": audio.type || "audio/webm" } },
+    ),
+  retryDictation: (dictationId: string) =>
+    request<SessionView>(`/opd/dictations/${dictationId}/retry`, { method: "POST", body: "{}" }),
+  reviewDictation: (dictationId: string, data: ReviewRequest) =>
+    request<ReviewSummary>(`/opd/dictations/${dictationId}/review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDictationSettings: () => request<DictationConfig>("/admin/dictation/settings"),
+  saveDictationSettings: (data: DictationConfig) =>
+    request<DictationConfig>("/admin/dictation/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
 
   // ── Procedure Catalog & Orders ──────────────────────────
@@ -5995,6 +6304,68 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  listChargeAttention: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<Paginated<ChargeAttentionItem>>(`/billing/charge-attention${qs}`);
+  },
+  chargeAttentionSummary: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<ChargeAttentionSummary>(`/billing/charge-attention/summary${qs}`);
+  },
+  scanUnbilledOrders: () =>
+    request<UnbilledScanResult>("/billing/charge-attention/unbilled-scan", { method: "POST" }),
+  postChargeAttention: (id: string) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
+  dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Pre-auths nearly used up or rooms above the policy limit, by kind. */
+  listRevenueAlerts: (params: { kind: RevenueAlertKind; status?: string }) =>
+    request<Paginated<RevenueAlert>>(`/billing/revenue-alerts?${new URLSearchParams(params)}`),
+  /** Ask the payer for more on a pre-auth nearly used up; closes the alert. */
+  requestPreauthEnhancement: (id: string, data: RequestEnhancementRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/request-enhancement`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Dismiss a "no usable pre-auth" alert with why none is needed. */
+  dismissPreauthAlert: (id: string, data: DismissPreauthRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** The hospital's pre-auth alert threshold, and whether the stored one is unreadable. */
+  getPreauthAlertSettings: () => request<PreauthAlertSettings>("/billing/preauth-alert-settings"),
+  /** Save the pre-auth alert threshold (1 to 100%). */
+  updatePreauthAlertSettings: (data: UpdatePreauthAlertSettings) =>
+    request<PreauthAlertSettings>("/billing/preauth-alert-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Record the family's consent to a room above the policy limit; closes the alert. */
+  recordRoomConsent: (id: string, data: RoomConsentInput) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/room-consent`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Staff who may witness a family's room consent, by name. */
+  listRoomConsentWitnesses: (search?: string) =>
+    request<RoomConsentWitness[]>(
+      `/billing/room-consent/witnesses${search ? `?${new URLSearchParams({ search })}` : ""}`,
+    ),
+  /** Set the eligible room rent on a patient's policy (₹ a day or % of sum insured). */
+  setRoomRentLimit: (policyId: string, data: RoomRentLimitInput) =>
+    request<RoomRentLimit>(`/billing/policies/${policyId}/room-rent-limit`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  namePatientChargeAttention: (id: string, data: NamePatientChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/patient`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   backfillClaimSettlements: (data: { dry_run: boolean }) =>
     request<ClaimSettlementBackfillResult>("/billing/claim-settlements/backfill", {
       method: "POST",
@@ -6337,6 +6708,12 @@ export const api = {
   acknowledgeCriticalAlert: (alertId: string, data: { readback_value: string }) =>
     request<LabCriticalAlert>(`/lab/critical-alerts/${alertId}/acknowledge`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Document the lab-to-clinician phone call for a critical value. */
+  recordCriticalCall: (alertId: string, data: RecordCriticalCallRequest) =>
+    request<LabCriticalCall>(`/lab/critical-alerts/${alertId}/phone-call`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
@@ -7054,11 +7431,17 @@ export const api = {
     data?: {
       items?: unknown[];
       witnessed_by?: string;
+      /** The witness's own password, typed by them; checked on the server. */
+      witness_password?: string;
       allergy_override_reason?: string;
       ndps_override_reason?: string;
       unpaid_override_reason?: string;
       /** Clinical reason for dispensing past a blocking safety finding. */
       safety_override_reason?: string;
+      /** Scan id or serial of the retained Schedule X duplicate prescription. */
+      schedule_x_duplicate_ref?: string;
+      /** The pharmacist asked: the patient's allergy status was unknown. */
+      allergy_status_acknowledged?: boolean;
     },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
@@ -7132,6 +7515,17 @@ export const api = {
     request<PharmacyValidationResult>(`/pharmacy/orders/${id}/validate`, {
       method: "POST",
     }),
+
+  getPharmacyOrderSafetyRecord: (id: string) =>
+    request<PharmacySafetyRecordRow[]>(`/pharmacy/orders/${id}/safety-record`),
+
+  listDispenseWitnesses: (q?: string) =>
+    request<DispenseWitness[]>(
+      `/pharmacy/dispense-witnesses${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+
+  getPharmacyDispenseContext: (patientId: string) =>
+    request<PharmacyDispenseContext>(`/pharmacy/patients/${patientId}/dispense-context`),
   createOtcSale: (data: CreateOtcSaleRequest) =>
     request<PharmacyOrderDetailResponse>("/pharmacy/otc-sale", {
       method: "POST",
@@ -7194,8 +7588,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ department_id: departmentId }),
     }),
-  consumeWardStock: (data: { department_id: string; catalog_item_id: string; quantity: number }) =>
-    request<{ remaining: number }>("/pharmacy/ward-stock/consume", {
+  consumeWardStock: (data: WardStockConsumeRequest) =>
+    request<WardStockConsumeResponse>("/pharmacy/ward-stock/consume", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -7412,8 +7806,14 @@ export const api = {
   },
   getFulfilmentPickList: (orderId: string) =>
     request<PickLine[]>(`/pharmacy/fulfilment/${orderId}/pick-list`),
-  /** Claim for picking. A reason is needed only to override a medication safety block. */
-  claimFulfilmentOrder: (orderId: string, data?: { safety_override_reason?: string }) =>
+  /**
+   * Claim for picking. A reason is needed only to override a medication safety
+   * block; the acknowledgement only when the patient's allergy status is unknown.
+   */
+  claimFulfilmentOrder: (
+    orderId: string,
+    data?: { safety_override_reason?: string; allergy_status_acknowledged?: boolean },
+  ) =>
     request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, {
       method: "POST",
       ...(data ? { body: JSON.stringify(data) } : {}),
@@ -7586,6 +7986,13 @@ export const api = {
   listAdmissions: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<AdmissionListResponse>(`/ipd/admissions${qs}`);
+  },
+  /** The bed's rate against the patient's policy room-rent limit, before allocating it. */
+  checkRoomEligibility: (params: { patient_id: string; bed_id: string; admission_id?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter((e): e is [string, string] => Boolean(e[1])),
+    );
+    return request<RoomCheck>(`/ipd/room-eligibility?${qs}`);
   },
   createAdmission: (data: CreateAdmissionRequest) =>
     request<CreateAdmissionResponse>("/ipd/admissions", {
@@ -10893,12 +11300,18 @@ export const api = {
     request<LeaveBalance[]>(`/hr/employees/${employeeId}/leave-balances`),
 
   // Leave Requests
-  listLeaveRequests: (params?: { employee_id?: string; status?: string }) => {
+  /** `status` may list several, comma-separated; `from`/`to` return leave overlapping the window. */
+  listLeaveRequests: (params?: {
+    employee_id?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    department_id?: string;
+  }) => {
     const qs = new URLSearchParams();
-    if (params?.employee_id) qs.set("employee_id", params.employee_id);
-    if (params?.status) qs.set("status", params.status);
+    for (const [k, v] of Object.entries(params ?? {})) if (v) qs.set(k, v);
     const q = qs.toString();
-    return request<LeaveRequest[]>(`/hr/leaves${q ? `?${q}` : ""}`);
+    return request<LeaveListRow[]>(`/hr/leaves${q ? `?${q}` : ""}`);
   },
 
   createLeaveRequest: (data: CreateLeaveRequestInput) =>
@@ -10916,6 +11329,35 @@ export const api = {
   cancelLeave: (id: string) =>
     request<LeaveRequest>(`/hr/leaves/${id}/cancel`, {
       method: "PUT",
+    }),
+
+  /** The days a leave of these dates would take — the same rule that files it. */
+  previewLeaveDays: (params: {
+    leave_type: string;
+    start_date: string;
+    end_date: string;
+    is_half_day: boolean;
+  }) => {
+    const qs = new URLSearchParams({ ...params, is_half_day: String(params.is_half_day) });
+    return request<LeaveDayCount>(`/hr/leaves/preview?${qs}`);
+  },
+
+  // Holidays and weekly offs (HR → Holidays)
+  listHolidays: (from: string, to: string) =>
+    request<HolidayCalendar>(`/hr/holidays?${new URLSearchParams({ from, to })}`),
+
+  createHoliday: (data: HolidayInput) =>
+    request<Holiday>("/hr/holidays", { method: "POST", body: JSON.stringify(data) }),
+
+  updateHoliday: (id: string, data: HolidayInput) =>
+    request<Holiday>(`/hr/holidays/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteHoliday: (id: string) => request<Holiday>(`/hr/holidays/${id}`, { method: "DELETE" }),
+
+  setWeeklyOffs: (weeklyOffs: number[]) =>
+    request<{ weekly_offs: number[] }>("/hr/weekly-offs", {
+      method: "PUT",
+      body: JSON.stringify({ weekly_offs: weeklyOffs }),
     }),
 
   // Leave — self-service (the caller's own employee record)
@@ -11767,6 +12209,40 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+
+  // File requests: the paper file a patient waits for
+  listMrdFileRequests: (params?: { date?: string }) =>
+    request<MrdFileRequest[]>(
+      `/mrd/file-requests${params?.date ? `?date=${encodeURIComponent(params.date)}` : ""}`,
+    ),
+  scanMrdFileRequest: (id: string, body: MrdFileScanRequest) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/scan`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  markMrdFileNotFound: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/not-found`, { method: "POST" }),
+  returnMrdFileToShelf: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/return`, { method: "POST" }),
+  buildMrdPullList: (body: { date?: string }) =>
+    request<MrdPullListBuilt>("/mrd/file-requests/pull-list", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listMrdBackscanOrder: (days?: number) =>
+    request<MrdBackscanItem[]>(`/mrd/file-requests/backscan${days ? `?days=${days}` : ""}`),
+  getMrdFileDeliveryTimes: (from: string, to: string) =>
+    request<MrdDeliveryTimeRow[]>(
+      `/mrd/file-requests/delivery-times?${new URLSearchParams({ from, to })}`,
+    ),
+  getVisitFileStatus: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}`),
+  requestVisitFile: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}/request`, {
+      method: "POST",
+    }),
+  getVisitDigitalSummary: (encounterId: string) =>
+    request<MrdDigitalSummary>(`/mrd/file-requests/by-encounter/${encounterId}/summary`),
 
   // Record Movements
   listMrdMovements: (recordId: string) =>
@@ -15939,6 +16415,28 @@ export const api = {
     request<FormTemplate>(`/forms/templates/${id}/retire`, { method: "POST" }),
   getLiveForm: (code: string) => request<LiveForm>(`/forms/live/${code}`),
   getFormVersion: (id: string) => request<FormTemplateVersion>(`/forms/versions/${id}`),
+  // ── Security → MedBrains access (vendor support access) ──
+  listVendorAccessGrants: (page = 1) =>
+    request<Paginated<VendorAccessGrant>>(`/security/vendor-access/grants?page=${page}&limit=50`),
+  createVendorAccessGrant: (data: CreateVendorAccessGrant) =>
+    request<VendorAccessGrant>("/security/vendor-access/grants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveVendorAccessGrant: (id: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  revokeVendorAccessGrant: (id: string, reason?: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listVendorAccessEvents: (id: string, page = 1) =>
+    request<Paginated<VendorAccessEvent>>(
+      `/security/vendor-access/grants/${id}/events?page=${page}&limit=200`,
+    ),
   listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
   createDataProcessor: (data: DataProcessorInput) =>
     request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),
@@ -16111,7 +16609,23 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listVulnerabilities: () => request<Vulnerability[]>("/vulnerabilities"),
+  listVulnerabilities: (params?: VulnerabilityQuery) => {
+    const qs = new URLSearchParams();
+    if (params?.severity) qs.set("severity", params.severity);
+    if (params?.status) qs.set("status", params.status);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<Vulnerability[]>(`/vulnerabilities${suffix}`);
+  },
+
+  /** Each continuous security check's cadence and latest heartbeat. */
+  listSecurityChecks: () => request<SecurityCheckStatus[]>("/security/intel/checks"),
+
+  /** The latest posture run; null when it has never run. */
+  getSecurityPosture: () => request<PostureReport | null>("/security/intel/posture"),
+
+  /** Open an incident in the breach register from a finding (once). */
+  openIncidentFromFinding: (id: string) =>
+    request<OpenedIncident>(`/security/intel/findings/${id}/incident`, { method: "POST" }),
 
   createVulnerability: (data: CreateVulnerabilityRequest) =>
     request<Vulnerability>("/vulnerabilities", { method: "POST", body: JSON.stringify(data) }),
@@ -16776,6 +17290,13 @@ export const api = {
     }),
   cancelPaymentLink: (id: string) =>
     request<PaymentLinkView>(`/payments/links/${id}/cancel`, { method: "POST" }),
+  /** The billing screen's UPI ID and payment-link terms (never provider keys). */
+  getBillingPaymentSettings: () => request<BillingPaymentSettings>("/billing/payment-settings"),
+  updateBillingPaymentSettings: (data: UpdateBillingPaymentSettings) =>
+    request<BillingPaymentSettings>("/billing/payment-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getOnlineSettings: () => request<OnlineSettings>("/payments/online-settings"),
   updateOnlineSettings: (data: ChooseProviders) =>
     request<ChooseProviders>("/payments/online-settings", {
@@ -17058,15 +17579,14 @@ export const api = {
     }),
 
   getMySignatureCredentials: () => request<SignatureCredential[]>("/signatures/my-credentials"),
-  previewSignature: (data: SignPreviewRequest) => {
-    const qs = new URLSearchParams({
-      record_type: data.record_type,
-      record_id: data.record_id,
-    });
-    if (data.signer_role) qs.set("signer_role", data.signer_role);
-    if (data.legal_class) qs.set("legal_class", data.legal_class);
-    return request<SignPreviewResponse>(`/signatures/preview?${qs.toString()}`);
-  },
+  /** Open a record to sign it: its canonical snapshot, and the review is recorded. */
+  reviewSignature: (data: SignPreviewRequest) =>
+    request<SignPreviewResponse>("/signatures/review", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** The record types the server signs, so no screen offers one it refuses. */
+  listSignableTypes: () => request<SignableTypeInfo[]>("/signatures/types"),
   signRecord: (data: SignRequest) =>
     request<SignResponse>("/signatures/sign", {
       method: "POST",
@@ -17081,6 +17601,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Public — the QR on a signed print; answers no patient or clinical detail. */
+  verifySignatureLink: (token: string) =>
+    request<PublicSignatureCheck>(`/public/signatures/verify/${encodeURIComponent(token)}`),
+  /** The signed record's live public check link, minted if the last was withdrawn. */
+  issueSignatureVerifyLink: (signedRecordId: string) =>
+    request<SignatureVerifyLink>(`/signatures/${encodeURIComponent(signedRecordId)}/verify-link`, {
+      method: "POST",
+    }),
+  /** Withdraw the record's public check link; printed copies then say "withdrawn". */
+  revokeSignatureVerifyLink: (signedRecordId: string, reason: string) =>
+    request<{ revoked: boolean }>(
+      `/signatures/${encodeURIComponent(signedRecordId)}/verify-link/revoke`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
 
   // Doctor Packages (admin)
   adminListDoctorPackages: (params?: { is_active?: boolean; search?: string }) => {
@@ -17353,8 +17887,22 @@ export const api = {
     if (params?.active_only) qs.set("active_only", "true");
     if (params?.limit !== undefined) qs.set("limit", String(params.limit));
     const q = qs.toString();
-    return request<unknown[]>(`/nurse/code-blue${q ? `?${q}` : ""}`);
+    return request<CodeBlueEventRow[]>(`/nurse/code-blue${q ? `?${q}` : ""}`);
   },
+  /** The code-blue roster, who can be added, and the re-page settings. */
+  getCodeBlueTeam: () => request<CodeTeamRoster>("/nurse/code-blue/team"),
+  addCodeBlueTeamMember: (data: { user_id: string; tier: CodeTeamTier; code_type: string }) =>
+    request<{ id: string }>("/nurse/code-blue/team", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removeCodeBlueTeamMember: (id: string) =>
+    request<{ removed: boolean }>(`/nurse/code-blue/team/${id}`, { method: "DELETE" }),
+  updateCodeBlueTeamSettings: (data: { response_secs: number; max_rounds: number }) =>
+    request<{ updated: boolean }>("/nurse/code-blue/team/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   startCodeBlue: (data: Record<string, unknown>) =>
     request<unknown>("/nurse/code-blue", { method: "POST", body: JSON.stringify(data) }),
   appendCodeBlueEntry: (id: string, data: { field: string; entry: unknown }) =>
@@ -17453,7 +18001,8 @@ export const api = {
   getMyActiveCashDrawer: () => request<unknown | null>("/pharmacy/cash-drawers/me/active"),
 
   // Day close
-  listCounterDays: () => request<CounterDay[]>("/pharmacy/day-close"),
+  listCounterDays: (q?: string) =>
+    request<CounterDay[]>(`/pharmacy/day-close${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   getDayCloseReport: (params: { pharmacy_location_id: string; business_date: string }) =>
     request<DayReport>(`/pharmacy/day-close/report?${new URLSearchParams(params)}`),
   closeCounterDay: (data: CloseDayRequest) =>
@@ -17761,6 +18310,20 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ reason }),
     }),
+
+  // ── MedBrains OS machines joining this main machine ──
+  listMachines: () => request<MachineList>("/admin/machines"),
+  approveMachine: (id: string, code: string) =>
+    request<ApprovedMachine>(`/admin/machines/requests/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  getMachineConfirmCode: (id: string) =>
+    request<ApprovedMachine>(`/admin/machines/${id}/confirm-code`, { method: "POST" }),
+  rejectMachine: (id: string) =>
+    request<{ id: string }>(`/admin/machines/requests/${id}/reject`, { method: "POST" }),
+  removeMachine: (id: string) =>
+    request<{ id: string }>(`/admin/machines/${id}`, { method: "DELETE" }),
 
   // ── Hospital binding QR codes (apps scan one to bind to this hospital) ──
   listDeviceBindingCodes: () => request<DeviceBindingCode[]>("/admin/device-binding-codes"),

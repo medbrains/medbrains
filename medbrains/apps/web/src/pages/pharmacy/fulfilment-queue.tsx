@@ -21,8 +21,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { DataTable } from "@/components";
-import { isSafetyRefusal } from "@/components/Pharmacy/safetyGate";
-import { Alert, Badge, type BadgeProps, Button } from "@/components/ui";
+import { isAllergyUnknownRefusal, isSafetyRefusal } from "@/components/Pharmacy/safetyGate";
+import { Alert, Badge, type BadgeProps, Button, Modal } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { ReasonModal } from "./reason-modal";
@@ -35,6 +35,15 @@ const STAGE_TONE: Partial<Record<FulfilmentQueueRow["status"], BadgeProps["tone"
   verified: "info",
   ready: "success",
 };
+
+/** One press of a row's action, with what the picker has already answered. */
+interface ClaimStep {
+  row: FulfilmentQueueRow;
+  /** Overrides a medication safety block on a claim. */
+  overrideReason?: string;
+  /** The patient was asked about allergies, none being on record. */
+  acknowledged?: boolean;
+}
 
 /** What this row is waiting for someone to do. */
 function nextAction(row: FulfilmentQueueRow): string | null {
@@ -64,6 +73,12 @@ export function FulfilmentQueuePage() {
   const [cancelling, setCancelling] = useState<FulfilmentQueueRow | null>(null);
   // A claim the medication safety check stopped, and what it said.
   const [blocked, setBlocked] = useState<{ row: FulfilmentQueueRow; message: string } | null>(null);
+  // A claim stopped because nobody has recorded the patient's allergy status,
+  // and the order whose status the picker has since asked about.
+  const [allergyAsk, setAllergyAsk] = useState<{ row: FulfilmentQueueRow; message: string } | null>(
+    null,
+  );
+  const [askedFor, setAskedFor] = useState<string | null>(null);
   const canOverrideSafety = useHasAnyPermission([
     P.PHARMACY.SAFETY.OVERRIDE,
     P.PHARMACY.STEWARDSHIP.APPROVE,
@@ -84,13 +99,13 @@ export function FulfilmentQueuePage() {
   }
 
   const advance = useMutation({
-    mutationFn: ({ row, overrideReason }: { row: FulfilmentQueueRow; overrideReason?: string }) => {
+    mutationFn: ({ row, overrideReason, acknowledged }: ClaimStep) => {
       switch (row.status) {
         case "ordered":
-          return pharmacyService.claimFulfilmentOrder(
-            row.id,
-            overrideReason ? { safety_override_reason: overrideReason } : undefined,
-          );
+          return pharmacyService.claimFulfilmentOrder(row.id, {
+            ...(overrideReason ? { safety_override_reason: overrideReason } : {}),
+            ...(acknowledged ? { allergy_status_acknowledged: true } : {}),
+          });
         case "picking":
           return pharmacyService.packFulfilmentOrder(row.id);
         case "verified":
@@ -102,6 +117,7 @@ export function FulfilmentQueuePage() {
     onSuccess: (result) => {
       invalidate();
       setBlocked(null);
+      setAllergyAsk(null);
       notifications.show({
         title: "Updated",
         message: `Order is now ${result.status}`,
@@ -109,6 +125,12 @@ export function FulfilmentQueuePage() {
       });
     },
     onError: (error: Error, { row }) => {
+      // Nobody has recorded whether the patient has drug allergies: the picker
+      // asks the patient, then acknowledges it, as at the counter.
+      if (isAllergyUnknownRefusal(error) && row.status === "ordered") {
+        setAllergyAsk({ row, message: error.message });
+        return;
+      }
       // A safety block on a claim: show what it found, and let a pharmacist
       // with override rights proceed with a reason.
       if (isSafetyRefusal(error) && canOverrideSafety && row.status === "ordered") {
@@ -294,8 +316,40 @@ export function FulfilmentQueuePage() {
         confirmTone="danger"
         pending={advance.isPending}
         onClose={() => setBlocked(null)}
-        onConfirm={(why) => blocked && advance.mutate({ row: blocked.row, overrideReason: why })}
+        onConfirm={(why) =>
+          blocked &&
+          advance.mutate({
+            row: blocked.row,
+            overrideReason: why,
+            acknowledged: askedFor === blocked.row.id,
+          })
+        }
       />
+      <Modal
+        opened={allergyAsk !== null}
+        onClose={() => setAllergyAsk(null)}
+        title={`Allergy status unknown for ${allergyAsk?.row.token_number ?? "this order"}`}
+      >
+        <Stack>
+          <Text size="sm">{allergyAsk?.message}</Text>
+          <Group justify="flex-end">
+            <Button tone="ghost" onClick={() => setAllergyAsk(null)}>
+              Keep the order
+            </Button>
+            <Button
+              disabled={advance.isPending}
+              onClick={() => {
+                if (!allergyAsk) return;
+                setAskedFor(allergyAsk.row.id);
+                setAllergyAsk(null);
+                advance.mutate({ row: allergyAsk.row, acknowledged: true });
+              }}
+            >
+              I asked the patient, claim
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       <ReasonModal
         opened={cancelling !== null}
         title={`Cancel ${cancelling?.token_number ?? "order"}`}

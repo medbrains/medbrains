@@ -61,3 +61,18 @@ export function isSafetyRefusal(error: unknown): error is ApiError {
     error instanceof ApiError && error.status === 409 && error.message.includes(SAFETY_REFUSAL)
   );
 }
+
+/** Start of the server's refusal when nobody has recorded the patient's allergy status. */
+const ALLERGY_UNKNOWN_REFUSAL = "This patient's allergy status is unknown";
+
+/**
+ * Whether an error is the dispense or pick refusing because the patient's
+ * allergy status is unknown, so the screen can ask for the acknowledgement.
+ */
+export function isAllergyUnknownRefusal(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 400 &&
+    error.message.includes(ALLERGY_UNKNOWN_REFUSAL)
+  );
+}

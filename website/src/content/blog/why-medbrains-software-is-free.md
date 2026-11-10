@@ -53,7 +53,7 @@ What we charge for, each quoted in writing before the hospital commits:
 - **Customisation**, per requirement: a report, form, integration or workflow
   only that hospital needs.
 - **AMC**, yearly: help desk, bug fixes, monitoring, checked backups, small
-  configuration changes, and hosting in India if we run the system for them.
+  configuration changes, and hosting in AWS Mumbai if we run the system for them.
 
 The full list is on our [pricing page](/pricing), and the terms behind it are in
 our [commercial terms](/terms).
@@ -110,7 +110,7 @@ the implementation and the support.
 
 A free product has to be paid for somehow, and the usual ways are the ones we
 rule out. No money from pharmaceutical companies or advertisers reaches the
-product. We never sell clinical data: under India's Digital Personal Data
+product. We never sell clinical data: under the Digital Personal Data
 Protection Act we act as a processor for the hospital's patient data, working
 only on the hospital's instructions. And every patient-safety feature stays free
 for everyone. Safety is never an upgrade.
@@ -127,9 +127,10 @@ sign them.
 
 Some hospitals have asked how they can support MedBrains. It is entirely
 optional: lend your IT team to test new releases, build or review a feature with
-us, share what your teams need, introduce another hospital, or sponsor a feature
+us, share what your teams need, introduce another hospital, or [sponsor a feature](/sponsors)
 that every hospital then gets. None of it changes your support, which comes
-through AMC.
+through AMC. IT companies that want to install and support MedBrains for
+hospitals near them can join the [partner programme](/partners).
 
 If you would like to see how MedBrains would run in your hospital, [ask for a
 free assessment and a written quote](/pricing#quote).

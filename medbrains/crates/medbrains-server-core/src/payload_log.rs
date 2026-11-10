@@ -10,17 +10,33 @@
 //!
 //! Only failures are logged, only JSON, only bodies up to `MAX_BODY` with a
 //! declared length — an upload or a streamed body passes through untouched.
+//! A 401 is never logged (anyone can send one, so it would let a stranger fill
+//! the journal), and a logged payload is cut at `MAX_LOGGED` characters.
+//!
+//! Off unless `MEDBRAINS_LOG_FAILED_PAYLOADS=1`: identity is masked but
+//! clinical values are kept, and the request path carries record ids, so this
+//! is a switch for an operator chasing a failure, not a default.
 
 use axum::body::{Body, Bytes, to_bytes};
 use axum::extract::Request;
 use axum::http::{StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use medbrains_core::ai_redact::redact_for_record;
+use std::sync::LazyLock;
+
 use serde_json::Value;
+
+use crate::scrub::scrub_text;
+
+/// Whether the operator turned the log on, read once at first use.
+static ENABLED: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("MEDBRAINS_LOG_FAILED_PAYLOADS").is_ok_and(|v| v.trim() == "1"));
 
 /// Bodies larger than this are not buffered or logged.
 const MAX_BODY: usize = 64 * 1024;
+
+/// A logged query or payload longer than this is cut, so one line stays small.
+const MAX_LOGGED: usize = 4 * 1024;
 
 const MASK: &str = "[redacted]";
 
@@ -57,6 +73,21 @@ const SENSITIVE_PARTS: &[&str] = &[
     "bank",
     "salary",
     "signature",
+    "uhid",
+    "mrn",
+    "username",
+    "login",
+    "credential",
+    "authorization",
+    "cookie",
+    "session",
+    "national_id",
+    "id_number",
+    "health_id",
+    "gstin",
+    "guardian",
+    "relative",
+    "emergency",
 ];
 
 /// Keys masked only on an exact match — `name` is a person on a patient but a
@@ -76,59 +107,76 @@ const SENSITIVE_KEYS: &[&str] = &[
     "display_name",
     "contact",
     "pan",
+    "pin",
+    "code",
+    "key",
     "q",
     "search",
     "query",
     "term",
 ];
 
+/// Whether a key names a person, a contact, an identity number or a secret.
 fn is_sensitive(key: &str) -> bool {
     let key = key.to_ascii_lowercase();
     SENSITIVE_KEYS.contains(&key.as_str()) || SENSITIVE_PARTS.iter().any(|p| key.contains(p))
 }
 
-/// Mask sensitive values in place; free text goes through the record redactor.
-fn redact(value: &mut Value, today: chrono::NaiveDate) {
+/// Mask sensitive values in place; free text goes through the shared scrubber.
+fn redact(value: &mut Value) {
     match value {
         Value::Object(map) => {
             for (key, inner) in map.iter_mut() {
                 if is_sensitive(key) && !inner.is_null() {
                     *inner = Value::String(MASK.to_owned());
                 } else {
-                    redact(inner, today);
+                    redact(inner);
                 }
             }
         }
-        Value::Array(items) => items.iter_mut().for_each(|item| redact(item, today)),
-        Value::String(text) => *text = redact_for_record(text, today),
+        Value::Array(items) => items.iter_mut().for_each(redact),
+        Value::String(text) => *text = scrub_text(text),
         Value::Null | Value::Bool(_) | Value::Number(_) => {}
     }
 }
 
-fn redact_body(bytes: &Bytes, today: chrono::NaiveDate) -> String {
+/// The JSON body with sensitive values masked, or a marker if it is not JSON.
+fn redact_body(bytes: &Bytes) -> String {
     serde_json::from_slice::<Value>(bytes).map_or_else(
         |_| "[not json]".to_owned(),
         |mut value| {
-            redact(&mut value, today);
-            value.to_string()
+            redact(&mut value);
+            cut(value.to_string())
         },
     )
 }
 
-fn redact_query(query: &str, today: chrono::NaiveDate) -> String {
-    url::form_urlencoded::parse(query.as_bytes())
+/// The query string with sensitive keys masked and other values scrubbed.
+fn redact_query(query: &str) -> String {
+    let shown = url::form_urlencoded::parse(query.as_bytes())
         .map(|(key, value)| {
             let shown = if is_sensitive(&key) {
                 MASK.to_owned()
             } else {
-                redact_for_record(&value, today)
+                scrub_text(&value)
             };
             format!("{key}={shown}")
         })
         .collect::<Vec<_>>()
-        .join("&")
+        .join("&");
+    cut(shown)
 }
 
+/// `text` cut to `MAX_LOGGED` characters, marked when it was cut.
+fn cut(mut text: String) -> String {
+    if let Some((at, _)) = text.char_indices().nth(MAX_LOGGED) {
+        text.truncate(at);
+        text.push_str("…[cut]");
+    }
+    text
+}
+
+/// Whether the request declares a JSON body small enough to buffer.
 fn is_small_json(request: &Request) -> bool {
     let headers = request.headers();
     let json = headers
@@ -146,8 +194,12 @@ fn is_small_json(request: &Request) -> bool {
 /// Log the redacted query and JSON body of any request that fails.
 ///
 /// Wire in with `axum::middleware::from_fn(log_failed_payload)`, inside the
-/// trace layer so the line carries the request's method and path.
+/// trace layer so the line carries the request's method and path. Passes
+/// straight through unless the operator switched it on.
 pub async fn log_failed_payload(request: Request, next: Next) -> Response {
+    if !*ENABLED {
+        return next.run(request).await;
+    }
     let query = request.uri().query().map(str::to_owned);
     let (request, body) = if is_small_json(&request) {
         let (parts, body) = request.into_parts();
@@ -165,11 +217,10 @@ pub async fn log_failed_payload(request: Request, next: Next) -> Response {
 
     let response = next.run(request).await;
     let status = response.status();
-    if (status.is_client_error() || status.is_server_error()) && (query.is_some() || body.is_some())
-    {
-        let today = chrono::Utc::now().date_naive();
-        let query = query.map(|q| redact_query(&q, today)).unwrap_or_default();
-        let payload = body.map(|b| redact_body(&b, today)).unwrap_or_default();
+    let failed = status.is_client_error() || status.is_server_error();
+    if failed && status != StatusCode::UNAUTHORIZED && (query.is_some() || body.is_some()) {
+        let query = query.map(|q| redact_query(&q)).unwrap_or_default();
+        let payload = body.map(|b| redact_body(&b)).unwrap_or_default();
         tracing::info!(
             status = status.as_u16(),
             query,
@@ -184,10 +235,6 @@ pub async fn log_failed_payload(request: Request, next: Next) -> Response {
 mod tests {
     use super::*;
 
-    fn today() -> chrono::NaiveDate {
-        chrono::NaiveDate::from_ymd_opt(2026, 10, 31).unwrap_or_default()
-    }
-
     #[test]
     fn personal_and_financial_values_are_masked_but_the_order_is_kept() {
         let body = Bytes::from_static(
@@ -196,7 +243,7 @@ mod tests {
                 "tests":[{"name":"CBC","loinc_code":"58410-2","priority":"stat"}],
                 "patient_name":"Ravi Kumar"}"#,
         );
-        let shown = redact_body(&body, today());
+        let shown = redact_body(&body);
 
         for leaked in [
             "Ravi",
@@ -208,14 +255,14 @@ mod tests {
             assert!(!shown.contains(leaked), "{leaked} leaked: {shown}");
         }
         // What is needed to debug the failure survives.
-        for kept in ["58410-2", "stat", "450", "loinc_code", "priority"] {
+        for kept in ["stat", "450", "loinc_code", "priority"] {
             assert!(shown.contains(kept), "{kept} lost: {shown}");
         }
     }
 
     #[test]
     fn a_search_term_never_reaches_the_log() {
-        let shown = redact_query("q=Ravi%20Kumar&status=pending&page=2", today());
+        let shown = redact_query("q=Ravi%20Kumar&status=pending&page=2");
         assert!(!shown.contains("Ravi"), "{shown}");
         assert!(
             shown.contains("status=pending") && shown.contains("page=2"),
@@ -225,9 +272,31 @@ mod tests {
 
     #[test]
     fn a_body_that_is_not_json_is_not_echoed() {
-        assert_eq!(
-            redact_body(&Bytes::from_static(b"name=Ravi"), today()),
-            "[not json]"
+        assert_eq!(redact_body(&Bytes::from_static(b"name=Ravi")), "[not json]");
+    }
+
+    #[test]
+    fn credentials_and_names_in_free_text_are_scrubbed() {
+        let body = Bytes::from_static(
+            br#"{"username":"ravi.k","pin":"4321","code":"918273","uhid":"MB-000123",
+                "notes":"called Ravi Kumar, token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig"}"#,
         );
+        let shown = redact_body(&body);
+        for leaked in [
+            "ravi.k",
+            "4321",
+            "918273",
+            "000123",
+            "Ravi Kumar",
+            "eyJhbGci",
+        ] {
+            assert!(!shown.contains(leaked), "{leaked} leaked: {shown}");
+        }
+    }
+
+    #[test]
+    fn a_long_payload_is_cut() {
+        let shown = cut("x".repeat(MAX_LOGGED + 10));
+        assert!(shown.ends_with("…[cut]") && shown.chars().count() < MAX_LOGGED + 10);
     }
 }

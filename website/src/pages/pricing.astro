@@ -5,6 +5,7 @@ import chibi from "../assets/mascot/crab-chibi.svg?raw";
 import Demo from "../components/Demo.astro";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
+import Mission from "../components/Mission.astro";
 import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
 import {
@@ -107,6 +108,8 @@ const schema = [
       </div>
     </section>
 
+    <Mission />
+
     <div class="paper">
       <section class="section" aria-labelledby="free-title">
         <div class="wrap">
@@ -203,6 +206,7 @@ const schema = [
           <p class="lead-p">{SUPPORT_US.body}</p>
           <ul class="ways">{SUPPORT_US.ways.map((w) => <li>{w}</li>)}</ul>
           <p class="small">{SUPPORT_US.rules}</p>
+          <p class="small">Other ways in: <a href="/sponsors">sponsor MedBrains</a>, or install and support it for hospitals near you through the <a href="/partners">partner programme</a>.</p>
           <a class="btn btn-ghost dark" href={`mailto:${SITE.email}?subject=${encodeURIComponent(SUPPORT_US.cta.subject)}`}>{SUPPORT_US.cta.label}</a>
         </div>
       </section>

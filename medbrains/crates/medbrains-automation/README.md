@@ -92,9 +92,6 @@ decision for whoever owns auth, so it is left open rather than guessed at.
   `PERMISSION_COUNT` constant (777 → 781) have not been updated — the count
   tracks the frontend array, and moving one without the other is worse than
   moving neither.
-* **The submodule pointer.** r8r sits at `../r8r`, currently gitignored.
-  Once it has a remote:
-  `git rm -r --cached r8r && git submodule add <url> r8r`
 * **Scheduler and webhooks.** The store and engine support both; nothing wires
   the tick loop or the inbound route yet.
 * **Native nodes.** Every clinical read currently goes over the FHIR API. In

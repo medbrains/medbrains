@@ -59,8 +59,7 @@ pub async fn queue_ws_handler(
 /// board never received a live update. An id no scope owns means a
 /// misconfigured board, and it gets no feed at all rather than everybody's.
 async fn tenant_of_scope(state: &AppState, scope_id: Uuid) -> Option<Uuid> {
-    sqlx::query_scalar!(
-        // allow-raw-sql: resolves the tenant itself, so none can scope it
+    sqlx::query_scalar!( // allow-raw-sql: resolves the tenant itself, so none can scope it
         r#"SELECT tenant_id AS "tenant_id!" FROM token_scopes WHERE scope_id = $1 LIMIT 1"#,
         scope_id,
     )

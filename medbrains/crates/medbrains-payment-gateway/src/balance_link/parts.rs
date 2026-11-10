@@ -183,6 +183,7 @@ async fn post_part(
     part: &Part<'_>,
     payload: &Value,
 ) -> Result<(Decimal, Decimal), AppError> {
+    medbrains_db::pool::take_audit_chain_first(tx, &link.tenant_id).await?;
     let bills = sqlx::query_as::<_, OpenBill>(
         "SELECT id, total_amount - paid_amount AS balance FROM invoices \
           WHERE tenant_id = $1 AND id = ANY($2) AND deleted_at IS NULL \

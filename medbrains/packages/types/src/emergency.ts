@@ -51,6 +51,10 @@ export interface PatientRadiologyReport {
   verified_at: string | null;
   alert_id: string | null;
   alert_acknowledged_at: string | null;
+  /** Who reported the study; signs it when no consultant verified it. */
+  reported_by: string | null;
+  /** The consultant who verified the report: its author, who signs it. */
+  verified_by: string | null;
 }
 
 export interface PatientTimelineEvent {
@@ -211,6 +215,10 @@ export interface ErCodeActivation {
   deactivated_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Who the page reached, in words. */
+  routing_note?: string | null;
+  /** What did not go out, e.g. "SMS is not set up: only in-app alerts went out". */
+  delivery_warning?: string | null;
 }
 
 export interface MlcCase {

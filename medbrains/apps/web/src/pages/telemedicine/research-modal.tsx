@@ -58,7 +58,7 @@ export function ResearchModal({ opened, onClose }: { opened: boolean; onClose: (
         </Text>
         {(data?.red_flag_frequency ?? []).slice(0, 8).map((f) => (
           <Group key={f.flag} gap="xs">
-            <Text size="sm">🚩 {f.flag.replace(/_/g, " ")}</Text>
+            <Text size="sm">Red flag: {f.flag.replace(/_/g, " ")}</Text>
             <Text size="xs" c="dimmed">
               {f.count}
             </Text>

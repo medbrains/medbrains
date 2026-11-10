@@ -31,13 +31,7 @@ struct VerifyResult {
 /// Verify one subjective finding. Returns a verdict string clamped to the DB
 /// CHECK set; on any model/parse error falls back to `plausible` (don't silently
 /// drop a possible defect, but don't claim it's confirmed either).
-pub async fn verify(
-    state: &AppState,
-    tenant_id: &Uuid,
-    kind: &str,
-    message: &str,
-    cell: &Value,
-) -> String {
+pub async fn verify(state: &AppState, tenant_id: &Uuid, kind: &str, message: &str, cell: &Value) -> String {
     let prompt = serde_json::json!({
         "reported_kind": kind,
         "reported_finding": message,

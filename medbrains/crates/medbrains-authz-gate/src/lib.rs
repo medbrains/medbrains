@@ -6,7 +6,7 @@
 //! or admissions (the object-hierarchy edge — the care team is linked to the
 //! encounter/admission, not the patient directly).
 //!
-//! DSA/DP discipline (CLAUDE.md "DSA + dynamic programming everywhere"): the
+//! DSA/DP discipline (ENGINEERING.md "DSA + dynamic programming everywhere"): the
 //! cheap direct check short-circuits first (0 SQL on the common path); the
 //! object fan-out is **bounded** (`MAX_FANOUT`) and **batched** into a single
 //! `bulk_check` (N→1) rather than a per-object loop.
@@ -129,6 +129,15 @@ pub enum ParentKind {
     Admission,
     /// Clinical: a direct grant **or** reachability via a recent encounter.
     Patient,
+    /// Clinical like `Patient`; failing that, the child row's own `view`
+    /// under this object type.
+    ///
+    /// For work that reaches a department as an order. A lab order is handed
+    /// to the laboratory on the order itself (`lab_order#dept_member`), so the
+    /// lab reaches that order, its specimen and its results, and not the
+    /// patient's record. The visit used to be handed over instead, which
+    /// opened every note, diagnosis and document to the whole department.
+    PatientOrOwn(&'static str),
     /// Administrative: a direct grant only.
     ///
     /// Financial records do not follow the care team. Treating a patient does
@@ -191,20 +200,44 @@ pub mod links {
     /// A tele-consultation is an encounter, and its triage record hangs off it.
     pub const TELE_CONSULTATION: ParentLink = ParentLink::on_patient("tele_consultations");
 
-    pub const LAB_ORDER: ParentLink = ParentLink::on_patient("lab_orders");
+    /// A lab order: its patient's care team, or whoever the order itself was
+    /// handed to (the laboratory, `grant_lab_order_access`).
+    pub const LAB_ORDER: ParentLink = ParentLink {
+        table: "lab_orders",
+        column: "patient_id",
+        parent: ParentKind::PatientOrOwn("lab_order"),
+    };
 
     /// The draw that happens at somebody's address, where the only person
-    /// present is the phlebotomist. It carries `patient_id` itself.
-    pub const LAB_HOME_COLLECTION: ParentLink = ParentLink::on_patient("lab_home_collections");
+    /// present is the phlebotomist. Reached through its order (`order_id` is
+    /// NOT NULL), so the lab that holds the order holds the draw.
+    pub const LAB_HOME_COLLECTION: ParentLink = ParentLink {
+        table: "lab_home_collections",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
-    /// A panic value and who was telephoned about it.
-    pub const LAB_CRITICAL_ALERT: ParentLink = ParentLink::on_patient("lab_critical_alerts");
+    /// A panic value and who was telephoned about it, through its order.
+    pub const LAB_CRITICAL_ALERT: ParentLink = ParentLink {
+        table: "lab_critical_alerts",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
-    /// Who is waiting for a needle, and where.
-    pub const LAB_PHLEBOTOMY_QUEUE: ParentLink = ParentLink::on_patient("lab_phlebotomy_queue");
+    /// Who is waiting for a needle, and where, through the order to draw for.
+    pub const LAB_PHLEBOTOMY_QUEUE: ParentLink = ParentLink {
+        table: "lab_phlebotomy_queue",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
-    /// A retained specimen, kept for repeat and add-on testing.
-    pub const LAB_SAMPLE_ARCHIVE: ParentLink = ParentLink::on_patient("lab_sample_archive");
+    /// A retained specimen, kept for repeat and add-on testing, through the
+    /// order it was drawn for.
+    pub const LAB_SAMPLE_ARCHIVE: ParentLink = ParentLink {
+        table: "lab_sample_archive",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
 
     /// A test sent to a reference laboratory. It reaches its patient through
     /// the order it was raised from; it has no `patient_id` of its own.
@@ -526,6 +559,9 @@ pub async fn require_access_via_optional(
             ParentKind::Encounter => require_encounter_access(state, claims, parent_id).await,
             ParentKind::Admission => require_admission_access(state, claims, parent_id).await,
             ParentKind::Patient => require_patient_access(state, claims, parent_id).await,
+            ParentKind::PatientOrOwn(own) => {
+                require_patient_or_own(state, claims, parent_id, (own, child_id)).await
+            }
             ParentKind::PatientDirect => {
                 require_object_view(state, claims, "patient", parent_id).await
             }
@@ -537,6 +573,24 @@ pub async fn require_access_via_optional(
             )),
         },
     }
+}
+
+/// The patient's care team passes; anyone else must hold `view` on the child
+/// object itself (`own` = object type and id).
+///
+/// Only a refusal falls through to the second check: an outage on the first
+/// stays an outage (503), never a 404.
+async fn require_patient_or_own(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+    own: (&str, Uuid),
+) -> Result<(), AppError> {
+    let care = require_patient_access(state, claims, patient_id).await;
+    if !matches!(care, Err(AppError::NotFound)) {
+        return care;
+    }
+    require_object_view(state, claims, own.0, own.1).await
 }
 
 /// Resolve a child row to its parent, then authorize the parent.
@@ -587,6 +641,9 @@ pub async fn require_access_via(
             }
             ParentKind::Patient => {
                 return require_patient_access(state, claims, parent_id).await;
+            }
+            ParentKind::PatientOrOwn(own) => {
+                return require_patient_or_own(state, claims, parent_id, (own, id)).await;
             }
             ParentKind::PatientDirect => {
                 return require_object_view(state, claims, "patient", parent_id).await;
@@ -744,6 +801,97 @@ pub async fn require_patient_access(
     };
 
     collapse(any([direct, reachable]))
+}
+
+/// How long a pharmacy order keeps the dispensing view of its patient open.
+///
+/// Open orders count only while recent, and a dispensed one only for returns
+/// and counselling. Past this the pharmacist reaches the patient the ordinary
+/// way or not at all.
+const PHARMACY_ACCESS_DAYS: i32 = 30;
+
+/// Gate the **dispensing view** of a patient: name, UHID and drug allergies,
+/// and raising a pharmacy order for them.
+///
+/// Passes for anyone `require_patient_access` passes. Beyond that, it passes
+/// while the pharmacy is working for the patient, within
+/// `PHARMACY_ACCESS_DAYS`: an open prescription in the Rx queue (to a holder
+/// of the Rx-queue permission), or a pharmacy order the caller can view (the
+/// Pharmacy department). It deliberately does not widen
+/// `require_patient_access`: the pharmacy used to reach the whole record
+/// through a `handoff:PHARMACY` tuple on the visit, with no end. Use it only
+/// for reads that return what dispensing needs, nothing more.
+pub async fn require_patient_pharmacy_access(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let care = require_patient_access(state, claims, patient_id).await;
+    if !matches!(care, Err(AppError::NotFound)) {
+        // Allowed, or a fault that must not turn into a refusal.
+        return care;
+    }
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    // The Rx queue is the pharmacy's worklist, scoped by its permission: an
+    // open prescription for this patient is the pharmacy's work.
+    let rx_queue_holder = medbrains_server_core::middleware::authorization::require_any_permission(
+        claims,
+        &[
+            medbrains_core::permissions::pharmacy::rx_queue::LIST,
+            medbrains_core::permissions::pharmacy::rx_queue::REVIEW,
+        ],
+    )
+    .is_ok();
+    if rx_queue_holder {
+        let open_rx = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM pharmacy_prescriptions \
+              WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+                AND status::text IN ('pending_review', 'on_hold', 'approved', 'dispensing', \
+                                     'partially_dispensed') \
+                AND received_at > now() - make_interval(days => $3)) AS \"exists!\"",
+            patient_id,
+            claims.tenant_id,
+            PHARMACY_ACCESS_DAYS,
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        if open_rx {
+            return Ok(());
+        }
+    }
+    let order_ids: Vec<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM pharmacy_orders WHERE patient_id = $1 AND tenant_id = $2 \
+           AND deleted_at IS NULL \
+           AND ((status IN ('ordered', 'partially_dispensed') \
+                 AND created_at > now() - make_interval(days => $3)) \
+                OR dispensed_at > now() - make_interval(days => $3)) \
+         ORDER BY created_at DESC LIMIT $4",
+        patient_id,
+        claims.tenant_id,
+        PHARMACY_ACCESS_DAYS,
+        MAX_FANOUT,
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    if order_ids.is_empty() {
+        return Err(AppError::NotFound);
+    }
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    let items: Vec<(String, medbrains_authz::Relation, Uuid)> = order_ids
+        .into_iter()
+        .map(|id| ("pharmacy_order".to_owned(), medbrains_authz::Relation::Viewer, id))
+        .collect();
+    let reachable = match state.authz.bulk_check(&ctx, &items).await {
+        Ok(results) => any(results.values().map(|&allowed| {
+            if allowed { Outcome::Allow } else { Outcome::Deny }
+        })),
+        Err(err) => {
+            tracing::error!(target: "authz", error = %err, check = "patient_pharmacy",
+                "authorization backend unavailable — refusing as 503, not as absent");
+            Outcome::Unknown
+        }
+    };
+    collapse(reachable)
 }
 
 /// The set of patients this caller may see, for constraining a list query.
