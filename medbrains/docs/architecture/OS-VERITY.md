@@ -133,7 +133,7 @@ Boot time: see "Evidence".
 
 ## Open
 
-1. **Recovery key after every update** (PCR 4). Fix: before applying, add a TPM slot for the new boot file's
+1. **Recovery key after every update** (PCR 4), #5452. Fix: before applying, add a TPM slot for the new boot file's
    predicted PCR 4 (`systemd-cryptenroll --tpm2-pcrs=4:sha256=<value>+7`, the value computed from the firmware
    event log with the new boot file's Authenticode hash in place of the running one's), and drop the old slot
    once the new version proves good; or Secure Boot, then drop PCR 4.

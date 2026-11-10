@@ -197,6 +197,41 @@ slot does not start. **But the seal includes PCR 4, the boot file's own hash, so
 key** (DECISIONS 2026-11-05, after the rows above were tested). The rows "Opens by itself" above predate PCR 4. The fix, a seal for
 the new boot file's predicted PCR 4 added before applying, is open (`OS-VERITY.md`, "Open").
 
+### Proposal: no recovery key after an update (must land before any release key)
+
+**The problem.** The seal includes PCR 4, which holds the hash of the boot loader and of the boot file the firmware started
+(DECISIONS 2026-11-05, the attack it closes). Every update ships a new boot file, so PCR 4 changes and the first start of every
+new version stops at the recovery-key prompt. A hospital cannot have a person type 64 characters after each update, and a
+machine that waits there is a ward without a system. Until this is fixed, no release may be signed.
+
+**Fix A, recommended: seal to the predicted PCR 4 before applying.** PCR 4 is not secret or random: it is the SHA-256 chain of the
+firmware's `EV_EFI_BOOT_SERVICES_APPLICATION` events, one per binary it started, each the binary's Authenticode hash. The
+machine knows all of them except the new boot file's, and that one is a hash of a file it already holds and has verified.
+
+1. At install, after the slot is named and before the boot file is staged: replay the running machine's PCR 4 event log
+   (`/sys/kernel/security/tpm0/binary_bios_measurements`), replacing the running boot file's Authenticode digest with the new
+   one's. systemd 257 ships the parts: `systemd-pcrlock log` reads and checks the log against the live PCR, `lock-uki` and
+   `lock-pe` compute the Authenticode digests. Refuse the install if the replayed log does not reproduce today's PCR 4: an
+   unreadable log must not become a guessed seal.
+2. Add a second TPM2 token while the disk is open: `systemd-cryptenroll --unlock-tpm2-device=auto --tpm2-device=auto
+   --tpm2-pcrs=4:sha256=<predicted>+7 --tpm2-public-key=<key> --tpm2-public-key-pcrs=11`. The old token stays, so a rollback
+   or a person going back still opens by itself.
+3. When the new version proves good, drop the old token; when it rolls back, drop the new one. At most two tokens, both
+   named in the update record, so a power cut at any step leaves a token that opens the disk for whichever version boots.
+
+Cost: about 150 lines in the updater (log replay, Authenticode digest, two `cryptenroll` calls, the record), one new failure
+row per step, and x86-64 swtpm tests: update opens by itself, rollback opens by itself, a cut between enrolling and staging opens.
+Ruled out: `systemd-pcrlock make-policy` as the whole answer. It moves the seal to an NV-index policy that tolerates listed
+variants, a larger change to `disk-setup` and recovery than this needs; its log and digest code is what we reuse.
+
+**Fix B: Secure Boot, then drop PCR 4.** With our key in the firmware's db and Secure Boot on, the firmware refuses an
+attacker's boot file and PCR 7 records the policy, so the seal can be PCR 7 plus signed PCR 11 and survives every update.
+Needs a key enrolled per machine at installation (or shim with a vendor certificate), a signing key held like the release key
+(X2), and a plan for machines whose firmware cannot enrol keys. It also closes the loader-command-line gap in `OS-VERITY.md`.
+It is the end state; A is what makes updates usable before every installed machine has it.
+
+Tracked in #5452, linked from #5403 and #5404.
+
 ## The hard part: the database
 
 **Not solved by this task, and it blocks real use.** Today the server ships inside the OS image and migrates at start, on the trial boot.
