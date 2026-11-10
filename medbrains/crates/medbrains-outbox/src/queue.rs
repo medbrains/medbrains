@@ -2,7 +2,7 @@
 //! transaction so the queue write is atomic with their domain write.
 
 use serde_json::Value;
-use sqlx::{Postgres, Transaction};
+use sqlx::{PgConnection, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::OutboxError;
@@ -27,6 +27,13 @@ pub async fn queue_in_tx(
     tx: &mut Transaction<'_, Postgres>,
     row: OutboxRow,
 ) -> Result<Uuid, OutboxError> {
+    queue_on(tx, row).await
+}
+
+/// [`queue_in_tx`] on a bare connection: a kernel unit of work
+/// (`medbrains_kernel::Tx`) derefs to one. Call it inside a transaction, so
+/// the row commits or rolls back with the work.
+pub async fn queue_on(tx: &mut PgConnection, row: OutboxRow) -> Result<Uuid, OutboxError> {
     let inserted: Option<(Uuid,)> = sqlx::query_as(
         "INSERT INTO outbox_events ( \
              tenant_id, aggregate_type, aggregate_id, event_type, payload, \
@@ -43,7 +50,7 @@ pub async fn queue_in_tx(
     .bind(row.event_type)
     .bind(&row.payload)
     .bind(row.idempotency_key.as_deref())
-    .fetch_optional(&mut **tx)
+    .fetch_optional(&mut *tx)
     .await?;
 
     if let Some((id,)) = inserted {
@@ -59,7 +66,7 @@ pub async fn queue_in_tx(
     .bind(row.tenant_id)
     .bind(row.event_type)
     .bind(row.idempotency_key.as_deref())
-    .fetch_one(&mut **tx)
+    .fetch_one(&mut *tx)
     .await?;
     Ok(existing.0)
 }

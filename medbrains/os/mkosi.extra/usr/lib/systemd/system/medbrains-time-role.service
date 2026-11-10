@@ -1,0 +1,16 @@
+# Chooses this machine's time sources by its role, before chrony reads them.
+[Unit]
+Description=MedBrains time source for this machine's role
+DefaultDependencies=no
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=chrony.service
+RequiresMountsFor=/var/lib/medbrains
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=30
+ExecStart=/usr/lib/medbrains/time-role
+
+[Install]
+WantedBy=chrony.service

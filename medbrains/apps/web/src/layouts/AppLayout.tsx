@@ -41,15 +41,12 @@ import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { HelpButton } from "@/components/HelpButton";
 import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
 import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
-import { AddProductModal } from "@/components/Materials/AddProductModal";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { NotesButton } from "@/components/notes/NotesButton";
 import { PageQueryErrorBanner } from "@/components/PageQueryErrorBanner";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
-import { CollectDrawer } from "@/components/payments/collect/CollectDrawer";
-import { TestCasesPanel } from "@/components/qa/TestCasesPanel";
 import { StepUpGate } from "@/components/StepUpGate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
@@ -64,6 +61,7 @@ import {
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
+import { OnDemandOverlays } from "./OnDemandOverlays";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
@@ -144,7 +142,9 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
-  const isModuleEnabled = useModuleStore((s) => s.isModuleEnabled);
+  // Select the set, not the stable `isModuleEnabled` function, so the menu re-renders when a
+  // brick is switched on or off.
+  const disabledModules = useModuleStore((s) => s.disabledModules);
   const { t } = useTranslation("nav");
 
   const isExpanded = sidebarOpen;
@@ -314,7 +314,7 @@ export function AppLayout() {
   // ── Filter nav items by permission only — the sidebar is a flat,
   //    categorized console service-nav (no workspace gating). ──
   const filterItem = (item: ResolvedNavItem): boolean =>
-    itemHasPermission(item) && isModuleEnabled(item.moduleCode);
+    itemHasPermission(item) && !(item.moduleCode && disabledModules.has(item.moduleCode));
 
   // ── Render a single rail icon ──
   const renderRailItem = (item: ResolvedNavItem, active: boolean) => (
@@ -722,12 +722,10 @@ export function AppLayout() {
           anywhere via useAiAssistant(). Outside PageTransition so its fixed
           launcher anchors to the viewport. */}
       <AiAssistantMount />
-      <AddProductModal />
-      <CollectDrawer />
+      <OnDemandOverlays />
       <LiveActivityIsland />
       <EmergencyCodeActivity />
       <StepUpGate />
-      <TestCasesPanel />
     </AppShell>
   );
 }

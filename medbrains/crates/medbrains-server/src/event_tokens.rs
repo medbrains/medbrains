@@ -73,17 +73,5 @@ pub async fn open_event_token(
 }
 
 async fn event_token_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    match state.secret_resolver.get(EVENT_TOKEN_KEY_SECRET).await {
-        Ok(value) if value.len() >= 32 => Ok(value.into_bytes()),
-        Ok(_) => Err(AppError::Internal(format!(
-            "{EVENT_TOKEN_KEY_SECRET} must be at least 32 bytes"
-        ))),
-        Err(_) => {
-            tracing::warn!(
-                "{EVENT_TOKEN_KEY_SECRET} missing; using dev-only event token key. \
-                 Set this before production so QR/barcode tokens are not decryptable across installs."
-            );
-            Ok(DEV_EVENT_TOKEN_KEY.to_vec())
-        }
-    }
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), EVENT_TOKEN_KEY_SECRET, DEV_EVENT_TOKEN_KEY).await.map_err(AppError::from)
 }

@@ -12,6 +12,7 @@ import {
 } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useDictatedRxStore } from "@/components/Clinical/dictation/dictated-rx-store";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { Alert, Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
@@ -19,6 +20,8 @@ import { todayDateString } from "@/lib/date-utils";
 import { ckbService } from "@/services/ckb.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { matchDrugAllergy } from "@/utils/allergyMatch";
+import { DictatedPicks } from "./DictatedPicks";
+import { dictatedToRx } from "./dictatedRx";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
 import { RxPrint } from "./RxPrint";
@@ -111,7 +114,7 @@ export function RxSuiteWriter({
   const refillable = (terms: RefillTerms, items: RxItem[]) =>
     controlledNames(items, formularyById).length > 0 ? { ...terms, refills: 0 } : terms;
 
-  const { data: catalog = [] } = useQuery({
+  const { data: catalog = [], isLoading: catalogLoading } = useQuery({
     queryKey: ["pharmacy-catalog"],
     queryFn: () => clinicalSupportService.listPharmacyCatalog(),
     staleTime: 300_000,
@@ -150,7 +153,14 @@ export function RxSuiteWriter({
     staleTime: 60_000,
   });
 
-  const formulary = useMemo<FormularyDrug[]>(() => catalogToFormulary(catalog), [catalog]);
+  // Drugs found by the server-side search, beyond the first hundred loaded:
+  // the safety checks below look drugs up here, so a picked one must be in it.
+  const [foundDrugs, setFoundDrugs] = useState<FormularyDrug[]>([]);
+  const formulary = useMemo<FormularyDrug[]>(() => {
+    const loaded = catalogToFormulary(catalog);
+    const ids = new Set(loaded.map((d) => d.id));
+    return [...loaded, ...foundDrugs.filter((d) => !ids.has(d.id))];
+  }, [catalog, foundDrugs]);
   const formularyById = useMemo(
     () => Object.fromEntries(formulary.map((d) => [d.id, d])),
     [formulary],
@@ -171,6 +181,36 @@ export function RxSuiteWriter({
     catalog,
     formularyById,
     canUpdate && prescriber === "doctor",
+  );
+
+  // Medicines accepted from a dictation: loaded only when the doctor asks,
+  // then prescribed through the same checks as any other line.
+  const dictatedMedicines = useDictatedRxStore((s) => s.byEncounter[encounterId]);
+  // The doctor's picks for dictated names the formulary could not settle.
+  const [dictatedPicks, setDictatedPicks] = useState<Record<number, FormularyDrug>>({});
+  const clearDictated = useDictatedRxStore((s) => s.clear);
+  const dictated = useMemo(
+    () =>
+      dictatedMedicines && prescriber === "doctor"
+        ? dictatedToRx(dictatedMedicines, formulary, dictatedPicks)
+        : null,
+    [dictatedMedicines, formulary, prescriber, dictatedPicks],
+  );
+  const dictatedForPad = useMemo(
+    () =>
+      dictated
+        ? {
+            items: dictated.items,
+            waiting: dictated.picks.map((p) => p.medicine.name),
+            // Spent once every dictated medicine is on the pad.
+            onLoaded: () => {
+              if (dictated.picks.length > 0) return;
+              clearDictated(encounterId);
+              setDictatedPicks({});
+            },
+          }
+        : null,
+    [dictated, clearDictated, encounterId],
   );
 
   const templateToItems = (tpl: PrescriptionTemplate): RxItem[] =>
@@ -417,8 +457,21 @@ export function RxSuiteWriter({
           controlled={controlledNames(currentItems, formularyById)}
         />
       )}
+      {dictated && (
+        <DictatedPicks
+          picks={dictated.picks}
+          onPick={(index, drug) => {
+            const picked = formularyById[drug.id] ?? catalogToFormulary([drug])[0];
+            if (picked) setDictatedPicks((all) => ({ ...all, [index]: picked }));
+          }}
+        />
+      )}
       <RxDoctor
         formulary={formulary}
+        formularyLoading={catalogLoading}
+        onDrugFound={(drug) =>
+          setFoundDrugs((prev) => (prev.some((d) => d.id === drug.id) ? prev : [...prev, drug]))
+        }
         formularyById={formularyById}
         nlemGenerics={nlemGenerics}
         initialItems={[]}
@@ -433,6 +486,7 @@ export function RxSuiteWriter({
         templates={templates}
         templateToItems={templateToItems}
         lastRx={lastRx}
+        dictated={dictatedForPad}
         onSaveTemplate={(name, items) => saveTemplateMutation.mutate({ name, items })}
         priorDrugIds={priorDrugIds}
         onItemsChange={handleItemsChange}

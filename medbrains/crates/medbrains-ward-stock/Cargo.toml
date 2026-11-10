@@ -16,6 +16,10 @@ uuid = { workspace = true }
 sqlx = { workspace = true }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }
+tracing = { workspace = true }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-health-services = { path = "../medbrains-health-services" }
+medbrains-server-services = { path = "../medbrains-server-services" }
 
 [lints]
 workspace = true

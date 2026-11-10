@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE paired_devices SET revoked_at = now(), revoked_reason = 'Approved, and the second code was never finished' WHERE revoked_at IS NULL AND last_seen_at IS NULL AND paired_at < now() - make_interval(mins => $1) AND app_variant IN ('Desktop-Workstation', 'Desktop-Display')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6321ffec41a850143b49c8c817d3afffc2b9c3a0892c875c054b4d297742f812"
+}

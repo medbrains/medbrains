@@ -103,6 +103,9 @@ struct Subscription {
     url: String,
     signing_secret: String,
     is_active: bool,
+    /// Set up by a vendor account (flagged, or on a vendor domain now): such a
+    /// subscription never delivers, so it cannot outlive a support grant.
+    made_by_vendor: bool,
 }
 
 async fn record(
@@ -150,11 +153,14 @@ impl Handler for WebhookDeliverHandler {
             .unwrap_or_default()
             .to_owned();
         let sub = sqlx::query_as::<_, Subscription>(
-            "SELECT url, signing_secret, is_active FROM webhook_subscriptions \
+            "SELECT url, signing_secret, is_active, \
+                    public.app_user_is_vendor(created_by, $3) AS made_by_vendor \
+               FROM webhook_subscriptions \
               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
         )
         .bind(subscription_id)
         .bind(ctx.tenant_id)
+        .bind(medbrains_core::vendor::vendor_domains())
         .fetch_optional(&ctx.pool)
         .await
         .map_err(|e| HandlerError::Transient(e.to_string()))?;
@@ -162,6 +168,11 @@ impl Handler for WebhookDeliverHandler {
         let Some(sub) = sub.filter(|s| s.is_active) else {
             return Ok(json!({ "skipped": "subscription inactive" }));
         };
+        if sub.made_by_vendor {
+            tracing::warn!(%subscription_id, tenant = %ctx.tenant_id,
+                "webhook set up by a MedBrains account: not delivered");
+            return Ok(json!({ "skipped": "set up by a MedBrains account" }));
+        }
         if !is_allowed_target(&sub.url) {
             record(
                 ctx,

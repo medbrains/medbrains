@@ -183,7 +183,7 @@ pub async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
                 "outbox_events",
                 format!(
                     "DELETE FROM outbox_events WHERE tenant_id = $1 \
-                     AND status IN ('sent', 'skipped_unconfigured') \
+                     AND status IN ('sent', 'skipped_unconfigured', 'undelivered') \
                      AND created_at < now() - make_interval(days => {outbox_days})"
                 ),
             ),

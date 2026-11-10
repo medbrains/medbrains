@@ -42,6 +42,11 @@ use crate::{
 /// to a peer that would misread it.
 pub const SYNC_ALPN: &[u8] = b"medbrains/sync/1";
 
+/// A LAN connection silent this long is dead. Calibrate on real networks: too short drops a screen
+/// over a brief switch restart, too long leaves a clinician waiting.
+const LAN_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+const LAN_KEEP_ALIVE: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// Frames are newline-delimited JSON, and a peer that sends more than this in
 /// one frame is refused rather than allocated for.
 const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
@@ -81,6 +86,56 @@ pub async fn build_endpoint(
     };
 
     builder.bind().await.context("bind iroh endpoint")
+}
+
+/// How soon a dead path is noticed on a LAN. iroh's default suits the internet and leaves a screen
+/// waiting about half a minute after a machine's address changes.
+fn lan_transport() -> Result<iroh::endpoint::QuicTransportConfig> {
+    let idle = LAN_IDLE_TIMEOUT.try_into().context("idle timeout")?;
+    Ok(iroh::endpoint::QuicTransportConfig::builder()
+        .max_idle_timeout(Some(idle))
+        .keep_alive_interval(LAN_KEEP_ALIVE)
+        .build())
+}
+
+/// Build an endpoint for one hospital's LAN: never a relay or an outside lookup, for the same
+/// reason as [`build_endpoint`], and never a request to the router to open a port, because a
+/// hospital's firewall is the hospital's to set. `alpns` empty refuses every incoming connection;
+/// `port` fixes the UDP port so a firewall rule can name it.
+pub async fn build_lan_endpoint(
+    secret: iroh::SecretKey,
+    alpns: Vec<Vec<u8>>,
+    port: Option<u16>,
+) -> Result<Endpoint> {
+    let mut builder = Endpoint::builder(presets::Minimal)
+        .secret_key(secret)
+        .alpns(alpns)
+        .relay_mode(iroh::RelayMode::Disabled)
+        .portmapper_config(iroh::endpoint::PortmapperConfig::Disabled)
+        .transport_config(lan_transport()?);
+    if let Some(port) = port {
+        let any = std::net::SocketAddr::from(([0, 0, 0, 0], port));
+        builder = builder.bind_addr(any).context("fixed port")?;
+    }
+    builder.bind().await.context("bind iroh endpoint")
+}
+
+/// Start mDNS on an endpoint, replacing any it has. `advertise` false only listens for others;
+/// `service_name` keeps these machines apart from other iroh applications on the LAN.
+pub fn start_mdns(
+    endpoint: &Endpoint,
+    advertise: bool,
+    service_name: &str,
+) -> Result<MdnsAddressLookup> {
+    let mdns = MdnsAddressLookup::builder()
+        .advertise(advertise)
+        .service_name(service_name)
+        .build(endpoint.id())
+        .context("start mDNS")?;
+    let lookup = endpoint.address_lookup().context("address lookup")?;
+    lookup.clear();
+    lookup.add(mdns.clone());
+    Ok(mdns)
 }
 
 /// Serve one accepted connection.

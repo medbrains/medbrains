@@ -68,6 +68,20 @@ pub async fn execute_connector_action(
         )));
     }
 
+    // A connector a vendor account set up never calls out: it would send
+    // hospital data on after the support grant that allowed it had ended.
+    let made_by_vendor: bool = sqlx::query_scalar("SELECT public.app_user_is_vendor($1, $2)")
+        .bind(connector.created_by)
+        .bind(medbrains_core::vendor::vendor_domains())
+        .fetch_one(&mut *medbrains_db::pool::tenant_conn(pool, &tenant_id).await?)
+        .await?;
+    if made_by_vendor {
+        tracing::warn!(%connector_id, %tenant_id, "connector set up by a MedBrains account: not called");
+        return Err(AppError::ForbiddenReason(
+            "This connector was set up by a MedBrains account and cannot be used.".to_owned(),
+        ));
+    }
+
     let result = match connector.connector_type.as_str() {
         "razorpay" => call_razorpay(&connector.config, action, input).await,
         "twilio_sms" => call_twilio(&connector.config, action, input).await,

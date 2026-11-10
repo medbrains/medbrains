@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Badge, Button, Card, toast } from "@/components/ui";
 import { NumberField } from "@/components/ui/Input";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
+import { PATIENTS_OWN_LABEL } from "@/utils/buyOutside";
 import { AdministerModal } from "./AdministerModal";
 
 interface Props {
@@ -91,6 +92,11 @@ export function MedicationRound({ patientId }: Props) {
                   {row.is_cytotoxic && (
                     <Badge tone="danger" size="sm">
                       Chemotherapy
+                    </Badge>
+                  )}
+                  {row.patients_own && (
+                    <Badge tone="neutral" size="sm">
+                      {PATIENTS_OWN_LABEL}
                     </Badge>
                   )}
                 </Group>

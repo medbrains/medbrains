@@ -3,14 +3,24 @@
 /// A problem with one field, in words for the screen.
 pub(crate) type Problems = Vec<(&'static str, &'static str)>;
 
+const CERTIFICATE_BEGIN: &str = "-----BEGIN CERTIFICATE-----";
+const CERTIFICATE_END: &str = "-----END CERTIFICATE-----";
 /// What a hospital name must be. The screen shows these as hints before anyone types.
 const HOSPITAL_RULE: &str = "2 to 100 characters, on one line.";
 /// What a username must be, matching what sign-in accepts.
-const USERNAME_RULE: &str =
-    "3 to 30 lowercase letters, digits, dots, dashes or underscores, starting with a letter.";
-/// What a password must be, matching the server's `validate_password`.
-const PASSWORD_RULE: &str =
-    "At least 8 characters, with a capital letter, a small letter, a number and a symbol.";
+const USERNAME_RULE: &str = "3 to 30 lowercase letters, digits or underscores, starting with a letter. Not admin, idm_admin or anonymous: the identity provider keeps those.";
+/// What a password must be: the server's `validate_password` and Kanidm's rule together, because the same
+/// password signs in to both. Kanidm's rule for a password with no second step: 15 characters, its strength
+/// check at its top score, and not holding the username. Whole phrases pass it.
+pub(crate) const PASSWORD_RULE: &str = "At least 15 characters, with a capital letter, a small letter, a number and a symbol. It can't contain your username, and it must be hard to guess. A short phrase works: Blue river walks at 7!";
+/// Said when the authenticator code does not match. The QR code stays good, so it only asks again.
+pub(crate) const CODE_WRONG: &str = "That code did not match. Type the 6 digits your authenticator app shows now. If it keeps failing, check that this machine's clock is right.";
+/// Said when the code step has gone: Kanidm keeps it for 15 minutes, and forgets it if it restarts.
+pub(crate) const CODE_EXPIRED: &str = "This code has expired. Press Back, then Start the main machine again for a new QR code, and remove the old entry from your app.";
+/// Kanidm's shortest password with no second step. In its source: `PW_SFA_MIN_LENGTH_NIST`.
+const KANIDM_MIN_CHARACTERS: usize = 15;
+/// Names Kanidm keeps for itself, so a person cannot have them.
+const KANIDM_RESERVED: [&str; 3] = ["admin", "idm_admin", "anonymous"];
 
 /// Every line the server's seed reads once starts with this, so it can be taken out again.
 const SEED_PREFIX: &str = "MEDBRAINS_SEED_";
@@ -22,10 +32,10 @@ pub(crate) fn check_new_hospital(hospital: &str, username: &str, password: &str)
     if !is_hospital_name(hospital) {
         problems.push(("hospital", HOSPITAL_RULE));
     }
-    if !is_username(username) {
+    if !is_username(username) || KANIDM_RESERVED.contains(&username) {
         problems.push(("username", USERNAME_RULE));
     }
-    if !is_password(password) {
+    if !is_password(password) || !kanidm_accepts(password, username) {
         problems.push(("password", PASSWORD_RULE));
     }
     problems
@@ -37,13 +47,13 @@ fn is_hospital_name(value: &str) -> bool {
     (2..=100).contains(&length) && !value.chars().any(char::is_control)
 }
 
-/// True for a name the server would accept as a username.
+/// True for a name the server would accept as a username: its database's `chk_users_username_pattern`.
 fn is_username(value: &str) -> bool {
     (3..=30).contains(&value.len())
         && value.starts_with(|c: char| c.is_ascii_lowercase())
         && value
             .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "._-".contains(c))
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 /// True for a password the server's rules accept. Control characters are refused too,
@@ -55,6 +65,14 @@ fn is_password(value: &str) -> bool {
         && value.chars().any(char::is_lowercase)
         && value.chars().any(|c| c.is_ascii_digit())
         && value.chars().any(|c| !c.is_alphanumeric())
+}
+
+/// True for a password Kanidm's own check would take for this username. Its list of banned passwords is
+/// not here, so Kanidm can still refuse one, and setup then says so.
+fn kanidm_accepts(password: &str, username: &str) -> bool {
+    password.chars().count() >= KANIDM_MIN_CHARACTERS
+        && (username.is_empty() || !password.contains(username))
+        && zxcvbn::zxcvbn(password, &[username]).score() == zxcvbn::Score::Four
 }
 
 /// One `KEY="value"` line for a systemd `EnvironmentFile`, quoted so that no value
@@ -88,6 +106,37 @@ pub(crate) fn env_with_seed(
         out.push_str(&env_line(key, value));
     }
     out
+}
+
+/// The certificate in what the agent recorded on approval, or `None` if it is not one. It becomes
+/// the only certificate the screen trusts, so anything else is refused.
+pub(crate) fn joined_certificate(joined: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(joined).ok()?;
+    let certificate = parsed.get("certificate")?.as_str()?;
+    is_one_certificate(certificate).then(|| certificate.to_owned())
+}
+
+/// True for exactly one PEM certificate and nothing else: this file is the screen's whole trust
+/// store, so a second certificate after the first would be trusted too.
+fn is_one_certificate(text: &str) -> bool {
+    let Some(body) = text
+        .trim_end()
+        .strip_prefix(CERTIFICATE_BEGIN)
+        .and_then(|rest| rest.strip_suffix(CERTIFICATE_END))
+    else {
+        return false;
+    };
+    !body.trim().is_empty()
+        && body
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=' | '\n' | '\r'))
+}
+
+/// The hospital's name in what the agent recorded, if it is fit to show.
+pub(crate) fn joined_hospital(joined: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(joined).ok()?;
+    let name = parsed.get("hospital")?.as_str()?.trim();
+    is_hospital_name(name).then(|| name.to_owned())
 }
 
 /// True for dotted IPv4 such as `192.168.1.20`.
@@ -131,6 +180,9 @@ pub(crate) fn fixed_network(
     if !dns.is_empty() {
         file += &format!("DNS={dns}\n");
     }
+    // mDNS needs a route, and an isolated hospital network has no gateway to supply one. The metric
+    // puts the address a person chose ahead of any DHCP link.
+    file += "\n[Route]\nDestination=224.0.0.0/4\nScope=link\nMetric=100\n";
     Some(file)
 }
 
@@ -149,32 +201,100 @@ pub(crate) fn preferred_network(interface: &str) -> Option<String> {
 mod tests {
     use super::{check_new_hospital, env_with_seed, fixed_network, preferred_network};
 
-    const GOOD: &str = "Ward-Seven7";
+    /// This file decides what the screen trusts: a bad one must not reach it.
+    #[test]
+    fn only_a_certificate_is_taken_from_what_the_agent_recorded() {
+        let good =
+            r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n"}"#;
+        assert!(super::joined_certificate(good).is_some());
+        let two = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\ny\n-----END CERTIFICATE-----\n"}"#;
+        assert_eq!(
+            super::joined_certificate(two),
+            None,
+            "a second certificate would be trusted"
+        );
+        let junk =
+            r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\njunk"}"#;
+        assert_eq!(super::joined_certificate(junk), None);
+        assert_eq!(
+            super::joined_certificate(r#"{"certificate":"anything"}"#),
+            None
+        );
+        assert_eq!(super::joined_certificate(r#"{"other":1}"#), None);
+        assert_eq!(super::joined_certificate("not json"), None);
+        assert_eq!(
+            super::joined_hospital(r#"{"hospital":"City"}"#).as_deref(),
+            Some("City")
+        );
+        assert_eq!(super::joined_hospital("{\"hospital\":\"a\\nb\"}"), None);
+    }
+
+    const GOOD: &str = "Blue-River-Walks-At-7!";
+    const NAME: &str = "asha_admin";
+
+    /// The fields that failed, for a password and a username.
+    fn failed(username: &str, password: &str) -> Vec<&'static str> {
+        check_new_hospital("City", username, password)
+            .into_iter()
+            .map(|(field, _)| field)
+            .collect()
+    }
 
     #[test]
     fn a_new_hospital_needs_a_name_a_username_and_a_real_password() {
-        assert!(check_new_hospital("City Hospital", "admin", GOOD).is_empty());
-        assert_eq!(check_new_hospital(" ", "admin", GOOD)[0].0, "hospital");
-        assert_eq!(check_new_hospital("City", "Admin", GOOD)[0].0, "username");
-        assert_eq!(
-            check_new_hospital("City", "admin", "short")[0].0,
-            "password"
-        );
-        assert_eq!(
-            check_new_hospital("City", "admin", "alllowercase1!")[0].0,
-            "password"
-        );
+        assert!(check_new_hospital("City Hospital", NAME, GOOD).is_empty());
+        assert_eq!(check_new_hospital(" ", NAME, GOOD)[0].0, "hospital");
+        assert_eq!(failed("Admin", GOOD), ["username"]);
+        assert_eq!(failed(NAME, "short"), ["password"]);
+        assert_eq!(failed(NAME, "alllowercase1!"), ["password"]);
+    }
+
+    /// The server's database would refuse these, and the machine would never start.
+    #[test]
+    fn a_name_the_database_would_refuse_is_refused_here() {
+        for name in ["asha.admin", "asha-admin", "Asha", "as", "1asha"] {
+            assert_eq!(failed(name, GOOD), ["username"], "{name}");
+        }
+    }
+
+    /// Kanidm keeps these names, so a person could not sign in with one.
+    #[test]
+    fn a_name_kanidm_keeps_for_itself_is_refused() {
+        for name in ["admin", "idm_admin", "anonymous"] {
+            assert_eq!(failed(name, GOOD), ["username"], "{name}");
+        }
+    }
+
+    /// The owner asked what ordinary passwords do: this is the rule, with examples.
+    #[test]
+    fn kanidms_rule_takes_a_phrase_and_refuses_what_it_would_refuse() {
+        for accepted in [
+            "Blue-River-Walks-At-7!",
+            "My dog Rocky eats 3 apples",
+            "Sunflower ward 7 is bright",
+        ] {
+            assert!(failed(NAME, accepted).is_empty(), "{accepted}");
+        }
+        for refused in [
+            "Test@1234",
+            "Nurse@2026",
+            "Short-1!",
+            "Password@1234567",
+            "P@ssw0rd1234567!",
+            "Aaaaaaaaaaaaaaa1!",
+            "asha_admin-Blue-River-7!",
+            "blue river walks at seven",
+        ] {
+            assert_eq!(failed(NAME, refused), ["password"], "{refused}");
+        }
     }
 
     /// A password must not be able to write a second setting into the env file.
     #[test]
     fn nothing_typed_can_add_a_line_to_the_env_file() {
+        assert_eq!(failed(NAME, "Blue-River-Walks\nEVIL=1!"), ["password"]);
         assert_eq!(
-            check_new_hospital("City", "admin", "Ab1!\nEVIL=1")[0].0,
-            "password"
-        );
-        assert_eq!(
-            check_new_hospital("City\nEVIL=1", "admin", GOOD)[0].0,
+            check_new_hospital("City\nEVIL=1", NAME, GOOD)[0].0,
             "hospital"
         );
         let env = env_with_seed("", "St \"Mary\" \\ Co", "admin", "Ab1!\"\\x$y");
@@ -206,6 +326,8 @@ mod tests {
         let file = |address, gateway| fixed_network("en0", address, gateway, "");
         assert!(file("192.168.1.20/24", "192.168.1.1").is_some_and(|f| f.contains("Name=en0")));
         assert!(file("192.168.1.20/24", "").is_some_and(|f| !f.contains("Gateway")));
+        // With no gateway, this route is the only way mDNS can find a main machine.
+        assert!(file("192.168.1.20/24", "").is_some_and(|f| f.contains("Destination=224.0.0.0/4")));
         assert!(file("192.168.1.20", "192.168.1.1").is_none());
         assert!(file("192.168.1.20/33", "192.168.1.1").is_none());
         assert!(file("1.1.1.1/24\nDNS=9.9.9.9", "1.1.1.1").is_none());

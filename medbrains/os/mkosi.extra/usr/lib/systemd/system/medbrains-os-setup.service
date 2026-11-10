@@ -2,7 +2,7 @@
 # env and powers the machine off; on a Unix socket only the screen's group can open.
 [Unit]
 Description=MedBrains setup and machine controls
-After=medbrains-firstboot.service systemd-tmpfiles-setup.service
+After=systemd-tmpfiles-setup.service
 
 [Service]
 Type=exec
@@ -10,7 +10,7 @@ ExecStart=/usr/bin/medbrains-os-setup
 Restart=always
 RestartSec=2s
 ProtectSystem=strict
-ReadWritePaths=/run/medbrains-console /run/systemd/network /var/lib/medbrains/config /var/lib/medbrains/network /var/lib/medbrains-settings /var/lib/iwd
+ReadWritePaths=/run/medbrains-console -/var/lib/kanidm /run/systemd/network /var/lib/medbrains/config /var/lib/medbrains/network /var/lib/medbrains-settings /var/lib/iwd
 ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes

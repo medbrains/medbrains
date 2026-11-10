@@ -1,0 +1,50 @@
+#!/bin/bash
+# Debug images only. Plays the attack in OS-KEYS.md: on a machine booted without the boot file's stub, so
+# PCR 11 starts empty, extend it to the published values from the boot file's own sections, and replay
+# the signature that is also inside it. Prints the PCR, then OPENED or REFUSED.
+#
+#   pcr11-replay UKI PARTITION
+set -euo pipefail
+
+UKI="$1"
+PART="$2"
+# The order in which the stub measures them: systemd 257, src/fundamental/uki.c. It skips .pcrsig.
+MEASURED=(.linux .osrel .cmdline .initrd .ucode .splash .dtb .uname .sbat .pcrpkey)
+# The steps the stub's signature covers, up to a machine that has reached this point in boot.
+PHASES=(enter-initrd leave-initrd sysinit)
+
+# Prints a little-endian number of $2 bytes at offset $1 of the boot file.
+number() { od -An -tu"$2" -j"$1" -N"$2" --endian=little "$UKI" | tr -d ' '; }
+# Extends PCR 11 by the SHA-256 digest on stdin's data.
+extend() { tpm2_pcrextend "11:sha256=$(sha256sum | cut -d' ' -f1)" >/dev/null; }
+
+pe="$(number 60 4)"
+count="$(number $((pe + 6)) 2)"
+table=$((pe + 24 + $(number $((pe + 20)) 2)))
+declare -A size offset
+for ((i = 0; i < count; i++)); do
+    entry=$((table + i * 40))
+    name="$(dd if="$UKI" bs=1 skip="$entry" count=8 2>/dev/null | tr -d '\0')"
+    size[$name]="$(number $((entry + 8)) 4)"
+    offset[$name]="$(number $((entry + 20)) 4)"
+done
+# Prints one section of the boot file.
+section() { dd if="$UKI" iflag=skip_bytes,count_bytes skip="${offset[$1]}" count="${size[$1]}" bs=1M 2>/dev/null; }
+
+for name in "${MEASURED[@]}"; do
+    [[ -n "${size[$name]:-}" ]] || continue
+    printf '%s\0' "$name" | extend
+    section "$name" | extend
+done
+for phase in "${PHASES[@]}"; do
+    printf '%s' "$phase" | extend
+done
+systemd-analyze pcrs 4 7 11 --no-pager | cut -c1-90
+section .pcrsig | tr -d '\0' > /run/pcr-signature.json
+section .pcrpkey | tr -d '\0' > /run/pcr-public-key.pem
+if systemd-cryptsetup attach stolen "$PART" none "luks,tpm2-device=auto,tpm2-signature=/run/pcr-signature.json,headless=yes,tries=1" 2>/dev/null; then
+    echo OPENED
+    systemd-cryptsetup detach stolen
+else
+    echo REFUSED
+fi

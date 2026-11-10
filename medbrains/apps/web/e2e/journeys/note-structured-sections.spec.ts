@@ -7,7 +7,8 @@
 import { loginAsRoleApi } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
 import { getOpdDept } from "../helpers/seed-resolvers";
-import { expect, test } from "./support/world";
+import { getE2EIdentity } from "../helpers/e2e-identities";
+import { confirmItsYou, expect, test } from "./support/world";
 
 const HPI_BOX = "Describe the history of the present illness in detail...";
 
@@ -44,6 +45,7 @@ test("history and examination are signed with the doctor's note", async ({ hospi
   await draft.getByRole("textbox", { name: "Plan", exact: true }).click();
   await doctor.keyboard.type("Salbutamol inhaler, review in a week");
   await draft.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirmItsYou(doctor, getE2EIdentity("doctor").password);
   await expect(draft).toContainText(/Signed \w+ \d/, { timeout: 15_000 });
 
   await doctor.getByRole("tab", { name: "History", exact: true }).click();

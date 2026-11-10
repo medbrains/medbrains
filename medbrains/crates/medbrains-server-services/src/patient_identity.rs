@@ -1,4 +1,5 @@
-//! Who a worklist row is about: name, UHID and sex for many patients at once.
+//! Who a worklist row is about: name, UHID, sex and age for many patients at
+//! once.
 //!
 //! A worklist the caller may read (lab orders, a pharmacy queue) names the
 //! patient on every row. Fetching each patient's record per row was one
@@ -12,7 +13,7 @@ use std::collections::HashMap;
 use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::privacy::{mask_identifier_keep_last, mask_name};
 use serde::Serialize;
-use sqlx::{Postgres, Transaction};
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -21,6 +22,9 @@ pub struct PatientIdentity {
     pub uhid: String,
     pub full_name: String,
     pub gender: String,
+    /// Whole years, for the specimen label. `None` when the date of birth is
+    /// not recorded, or the caller may not read it whole.
+    pub age_years: Option<i32>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -32,8 +36,10 @@ struct Row {
     middle_name: Option<String>,
     last_name: String,
     gender: String,
+    age_years: Option<i32>,
 }
 
+/// How this caller may read `field`: as restricted, or whole when unlisted.
 fn level(restricted: &HashMap<String, FieldAccessLevel>, field: &str) -> FieldAccessLevel {
     restricted
         .get(field)
@@ -50,6 +56,7 @@ fn part(value: &str, access: FieldAccessLevel) -> Option<String> {
     }
 }
 
+/// The identity of one row as this caller may read it.
 fn identity(row: Row, restricted: &HashMap<String, FieldAccessLevel>) -> PatientIdentity {
     let first = part(&row.first_name, level(restricted, "patients.first_name"));
     let middle = row
@@ -76,6 +83,10 @@ fn identity(row: Row, restricted: &HashMap<String, FieldAccessLevel>) -> Patient
             names.join(" ")
         },
         gender: row.gender,
+        age_years: match level(restricted, "patients.date_of_birth") {
+            FieldAccessLevel::View | FieldAccessLevel::Edit => row.age_years,
+            FieldAccessLevel::Hidden | FieldAccessLevel::Mask => None,
+        },
     }
 }
 
@@ -83,7 +94,7 @@ fn identity(row: Row, restricted: &HashMap<String, FieldAccessLevel>) -> Patient
 /// has already decided these rows are theirs to see.
 #[allow(clippy::implicit_hasher)]
 pub async fn patient_identities(
-    tx: &mut Transaction<'_, Postgres>,
+    conn: &mut PgConnection,
     tenant_id: Uuid,
     ids: &[Uuid],
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -92,12 +103,13 @@ pub async fn patient_identities(
         return Ok(Vec::new());
     }
     let rows = sqlx::query_as::<_, Row>(
-        "SELECT id, uhid, prefix, first_name, middle_name, last_name, gender::text AS gender \
+        "SELECT id, uhid, prefix, first_name, middle_name, last_name, gender::text AS gender, \
+                EXTRACT(YEAR FROM age(date_of_birth))::int AS age_years \
            FROM patients WHERE tenant_id = $1 AND id = ANY($2)",
     )
     .bind(tenant_id)
     .bind(ids)
-    .fetch_all(&mut **tx)
+    .fetch_all(conn)
     .await?;
     Ok(rows.into_iter().map(|r| identity(r, restricted)).collect())
 }
@@ -115,6 +127,7 @@ mod tests {
             middle_name: None,
             last_name: "Rao".into(),
             gender: "female".into(),
+            age_years: Some(34),
         }
     }
 
@@ -133,6 +146,7 @@ mod tests {
             ("patients.first_name".to_owned(), FieldAccessLevel::Mask),
             ("patients.last_name".to_owned(), FieldAccessLevel::Hidden),
             ("patients.uhid".to_owned(), FieldAccessLevel::Mask),
+            ("patients.date_of_birth".to_owned(), FieldAccessLevel::Mask),
         ]);
         let id = identity(row(), &restricted);
         assert!(
@@ -145,5 +159,6 @@ mod tests {
             "{}",
             id.uhid
         );
+        assert_eq!(id.age_years, None, "a masked date of birth gives no age");
     }
 }

@@ -21,7 +21,7 @@ use medbrains_core::print_data::{
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
 use medbrains_server_core::state::AppState;
 
 // ── Prescription ─────────────────────────────────────────
@@ -79,7 +79,10 @@ pub async fn get_prescription_print_data(
 
     // Medication lines from ALL prescriptions for this encounter
     let medications = sqlx::query_as::<_, MedicationLine>(
-        "SELECT pi.drug_name, pi.dosage, pi.route, pi.frequency, \
+        "SELECT CASE WHEN pi.buy_outside \
+                     THEN pi.drug_name || ' (Buy from outside the hospital)' \
+                     ELSE pi.drug_name END AS drug_name, \
+                pi.dosage, pi.route, pi.frequency, \
                 pi.duration, pi.instructions \
          FROM prescription_items pi \
          JOIN prescriptions pr ON pr.id = pi.prescription_id \
@@ -90,6 +93,24 @@ pub async fn get_prescription_print_data(
     .bind(encounter_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
+    .await?;
+
+    // A signed prescription prints its signature and the QR to its public check.
+    let prescription_ids = sqlx::query_scalar!(
+        "SELECT id FROM prescriptions \
+         WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY created_at LIMIT 20",
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let signatures = medbrains_signing::signed_documents::fetch_signatures_for_records(
+        &mut tx,
+        &claims.tenant_id,
+        "prescription",
+        &prescription_ids,
+    )
     .await?;
 
     tx.commit().await?;
@@ -113,6 +134,7 @@ pub async fn get_prescription_print_data(
         medications,
         advice: header.advice,
         follow_up: header.follow_up,
+        signatures: medbrains_signing::signed_documents::to_print_signatures(signatures),
     }))
 }
 
@@ -332,8 +354,13 @@ pub async fn get_patient_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientCardPrintData>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    // The desk reprints a lost card for any patient, identity only. Everyone
+    // else prints through their relationship with the patient.
+    let desk_reprint = holds_card_reprint(&claims);
+    if !desk_reprint {
+        require_permission(&claims, permissions::patients::VIEW)?;
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -369,8 +396,9 @@ pub async fn get_patient_card_print_data(
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
         phone: row.phone,
-        email: row.email,
-        address: row.address,
+        // The card prints neither; a desk reprint does not carry them at all.
+        email: row.email.filter(|_| !desk_reprint),
+        address: row.address.filter(|_| !desk_reprint),
         category: row.category,
         registered_at: row
             .created_at
@@ -378,6 +406,17 @@ pub async fn get_patient_card_print_data(
             .format("%d-%b-%Y")
             .to_string(),
     }))
+}
+
+/// Whether these claims reprint cards as the desk: holding
+/// `patients.card.reprint` outright, not through a bypass role, which already
+/// reaches every patient through the ordinary path.
+fn holds_card_reprint(claims: &Claims) -> bool {
+    !is_bypass_role(claims)
+        && claims
+            .permissions
+            .iter()
+            .any(|code| code == permissions::patients::card::REPRINT)
 }
 
 // ── Helper: fetch hospital name from tenants table ───────

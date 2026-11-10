@@ -48,6 +48,7 @@ vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
   useAuthStore: (select: (s: { user: { id: string } }) => unknown) => select({ user: { id: ME } }),
   useHasPermission: (code: string) => (code === "lab.orders.cancel_any" ? isLabDesk : true),
+  useHasAnyPermission: () => true,
 }));
 
 const { InvestigationsTab } = await import("./investigations");

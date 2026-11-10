@@ -45,11 +45,12 @@ export function DrugSearchSelect({
 }: DrugSearchSelectProps) {
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
-  const canCreateDrug = useHasPermission(P.PHARMACY.STOCK_MANAGE);
-  const canViewStock = useHasPermission(P.PHARMACY.STOCK_MANAGE);
+  // Adding a catalogue item is `pharmacy.stock.manage`, the permission
+  // POST /pharmacy/catalog requires; it also shows the stock figures.
+  const canManageCatalogue = useHasPermission(P.PHARMACY.STOCK_MANAGE);
   const priceAccess = useFieldAccess("pharmacy.catalog.base_price");
 
-  const { data } = useQuery({
+  const { data, isFetching, isError } = useQuery({
     queryKey: ["drug-search", debounced],
     queryFn: () => lookupsService.listPharmacyCatalog({ search: debounced }),
     enabled: debounced.length >= 2,
@@ -76,11 +77,14 @@ export function DrugSearchSelect({
       getItemDisplay={(drug) => `${drug.name} (${drug.generic_name || drug.code})`}
       onSelect={(drug) => onChange(drug.id, drug)}
       onClear={() => onChange("")}
-      emptyLabel="No drugs found"
-      canCreate={canCreateDrug}
-      createButtonLabel="Add to formulary"
+      loading={isFetching || search !== debounced}
+      fetchError={isError ? "The catalogue could not be searched. Try again." : null}
+      emptyLabel="Not in the catalogue"
+      canCreate={canManageCatalogue}
+      cannotCreateHint="Ask a pharmacist to add it."
+      createButtonLabel="Add to catalogue"
       createButtonIcon={<IconPill size={14} />}
-      createModalTitle="Add drug to formulary"
+      createModalTitle="Add to the catalogue"
       renderItem={(d) => (
         <Group gap={8} wrap="nowrap" justify="space-between">
           <div style={{ flex: 1 }}>
@@ -107,7 +111,7 @@ export function DrugSearchSelect({
             <Text size="xs" fw={600} c="primary">
               {fieldAccessText(priceAccess, `\u20B9${d.base_price}`, "amount")}
             </Text>
-            {canViewStock && (
+            {canManageCatalogue && (
               <Text
                 size="xs"
                 c={Number(d.current_stock) <= Number(d.reorder_level) ? "danger" : "dimmed"}

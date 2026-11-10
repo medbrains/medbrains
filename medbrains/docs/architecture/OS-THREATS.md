@@ -32,7 +32,7 @@ goes live (X9).
 
 | Area | Answer | State |
 |---|---|---|
-| Front proxy: old HTTP/2 code reachable from the LAN | HTTP/1.1 only, restart and memory limit now; Pingora next | doing |
+| Front proxy: old HTTP/2 code reachable from the LAN | Caddy replaced by the Pingora front, HTTP/1.1 only, restarted and memory-capped | closed |
 | A machine in the field cannot take a fix | Signed updates (U1) before any install | open |
 | Wi-Fi driver flaw with no release yet | Main machine stays wired; radio off where a cable exists | open |
 | Parsers in the web view | Only our own origin reaches them; remove what is unused | open |

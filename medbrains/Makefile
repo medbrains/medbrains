@@ -11,7 +11,7 @@
        check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
        check-field-classes check-authz-collapse check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
-       check-migration-headers check-migration-immutable e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
+       check-migration-headers check-migration-immutable perf-web e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
@@ -19,7 +19,7 @@
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
-       desktop desktop-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
+       desktop desktop-dev desktop-setup-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
        icd-up icd-down icd-logs icd-open \
        clean logs db-shell seed
 
@@ -357,7 +357,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -520,6 +520,9 @@ check-pool-reads: ## Ban unscoped off-transaction reads of RLS-policed tables
 check-rls-only-writes: ## Ratchet writes keyed only on a caller-supplied id
 	python3 ../scripts/check_rls_only_writes.py
 
+check-bricks: ## Every module name comes from bricks.rs; ratchets bricks with no server check
+	python3 ../scripts/check_bricks.py
+
 check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
 	python3 ../scripts/check_tenant_leak.py
 
@@ -616,11 +619,14 @@ deploy-bootstrap: ## terraform apply bootstrap (state buckets, run ONCE per regi
 
 desktop: desktop-dev ## Start desktop app against the running make dev stack
 
-desktop-dev: ## Start desktop app against https://medbrains-desktop.localhost
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+desktop-dev: ## Start desktop app against the make dev server (https://medbrains.localhost)
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
+
+desktop-setup-dev: ## Start desktop app on its first-launch server setup screen
+	cd apps/desktop && pnpm install && pnpm dev
 
 desktop-reports-dev: ## Run desktop app directly on the reports command center
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
 
 desktop-build: ## Build desktop bundle for current OS
 	cd apps/desktop && pnpm install && pnpm build
@@ -737,6 +743,9 @@ e2e-rbac: ## Layer 6 — RBAC matrix (REST, multi-role)
 
 e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
 	cd apps/web && pnpm exec playwright test --project=journeys
+
+perf-web: ## Web startup JS, heap, CPU and a shift-long heap slope (needs the backend on :3000)
+	bash apps/web/e2e/perf/run.sh
 
 e2e-linkages: ## Layer 5b — Cross-module linkages (an action in one module, its effect asserted in another)
 	cd apps/web && pnpm exec playwright test --project=linkages
@@ -993,8 +1002,10 @@ OS_TARGET_DIR ?= /tmp/mb-target-osimage
 .PHONY: os-image os-boot
 os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a serial root shell)
 	bash scripts/build_guard.sh --wait
-	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target.
-	env -u MAKEFLAGS -u ARCH CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup
+	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target. It also
+	# takes macOS ar and ranlib unless told, which index Linux objects as Mach-O and break the link.
+	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
+	OS_TARGET_DIR=$(OS_TARGET_DIR)-kanidm os/build-kanidm.sh --arch $(or $(ARCH),arm64)
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
 

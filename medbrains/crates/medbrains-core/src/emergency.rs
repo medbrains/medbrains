@@ -161,6 +161,12 @@ pub struct ErCodeActivation {
     pub deactivated_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Who the page reached, in words ("No code pink roster: …").
+    #[serde(default)]
+    pub routing_note: Option<String>,
+    /// What did not go out ("SMS is not set up: only in-app alerts went out").
+    #[serde(default)]
+    pub delivery_warning: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

@@ -3,11 +3,14 @@
 
 mod api;
 mod apps;
+mod authenticator;
 mod child;
 mod desktop;
 mod display;
 mod dock;
 mod netmenu;
+mod join;
+mod main_address;
 mod network;
 mod power;
 mod prefs;
@@ -28,8 +31,6 @@ use gtk4 as gtk;
 use gtk4::prelude::{ApplicationExt, ApplicationExtManual, GtkWindowExt, SettingsExt, WidgetExt};
 use gtk4::{gio, glib};
 
-/// The only role setup can give a machine so far.
-const MAIN_ROLE: &str = "main";
 /// How soon to ask again while the service is starting.
 const STARTUP_RETRY: Duration = Duration::from_secs(1);
 /// How many tries before the wait is called a fault.
@@ -48,12 +49,23 @@ fn show_desktop(stack: &gtk::Stack, css: &gtk::CssProvider, role: &str) {
 /// Shows first boot; finishing it moves on to the desktop.
 fn show_setup(stack: &gtk::Stack, css: &gtk::CssProvider) {
     let (target, theme) = (stack.clone(), css.clone());
-    let flow = setup::build(move || show_desktop(&target, &theme, MAIN_ROLE));
+    // Asks which role setup gave it, rather than assuming: joining and a new hospital both end here.
+    let flow = setup::build(move || route_after_setup(target.clone(), theme.clone()));
     stack.add_named(&flow, Some("setup"));
     stack.set_visible_child_name("setup");
     if let Some(child) = flow.visible_child() {
         child.child_focus(gtk::DirectionType::TabForward);
     }
+}
+
+/// Shows the desktop for the role setup has just written, trying again until the service says.
+fn route_after_setup(stack: gtk::Stack, css: gtk::CssProvider) {
+    api::fetch_state(move |result| match result {
+        Ok(state) if state.set_up => show_desktop(&stack, &css, &state.role),
+        _ => {
+            glib::timeout_add_local_once(STARTUP_RETRY, move || route_after_setup(stack, css));
+        }
+    });
 }
 
 /// The sentence while waiting for the setup service, by how long it has been.

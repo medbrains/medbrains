@@ -17,7 +17,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components";
-import { IconButton, Table } from "@/components/ui";
+import { Badge, Checkbox, IconButton, Table } from "@/components/ui";
 import styles from "../pharmacy.module.scss";
 import { FormularyPicker } from "./formulary-picker";
 import {
@@ -49,7 +49,11 @@ export function RxBillingEstimate({
   const subtotal = items.reduce((sum, item) => sum + Number(item.taxable_amount || 0), 0);
   const tax = items.reduce((sum, item) => sum + Number(item.tax_amount || 0), 0);
   const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
-  const unmatchedCount = items.filter((item) => item.price_source === "unmatched").length;
+  const isConfirmedOutside = (id: string) =>
+    Boolean(reviewItems?.some((line) => line.prescription_item_id === id && line.buy_outside));
+  const unmatchedCount = items.filter(
+    (item) => item.price_source === "unmatched" && !isConfirmedOutside(item.id),
+  ).length;
   const canViewAmounts = canViewPharmacyField(priceAccess);
   const canEdit = editable && Boolean(onReviewItemsChange) && canEditPharmacyField(priceAccess);
   // Mapping a line is choosing the product, not overriding its price: any
@@ -148,23 +152,45 @@ export function RxBillingEstimate({
                           {t("rxBillingEstimate.mappedTo", { name: mapped[item.id]?.name })}
                         </Text>
                       )}
-                      {item.price_source === "unmatched" && (
+                      {(item.price_source === "buy_outside" || isConfirmedOutside(item.id)) && (
+                        <Badge tone="neutral" size="xs">
+                          {t("rxBillingEstimate.buyOutside")}
+                        </Badge>
+                      )}
+                      {item.price_source === "unmatched" && !isConfirmedOutside(item.id) && (
                         <Text size="xs" c="warning">
                           {t("rxBillingEstimate.unmatchedCatalog")}
                         </Text>
                       )}
                       {item.price_source === "unmatched" && canMap && (
                         <Stack gap={2} mt={4}>
-                          <FormularyPicker
-                            drugName={item.drug_name}
-                            onPick={(product) => {
-                              setMapped((m) => ({ ...m, [item.id]: product }));
-                              updateReviewLine(item, {
-                                catalog_item_id: product.id,
-                                unit_price: Number(product.base_price),
-                              });
-                            }}
-                          />
+                          {!isConfirmedOutside(item.id) && (
+                            <FormularyPicker
+                              drugName={item.drug_name}
+                              onPick={(product) => {
+                                setMapped((m) => ({ ...m, [item.id]: product }));
+                                updateReviewLine(item, {
+                                  catalog_item_id: product.id,
+                                  unit_price: Number(product.base_price),
+                                  buy_outside: false,
+                                });
+                              }}
+                            />
+                          )}
+                          {!mapped[item.id] && (
+                            <Checkbox
+                              size="xs"
+                              label={t("rxBillingEstimate.markBuyOutside")}
+                              checked={isConfirmedOutside(item.id)}
+                              onChange={(e) =>
+                                updateReviewLine(item, {
+                                  buy_outside: e.currentTarget.checked,
+                                  catalog_item_id: null,
+                                  unit_price: 0,
+                                })
+                              }
+                            />
+                          )}
                           <Text size="xs" c="dimmed">
                             {t("rxBillingEstimate.multiDrugHint")}
                           </Text>

@@ -25,6 +25,7 @@
 //! Adding a new group? One change: append to `GROUPS` in `groups.rs`.
 //! Adding a new screen? One change: append to `SCREENS` in `screens.rs`.
 
+pub mod catalogue;
 pub mod groups;
 pub mod policies;
 pub mod resources;
@@ -143,6 +144,6 @@ pub fn build_manifest() -> AccessManifest {
                 permissions: r.permissions.to_vec(),
             })
             .collect(),
-        permission_count: crate::permissions::PERMISSION_COUNT,
+        permission_count: catalogue::all_codes().len(),
     }
 }

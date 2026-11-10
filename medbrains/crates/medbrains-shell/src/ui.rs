@@ -133,15 +133,26 @@ pub(crate) fn health_word(machine: &Machine, main_ready: bool) -> &'static str {
 }
 
 /// The greeting's plain sentence. It names what failed, so a person can say it on the phone.
-pub(crate) fn status_sentence(machine: &Machine, main_ready: bool) -> String {
+pub(crate) fn status_sentence(machine: &Machine, main_ready: bool, disk: &str) -> String {
     match machine.failed.as_slice() {
         [] if machine.system == "degraded" => "A service on this machine has a problem.".to_owned(),
-        [] if machine.system == "running" && main_ready => {
-            "Everything is running normally.".to_owned()
-        }
+        [] if machine.system == "running" && main_ready => crate::topbar::disk_warning(disk)
+            .map_or_else(
+                || "Everything is running normally.".to_owned(),
+                |warning| format!("MedBrains is running. {warning}."),
+            ),
         [] => "This machine is starting.".to_owned(),
         [one] => format!("This service has a problem: {one}"),
         many => format!("These services have a problem: {}", many.join(", ")),
+    }
+}
+
+/// The greeting's sentence for a node that cannot reach its main machine, which matters more than
+/// anything else it could say.
+pub(crate) const fn unreachable_sentence(role: &str, main_ready: bool) -> Option<&'static str> {
+    match (role.as_bytes(), main_ready) {
+        (b"node", false) => Some("Cannot reach the main machine. This machine keeps trying by itself."),
+        _ => None,
     }
 }
 
@@ -250,16 +261,23 @@ mod tests {
 
     /// A degraded machine must never read as healthy, and must say what failed.
     #[test]
+    fn only_a_node_cut_off_says_it_cannot_reach_the_main_machine() {
+        assert!(super::unreachable_sentence("node", false).is_some());
+        assert!(super::unreachable_sentence("node", true).is_none());
+        assert!(super::unreachable_sentence("main", false).is_none());
+    }
+
+    #[test]
     fn a_problem_is_named_and_never_reported_as_healthy() {
-        let broken = machine("degraded", &["caddy.service"]);
+        let broken = machine("degraded", &["medbrains-front.service"]);
         assert_eq!(health_word(&broken, true), "Needs attention");
         assert_eq!(
-            status_sentence(&broken, true),
-            "This service has a problem: caddy.service"
+            status_sentence(&broken, true, "encrypted-tpm2"),
+            "This service has a problem: medbrains-front.service"
         );
         let two = machine("degraded", &["a.service", "b.service"]);
         assert_eq!(
-            status_sentence(&two, true),
+            status_sentence(&two, true, "encrypted-tpm2"),
             "These services have a problem: a.service, b.service"
         );
         assert_eq!(
@@ -269,12 +287,16 @@ mod tests {
         assert_eq!(health_word(&machine("running", &[]), true), "Healthy");
         assert_eq!(health_word(&machine("running", &[]), false), "Starting");
         assert_eq!(
-            status_sentence(&machine("starting", &[]), true),
+            status_sentence(&machine("starting", &[]), true, "encrypted-tpm2"),
             "This machine is starting."
         );
         assert_eq!(
-            status_sentence(&machine("running", &[]), true),
+            status_sentence(&machine("running", &[]), true, "encrypted-tpm2"),
             "Everything is running normally."
+        );
+        assert_eq!(
+            status_sentence(&machine("running", &[]), true, "unencrypted-chosen"),
+            "MedBrains is running. This disk is not encrypted."
         );
     }
 

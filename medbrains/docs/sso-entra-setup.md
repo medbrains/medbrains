@@ -23,7 +23,13 @@ is shipped (#3400–3404, #3589–3592); this is pure configuration.
      app to specific groups if you hit it.
 5. (API permissions default to Microsoft Graph `openid`/`profile`/`email` — fine; grant admin consent if prompted.)
 
-## B. Add the provider in MedBrains (`/admin/sso`, needs `admin.settings.general.manage`)
+## B. Add the provider in MedBrains (`/admin/sso`)
+Adding, deleting or switching a provider on or off, and changing whom it trusts (URLs, client, group
+claim, JIT), needs a hospital administrator (`super_admin` or `hospital_admin`); other holders of
+`admin.settings.general.manage` see the list and can edit a provider's name, default role and group
+mappings only. The sign-in policy (`auth` settings: switching password sign-in off, the break-glass
+account) is likewise an administrator's change.
+
 Create an OIDC provider:
 - **Protocol**: `oidc`
 - **Discovery URL**: `https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration`
@@ -40,6 +46,20 @@ In `/admin/sso` → the provider's **Group mappings**, add one per group:
 - `role_code` = a MedBrains role (e.g. `doctor`, `nurse`) — first matching group wins the single role
 - and/or `access_group_id` = a MedBrains access-group — all matching are collected
 Re-synced on every login (source='sso'); manual admin grants are never touched.
+
+## C2. Moving an administrator onto SSO
+An SSO sign-in that matches an existing account by verified email adopts that account, **except** an
+account holding an administrator role: it is never adopted by email, so whoever can assert that address
+at the directory cannot sign in as the administrator. Their first SSO sign-in creates a separate,
+ordinary account instead. To move an administrator who is not yet federated, **before** their first SSO
+sign-in:
+1. Another administrator demotes them to an ordinary role on the Users screen.
+2. They sign in once with SSO; the email link adopts their existing account.
+3. The other administrator promotes them back.
+
+If they already signed in by SSO and got a separate ordinary account, that account now holds their
+directory identity, and deleting it does not release it (deletion keeps the row). A bypass
+administrator has to resolve it; do not repeat the steps above until they have.
 
 ## D. Deployment env
 - `MEDBRAINS_PUBLIC_BASE_URL` = your MedBrains host (the redirect base) — must match the URI in A1.

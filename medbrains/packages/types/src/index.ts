@@ -93,6 +93,8 @@ export * from "./blood-group";
 export * from "./care-view";
 export type { ClinicalScoreRow, RecordScoreRequest } from "./care-view-scores";
 export * from "./cath-lab";
+export * from "./charge-attention";
+export * from "./mrd-file-requests";
 export * from "./chronic-care";
 export * from "./claim-settlements";
 export * from "./clinical-identity-forms";
@@ -120,6 +122,7 @@ export * from "./dashboard-widget-builder";
 export * from "./device-binding";
 export * from "./device-integration";
 export * from "./diagnosis-coding";
+export * from "./dictation";
 export * from "./doctor-payouts";
 export * from "./documents-module";
 export * from "./dpdp-compliance";
@@ -204,6 +207,7 @@ export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";
 export * from "./palliative-mortuary-nuclear";
+export * from "./paperless";
 export type {
   PatientContextSignal,
   PatientContextSignalKind,
@@ -263,12 +267,9 @@ export {
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export * from "./patient-registration";
 export * from "./payment-links";
-export type { PermissionDef } from "./permissions.js";
-export {
-  P,
-  PERMISSIONS,
-  ROLE_TEMPLATES,
-} from "./permissions.js";
+export type { PermissionDef } from "./permission-catalog.js";
+export { PERMISSIONS, ROLE_TEMPLATES } from "./permission-catalog.js";
+export { P } from "./permissions.js";
 export * from "./pharmacy-counter-close";
 export * from "./pharmacy-credit-indents";
 export * from "./pharmacy-delivery";
@@ -304,6 +305,7 @@ export * from "./psychiatry";
 export * from "./queues";
 export * from "./regulatory-compliance";
 export * from "./research-exports";
+export * from "./revenue-alerts";
 export * from "./schema-registry";
 export * from "./screen-layout-zone";
 export * from "./screen-system";
@@ -383,6 +385,7 @@ export {
   tokenBoardSurfaceFlowLabelKey,
 } from "./token-board-surfaces.js";
 export * from "./uhi";
+export * from "./vendor-access";
 export type {
   WorkflowSignalShape,
   WorkflowSignalShapeDefinition,
@@ -5514,8 +5517,10 @@ export interface EmailSettings {
   from_address: string;
   from_name: string;
   smtp_username: string;
-  /** Reference (not the value) to the SMTP password in the secret backend. */
+  /** Short name (not the value) of the SMTP password in the secret backend. */
   smtp_password_secret: string | null;
+  /** Where that password is kept, in this hospital's namespace; null when unset or a legacy name. */
+  smtp_password_secret_path: string | null;
   env_fallback: boolean;
 }
 
@@ -6035,6 +6040,51 @@ export interface DevicePairingRequest {
   created_at: string;
 }
 
+/** The digits a person types on a machine, to prove this is really its main machine. */
+export interface ApprovedMachine {
+  id: string;
+  confirm_code: string;
+}
+
+/** A machine waiting for a person. Its code is on its own screen only: a person must read it there. */
+export interface WaitingMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  address: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+/** A request a newer one pushed out of the waiting list. */
+export interface DroppedRequest {
+  label: string;
+  address: string | null;
+  reason: string;
+  created_at: string;
+}
+
+/** A machine that has joined this hospital's main machine. */
+export interface JoinedMachine {
+  id: string;
+  label: string;
+  app_variant: string;
+  online: boolean;
+  awaiting_confirmation: boolean;
+  screen_address: string | null;
+  paired_at: string;
+  last_seen_at: string | null;
+}
+
+/** The Nodes screen in one call. */
+export interface MachineList {
+  waiting: WaitingMachine[];
+  machines: JoinedMachine[];
+  dropped: DroppedRequest[];
+  given_up: number;
+  joining_paused: boolean;
+}
+
 /** What the QR on a printed prescription resolves to. */
 export interface VerifiedMedication {
   drug_name: string;
@@ -6338,7 +6388,7 @@ export interface CreateInstallmentRequest {
 }
 
 export type { PermissionGroup } from "./permission-helpers";
-export { buildPermissionTree, isValidPermissionCode } from "./permission-helpers";
+export { buildPermissionTree } from "./permission-helpers";
 
 /** One nurse rostered onto a ward's shift. */
 export interface NurseRosterEntry {
@@ -6373,6 +6423,13 @@ export interface CodeBlueResponder {
   seconds_after_call: number;
 }
 
+/** SMS or WhatsApp messages of one code blue in one delivery state. */
+export interface CodeBlueDelivery {
+  channel: "sms" | "whatsapp";
+  status: "queued" | "sent" | "not_configured" | "failed";
+  count: number;
+}
+
 /** An arrest in progress, as the code blue list returns it. */
 export interface CodeBlueEventRow {
   id: string;
@@ -6382,6 +6439,44 @@ export interface CodeBlueEventRow {
   started_at: string;
   ended_at?: string | null;
   outcome?: string | null;
+  /** Rounds of paging so far; one more each window nobody answers. */
+  page_round: number;
+  last_paged_at?: string | null;
+  /** Who the latest round reached, in words. */
+  routing_note?: string | null;
+  /** What did not go out, e.g. "SMS is not set up: only in-app alerts went out". */
+  delivery_warning?: string | null;
+  delivery: CodeBlueDelivery[];
+}
+
+/** 1 code team, 2 duty medical officer, 3 medical superintendent. */
+export type CodeTeamTier = 1 | 2 | 3;
+
+/** One person on the code-blue roster. */
+export interface CodeTeamMember {
+  id: string;
+  user_id: string;
+  full_name: string;
+  /** Which code's roster: `code_blue`, `code_pink`, … */
+  code_type: string;
+  tier: CodeTeamTier;
+}
+
+/** Someone who can be put on the code-blue roster. */
+export interface CodeTeamCandidate {
+  id: string;
+  full_name: string;
+  role: string;
+}
+
+/** The code-blue roster screen in one call. */
+export interface CodeTeamRoster {
+  members: CodeTeamMember[];
+  candidates: CodeTeamCandidate[];
+  /** Seconds without a response before the next round of paging. */
+  response_secs: number;
+  /** Rounds of paging at most. */
+  max_rounds: number;
 }
 
 /** One emergency code called on the floor — fire, abduction, disaster, and the rest. */

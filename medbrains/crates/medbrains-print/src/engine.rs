@@ -69,6 +69,7 @@ const BASE_TEMPLATE: &str = r##"<!doctype html>
   {% if signature.display_image_url %}<img src="{{ signature.display_image_url }}" alt="">{% endif %}
   <div>{{ signature.display_block }}</div>
   <div class="muted small">Verify: {{ signature.verify_ref }}</div>
+  {% if signature.verify_qr_svg %}<div class="signature-qr"><div style="width:72px;margin-left:auto;">{{ signature.verify_qr_svg | safe }}</div><div class="muted small">Scan to check this document is unchanged</div></div>{% endif %}
 </div>
 {% endif %}
 {% block footer %}

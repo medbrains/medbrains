@@ -287,6 +287,7 @@ impl World {
             client,
             csrf,
             user_id,
+            password: password.to_string(),
         }
     }
 

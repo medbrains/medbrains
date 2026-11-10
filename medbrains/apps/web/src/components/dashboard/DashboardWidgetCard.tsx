@@ -1,4 +1,15 @@
-import { Box, Card, Group, Loader, Stack, Table, Tabs, Text, ThemeIcon } from "@mantine/core";
+import {
+  Box,
+  Card,
+  Group,
+  Loader,
+  Skeleton,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type { DashboardWidget } from "@medbrains/types";
 import { IconArrowsMaximize } from "@tabler/icons-react";
@@ -14,13 +25,19 @@ import { compareKpi, formatKpi, isKpiReading, type KpiBaseline } from "./kpi-rea
 import { ReportWidgetTile } from "./ReportWidgetTile";
 import { SeriesMetrics } from "./SeriesMetrics";
 import { columnValues } from "./series-stats";
-import { TrendChart, type TrendKind } from "./TrendChart";
+import type { TrendKind } from "./TrendChart";
 import { useWidgetCompare } from "./useWidgetCompare";
-import { WidgetExpandedView } from "./WidgetExpandedView";
 import { asOfNote, cellText, field, formatValue, rows } from "./widget-data";
 import { WidgetIcon } from "./widgetIcons";
 
 const WidgetAskAi = lazy(() => import("./WidgetAskAi"));
+// Charts (recharts) load after the tile itself has drawn.
+const TrendChart = lazy(() => import("./TrendChart").then((m) => ({ default: m.TrendChart })));
+const CHART_LOADING_HEIGHT = 160;
+// The expanded view (its own charts and tables) loads when a widget is expanded.
+const WidgetExpandedView = lazy(() =>
+  import("./WidgetExpandedView").then((m) => ({ default: m.WidgetExpandedView })),
+);
 
 interface Props {
   widget: DashboardWidget;
@@ -139,12 +156,14 @@ export function DashboardWidgetCard(props: Props) {
               <Tabs.Tab value="ask">Ask AI</Tabs.Tab>
             </Tabs.List>
             <Tabs.Panel value="details">
-              <WidgetExpandedView
-                widget={widget}
-                data={data}
-                compare={compare}
-                onCompareChange={setCompare}
-              />
+              <Suspense fallback={<Loader size="sm" />}>
+                <WidgetExpandedView
+                  widget={widget}
+                  data={data}
+                  compare={compare}
+                  onCompareChange={setCompare}
+                />
+              </Suspense>
             </Tabs.Panel>
             <Tabs.Panel value="ask">
               <Suspense fallback={<Loader size="sm" />}>
@@ -338,7 +357,9 @@ function WidgetBody({
         ) : (
           <Stack gap="xs">
             <SeriesMetrics values={columnValues(series, y)} compact />
-            <TrendChart data={series} xKey={x} yKey={y} kind={kind} />
+            <Suspense fallback={<Skeleton height={CHART_LOADING_HEIGHT} />}>
+              <TrendChart data={series} xKey={x} yKey={y} kind={kind} />
+            </Suspense>
           </Stack>
         )}
       </WidgetShell>

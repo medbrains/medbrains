@@ -6,9 +6,11 @@ import type { MarListRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
+import { PATIENTS_OWN_LABEL } from "@/utils/buyOutside";
 
 export function MarTab({ admissionId }: { admissionId: string }) {
   // The tab rides in on ipd.admissions.view; the medication administration record carries its own
@@ -43,6 +45,7 @@ export function MarTab({ admissionId }: { admissionId: string }) {
             <Table.Th>Scheduled</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th>Double-Check</Table.Th>
+            <Table.Th>Signature</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -63,6 +66,11 @@ export function MarTab({ admissionId }: { admissionId: string }) {
                   {m.is_cytotoxic && (
                     <Badge tone="danger" size="xs">
                       Chemotherapy
+                    </Badge>
+                  )}
+                  {m.patients_own && (
+                    <Badge tone="neutral" size="xs">
+                      {PATIENTS_OWN_LABEL}
                     </Badge>
                   )}
                 </Group>
@@ -96,6 +104,14 @@ export function MarTab({ admissionId }: { admissionId: string }) {
                     Pending
                   </Badge>
                 ) : null}
+              </Table.Td>
+              <Table.Td>
+                <SignRecordButton
+                  recordType="medication_administration"
+                  authorId={m.administered_by}
+                  recordId={m.id}
+                  summary={`${m.drug_name} ${m.dose}`}
+                />
               </Table.Td>
             </Table.Tr>
           ))}
