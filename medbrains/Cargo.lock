@@ -7377,6 +7377,7 @@ version = "1.0.0"
 dependencies = [
  "chrono",
  "goose",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tokio",
