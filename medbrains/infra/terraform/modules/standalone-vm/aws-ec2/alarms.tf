@@ -3,8 +3,14 @@
 # the host — tracked separately; status/CPU/credit cover the
 # instance-death and saturation failure modes.
 
+module "alerts_key" {
+  source = "../../sns-kms-key"
+  name   = "${var.hostname}-alerts"
+}
+
 resource "aws_sns_topic" "alerts" {
-  name = "${var.hostname}-alerts"
+  name              = "${var.hostname}-alerts"
+  kms_master_key_id = module.alerts_key.key_arn
 
   tags = {
     Project   = "medbrains"
