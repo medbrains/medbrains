@@ -1,7 +1,7 @@
-import { Button } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Button } from "@/components/ui";
 import { render, screen, userEvent, waitFor } from "@/test/test-utils";
 
 const state = vi.hoisted(() => ({

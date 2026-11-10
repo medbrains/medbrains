@@ -1,7 +1,7 @@
-import { Button } from "@mantine/core";
 import type { DischargeMedicine } from "@medbrains/types";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { Button } from "@/components/ui";
 import { render, screen, userEvent } from "@/test/test-utils";
 import { DischargeMedicinesEditor } from "./discharge-medicines-editor";
 
