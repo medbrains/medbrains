@@ -36,6 +36,8 @@ def checks_for(path: str) -> dict[str, list[str]]:
         return {}
     checks: dict[str, list[str]] = {}
     if rel.startswith("crates/") and rel.endswith(".rs"):
+        # Format first, so the checks below and CI's "Rust format" job see clean code.
+        checks["rustfmt"] = ["rustfmt", "--edition", "2024", "--config-path", "rustfmt.toml", rel]
         checks["authz-collapse"] = py("scripts/check_authz_collapse.py")
         checks["soft-delete-filter"] = py("scripts/check_soft_delete_filter.py")
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py", path)
