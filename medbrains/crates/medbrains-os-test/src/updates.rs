@@ -22,6 +22,8 @@ const HEALTH_SECONDS: u64 = 120;
 /// change is what it holds.
 const KEPT: &str = "/var/lib/medbrains/config /var/lib/medbrains-settings /var/lib/medbrains/network /var/lib/medbrains/os-test-canary /var/lib/iwd /var/lib/kiosk";
 const CANARY_ROWS: u32 = 100_000;
+/// The set-up machine's firmware variables, which every scenario starts from, as it starts from its disk.
+const BASE_VARS: &str = "vars-base.fd";
 const READ_VERSION: &str = "sed -n 's/^IMAGE_VERSION=//p' /usr/lib/os-release | tr -d '\"'";
 /// Where the guest finds the host running this test.
 const HOST: &str = "10.0.2.2";
@@ -253,7 +255,13 @@ pub(crate) fn wait_status(
 fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
     let started = Instant::now();
     let overlay = vm.scratch_path("scenario.qcow2");
-    let result = make_overlay(base, &overlay)
+    // The firmware's variables are part of the machine: a scenario that hung one must not choose what
+    // the next one boots.
+    let firmware = std::fs::copy(vm.scratch_path(BASE_VARS), vm.scratch_path("vars.fd"))
+        .map(|_| ())
+        .map_err(|e| format!("firmware variables: {e}"));
+    let result = firmware
+        .and_then(|()| make_overlay(base, &overlay))
         .and_then(|()| vm.boot(&overlay, own_tpm()))
         .and_then(|()| vm.wait_for_server())
         .and_then(|()| open_mirror(vm, bench))
@@ -291,6 +299,8 @@ pub(crate) fn run(image: &Path, bundles: &Path) -> Result<usize, String> {
     vm.wait_for_server()?;
     write_canaries(&mut vm, &pem)?;
     vm.shut_down()?;
+    std::fs::copy(vm.scratch_path("vars.fd"), vm.scratch_path(BASE_VARS))
+        .map_err(|e| format!("firmware variables: {e}"))?;
     let base = vm.disk();
     let mut failed = 0;
     for scenario in update_steps::scenarios() {
