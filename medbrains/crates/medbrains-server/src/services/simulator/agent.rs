@@ -337,12 +337,7 @@ fn observe(cells: &[Cell], acc: &RunAcc) {
         "simulator agent run complete"
     );
     for f in acc.findings.iter().filter(|f| f.verdict == "confirmed") {
-        tracing::warn!(
-            kind = %f.kind,
-            severity = %f.severity,
-            finding = %f.message,
-            "simulator confirmed finding"
-        );
+        tracing::warn!(kind = %f.kind, severity = %f.severity, finding = %f.message, "simulator confirmed finding");
     }
 }
 
