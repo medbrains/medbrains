@@ -26,11 +26,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
-    # Words alone cannot break the product, so they do not spend a build.
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.png"
-      - "**/*.excalidraw"
+    # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
+    # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
