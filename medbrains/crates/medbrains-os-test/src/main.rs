@@ -398,7 +398,10 @@ fn checks() -> Vec<Check> {
             no_shared_private_key,
         ),
         ("swap stays in memory", swap_stays_in_memory),
-        ("disk and priority settings hold", disk_and_priority_settings),
+        (
+            "disk and priority settings hold",
+            disk_and_priority_settings,
+        ),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
         (
