@@ -28,6 +28,14 @@ const MAX_CODE_ATTEMPTS: i32 = 3;
 const ONLINE_SECONDS: f64 = 15.0;
 const WRONG_CODE: &str = "That is not the code on the machine. Check that you are approving the \
                           right one, because a different code can mean a fake main machine.";
+/// The answer to the wrong code that used up the last attempt, so the dialog can stop offering Approve.
+pub const REFUSED_AFTER_WRONG_CODES: &str = "Three wrong codes. This request was refused; ask the \
+                                             person at the machine to start again.";
+
+/// What to tell the person after a wrong code, given the request's status once it was counted.
+fn wrong_code_message(status: &str) -> &'static str {
+    if status == "denied" { REFUSED_AFTER_WRONG_CODES } else { WRONG_CODE }
+}
 
 /// Compares without stopping at the first difference.
 pub(crate) fn constant_time_eq(a: &str, b: &str) -> bool {
@@ -263,19 +271,19 @@ pub async fn approve_machine(
     let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     let (node_id, code, label, variant) = lock_waiting(&mut tx, claims.tenant_id, id).await?;
     if !code_matches(&code, &body.code) {
-        sqlx::query!(
+        let status = sqlx::query_scalar!(
             "UPDATE device_pairing_requests SET code_attempts = code_attempts + 1, \
                status = CASE WHEN code_attempts + 1 >= $2 THEN 'denied' ELSE status END \
-             WHERE id = $1",
+             WHERE id = $1 RETURNING status AS \"status!\"",
             id,
             MAX_CODE_ATTEMPTS,
         )
-        .execute(&mut *tx)
+        .fetch_one(&mut *tx)
         .await?;
         let details = serde_json::json!({ "node_id": node_id, "label": label });
         audit(&mut tx, &claims, "machine.wrong_code", id, &details).await?;
         tx.commit().await?;
-        return Err(AppError::ForbiddenReason(WRONG_CODE.to_owned()));
+        return Err(AppError::ForbiddenReason(wrong_code_message(&status).to_owned()));
     }
     let device = admit_machine(&mut tx, &claims, id, (&node_id, &label, &variant)).await?;
     let details = serde_json::json!({ "node_id": node_id, "label": label, "type": variant });
@@ -386,7 +394,13 @@ pub fn admin_router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::code_matches;
+    use super::{REFUSED_AFTER_WRONG_CODES, WRONG_CODE, code_matches, wrong_code_message};
+
+    #[test]
+    fn the_last_wrong_code_says_the_request_was_refused() {
+        assert_eq!(wrong_code_message("pending"), WRONG_CODE);
+        assert_eq!(wrong_code_message("denied"), REFUSED_AFTER_WRONG_CODES);
+    }
 
     #[test]
     fn a_person_must_type_exactly_the_code() {

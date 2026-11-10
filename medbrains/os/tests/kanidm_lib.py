@@ -4,7 +4,7 @@ and sign-in to Kanidm's own API.
 idm.medbrains.local:9443 and medbrains.local:443 reach the VM through OS_IDP_PORT and OS_WEB_PORT, so
 URLs, Host headers and issuers are the ones a browser on the hospital's network would use.
 """
-import json, os, re, socket, subprocess, tempfile, time
+import base64, hashlib, hmac, json, os, re, socket, struct, subprocess, tempfile, time
 from http.cookiejar import MozillaCookieJar
 
 WEB, IDP = "https://medbrains.local", "https://idm.medbrains.local:9443"
@@ -14,6 +14,37 @@ SERIAL = os.environ.get("OS_WORK", "/tmp/mb-osimage-kanidm") + "/vm/serial.sock"
 SERIAL_CONNECT_TRIES = 40
 ADMIN = ("asha_admin", "Blue-River-Walks-At-7!")
 FRONT_DROP_IN = "/run/systemd/system/medbrains-front.service.d"
+# The first administrator's authenticator secret, as setup showed it, kept beside the VM so later tests can sign in.
+# A debug VM's only; never printed.
+ADMIN_TOTP = os.environ.get("OS_WORK", "/tmp/mb-osimage-kanidm") + "/vm/first-admin-totp"
+TOTP_STEP, TOTP_DIGITS = 30, 6
+
+
+def totp_now(secret, digest=hashlib.sha256, step=TOTP_STEP, digits=TOTP_DIGITS, at=None):
+    """The code an authenticator app shows now, for raw secret bytes. Kanidm's default is SHA-256, 30 s, 6 digits."""
+    mac = hmac.new(bytes(secret), struct.pack(">Q", int((time.time() if at is None else at) // step)), digest).digest()
+    offset = mac[-1] & 15
+    return (struct.unpack(">I", mac[offset:offset + 4])[0] & 0x7fffffff) % 10 ** digits
+
+
+def secret_bytes(text):
+    """A secret as setup shows it, base32 in groups, as bytes."""
+    text = text.replace(" ", "").strip()
+    return base64.b32decode(text + "=" * (-len(text) % 8))
+
+
+def admin_secret():
+    """The first administrator's secret bytes, or None if setup has not been run by these tests."""
+    try:
+        return secret_bytes(open(ADMIN_TOTP).read())
+    except OSError:
+        return None
+
+
+def code_for(username):
+    """A current code for a person whose secret these tests know, or None."""
+    secret = admin_secret() if username == ADMIN[0] else None
+    return None if secret is None else totp_now(secret)
 
 
 def curl(url, method="GET", token=None, body=None, form=None, jar=None, csrf=None, extra=()):
@@ -76,8 +107,9 @@ def recover_password(account):
     return found.group(1)
 
 
-def kanidm_auth(username, password, privileged=True, base=IDP):
-    """Signs in through Kanidm's JSON API. Returns (token or None, last state, seconds taken)."""
+def kanidm_auth(username, password, privileged=True, base=IDP, code=None):
+    """Signs in through Kanidm's JSON API: the password, and a one-time code when Kanidm asks for one (the code
+    given, else one for a person these tests know). Returns (token or None, last state, seconds taken)."""
     started = time.time()
     status, body, headers = curl(f"{base}/v1/auth", "POST", body={"step": {"init2": {
         "username": username, "issue": "token", "privileged": privileged}}})
@@ -85,9 +117,14 @@ def kanidm_auth(username, password, privileged=True, base=IDP):
     if status != 200 or not isinstance(body, dict) or "choose" not in body.get("state", {}):
         return None, f"init {status} {body}"[:120], time.time() - started
     extra = ("-H", f"X-KANIDM-AUTH-SESSION-ID: {session}")
-    _, body, _ = curl(f"{base}/v1/auth", "POST", body={"step": {"begin": "password"}}, extra=extra)
+    # False: the password alone, whatever Kanidm offers.
+    code = code_for(username) if code is None else code
+    mech = "passwordmfa" if "passwordmfa" in body["state"]["choose"] and code not in (None, False) else "password"
+    _, body, _ = curl(f"{base}/v1/auth", "POST", body={"step": {"begin": mech}}, extra=extra)
     if not isinstance(body, dict) or "continue" not in body.get("state", {}):
         return None, f"begin {body}"[:120], time.time() - started
+    if mech == "passwordmfa":
+        _, body, _ = curl(f"{base}/v1/auth", "POST", body={"step": {"cred": {"totp": code}}}, extra=extra)
     _, body, _ = curl(f"{base}/v1/auth", "POST", body={"step": {"cred": {"password": password}}}, extra=extra)
     state = body.get("state", {}) if isinstance(body, dict) else {}
     return state.get("success"), str(state.get("denied", body))[:120], time.time() - started
@@ -126,14 +163,33 @@ def setup_call(path, body):
     out = serial(f"printf %s '{payload}' | curl -sS -m 140 -w '\\ncode=%{{http_code}}' --unix-socket /run/medbrains-console/setup.sock "
                  f"-H 'Content-Type: application/json' -d @- http://x{path}", 150)
     code = out.rsplit("code=", 1)[-1].strip()[:3]
-    return code, out.rsplit("code=", 1)[0][-900:]
+    return code, out.rsplit("code=", 1)[0]
+
+
+def begin_admin():
+    """Setup's first step for ADMIN: makes the login and returns the authenticator secret it shows, as text."""
+    code, answer = setup_call("/hospital/admin", {"hospital": "Test Hospital", "username": ADMIN[0], "password": ADMIN[1]})
+    found = re.search(r'"secret":"([A-Z2-7 ]+)"', answer)
+    if code != "200" or not found:
+        raise SystemExit(f"setup's first step: {code} {re.sub(r'[A-Z2-7 ]{16,}', '<hidden>', answer)[-200:]}")
+    return found.group(1)
+
+
+def finish_setup(code):
+    """Setup's last step, with this code. Returns (status, answer)."""
+    return setup_call("/hospital", {"hospital": "Test Hospital", "username": ADMIN[0], "password": ADMIN[1], "code": f"{code:06d}"})
 
 
 def set_up_machine():
-    """Sets the machine up with ADMIN, and waits for everything to be running."""
-    code, answer = setup_call("/hospital", {"hospital": "Test Hospital", "username": ADMIN[0], "password": ADMIN[1]})
+    """Sets the machine up with ADMIN and an authenticator, keeps its secret for later tests, and waits for
+    everything to be running."""
+    secret_text = begin_admin()
+    os.makedirs(os.path.dirname(ADMIN_TOTP), exist_ok=True)
+    with open(os.open(ADMIN_TOTP, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as kept:
+        kept.write(secret_text)
+    code, answer = finish_setup(totp_now(admin_secret()))
     if code != "200":
-        raise SystemExit(f"setup: {code} {answer}")
+        raise SystemExit(f"setup: {code} {answer[-300:]}")
     started = time.time()
     while time.time() - started < 600:
         time.sleep(5)

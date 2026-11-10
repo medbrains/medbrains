@@ -1,0 +1,16 @@
+-- no-transaction
+-- ====================================================================
+-- Migration: 1430_paperless_index_order_basket_signatures.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- The paperless meter (migration 1424) counts order_basket_signatures for one hospital over a
+-- window of days by `signed_at`; without this index each recount reads the whole
+-- table. Built CONCURRENTLY so writes to the table are not blocked, which
+-- needs its own migration outside a transaction (one statement per file:
+-- Postgres refuses CONCURRENTLY inside a multi-statement query). If a build
+-- fails, drop the INVALID index by hand and rerun; IF NOT EXISTS would
+-- otherwise skip it.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_order_basket_signatures_tenant_signed_at ON public.order_basket_signatures (tenant_id, signed_at);

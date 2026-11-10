@@ -14,7 +14,7 @@ import {
 } from "@/components/ui";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
-import { isPrnFrequency } from "./prn";
+import { isPrnFrequency } from "./prn-orders";
 
 interface Props {
   opened: boolean;

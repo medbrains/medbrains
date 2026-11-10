@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1252 permissions, one per constant in the Rust source. */
+/** 1254 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6659,6 +6659,18 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "OPD flow against the usual day, documentation completeness by doctor, department efficiency. Names clinicians next to their numbers, so it is granted to management and quality, not with general analytics access.",
     module: "analytics",
   },
+  {
+    code: "analytics.paperless.view",
+    label: "See the paperless meter",
+    description: "The share of clinical documents made in the system, signed digitally and legally signed, by department and day, and the paper still in use. Counts only; no patient or clinician is named.",
+    module: "analytics",
+  },
+  {
+    code: "analytics.paperless.refresh",
+    label: "Recount the paperless meter now",
+    description: "Rebuilds the meter's daily counts for recent days instead of waiting for the nightly pass.",
+    module: "analytics",
+  },
   // command_center
   {
     code: "command_center.view",
@@ -8809,6 +8821,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.DASHBOARD.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.ANALYTICS.MANAGEMENT.VIEW,
+      P.ANALYTICS.PAPERLESS.REFRESH,
+      P.ANALYTICS.PAPERLESS.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
       P.FLOWS.BUILD,
@@ -8948,6 +8962,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.RECORDS.NOTIFY,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
+      P.ANALYTICS.PAPERLESS.REFRESH,
+      P.ANALYTICS.PAPERLESS.VIEW,
       P.CKB.REPORTS.EXPORT,
       P.CKB.REPORTS.LIST,
       P.CKB.REPORTS.MANAGE,
@@ -9416,6 +9432,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Medical Superintendent",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.ANALYTICS.PAPERLESS.REFRESH,
+      P.ANALYTICS.PAPERLESS.VIEW,
       P.BILLING.PAYMENT_SETTINGS.NOTIFIED,
       P.DASHBOARD.VIEW,
       P.FLOWS.BUILD,

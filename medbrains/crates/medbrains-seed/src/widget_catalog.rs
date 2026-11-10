@@ -349,6 +349,13 @@ const KPI_WIDGETS: &[(&str, &str, &str, &str, &str)] = &[
         "IconAlertTriangle",
     ),
     (
+        "paperless_signed_pct",
+        "Signed digitally",
+        "Clinical documents signed in the system, 7 days",
+        "Records",
+        "IconSignature",
+    ),
+    (
         "mrd_file_delivery_minutes",
         "Paper file wait",
         "Median, registration to file at the clinic",

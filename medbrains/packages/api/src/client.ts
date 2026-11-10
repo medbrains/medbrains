@@ -1709,6 +1709,9 @@ import type {
   PaediatricFluidResult,
   PainAssessment,
   PainAssessmentPrintData,
+  PaperlessQuery,
+  PaperlessRebuilt,
+  PaperlessReport,
   PaRequirementRule,
   Patient,
   PatientAccessLogRow,
@@ -3394,6 +3397,19 @@ export const api = {
   getErrorTrackingSummary: () => request<ErrorTrackingSummary>("/admin/error-tracking/summary"),
   getKernelHealth: () => request<KernelHealth>("/admin/kernel"),
   getHealthIntel: () => request<HealthIntel>("/health-intel"),
+  /** The paperless meter for a range of days (default: the last 30). */
+  getPaperless: (params?: PaperlessQuery) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined) qs.set(k, String(v));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<PaperlessReport>(`/analytics/paperless${suffix}`);
+  },
+  /** Recount the paperless meter's last `days` days now. */
+  refreshPaperless: (days?: number) =>
+    request<PaperlessRebuilt>("/analytics/paperless/refresh", {
+      method: "POST",
+      body: JSON.stringify({ days }),
+    }),
   getHealthEnvironment: () => request<EnvironmentView>("/health-intel/environment"),
   refreshToken: async (): Promise<RefreshResponse> => {
     const resp = await refreshSession();

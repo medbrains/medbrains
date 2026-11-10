@@ -13,6 +13,10 @@ const USERNAME_RULE: &str = "3 to 30 lowercase letters, digits or underscores, s
 /// password signs in to both. Kanidm's rule for a password with no second step: 15 characters, its strength
 /// check at its top score, and not holding the username. Whole phrases pass it.
 pub(crate) const PASSWORD_RULE: &str = "At least 15 characters, with a capital letter, a small letter, a number and a symbol. It can't contain your username, and it must be hard to guess. A short phrase works: Blue river walks at 7!";
+/// Said when the authenticator code does not match. The QR code stays good, so it only asks again.
+pub(crate) const CODE_WRONG: &str = "That code did not match. Type the 6 digits your authenticator app shows now. If it keeps failing, check that this machine's clock is right.";
+/// Said when the code step has gone: Kanidm keeps it for 15 minutes, and forgets it if it restarts.
+pub(crate) const CODE_EXPIRED: &str = "This code has expired. Press Back, then Start the main machine again for a new QR code, and remove the old entry from your app.";
 /// Kanidm's shortest password with no second step. In its source: `PW_SFA_MIN_LENGTH_NIST`.
 const KANIDM_MIN_CHARACTERS: usize = 15;
 /// Names Kanidm keeps for itself, so a person cannot have them.
@@ -200,16 +204,28 @@ mod tests {
     /// This file decides what the screen trusts: a bad one must not reach it.
     #[test]
     fn only_a_certificate_is_taken_from_what_the_agent_recorded() {
-        let good = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n"}"#;
+        let good =
+            r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n"}"#;
         assert!(super::joined_certificate(good).is_some());
         let two = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\ny\n-----END CERTIFICATE-----\n"}"#;
-        assert_eq!(super::joined_certificate(two), None, "a second certificate would be trusted");
-        let junk = r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\njunk"}"#;
+        assert_eq!(
+            super::joined_certificate(two),
+            None,
+            "a second certificate would be trusted"
+        );
+        let junk =
+            r#"{"certificate":"-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\njunk"}"#;
         assert_eq!(super::joined_certificate(junk), None);
-        assert_eq!(super::joined_certificate(r#"{"certificate":"anything"}"#), None);
+        assert_eq!(
+            super::joined_certificate(r#"{"certificate":"anything"}"#),
+            None
+        );
         assert_eq!(super::joined_certificate(r#"{"other":1}"#), None);
         assert_eq!(super::joined_certificate("not json"), None);
-        assert_eq!(super::joined_hospital(r#"{"hospital":"City"}"#).as_deref(), Some("City"));
+        assert_eq!(
+            super::joined_hospital(r#"{"hospital":"City"}"#).as_deref(),
+            Some("City")
+        );
         assert_eq!(super::joined_hospital("{\"hospital\":\"a\\nb\"}"), None);
     }
 

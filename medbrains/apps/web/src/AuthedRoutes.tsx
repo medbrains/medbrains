@@ -223,6 +223,9 @@ const FrontOfficePage = lazy(() =>
 const TokenBoardPage = lazy(() =>
   import("./pages/token-board").then((m) => ({ default: m.TokenBoardPage })),
 );
+const PaperlessPage = lazy(() =>
+  import("./pages/paperless").then((m) => ({ default: m.PaperlessPage })),
+);
 const TokenConsolePage = lazy(() =>
   import("./pages/token-console").then((m) => ({ default: m.TokenConsolePage })),
 );
@@ -638,6 +641,7 @@ export function AuthedRoutes() {
         <Route path="security/medbrains-access" element={<MedbrainsAccessPage />} />
         <Route path="insurance" element={<InsurancePage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="analytics/paperless" element={<PaperlessPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="reports/nabh" element={<NabhIndicatorsPage />} />
         <Route path="audit" element={<AuditPage />} />

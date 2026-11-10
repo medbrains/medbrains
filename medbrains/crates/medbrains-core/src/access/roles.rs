@@ -1462,6 +1462,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.
             permissions::analytics::management::VIEW,
+            // How paperless the hospital is, measured (NABH IMS).
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             // ABDM adoption and DHIS are measured as a compliance programme.
             permissions::abdm::dashboard::VIEW,
             // NMC advertising and the Drugs and Magic Remedies Act are
@@ -1599,6 +1602,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "MRD Officer",
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
+            // Medical records runs the scanning and the file room the meter
+            // counts.
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             permissions::terminology::snomed::VIEW,
             // Statutory reporting runs through medical records where there is
             // no infection control officer.
@@ -2203,6 +2210,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ipd::admissions::LIST,
             permissions::ipd::admissions::VIEW,
             permissions::quality::indicators::LIST,
+            // Medical administration answers for the move off paper.
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,

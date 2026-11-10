@@ -403,6 +403,12 @@ export const P = {
       VIEW: "analytics.management.view",
     },
     MANAGEMENT_VIEW: "analytics.management.view",
+    PAPERLESS: {
+      REFRESH: "analytics.paperless.refresh",
+      VIEW: "analytics.paperless.view",
+    },
+    PAPERLESS_REFRESH: "analytics.paperless.refresh",
+    PAPERLESS_VIEW: "analytics.paperless.view",
     VIEW: "analytics.view",
   },
   ASSETS: {
