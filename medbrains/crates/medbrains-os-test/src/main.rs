@@ -11,6 +11,7 @@ mod front;
 mod setup;
 mod tamper;
 mod update_channel;
+mod update_power;
 mod update_sealed;
 mod update_steps;
 mod update_verity;
