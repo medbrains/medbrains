@@ -65,7 +65,11 @@ fn open_listener(config: &ListenerConfig) -> anyhow::Result<Listener> {
     Ok(Listener {
         socket: bind(config.addr).with_context(|| format!("cannot bind {}", config.addr))?,
         tls,
-        gate: ConnectionGate::new(config.max_connections, config.max_per_address),
+        gate: ConnectionGate::new(
+            config.max_connections,
+            config.max_per_address,
+            config.reserved_for_machine,
+        ),
     })
 }
 

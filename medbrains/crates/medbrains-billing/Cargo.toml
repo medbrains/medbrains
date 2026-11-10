@@ -29,6 +29,9 @@ rust_decimal = { workspace = true }
 [dev-dependencies]
 medbrains-db-topology = { path = "../medbrains-db-topology" }
 medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-ipd = { path = "../medbrains-ipd" }
+medbrains-indent = { path = "../medbrains-indent" }
+medbrains-ward-stock = { path = "../medbrains-ward-stock" }
 jsonwebtoken = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 

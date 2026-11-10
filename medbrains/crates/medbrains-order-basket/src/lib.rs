@@ -16,11 +16,11 @@
 //! Procedure + referral basket items are reserved in the type system but
 //! not yet wired to a creation path — they'll land in a follow-up sprint.
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get,post};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -292,7 +292,11 @@ pub async fn sign_basket(
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     // A basket with a drug in it writes a prescription, which needs the same
     // fresh step-up as prescribing from the visit (opd create_prescription).
-    if body.items.iter().any(|item| matches!(item, BasketItem::Drug(_))) {
+    if body
+        .items
+        .iter()
+        .any(|item| matches!(item, BasketItem::Drug(_)))
+    {
         medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     }
 
@@ -424,18 +428,9 @@ pub async fn sign_basket(
         )
         .await?;
     }
-    if created.iter().any(|item| item.order_type == "prescription") {
-        medbrains_authz_gate::hand_off(
-            &state,
-            &claims,
-            medbrains_authz_gate::HandOff {
-                object_type: "encounter",
-                object_id: body.encounter_id,
-                department_code: medbrains_authz_gate::PHARMACY,
-            },
-        )
-        .await?;
-    }
+    // A prescription from the basket reaches the pharmacy's queue, which its
+    // permission scopes; the visit is not handed to the Pharmacy department
+    // (that opened the whole record, with no end — migration 1413).
 
     // Post-commit side-effects via outbox (durable, non-blocking).
     // SMS to patient + pharmacy notification queued; failures here do not
@@ -631,7 +626,9 @@ pub async fn preview_cost(
 async fn lookup_setting_decimal(state: &AppState, tenant_id: &Uuid, key: &str) -> Option<Decimal> {
     // Returns Option: no connection is the same as no setting, which is what
     // every caller already handles.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id).await.ok()?;
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id)
+        .await
+        .ok()?;
     let val: Option<Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND key = $2 LIMIT 1",
@@ -1211,6 +1208,7 @@ async fn create_prescription_from_basket_drug_in_tx(
         route: Some(item.route.clone()),
         instructions: instructions.clone(),
         catalog_item_id: Some(item.drug_id),
+        buy_outside: false,
     };
     medbrains_opd::rx_policy::enforce_rx_policy(
         tx,
@@ -1543,24 +1541,13 @@ async fn queue_post_sign_side_effects(
 /// order_basket routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/orders/basket/check",
-            post(check_basket),
-        )
-        .route(
-            "/api/orders/basket/sign",
-            post(sign_basket),
-        )
+        .route("/api/orders/basket/check", post(check_basket))
+        .route("/api/orders/basket/sign", post(sign_basket))
         .route(
             "/api/orders/basket/drafts/{encounter_id}",
-            get(get_draft)
-                .put(save_draft)
-                .delete(delete_draft),
+            get(get_draft).put(save_draft).delete(delete_draft),
         )
-        .route(
-            "/api/orders/basket/preview-cost",
-            post(preview_cost),
-        )
+        .route("/api/orders/basket/preview-cost", post(preview_cost))
         .route(
             "/api/orders/basket/previous/{patient_id}",
             get(carry_forward),

@@ -44,6 +44,10 @@ MEDBRAINS_OBJECTS_HOT=/var/lib/medbrains/objects
 MEDBRAINS_OBJECTS_COLD=/var/lib/medbrains/cold
 MEDBRAINS_OBJECTS_ARCHIVE=/var/lib/medbrains/archive
 MEDBRAINS_ICD_LOCAL_SERVICE=false
+MEDBRAINS_PUBLIC_BASE_URL=https://medbrains.local
+MEDBRAINS_SSO_SCREEN_BASE=https://screen.medbrains.local:8443
+SSL_CERT_FILE=$CONF/idp-front.pem
+SSL_CERT_DIR=/etc/ssl/certs
 MEDBRAINS_MACHINE_AGENT_TOKEN=$agent_token
 JWT_PRIVATE_KEY=$priv
 JWT_PUBLIC_KEY=$pub
@@ -82,10 +86,8 @@ fsync = on
 full_page_writes = on
 synchronous_commit = on
 jit = off
-shared_buffers = 256MB
-effective_cache_size = 1GB
 max_connections = 50
-wal_compression = on
+wal_compression = lz4
 checkpoint_timeout = 15min
 max_wal_size = 1GB
 log_min_duration_statement = 2000
@@ -93,6 +95,17 @@ log_min_duration_statement = 2000
 log_parameter_max_length = 0
 log_parameter_max_length_on_error = 0
 log_destination = 'syslog'
+PGEOF
+    # Sized from this machine's memory: the same image runs on 4 GB and on 64 GB. A sixteenth keeps
+    # 256 MB on 4 GB, the size measured so far, and the floor and ceiling hold the extremes.
+    local mem_mb buffers_mb
+    mem_mb=$(awk '/MemTotal/ { print int($2 / 1024) }' /proc/meminfo)
+    buffers_mb=$((mem_mb / 16))
+    ((buffers_mb < 128)) && buffers_mb=128
+    ((buffers_mb > 8192)) && buffers_mb=8192
+    cat >> "/etc/postgresql/$PG_VERSION/main/conf.d/10-medbrains.conf" <<PGEOF
+shared_buffers = ${buffers_mb}MB
+effective_cache_size = $((mem_mb / 2))MB
 PGEOF
     # This script runs under UMask=0077; PostgreSQL must be able to read it.
     chown postgres:postgres "/etc/postgresql/$PG_VERSION/main/conf.d/10-medbrains.conf"

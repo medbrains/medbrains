@@ -90,6 +90,9 @@ export const billingService = {
     api.getTenantSettings(...args),
   updateTenantSetting: (...args: Parameters<typeof api.updateTenantSetting>) =>
     api.updateTenantSetting(...args),
+  getBillingPaymentSettings: () => api.getBillingPaymentSettings(),
+  updateBillingPaymentSettings: (...args: Parameters<typeof api.updateBillingPaymentSettings>) =>
+    api.updateBillingPaymentSettings(...args),
   listAdvances: (...args: Parameters<typeof api.listAdvances>) => api.listAdvances(...args),
   createAdvance: (...args: Parameters<typeof api.createAdvance>) => api.createAdvance(...args),
   getFinalBillChecklist: (...args: Parameters<typeof api.getFinalBillChecklist>) =>
@@ -212,6 +215,21 @@ export const billingService = {
   scanUnbilledOrders: () => api.scanUnbilledOrders(),
   dismissChargeAttention: (...args: Parameters<typeof api.dismissChargeAttention>) =>
     api.dismissChargeAttention(...args),
+  listRevenueAlerts: (...args: Parameters<typeof api.listRevenueAlerts>) =>
+    api.listRevenueAlerts(...args),
+  requestPreauthEnhancement: (...args: Parameters<typeof api.requestPreauthEnhancement>) =>
+    api.requestPreauthEnhancement(...args),
+  dismissPreauthAlert: (...args: Parameters<typeof api.dismissPreauthAlert>) =>
+    api.dismissPreauthAlert(...args),
+  getPreauthAlertSettings: () => api.getPreauthAlertSettings(),
+  updatePreauthAlertSettings: (...args: Parameters<typeof api.updatePreauthAlertSettings>) =>
+    api.updatePreauthAlertSettings(...args),
+  recordRoomConsent: (...args: Parameters<typeof api.recordRoomConsent>) =>
+    api.recordRoomConsent(...args),
+  listRoomConsentWitnesses: (...args: Parameters<typeof api.listRoomConsentWitnesses>) =>
+    api.listRoomConsentWitnesses(...args),
+  namePatientChargeAttention: (...args: Parameters<typeof api.namePatientChargeAttention>) =>
+    api.namePatientChargeAttention(...args),
   backfillClaimSettlements: (...args: Parameters<typeof api.backfillClaimSettlements>) =>
     api.backfillClaimSettlements(...args),
 

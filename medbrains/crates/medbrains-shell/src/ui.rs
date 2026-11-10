@@ -151,7 +151,9 @@ pub(crate) fn status_sentence(machine: &Machine, main_ready: bool, disk: &str) -
 /// anything else it could say.
 pub(crate) const fn unreachable_sentence(role: &str, main_ready: bool) -> Option<&'static str> {
     match (role.as_bytes(), main_ready) {
-        (b"node", false) => Some("Cannot reach the main machine. This machine keeps trying by itself."),
+        (b"node", false) => {
+            Some("Cannot reach the main machine. This machine keeps trying by itself.")
+        }
         _ => None,
     }
 }
@@ -272,12 +274,12 @@ mod tests {
         let broken = machine("degraded", &["medbrains-front.service"]);
         assert_eq!(health_word(&broken, true), "Needs attention");
         assert_eq!(
-            status_sentence(&broken, true),
+            status_sentence(&broken, true, "encrypted-tpm2"),
             "This service has a problem: medbrains-front.service"
         );
         let two = machine("degraded", &["a.service", "b.service"]);
         assert_eq!(
-            status_sentence(&two, true),
+            status_sentence(&two, true, "encrypted-tpm2"),
             "These services have a problem: a.service, b.service"
         );
         assert_eq!(

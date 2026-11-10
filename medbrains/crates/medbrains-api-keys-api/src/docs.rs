@@ -14,7 +14,9 @@ use medbrains_server_core::{
 const OPENAPI: &str = include_str!("../../../docs/openapi.json");
 
 /// `GET /api/openapi.json`
-pub(crate) async fn openapi(Extension(claims): Extension<Claims>) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn openapi(
+    Extension(claims): Extension<Claims>,
+) -> Result<impl IntoResponse, AppError> {
     require_permission(&claims, permissions::admin::api_keys::DOCS)?;
     Ok(([(header::CONTENT_TYPE, "application/json")], OPENAPI))
 }

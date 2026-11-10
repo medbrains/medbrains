@@ -3,13 +3,14 @@
 
 mod api;
 mod apps;
+mod authenticator;
 mod child;
 mod desktop;
 mod display;
 mod dock;
-mod netmenu;
 mod join;
 mod main_address;
+mod netmenu;
 mod network;
 mod power;
 mod prefs;
@@ -19,6 +20,7 @@ mod setup;
 mod timezone;
 mod topbar;
 mod ui;
+mod updates;
 mod webapp;
 mod webview;
 mod widgets;

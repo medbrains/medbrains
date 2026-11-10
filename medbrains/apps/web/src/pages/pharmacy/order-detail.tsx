@@ -34,11 +34,15 @@ import { usePatientName } from "@/hooks/usePatientName";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { printDocument } from "@/lib/print/printDocument";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { BUY_OUTSIDE_LABEL, isBoughtOutside } from "@/utils/buyOutside";
 import { pharmacyOrderJourneyContext } from "../pharmacy-workspace";
 import { ArrangeDeliveryButton } from "./arrange-delivery-drawer";
+import { DispensePatientCard } from "./dispense-patient-card";
 import { EditablePharmacyQuantity } from "./editable-quantity";
 import { NearExpiryHints } from "./near-expiry-hints";
+import { OrderSafetyRecord } from "./order-safety-record";
 import { PrescriptionAuditTrail } from "./prescription-audit-trail";
+import { ReasonModal } from "./reason-modal";
 import {
   dispensingTypeLabels,
   ExpiryCell,
@@ -48,7 +52,21 @@ import {
   renderPharmacySensitiveValue,
   sharedColorBadgeTone,
   statusColors,
+  UNPAID_REASON_REQUIRED,
 } from "./shared";
+
+/** What the dispense screen sends: lines, the witness, and any reasons given. */
+interface DispensePayload {
+  items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
+  witnessed_by?: string;
+  witness_password?: string;
+  allergy_override_reason?: string;
+  safety_override_reason?: string;
+  unpaid_override_reason?: string;
+  ndps_override_reason?: string;
+  schedule_x_duplicate_ref?: string;
+  allergy_status_acknowledged?: boolean;
+}
 
 export function PharmacyOrderDetail({
   orderId,
@@ -123,22 +141,29 @@ export function PharmacyOrderDetail({
     setSearchParams(next, { replace: true });
   };
   const [dispenseOpen, dispenseModal] = useDisclosure(false);
+  const [unpaid, setUnpaid] = useState<{ payload: DispensePayload; complaint: string } | null>(
+    null,
+  );
   // Active drug allergens for the dispense-time allergy guard.
-  const { data: patientAllergies = [] } = useQuery({
-    queryKey: ["patient-allergies", detail?.order.patient_id],
-    queryFn: () => pharmacyService.listPatientAllergies(detail?.order.patient_id ?? ""),
-    enabled: dispenseOpen && Boolean(detail?.order.patient_id),
+  // The dispensing view of the patient (identity and drug allergies), through
+  // the pharmacy's own gate: the pharmacist usually has no relationship with
+  // the patient, and the general reads answer 404.
+  const canUnpaidOverride = useHasPermission(P.PHARMACY.DISPENSING_UNPAID_OVERRIDE);
+  const dispensePatientId = detail?.order.patient_id ?? "";
+  const dispenseContext = useQuery({
+    queryKey: ["pharmacy-dispense-context", dispensePatientId],
+    queryFn: () => pharmacyService.getPharmacyDispenseContext(dispensePatientId),
+    enabled: canDispense && dispensePatientId.length > 0,
   });
-  const drugAllergens = patientAllergies
-    .filter((a) => a.is_active && a.allergy_type === "drug")
-    .map((a) => a.allergen_name);
+  const drugAllergens = (dispenseContext.data?.drug_allergies ?? []).map((a) => a.allergen_name);
+  // Nobody has recorded an allergy or noted "none": the server asks the
+  // pharmacist to acknowledge it, so the screen asks first.
+  const allergyStatusUnknown =
+    dispenseContext.data !== undefined &&
+    dispenseContext.data.no_known_allergies == null &&
+    dispenseContext.data.drug_allergies.length === 0;
   const dispenseMutation = useMutation({
-    mutationFn: async (payload?: {
-      items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
-      witnessed_by?: string;
-      allergy_override_reason?: string;
-      safety_override_reason?: string;
-    }) => {
+    mutationFn: async (payload?: DispensePayload) => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
       const order = await pharmacyService.dispenseOrder(orderId, payload);
       return { admissionId: currentDetail.admission_id, items: currentDetail.items, order };
@@ -164,7 +189,26 @@ export function PharmacyOrderDetail({
       });
       clearDispenseHandoff();
     },
-    onError: (e: Error) => toast.error(e.message, { title: "Could not dispense order" }),
+    onSettled: () => {
+      // A refusal is filed too; the safety record shows it either way.
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-safety-record", orderId] });
+    },
+    onError: (e: Error, payload) => {
+      // An open bill is not a wall: credit patients, schemes and staff are
+      // served first. Ask why, then send the same dispense with the reason —
+      // this screen used to show the refusal and offer no way to give one.
+      if (
+        canUnpaidOverride &&
+        payload &&
+        !payload.unpaid_override_reason &&
+        e.message.includes(UNPAID_REASON_REQUIRED)
+      ) {
+        dispenseModal.close();
+        setUnpaid({ payload, complaint: e.message });
+        return;
+      }
+      toast.error(e.message, { title: "Could not dispense order" });
+    },
   });
 
   const canSubstituteDrug = useHasPermission(P.PHARMACY_IMPROVEMENTS.SUBSTITUTION_RECORD);
@@ -208,14 +252,34 @@ export function PharmacyOrderDetail({
 
   return (
     <Stack>
-      <DispenseModal
-        opened={dispenseOpen}
-        orderId={orderId}
-        onClose={dispenseModal.close}
-        items={detail.items}
-        isDispensing={dispenseMutation.isPending}
-        patientAllergens={drugAllergens}
-        onDispense={(payload) => dispenseMutation.mutate(payload)}
+      {/* Mounted only while open: closing it, by any path, drops the
+          witness's password and every reason typed into it. */}
+      {dispenseOpen && (
+        <DispenseModal
+          opened
+          orderId={orderId}
+          onClose={dispenseModal.close}
+          items={detail.items}
+          isDispensing={dispenseMutation.isPending}
+          patientAllergens={drugAllergens}
+          allergyStatusUnknown={allergyStatusUnknown}
+          onDispense={(payload) => dispenseMutation.mutate(payload)}
+        />
+      )}
+      <ReasonModal
+        opened={unpaid !== null}
+        title="Dispense unpaid?"
+        description={unpaid?.complaint ?? ""}
+        label="Why dispense before payment"
+        placeholder="Credit patient, scheme beneficiary, staff…"
+        confirmLabel="Dispense unpaid"
+        pending={dispenseMutation.isPending}
+        onClose={() => setUnpaid(null)}
+        onConfirm={(reason) => {
+          if (!unpaid) return;
+          dispenseMutation.mutate({ ...unpaid.payload, unpaid_override_reason: reason });
+          setUnpaid(null);
+        }}
       />
       {substituteItem && (
         <SubstituteModal
@@ -258,15 +322,24 @@ export function PharmacyOrderDetail({
         <RepeatPanel prescriptionId={detail.order.prescription_id} />
       )}
       <ArrangeDeliveryButton orderId={detail.order.id} orderStatus={detail.order.status} />
+      <OrderSafetyRecord orderId={detail.order.id} />
       {canEditOrderItems && (
         <Alert tone="info" icon={<IconShieldCheck size={16} />}>
           Edit or remove medicines before dispense. Draft billing lines stay synchronized.
         </Alert>
       )}
-      <PharmacyPatientContext
-        patientId={detail.order.patient_id}
-        canViewPatientRecord={canViewPatientRecord}
-      />
+      {detail.order.patient_id && canDispense ? (
+        <DispensePatientCard
+          context={dispenseContext.data}
+          loading={dispenseContext.isLoading}
+          failed={dispenseContext.isError}
+        />
+      ) : (
+        <PharmacyPatientContext
+          patientId={detail.order.patient_id}
+          canViewPatientRecord={canViewPatientRecord}
+        />
+      )}
       <PatientFlowNavigator
         patientId={detail.order.patient_id}
         active="pharmacy"
@@ -354,7 +427,16 @@ export function PharmacyOrderDetail({
           <Table.Tbody>
             {detail.items.map((item) => (
               <Table.Tr key={item.id}>
-                <Table.Td>{item.drug_name}</Table.Td>
+                <Table.Td>
+                  <Stack gap={2}>
+                    <Text size="sm">{item.drug_name}</Text>
+                    {isBoughtOutside(item) && (
+                      <Badge tone="neutral" size="xs">
+                        {BUY_OUTSIDE_LABEL}
+                      </Badge>
+                    )}
+                  </Stack>
+                </Table.Td>
                 <Table.Td>
                   {renderPharmacySensitiveValue(batchNumberAccess, item.batch_number)}
                 </Table.Td>

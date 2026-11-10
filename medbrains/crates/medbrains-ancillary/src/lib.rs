@@ -1,6 +1,9 @@
 //! Ancillary leaf crate: clinical trials registry + front office. Billing-free.
 
-use axum::{Router, routing::{get,post,put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod clinical_trials;
@@ -29,10 +32,7 @@ pub fn router() -> Router<AppState> {
             "/api/clinical-trials/{id}/visits",
             get(clinical_trials::list_trial_visits).post(clinical_trials::schedule_visit),
         )
-        .route(
-            "/api/trial-visits/{id}",
-            put(clinical_trials::update_visit),
-        )
+        .route("/api/trial-visits/{id}", put(clinical_trials::update_visit))
         .route(
             "/api/clinical-trials/{id}/adverse-events",
             get(clinical_trials::list_adverse_events).post(clinical_trials::report_adverse_event),
@@ -58,23 +58,16 @@ pub fn router() -> Router<AppState> {
             put(clinical_trials::update_irb_submission),
         )
         .route(
-            "/api/clinical-trials/{id}/export",
-            get(clinical_trials::export_trial),
-        )
-        .route(
             "/api/front-office/visiting-hours",
-            get(front_office::list_visiting_hours)
-                .post(front_office::upsert_visiting_hours),
+            get(front_office::list_visiting_hours).post(front_office::upsert_visiting_hours),
         )
         .route(
             "/api/front-office/visitors",
-            get(front_office::list_visitors)
-                .post(front_office::create_visitor),
+            get(front_office::list_visitors).post(front_office::create_visitor),
         )
         .route(
             "/api/front-office/passes",
-            get(front_office::list_passes)
-                .post(front_office::create_pass),
+            get(front_office::list_passes).post(front_office::create_pass),
         )
         .route("/api/front-office/passes/scan", get(pass_check::scan_pass))
         .route(
@@ -95,18 +88,15 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/front-office/queue-priority",
-            get(front_office::list_queue_priority_rules)
-                .post(front_office::upsert_queue_priority),
+            get(front_office::list_queue_priority_rules).post(front_office::upsert_queue_priority),
         )
         .route(
             "/api/front-office/display-config",
-            get(front_office::list_display_config)
-                .post(front_office::upsert_display_config),
+            get(front_office::list_display_config).post(front_office::upsert_display_config),
         )
         .route(
             "/api/front-office/enquiries",
-            get(front_office::list_enquiries)
-                .post(front_office::create_enquiry),
+            get(front_office::list_enquiries).post(front_office::create_enquiry),
         )
         .route(
             "/api/front-office/enquiries/{id}/resolve",

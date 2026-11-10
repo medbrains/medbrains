@@ -220,7 +220,7 @@ async fn main() -> anyhow::Result<()> {
         "access_group",
         "member",
         "SELECT group_id, user_id FROM access_group_members",
-        "AND (expires_at IS NULL OR expires_at > now())",
+        "AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now())",
         |(g, u)| (*g, Subject::User(*u)),
         "access_group_members",
     )
@@ -325,8 +325,7 @@ async fn backfill_paged(
         if let Some(last) = rows.last() {
             cursor = last.0;
         }
-        written +=
-            write_derived_batch(run, object_type, relation_name, &rows, &map, label).await?;
+        written += write_derived_batch(run, object_type, relation_name, &rows, &map, label).await?;
     }
     Ok(written)
 }

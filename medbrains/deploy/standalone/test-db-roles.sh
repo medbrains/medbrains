@@ -89,6 +89,20 @@ else
 fi
 check "nothing written on failure" "$broken" "$(cat "$ENV")"
 
+# ── the env.example shape: app role with no password, owner already split ─
+printf 'DATABASE_URL=%s\nMIGRATION_DATABASE_URL=%s\n' \
+    "$(db_url_as "$OWNER" medbrains_app "")" "$OWNER" > "$ENV"
+check "a split env names the migration URL as the owner" MIGRATION_DATABASE_URL \
+    "$(db_roles_owner_key "$ENV")"
+db_roles_configure "$ENV" >/dev/null
+check "env.example shape: the migration URL is kept" "$OWNER" \
+    "$(db_env_get MIGRATION_DATABASE_URL "$ENV")"
+check "env.example shape: requests still connect as medbrains_app" medbrains_app \
+    "$(db_url_user "$(db_env_get DATABASE_URL "$ENV")")"
+check "env.example shape: an app password is generated" 32 \
+    "$(db_url_password "$(db_env_get DATABASE_URL "$ENV")" | tr -d '\n' | wc -c | tr -d ' ')"
+check "env.example shape: the generated password logs in" 1 "$(as_role DATABASE_URL 'SELECT 1')"
+
 # ── dedicated host: admin SQL and the login check run inside the container ─
 DEV_CONTAINER="${TEST_PG_CONTAINER:-medbrains-postgres-1}"
 if docker container inspect "$DEV_CONTAINER" >/dev/null 2>&1; then

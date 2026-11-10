@@ -32,6 +32,7 @@
 
 pub mod audit;
 pub mod authz;
+pub mod bounds;
 mod claims;
 pub mod config;
 mod error;

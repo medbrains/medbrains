@@ -279,7 +279,9 @@ impl WebApp {
         self.progress.set_fraction(0.1);
         glib::g_message!(LOG, "{}: compiling its navigation limit", self.app.id);
         let store = UserContentFilterStore::new(FILTER_STORE);
-        let source = glib::Bytes::from_owned(apps::content_filter(&self.origin).into_bytes());
+        let source = glib::Bytes::from_owned(
+            apps::content_filter(&self.origin, self.app.sign_in_origin.as_deref()).into_bytes(),
+        );
         let timed_out = self.clone();
         glib::timeout_add_local_once(FILTER_PATIENCE, move || {
             if timed_out.is_current(attempt) && timed_out.view.borrow().is_none() {
@@ -340,7 +342,7 @@ impl WebApp {
 
     /// Builds the view and follows it.
     fn make_view(&self, filter: &webkit6::UserContentFilter) {
-        let view = webview::new_view(filter, &self.origin);
+        let view = webview::new_view(filter, &self.origin, self.app.sign_in_origin.as_deref());
         self.connect_view_signals(&view);
         self.root.add_named(&view, Some("view"));
         *self.view.borrow_mut() = Some(view);

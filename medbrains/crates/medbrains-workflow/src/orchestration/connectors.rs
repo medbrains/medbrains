@@ -33,7 +33,11 @@ pub async fn list_connectors(
 }
 
 /// Get a single connector by ID.
-pub async fn get_connector(pool: &PgPool, tenant_id: Uuid, id: Uuid) -> Result<ConnectorRow, AppError> {
+pub async fn get_connector(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    id: Uuid,
+) -> Result<ConnectorRow, AppError> {
     sqlx::query_as::<_, ConnectorRow>(
         "SELECT id, tenant_id, connector_type, name, description, config, status, \
                 health_check_url, last_health_check, is_healthy, retry_config, \
@@ -66,6 +70,20 @@ pub async fn execute_connector_action(
             "connector '{}' is not active (status: {})",
             connector.name, connector.status
         )));
+    }
+
+    // A connector a vendor account set up never calls out: it would send
+    // hospital data on after the support grant that allowed it had ended.
+    let made_by_vendor: bool = sqlx::query_scalar("SELECT public.app_user_is_vendor($1, $2)")
+        .bind(connector.created_by)
+        .bind(medbrains_core::vendor::vendor_domains())
+        .fetch_one(&mut *medbrains_db::pool::tenant_conn(pool, &tenant_id).await?)
+        .await?;
+    if made_by_vendor {
+        tracing::warn!(%connector_id, %tenant_id, "connector set up by a MedBrains account: not called");
+        return Err(AppError::ForbiddenReason(
+            "This connector was set up by a MedBrains account and cannot be used.".to_owned(),
+        ));
     }
 
     let result = match connector.connector_type.as_str() {
@@ -117,7 +135,11 @@ pub async fn execute_connector_action(
 /// Health-check a connector by calling its `health_check_url`.
 ///
 /// Updates `is_healthy` and `last_health_check` in the database.
-pub async fn health_check(pool: &PgPool, tenant_id: Uuid, connector_id: Uuid) -> Result<bool, AppError> {
+pub async fn health_check(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    connector_id: Uuid,
+) -> Result<bool, AppError> {
     let connector = get_connector(pool, tenant_id, connector_id).await?;
 
     let url = connector.health_check_url.as_deref().unwrap_or("");

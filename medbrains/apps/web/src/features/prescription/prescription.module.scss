@@ -339,10 +339,10 @@
   border-bottom: 0;
 }
 .ddItem:hover,
-.ddActive {
+.ddItem[data-combobox-selected] {
   background: var(--blue-10);
 }
-.ddActive {
+.ddItem[data-combobox-selected] {
   box-shadow: inset 2px 0 0 var(--blue);
 }
 .ddMid {

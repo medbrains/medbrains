@@ -1214,6 +1214,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "security.intel.view",
       },
       {
+        i18nKey: "medbrainsAccess",
+        path: "/security/medbrains-access",
+        icon: "IconShieldLock",
+        requiredPermission: "security.vendor_access.view",
+      },
+      {
         i18nKey: "hr",
         moduleCode: "hr",
         path: "/hr",
@@ -1363,6 +1369,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/analytics",
         icon: "IconChartBar",
         requiredPermission: "analytics.view",
+      },
+      {
+        i18nKey: "paperlessMeter",
+        moduleCode: "reports",
+        path: "/analytics/paperless",
+        icon: "IconFileCheck",
+        requiredPermission: "analytics.paperless.view",
       },
       {
         i18nKey: "reports",
@@ -1541,7 +1554,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             i18nKey: "sso",
             path: "/admin/sso",
             icon: "IconLockSquareRounded",
-            requiredPermission: "admin.settings.general.manage",
+            requiredPermission: "admin.sso.providers.manage",
           },
           {
             i18nKey: "accessRequests",

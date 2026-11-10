@@ -94,6 +94,7 @@ export * from "./care-view";
 export type { ClinicalScoreRow, RecordScoreRequest } from "./care-view-scores";
 export * from "./cath-lab";
 export * from "./charge-attention";
+export * from "./mrd-file-requests";
 export * from "./chronic-care";
 export * from "./claim-settlements";
 export * from "./clinical-identity-forms";
@@ -121,6 +122,7 @@ export * from "./dashboard-widget-builder";
 export * from "./device-binding";
 export * from "./device-integration";
 export * from "./diagnosis-coding";
+export * from "./dictation";
 export * from "./doctor-payouts";
 export * from "./documents-module";
 export * from "./dpdp-compliance";
@@ -205,6 +207,7 @@ export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";
 export * from "./palliative-mortuary-nuclear";
+export * from "./paperless";
 export type {
   PatientContextSignal,
   PatientContextSignalKind,
@@ -302,6 +305,7 @@ export * from "./psychiatry";
 export * from "./queues";
 export * from "./regulatory-compliance";
 export * from "./research-exports";
+export * from "./revenue-alerts";
 export * from "./schema-registry";
 export * from "./screen-layout-zone";
 export * from "./screen-system";
@@ -381,6 +385,7 @@ export {
   tokenBoardSurfaceFlowLabelKey,
 } from "./token-board-surfaces.js";
 export * from "./uhi";
+export * from "./vendor-access";
 export type {
   WorkflowSignalShape,
   WorkflowSignalShapeDefinition,

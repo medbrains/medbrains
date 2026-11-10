@@ -41,14 +41,12 @@ import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { HelpButton } from "@/components/HelpButton";
 import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
 import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
-import { AddProductModal } from "@/components/Materials/AddProductModal";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { NotesButton } from "@/components/notes/NotesButton";
 import { PageQueryErrorBanner } from "@/components/PageQueryErrorBanner";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
-import { CollectDrawer } from "@/components/payments/collect/CollectDrawer";
 import { StepUpGate } from "@/components/StepUpGate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
@@ -63,6 +61,7 @@ import {
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
+import { OnDemandOverlays } from "./OnDemandOverlays";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
@@ -723,8 +722,7 @@ export function AppLayout() {
           anywhere via useAiAssistant(). Outside PageTransition so its fixed
           launcher anchors to the viewport. */}
       <AiAssistantMount />
-      <AddProductModal />
-      <CollectDrawer />
+      <OnDemandOverlays />
       <LiveActivityIsland />
       <EmergencyCodeActivity />
       <StepUpGate />

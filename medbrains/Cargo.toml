@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/medbrains-os-test",
     "crates/medbrains-os-setup",
+    "crates/medbrains-os-update",
     "crates/medbrains-agent",
     "crates/medbrains-server",
     "crates/medbrains-automation",
@@ -114,6 +115,7 @@ members = [
     "crates/medbrains-pharmacy-delivery",
     "crates/medbrains-ward-stock",
     "crates/medbrains-clinical-notes",
+    "crates/medbrains-dictation",
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",

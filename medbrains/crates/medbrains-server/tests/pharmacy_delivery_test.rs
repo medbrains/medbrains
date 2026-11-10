@@ -213,7 +213,8 @@ async fn deliveries_follow_the_rules_to_the_door() {
         .client
         .put(app.url(&format!("/api/pharmacy/orders/{plain_order}/dispense")))
         .header("x-csrf-token", &csrf)
-        .json(&json!({ "unpaid_override_reason": "cash on delivery" }))
+        .json(&json!({ "unpaid_override_reason": "cash on delivery",
+                       "allergy_status_acknowledged": true }))
         .send()
         .await
         .expect("dispense");
@@ -328,13 +329,24 @@ async fn deliveries_follow_the_rules_to_the_door() {
     .await;
     assert_eq!(status, StatusCode::OK, "{cold}");
     let cold_id = cold["id"].as_str().unwrap_or_default();
-    app.client
+    // An unpaid dispense needs a recorded reason of at least five characters.
+    let dispensed = app
+        .client
         .put(app.url(&format!("/api/pharmacy/orders/{cold_order}/dispense")))
         .header("x-csrf-token", &csrf)
-        .json(&json!({ "unpaid_override_reason": "test" }))
+        .json(
+            &json!({ "unpaid_override_reason": "prepaid online, payment pending",
+                       "allergy_status_acknowledged": true }),
+        )
         .send()
         .await
         .expect("dispense");
+    assert_eq!(
+        dispensed.status(),
+        StatusCode::OK,
+        "{}",
+        dispensed.text().await.unwrap_or_default()
+    );
     let (status, body) = send(
         &app.client,
         &app,

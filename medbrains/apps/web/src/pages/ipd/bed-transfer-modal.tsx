@@ -9,6 +9,7 @@ import { FormModal, useClinicalEmit } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
+import { RoomEligibilityNotice, useRoomConsent } from "./room-eligibility-notice";
 import { emitIpdBedMovementEvent } from "./shared";
 
 export function BedTransferModal({
@@ -28,6 +29,7 @@ export function BedTransferModal({
   const [toBedId, setToBedId] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
+  const [roomConsent, setRoomConsent] = useRoomConsent(toBedId);
 
   const transferMutation = useMutation({
     mutationFn: (data: BedTransferRequest) => ipdService.bedTransfer(admissionId, data),
@@ -60,7 +62,12 @@ export function BedTransferModal({
       size="md"
       onSubmit={(e) => {
         e.preventDefault();
-        transferMutation.mutate({ to_bed_id: toBedId, reason, notes: notes || undefined });
+        transferMutation.mutate({
+          to_bed_id: toBedId,
+          reason,
+          notes: notes || undefined,
+          room_consent: roomConsent,
+        });
       }}
       submitLabel={t("transfer")}
       submitting={transferMutation.isPending}
@@ -71,6 +78,12 @@ export function BedTransferModal({
         value={toBedId}
         onChange={(id) => setToBedId(id)}
         required
+      />
+      <RoomEligibilityNotice
+        patientId={patientId}
+        bedId={toBedId}
+        admissionId={admissionId}
+        onConsentChange={setRoomConsent}
       />
       <TextInput
         label={t("label.reason")}

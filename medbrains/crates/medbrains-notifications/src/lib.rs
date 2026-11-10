@@ -2,7 +2,7 @@
 
 mod holders;
 pub mod on_call;
-pub use holders::notify_permission_holders;
+pub use holders::{notify_permission_holders, permission_holders};
 
 use axum::{
     Extension, Json,
@@ -19,8 +19,8 @@ use uuid::Uuid;
 
 use std::sync::Arc;
 
-use medbrains_server_core::notification_hub::{EventScope, NotificationEvent, user_topic};
 use medbrains_core::permissions;
+use medbrains_server_core::notification_hub::{EventScope, NotificationEvent, user_topic};
 
 use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
@@ -86,14 +86,18 @@ pub async fn list_notifications(
         .fetch_all(&mut *tx)
         .await?;
 
-    let unread_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false")
-            .bind(claims.sub)
-            .fetch_one(&mut *tx)
-            .await?;
+    let unread_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false",
+    )
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
 
     tx.commit().await?;
-    Ok(Json(NotificationListResponse { notifications, unread_count }))
+    Ok(Json(NotificationListResponse {
+        notifications,
+        unread_count,
+    }))
 }
 
 /// GET /api/notifications/unread-count
@@ -103,11 +107,12 @@ pub async fn notifications_unread_count(
 ) -> Result<Json<UnreadCountResponse>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let unread_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false")
-            .bind(claims.sub)
-            .fetch_one(&mut *tx)
-            .await?;
+    let unread_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false",
+    )
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(UnreadCountResponse { unread_count }))
 }
@@ -210,12 +215,26 @@ pub struct NewNotification<'a> {
     pub action_url: Option<&'a str>,
 }
 
-/// Insert a notification row (call inside a tenant-scoped transaction).
+/// Insert a notification row (call inside a tenant-scoped transaction: a `sqlx` transaction or a kernel
+/// `Tx`, both of which deref to the connection).
 /// Returns the new row id so a caller can publish it live post-commit via
 /// [`publish_notification`]. Existing callers that write `…await?;` and discard
 /// the id keep compiling (persist-only; they gain real-time by publishing).
 pub async fn create_notification(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    notification: NewNotification<'_>,
+) -> Result<Uuid, AppError> {
+    create_notification_on(tx, tenant_id, notification).await
+}
+
+/// [`create_notification`] on a bare connection, such as a kernel unit of
+/// work (`medbrains_kernel::Tx` derefs to one). Call it inside a transaction.
+///
+/// # Errors
+/// A database fault.
+pub async fn create_notification_on(
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     notification: NewNotification<'_>,
 ) -> Result<Uuid, AppError> {
@@ -233,7 +252,7 @@ pub async fn create_notification(
     .bind(notification.entity_type)
     .bind(notification.entity_id)
     .bind(notification.action_url)
-    .fetch_one(&mut **tx)
+    .fetch_one(conn)
     .await?;
     Ok(id)
 }
@@ -397,14 +416,22 @@ pub async fn notifications_ws_handler(
     let token = headers
         .get(COOKIE)
         .and_then(|v| v.to_str().ok())
-        .and_then(|c| medbrains_server_core::middleware::auth::parse_cookie_value(c, "access_token").map(str::to_owned))
+        .and_then(|c| {
+            medbrains_server_core::middleware::auth::parse_cookie_value(c, "access_token")
+                .map(str::to_owned)
+        })
         .or(q.token)
         .ok_or(AppError::Unauthorized)?;
-    let mut claims = medbrains_server_core::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
+    let mut claims = medbrains_server_core::middleware::auth::decode_and_validate(
+        &token,
+        &state.jwt_decoding_key,
+    )?;
     // The upgrade skips the auth middleware, so its checks run here: a token
     // for a deactivated or deleted account, a stale permission version or a
     // revoked device is refused before the socket opens, and the permissions
-    // the board topics are chosen by are the account's real ones.
+    // the board topics are chosen by are the account's real ones. A MedBrains
+    // account is refused too: a stream cannot be masked or recorded per
+    // request, so it gets none, grant or no grant.
     medbrains_server_core::middleware::auth::verify_decoded(&state.db, &mut claims).await?;
     let topics = socket_topics(&claims);
     Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics, claims)))
@@ -425,7 +452,9 @@ pub fn socket_topics(claims: &Claims) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
     for department_id in claims.department_ids.iter().take(MAX_DEPARTMENT_TOPICS) {
         if seen.insert(*department_id) {
-            topics.push(medbrains_server_core::notification_hub::department_topic(*department_id));
+            topics.push(medbrains_server_core::notification_hub::department_topic(
+                *department_id,
+            ));
         }
     }
     for (surface, required_any) in SURFACE_BOARD_PERMISSIONS {
@@ -434,7 +463,10 @@ pub fn socket_topics(claims: &Claims) -> Vec<String> {
                 .iter()
                 .any(|needed| claims.permissions.iter().any(|held| held == needed));
         if permitted {
-            topics.push(medbrains_server_core::notification_hub::board_topic(claims.tenant_id, surface));
+            topics.push(medbrains_server_core::notification_hub::board_topic(
+                claims.tenant_id,
+                surface,
+            ));
         }
     }
     topics
@@ -572,8 +604,8 @@ async fn handle_notifications_socket(
 #[cfg(test)]
 mod tests {
     use super::{SURFACE_BOARD_PERMISSIONS, socket_topics};
-    use medbrains_server_core::notification_hub::board_topic;
     use medbrains_server_core::middleware::auth::Claims;
+    use medbrains_server_core::notification_hub::board_topic;
     use uuid::Uuid;
 
     fn claims(role: &str, permissions: &[&str], departments: &[Uuid]) -> Claims {
@@ -612,7 +644,10 @@ mod tests {
     fn every_board_surface_is_mapped() {
         let surfaces: Vec<&str> = SURFACE_BOARD_PERMISSIONS.iter().map(|(s, _)| *s).collect();
         for expected in ["lab", "pharmacy", "billing", "emergency", "radiology"] {
-            assert!(surfaces.contains(&expected), "{expected} board has no permission mapping");
+            assert!(
+                surfaces.contains(&expected),
+                "{expected} board has no permission mapping"
+            );
         }
     }
 

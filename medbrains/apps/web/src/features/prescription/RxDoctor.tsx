@@ -1,6 +1,7 @@
 import { Box, Group, Menu, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import type { BuyOutsideLineFormInput } from "@medbrains/schemas";
 import type {
   AllergyConflict,
   ClinicalConclusion,
@@ -16,24 +17,26 @@ import {
   IconAlertTriangle,
   IconCheck,
   IconExclamationCircle,
+  IconMicrophone,
   IconRepeat,
   IconShieldCheck,
   IconTemplate,
 } from "@tabler/icons-react";
-import { type KeyboardEvent, type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Alert, Button, Modal, SegmentedControl } from "@/components/ui";
 import { Input } from "@/components/ui/Input";
+import { BuyOutsideModal } from "./BuyOutsideModal";
+import { FormularySearch } from "./FormularySearch";
 import classes from "./prescription.module.scss";
 import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
 import { RxTable } from "./RxTable";
+import { buyOutsideItem } from "./rxBuyOutside";
 import {
   type FormularyDrug,
   maxDoseExceeded,
   prescribingCautions,
   quickRxDefaults,
   type RxItem,
-  searchFormulary,
-  stockStatus,
 } from "./rxModel";
 import type { LastPrescription } from "./useLastPrescription";
 
@@ -88,6 +91,8 @@ function SafetyRow({
 
 interface Props {
   formulary: FormularyDrug[];
+  /** The formulary is still loading; the search says so rather than "no match". */
+  formularyLoading: boolean;
   formularyById: Record<string, FormularyDrug>;
   /** Lowercased NLEM (government-essential) generic names — tags essential drugs. */
   nlemGenerics: ReadonlySet<string>;
@@ -106,11 +111,15 @@ interface Props {
   onSaveTemplate: (name: string, items: RxItem[]) => void;
   /** The patient's last prescription from another visit, if any. */
   lastRx?: LastPrescription | null;
+  /** Medicines the doctor accepted from a dictation, waiting to be loaded. */
+  dictated?: { items: RxItem[]; waiting: string[]; onLoaded: () => void } | null;
   /** Digital-sign control rendered in the card footer (provided when a saved Rx exists). */
   signAction?: ReactNode;
   /** Catalog ids already prescribed on this visit — warns (doesn't block) on re-add. */
   priorDrugIds?: string[];
   onItemsChange?: (items: RxItem[]) => void;
+  /** A drug picked from the server-side search joins the formulary the checks read. */
+  onDrugFound?: (drug: FormularyDrug) => void;
   onSave: (items: RxItem[]) => void;
   onPrint?: () => void;
 }
@@ -119,6 +128,7 @@ let UID = 1000;
 
 export function RxDoctor({
   formulary,
+  formularyLoading,
   formularyById,
   nlemGenerics,
   initialItems,
@@ -134,23 +144,22 @@ export function RxDoctor({
   templateToItems,
   onSaveTemplate,
   lastRx,
+  dictated,
   signAction,
   priorDrugIds,
   onItemsChange,
+  onDrugFound,
   onSave,
   onPrint,
 }: Props) {
   const [prescriber, setPrescriber] = useState<Prescriber>(prescriberDefault);
   const [items, setItems] = useState<RxItem[]>(initialItems);
-  const [query, setQuery] = useState("");
-  const [highlight, setHighlight] = useState(0);
   const [expandedUid, setExpandedUid] = useState<number | null>(null);
   const [saveOpen, saveModal] = useDisclosure(false);
   const [safetyOpen, safetyPanel] = useDisclosure(false);
   const [setName, setSetName] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
-
-  const results = useMemo(() => searchFormulary(formulary, query), [formulary, query]);
+  const [outsideName, setOutsideName] = useState<string | null>(null);
 
   const commit = (next: RxItem[]) => {
     setItems(next);
@@ -158,9 +167,8 @@ export function RxDoctor({
   };
 
   const addDrug = (drug: FormularyDrug) => {
-    setQuery("");
-    setHighlight(0);
     searchRef.current?.focus();
+    onDrugFound?.(drug);
     if (items.some((it) => it.id === drug.id)) {
       notifications.show({
         title: "Already added",
@@ -185,21 +193,12 @@ export function RxDoctor({
     commit([...items, item]);
   };
 
-  const onSearchKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!results.length) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlight((h) => (h + 1) % results.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlight((h) => (h - 1 + results.length) % results.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const drug = results[Math.min(highlight, results.length - 1)] ?? results[0];
-      if (drug) addDrug(drug);
-    } else if (e.key === "Escape") {
-      setQuery("");
-    }
+  /** Adds a line the prescriber chose to have bought outside. */
+  const addOutside = (line: BuyOutsideLineFormInput) => {
+    setOutsideName(null);
+    searchRef.current?.focus();
+    UID += 1;
+    commit([...items, { ...buyOutsideItem(UID, line), pendingMD: prescriber === "nurse" }]);
   };
 
   const patchItem = (uid: number, patch: Partial<RxItem>) =>
@@ -229,6 +228,19 @@ export function RxDoctor({
         color: "yellow",
       });
     }
+  };
+  /** Load the dictated lines onto the pad, saying which still need a drug picked. */
+  const loadDictated = () => {
+    if (!dictated) return;
+    loadItems(dictated.items);
+    if (dictated.waiting.length > 0) {
+      notifications.show({
+        title: "Not in the formulary",
+        message: `Pick the drug above for: ${dictated.waiting.join(", ")}`,
+        color: "yellow",
+      });
+    }
+    dictated.onLoaded();
   };
   const saveTemplate = () => {
     if (!setName.trim()) return;
@@ -325,6 +337,15 @@ export function RxDoctor({
                 {reviewCount ? reviewCount : "clear"}
               </span>
             </Button>
+            {dictated && dictated.items.length > 0 && (
+              <Button
+                tone="accent"
+                leftSection={<IconMicrophone size={15} aria-hidden />}
+                onClick={loadDictated}
+              >
+                Add dictated medicines ({dictated.items.length})
+              </Button>
+            )}
             {lastRx && lastRx.items.length > 0 && (
               <Button
                 tone="ghost"
@@ -377,59 +398,13 @@ export function RxDoctor({
             <span className={classes.rxSheetTitle}>Prescription</span>
             {/* search — centered in the header: type · ↑/↓ · Enter to add */}
             <Box className={classes.rxSearch}>
-              <Input
-                ref={searchRef}
-                size="md"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.currentTarget.value);
-                  setHighlight(0);
-                }}
-                onKeyDown={onSearchKey}
-                placeholder="Search a drug, press Enter to add — name, salt, or brand…"
-                aria-label="Search formulary"
-                leftSection={<span className={classes.rxAddIcon}>+</span>}
+              <FormularySearch
+                formulary={formulary}
+                loading={formularyLoading}
+                onPick={addDrug}
+                onBuyOutside={setOutsideName}
+                inputRef={searchRef}
               />
-              {results.length > 0 && (
-                <Box className={classes.rxDd}>
-                  {results.map((drug, idx) => (
-                    <button
-                      type="button"
-                      className={cx(classes.ddItem, idx === highlight && classes.ddActive)}
-                      key={drug.id}
-                      onMouseEnter={() => setHighlight(idx)}
-                      onClick={() => addDrug(drug)}
-                    >
-                      <Box className={classes.ddMid}>
-                        <Box className={classes.ddName}>{drug.name}</Box>
-                        <Box className={classes.ddSalt}>
-                          {drug.salt}
-                          {drug.strengths.length ? ` · ${drug.strengths.join(" / ")}` : ""}
-                        </Box>
-                      </Box>
-                      <Box className={classes.ddCls}>{drug.cls}</Box>
-                      {stockStatus(drug) === "out" && (
-                        <span className={cx(classes.ddTag, classes.pen)}>out of stock</span>
-                      )}
-                      {stockStatus(drug) === "low" && (
-                        <span className={cx(classes.ddTag, classes.lowStock)}>low stock</span>
-                      )}
-                      {drug.kind === "otc" ? (
-                        <span className={cx(classes.ddTag, classes.otc)}>OTC</span>
-                      ) : (
-                        <span className={cx(classes.ddTag, classes.rx)}>Rx</span>
-                      )}
-                    </button>
-                  ))}
-                </Box>
-              )}
-              {query.trim() && results.length === 0 && (
-                <Box className={classes.rxDd}>
-                  <Box className={classes.ddEmpty}>
-                    No match for “{query}”. Try a salt or brand name.
-                  </Box>
-                </Box>
-              )}
             </Box>
             <span className={classes.rxSheetMeta}>
               {items.length} medication{items.length !== 1 ? "s" : ""}
@@ -621,6 +596,8 @@ export function RxDoctor({
           }
         />
       </Modal>
+
+      <BuyOutsideModal name={outsideName} onAdd={addOutside} onClose={() => setOutsideName(null)} />
 
       <Modal opened={saveOpen} onClose={saveModal.close} title="Save as order set" size="sm">
         <Input

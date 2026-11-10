@@ -46,7 +46,9 @@ test("a pharmacist maps an unknown drug to the formulary and approves", async ({
   const dialog = page.getByRole("dialog", { name: "Approve and bill prescription" });
 
   // Told before pressing anything, and the button waits for it.
-  await expect(dialog.getByText('Map "MONTEH-IC" to a formulary product to approve.')).toBeVisible();
+  await expect(
+    dialog.getByText('Map "MONTEH-IC" to a formulary product, or mark it buy outside, to approve.'),
+  ).toBeVisible();
   const approve = dialog.getByRole("button", { name: "Approve & Create Billing Indent" });
   await expect(approve).toBeDisabled();
 

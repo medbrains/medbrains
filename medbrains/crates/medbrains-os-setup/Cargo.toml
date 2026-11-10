@@ -9,7 +9,16 @@ license-file.workspace = true
 
 [dependencies]
 argon2 = { workspace = true }
+medbrains-os-update = { path = "../medbrains-os-update" }
 serde_json = { workspace = true }
+# The same check as Kanidm, so the screen can say no before anything is made.
+zxcvbn = "3.1.1"
+# The first administrator's authenticator: its secret as text, its otpauth URI as a QR code on the screen.
+data-encoding = "2.11"
+percent-encoding = "2.3"
+qrcodegen = "1.8"
+# Passwords cross this process; their copies are wiped when dropped.
+zeroize = "1.9"
 
 # Who connected to the socket: only Linux has this, and only Linux runs this. Tests also run on Macs.
 [target.'cfg(target_os = "linux")'.dependencies]

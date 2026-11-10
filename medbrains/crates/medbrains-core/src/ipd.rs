@@ -261,6 +261,11 @@ pub struct IpdMedicationAdministration {
     pub batch_expiry: Option<NaiveDate>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The patient's own medicine, brought from outside: given and charted
+    /// like any dose, with no batch from this pharmacy.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub patients_own: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -463,6 +468,9 @@ pub struct IpdDischargeSummary {
     pub prepared_by: Option<Uuid>,
     pub verified_by: Option<Uuid>,
     pub finalized_at: Option<DateTime<Utc>>,
+    /// A doctor has signed this version. Editing clears it: the signature was
+    /// for what the doctor read, not for what was changed after.
+    pub is_signed: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

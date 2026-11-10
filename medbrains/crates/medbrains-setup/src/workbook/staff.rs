@@ -10,6 +10,7 @@ use medbrains_core::access::BUILT_IN_ROLES;
 use medbrains_server_core::{
     error::AppError,
     middleware::{auth::Claims, authorization::is_bypass_role},
+    permissions::{refuse_bypass_target, refuse_roles_beyond_own},
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -55,7 +56,8 @@ fn valid_username(u: &str) -> bool {
     let mut chars = u.chars();
     chars.next().is_some_and(|c| c.is_ascii_lowercase())
         && (3..=30).contains(&u.len())
-        && u.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        && u.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 struct Person {
@@ -75,23 +77,46 @@ async fn check(
     problems: &mut Problems,
 ) -> Result<Option<Person>, AppError> {
     let username = text(r.username.as_ref()).map(|u| u.to_lowercase());
-    let (Some(username), Some(full_name), Some(email)) =
-        (username, text(r.full_name.as_ref()), text(r.email.as_ref()).map(|e| e.to_lowercase()))
-    else {
-        problems.add(SHEET, r.row, "Username / Full name / Email", "Each person needs all three");
+    let (Some(username), Some(full_name), Some(email)) = (
+        username,
+        text(r.full_name.as_ref()),
+        text(r.email.as_ref()).map(|e| e.to_lowercase()),
+    ) else {
+        problems.add(
+            SHEET,
+            r.row,
+            "Username / Full name / Email",
+            "Each person needs all three",
+        );
         return Ok(None);
     };
     if !valid_username(&username) {
-        problems.add(SHEET, r.row, "Username", "3–30 lowercase letters, digits or _, starting with a letter");
+        problems.add(
+            SHEET,
+            r.row,
+            "Username",
+            "3–30 lowercase letters, digits or _, starting with a letter",
+        );
         return Ok(None);
     }
     if !email.contains('@') || email.starts_with('@') || email.ends_with('@') {
-        problems.add(SHEET, r.row, "Email", format!("{email} is not an email address"));
+        problems.add(
+            SHEET,
+            r.row,
+            "Email",
+            format!("{email} is not an email address"),
+        );
         return Ok(None);
     }
-    let role = text(r.role.as_ref()).map_or_else(String::new, |v| v.to_lowercase().replace([' ', '-'], "_"));
+    let role = text(r.role.as_ref())
+        .map_or_else(String::new, |v| v.to_lowercase().replace([' ', '-'], "_"));
     if !roles.contains(&role.as_str()) {
-        problems.add(SHEET, r.row, "Role", format!("Use one of: {}", roles.join(", ")));
+        problems.add(
+            SHEET,
+            r.row,
+            "Role",
+            format!("Use one of: {}", roles.join(", ")),
+        );
         return Ok(None);
     }
     let fee = match text(r.consultation_fee.as_ref()) {
@@ -99,12 +124,20 @@ async fn check(
         Some(f) => match f.replace(',', "").parse::<Decimal>() {
             Ok(v) if v >= Decimal::ZERO => Some(v),
             _ => {
-                problems.add(SHEET, r.row, "Consultation fee", format!("{f} is not an amount"));
+                problems.add(
+                    SHEET,
+                    r.row,
+                    "Consultation fee",
+                    format!("{f} is not an amount"),
+                );
                 return Ok(None);
             }
         },
     };
-    let codes: Vec<String> = r.departments.as_deref().unwrap_or("")
+    let codes: Vec<String> = r
+        .departments
+        .as_deref()
+        .unwrap_or("")
         .split([',', ';'])
         .map(|c| c.trim().to_uppercase())
         .filter(|c| !c.is_empty())
@@ -117,45 +150,136 @@ async fn check(
     .fetch_all(&mut **tx)
     .await?;
     if let Some(missing) = codes.iter().find(|c| !found.iter().any(|(f, _)| f == *c)) {
-        problems.add(SHEET, r.row, "Departments", format!("No department has the code {missing}"));
+        problems.add(
+            SHEET,
+            r.row,
+            "Departments",
+            format!("No department has the code {missing}"),
+        );
         return Ok(None);
     }
     // Keep the sheet's order: the first department is the person's own.
-    let departments = codes.iter().filter_map(|c| found.iter().find(|(f, _)| f == c).map(|(_, id)| *id)).collect();
-    Ok(Some(Person { username, full_name, email, role, departments, fee }))
+    let departments = codes
+        .iter()
+        .filter_map(|c| found.iter().find(|(f, _)| f == c).map(|(_, id)| *id))
+        .collect();
+    Ok(Some(Person {
+        username,
+        full_name,
+        email,
+        role,
+        departments,
+        fee,
+    }))
 }
 
+/// An account the sheet names that already exists, as the checks need it.
+struct Existing {
+    id: Uuid,
+    role: String,
+    /// Deleted: the sheet does not bring it back. A deactivated account is
+    /// not retired here: the export lists it, so the same file must import
+    /// cleanly, and the upsert never touches `is_active`, so the sheet cannot
+    /// re-activate it either.
+    is_retired: bool,
+}
+
+/// Why a row naming an existing account cannot change it, if it cannot: the
+/// same rules as editing one on the Users screen. The caller's own row, an
+/// administrator's (unless the caller is one) and a removed account are left
+/// to that screen.
+fn refuse_existing(claims: &Claims, e: &Existing, p: &Person) -> Option<String> {
+    if e.id == claims.sub {
+        return (e.role != p.role)
+            .then(|| "This is you; ask another administrator to change your role".to_owned());
+    }
+    if NOT_FROM_A_SHEET.contains(&e.role.as_str()) || refuse_bypass_target(claims, &e.role).is_err()
+    {
+        return Some(format!(
+            "{} is an administrator; change them on the Users screen",
+            p.username
+        ));
+    }
+    e.is_retired.then(|| {
+        format!(
+            "{} was removed; restore them on the Users screen",
+            p.username
+        )
+    })
+}
+
+/// Import the Staff sheet: add new people and update existing ones.
+///
+/// Every role the sheet gives (a new account's, or a changed one) must be
+/// within the caller's own codes, checked once for the sheet. The caller's own
+/// row is left alone, and a row naming an administrator or a removed account
+/// is refused, as on the Users screen. A deactivated account's row updates its
+/// details and stays deactivated.
 pub(crate) async fn import(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    db: &sqlx::PgPool,
     claims: &Claims,
     headers: &HeaderMap,
     rows: &[Row],
     problems: &mut Problems,
 ) -> Result<(SheetTally, u32), AppError> {
     let tenant = claims.tenant_id;
-    let caller_is_admin = is_bypass_role(claims);
-    let roles = assignable_roles(caller_is_admin);
-    let mut tally = SheetTally { sheet: SHEET, added: 0, updated: 0 };
+    let roles = assignable_roles(is_bypass_role(claims));
+    let mut tally = SheetTally {
+        sheet: SHEET,
+        added: 0,
+        updated: 0,
+    };
     let mut welcomed = 0;
     let hospital_code: String = sqlx::query_scalar("SELECT code FROM tenants WHERE id = $1")
         .bind(tenant)
         .fetch_one(&mut **tx)
         .await?;
+
+    let mut checked = Vec::with_capacity(rows.len());
     for r in rows {
-        let Some(p) = check(tx, tenant, &roles, r, problems).await? else { continue };
-        let existing: Option<(Uuid, String)> = sqlx::query_as(
-            "SELECT id, role::text FROM users WHERE tenant_id = $1 AND username = $2",
+        let Some(p) = check(tx, tenant, &roles, r, problems).await? else {
+            continue;
+        };
+        let existing: Option<(Uuid, String, bool)> = sqlx::query_as(
+            "SELECT id, role::text, (deleted_at IS NOT NULL) \
+             FROM users WHERE tenant_id = $1 AND username = $2 FOR UPDATE",
         )
         .bind(tenant)
         .bind(&p.username)
         .fetch_optional(&mut **tx)
         .await?;
-        if existing.as_ref().is_some_and(|(_, role)| {
-            NOT_FROM_A_SHEET.contains(&role.as_str()) || (role == "hospital_admin" && !caller_is_admin)
-        }) {
-            problems.add(SHEET, r.row, "Username", format!("{} is an administrator; change them on the Users screen", p.username));
+        let existing = existing.map(|(id, role, is_retired)| Existing {
+            id,
+            role,
+            is_retired,
+        });
+        if let Some(why) = existing
+            .as_ref()
+            .and_then(|e| refuse_existing(claims, e, &p))
+        {
+            problems.add(SHEET, r.row, "Username", why);
             continue;
         }
+        if existing.as_ref().is_some_and(|e| e.id == claims.sub) {
+            // The caller's own row, role unchanged: left as it is. Their own
+            // departments are access, and their details are theirs to edit.
+            continue;
+        }
+        checked.push((r, p, existing));
+    }
+
+    // The roles this sheet hands out: new accounts', and changed ones.
+    let mut granted: Vec<&str> = checked
+        .iter()
+        .filter(|(_, p, e)| e.as_ref().is_none_or(|e| e.role != p.role))
+        .map(|(_, p, _)| p.role.as_str())
+        .collect();
+    granted.sort_unstable();
+    granted.dedup();
+    refuse_roles_beyond_own(db, claims, &granted).await?;
+
+    for (r, p, _) in checked {
         let email_taken: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM users WHERE tenant_id = $1 AND lower(email) = $2 AND username <> $3)",
         )
@@ -165,7 +289,12 @@ pub(crate) async fn import(
         .fetch_one(&mut **tx)
         .await?;
         if email_taken {
-            problems.add(SHEET, r.row, "Email", format!("{} already belongs to someone else", p.email));
+            problems.add(
+                SHEET,
+                r.row,
+                "Email",
+                format!("{} already belongs to someone else", p.email),
+            );
             continue;
         }
         let (id, inserted): (Uuid, bool) = sqlx::query_as(
@@ -180,9 +309,9 @@ pub(crate) async fn import(
                medical_registration_number = EXCLUDED.medical_registration_number, \
                specialization = EXCLUDED.specialization, qualification = EXCLUDED.qualification, \
                consultation_fee = EXCLUDED.consultation_fee, \
-               perm_version = users.perm_version + (users.role <> EXCLUDED.role)::int, \
-               role = EXCLUDED.role, is_active = true, \
-               deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
+               perm_version = users.perm_version + (users.role <> EXCLUDED.role \
+                 OR users.department_ids <> EXCLUDED.department_ids)::int, \
+               role = EXCLUDED.role \
              RETURNING id, (xmax = 0)",
         )
         .bind(tenant)
@@ -217,7 +346,10 @@ fn app_base(headers: &HeaderMap) -> String {
         .get("x-forwarded-host")
         .or_else(|| headers.get(axum::http::header::HOST))
         .and_then(|v| v.to_str().ok())
-        .map_or_else(|| "https://app.medbrains.in".to_owned(), |h| format!("https://{h}"))
+        .map_or_else(
+            || "https://app.medbrains.in".to_owned(),
+            |h| format!("https://{h}"),
+        )
 }
 
 async fn welcome(

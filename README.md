@@ -6,6 +6,7 @@
 [![For every patient](https://img.shields.io/badge/❤️_For-every_patient-DA1E28?style=for-the-badge)](#why-is-it-free)
 [![For every hospital](https://img.shields.io/badge/🏥_For-every_hospital-0F62FE?style=for-the-badge)](#who-its-for)
 [![Made with love](https://img.shields.io/badge/✨_Made_with-love-8A3FFC?style=for-the-badge)](#credits-and-contact)
+[![Website: medbrains.in](https://img.shields.io/badge/🌐_Website-medbrains.in-0F62FE?style=for-the-badge)](https://www.medbrains.in)
 
 # MedBrains
 
@@ -17,10 +18,14 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-0F62FE.svg)](./LICENSE)
 [![CI](https://github.com/medbrains/medbrains/actions/workflows/ci.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/ci.yml)
-[![Rust](https://img.shields.io/badge/Rust-2024_·_1.85+-0F62FE?logo=rust&logoColor=white)](#why-rust)
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=medbrains_medbrains&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=medbrains_medbrains)
+[![Security scans](https://github.com/medbrains/medbrains/actions/workflows/security.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/security.yml)
+[![Security policy](https://img.shields.io/badge/Security-policy-0F62FE.svg)](./SECURITY.md)
+[![Status: beta](https://img.shields.io/badge/Status-beta-851B7F.svg)](#release-status)
+[![Rust](https://img.shields.io/badge/Rust-2024_·_1.95+-0F62FE?logo=rust&logoColor=white)](#why-rust)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-0F62FE.svg)](./CONTRIBUTING.md)
 
-[Website](https://medbrains.in) · [Features](#features) · [Quick start](#quick-start) · [Roadmap](#roadmap) · [Sponsor](#sponsor-the-work) · [Contribute](#contributing)
+[Website](https://www.medbrains.in) · [Features](#features) · [Releases](#release-status) · [Quick start](#quick-start) · [MedBrains OS](#medbrains-os-a-hospital-in-a-box) · [Roadmap](#roadmap) · [Sponsor](#sponsor-the-work) · [Contribute](#contributing)
 
 </div>
 
@@ -33,6 +38,20 @@
 - **For doctors and nurses:** register a patient, see the OPD queue, write notes and prescriptions, admit to a ward, give medicines with barcode checks, order labs and scans. One patient record across every department.
 - **For hospital owners:** the software costs nothing to use, on as many computers, staff and branches as you like. You can run it on your own server, and your data stays yours.
 - **For IT heads:** one Rust server, one PostgreSQL database, a web app, and staff apps for iPhone and Android. The code is public, so you can check every line.
+
+## Release status
+
+**MedBrains is in beta.** The first release, **v3.33.0**, is being prepared. It will appear on the
+[Releases page](https://github.com/medbrains/medbrains/releases) with:
+
+- the server for Linux (x86-64 and arm64)
+- the desktop app for Windows and Mac
+- the Android apps
+- MedBrains OS disk images (see below)
+
+Until then, build from source with the [quick start](#quick-start). Beta means the features listed
+below work end to end, but please test with your own sample data before you put real patients on it,
+and tell us what breaks.
 
 ## Why is it free?
 
@@ -135,7 +154,7 @@ Developers can go further, because the code is open: add a module, change a work
 
 ## Standards and compliance
 
-Only what the code does today:
+Only what the code does today. MedBrains is **built to** these standards; it does not claim a certification it has not been given.
 
 | Standard | Status |
 |---|---|
@@ -143,7 +162,7 @@ Only what the code does today:
 | **HL7 v2** | MLLP listener on the on-site bridge, for lab analysers and devices. |
 | **DICOM** | Through Orthanc: worklist and studies linked to radiology orders. |
 | **HL7 FHIR R4** | Read API for `Patient` (including `$everything`), `Encounter`, `Observation`, `DiagnosticReport` and `Composition`. Write and search are on the roadmap. |
-| **ABDM** | ABHA (M1) server integration exists and needs your ABDM credentials. Full M1–M3 is on the [roadmap](#roadmap). |
+| **ABDM** | ABHA (M1), health-record linking as a provider (M2, HIP), consent requests as a user of records (M3, HIU), Scan & Share and NHCX claims are in the code. They need your ABDM credentials, and MedBrains has not yet been through ABDM's certification. |
 | **LOINC** | Lab tests carry a LOINC code field. The LOINC dataset is not bundled. |
 | **SNOMED CT** | Optional. A loader script imports RF2 files you obtain yourself. SNOMED needs a licence: free through your country's national release centre where one exists, otherwise an affiliate licence. No SNOMED content ships with MedBrains. |
 
@@ -208,6 +227,72 @@ flowchart LR
 - **Split into about 119 Rust crates** by department, so one department's change doesn't touch the rest.
 - **Open dependencies.** PostgreSQL, Orthanc, SpiceDB and Gotenberg are all open source. Paid services such as SMS, email, payment gateways and AI are optional add-ons, and file storage can be S3 or local disk.
 
+## MedBrains OS: a hospital in a box
+
+MedBrains is also its own operating system: a small, open OS on Debian Linux that runs every
+machine in the hospital, so a hospital without an IT team can plug in and start. It is cheap by
+design (only the server needs real hardware), simple out of the box (setup is a few plain screens,
+no command line), and built so a local IT firm can install and look after it.
+
+**One image per processor type** (x86-64 and arm64). The same OS runs on every machine; you choose
+its role on the first-boot screen. One server manages everything. Every other machine is a node on
+the smallest hardware that does its job and holds no system of record, so it can be replaced in
+minutes. Keep a standby server: one server is a single point of failure.
+
+| Role | What it does | Patient data on it |
+|---|---|---|
+| Server | database, sign-in (Kanidm, with an authenticator app), certificates, the Nodes screen | yes, on an encrypted disk where there is a TPM |
+| Workstation | staff sign in and work | none, or only what offline mode needs |
+| Display | queue board or TV (joins today; the board is not built) | none |
+| Ward backup | keeps a ward running if the server or network fails (planned) | yes, encrypted |
+
+**Joining a machine:** the new machine finds the server (local discovery or a typed address) and
+shows a code; an administrator approves it on the server, and the approval is audited. A second
+code lets the new machine check that it found the real server. Removing a machine ends its access at
+once (an offline machine learns this when it reconnects). Changing a role is a deliberate reset.
+
+**Not locked to one app.** The OS opens to a desktop with a dock and a launcher, and each app runs in
+its own sandboxed view. MedBrains is one of them.
+
+**Secure by default:** firewall and kernel hardening before the first boot, the data disk sealed to
+the TPM where there is one, a single Rust front (Pingora) for HTTPS, and no Docker: every service
+runs directly on Linux under systemd.
+
+**Hardware (recommendations, not tested kits).** Worked out from virtual-machine measurements. None
+of this has run on a real Raspberry Pi or PC yet, and sizing a hospital server for a large site waits
+on a load test. The same table, with a diagram, is on [medbrains.in/os](https://www.medbrains.in/os).
+
+| Machine | Minimum | Recommended | Why |
+|---|---|---|---|
+| Server, small clinic | 4 cores, 8 GB RAM, 64 GB SSD | Raspberry Pi 5 8 GB with an NVMe SSD | the whole machine uses about 1.2 GB with a user signed in; the database, sign-in and server all run here |
+| Server, hospital | 8 cores, 16 GB RAM, 512 GB NVMe SSD | 16–32 GB RAM, mirrored SSDs, a TPM, a UPS, plus a standby server | the database grows with patients; the server program itself is 88 MB |
+| Workstation | 2 cores, 4 GB RAM, 32 GB storage | any small PC or arm64 board that drives the screen | the node desktop uses about 300 MB, plus about 320 MB for an open page |
+| Display or TV board | 2 cores, 2–4 GB RAM | a Pi-class board | holds no patient data |
+| Optional | a GPU or AI chip | used when present, never required | on-box AI, imaging hints |
+
+**Measured sizes** (one run each, in virtual machines; details in
+[`medbrains/os/README.md`](medbrains/os/README.md#measured)):
+
+| What | Size |
+|---|---|
+| Download (compressed with zstd) | 478 MB |
+| Installed system | 1,158 MB (the ≤ 1 GB target is not met yet) |
+| Data disk after first boot | 216 MB |
+| Web app first page | about 308 KB with zstd, 328 KB with gzip |
+
+**Measured so far** (virtual machines on a laptop, one run each): a workstation node uses about
+300 MB of memory at its desktop; removing a machine ends its access within about 2 s. Hardware
+tiers in the plan: [RFC-HOSPITAL-OS §8a and §8p](medbrains/RFCs/RFC-HOSPITAL-OS.md).
+
+**Status, and what is not done yet:** the image builds and boots in virtual machines (QEMU and UTM),
+including the TPM-sealed disk on x86-64. Not done: signed A/B updates with rollback (in review); the
+display board and the ward backup role; verified boot and machine keys in the TPM; nightly backups on
+the OS. It has not run on real hardware or a Raspberry Pi, had no outside penetration test, and no
+hospital runs it in production yet.
+
+How to build and boot it: [`medbrains/os/README.md`](medbrains/os/README.md). The plan:
+[RFC-HOSPITAL-OS](medbrains/RFCs/RFC-HOSPITAL-OS.md).
+
 ## Why Rust
 
 - **Memory safety.** Rust rules out whole classes of crashes and security holes. `unsafe` code is forbidden in this project.
@@ -233,7 +318,8 @@ The test suite has about 1,500 Rust tests, 206 Playwright browser specs and 177 
 ## Roadmap
 
 **Partly built**
-- **ABDM:** ABHA (M1) works on the server but has no screen yet. M2 (HIP), M3 (HIU), Scan & Share and NHCX claims are on development branches and not merged.
+- **ABDM:** M1–M3, Scan & Share and NHCX claims are merged. They still need testing on the ABDM sandbox and certification.
+- **MedBrains OS:** test on real hardware and build the Raspberry Pi image.
 - **FHIR:** add search, write, and whole-hospital bulk `$export`.
 - **LOINC:** load and map the LOINC dataset, beyond today's code field.
 - **SNOMED CT:** connect the terminology client to the screens.

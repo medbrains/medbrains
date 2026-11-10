@@ -1,11 +1,15 @@
 //! Analytics/oversight leaf crate: command center, utilization review,
 //! care view, retrospective data. Mounted via router().
 
-use axum::{Router, routing::{get,post,put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod care_view;
 pub mod command_center;
+pub mod paperless;
 pub mod retrospective;
 pub mod utilization_review;
 
@@ -37,8 +41,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/command-center/alert-thresholds",
-            get(command_center::list_thresholds)
-                .post(command_center::create_threshold),
+            get(command_center::list_thresholds).post(command_center::create_threshold),
         )
         .route(
             "/api/command-center/alert-thresholds/{id}",
@@ -77,10 +80,7 @@ pub fn router() -> Router<AppState> {
             "/api/command-center/transport/{id}/complete",
             put(command_center::complete_transport),
         )
-        .route(
-            "/api/command-center/kpis",
-            get(command_center::all_kpis),
-        )
+        .route("/api/command-center/kpis", get(command_center::all_kpis))
         .route(
             "/api/command-center/kpis/{code}",
             get(command_center::kpi_detail),
@@ -107,7 +107,8 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/utilization-review/communications",
-            get(utilization_review::list_communications).post(utilization_review::create_communication),
+            get(utilization_review::list_communications)
+                .post(utilization_review::create_communication),
         )
         .route(
             "/api/utilization-review/communications/{id}",
@@ -129,18 +130,12 @@ pub fn router() -> Router<AppState> {
             "/api/care-view/ward-grid",
             get(care_view::ward_patient_grid),
         )
-        .route(
-            "/api/care-view/my-tasks",
-            get(care_view::my_tasks),
-        )
+        .route("/api/care-view/my-tasks", get(care_view::my_tasks))
         .route(
             "/api/care-view/vitals-checklist",
             get(care_view::vitals_checklist),
         )
-        .route(
-            "/api/care-view/handover",
-            get(care_view::handover_summary),
-        )
+        .route("/api/care-view/handover", get(care_view::handover_summary))
         .route(
             "/api/care-view/discharge-tracker",
             get(care_view::discharge_readiness),
@@ -184,5 +179,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/retrospective/audit/{source_table}/{source_id}",
             get(retrospective::retro_audit_trail),
+        )
+        .route("/api/analytics/paperless", get(paperless::get_paperless))
+        .route(
+            "/api/analytics/paperless/refresh",
+            post(paperless::refresh_paperless),
         )
 }

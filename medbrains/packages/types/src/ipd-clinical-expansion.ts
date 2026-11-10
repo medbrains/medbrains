@@ -89,6 +89,8 @@ export interface IpdMedicationAdministration {
   batch_expiry: string | null;
   created_at: string;
   updated_at: string;
+  /** The patient's own medicine, brought from outside: no batch here. */
+  patients_own: boolean;
 }
 
 /** A MAR row as the admission chart lists it. */
@@ -115,6 +117,8 @@ export interface MarDueRow {
   is_cytotoxic: boolean;
   batch_number: string | null;
   batch_expiry: string | null;
+  /** The patient's own medicine, brought from outside: no batch here. */
+  patients_own: boolean;
 }
 
 export interface UpdateMarRoundInput {
@@ -284,6 +288,8 @@ export interface CreateMarRequest {
   scheduled_at: string;
   is_high_alert?: boolean;
   notes?: string;
+  /** The patient's own medicine, brought from outside. */
+  patients_own?: boolean;
 }
 export interface UpdateMarRequest {
   status: MarStatus;

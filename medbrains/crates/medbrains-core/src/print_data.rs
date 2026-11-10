@@ -271,6 +271,10 @@ pub struct DischargeSummaryPrintData {
     pub investigation_summary: Option<String>,
     pub condition_at_discharge: Option<String>,
     pub follow_up_instructions: Option<String>,
+    /// One line per medicine on discharge; one bought outside says
+    /// "Buy from outside the hospital".
+    #[serde(default)]
+    pub medications_on_discharge: Vec<String>,
     /// Digital signatures stamped onto the PDF. Empty array = unsigned
     /// (template should render "DRAFT — UNSIGNED" watermark).
     #[serde(default)]

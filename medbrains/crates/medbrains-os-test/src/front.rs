@@ -109,18 +109,28 @@ pub(crate) fn mismatched_key_is_replaced(vm: &mut Vm, _: &Value) -> Result<(), S
     )
 }
 
-/// The agent owns its folder, so root must not write through a link it plants there.
+/// The agent owns its folder, so root must not write through a link it plants there. The screen's
+/// trust file is the certificate and then the local authority, which the identity provider's port needs.
 pub(crate) fn agent_link_is_refused(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let copy = "/var/lib/medbrains-agent/local-front.pem";
     let out = vm.run_for(
         &format!(
-            "echo untouched > /run/link-target; rm -f {copy}; ln -s /run/link-target {copy}; {CERTS} 2>&1 | grep -c refusing; cat /run/link-target; rm -f {copy}; {CERTS}; stat -c '%U %G %a' {copy}; cmp {copy} {FRONT_STATE}/screen/cert.pem && echo same; stat -c '%U' /var/lib/medbrains-settings/local-front.pem; cmp /var/lib/medbrains-settings/local-front.pem {FRONT_STATE}/screen/cert.pem && echo trust-same"
+            "echo untouched > /run/link-target; rm -f {copy}; ln -s /run/link-target {copy}; {CERTS} 2>&1 | grep -c refusing; cat /run/link-target; rm -f {copy}; {CERTS}; stat -c '%U %G %a' {copy}; cmp {copy} {FRONT_STATE}/screen/cert.pem && echo same; stat -c '%U' /var/lib/medbrains-settings/local-front.pem; cat {FRONT_STATE}/screen/cert.pem {FRONT_STATE}/ca/ca.pem | cmp /var/lib/medbrains-settings/local-front.pem - && echo trust-same"
         ),
         Duration::from_secs(40),
     )?;
-    ensure(out.contains("untouched"), format!("written through the link: {out}"))?;
-    ensure(out.contains("medbrains-agent kiosk 644") && out.contains("same"), format!("no copy after: {out}"))?;
-    ensure(out.contains("root") && out.contains("trust-same"), format!("trust store: {out}"))
+    ensure(
+        out.contains("untouched"),
+        format!("written through the link: {out}"),
+    )?;
+    ensure(
+        out.contains("medbrains-agent kiosk 644") && out.contains("same"),
+        format!("no copy after: {out}"),
+    )?;
+    ensure(
+        out.contains("root") && out.contains("trust-same"),
+        format!("trust store: {out}"),
+    )
 }
 
 /// A machine's tunnel arrives from its own 127.x.y.z. The server must see that address, and no other
@@ -129,8 +139,14 @@ pub(crate) fn tunnel_address_is_kept(vm: &mut Vm, _: &Value) -> Result<(), Strin
     let out = vm.run(
         "setpriv --reuid=medbrains-agent --regid=kiosk --clear-groups curl -sk -m 5 -o /dev/null -w 'agent %{http_code}\\n' --interface 127.1.2.3 https://127.0.0.1:8443/api/health; setpriv --reuid=kiosk --regid=kiosk --clear-groups curl -sk -m 3 -o /dev/null -w 'other %{http_code}\\n' --interface 127.1.2.4 https://127.0.0.1:8443/api/health; true",
     )?;
-    ensure(out.contains("agent 200"), format!("the agent's address: {out}"))?;
-    ensure(out.contains("other 000"), format!("another program's address: {out}"))
+    ensure(
+        out.contains("agent 200"),
+        format!("the agent's address: {out}"),
+    )?;
+    ensure(
+        out.contains("other 000"),
+        format!("another program's address: {out}"),
+    )
 }
 
 /// The front must offer HTTP/1.1 only: HTTP/2 stays unreachable until it earns its limits.

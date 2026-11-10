@@ -32,7 +32,12 @@ nft -c -f /tmp/whole-firewall.nft
 rm /tmp/whole-firewall.nft
 systemctl enable nftables chrony systemd-networkd systemd-resolved \
     medbrains-disk-setup medbrains-disk-notice medbrains-disk-finish medbrains-network-settings medbrains-os-setup medbrains-main.target medbrains-node.target \
-    medbrains-agent medbrains-time-role cage-console
+    medbrains-agent medbrains-time-role cage-console medbrains-update-reconcile medbrains-update-health \
+    medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer
+systemctl mask systemd-boot-update.service
+# Nothing here may wait for the network: with a cable out this fails after two minutes, which reads as a
+# failed service and would roll back a good update. Masked, because enabling networkd brings it back.
+systemctl mask systemd-networkd-wait-online.service
 # Only medbrains-main.target starts these, and only once setup has finished, so nothing
 # answers on the network before then. Debian's packages enable them by default.
 systemctl disable postgresql 2>/dev/null || true
@@ -42,7 +47,8 @@ systemctl disable iwd 2>/dev/null || true
 # whichever of the two starts first wins, so the LAN's time was down on some boots. chrony-wait
 # would hold the boot for the internet, which setup must never need.
 systemctl disable chronyd-restricted chrony-wait 2>/dev/null || true
-systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
+# Debug images only: build.sh stages this unit nowhere else.
+if [[ -e /usr/lib/systemd/system/kanidm-debug-account.service ]]; then systemctl enable kanidm-debug-account; fi
 systemctl set-default graphical.target
 
 # The screen's own fonts, installed by mkosi.build.chroot.
