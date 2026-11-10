@@ -63,6 +63,12 @@ pub(crate) fn changed_slot_rolls_back(vm: &mut Vm, bench: &Bench) -> Result<(), 
         started.elapsed().max(took).as_secs_f32()
     ));
     wait_status(vm, &["last", "result"], "rolled_back", RESTART_LIMIT)?;
+    // The loader really started it and used its starts up: an entry never tried would still say +3-0.
+    let entries = vm.run("ls /boot/EFI/Linux")?;
+    ensure(
+        entries.contains(&format!("{}+0-", NEXT.1)),
+        format!("the new version was never started: {entries}"),
+    )?;
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
     same_var(&before, &var_snapshot(vm)?)
