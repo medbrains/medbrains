@@ -202,8 +202,10 @@ board); no permission (nothing fetched). Keyboard-operable; meaning never by col
 
 ## 9. Decisions needed
 
-1. Retire the unwired automation crates and `r8r`, or keep them only for system/integration
-   steps (HTTP calls, data transforms)?
+1. ~~Retire the unwired automation crates and `r8r`, or keep them only for system/integration
+   steps (HTTP calls, data transforms)?~~ **Decided 2026-11-04, done 2026-11-10:** retired. SOP
+   flows and the one When/If/Then rule screen are the only automation builders; `r8r/` and the
+   three `medbrains-automation*` crates were deleted (see `docs/DECISIONS.md`).
 2. ~~New flows or library only?~~ **Superseded by §11:** hospitals get a full track builder,
    bounded by registered building blocks and flow-type invariants.
 3. ~~Who approves?~~ **Decided:** the quality officer approves switch changes; clinical flows

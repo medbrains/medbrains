@@ -21,9 +21,6 @@ medbrains-approvals-core not_yet 0 -
 medbrains-approvals-store not_yet 0 -
 medbrains-assets not_yet 36 medbrains-db
 medbrains-auth not_yet 44 medbrains-db
-medbrains-automation not_yet 0 -
-medbrains-automation-api not_yet 2 medbrains-db
-medbrains-automation-store not_yet 25 medbrains-db
 medbrains-billing partial 381 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-blood-bank not_yet 102 medbrains-db,medbrains-authz-gate
 medbrains-bme not_yet 55 medbrains-db

@@ -83,7 +83,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - run: cargo install cargo-audit --locked
       # Audits the committed Cargo.lock — what production actually builds. Reads
-      # only the lockfile, so the private r8r checkout is not needed here.
+      # only the lockfile.
       # Ignores come from deny.toml so there is one list, each with a reason
       # and an expiry that check_audit_ignores.py enforces.
       - run: python3 scripts/check_audit_ignores.py
@@ -125,8 +125,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
-      # Reads only the committed lockfile, so neither an install nor the private
-      # r8r checkout is needed.
+      # Reads only the committed lockfile, so no install is needed.
       # Production dependencies only: dev tooling never reaches a patient.
       # Ignores live in pnpm-workspace.yaml with a reason and an expiry each.
       - run: python3 scripts/check_audit_ignores.py
@@ -217,7 +216,7 @@ jobs:
   # versions are pinned and at least two weeks old; binaries are checksum-verified.
 
   osv-scanner:
-    # CVEs in every lockfile cargo-audit and pnpm audit cannot see: uv.lock, r8r,
+    # CVEs in every lockfile cargo-audit and pnpm audit cannot see: uv.lock,
     # the native apps (Gradle, SwiftPM), Python requirements, the OS image.
     needs: changes
     if: needs.changes.outputs.cargo == 'true' || needs.changes.outputs.js == 'true'
