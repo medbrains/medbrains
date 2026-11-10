@@ -45,7 +45,7 @@ def longest(i):
 
 cpu = sum(u['duration'] for u in units)
 cp = max((longest(u['i']) for u in units), key=lambda r: r[0])
-ours = lambda u: u['name'].startswith(('medbrains-', 'r8r-'))
+ours = lambda u: u['name'].startswith('medbrains-')
 mine = sum(u['duration'] for u in units if ours(u))
 
 print(f"report: {os.path.basename(path)}")
