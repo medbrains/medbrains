@@ -12,50 +12,9 @@ use crate::api::{self, Failure};
 use crate::authenticator;
 use crate::join;
 use crate::network;
+use crate::step::{Step, strip};
 use crate::timezone;
 use crate::ui;
-
-/// The setup screens.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Step {
-    Network,
-    Time,
-    Updates,
-    Purpose,
-    Connecting,
-    Details,
-    Review,
-    Authenticator,
-}
-
-impl Step {
-    /// The screen's name in the stack.
-    const fn name(self) -> &'static str {
-        match self {
-            Self::Network => "network",
-            Self::Time => "time",
-            Self::Updates => "updates",
-            Self::Purpose => "purpose",
-            Self::Connecting => "connecting",
-            Self::Details => "details",
-            Self::Review => "review",
-            Self::Authenticator => "authenticator",
-        }
-    }
-
-    /// Where Back goes. Only the first screen has none.
-    const fn back(self) -> Option<Self> {
-        match self {
-            Self::Network => None,
-            Self::Time => Some(Self::Network),
-            Self::Updates => Some(Self::Time),
-            Self::Purpose => Some(Self::Updates),
-            Self::Connecting | Self::Details => Some(Self::Purpose),
-            Self::Review => Some(Self::Details),
-            Self::Authenticator => Some(Self::Review),
-        }
-    }
-}
 
 /// What the flow carries between screens.
 #[derive(Clone)]
@@ -336,8 +295,9 @@ fn review_page(
     (ui::page("Review", words, &body, &actions), refresh)
 }
 
-/// Builds the whole flow. `finished` runs once the service has started the main machine.
-pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Stack {
+/// Builds the whole flow, under its strip. `finished` runs once the service has started the main
+/// machine.
+pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Box {
     let stack = ui::stack();
     let flow = Flow {
         stack: stack.clone(),
@@ -357,27 +317,9 @@ pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Stack {
     stack.add_named(&details_page(&flow, refresh), Some(Step::Details.name()));
     stack.add_named(&review, Some(Step::Review.name()));
     stack.add_named(&authenticator, Some(Step::Authenticator.name()));
-    stack
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Step;
-
-    /// Every screen after the first must have a way back, and the connecting dead end
-    /// must lead back to the question, or a person is stuck there.
-    #[test]
-    fn back_walks_the_flow_and_only_the_first_screen_has_none() {
-        assert_eq!(Step::Network.back(), None);
-        assert_eq!(Step::Connecting.back(), Some(Step::Purpose));
-        assert_eq!(Step::Details.back(), Some(Step::Purpose));
-        assert_eq!(Step::Authenticator.back(), Some(Step::Review));
-        let mut step = Step::Authenticator;
-        let mut hops = 0;
-        while let Some(previous) = step.back() {
-            step = previous;
-            hops += 1;
-        }
-        assert_eq!((step, hops), (Step::Network, 6));
-    }
+    stack.set_vexpand(true);
+    let root = ui::column(0);
+    root.append(&strip(&stack));
+    root.append(&stack);
+    root
 }

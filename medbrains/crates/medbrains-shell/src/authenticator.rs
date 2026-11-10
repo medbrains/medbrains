@@ -11,7 +11,8 @@ use gtk4::prelude::{
 };
 use serde_json::Value;
 
-use crate::setup::{Flow, Step, start_machine};
+use crate::setup::{Flow, start_machine};
+use crate::step::Step;
 use crate::ui;
 
 /// How many modules of white the QR code keeps around it, as its standard asks.
@@ -54,9 +55,12 @@ fn paint_qr(
     cr.fill()
 }
 
+/// Fills the authenticator step from the setup service's answer.
+type Fill = Rc<dyn Fn(&Value)>;
+
 /// The authenticator step: the QR code and the secret, then one code to prove the phone has it. The returned
 /// function fills it from the setup service's answer.
-pub(crate) fn page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Rc<dyn Fn(&Value)>) {
+pub(crate) fn page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Fill) {
     let body = ui::column(ui::GAP / 2);
     let modules = Rc::new(RefCell::new(Vec::new()));
     let qr = qr_view(Rc::clone(&modules));

@@ -148,7 +148,7 @@ impl TopBar {
             .child(&update_chip)
             .visible(false)
             .build();
-        update.add_css_class("flat");
+        update.add_css_class("update-chip");
         ui::set_name(&update, "Updates: open Settings");
         let open_for_update = Rc::clone(&open_settings);
         update.connect_clicked(move |_| open_for_update());
@@ -172,7 +172,7 @@ impl TopBar {
         right.append(&power::button(power_accepted));
 
         let zone_name = Rc::new(RefCell::new("UTC".to_owned()));
-        let (day, time) = (ui::line("", ""), ui::line("", "heading"));
+        let (day, time) = (ui::line("", ""), ui::line("", "clock-time"));
         let (zone, clock_note) = (ui::label("", "muted"), ui::label("", "muted"));
         clock_note.set_max_width_chars(36);
         root.set_start_widget(Some(&left));

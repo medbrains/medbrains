@@ -1,79 +1,234 @@
-/* Layout and shape, with colour only from the theme tokens. Rounded corners are approved for the
-   OS desktop only. No CSS here needs a GPU: everything draws with plain gradients and fills. */
-.wallpaper {
-  background-color: @mb_wall_a;
-  background-image:
-    linear-gradient(to right, @mb_grid 1px, transparent 1px),
-    linear-gradient(to bottom, @mb_grid 1px, transparent 1px),
-    linear-gradient(135deg, @mb_wall_a 0%, @mb_wall_b 55%, @mb_wall_c 140%);
-  background-size: 48px 48px, 48px 48px, 100% 100%;
-  color: @mb_text;
-}
-window, stack { background: transparent; color: @mb_text; }
-window { background-color: @mb_bg; }
+/* The screen's look, in the design system's terms: colour only from the generated tokens in
+   theme-*.css (os/shell-tokens.py), Carbon's sharp corners, spacing on the 8px grid, and motion from
+   Carbon's productive curve, never longer than 240 ms. Reduced motion turns GTK's animations off, which
+   stops every transition and animation here. Nothing needs a GPU: plain fills and gradients only. */
 
+/* Wallpaper: the neutral base, blue rising top right and purple low right, away from the greeting's
+   text at the lower left, under a faint 48px grid. */
+.wallpaper {
+  background-color: @mb_surface_container_lowest;
+  background-image:
+    linear-gradient(to right, alpha(@mb_on_surface, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, alpha(@mb_on_surface, 0.03) 1px, transparent 1px),
+    radial-gradient(ellipse farthest-side at 100% 0%, alpha(@mb_primary, 0.55), alpha(@mb_primary, 0.12) 60%, transparent),
+    radial-gradient(ellipse farthest-side at 100% 100%, alpha(@mb_tertiary_brand, 0.5), alpha(@mb_tertiary_brand, 0.1) 60%, transparent),
+    linear-gradient(160deg, @mb_surface_container_lowest 40%, @mb_surface 100%);
+  background-size: 48px 48px, 48px 48px, 85% 95%, 65% 75%, 100% 100%;
+  background-position: 0 0, 0 0, 100% 0, 100% 100%, 0 0;
+  background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat;
+  color: @mb_on_surface;
+}
+window, stack { background: transparent; color: @mb_on_surface; }
+window { background-color: @mb_surface; }
+.solid { background-color: @mb_surface; }
+
+/* Type: IBM Plex Sans for words, Plex Mono for labels and times, Archivo Expanded for display. */
 .title { font-size: 28px; font-weight: 600; }
 .heading { font-weight: 600; }
-.muted { color: @mb_muted; }
-.problem { color: @mb_warning; }
-.number { font-family: "IBM Plex Mono", monospace; color: @mb_muted; }
-.card { background: @mb_card; border: 1px solid @mb_line; border-radius: 8px; padding: 32px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); }
-.choice { padding: 16px; }
-.solid { background: @mb_bg; }
+.muted { color: @mb_on_surface_variant; }
+.problem { color: @mb_error; }
+.number, .eyebrow, .clock-time { font-family: "IBM Plex Mono", monospace; }
+.number { color: @mb_on_surface_variant; }
+.eyebrow { font-size: 12px; color: @mb_primary_text; letter-spacing: 0.32px; }
+.clock-time { font-weight: 500; }
+.display, .greeting-name, .big { font-family: "Archivo Expanded", "IBM Plex Sans", sans-serif; font-weight: 600; }
 
-button, entry, passwordentry, dropdown > button, menubutton > button { min-height: 44px; border-radius: 8px; }
-button { transition: background 120ms ease-out, color 120ms ease-out; }
-button:focus-visible, entry:focus-within, passwordentry:focus-within, menubutton > button:focus-visible { outline: 2px solid @mb_accent; outline-offset: 2px; }
-button.suggested-action, button:checked { background: #0f62fe; color: #ffffff; }
+/* Surfaces: sharp, layered, one shadow step for things that float over the wallpaper. */
+.card {
+  background-color: alpha(@mb_surface_container_low, 0.97);
+  border: 1px solid @mb_outline_variant;
+  border-top: 2px solid @mb_primary;
+  border-radius: 0;
+  padding: 32px;
+  box-shadow: 0 8px 24px alpha(@mb_scrim, 0.28);
+}
+.widget {
+  background-color: alpha(@mb_surface_container, 0.92);
+  border: 1px solid @mb_outline_variant;
+  border-radius: 0;
+  padding: 16px;
+  min-width: 284px;
+  box-shadow: 0 8px 24px alpha(@mb_scrim, 0.22);
+}
+.widget-title { font-size: 12px; color: @mb_on_surface_variant; }
+.big { font-size: 28px; }
+.big.warning { color: @mb_error; font-size: 24px; }
+.bar { background-color: @mb_primary; border-radius: 0; min-width: 8px; min-height: 2px; }
+.bar:last-child { background-color: @mb_tertiary_brand; }
 
-.topbar { background: @mb_bar; border-bottom: 1px solid @mb_line; padding: 0 16px; min-height: 44px; font-size: 13px; }
-.topbar button, .topbar menubutton > button { background: none; border: none; min-height: 44px; min-width: 44px; padding: 0 8px; box-shadow: none; color: inherit; }
-.topbar popover button { background: @mb_tile; border: 1px solid @mb_line; color: @mb_text; }
-.topbar popover button.suggested-action { background: #0f62fe; color: #ffffff; border: none; }
-.topbar popover calendar > header > button { background: none; border: none; }
-.topbar button:hover, .topbar menubutton > button:hover { background: @mb_tile_hover; }
-.chip { color: @mb_muted; }
-.chip.warning { color: @mb_warning; }
-.dot { min-width: 8px; min-height: 8px; border-radius: 4px; background: #42be65; }
-.dot.warning { background: #da1e28; }
+/* Controls: 48px tall (Carbon's large size, above the 44px touch minimum), sharp, 2px focus ring. */
+button, entry, passwordentry, spinbutton, dropdown > button, menubutton > button {
+  min-height: 48px;
+  border-radius: 0;
+}
+button {
+  padding: 0 16px;
+  background-image: none;
+  background-color: @mb_surface_container_high;
+  color: @mb_on_surface;
+  border: none;
+  box-shadow: none;
+  transition: background-color 110ms cubic-bezier(0.2, 0, 0.38, 0.9), color 110ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+button:hover { background-color: @mb_surface_container_highest; }
+button:active { background-color: @mb_outline_variant; }
+button:disabled { color: alpha(@mb_on_surface, 0.4); background-color: @mb_surface_container; }
+button.suggested-action, button:checked { background-color: @mb_primary; color: @mb_on_primary; }
+button.suggested-action:hover, button:checked:hover { background-color: shade(@mb_primary, 0.9); }
+button.suggested-action:active { background-color: shade(@mb_primary, 0.8); }
+button.flat { background-color: transparent; }
+button.flat:hover { background-color: alpha(@mb_on_surface, 0.08); }
+button:focus-visible, menubutton > button:focus-visible, switch:focus-visible, checkbutton:focus-visible,
+flowboxchild:focus-visible, row:focus-visible {
+  outline: 2px solid @mb_primary_text;
+  outline-offset: 2px;
+}
+link, .link { color: @mb_primary_text; }
 
-.greeting-name { font-size: 44px; font-weight: 600; letter-spacing: -0.5px; }
-.greeting-status { font-size: 16px; color: @mb_muted; }
-.greeting-status.warning { color: @mb_warning; }
+/* Fields: Carbon's filled field with a bottom rule that turns blue and thick on focus. */
+entry, passwordentry, spinbutton {
+  background-color: @mb_surface_container;
+  color: @mb_on_surface;
+  border: none;
+  border-bottom: 1px solid @mb_outline;
+  box-shadow: none;
+  padding: 0 16px;
+}
+entry:focus-within, passwordentry:focus-within, spinbutton:focus-within {
+  border-bottom-color: @mb_primary;
+  outline: 2px solid @mb_primary_text;
+  outline-offset: -2px;
+}
+entry > text > placeholder, passwordentry > text > placeholder { color: @mb_on_surface_variant; }
+entry selection, passwordentry selection, label selection { background-color: alpha(@mb_primary, 0.35); }
 
-.widget { background: @mb_card; border: 1px solid @mb_line; border-radius: 8px; padding: 16px; min-width: 284px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); }
-.widget-title { font-size: 12px; color: @mb_muted; }
-.big { font-size: 30px; font-weight: 600; }
-.big.warning { color: @mb_warning; font-size: 24px; }
-.bar { background: #0f62fe; border-radius: 1px; opacity: 0.75; min-width: 8px; min-height: 2px; }
-levelbar trough { background: @mb_line; border-radius: 3px; min-height: 6px; border: none; padding: 0; }
-levelbar block.filled { background: #0f62fe; border-radius: 3px; border: none; }
-levelbar block.empty { background: transparent; border: none; }
+/* Setup: the branded strip over each step, and its large choices. */
+.setup-strip { padding: 24px 32px 0 32px; }
+.mascot { min-width: 48px; min-height: 48px; }
+.choice {
+  padding: 16px;
+  background-color: @mb_surface_container_high;
+  border: 1px solid @mb_outline_variant;
+  border-left: 3px solid @mb_primary;
+}
+.choice:hover { background-color: @mb_surface_container_highest; border-color: @mb_primary; }
+progressbar trough { min-height: 4px; border-radius: 0; background-color: @mb_outline_variant; border: none; }
+progressbar progress { min-height: 4px; border-radius: 0; background-color: @mb_primary; border: none; }
+levelbar trough { background-color: @mb_outline_variant; border-radius: 0; min-height: 4px; border: none; padding: 0; }
+levelbar block.filled { background-color: @mb_primary; border-radius: 0; border: none; }
+levelbar block.empty { background-color: transparent; border: none; }
+switch { min-width: 56px; min-height: 28px; border-radius: 14px; background-color: @mb_outline; border: none; }
+switch:checked { background-color: @mb_primary; }
+switch > slider { min-width: 22px; min-height: 22px; margin: 3px; border-radius: 11px; background-color: @mb_on_primary; border: none; box-shadow: none; }
+checkbutton check, radio { border-radius: 0; }
+checkbutton check:checked { background-color: @mb_primary; color: @mb_on_primary; }
 
-.dock { background: @mb_dock; border: 1px solid @mb_line; border-radius: 18px; padding: 10px 12px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32); }
-.dock-sep { background: @mb_line; min-width: 1px; margin: 0 2px 18px 2px; }
-.dock-app { background: transparent; border: none; box-shadow: none; padding: 0; border-radius: 14px; min-width: 62px; }
-.dock-app:hover { background: transparent; }
-.dock-label { font-size: 11px; color: @mb_muted; }
-.dock-tile { min-width: 56px; min-height: 56px; border-radius: 14px; background: @mb_tile; border: 1px solid @mb_line; color: @mb_text; transition: background 120ms ease-out; }
-.dock-app:hover .dock-tile { background: @mb_tile_hover; }
-.dock-tile.brand { background: #0f62fe; color: #ffffff; border: none; }
-.dock-app:hover .dock-tile.brand { background: #0353e9; }
-.dock-app:focus-visible .dock-tile { outline: 2px solid @mb_accent; outline-offset: 2px; }
-.running-dot { min-width: 4px; min-height: 4px; border-radius: 2px; background: transparent; }
-.running-dot.running { background: @mb_accent; }
+/* Top bar: Carbon's 48px shell header. A control whose panel is open carries the blue underline. */
+.topbar {
+  background-color: alpha(@mb_surface_container_low, 0.94);
+  border-bottom: 1px solid @mb_outline_variant;
+  padding: 0 8px;
+  min-height: 48px;
+  font-size: 13px;
+}
+.topbar button, .topbar menubutton > button {
+  background-color: transparent;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 8px;
+  color: inherit;
+}
+.topbar button:hover, .topbar menubutton > button:hover { background-color: alpha(@mb_on_surface, 0.08); }
+.topbar menubutton > button:checked {
+  background-color: alpha(@mb_primary, 0.16);
+  color: @mb_on_surface;
+  box-shadow: inset 0 -2px @mb_primary;
+}
+.topbar button.update-chip { background-color: @mb_tertiary_brand; color: @mb_on_tertiary; margin: 8px 0; min-height: 32px; }
+.topbar button.update-chip:hover { background-color: shade(@mb_tertiary_brand, 1.15); }
+.chip { color: @mb_on_surface_variant; }
+.update-chip .chip { color: @mb_on_tertiary; }
+.update-chip .dot { background-color: @mb_on_tertiary; }
+.chip.warning { color: @mb_error; }
+.dot { min-width: 8px; min-height: 8px; border-radius: 4px; background-color: @mb_pulse; }
+.dot.warning { background-color: @mb_error; }
 
+/* Panels that drop from the bar or a tile. */
+popover > contents {
+  background-color: @mb_surface_container_high;
+  color: @mb_on_surface;
+  border: 1px solid @mb_outline_variant;
+  border-radius: 0;
+  padding: 8px;
+  box-shadow: 0 8px 24px alpha(@mb_scrim, 0.32);
+}
+popover > arrow { background-color: @mb_surface_container_high; border: 1px solid @mb_outline_variant; }
+popover button { background-color: @mb_surface_container_highest; }
+popover button.suggested-action { background-color: @mb_primary; color: @mb_on_primary; }
+calendar { color: @mb_on_surface; border: none; background: transparent; }
+calendar > header > button { min-height: 32px; min-width: 32px; background-color: transparent; }
+calendar > grid > label.day-number { min-height: 32px; min-width: 32px; }
+calendar > grid > label.today { color: @mb_primary_text; font-weight: 600; }
+calendar > grid > label:selected { background-color: @mb_primary; color: @mb_on_primary; border-radius: 0; }
+calendar > grid > label.other-month { color: @mb_on_surface_variant; }
+
+/* Greeting at the lower left. */
+.greeting-name { font-size: 44px; letter-spacing: -0.5px; }
+.greeting-status { font-size: 16px; color: @mb_on_surface_variant; }
+.greeting-status.warning { color: @mb_error; }
+
+/* Dock: sharp tiles that rise a little under the pointer and settle in when an app opens. The bar
+   under a tile is grey for an open app and blue, wider, for the one on screen. */
+.dock {
+  background-color: alpha(@mb_surface_container, 0.9);
+  border: 1px solid @mb_outline_variant;
+  border-radius: 0;
+  padding: 8px;
+  box-shadow: 0 16px 40px alpha(@mb_scrim, 0.36);
+}
+.dock-sep { background-color: @mb_outline_variant; min-width: 1px; margin: 0 4px 24px 4px; }
+.dock-app { background-color: transparent; padding: 0; min-width: 64px; }
+.dock-app:hover { background-color: transparent; }
+.dock-label { font-size: 11px; color: @mb_on_surface_variant; }
+.dock-tile {
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 0;
+  background-color: @mb_surface_container_high;
+  border: 1px solid @mb_outline_variant;
+  color: @mb_on_surface;
+  transition: background-color 110ms cubic-bezier(0.2, 0, 0.38, 0.9), transform 150ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+.dock-app:hover .dock-tile { background-color: @mb_surface_container_highest; transform: translateY(-4px); }
+.dock-app:active .dock-tile { transform: scale(0.94); }
+.dock-tile.brand { background-color: @mb_primary; color: @mb_on_primary; border: none; }
+.dock-app:hover .dock-tile.brand { background-color: shade(@mb_primary, 0.9); }
+.launching > .dock-tile { animation: launch 240ms cubic-bezier(0, 0, 0.3, 1); }
+@keyframes launch {
+  from { transform: translateY(-8px); }
+  to { transform: translateY(0); }
+}
+.running-dot { min-width: 4px; min-height: 4px; background-color: transparent; transition: min-width 150ms cubic-bezier(0.2, 0, 0.38, 0.9); }
+.running-dot.running { background-color: @mb_on_surface_variant; }
+.running-dot.showing { background-color: @mb_primary; min-width: 16px; }
+
+/* Launcher: one tile shape for every app, the brand's own in blue. */
 .launcher { padding: 48px; }
-.tile { padding: 24px; min-width: 112px; border-radius: 14px; }
+.launcher-search { min-width: 400px; }
+.tile { padding: 16px; min-width: 128px; background-color: transparent; }
+.tile:hover { background-color: transparent; }
+.tile-icon {
+  min-width: 72px;
+  min-height: 72px;
+  background-color: @mb_surface_container_high;
+  border: 1px solid @mb_outline_variant;
+  color: @mb_on_surface;
+  transition: background-color 110ms cubic-bezier(0.2, 0, 0.38, 0.9), transform 150ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+.tile:hover .tile-icon { background-color: @mb_surface_container_highest; transform: translateY(-2px); }
+.tile-icon.brand { background-color: @mb_primary; color: @mb_on_primary; border: none; }
+.tile:hover .tile-icon.brand { background-color: shade(@mb_primary, 0.9); }
+
+/* What an app's page shows while it starts or after it fails. */
 .app-status { padding: 48px; }
-progressbar trough { min-height: 6px; border-radius: 3px; background: @mb_line; }
-progressbar progress { min-height: 6px; border-radius: 3px; background: #0f62fe; }
 .network-panel { padding: 8px; }
-calendar { color: @mb_text; border: none; background: transparent; }
-calendar > grid > label.day-number { min-height: 28px; min-width: 28px; }
-calendar > grid > label.today { color: @mb_accent; font-weight: 600; }
-calendar > grid > label:selected { background: #0f62fe; color: #ffffff; border-radius: 4px; }
-calendar > grid > label.other-month { color: @mb_muted; }
-calendar > header > button { min-height: 32px; min-width: 32px; }
-switch { min-width: 72px; min-height: 44px; border-radius: 22px; }
-switch > slider { min-width: 40px; min-height: 40px; border-radius: 20px; }
