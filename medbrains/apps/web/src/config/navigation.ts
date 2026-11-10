@@ -1372,6 +1372,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "paperlessMeter",
+        moduleCode: "reports",
         path: "/analytics/paperless",
         icon: "IconFileCheck",
         requiredPermission: "analytics.paperless.view",

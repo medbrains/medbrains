@@ -7357,6 +7357,7 @@ version = "1.0.0"
 dependencies = [
  "chrono",
  "goose",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tokio",
@@ -7727,6 +7728,7 @@ version = "1.0.0"
 dependencies = [
  "argon2",
  "data-encoding",
+ "medbrains-os-update",
  "percent-encoding",
  "qrcodegen",
  "rustix",
@@ -7740,6 +7742,20 @@ name = "medbrains-os-test"
 version = "1.0.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "medbrains-os-update"
+version = "1.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "zeroize",
 ]
 
 [[package]]
@@ -8251,14 +8267,20 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "jsonwebtoken",
+ "medbrains-authz",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-topology",
+ "medbrains-kernel",
+ "medbrains-outbox",
  "medbrains-scheduling",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -13561,9 +13583,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-deep-link"
-version = "2.6.2"
+version = "2.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b3c64e24ebcbc63aaa2d88a9c51e2507084b46620baf39ecb0baa0738a08bb4"
+checksum = "ab551d9bec27bb79d1c7fe5ed38c5cfd1cebb86efa745acc65f5853f345f6e56"
 dependencies = [
  "dunce",
  "plist",

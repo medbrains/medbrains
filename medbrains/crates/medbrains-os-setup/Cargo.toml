@@ -9,6 +9,7 @@ license-file.workspace = true
 
 [dependencies]
 argon2 = { workspace = true }
+medbrains-os-update = { path = "../medbrains-os-update" }
 serde_json = { workspace = true }
 # The same check as Kanidm, so the screen can say no before anything is made.
 zxcvbn = "3.1.1"

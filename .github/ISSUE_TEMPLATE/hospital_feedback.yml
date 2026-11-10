@@ -1,21 +1,34 @@
-name: Feedback from a hospital
-description: You use MedBrains at a hospital and want to tell us what works, what does not, or what is missing
-labels: ["hospital-feedback", "needs-triage"]
+name: 🏥 Feedback from a hospital
+description: Something in daily hospital work is slow, confusing or missing
+labels: ["feedback", "needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you. Feedback from the people who use MedBrains every day shapes what we build next.
-        **Never include real patient data**: no names, phone numbers, UHIDs or screenshots of real records.
-  - type: input
+        Tell us how MedBrains fits your day. **Never include real patient data.** For a fault that stops work, use the bug report instead.
+  - type: checkboxes
+    id: no-phi
+    attributes:
+      label: Privacy
+      options:
+        - label: This contains no real patient data.
+          required: true
+  - type: dropdown
     id: role
     attributes:
       label: Your role
-      placeholder: Receptionist, nurse, pharmacist, doctor, IT…
+      options: [Doctor, Nurse, Pharmacist, Front office / reception, Ward secretary / admission, Lab, Billing, MRD, Hospital admin / IT, Owner / management, Other]
+    validations:
+      required: true
   - type: textarea
-    id: feedback
+    id: task
     attributes:
-      label: What would you like to tell us?
-      description: What you were trying to do, what happened, and what would have helped.
+      label: What were you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: What got in the way, and what would help?
     validations:
       required: true

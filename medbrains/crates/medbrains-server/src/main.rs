@@ -227,10 +227,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> = Arc::new(
         medbrains_db_topology::PostgresTopologyResolver::new(db_pool.clone()),
     );
+    // The reader is the reports pool (report_runner): its own small cap, so
+    // a burst of reports can never take the connections the wards need.
+    let reports_pool = reports_pool(&config.database_url, &pool_config).await?;
     let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> =
         Arc::new(medbrains_db_topology::TopologyRouter::new(
             db_pool.clone(),
-            db_pool.clone(),
+            reports_pool,
             topology_resolver,
         ));
 
@@ -378,6 +381,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         s3: s3_client,
         gotenberg: gotenberg_client,
         documents_store: Arc::clone(&documents_store),
+        reports: medbrains_server_core::report_runner::ReportGate::new(
+            medbrains_server_core::report_runner::ReportLimits::from_env(),
+        ),
     };
 
     // Seeding runs on the bootstrap connection, not the request pool.
@@ -646,6 +652,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(permissions_policy)
         .layer(coop)
         .layer(cors)
+        // A failed request's query and JSON body, identity masked, so a refused
+        // save can be traced to its field. Off unless
+        // MEDBRAINS_LOG_FAILED_PAYLOADS=1. Inside the trace span for the path.
+        .layer(axum::middleware::from_fn(
+            medbrains_server_core::payload_log::log_failed_payload,
+        ))
         // Negotiated response compression (brotli / zstd / gzip / deflate).
         // JSON API payloads are highly repetitive → typically 70–90% smaller
         // on the wire. Picks the best algorithm from the request's
@@ -875,6 +887,45 @@ async fn shutdown_signal() {
         () = ctrl_c => tracing::info!("SIGINT received — draining"),
         () = terminate => tracing::info!("SIGTERM received — draining"),
     }
+}
+
+/// The pool every report, analytics and dashboard read runs on.
+///
+/// `REPORTS_DATABASE_URL` names a read replica or a low-priority role; unset,
+/// this is the primary. Either way it is a pool of its own, capped at
+/// `REPORTS_DB_POOL_MAX_CONNECTIONS` (default 4), so reports cannot exhaust
+/// the request pool. A configured replica that cannot be reached at boot is
+/// logged and the primary is used, still bounded: a replica outage must not
+/// stop the server, and the runner's bounds keep the primary safe meanwhile.
+async fn reports_pool(
+    primary_url: &str,
+    base: &medbrains_db::pool::PoolConfig,
+) -> Result<sqlx::PgPool, Box<dyn std::error::Error>> {
+    let max_connections = std::env::var("REPORTS_DB_POOL_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(4)
+        .max(1);
+    let config = medbrains_db::pool::PoolConfig {
+        max_connections,
+        min_connections: 0,
+        ..base.clone()
+    };
+    if let Ok(url) = std::env::var("REPORTS_DATABASE_URL")
+        && !url.trim().is_empty()
+    {
+        match medbrains_db::pool::create_pool_with_config(&url, &config).await {
+            Ok(pool) => {
+                tracing::info!(max_connections, "reports run on REPORTS_DATABASE_URL");
+                return Ok(pool);
+            }
+            Err(error) => tracing::error!(
+                %error,
+                "REPORTS_DATABASE_URL unreachable — reports fall back to the primary, bounded"
+            ),
+        }
+    }
+    Ok(medbrains_db::pool::create_pool_with_config(primary_url, &config).await?)
 }
 
 /// Sprint A.8 — assemble the outbox Handler Registry.

@@ -1,0 +1,21 @@
+[package]
+name = "medbrains-os-update"
+publish = false
+description = "Signed A/B updates for MedBrains OS: verify, write the inactive slot, boot it on trial, roll back."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+ed25519-dalek = { workspace = true }
+getrandom = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+zeroize = "1.9"
+
+[lints]
+workspace = true

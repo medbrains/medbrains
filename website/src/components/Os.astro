@@ -1,0 +1,38 @@
+---
+// The landing page's short pitch for MedBrains OS; the detail and the status live on /os.
+import { OS_ROLES } from "../data/os";
+---
+
+<section id="os" class="section os" aria-labelledby="os-title">
+  <div class="wrap">
+    <p class="eyebrow">MedBrains OS</p>
+    <h2 id="os-title" class="section-title">One operating system for every machine in the hospital.</h2>
+    <p class="section-lede">The same OS runs on every machine. On first boot you choose what the machine is for. One server holds the records; every other machine is small, cheap and replaceable in minutes.</p>
+    <div class="grid">
+      {OS_ROLES.map((r) => (
+        <article class="item reveal">
+          <h3>{r.title}</h3>
+          <p>{r.body}</p>
+          {r.status && <p class="status">{r.status}</p>}
+        </article>
+      ))}
+    </div>
+    <p class="more"><a class="btn btn-ghost" href="/os">How MedBrains OS works <span aria-hidden="true">→</span></a></p>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .os { color: #fff; background: radial-gradient(900px 500px at 0% 0%, var(--glow-blue), transparent 60%), var(--night-2); }
+  .os .eyebrow { color: var(--pulse); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: 56px; background: var(--night-line); border: 1px solid var(--night-line); border-radius: 20px; overflow: hidden; }
+  .item { background: var(--night-2); padding: 32px 28px; }
+  h3 { font: 800 1.2rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
+  p { margin: 0; color: var(--night-text); font-size: .96rem; }
+  .status { margin-top: 12px; font: 600 .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sky); }
+  .more { margin-top: 32px; }
+  .btn-ghost { color: #fff; }
+  @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } }
+  @include below(sm) { .grid { grid-template-columns: 1fr; } }
+</style>

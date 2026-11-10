@@ -5,7 +5,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. **Do not include real patient data (PHI).** For security vulnerabilities, use [SECURITY.md](../blob/master/SECURITY.md) instead — not a public issue.
+        Thanks for reporting a bug. **Do not include real patient data (PHI).** For security vulnerabilities, use [SECURITY.md](../blob/main/SECURITY.md) instead — not a public issue.
+  - type: checkboxes
+    id: no-phi
+    attributes:
+      label: Privacy
+      options:
+        - label: This report contains no real patient data — no names, UHIDs, phone numbers, photos or screenshots of real records.
+          required: true
   - type: textarea
     id: what-happened
     attributes:
@@ -30,7 +37,11 @@ body:
       options:
         - Backend (Rust/Axum)
         - Web (React)
-        - Mobile / TV
+        - Pharmacy / medicines
+        - Billing / insurance
+        - OS box / setup / ward PCs
+        - Desktop app (Windows / Mac)
+        - Mobile (iOS / Android) / TV
         - Database / migration
         - Auth / permissions
         - Other / not sure
