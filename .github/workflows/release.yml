@@ -127,7 +127,23 @@ jobs:
       # AGP downloads compileSdk and build-tools itself, under the licences this accepts.
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
-          packages: platform-tools
+          packages: platform-tools ndk;27.1.12297006
+      # The Rust core (crates/medbrains-edge-rn) is generated, never committed
+      # (apps/android/.gitignore): the Android half of `make native-core`, UniFFI Kotlin
+      # into core/src/main/kotlin and one .so per ABI into core/src/main/jniLibs.
+      - name: Build the Rust core and its Kotlin bindings
+        working-directory: medbrains
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.1.12297006"
+          rustup toolchain install
+          rustup target add aarch64-linux-android x86_64-linux-android
+          cargo install cargo-ndk --locked --version 4.1.2
+          cargo build -p medbrains-edge-rn --release
+          cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
+            --library target/release/libmedbrains_edge_rn.so --language kotlin \
+            --out-dir apps/android/core/src/main/kotlin
+          cargo ndk -t arm64-v8a -t x86_64 -o apps/android/core/src/main/jniLibs \
+            build --release -p medbrains-edge-rn
       - run: ./gradlew --no-daemon :app-staff:assembleRelease :app-patient:assembleRelease
       - name: Sign, or mark unsigned
         env:
