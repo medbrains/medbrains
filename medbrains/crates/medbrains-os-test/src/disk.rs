@@ -276,16 +276,20 @@ fn stolen_machine_replay_refused(vm: &mut Vm, image: &Path) -> Result<(), String
     wait_open(vm)
 }
 
-/// Known gap, kept visible: a change to the unverified system partition still runs with the disk open.
-/// When verity lands this must start failing, and be turned around.
-fn known_gap_system_partition_edit_opens(vm: &mut Vm, _: &Path) -> Result<(), String> {
-    vm.run("touch /etc/os-test-attacker-file; sync")?;
+/// The gap verity closed, turned around: one byte of the running system partition changed under it, as an
+/// attacker with the disk would, and the next start stops before the data disk opens (`OS-VERITY.md`).
+fn system_partition_edit_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
+    let data = "$(veritysetup status root | awk '/data device:/ {print $3}')";
+    vm.run(&format!(
+        "d={data}; at=$(grep -abo -m1 'IMAGE_VERSION=' $d | cut -d: -f1); \
+         printf J | dd of=$d bs=1 seek=$at conv=notrunc status=none; sync"
+    ))?;
     vm.reboot()?;
-    wait_open(vm)?;
-    let kept = vm.run("test -e /etc/os-test-attacker-file; echo $?")?;
+    ensure(!data_open(vm)?, "the disk opened under a changed system")?;
+    let state = vm.run("systemctl is-system-running")?;
     ensure(
-        kept == "0",
-        "the change did not survive, so verity may have landed: turn this test around",
+        state.contains("maintenance"),
+        format!("the system is {state}"),
     )
 }
 
@@ -564,8 +568,8 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
             stolen_machine_replay_refused,
         ),
         (
-            "KNOWN GAP: an edited system partition still runs with the disk open",
-            known_gap_system_partition_edit_opens,
+            "an edited system partition stops the start with the disk locked",
+            system_partition_edit_stays_locked,
         ),
         (
             "a sealed disk with its TPM gone stays locked and says why",

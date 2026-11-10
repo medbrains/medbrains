@@ -3,16 +3,16 @@
 //! version rules, the space and both payload hashes have all passed.
 
 use std::fs::{self, File};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::disk::{self, Slots};
 use crate::manifest::{self, Facts, Manifest};
-use crate::paths;
-use crate::pe;
-use crate::plan::{INSTALL_STEPS, Step};
+use crate::plan::INSTALL_STEPS;
 use crate::source::Source;
 use crate::state::{Ending, Stage, State, Target};
+use crate::steps::{self, Job};
 use crate::version::Version;
+use crate::{paths, pe};
 
 const PCR_KEY_SECTION: &str = ".pcrpkey";
 /// Releases a machine may be behind and still catch up in one go, one step per restart.
@@ -61,7 +61,7 @@ pub fn lock() -> Result<File, String> {
     Ok(file)
 }
 
-/// Empties the staging folder and any boot file waiting in the boot partition's folder.
+/// Empties the staging folder.
 pub fn clear_staging() -> Result<(), String> {
     match fs::remove_dir_all(paths::STAGING_DIR) {
         Ok(()) => Ok(()),
@@ -121,7 +121,7 @@ fn gather_facts(state: &State, slots: &Slots, retry: bool) -> Result<Facts, Stri
     let current = current_version()?;
     let current = Version::parse(&current)
         .ok_or_else(|| format!("This system's version {current} can't be compared."))?;
-    let reclaimed = old_boot_entries(slots)?
+    let reclaimed = steps::old_boot_entries(slots)?
         .iter()
         .filter_map(|entry| fs::metadata(&entry.path).ok())
         .map(|meta| meta.len())
@@ -133,20 +133,11 @@ fn gather_facts(state: &State, slots: &Slots, retry: bool) -> Result<Facts, Stri
         failed: state.failed.clone(),
         retry,
         slot_bytes: slots.inactive.bytes,
+        hash_bytes: slots.inactive_hash.bytes,
         data_free: disk::free_bytes(paths::STATE_DIR)?,
         esp_free: disk::free_bytes(disk::ESP)?.saturating_add(reclaimed),
         now: now(),
     })
-}
-
-/// Boot entries for what is in the inactive slot, and any with no starts left. Never the running one.
-fn old_boot_entries(slots: &Slots) -> Result<Vec<disk::BootEntry>, String> {
-    let old = slots.inactive.version();
-    Ok(disk::boot_entries()?
-        .into_iter()
-        .filter(|entry| !entry.selected)
-        .filter(|entry| old == Some(entry.version.as_str()) || entry.tries_left == Some(0))
-        .collect())
 }
 
 /// Fetches and checks the payload against the signed hashes, on the data disk, before any slot is
@@ -181,6 +172,11 @@ fn stage_payload(source: &Source, manifest: &Manifest, staging: &Path) -> Result
         manifest::ROOT_FILE,
         &manifest.root.sha256,
         manifest.root.size,
+    )?;
+    check(
+        manifest::VERITY_FILE,
+        &manifest.verity.sha256,
+        manifest.verity.size,
     )
 }
 
@@ -209,51 +205,6 @@ fn check_seal(staging: &Path) -> Result<(), Stopped> {
          for its recovery key after restarting. It was not installed."
             .to_owned(),
     ))
-}
-
-/// Carries out one write, in the order `plan` fixes.
-fn run_step(step: Step, slots: &Slots, manifest: &Manifest, staging: &Path) -> Result<(), String> {
-    match step {
-        Step::RemoveOldBoot => {
-            for entry in old_boot_entries(slots)? {
-                fs::remove_file(&entry.path).map_err(|e| e.to_string())?;
-                crate::state::sync_parent(&entry.path).map_err(|e| e.to_string())?;
-            }
-            remove_staged_boot()
-        }
-        Step::EmptySlot => disk::set_label(slots, disk::EMPTY_LABEL),
-        Step::WriteSlot => disk::write_slot(
-            &staging.join(manifest::ROOT_FILE),
-            &slots.inactive.path,
-            manifest.root.raw_size,
-            &manifest.root.raw_sha256,
-        ),
-        Step::AdoptIdentity => {
-            disk::adopt_identity(&slots.inactive.path, Path::new(paths::SLOT_MOUNT))
-        }
-        Step::LabelSlot => disk::set_label(slots, &disk::slot_label(&manifest.version)),
-        Step::StageBoot => {
-            fs::create_dir_all(disk::STAGED_BOOT_DIR).map_err(|e| e.to_string())?;
-            disk::copy_flushed(
-                &staging.join(manifest::BOOT_FILE),
-                &staged_boot_path(&manifest.version),
-            )
-        }
-    }
-}
-
-/// Where a version's boot file waits until it is applied.
-pub fn staged_boot_path(version: &str) -> PathBuf {
-    Path::new(disk::STAGED_BOOT_DIR).join(format!("{version}.efi"))
-}
-
-/// Removes any boot file left waiting.
-fn remove_staged_boot() -> Result<(), String> {
-    match fs::remove_dir_all(disk::STAGED_BOOT_DIR) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(format!("{}: {e}", disk::STAGED_BOOT_DIR)),
-    }
 }
 
 /// Judges, stages and writes. State is saved before each stage, so a power cut is reported truthfully.
@@ -291,10 +242,11 @@ fn install_checked(source: &Source, retry: bool, state: &mut State) -> Result<St
     begin(state, &manifest, Stage::Fetching)?;
     stage_payload(source, &manifest, staging)?;
     check_seal(staging)?;
+    let job = Job::new(&slots, &manifest, staging)?;
     begin(state, &manifest, Stage::Writing)?;
     state.previous = None;
     for step in INSTALL_STEPS {
-        run_step(step, &slots, &manifest, staging).map_err(Stopped::Fault)?;
+        job.run(step).map_err(Stopped::Fault)?;
     }
     state.stage = Stage::Waiting;
     save(state)?;

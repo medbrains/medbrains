@@ -4,7 +4,7 @@
 //!
 //!     medbrains-os-bundle keygen <out prefix>
 //!     medbrains-os-bundle extract <image.raw> <partition name> <out file>
-//!     medbrains-os-bundle make <out dir> <version> <arch> <min version> <root image> <boot file>
+//!     medbrains-os-bundle make <out dir> <version> <arch> <min version> <root image> <verity image> <boot file>
 //!         [--upgrades-from V] [--expires-days N] [--security] [--summary TEXT]
 //!     medbrains-os-bundle refresh <bundle dir> <days>    new expiry; the old signatures are removed
 //!     medbrains-os-bundle sign <bundle dir> <key id> <private key file>
@@ -17,15 +17,14 @@ use std::process::{Command, ExitCode};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use ed25519_dalek::{Signer, SigningKey};
-use medbrains_os_update::disk;
 use medbrains_os_update::manifest::{
     BOOT_FILE, BootImage, MANIFEST_FILE, Manifest, ROOT_FILE, RootImage, SIGNATURE_FILE,
+    VERITY_FILE,
 };
+use medbrains_os_update::{disk, gpt};
 
-const SECTOR: u64 = 512;
-const ENTRY_LABEL_AT: usize = 56;
 const NO_LIMIT: u64 = u64::MAX;
-const FORMAT: u32 = 1;
+const FORMAT: u32 = 2;
 const SEED_LEN: usize = 32;
 const ZSTD_LEVEL: &str = "-19";
 
@@ -47,54 +46,10 @@ fn keygen(prefix: &str) -> Result<(), String> {
     writeln!(file, "{}", STANDARD.encode(seed)).map_err(|e| e.to_string())
 }
 
-/// A partition's byte range, from a GPT in `header` and its `entries`, by the partition's name.
-fn find_partition(header: &[u8], entries: &[u8], wanted: &str) -> Option<(u64, u64)> {
-    let entry_size =
-        usize::try_from(u32::from_le_bytes(header.get(84..88)?.try_into().ok()?)).ok()?;
-    if entry_size < ENTRY_LABEL_AT || header.get(..8)? != b"EFI PART" {
-        return None;
-    }
-    entries.chunks_exact(entry_size).find_map(|entry| {
-        let label: Vec<u16> = entry
-            .get(ENTRY_LABEL_AT..)?
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pair| u16::from_le_bytes(*pair))
-            .take_while(|unit| *unit != 0)
-            .collect();
-        if String::from_utf16_lossy(&label) != wanted {
-            return None;
-        }
-        let first = u64::from_le_bytes(entry.get(32..40)?.try_into().ok()?);
-        let last = u64::from_le_bytes(entry.get(40..48)?.try_into().ok()?);
-        Some((first * SECTOR, (last - first + 1) * SECTOR))
-    })
-}
-
 /// Copies one partition out of a disk image, by its name.
 fn extract(image: &str, wanted: &str, out: &str) -> Result<(), String> {
+    let (start, size) = gpt::partition_range(Path::new(image), wanted)?;
     let mut file = File::open(image).map_err(|e| format!("{image}: {e}"))?;
-    let mut header = vec![0_u8; SECTOR as usize];
-    file.seek(SeekFrom::Start(SECTOR))
-        .map_err(|e| e.to_string())?;
-    file.read_exact(&mut header).map_err(|e| e.to_string())?;
-    let field = |at: usize| -> Result<u32, String> {
-        let raw = header.get(at..at + 4).and_then(|r| r.try_into().ok());
-        raw.map(u32::from_le_bytes)
-            .ok_or_else(|| "A short GPT header.".to_owned())
-    };
-    let table = u64::from(field(72)?) * SECTOR;
-    let mut entries = vec![
-        0_u8;
-        usize::try_from(u64::from(field(80)?) * u64::from(field(84)?))
-            .map_err(|e| e.to_string())?
-    ];
-    file.seek(SeekFrom::Start(table))
-        .map_err(|e| e.to_string())?;
-    file.read_exact(&mut entries).map_err(|e| e.to_string())?;
-    let (start, size) = find_partition(&header, &entries, wanted)
-        .ok_or_else(|| format!("{image} has no partition named {wanted}."))?;
     file.seek(SeekFrom::Start(start))
         .map_err(|e| e.to_string())?;
     let mut target = File::create(out).map_err(|e| format!("{out}: {e}"))?;
@@ -113,6 +68,7 @@ struct MakeArgs<'a> {
     arch: &'a str,
     min_version: &'a str,
     root: &'a str,
+    verity: &'a str,
     boot: &'a str,
     upgrades_from: &'a str,
     expires_days: u64,
@@ -162,22 +118,35 @@ fn refresh(bundle: &str, days: &str) -> Result<(), String> {
     }
 }
 
-/// Compresses the root image, hashes everything and writes the manifest. The signature comes after.
-fn make(args: &MakeArgs<'_>) -> Result<(), String> {
-    let dir = Path::new(args.out);
-    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    let compressed = dir.join(ROOT_FILE);
+/// Compresses a partition image into the bundle as `name` and describes both forms of it.
+fn pack(image: &str, dir: &Path, name: &str) -> Result<RootImage, String> {
+    let compressed = dir.join(name);
     let done = Command::new("zstd")
-        .args(["-q", "-f", "-T0", ZSTD_LEVEL, args.root, "-o"])
+        .args(["-q", "-f", "-T0", ZSTD_LEVEL, image, "-o"])
         .arg(&compressed)
         .status()
         .map_err(|e| format!("zstd could not start: {e}"))?;
     if !done.success() {
         return Err("zstd failed.".to_owned());
     }
-    fs::copy(args.boot, dir.join(BOOT_FILE)).map_err(|e| format!("{}: {e}", args.boot))?;
-    let (raw_sha256, raw_size) = disk::hash_file(Path::new(args.root), NO_LIMIT)?;
+    let (raw_sha256, raw_size) = disk::hash_file(Path::new(image), NO_LIMIT)?;
     let (sha256, size) = disk::hash_file(&compressed, NO_LIMIT)?;
+    Ok(RootImage {
+        sha256,
+        size,
+        raw_sha256,
+        raw_size,
+    })
+}
+
+/// Compresses the root image and its tree, hashes everything and writes the manifest. The signature
+/// comes after.
+fn make(args: &MakeArgs<'_>) -> Result<(), String> {
+    let dir = Path::new(args.out);
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let root = pack(args.root, dir, ROOT_FILE)?;
+    let verity = pack(args.verity, dir, VERITY_FILE)?;
+    fs::copy(args.boot, dir.join(BOOT_FILE)).map_err(|e| format!("{}: {e}", args.boot))?;
     let (boot_sha256, boot_size) = disk::hash_file(&dir.join(BOOT_FILE), NO_LIMIT)?;
     let manifest = Manifest {
         format: FORMAT,
@@ -188,12 +157,8 @@ fn make(args: &MakeArgs<'_>) -> Result<(), String> {
         expires: days_from_now(args.expires_days)?,
         security: args.security,
         summary: args.summary.to_owned(),
-        root: RootImage {
-            sha256,
-            size,
-            raw_sha256,
-            raw_size,
-        },
+        root,
+        verity,
         boot: BootImage {
             sha256: boot_sha256,
             size: boot_size,
@@ -234,6 +199,7 @@ fn run(args: &[String]) -> Result<(), String> {
             arch,
             min_version,
             root,
+            verity,
             boot,
             rest @ ..,
         ] => make(&MakeArgs {
@@ -242,6 +208,7 @@ fn run(args: &[String]) -> Result<(), String> {
             arch,
             min_version,
             root,
+            verity,
             boot,
             upgrades_from: flag(rest, "--upgrades-from").unwrap_or(FROM_ANY),
             expires_days: flag(rest, "--expires-days")
@@ -265,36 +232,5 @@ fn main() -> ExitCode {
             drop(writeln!(std::io::stderr(), "{words}"));
             ExitCode::FAILURE
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::find_partition;
-
-    /// A GPT with one partition, in the layout the UEFI specification gives.
-    fn gpt(label: &str) -> (Vec<u8>, Vec<u8>) {
-        let mut header = vec![0_u8; 512];
-        header[..8].copy_from_slice(b"EFI PART");
-        header[84..88].copy_from_slice(&128_u32.to_le_bytes());
-        let mut entry = vec![0_u8; 128];
-        entry[32..40].copy_from_slice(&100_u64.to_le_bytes());
-        entry[40..48].copy_from_slice(&199_u64.to_le_bytes());
-        for (index, unit) in label.encode_utf16().enumerate() {
-            entry[56 + index * 2..58 + index * 2].copy_from_slice(&unit.to_le_bytes());
-        }
-        (header, entry)
-    }
-
-    /// The partition is found by its whole name, so a similar one is never taken for it.
-    #[test]
-    fn a_partition_is_found_by_its_exact_name() {
-        let (header, entries) = gpt("medbrains_1.0.0");
-        assert_eq!(
-            find_partition(&header, &entries, "medbrains_1.0.0"),
-            Some((51_200, 51_200))
-        );
-        assert_eq!(find_partition(&header, &entries, "medbrains_1.0"), None);
-        assert_eq!(find_partition(&[0; 512], &entries, "medbrains_1.0.0"), None);
     }
 }

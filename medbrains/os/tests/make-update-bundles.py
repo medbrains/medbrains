@@ -5,7 +5,8 @@
 
 WORK is the build's OS_WORK: images are in WORK/out-ARCH and the test key is WORK/update-test.key. If a real image
 of NEXT_VERSION was built it is used. The rest are made from the first image's root and kernel, with a new
-boot file for each, because a boot file names its version's partition. Test only: uses the test key.
+hash tree and boot file for each, because a boot file carries its system's root hash. Test only: uses the
+test key.
 """
 import os
 import shutil
@@ -19,7 +20,8 @@ OTHER_ARCH = "x86-64" if ARCH == "arm64" else "arm64"
 IMAGES = os.path.join(WORK, f"out-{ARCH}")
 KEY = os.path.join(WORK, "update-test.key")
 BUILDER = "medbrains-os-builder:arm64"
-ROOT_FILE, BOOT_FILE, MANIFEST, SIGNATURES = "root.img.zst", "boot.efi", "manifest.json", "manifest.sig"
+ROOT_FILE, VERITY_FILE, BOOT_FILE = "root.img.zst", "verity.img.zst", "boot.efi"
+MANIFEST, SIGNATURES = "manifest.json", "manifest.sig"
 
 
 def run(*args):
@@ -27,10 +29,10 @@ def run(*args):
     subprocess.run(args, check=True)
 
 
-def make(name, version, min_version, root, boot, upgrades_from="0.0"):
+def make(name, version, min_version, root, verity, boot, upgrades_from="0.0"):
     """Makes and signs one bundle."""
     folder = os.path.join(OUT, name)
-    run(TOOL, "make", folder, version, ARCH, min_version, root, boot, "--upgrades-from", upgrades_from)
+    run(TOOL, "make", folder, version, ARCH, min_version, root, verity, boot, "--upgrades-from", upgrades_from)
     run(TOOL, "sign", folder, "test-1", KEY)
     return folder
 
@@ -92,6 +94,7 @@ def refused_bundles(next_bundle):
     edit_manifest(tampered, f'"version": "{NEXT}"', '"version": "9.9.9"', sign=False)
     flip_byte(clone(next_bundle, "tampered-root"), ROOT_FILE)
     flip_byte(clone(next_bundle, "tampered-boot"), BOOT_FILE)
+    flip_byte(clone(next_bundle, "tampered-verity"), VERITY_FILE)
     edit_manifest(clone(next_bundle, "wrong-arch"), f'"arch": "{ARCH}"', f'"arch": "{OTHER_ARCH}"')
     edit_manifest(clone(next_bundle, "too-big"), '"raw_size": 2147483648', '"raw_size": 3221225472')
     edit_manifest(clone(next_bundle, "older"), f'"version": "{NEXT}"', '"version": "1.0.0"')
@@ -133,6 +136,11 @@ debugfs -w -R 'rm /usr/lib/os-release' root.img
 debugfs -w -R 'write os-release /usr/lib/os-release' root.img
 debugfs -w -R 'sif /usr/lib/os-release mode 0100644' root.img
 e2fsck -fy root.img >/dev/null || [[ $? -le 2 ]]
+# A changed system needs a new tree, and its root hash goes on the boot file's command line.
+command -v veritysetup >/dev/null || { apt-get update -qq && apt-get install -qq -y cryptsetup-bin >/dev/null; }
+rm -f verity.img
+veritysetup format --root-hash-file=roothash root.img verity.img >/dev/null
+sed -i "s/roothash=[0-9a-f]*/roothash=$(cat roothash)/" cmdline
 if [[ "$arch" == arm64 ]]; then
     stub=/usr/lib/systemd/boot/efi/linuxaa64.efi.stub
 else
@@ -177,7 +185,7 @@ def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0"
     run(TOOL, "extract", base + ".raw", f"medbrains_{FIRST}", root)
     run("cp", "-c", base + ".vmlinuz", os.path.join(work, "vmlinuz"))
     run("cp", "-c", base + ".initrd", os.path.join(work, "initrd"))
-    line = pe_section(base + ".efi", ".cmdline").replace(f"medbrains_{FIRST}", f"medbrains_{version}")
+    line = pe_section(base + ".efi", ".cmdline")
     with open(os.path.join(work, "cmdline"), "w", encoding="utf8") as file:
         file.write(line)
     pcr_key = key or os.path.join(WORK, "throwaway-pcr.key")
@@ -186,7 +194,8 @@ def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0"
         run("openssl", "pkey", "-in", pcr_key, "-pubout", "-out", os.path.join(work, "pcr.pub"))
     run("docker", "run", "--rm", "--platform", "linux/arm64", "-v", f"{work}:/w", BUILDER,
         "bash", "-c", SCRIPT, "_", version, broken, ARCH)
-    folder = make(name, version, min_version, root, os.path.join(work, BOOT_FILE), upgrades_from)
+    folder = make(name, version, min_version, root, os.path.join(work, "verity.img"),
+                  os.path.join(work, BOOT_FILE), upgrades_from)
     shutil.rmtree(work)
     return folder
 
@@ -194,12 +203,25 @@ def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0"
 def usb_stick(next_bundle):
     """A FAT stick holding the good bundle, as a real one would."""
     image = os.path.join(OUT, "usb.img")
-    size = os.path.getsize(os.path.join(next_bundle, ROOT_FILE)) + os.path.getsize(os.path.join(next_bundle, BOOT_FILE))
+    size = sum(os.path.getsize(os.path.join(next_bundle, name)) for name in (ROOT_FILE, VERITY_FILE, BOOT_FILE))
     with open(image, "wb") as file:
         file.truncate(size + 128 * 1024 * 1024)
     script = ("mkfs.vfat -F 32 /o/usb.img >/dev/null; mmd -i /o/usb.img ::medbrains-update; "
               "mcopy -i /o/usb.img /o/next/* ::medbrains-update/")
     run("docker", "run", "--rm", "--platform", "linux/arm64", "-v", f"{OUT}:/o", BUILDER, "bash", "-c", script)
+
+
+def unsealed(next_bundle, after):
+    """A bundle signed and whole, whose system is not the one its boot file's root hash seals: a release
+    built wrong. The machine must never name such a slot."""
+    work = os.path.join(OUT, "derive-unsealed")
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
+    for name in (ROOT_FILE, VERITY_FILE):
+        run("zstd", "-q", "-d", os.path.join(next_bundle, name), "-o", os.path.join(work, name[:-4]))
+    make("unsealed", "1.0.6", "1.0.0", os.path.join(work, "root.img"), os.path.join(work, "verity.img"),
+         os.path.join(after, BOOT_FILE))
+    shutil.rmtree(work)
 
 
 def main():
@@ -209,10 +231,12 @@ def main():
         file.write(FIRST + "\n")
     real = os.path.join(IMAGES, f"medbrains-os_{NEXT}")
     if os.path.exists(real + ".raw"):
-        root = os.path.join(OUT, "next-root.img")
+        root, verity = os.path.join(OUT, "next-root.img"), os.path.join(OUT, "next-verity.img")
         run(TOOL, "extract", real + ".raw", f"medbrains_{NEXT}", root)
-        next_bundle = make("next", NEXT, "1.0.0", root, real + ".efi")
+        run(TOOL, "extract", real + ".raw", f"medbrains_{NEXT}_verity", verity)
+        next_bundle = make("next", NEXT, "1.0.0", root, verity, real + ".efi")
         os.remove(root)
+        os.remove(verity)
     else:
         next_bundle = derived("next", NEXT, "1.0.0")
     refused_bundles(next_bundle)
@@ -222,6 +246,7 @@ def main():
         bad_server = derived("bad-server", "1.0.4", "1.0.0", "server")
         derived("bad-init", "1.0.5", "1.0.0", "init")
         later_bundles(next_bundle, after, bad_server)
+        unsealed(next_bundle, after)
     else:
         other_key = os.path.join(OUT, "other-pcr.key")
         run("openssl", "genrsa", "-out", other_key, "2048")

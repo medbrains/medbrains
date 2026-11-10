@@ -1,9 +1,7 @@
 //! The two system partitions and the boot partition, read and changed with standard tools only.
 
-use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufReader, Read, Write};
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -12,7 +10,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::child::{self, USUAL_LIMIT};
-use crate::state;
+use crate::{state, verity};
 
 /// The version in a slot's partition name.
 const LABEL_PREFIX: &str = "medbrains_";
@@ -24,8 +22,6 @@ pub const ESP: &str = "/boot";
 pub const BOOT_DIR: &str = "/boot/EFI/Linux";
 /// Where a boot file waits for its update to be applied. The loader never looks here.
 pub const STAGED_BOOT_DIR: &str = "/boot/EFI/MedBrains";
-/// What systemd gives `/etc/machine-id`.
-const MACHINE_ID_MODE: u32 = 0o444;
 const WRITE_CHUNK: usize = 1024 * 1024;
 const PARTITION_LIMIT: Duration = Duration::from_secs(30);
 const MOUNT_LIMIT: Duration = Duration::from_secs(60);
@@ -39,6 +35,8 @@ pub struct Part {
     pub number: String,
     /// Its partition name.
     pub label: String,
+    /// Its partition UUID, which is how a boot file finds it.
+    pub uuid: String,
     /// Its size.
     pub bytes: u64,
 }
@@ -50,7 +48,7 @@ impl Part {
     }
 }
 
-/// The running system's partition and the other one.
+/// The running system's partition and the other slot: its system partition and its hash tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Slots {
     /// The disk, such as `/dev/vda`.
@@ -59,6 +57,8 @@ pub struct Slots {
     pub active: Part,
     /// What an update may overwrite.
     pub inactive: Part,
+    /// The hash tree that seals `inactive`.
+    pub inactive_hash: Part,
 }
 
 /// One entry the boot loader can see.
@@ -79,6 +79,11 @@ pub fn slot_label(version: &str) -> String {
     format!("{LABEL_PREFIX}{version}")
 }
 
+/// The name a version's hash tree partition carries.
+pub fn hash_label(version: &str) -> String {
+    format!("{LABEL_PREFIX}{version}_verity")
+}
+
 /// A helper's output as text, or a fault that says what failed.
 pub fn run_text(program: &str, args: &[&str], limit: Duration) -> Result<String, String> {
     let done = child::run(program, args, limit)
@@ -90,9 +95,17 @@ pub fn run_text(program: &str, args: &[&str], limit: Duration) -> Result<String,
     Ok(String::from_utf8_lossy(&done.stdout).trim().to_owned())
 }
 
-/// Finds the two system partitions from `lsblk --json` text. Anything but exactly one partition of
-/// the running system's type besides the running one is a fault: guessing could overwrite data.
-pub fn parse_slots(lsblk: &str, active_path: &str, disk: &str) -> Result<Slots, String> {
+/// Finds the slots from `lsblk --json` text.
+///
+/// The running system and its tree are found by the UUIDs its root hash
+/// gives them, and for each exactly one other partition of the same type. Anything else is a fault:
+/// guessing could overwrite data.
+pub fn parse_slots(
+    lsblk: &str,
+    root_uuid: &str,
+    hash_uuid: &str,
+    disk: &str,
+) -> Result<Slots, String> {
     let parsed: Value = serde_json::from_str(lsblk).map_err(|e| e.to_string())?;
     let partitions = parsed
         .get("blockdevices")
@@ -103,27 +116,34 @@ pub fn parse_slots(lsblk: &str, active_path: &str, disk: &str) -> Result<Slots, 
         path: text(p, "path"),
         number: p.get("partn").map_or_else(String::new, value_text),
         label: text(p, "partlabel"),
+        uuid: text(p, "partuuid"),
         bytes: p.get("size").and_then(Value::as_u64).unwrap_or(0),
     };
-    let active = partitions
-        .iter()
-        .find(|p| text(p, "path") == active_path)
-        .ok_or_else(|| format!("The running system's partition {active_path} was not found."))?;
-    let kind = text(active, "parttype");
-    let others: Vec<&Value> = partitions
-        .iter()
-        .filter(|p| text(p, "parttype") == kind && text(p, "path") != active_path)
-        .collect();
-    let [other] = others.as_slice() else {
-        return Err(format!(
-            "Expected one other system partition and found {}. Nothing was changed.",
-            others.len()
-        ));
+    let other = |uuid: &str, what: &str| -> Result<(Part, Part), String> {
+        let running = partitions
+            .iter()
+            .find(|p| text(p, "partuuid") == uuid)
+            .ok_or_else(|| format!("The running system's {what} ({uuid}) was not found."))?;
+        let kind = text(running, "parttype");
+        let others: Vec<&Value> = partitions
+            .iter()
+            .filter(|p| text(p, "parttype") == kind && text(p, "partuuid") != uuid)
+            .collect();
+        let [found] = others.as_slice() else {
+            return Err(format!(
+                "Expected one other {what} and found {}. Nothing was changed.",
+                others.len()
+            ));
+        };
+        Ok((part(running), part(found)))
     };
+    let (active, inactive) = other(root_uuid, "system partition")?;
+    let (_, inactive_hash) = other(hash_uuid, "hash partition")?;
     Ok(Slots {
         disk: disk.to_owned(),
-        active: part(active),
-        inactive: part(other),
+        active,
+        inactive,
+        inactive_hash,
     })
 }
 
@@ -134,10 +154,14 @@ fn value_text(value: &Value) -> String {
         .map_or_else(|| value.to_string(), str::to_owned)
 }
 
-/// Reads the two system partitions of the running machine.
+/// Reads the slots of the running machine, from the root hash its boot file started it with.
 pub fn read_slots() -> Result<Slots, String> {
-    let active = run_text("findmnt", &["-no", "SOURCE", "/"], USUAL_LIMIT)?;
-    let parent = run_text("lsblk", &["-ndo", "PKNAME", &active], USUAL_LIMIT)?;
+    let cmdline = fs::read_to_string("/proc/cmdline").map_err(|e| e.to_string())?;
+    let (root_uuid, hash_uuid) = verity::roothash(&cmdline)
+        .and_then(verity::partition_uuids)
+        .ok_or_else(|| "This system was not started from a sealed system partition.".to_owned())?;
+    let running = format!("/dev/disk/by-partuuid/{root_uuid}");
+    let parent = run_text("lsblk", &["-ndo", "PKNAME", &running], USUAL_LIMIT)?;
     let disk = format!("/dev/{parent}");
     let listing = run_text(
         "lsblk",
@@ -145,13 +169,13 @@ pub fn read_slots() -> Result<Slots, String> {
             "--json",
             "--bytes",
             "-o",
-            "PATH,PARTN,PARTLABEL,PARTTYPE,SIZE,TYPE",
+            "PATH,PARTN,PARTLABEL,PARTUUID,PARTTYPE,SIZE,TYPE",
             "--list",
             &disk,
         ],
         USUAL_LIMIT,
     )?;
-    parse_slots(&listing, &active, &disk)
+    parse_slots(&listing, &root_uuid, &hash_uuid, &disk)
 }
 
 /// Parses `bootctl list --json=short`; entries without a boot file, such as "reboot to firmware", go.
@@ -186,15 +210,15 @@ pub fn boot_entries() -> Result<Vec<BootEntry>, String> {
 }
 
 /// Renames a partition, then waits until the system has seen it.
-pub fn set_label(slots: &Slots, label: &str) -> Result<(), String> {
+pub fn set_label(disk: &str, part: &Part, label: &str) -> Result<(), String> {
     run_text(
         "sfdisk",
         &[
             "--no-reread",
             "--no-tell-kernel",
             "--part-label",
-            &slots.disk,
-            &slots.inactive.number,
+            disk,
+            &part.number,
             label,
         ],
         PARTITION_LIMIT,
@@ -203,7 +227,7 @@ pub fn set_label(slots: &Slots, label: &str) -> Result<(), String> {
     // at stake: the next start reads the disk, so a failure here is not worth stopping for.
     drop(child::run(
         "udevadm",
-        &["trigger", "--settle", &slots.inactive.path],
+        &["trigger", "--settle", &part.path],
         PARTITION_LIMIT,
     ));
     Ok(())
@@ -332,28 +356,6 @@ pub fn write_slot(
     Ok(())
 }
 
-/// Names whose numeric id differs between two `passwd` or `group` files.
-pub fn id_conflicts(current: &str, new: &str) -> Vec<String> {
-    let ids = |text: &'_ str| -> HashMap<String, String> {
-        text.lines()
-            .filter_map(|line| {
-                let mut fields = line.split(':');
-                let name = fields.next()?;
-                let id = fields.nth(1)?;
-                Some((name.to_owned(), id.to_owned()))
-            })
-            .collect()
-    };
-    let (ours, theirs) = (ids(current), ids(new));
-    let mut conflicts: Vec<String> = ours
-        .iter()
-        .filter(|(name, id)| theirs.get(*name).is_some_and(|other| other != *id))
-        .map(|(name, _)| name.clone())
-        .collect();
-    conflicts.sort_unstable();
-    conflicts
-}
-
 /// Mounts `partition` at `at` for the length of `work`, which always unmounts again.
 pub fn with_mounted<T>(
     partition: &str,
@@ -369,40 +371,6 @@ pub fn with_mounted<T>(
     let value = result?;
     unmounted?;
     Ok(value)
-}
-
-/// Checks the new system agrees about who owns the data disk's files, then gives it this machine's
-/// identity: a new machine id would change the network's view of it and start a new journal.
-/// A partition that gets this far is not yet named, so a refusal here leaves it unbootable.
-pub fn adopt_identity(partition: &str, at: &Path) -> Result<(), String> {
-    with_mounted(partition, at, "rw,noexec,nosuid,nodev", || {
-        for file in ["passwd", "group"] {
-            let ours = fs::read_to_string(format!("/etc/{file}")).map_err(|e| e.to_string())?;
-            let theirs =
-                fs::read_to_string(at.join("etc").join(file)).map_err(|e| e.to_string())?;
-            let conflicts = id_conflicts(&ours, &theirs);
-            if !conflicts.is_empty() {
-                return Err(format!(
-                    "This update would change who owns the data disk's files ({}). It was not installed.",
-                    conflicts.join(", ")
-                ));
-            }
-        }
-        let id = fs::read("/etc/machine-id").map_err(|e| e.to_string())?;
-        write_machine_id(&at.join("etc/machine-id"), &id).map_err(|e| e.to_string())
-    })
-}
-
-/// Writes a machine id in one step, readable by everyone whatever this program's umask. Found the hard
-/// way: at 0600, networkd's DHCP client gets "Permission denied" and the machine never gets an address.
-fn write_machine_id(path: &Path, id: &[u8]) -> std::io::Result<()> {
-    let temporary = path.with_extension("tmp");
-    let mut file = File::create(&temporary)?;
-    file.write_all(id)?;
-    file.set_permissions(fs::Permissions::from_mode(MACHINE_ID_MODE))?;
-    file.sync_all()?;
-    fs::rename(&temporary, path)?;
-    state::sync_parent(path)
 }
 
 /// A boot file's name with start counting: `name+left-done.efi`, replacing any counts it had. A `+`

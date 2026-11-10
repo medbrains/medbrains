@@ -7742,6 +7742,7 @@ dependencies = [
 name = "medbrains-os-test"
 version = "1.0.0"
 dependencies = [
+ "medbrains-os-update",
  "serde_json",
 ]
 

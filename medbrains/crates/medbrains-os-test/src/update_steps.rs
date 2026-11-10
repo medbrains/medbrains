@@ -8,7 +8,7 @@ use crate::updates::{
     var_snapshot, wait_status, wait_version,
 };
 use crate::vm::{self, Vm};
-use crate::{update_channel, update_sealed};
+use crate::{update_channel, update_sealed, update_verity};
 
 /// Bundle folders, as `make-update-bundles.py` names them. `NEXT` is a real second image build.
 pub(crate) const NEXT: (&str, &str) = ("next", "1.0.2");
@@ -20,7 +20,8 @@ pub(crate) const RESTART_LIMIT: Duration = Duration::from_secs(300);
 /// Long enough for a kernel, an initrd and the machine's own watchdogs to fail three times.
 pub(crate) const ROLLBACK_LIMIT: Duration = Duration::from_secs(1500);
 const COMMAND_LIMIT: Duration = Duration::from_secs(900);
-pub(crate) const SLOT: &str = "$(lsblk -nrpo PATH,PARTTYPE /dev/vda | grep -v \"$(findmnt -no SOURCE /)\" | grep \"$(lsblk -no PARTTYPE \"$(findmnt -no SOURCE /)\")\" | cut -d' ' -f1)";
+/// The other slot's system partition: of the running one's type, and not the one under `/dev/mapper/root`.
+pub(crate) const SLOT: &str = "$(a=$(veritysetup status root | awk '/data device:/ {print $3}'); t=$(lsblk -dno PARTTYPE $a); lsblk -nrpo PATH,PARTTYPE /dev/vda | awk -v a=$a -v t=$t '$2 == t && $1 != a {print $1}')";
 /// A slot, the boot partition and the record: changing any is writing.
 pub(crate) const FINGERPRINT: &str = "lsblk -nro PARTLABEL /dev/vda; ls -1 /boot/EFI/Linux; ls -1 /boot/EFI/MedBrains 2>/dev/null; head -c 16M SLOT | sha256sum; ls /var/lib/medbrains/update/staging 2>/dev/null";
 
@@ -71,6 +72,14 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
         (
             "a new version that cannot even start rolls back by itself",
             failed_start,
+        ),
+        (
+            "a system its boot file's seal does not match is never named",
+            update_verity::unsealed_never_named,
+        ),
+        (
+            "a slot changed after it was installed does not start, and rolls back",
+            update_verity::changed_slot_rolls_back,
         ),
         (
             "a power cut during install leaves a machine that boots",
@@ -184,6 +193,7 @@ fn refusals(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         ("tampered-manifest", "not signed by a key"),
         ("tampered-root", "changed after it was signed"),
         ("tampered-boot", "changed after it was signed"),
+        ("tampered-verity", "changed after it was signed"),
         ("wrong-arch", "machines; this one is"),
         ("older", "older than"),
         ("too-big", "does not fit"),
@@ -416,18 +426,27 @@ fn power_cuts_installing(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         "test ! -e /var/lib/medbrains/update/staging",
         RESTART_LIMIT,
     )?;
-    let stages: [(&str, &str, u32, bool); 3] = [
+    // sfdisk runs four times to empty a slot (name, UUID, tree UUID, tree name) and four to name it
+    // (tree UUID, tree name, UUID, name): `steps.rs`.
+    let stages: [(&str, &str, u32, bool); 5] = [
         ("before the slot is emptied", "/usr/sbin/sfdisk", 1, false),
+        ("half emptied", "/usr/sbin/sfdisk", 3, false),
         (
-            "after the image is written, before it is named",
+            "after the image and tree are written and verified, before they are named",
             "/usr/sbin/sfdisk",
-            2,
+            5,
+            false,
+        ),
+        (
+            "with the tree named, the system not",
+            "/usr/sbin/sfdisk",
+            7,
             false,
         ),
         (
             "after it is named, before the boot file",
             "/usr/sbin/sfdisk",
-            2,
+            8,
             true,
         ),
     ];

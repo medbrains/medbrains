@@ -2,47 +2,60 @@
 
 use std::path::Path;
 
-use super::{counted_name, hash_reader, id_conflicts, parse_entries, parse_slots, slot_label};
+use super::{counted_name, hash_reader, parse_entries, parse_slots, slot_label};
 
 const ROOT: &str = "b921b045-1df0-41c3-af44-4c6f280d3fae";
+const HASH: &str = "df3300ce-d69f-4c92-978c-9bfb0f38d820";
 const VAR: &str = "4d21b016-b534-45c2-a9fb-5c16e091fd2d";
 
-/// `lsblk --json` for a disk with `count` system partitions.
+/// The UUID of slot `n`'s system partition, or with `kind` 1 its hash tree.
+fn uuid(n: usize, kind: usize) -> String {
+    format!("0000000{kind}-0000-0000-0000-00000000000{n}")
+}
+
+/// `lsblk --json` for a disk with `count` slots, each a system partition and its hash tree.
 fn listing(count: usize) -> String {
     let mut rows = vec![format!(
-        r#"{{"path":"/dev/vda","partn":null,"partlabel":null,"parttype":null,"size":34359738368,"type":"disk"}},
-           {{"path":"/dev/vda4","partn":4,"partlabel":"medbrains-data","parttype":"{VAR}","size":29000000000,"type":"part"}}"#
+        r#"{{"path":"/dev/vda","partn":null,"partlabel":null,"partuuid":null,"parttype":null,"size":34359738368,"type":"disk"}},
+           {{"path":"/dev/vda9","partn":9,"partlabel":"medbrains-data","partuuid":"{}","parttype":"{VAR}","size":29000000000,"type":"part"}}"#,
+        uuid(9, 2)
     )];
     for n in 0..count {
-        rows.push(format!(
-            r#"{{"path":"/dev/vda{slot}","partn":{slot},"partlabel":"medbrains_1.0.{n}","parttype":"{ROOT}","size":2147483648,"type":"part"}}"#,
-            slot = n + 2
-        ));
+        for (kind, (parttype, size)) in [(ROOT, 2_147_483_648_u64), (HASH, 33_554_432)]
+            .iter()
+            .enumerate()
+        {
+            rows.push(format!(
+                r#"{{"path":"/dev/vda{at}","partn":{at},"partlabel":"medbrains_1.0.{n}","partuuid":"{}","parttype":"{parttype}","size":{size},"type":"part"}}"#,
+                uuid(n, kind),
+                at = 2 + n * 2 + kind
+            ));
+        }
     }
     format!(r#"{{"blockdevices":[{}]}}"#, rows.join(","))
 }
 
-/// The other partition is the one of the same type that is not running, never the data disk.
+/// The other slot is the pair of partitions the running root hash does not name, never the data disk.
 #[test]
 fn the_other_slot_is_found_and_the_data_disk_never_is() {
-    let found = parse_slots(&listing(2), "/dev/vda3", "/dev/vda");
-    let slots = found.as_ref().map(|s| (&s.active.path, &s.inactive.path));
-    assert_eq!(
-        slots,
-        Ok((&"/dev/vda3".to_owned(), &"/dev/vda2".to_owned()))
-    );
+    let found = parse_slots(&listing(2), &uuid(1, 0), &uuid(1, 1), "/dev/vda");
+    let paths = found
+        .as_ref()
+        .map(|s| (&*s.active.path, &*s.inactive.path, &*s.inactive_hash.path));
+    assert_eq!(paths, Ok(("/dev/vda4", "/dev/vda2", "/dev/vda3")));
     let inactive = found.as_ref().map(|s| s.inactive.clone());
     assert_eq!(inactive.as_ref().map(|p| p.version()), Ok(Some("1.0.0")));
     assert_eq!(inactive.as_ref().map(|p| p.number.as_str()), Ok("2"));
 }
 
-/// One slot, three slots, or an unknown running partition: nothing is safe to overwrite.
+/// One slot, three slots, or a root hash that names nothing on this disk: nothing is safe to overwrite.
 #[test]
 fn an_unexpected_layout_is_a_fault() {
-    assert!(parse_slots(&listing(1), "/dev/vda2", "/dev/vda").is_err());
-    assert!(parse_slots(&listing(3), "/dev/vda2", "/dev/vda").is_err());
-    assert!(parse_slots(&listing(2), "/dev/vda9", "/dev/vda").is_err());
-    assert!(parse_slots("not json", "/dev/vda2", "/dev/vda").is_err());
+    assert!(parse_slots(&listing(1), &uuid(0, 0), &uuid(0, 1), "/dev/vda").is_err());
+    assert!(parse_slots(&listing(3), &uuid(0, 0), &uuid(0, 1), "/dev/vda").is_err());
+    assert!(parse_slots(&listing(2), &uuid(7, 0), &uuid(0, 1), "/dev/vda").is_err());
+    assert!(parse_slots(&listing(2), &uuid(0, 0), &uuid(7, 1), "/dev/vda").is_err());
+    assert!(parse_slots("not json", &uuid(0, 0), &uuid(0, 1), "/dev/vda").is_err());
 }
 
 /// Only entries with a boot file count, and a counted one reports its starts left.
@@ -58,18 +71,6 @@ fn boot_entries_are_read_from_bootctl() {
     assert!(entries[0].selected);
     assert_eq!(entries[1].tries_left, None);
     assert!(parse_entries("{}").is_err());
-}
-
-/// A shifted id would hand the database's files to another user: the pingora branch adds a user,
-/// and the kiosk's number moved by one when this was dynamic.
-#[test]
-fn a_changed_id_is_named_and_a_new_user_is_fine() {
-    let ours = "root:x:0:0::/root:/bin/sh\nkiosk:x:989:989::/var/lib/kiosk:/bin/false\n";
-    let same = "root:x:0:0::/root:/bin/sh\nkiosk:x:989:989::/var/lib/kiosk:/bin/false\nfront:x:988:988::/:/bin/false\n";
-    let moved = "root:x:0:0::/root:/bin/sh\nkiosk:x:988:988::/var/lib/kiosk:/bin/false\n";
-    assert!(id_conflicts(ours, same).is_empty());
-    assert_eq!(id_conflicts(ours, moved), ["kiosk"]);
-    assert!(id_conflicts("root:x:0:0\n", "other:x:5:5\n").is_empty());
 }
 
 /// Counted names keep the base name, and a `+` inside a kernel version stays part of it.
@@ -88,19 +89,6 @@ fn counted_names_replace_only_real_counts() {
         name("/b/medbrains-os-6.12.115+deb13.1-arm64.efi", 0, 0).as_deref(),
         Some("medbrains-os-6.12.115+deb13.1-arm64+0-0.efi")
     );
-}
-
-/// The unit runs with umask 0077, and a private machine id cuts the machine off the network.
-#[test]
-fn a_machine_id_is_readable_by_everyone() {
-    use std::os::unix::fs::PermissionsExt;
-    let dir = std::env::temp_dir().join(format!("mb-update-id-{}", std::process::id()));
-    assert!(std::fs::create_dir_all(&dir).is_ok());
-    let path = dir.join("machine-id");
-    assert!(super::write_machine_id(&path, b"abc\n").is_ok());
-    let mode = std::fs::metadata(&path).map(|meta| meta.permissions().mode() & 0o777);
-    assert_eq!(mode.ok(), Some(0o444));
-    assert!(std::fs::remove_dir_all(&dir).is_ok());
 }
 
 /// Hashing stops near the limit, so a huge file can't be read without end.

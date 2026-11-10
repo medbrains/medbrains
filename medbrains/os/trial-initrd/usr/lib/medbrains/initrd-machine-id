@@ -1,0 +1,16 @@
+#!/bin/bash
+# In the boot file's initrd: gives the system this machine's own id. The root is read-only (OS-VERITY.md),
+# so the id lives as the UUID of the data partition, which disk-setup names after the id of the first
+# start. A new id would change the machine's DHCP identity and start a new journal folder. Only the boot
+# disk counts, so a disk from another machine plugged in beside it can't lend its id.
+set -euo pipefail
+hash="$(sed -n 's/.*\<roothash=\([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)"
+[[ -n "$hash" ]] || exit 0
+root="${hash:0:8}-${hash:8:4}-${hash:12:4}-${hash:16:4}-${hash:20:12}"
+disk="$(lsblk -ndo PKNAME "/dev/disk/by-partuuid/$root")"
+id="$(lsblk -nro PARTLABEL,PARTUUID "/dev/$disk" | awk '$1 == "medbrains-data" { gsub("-", "", $2); print $2; exit }')"
+# First start: no data partition yet, and systemd makes an id in memory.
+[[ "$id" =~ ^[0-9a-f]{32}$ ]] || exit 0
+umask 0222
+echo "$id" > /run/machine-id
+mount --bind /run/machine-id /sysroot/etc/machine-id

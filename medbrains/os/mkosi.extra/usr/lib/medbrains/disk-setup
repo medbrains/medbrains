@@ -70,6 +70,18 @@ TEXT
     exit 1
 }
 
+# Prints a copy of the data partition's definition that gives it this boot's machine id as its UUID. The
+# root is read-only, so that UUID is where the initrd finds the id on every later start (OS-VERITY.md).
+definitions_named_after_this_machine() {
+    local id copy=/run/medbrains-repart
+    id="$(cat /etc/machine-id)"
+    [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo "MedBrains: this machine has no usable id ($id)." >&2; exit 1; }
+    rm -rf "$copy"
+    cp -R "$DEFINITIONS/$1" "$copy"
+    echo "UUID=${id:0:8}-${id:8:4}-${id:12:4}-${id:16:4}-${id:20:12}" >> "$copy/30-data.conf"
+    echo "$copy"
+}
+
 # Creates the data partition unless this disk already has one. systemd-repart formats it and writes the
 # partition table last, so a power cut here leaves a disk that simply starts over.
 prepare() {
@@ -86,7 +98,7 @@ prepare() {
     clear_screen
     echo 'MedBrains: preparing the data disk. This takes a moment.'
     set_seal_args
-    if ! systemd-repart --dry-run=no --definitions="$DEFINITIONS/$definitions" "${SEAL_ARGS[@]}"; then
+    if ! systemd-repart --dry-run=no --definitions="$(definitions_named_after_this_machine "$definitions")" "${SEAL_ARGS[@]}"; then
         echo
         echo 'MedBrains could not prepare the data disk, so nothing was stored.'
         echo 'Call your system administrator. The reason is shown above.'

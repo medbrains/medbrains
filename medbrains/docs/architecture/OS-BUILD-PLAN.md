@@ -49,7 +49,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | **disk done** (LUKS2 sealed to TPM with signed boot policy, recovery key, optional PIN, editor off, `OS-KEYS.md`), proven on x86-64 swtpm only; real TPM untested. Secure Boot, verity and a release signing key **open**: until then, without a PIN, someone who steals the machine and changes its system partition gets the data |
+| T1 | Encrypted disk, Secure Boot, boot editor locked, sealed system partition | Copied disk will not open; a changed system partition will not start | **disk done** (LUKS2 sealed to TPM with signed boot policy, recovery key, optional PIN, editor off, `OS-KEYS.md`), proven on x86-64 swtpm only; real TPM untested. **verity done** (`OS-VERITY.md`): read-only root sealed by dm-verity, root hash in the signed boot file, a byte changed offline refuses to start, tested on arm64 QEMU. **Open:** Secure Boot and a release signing key; until Secure Boot, a loader entry added to the boot partition can hand our boot file another root hash (PCR 12 is not sealed), and a new boot file changes PCR 4, so an update's first start asks for the recovery key |
 | T1.1 | Harden Linux with what it has: block unused kernel modules, kernel lockdown, safer sysctls, no kexec, AppArmor profiles, smaller package set, each tested against the app | Known-bad module refuses to load; checked by a scan on each build | next |
 | T1.2 | Daily flaw check of the image's own parts list; rebuild on a Debian security fix | A new Debian advisory opens a tracked item within a day | next, with U1.1 |
 | T2 | Machine keys, hospital root key, key rotation, a screen to replace the recovery key | Node certificate traces to the root | later; the disk recovery key itself landed with T1. Gaps listed in `OS-KEYS.md` |
@@ -83,7 +83,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | doing: built and passes `make os-test-updates` on QEMU; real hardware blocked (F4), and a release with a migration needs U1.3 first |
+| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | doing: slots are now sealed (system + hash tree, format 2 bundles, verified before naming, `OS-VERITY.md`); built and passes `make os-test-updates` on QEMU; real hardware blocked (F4), and a release with a migration needs U1.3 first |
 | U1.1 | Release channel and signed bundles, online and USB | Unsigned bundle refused | doing: built and tested with a test key; the release key is designed and not made (X2), and no channel is published |
 | U1.5 | Compare with TUF's attacks: old update served again, updates held back, mixed releases, stolen key; adopt TUF or close each gap and say how (owner 2026-11-07) | Each attack refused by a test, or a written limit (`OS-UPDATES.md`) | doing: closed without TUF metadata (expiry, one manifest per release, threshold); fast-forward with one stolen key is a written limit until threshold 2 |
 | U1.6 | A rolled-back version stays refused by automatic updates until a newer one (owner 2026-11-07) | A failed update rolls back and the timer does not reinstall it | doing: built, test `not_retried` |
@@ -98,7 +98,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | U2 | Backup, restore, recovery | Restore on a new machine from backup | next |
 | U2.1 | Scheduled jobs as systemd timers, listed in Control with last result | A failed nightly backup shows on screen | next |
 | U2.2 | Backups encrypted, to a second disk or another machine; old copies cannot be overwritten by the running system | Ransomware test: wiping the data leaves a restorable copy | next |
-| U2.3 | Read-only system: only `/var` is writable (data, backups, logs, settings); network settings move there | A write to `/usr` or `/etc` fails; settings survive an update | next, with T1 |
+| U2.3 | Read-only system: only `/var` is writable (data, backups, logs, settings); network settings move there | A write to `/usr` or `/etc` fails; settings survive an update | done with T1 verity: root mounted read-only on dm-verity, machine id kept on the data partition, every write moved (`OS-VERITY.md`); check `the system partition is sealed and read-only` |
 | U2.4 | Check all stored data on a schedule (owner 2026-11-05): read every database page against its checksum with `pg_amcheck`, verify backups the same way, show the last result in health and alert on failure, at a pace that does not wear the disk | A block corrupted on purpose is found and shown on screen before anyone reads it | next: in first stable |
 | U3 | USB installer | Blank PC installed from USB, no internet | later |
 

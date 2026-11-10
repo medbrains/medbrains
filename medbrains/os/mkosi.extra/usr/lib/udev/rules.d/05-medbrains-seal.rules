@@ -1,0 +1,3 @@
+# dm-verity reports each block that fails its check as a change event on the device (OS-VERITY.md).
+# Early, before the device-mapper rules, which skip change events they did not ask for.
+ACTION=="change", SUBSYSTEM=="block", KERNEL=="dm-*", ENV{DM_VERITY_ERR_BLOCK_NR}=="?*", RUN+="/usr/bin/systemctl --no-block start medbrains-seal.service"

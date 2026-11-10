@@ -17,6 +17,8 @@ pub const MANIFEST_FILE: &str = "manifest.json";
 pub const SIGNATURE_FILE: &str = "manifest.sig";
 /// The compressed system image. Names are fixed here, so a manifest can never name a path.
 pub const ROOT_FILE: &str = "root.img.zst";
+/// The compressed hash tree that seals the system image (`OS-VERITY.md`).
+pub const VERITY_FILE: &str = "verity.img.zst";
 /// The boot file.
 pub const BOOT_FILE: &str = "boot.efi";
 /// The most a manifest or signature file may be: they are read into memory unverified.
@@ -27,7 +29,8 @@ pub const DEBUG_IMAGE_MARK: &str = "THIS-IS-A-DEBUG-IMAGE";
 pub const DATA_RESERVE: u64 = 1024 * 1024 * 1024;
 /// Room kept free in the boot partition beyond the new boot file.
 pub const ESP_RESERVE: u64 = 4 * 1024 * 1024;
-const FORMAT: u32 = 1;
+/// 2: the system image comes with its hash tree, for a sealed root (`OS-VERITY.md`).
+const FORMAT: u32 = 2;
 const MAX_SIGNATURES: usize = 4;
 const TEST_KEY_PREFIX: &str = "test-";
 /// How many different trusted keys must sign, as one number in this file beside the keys. Absent means one.
@@ -35,7 +38,7 @@ const THRESHOLD_FILE: &str = "threshold";
 const KEY_SUFFIX: &str = ".pub";
 const ED25519_PUBLIC_LEN: usize = 32;
 
-/// The compressed system image.
+/// A compressed partition image: the system, or its hash tree.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RootImage {
@@ -84,6 +87,8 @@ pub struct Manifest {
     pub summary: String,
     /// The system image.
     pub root: RootImage,
+    /// Its hash tree. The boot file's command line carries the tree's root hash.
+    pub verity: RootImage,
     /// The boot file.
     pub boot: BootImage,
 }
@@ -208,6 +213,8 @@ pub struct Facts {
     pub retry: bool,
     /// Size of the inactive system partition.
     pub slot_bytes: u64,
+    /// Size of the inactive slot's hash tree partition.
+    pub hash_bytes: u64,
     /// Free bytes on the data disk.
     pub data_free: u64,
     /// Free bytes in the boot partition, counting the old boot file this update would replace.
@@ -293,10 +300,17 @@ fn version_refusal(
 
 /// The reason there is not enough room for `manifest`, or `None`.
 fn space_refusal(manifest: &Manifest, facts: &Facts) -> Option<String> {
-    if manifest.root.raw_size == 0 || manifest.root.raw_size > facts.slot_bytes {
+    let fits = |raw_size: u64, room: u64| raw_size > 0 && raw_size <= room;
+    if !fits(manifest.root.raw_size, facts.slot_bytes)
+        || !fits(manifest.verity.raw_size, facts.hash_bytes)
+    {
         return Some("This update does not fit this machine's system partition.".to_owned());
     }
-    let staged = manifest.root.size.saturating_add(manifest.boot.size);
+    let staged = manifest
+        .root
+        .size
+        .saturating_add(manifest.verity.size)
+        .saturating_add(manifest.boot.size);
     if facts.data_free < staged.saturating_add(DATA_RESERVE) {
         return Some(
             "There is not enough free space on the data disk for this update. Nothing was changed."

@@ -3,14 +3,16 @@
 //!     cargo run -p medbrains-os-test -- <image.raw> [disk]
 //!     cargo run -p medbrains-os-test -- <image.raw> updates <bundles folder>
 //!
-//! `disk` runs only the data disk scenarios, `pin` only the PIN ones. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
+//! `disk` runs only the data disk scenarios, `pin` only the PIN ones, `tamper` only the changed system partition. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
 mod disk;
 mod front;
+mod tamper;
 mod update_channel;
 mod update_sealed;
 mod update_steps;
+mod update_verity;
 mod updates;
 mod vm;
 
@@ -78,6 +80,30 @@ fn within(what: &str, used: u64, limit: u64) -> Result<(), String> {
 fn no_failed_services(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let failed = vm.run("systemctl --failed --no-legend --plain")?;
     ensure(failed.is_empty(), failed)
+}
+
+/// The root is the sealed, read-only system: dm-verity under `/`, writes refused, a remount refused.
+fn system_is_sealed_and_read_only(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let root = vm.run("findmnt -no SOURCE,OPTIONS /")?;
+    ensure(root.starts_with("/dev/mapper/root ro"), root)?;
+    let status = vm.run("veritysetup status root | sed -n 's/^ *status: *//p'")?;
+    ensure(status.contains("verified"), format!("verity says {status}"))?;
+    for path in ["/usr/os-test", "/etc/os-test"] {
+        let written = vm.run(&format!("touch {path} 2>/dev/null; echo $?"))?;
+        ensure(written != "0", format!("{path} could be written"))?;
+    }
+    let remounted = vm.run("mount -o remount,rw / 2>/dev/null; echo $?")?;
+    ensure(remounted != "0", "the root could be remounted writable")
+}
+
+/// The machine id is kept on the data partition, as its UUID, so it survives every start and update.
+fn machine_id_is_kept(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let id = vm.run("cat /etc/machine-id")?;
+    let kept = vm.run("lsblk -nro PARTLABEL,PARTUUID /dev/vda | awk '$1 == \"medbrains-data\" { gsub(\"-\", \"\", $2); print $2 }'")?;
+    ensure(
+        id.len() == 32 && id == kept,
+        format!("machine id {id}, kept {kept}"),
+    )
 }
 
 /// The app answers through the front proxy.
@@ -361,6 +387,14 @@ fn database_memory_follows_the_machine(vm: &mut Vm, _: &Value) -> Result<(), Str
 fn checks() -> Vec<Check> {
     vec![
         ("no service has failed", no_failed_services),
+        (
+            "the system partition is sealed and read-only",
+            system_is_sealed_and_read_only,
+        ),
+        (
+            "the machine id is kept on the data disk",
+            machine_id_is_kept,
+        ),
         ("the app answers through the front proxy", app_answers),
         ("plain HTTP only redirects", http_only_redirects),
         (
@@ -532,7 +566,25 @@ fn run_suite(image: &Path) -> Result<usize, String> {
     let sealed = disk::run_sealed_disk(&mut vm, image)?;
     // One machine at a time: this one goes before the next starts.
     drop(vm);
-    Ok(failed + sealed + disk::run_without_sealed_disk(image))
+    Ok(failed + sealed + disk::run_without_sealed_disk(image) + run_tamper(image))
+}
+
+/// The changed-system scenario, on a machine of its own; 1 if it failed.
+fn run_tamper(image: &Path) -> usize {
+    let started = Instant::now();
+    let result = tamper::changed_system_does_not_start(image);
+    let line = match &result {
+        Ok(()) => format!(
+            "pass  a system partition changed offline does not start ({:.1}s)\n",
+            started.elapsed().as_secs_f32()
+        ),
+        Err(why) => format!("FAIL  a system partition changed offline does not start: {why}\n"),
+    };
+    drop(std::io::Write::write_all(
+        &mut std::io::stderr(),
+        line.as_bytes(),
+    ));
+    usize::from(result.is_err())
 }
 
 /// Only the data disk scenarios, on a new machine.
@@ -557,6 +609,7 @@ fn main() -> ExitCode {
     let result = match std::env::args().nth(2).as_deref() {
         Some("disk") => run_disk_only(image),
         Some("pin") => Ok(disk::run_pin_only(image)),
+        Some("tamper") => Ok(run_tamper(image)),
         Some("updates") => {
             let bundles = std::env::args().nth(3).unwrap_or_default();
             updates::run(image, Path::new(&bundles))

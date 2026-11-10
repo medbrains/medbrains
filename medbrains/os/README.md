@@ -24,7 +24,7 @@ Already have a server binary? `MEDBRAINS_SERVER_BIN=<path> os/build.sh --arch ar
 **On Linux, including a CI runner, `build.sh` runs mkosi directly, with no Docker.** It needs root,
 and these Debian packages: `mkosi systemd-ukify systemd-repart systemd-boot-efi systemd-container
 apt dpkg debian-archive-keyring dosfstools mtools e2fsprogs erofs-utils cpio kmod zstd xz-utils
-ca-certificates python3 bubblewrap uidmap`. `install-ukify-splash.sh` adds a small wrapper around
+ca-certificates python3 bubblewrap uidmap cryptsetup-bin`. `install-ukify-splash.sh` adds a small wrapper around
 `ukify` on that build machine. We ran this path inside a Linux container with no Docker in it, and it
 produced an image; that image was not booted, and it has not been run on a bare Linux host. The images
 we tested came from the Mac fallback.
@@ -57,7 +57,8 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 `make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
 
-`make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
+`cargo run -p medbrains-os-test -- <image> tamper` changes one byte of the system partition in a copy and checks the
+start stops with a plain message (the full `make os-test` runs it too). `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
 
 ## Boot in UTM
 
@@ -778,12 +779,15 @@ The failure table the flight rules ask for (`docs/OS-PRINCIPLES.md` section 7). 
 | Partition | Size | Holds |
 |---|---|---|
 | EFI | 512 MB | systemd-boot, the boot file (kernel, initrd, logo) |
-| root A | 2 GB | the system (`/`), ext4, named `medbrains_<version>` |
+| root A | 2 GB | the system (`/`), ext4, read-only, named `medbrains_<version>` |
+| root A verity | 32 MB | its dm-verity hash tree, `medbrains_<version>_verity`; the boot file carries its root hash (`docs/architecture/OS-VERITY.md`) |
 | root B | 2 GB | named `_empty` until the first update writes it (`docs/architecture/OS-UPDATES.md`) |
+| root B verity | 32 MB | the same for slot B |
 | data | not in the image; made at first boot, fills the disk | `/var`, encrypted: PostgreSQL, files, logs, backups, secrets |
 
-The PostgreSQL configuration and `/etc/medbrains` are symlinks into `/var`, so reinstalling the system
-partitions keeps the data. The system partition holds a copy of the image's `/var`, with no secrets in it,
+The root is read-only and sealed by dm-verity: a changed block is refused and the machine goes back or stops
+with a plain message. The PostgreSQL configuration and `/etc/medbrains` are symlinks into `/var`, and the
+machine id is kept as the data partition's UUID, so reinstalling the system partitions keeps the data. The system partition holds a copy of the image's `/var`, with no secrets in it,
 to start the data partition from.
 
 ### Data disk
@@ -798,9 +802,9 @@ Task T1, disk half. Every key, what happens if it is lost or stolen, and the fai
 | Disk copied to another machine, board or TPM changed, or the signed boot file changed | Asks for the recovery key, and after 20 seconds says in plain words why. `/var` stays locked and no service starts |
 | First boot, no TPM | Stops. Nothing is stored until someone types `OFF` or `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`. The top bar then says "This disk is not encrypted" |
 
-**What this protects:** a disk that has left the machine. **What it does not, without a PIN:** a stolen machine, from someone
-who changes its system partition and boots it, since nothing verifies that partition. A PIN closes that today; Secure Boot and
-verity are the rest of T1. Any new boot file needs a re-seal until then.
+**What this protects:** a disk that has left the machine, and since verity a system partition changed and booted in it
+(`docs/architecture/OS-VERITY.md`). **What it does not, without a PIN or Secure Boot:** someone who adds a boot entry handing our
+boot file another command line. Any new boot file needs a re-seal until Secure Boot.
 
 ## What is in D1, and what is not
 
@@ -811,7 +815,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 | Hardened units, watchdog, journald limits, crash-safe PostgreSQL | in |
 | SSH | not installed |
 | amd64 image | config present, not built or booted |
-| dm-verity read-only root | **not in D1**, SEC3. Root is writable ext4, so a changed system file is not detected. Blockers: `/etc/machine-id` on a read-only root, and mkosi's verity partitions |
+| dm-verity read-only root | **in** (`docs/architecture/OS-VERITY.md`): read-only ext4 on dm-verity, root hash in the boot file, a changed block refused and acted on. Secure Boot is not |
 | LUKS data partition | **in**, sealed to the TPM with a recovery key; see [Data disk](#data-disk). Secure Boot and the boot editor lock are not |
 | A/B updates and rollback | in: `docs/architecture/OS-UPDATES.md`, including its failure table. No release key exists, so a release image refuses every bundle |
 | Recovery partition and boot menu | D4. A failed boot shows systemd's own messages and that the root account is locked |
@@ -831,6 +835,8 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and the TLS front (`medbrains-front`).
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
+- `trial-initrd/`: added to the boot file's initrd: restarts a counted start that can't reach its system, says why a
+  start stopped, and gives the system this machine's id from the data partition.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.

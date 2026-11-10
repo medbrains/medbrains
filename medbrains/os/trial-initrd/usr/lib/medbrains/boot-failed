@@ -1,0 +1,4 @@
+#!/bin/sh
+# In the boot file's initrd: says why the system did not start, at a level the quiet command line still shows,
+# so it reaches the screen and the serial port (OS-VERITY.md).
+echo "<2>MedBrains could not start its system: the system partition failed its check or could not be read, so nothing was started and patient data stays locked. Call your system administrator: the system must be reinstalled from a MedBrains USB installer." > /dev/kmsg

@@ -164,8 +164,6 @@ if [[ -n "${OS_PCR_KEY:-}" ]]; then
     SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro")
 fi
 
-ROOT_ARG="root=PARTLABEL=medbrains_$VERSION"
-
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
 build_on_linux() {
     "$HERE/install-ukify-splash.sh"
@@ -173,7 +171,7 @@ build_on_linux() {
     work="$(mktemp -d)"
     cp -R "$HERE/." "$work/"
     cp -R "$REPO/crates/medbrains-shell" "$work/medbrains-shell"
-    (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" --kernel-command-line "$ROOT_ARG" \
+    (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" \
         --output-directory "$OS_WORK/out-$ARCH" --cache-directory "$OS_WORK/cache-$ARCH" \
         --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} -f build)
     rm -rf "$work"
@@ -194,7 +192,7 @@ build_on_mac_with_docker() {
         -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" ${SIGN_MOUNTS[@]+"${SIGN_MOUNTS[@]}"} \
         "medbrains-os-builder:${PLATFORM#linux/}" \
         bash -c 'cp -R /src /build && cp -R /shell /build/medbrains-shell && cd /build && mkosi "$@" -f build' _ \
-        --architecture "$ARCH" --extra-tree /extra --kernel-command-line "$ROOT_ARG" --output-directory /out \
+        --architecture "$ARCH" --extra-tree /extra --output-directory /out \
         --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} \
         ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 }

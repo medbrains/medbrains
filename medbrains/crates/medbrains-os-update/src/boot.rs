@@ -51,6 +51,11 @@ fn unit_answer(verb: &str, unit: &str) -> String {
 /// The first reason this machine isn't healthy yet, or `None`. Each row is a real check, and anything
 /// that can't be asked counts as not healthy.
 fn health_problem() -> Option<String> {
+    if crate::verity::root_is_intact() != Some(true) {
+        return Some(
+            "The system partition failed its seal check, or it could not be read.".to_owned(),
+        );
+    }
     let root = disk::run_text("findmnt", &["-no", "SOURCE", "/"], USUAL_LIMIT).ok()?;
     let var =
         disk::run_text("findmnt", &["-no", "SOURCE", "/var"], USUAL_LIMIT).unwrap_or_default();
@@ -132,7 +137,6 @@ pub fn on_trial() -> bool {
 pub fn health() -> Result<(), String> {
     let path = Path::new(paths::STATE_FILE);
     let limit = Duration::from_secs(seconds_setting(paths::HEALTH_SECONDS_FILE, HEALTH_SECONDS));
-    let current = current_version()?;
     let deadline = Instant::now() + limit;
     let mut problem = health_problem();
     // Bounded by the deadline: services get time to start, and restart on their own.
@@ -142,12 +146,18 @@ pub fn health() -> Result<(), String> {
     }
     let Some(reason) = problem else {
         let mut state = State::load(path)?;
-        state.mark_good(&current, now());
+        state.mark_good(&current_version()?, now());
         return state.save(path);
     };
-    // /var may be the very thing that failed, and the restart must still happen.
+    fail_trial(&reason)
+}
+
+/// Ends a trial boot that failed: records why, marks the boot bad and restarts, so the old version comes
+/// back and says so. `/var` may be the very thing that failed, and the restart must still happen.
+pub fn fail_trial(reason: &str) -> Result<(), String> {
+    let path = Path::new(paths::STATE_FILE);
     if let Ok(mut state) = State::load(path) {
-        state.mark_failed_health(&reason);
+        state.mark_failed_health(reason);
         drop(state.save(path));
     }
     drop(child::run(
@@ -156,7 +166,7 @@ pub fn health() -> Result<(), String> {
         USUAL_LIMIT,
     ));
     disk::run_text("systemctl", &["reboot"], USUAL_LIMIT)?;
-    Err(reason)
+    Err(reason.to_owned())
 }
 
 /// Run at each start: puts the record right and notes what a person could go back to.
@@ -177,7 +187,7 @@ pub fn reconcile() -> Result<(), String> {
 }
 
 /// The version a person can go back to: what the other slot holds, if it still has a usable boot entry.
-fn previous_version() -> Result<Option<String>, String> {
+pub fn previous_version() -> Result<Option<String>, String> {
     let slots = disk::read_slots()?;
     let Some(version) = slots.inactive.version() else {
         return Ok(None);
@@ -201,7 +211,7 @@ pub fn apply() -> Result<(), String> {
     else {
         return Err("No update is waiting.".to_owned());
     };
-    let staged = install::staged_boot_path(&target.version);
+    let staged = crate::steps::staged_boot_path(&target.version);
     let name = format!("medbrains-os_{}+{TRIES}-0.efi", target.version);
     let published = Path::new(disk::BOOT_DIR).join(name);
     fs::rename(&staged, &published).map_err(|e| format!("{}: {e}", staged.display()))?;
@@ -215,11 +225,21 @@ pub fn apply() -> Result<(), String> {
 /// left, so the loader picks the other. Allowed below the floor: that rule stops installs, not this.
 pub fn go_back() -> Result<(), String> {
     let _lock = install::lock()?;
-    let path = Path::new(paths::STATE_FILE);
-    let mut state = State::load(path)?;
+    // A damaged record means a person must look first (OS-UPDATES.md); refuse rather than guess.
+    State::load(Path::new(paths::STATE_FILE))?;
     let Some(previous) = previous_version()? else {
         return Err("There is no earlier version on this machine to go back to.".to_owned());
     };
+    go_back_to(
+        &previous,
+        "A person went back from version CURRENT to PREVIOUS.",
+    )
+}
+
+/// Marks the running entry as having no starts left and restarts into `previous`, recording `words`, in
+/// which CURRENT and PREVIOUS stand for the versions.
+pub fn go_back_to(previous: &str, words: &str) -> Result<(), String> {
+    let path = Path::new(paths::STATE_FILE);
     let entries = disk::boot_entries()?;
     let running = entries
         .iter()
@@ -230,15 +250,16 @@ pub fn go_back() -> Result<(), String> {
     let renamed = running.path.with_file_name(name);
     fs::rename(&running.path, &renamed).map_err(|e| e.to_string())?;
     crate::state::sync_parent(&renamed).map_err(|e| e.to_string())?;
-    let current = current_version()?;
-    state.add_failed(&current);
-    state.finish(
-        &current,
-        Ending::WentBack,
-        &format!("A person went back from version {current} to {previous}."),
-        now(),
-    );
-    state.save(path)?;
+    // A broken seal can make os-release unreadable; the record then names no version.
+    let current = current_version().unwrap_or_default();
+    if let Ok(mut state) = State::load(path) {
+        state.add_failed(&current);
+        let words = words
+            .replace("CURRENT", &current)
+            .replace("PREVIOUS", previous);
+        state.finish(&current, Ending::WentBack, &words, now());
+        drop(state.save(path));
+    }
     disk::run_text("systemctl", &["reboot"], USUAL_LIMIT).map(|_| ())
 }
 

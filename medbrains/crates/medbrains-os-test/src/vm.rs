@@ -660,13 +660,48 @@ fn tpm_args(dir: &Path, name: &str) -> Result<Vec<String>, String> {
 }
 
 /// The version in an image's file name, `medbrains-os_<version>.raw`, which is also its slot's name.
-fn image_version(image: &Path) -> Result<String, String> {
+pub(crate) fn image_version(image: &Path) -> Result<String, String> {
     image
         .file_stem()
         .and_then(|stem| stem.to_str())
         .and_then(|stem| stem.rsplit_once('_'))
         .map(|(_, version)| version.to_owned())
         .ok_or_else(|| format!("no version in the image name {}", image.display()))
+}
+
+/// Boots `disk` with no TPM and records its serial port, sending nothing, until the shell's prompt shows,
+/// `stop_at` shows, or `limit` passes. For a machine expected not to start: the caller judges the text.
+pub(crate) fn serial_of_boot(
+    disk: &Path,
+    stop_at: &str,
+    limit: Duration,
+) -> Result<String, String> {
+    let dir = disk
+        .parent()
+        .ok_or_else(|| "a disk with no folder".to_owned())?;
+    std::fs::copy(qemu_share()?.join(platform().vars), dir.join("vars.fd"))
+        .map_err(|e| e.to_string())?;
+    let mut ports = Vec::new();
+    for (name, _) in FORWARDS {
+        ports.push((name, free_port().map_err(|e| e.to_string())?));
+    }
+    let mut qemu = spawn_qemu(dir, disk, &ports, None, &[])?;
+    let mut serial = connect_socket(&dir.join("serial.sock"))?;
+    let (mut raw, mut buffer, deadline) =
+        (Vec::new(), [0_u8; 16_384], Instant::now() + scaled(limit));
+    while Instant::now() < deadline {
+        if let Ok(count) = serial.read(&mut buffer) {
+            raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+        }
+        let text = String::from_utf8_lossy(&raw);
+        if text.contains(PROMPT) || text.contains(stop_at) {
+            break;
+        }
+    }
+    // Best effort: the machine is thrown away either way.
+    drop(qemu.kill());
+    drop(qemu.wait());
+    Ok(strip_terminal_codes(&String::from_utf8_lossy(&raw)))
 }
 
 /// Creates an overlay on `image`, so the image itself is never written. `image` may be raw or qcow2.

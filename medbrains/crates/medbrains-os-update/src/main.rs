@@ -4,7 +4,7 @@
 //!     medbrains-os-update install [--retry] [--from <https address or folder>]
 //!     medbrains-os-update usb [--retry]
 //!     medbrains-os-update apply | go-back | tick
-//!     medbrains-os-update reconcile | health | deadline
+//!     medbrains-os-update reconcile | health | deadline | seal
 //!     medbrains-os-update status
 //!
 //! Exit status: 0 done or nothing to do, 1 failed, 2 refused, 3 bad usage.
@@ -159,10 +159,11 @@ fn main() -> ExitCode {
         Some("reconcile") => finish_step(boot::reconcile()),
         Some("health") => finish_step(boot::health()),
         Some("deadline") => finish_step(boot::deadline()),
+        Some("seal") => finish_step(medbrains_os_update::seal::check()),
         Some("status") => run_status(),
         _ => {
             say(
-                "usage: medbrains-os-update install|usb|apply|go-back|tick|reconcile|health|deadline|status",
+                "usage: medbrains-os-update install|usb|apply|go-back|tick|reconcile|health|deadline|seal|status",
             );
             ExitCode::from(BAD_USAGE)
         }

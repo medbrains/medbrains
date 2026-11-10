@@ -32,7 +32,7 @@ fn line(id: &str, key: &SigningKey, manifest: &[u8]) -> String {
 /// A bundle that passes every check against `facts`.
 fn manifest() -> Manifest {
     Manifest {
-        format: 1,
+        format: 2,
         version: "1.2.0".to_owned(),
         arch: "arm64".to_owned(),
         min_version: "1.0.0".to_owned(),
@@ -45,6 +45,12 @@ fn manifest() -> Manifest {
             size: GIB,
             raw_sha256: String::new(),
             raw_size: 2 * GIB,
+        },
+        verity: RootImage {
+            sha256: String::new(),
+            size: GIB / 64,
+            raw_sha256: String::new(),
+            raw_size: GIB / 64,
         },
         boot: BootImage {
             sha256: String::new(),
@@ -62,6 +68,7 @@ fn facts(current: &str) -> Option<Facts> {
         failed: Vec::new(),
         retry: false,
         slot_bytes: 2 * GIB,
+        hash_bytes: GIB / 32,
         data_free: 10 * GIB,
         esp_free: GIB / 4,
         now: 1_000,
@@ -129,7 +136,7 @@ fn each_reason_to_refuse_is_applied() {
     assert!(base.is_some());
     let Some(base) = base else { return };
     assert_eq!(refusal(&manifest(), &base), None);
-    let cases: [(Change, &str); 14] = [
+    let cases: [(Change, &str); 16] = [
         (|m, f| m.expires = f.now, "run out"),
         (
             |m, _| "1.3.0".clone_into(&mut m.upgrades_from),
@@ -139,7 +146,7 @@ fn each_reason_to_refuse_is_applied() {
             |m, _| "1.1.5".clone_into(&mut m.upgrades_from),
             "Install version 1.1.5 first",
         ),
-        (|m, _| m.format = 2, "format"),
+        (|m, _| m.format = 1, "format"),
         (|m, _| "x86-64".clone_into(&mut m.arch), "x86-64"),
         (|m, _| "1.2.0-beta".clone_into(&mut m.version), "unreadable"),
         (|m, _| "1.1.0".clone_into(&mut m.version), "already"),
@@ -148,8 +155,10 @@ fn each_reason_to_refuse_is_applied() {
         (|_, f| f.floor = Version::parse("1.3.0"), "known problems"),
         (|_, f| f.failed = vec!["1.2.0".to_owned()], "failed"),
         (|m, f| m.root.raw_size = f.slot_bytes + 1, "does not fit"),
+        (|m, f| m.verity.raw_size = f.hash_bytes + 1, "does not fit"),
+        (|m, _| m.verity.raw_size = 0, "does not fit"),
         (
-            |m, f| f.data_free = m.root.size + m.boot.size + DATA_RESERVE - 1,
+            |m, f| f.data_free = m.root.size + m.verity.size + m.boot.size + DATA_RESERVE - 1,
             "data disk",
         ),
         (|m, f| f.esp_free = m.boot.size, "boot partition"),
