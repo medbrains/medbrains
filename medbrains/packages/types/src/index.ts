@@ -207,6 +207,7 @@ export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";
 export * from "./palliative-mortuary-nuclear";
+export * from "./paperless";
 export type {
   PatientContextSignal,
   PatientContextSignalKind,
