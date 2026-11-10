@@ -17,15 +17,39 @@ if [ -n "$staged" ] && command -v rustfmt >/dev/null; then
     bad=0
     while IFS= read -r f; do
         [ -f "$f" ] || continue
+        # Through stdin, so rustfmt formats this file only, not the modules it declares.
+        out="$(rustfmt --edition 2024 --config-path "$CONFIG" < "$f")" || { bad=1; continue; }
         if git diff --quiet -- "$f"; then
-            rustfmt --edition 2024 --config-path "$CONFIG" "$f"
-            git add -- "$f"
-        elif ! rustfmt --edition 2024 --config-path "$CONFIG" --check "$f" >/dev/null 2>&1; then
+            [ "$out" = "$(cat "$f")" ] || { printf '%s\n' "$out" > "$f"; git add -- "$f"; }
+        elif [ "$out" != "$(cat "$f")" ]; then
             echo "[pre-commit] $f is not rustfmt-clean and has unstaged edits; run rustfmt on it, then stage it." >&2
             bad=1
         fi
     done <<< "$staged"
     [ "$bad" = 0 ] || exit 1
+fi
+
+# Biome formats and safely fixes staged web and package files (TS, TSX, JS, JSON, CSS),
+# under the same rule as Rust: a file with unstaged edits is only checked, not rewritten.
+BIOME="$TOP/medbrains/node_modules/.bin/biome"
+web="$(git diff --cached --name-only --diff-filter=ACMR -- 'medbrains/apps/web/*' 'medbrains/packages/*' \
+  | grep -E '\.(ts|tsx|js|jsx|json|css)$' | grep -v '/node_modules/' || true)"
+if [ -n "$web" ] && [ -x "$BIOME" ]; then
+    bad=0
+    while IFS= read -r f; do
+        [ -f "$f" ] || continue
+        rel="${f#medbrains/}"
+        if git diff --quiet -- "$f"; then
+            (cd "$TOP/medbrains" && "$BIOME" check --write --no-errors-on-unmatched "$rel") || bad=1
+            git add -- "$f"
+        else
+            (cd "$TOP/medbrains" && "$BIOME" check --no-errors-on-unmatched "$rel") || bad=1
+        fi
+    done <<< "$web"
+    if [ "$bad" != 0 ]; then
+        echo "[pre-commit] fix the Biome findings above, then commit again." >&2
+        exit 1
+    fi
 fi
 
 if [ -x "$TOP/medbrains/.githooks/pre-commit-migrations.sh" ]; then
