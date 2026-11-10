@@ -252,6 +252,16 @@ async fn main() -> Result<(), GooseError> {
                 .register_transaction(transaction!(ipd_admission_flow))
 
         )
+        .register_scenario(
+            scenario!("ClinicalShift")
+                .set_weight(4)?
+                .set_wait_time(Duration::from_secs(3), Duration::from_secs(8))?
+                .register_transaction(transaction!(init_session).set_on_start())
+                .register_transaction(transaction!(login).set_on_start())
+                .register_transaction(transaction!(seed_cache).set_on_start())
+                .register_transaction(transaction!(shift_start).set_on_start())
+                .register_transaction(transaction!(clinical_shift))
+        )
         // ── Scenario 11: AllEndpoints (auto-generated breadth coverage) ──
         // One transaction per (method, path) parsed from routes/mod.rs.
         // Hits 939+ endpoints with placeholder UUIDs / empty bodies. 4xx/5xx
@@ -280,33 +290,108 @@ async fn health_check(user: &mut GooseUser) -> TransactionResult {
 
 // ── Auth ───────────────────────────────────────────────────────
 
+/// One sign-in for the whole run, shared by every virtual user: the box limits sign-ins to 5 a
+/// minute per address on purpose, so sign-in is not what this tool measures.
+static SHARED_SESSION: tokio::sync::OnceCell<(String, String)> = tokio::sync::OnceCell::const_new();
+
+/// Signs in once (outside goose's metrics) and returns the session's cookie header and CSRF token.
+async fn shared_session(base: &str) -> Result<(String, String), String> {
+    let username = std::env::var("LOADTEST_USERNAME").unwrap_or_else(|_| "admin".to_owned());
+    let password = std::env::var("LOADTEST_PASSWORD").unwrap_or_else(|_| "admin123".to_owned());
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .post(format!("{base}/api/auth/login"))
+        .header("Content-Type", "application/json")
+        .body(json!({ "username": username, "password": password }).to_string())
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = resp.status();
+    let cookies: Vec<String> = resp
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|v| v.split(';').next().map(str::to_owned))
+        .collect();
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    let csrf = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("csrf_token").and_then(|t| t.as_str()).map(str::to_owned))
+        .ok_or_else(|| format!("sign-in {status}: {}", text.chars().take(200).collect::<String>()))?;
+    Ok((cookies.join("; "), csrf))
+}
+
+/// Gives this virtual user a client carrying the shared session. With `LOADTEST_FORWARDED=1`
+/// each user also sends its own `X-Forwarded-For`, so a box told to trust this computer as a
+/// proxy sees many staff terminals instead of one address.
 pub(crate) async fn login(user: &mut GooseUser) -> TransactionResult {
-    let body = json!({
-        "username": "admin",
-        "password": "admin123"
-    });
-
-    let reqwest_builder = user
-        .get_request_builder(&GooseMethod::Post, "/api/auth/login")?
-        .json(&body);
-
-    let request = GooseRequest::builder()
-        .path("/api/auth/login")
-        .method(GooseMethod::Post)
-        .set_request_builder(reqwest_builder)
-        .build();
-
-    let goose = user.request(request).await?;
-
-    // Extract CSRF token from login response JSON
-    if let Ok(response) = goose.response
-        && let Ok(resp_body) = response.json::<serde_json::Value>().await
-        && let Some(token) = resp_body.get("csrf_token").and_then(|v| v.as_str())
-    {
-        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
-        session.lock().await.csrf_token = Some(token.to_owned());
+    let base = user.base_url.as_str().trim_end_matches('/').to_owned();
+    let (cookie, csrf) = match SHARED_SESSION.get_or_try_init(|| shared_session(&base)).await {
+        Ok(found) => found.clone(),
+        Err(e) => {
+            eprintln!("[loadtest] {e}");
+            std::process::exit(2);
+        }
+    };
+    let mut headers = reqwest::header::HeaderMap::new();
+    let mut put = |name: &'static str, value: &str| {
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(value) {
+            headers.insert(name, v);
+        }
+    };
+    put("cookie", &cookie);
+    put("x-csrf-token", &csrf);
+    if std::env::var("LOADTEST_FORWARDED").is_ok() {
+        let i = user.weighted_users_index;
+        put("x-forwarded-for", &format!("10.77.{}.{}", i / 250, i % 250 + 1));
     }
+    let builder = reqwest::Client::builder()
+        .default_headers(headers)
+        .danger_accept_invalid_certs(true)
+        .timeout(Duration::from_secs(60));
+    user.set_client_builder(builder).await?;
+    let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+    session.lock().await.csrf_token = Some(csrf);
+    Ok(())
+}
 
+// ── Clinical shift: OPD queue, case sheet, bed board, wards, dashboard tiles ──
+
+/// Makes this user's own patient and OPD encounter, so the case-sheet calls hit a real record.
+async fn shift_start(user: &mut GooseUser) -> TransactionResult {
+    if let Some(pid) = create_patient_inline(user).await? {
+        let enc = create_encounter_inline(user, &pid).await?;
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        let mut s = session.lock().await;
+        s.patient_id = Some(pid);
+        s.encounter_id = enc;
+    }
+    Ok(())
+}
+
+/// What a doctor's or nurse's screen asks for over one patient: the queue, the case sheet
+/// (consultation and vitals, read and write), the bed board, the wards and the dashboard tiles.
+async fn clinical_shift(user: &mut GooseUser) -> TransactionResult {
+    let _ = user.get("/api/opd/queue").await?;
+    let _ = user.get("/api/opd/encounters?page=1&per_page=20").await?;
+    let enc = {
+        let session: &Arc<Mutex<Session>> = user.get_session_data_unchecked();
+        session.lock().await.encounter_id.clone()
+    };
+    if let Some(e) = enc {
+        let _ = json_get(user, &format!("/api/opd/encounters/{e}/consultation")).await?;
+        let _ = json_get(user, &format!("/api/opd/encounters/{e}/vitals")).await?;
+        let vitals = json!({ "temperature": 37.1, "pulse": 82, "systolic_bp": 124,
+            "diastolic_bp": 80, "respiratory_rate": 16, "spo2": 98 });
+        json_post(user, &format!("/api/opd/encounters/{e}/vitals"), &vitals).await?;
+    }
+    let _ = user.get("/api/ipd/bed-dashboard").await?;
+    let _ = user.get("/api/ipd/wards").await?;
+    let _ = user.get("/api/dashboard/summary").await?;
     Ok(())
 }
 
@@ -360,6 +445,7 @@ async fn create_patient(user: &mut GooseUser) -> TransactionResult {
         "first_name": format!("Load{}", id % 100_000),
         "last_name": format!("Test{}", id % 100_000),
         "gender": "male",
+        "date_of_birth": "1985-06-15",
         "phone": format!("90{:08}", id % 100_000_000),
     });
     json_post(user, "/api/patients", &body).await
@@ -624,12 +710,14 @@ async fn bootstrap_admission(user: &mut GooseUser) {
             "department_id": did,
             "bed_id": bed,
             "admission_source": "opd",
+            "doctor_id": std::env::var("LOADTEST_DOCTOR_ID").ok(),
         })
     } else {
         json!({
             "patient_id": pid,
             "department_id": did,
             "admission_source": "opd",
+            "doctor_id": std::env::var("LOADTEST_DOCTOR_ID").ok(),
         })
     };
     let resp = json_request(user, GooseMethod::Post, "/api/ipd/admissions", Some(&body)).await;
@@ -1066,12 +1154,14 @@ async fn ipd_admission_flow(user: &mut GooseUser) -> TransactionResult {
             "department_id": ipd_dept_id,
             "bed_id": bed,
             "admission_source": "opd",
+            "doctor_id": std::env::var("LOADTEST_DOCTOR_ID").ok(),
         })
     } else {
         json!({
             "patient_id": patient_id,
             "department_id": ipd_dept_id,
             "admission_source": "opd",
+            "doctor_id": std::env::var("LOADTEST_DOCTOR_ID").ok(),
         })
     };
 
@@ -1104,6 +1194,7 @@ async fn create_patient_inline(
         "first_name": format!("Load{}", id % 100_000),
         "last_name": format!("Test{}", id % 100_000),
         "gender": "male",
+        "date_of_birth": "1985-06-15",
         "phone": format!("90{:08}", id % 100_000_000),
     });
     let resp = json_request(user, GooseMethod::Post, "/api/patients", Some(&body)).await?;

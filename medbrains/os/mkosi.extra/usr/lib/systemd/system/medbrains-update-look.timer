@@ -1,0 +1,14 @@
+# Looks for an update once a day, only on a machine told where to look. It installs to the other partition
+# at low priority and then waits: restarting is a separate decision.
+[Unit]
+Description=Look for MedBrains OS updates
+ConditionPathExists=/var/lib/medbrains-settings/update-url
+
+[Timer]
+OnBootSec=30min
+OnUnitActiveSec=1d
+RandomizedDelaySec=6h
+Persistent=no
+
+[Install]
+WantedBy=timers.target

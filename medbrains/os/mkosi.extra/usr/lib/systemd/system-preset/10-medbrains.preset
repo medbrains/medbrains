@@ -14,5 +14,8 @@ disable postgresql.service
 # Only chrony.service may run: see mkosi.postinst.chroot.
 disable chronyd-restricted.service
 disable chrony-wait.service
+# A kernel fix must never replace the boot loader on the way past: nothing could roll that back, and a
+# power cut during it is the one write here with no second copy (OS-UPDATES.md).
+disable systemd-boot-update.service
 # Started by a udev rule only when a Wi-Fi card exists.
 disable iwd.service

@@ -20,6 +20,7 @@ mod setup;
 mod timezone;
 mod topbar;
 mod ui;
+mod updates;
 mod webapp;
 mod webview;
 mod widgets;

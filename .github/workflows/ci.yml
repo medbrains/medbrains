@@ -26,11 +26,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
-    # Words alone cannot break the product, so they do not spend a build.
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.png"
-      - "**/*.excalidraw"
+    # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
+    # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -117,11 +114,17 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
 
   contracts:
-    # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    # Runs on drafts too, and fails there: the other jobs skip on a draft, and a skipped
+    # required check counts as passing, so without this a draft's skipped run could satisfy
+    # branch protection. Marking the PR ready for review reruns everything.
     name: API + UI contracts
     runs-on: ubuntu-latest
     steps:
+      - name: A draft is not ready to merge
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+        run: |
+          echo "::error::Draft PR: mark it ready for review to run the checks."
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
