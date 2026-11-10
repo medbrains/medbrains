@@ -43,6 +43,9 @@ fun ConsultationNoteForm(api: NotesApi, encounterId: String, existing: Note?, ca
     var error by remember { mutableStateOf<String?>(null) }
     var lateReason by remember { mutableStateOf<String?>(null) }
     var savedDraft by remember { mutableStateOf(false) }
+    // Signing was refused for a fresh password: the dialog asks, then retries.
+    var needsIdentity by remember { mutableStateOf(false) }
+    var confirmingIdentity by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val prose = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
 
@@ -50,7 +53,7 @@ fun ConsultationNoteForm(api: NotesApi, encounterId: String, existing: Note?, ca
         problem = consultationProblem(draft.chief, draft.exam, draft.assessment, draft.plan)
         if (problem != null) return
         scope.launch {
-            busy = true; error = null; savedDraft = false
+            busy = true; error = null; savedDraft = false; needsIdentity = false
             try {
                 val patches = draft.patches(note?.sections?.firstOrNull { it.code == "examination" }?.data)
                 val saved = note?.let { api.saveDraft(it.id, patches) } ?: api.startConsultation(encounterId, patches)
@@ -63,6 +66,12 @@ fun ConsultationNoteForm(api: NotesApi, encounterId: String, existing: Note?, ca
                     savedDraft = true
                 }
             } catch (e: ApiError) {
+                if (e.isStepUpRequired) {
+                    // The draft is saved; the signature waits for the password.
+                    needsIdentity = true
+                    confirmingIdentity = true
+                    return@launch
+                }
                 // Care written up long after it happened must say why before it is signed.
                 if (e.message?.contains("late entry", ignoreCase = true) == true) lateReason = lateReason ?: ""
                 error = e.message
@@ -81,7 +90,15 @@ fun ConsultationNoteForm(api: NotesApi, encounterId: String, existing: Note?, ca
         CarbonTextField(draft.assessment, { draft = draft.copy(assessment = it) }, "Assessment", Modifier.testTag("field-assessment"), keyboardOptions = prose, singleLine = false)
         CarbonTextField(draft.plan, { draft = draft.copy(plan = it) }, "Plan", Modifier.testTag("field-plan"), keyboardOptions = prose, singleLine = false)
         ExamFindingsSection(draft.findings, true) { draft = draft.copy(findings = it) }
-        error?.let { CarbonNotification(NotificationKind.Error, "The note was not saved", it) }
+        if (needsIdentity) {
+            CarbonNotification(NotificationKind.Info, "Draft saved — signing needs you to confirm it's you", "Enter your password to sign.",
+                Modifier.testTag("consultation-confirm-identity"))
+        } else {
+            error?.let { CarbonNotification(NotificationKind.Error, "The note was not saved", it) }
+        }
+        if (confirmingIdentity) {
+            StepUpDialog(stepUp = api::stepUp, onDismiss = { confirmingIdentity = false }, onConfirmed = { save(sign = true) })
+        }
         if (savedDraft) {
             CarbonNotification(NotificationKind.Success, "Draft saved", "Not part of the record until you sign it.", Modifier.testTag("consultation-draft-saved"))
         }

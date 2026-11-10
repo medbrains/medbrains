@@ -90,15 +90,25 @@ echo "\$*" >> "$TMP/aws.log"
 exit 0
 STUB
 chmod +x "$TMP/bin/aws"
+# psql records the backup_history row; log what it is sent.
+cat > "$TMP/bin/psql" <<STUB
+#!/bin/sh
+echo "\$*" >> "$TMP/psql.log"; cat >> "$TMP/psql.log"
+STUB
+chmod +x "$TMP/bin/psql"
+# S3 refuses to run without a public key to seal to.
+ln -s "$(command -v age)" "$TMP/bin/age"
+age-keygen 2>/dev/null | age-keygen -y > "$TMP/recipients.txt"
 mkdir -p "$TMP/files/objects" "$TMP/files/pgdata"
 out="$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$TMP" \
         POSTGRES_USER=medbrains POSTGRES_DB=medbrains \
         DATABASE_URL="postgres://u:p@127.0.0.1:5432/medbrains" \
         BACKUP_BUCKET=bkt BACKUP_FILES_ROOTS="$TMP/files $TMP/nope" \
+        BACKUP_AGE_RECIPIENTS_FILE="$TMP/recipients.txt" BACKUP_SECRETS_DIR="$TMP/nosecrets" \
         bash "$SCRIPT" 2>&1)"; rc=$?
 host="$(hostname)"
-if [[ $rc -eq 0 ]] && grep -q "^s3 cp - s3://bkt/pg-backups/$host/" "$TMP/aws.log"; then
-    ok "s3: dump streams to pg-backups/"
+if [[ $rc -eq 0 ]] && grep -qE "^s3 cp - s3://bkt/pg-backups/$host/[^ ]+\.dump\.age " "$TMP/aws.log"; then
+    ok "s3: dump streams to pg-backups/ as .dump.age"
 else bad "s3: dump streams to pg-backups/ (rc=$rc): $out"; fi
 if grep -q "^s3 sync $TMP/files s3://bkt/file-backups/$host$TMP/files/ --exclude pgdata/\*" "$TMP/aws.log"; then
     ok "s3: files sync to file-backups/<host><root>/ excluding pgdata"
@@ -106,5 +116,9 @@ else bad "s3: files sync: $(cat "$TMP/aws.log")"; fi
 if [[ "$out" == *"$TMP/nope absent, skipping"* ]] && ! grep -q "$TMP/nope" "$TMP/aws.log"; then
     ok "s3: absent file root skipped"
 else bad "s3: absent file root skipped"; fi
+
+if grep -q "status=completed" "$TMP/psql.log" && grep -q "INSERT INTO backup_history" "$TMP/psql.log"; then
+    ok "s3: success recorded in backup_history"
+else bad "s3: success recorded in backup_history"; fi
 
 exit "$fail"

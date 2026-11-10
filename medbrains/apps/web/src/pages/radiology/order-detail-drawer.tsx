@@ -2,18 +2,19 @@
 
 import { Group, Stack, Switch, Tabs, Text, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import type { RadiationDoseRecord } from "@medbrains/types";
 import { IconPrinter } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, useClinicalEmit } from "@/components";
+import { useClinicalEmit } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Badge, Button, Modal } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
+import { DoseTab } from "./dose-tab";
 import { OrderImages } from "./OrderImages";
 import { OrderFormFNotice } from "./order-form-f-notice";
+import { PregnancyCheckCard } from "./pregnancy-check-card";
 import { colorToBadgeTone, printRadiologyReportPacket, statusColors } from "./shared";
 
 export function OrderDetailDrawer({
@@ -120,6 +121,7 @@ export function OrderDetailDrawer({
             <Text fw={600}>Priority:</Text>
             <Badge tone={colorToBadgeTone(statusColor(order.priority))}>{order.priority}</Badge>
           </Group>
+          {data?.pregnancy_check_required && <PregnancyCheckCard order={order} />}
           <OrderFormFNotice orderId={order.id} />
           <OrderImages order={order} />
           {order.body_part && <Text size="sm">Body Part: {order.body_part}</Text>}
@@ -134,7 +136,7 @@ export function OrderDetailDrawer({
             <Tabs.List>
               <Tabs.Tab value="details">Details</Tabs.Tab>
               <Tabs.Tab value="report">Report</Tabs.Tab>
-              <Tabs.Tab value="dose">Dose Tracking</Tabs.Tab>
+              <Tabs.Tab value="dose">Radiation dose</Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="details" pt="sm">
@@ -143,11 +145,6 @@ export function OrderDetailDrawer({
                   {order.contrast_required && (
                     <Badge size="sm" tone="warning">
                       Contrast Required
-                    </Badge>
-                  )}
-                  {order.pregnancy_checked && (
-                    <Badge size="sm" tone="danger">
-                      Pregnancy Verified
                     </Badge>
                   )}
                   {order.allergy_flagged && (
@@ -261,49 +258,7 @@ export function OrderDetailDrawer({
             </Tabs.Panel>
 
             <Tabs.Panel value="dose" pt="sm">
-              {doseRecords.length > 0 ? (
-                <DataTable
-                  columns={[
-                    {
-                      key: "modality",
-                      label: "Modality",
-                      render: (d: RadiationDoseRecord) => d.modality_code,
-                    },
-                    {
-                      key: "body_part",
-                      label: "Body Part",
-                      render: (d: RadiationDoseRecord) => d.body_part ?? "—",
-                    },
-                    {
-                      key: "dose",
-                      label: "Dose",
-                      render: (d: RadiationDoseRecord) =>
-                        d.dose_value ? `${d.dose_value} ${d.dose_unit}` : "—",
-                    },
-                    {
-                      key: "dlp",
-                      label: "DLP",
-                      render: (d: RadiationDoseRecord) => d.dlp ?? "—",
-                    },
-                    {
-                      key: "ctdi_vol",
-                      label: "CTDIvol",
-                      render: (d: RadiationDoseRecord) => d.ctdi_vol ?? "—",
-                    },
-                    {
-                      key: "recorded",
-                      label: "Recorded",
-                      render: (d: RadiationDoseRecord) => new Date(d.recorded_at).toLocaleString(),
-                    },
-                  ]}
-                  data={doseRecords}
-                  rowKey={(d) => d.id}
-                />
-              ) : (
-                <Text c="dimmed" size="sm">
-                  No dose records.
-                </Text>
-              )}
+              <DoseTab orderId={order.id} patientId={order.patient_id} records={doseRecords} />
             </Tabs.Panel>
           </Tabs>
         </Stack>

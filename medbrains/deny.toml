@@ -18,9 +18,6 @@ unmaintained = "workspace"
 # re-decided. scripts/check_audit_ignores.py fails CI once an expiry passes.
 # cargo-audit reads this same list (security.yml), so there is one source.
 ignore = [
-    { id = "RUSTSEC-2026-0367", reason = "zip 4 now only via tauri-plugin-updater 2.14 (latest), which extracts an update only after its signature verifies. Re-check on the next updater release. expires 2026-12-31" },
-    { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
-    { id = "RUSTSEC-2026-0369", reason = "zip 4 via tauri-plugin-updater only, after signature verification; see 0367. expires 2026-12-31" },
 ]
 
 [licenses]

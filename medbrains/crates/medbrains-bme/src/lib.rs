@@ -396,9 +396,11 @@ pub async fn list_equipment(
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as::<_, BmeEquipment>("SELECT * FROM bme_equipment WHERE deleted_at IS NULL ORDER BY name LIMIT 500")
-            .fetch_all(&mut *tx)
-            .await?
+        sqlx::query_as::<_, BmeEquipment>(
+            "SELECT * FROM bme_equipment WHERE deleted_at IS NULL ORDER BY name LIMIT 500",
+        )
+        .fetch_all(&mut *tx)
+        .await?
     };
 
     tx.commit().await?;
@@ -836,10 +838,11 @@ pub async fn update_work_order_status(
     .await?;
 
     // When a PM work order completes, update the PM schedule
-    if body.status == "completed" {
-        if let Some(pm_id) = row.pm_schedule_id {
-            sqlx::query(
-                "UPDATE bme_pm_schedules SET \
+    if body.status == "completed"
+        && let Some(pm_id) = row.pm_schedule_id
+    {
+        sqlx::query(
+            "UPDATE bme_pm_schedules SET \
                  last_completed_date = CURRENT_DATE, \
                  next_due_date = CURRENT_DATE + CASE frequency \
                      WHEN 'monthly' THEN INTERVAL '1 month' \
@@ -848,11 +851,10 @@ pub async fn update_work_order_status(
                      WHEN 'annual' THEN INTERVAL '1 year' \
                  END \
                  WHERE id = $1",
-            )
-            .bind(pm_id)
-            .execute(&mut *tx)
-            .await?;
-        }
+        )
+        .bind(pm_id)
+        .execute(&mut *tx)
+        .await?;
     }
 
     tx.commit().await?;

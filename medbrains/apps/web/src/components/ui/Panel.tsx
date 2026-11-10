@@ -22,7 +22,7 @@ export function Panel({ title, description, actions, bare, children }: PanelProp
     <Group justify="space-between" align="flex-start" mb={description ? 2 : "sm"} wrap="nowrap">
       <Box>
         {title && (
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+          <Text size="xs" fw={700} c="dimmed">
             {title}
           </Text>
         )}

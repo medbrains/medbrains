@@ -1,3 +1,4 @@
+import type { PublicPrivacyContact } from "./dpdp-compliance";
 // Patient registration, identity, allergy, consent and MPI types — split from index.ts, barrel-re-exported.
 
 // ── Patient Registration ─────────────────────────────────
@@ -556,6 +557,8 @@ export interface PatientListResponse {
 export interface CreatePatientRequest {
   first_name: string;
   last_name: string;
+  /** The name in the patient's own script (Devanagari, Tamil, ...). */
+  full_name_local?: string;
   date_of_birth?: string | null;
   gender: Gender;
   phone: string;
@@ -687,6 +690,8 @@ export interface PortalPrivacy {
   consent: PatientDpdpConsent;
   requests: PrivacyRequest[];
   held: PatientDataSummary;
+  /** Published privacy contacts and notice (DPDP Rules 2025 r.9). */
+  contact: PublicPrivacyContact;
 }
 
 export interface PortalPrivacyRequestInput {
@@ -732,6 +737,8 @@ export interface PatientContactConsents {
 
 export interface UpdatePatientRequest {
   first_name?: string;
+  /** The name in the patient's own script; empty clears it. */
+  full_name_local?: string;
   last_name?: string;
   date_of_birth?: string | null;
   gender?: Gender;
@@ -831,7 +838,14 @@ export interface MpiMatchRequest {
   date_of_birth?: string;
   phone?: string;
   identifier_hash?: string;
+  /** `male` / `female`; weighed when recorded. */
+  gender?: string;
+  /** A verified ABHA number already held here is the same person. */
+  abha_number?: string;
 }
+
+/** How sure the duplicate check is (Fellegi-Sunter bands). */
+export type MpiMatchBand = "certain" | "likely" | "review";
 
 export interface MpiMatchResult {
   id: string;
@@ -844,4 +858,40 @@ export interface MpiMatchResult {
   score: number;
   /** A light record from the online pharmacy: complete it, don't register again. */
   pharmacy_customer: boolean;
+  /** Present on duplicate-check results; absent from plain lookups. */
+  band?: MpiMatchBand;
+  /** Why, field by field ("Name matches in another spelling", …). */
+  reasons?: string[];
+}
+
+/** Where a patient's shared health data comes from. */
+export type HealthDataSource = "healthkit" | "health_connect";
+export type HealthDataType = "blood_pressure" | "glucose" | "weight" | "spo2" | "heart_rate";
+
+/** A patient's latest yes/no to sharing one kind of reading from one source. */
+export interface HealthDataConsent {
+  source: HealthDataSource;
+  data_type: HealthDataType;
+  granted: boolean;
+  recorded_at: string;
+}
+
+export interface HealthDataSharing {
+  consents: HealthDataConsent[];
+}
+
+/** One reading from Apple Health / Health Connect. Glucose in mg/dL, weight in kg. */
+export interface HealthAppReading {
+  data_type: HealthDataType;
+  external_id: string;
+  measured_at: string;
+  value?: number;
+  systolic?: number;
+  diastolic?: number;
+}
+
+export interface HealthAppReadingsResult {
+  accepted: number;
+  duplicates: number;
+  refused: { external_id: string; reason: string }[];
 }

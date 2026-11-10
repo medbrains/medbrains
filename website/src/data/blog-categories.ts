@@ -30,7 +30,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: "hospital-leadership",
     name: "Hospital leadership & strategy",
-    description: "Practical writing for the people who run Indian hospitals and clinics on growth, quality, NABH readiness, patient experience and long-term planning.",
+    description: "Practical writing for the people who run hospitals and clinics on growth, quality, NABH readiness, patient experience and long-term planning.",
     icon: "building-hospital",
     tint: "#f3f5f9",
     ink: "#0f62fe",
@@ -39,7 +39,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: "patient-education",
     name: "Patient education & wellness",
-    description: "Clear, sourced health guides for Indian families on heat, air pollution, mental health, infections and when to see a doctor, for every season of the year.",
+    description: "Clear, sourced health guides for families on heat, air pollution, mental health, infections and when to see a doctor, for every season of the year.",
     icon: "heart-handshake",
     tint: "#f3f5f9",
     ink: "#851b7f",
@@ -48,7 +48,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: "clinical-excellence",
     name: "Doctor & clinical excellence",
-    description: "For doctors and nurses in India: clinical practice, patient safety, antibiotic stewardship and the everyday habits of good care, with the evidence cited.",
+    description: "For doctors and nurses: clinical practice, patient safety, antibiotic stewardship and the everyday habits of good care, with the evidence cited.",
     icon: "stethoscope",
     tint: "#f3f5f9",
     ink: "#0f62fe",
@@ -57,7 +57,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: "operations",
     name: "Operations & efficiency",
-    description: "How Indian hospitals run a smoother day: OPD queues, bed turnover, discharge times, billing and stores, with practical fixes your teams can start this week.",
+    description: "How hospitals run a smoother day: OPD queues, bed turnover, discharge times, billing and stores, with practical fixes your teams can start this week.",
     icon: "clock-cog",
     tint: "#f3f5f9",
     ink: "#851b7f",
@@ -66,7 +66,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: "technology",
     name: "Technology & innovation",
-    description: "Digital health in India explained for hospital teams: ABDM and ABHA, hospital software, data security and the tools changing how care is delivered.",
+    description: "Digital health explained for hospital teams: ABDM and ABHA, hospital software, data security and the tools changing how care is delivered.",
     icon: "cpu",
     tint: "#f3f5f9",
     ink: "#0f62fe",
@@ -75,7 +75,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: "regulatory-compliance",
     name: "Regulatory & compliance",
-    description: "The rules every Indian hospital works within, explained: NABH, ABDM, the DPDP Act, IRDAI circulars and clinical law, with checklists you can act on.",
+    description: "The rules hospitals work within, explained: NABH, ABDM, the DPDP Act, IRDAI circulars and clinical law, with checklists you can act on.",
     icon: "shield-check",
     tint: "#f3f5f9",
     ink: "#851b7f",

@@ -8,6 +8,7 @@ pub mod abha;
 pub mod account;
 pub mod card;
 pub mod enrol;
+mod error_codes;
 pub mod errors;
 pub mod gateway;
 pub mod phr;

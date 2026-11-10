@@ -8,11 +8,13 @@
 use std::net::IpAddr;
 
 use axum::{
-    extract::{ConnectInfo, Request, State},
+    extract::{Request, State},
     middleware::Next,
     response::Response,
 };
 use sqlx::PgPool;
+
+use super::client_ip::ClientIp;
 
 use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
@@ -84,7 +86,10 @@ async fn load_ip_rules(db: &PgPool, tenant_id: uuid::Uuid) -> Result<IpRules, Ap
             .await?;
 
     let Some((allowed, blocked)) = row else {
-        return Ok(IpRules { allowed: Vec::new(), blocked: Vec::new() });
+        return Ok(IpRules {
+            allowed: Vec::new(),
+            blocked: Vec::new(),
+        });
     };
     Ok(IpRules {
         allowed: json_to_cidrs(&allowed),
@@ -120,18 +125,17 @@ pub async fn ip_restrict_middleware(
         return Ok(next.run(request).await);
     }
 
-    let client_ip = extract_ip(&request);
-
-    let Some(ip) = client_ip else {
-        return Ok(next.run(request).await);
-    };
-
     let rules = load_ip_rules(&state.db, claims.tenant_id).await?;
 
     // No lists configured = no restriction (opt-in).
     if rules.allowed.is_empty() && rules.blocked.is_empty() {
         return Ok(next.run(request).await);
     }
+
+    // Lists exist but the address is unknown: refuse, because a list cannot vouch for it.
+    let Some(ip) = request.extensions().get::<ClientIp>().map(|ip| ip.0) else {
+        return Err(AppError::Forbidden);
+    };
 
     if ip_allowed(ip, &rules) {
         Ok(next.run(request).await)
@@ -141,43 +145,9 @@ pub async fn ip_restrict_middleware(
     }
 }
 
-/// Extract client IP from request headers/extensions.
-fn extract_ip(request: &Request) -> Option<IpAddr> {
-    if let Some(ci) = request
-        .extensions()
-        .get::<ConnectInfo<std::net::SocketAddr>>()
-    {
-        return Some(ci.0.ip());
-    }
-
-    if let Some(fwd) = request
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
-        if let Some(first) = fwd.split(',').next() {
-            if let Ok(ip) = first.trim().parse::<IpAddr>() {
-                return Some(ip);
-            }
-        }
-    }
-
-    if let Some(real) = request
-        .headers()
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-    {
-        if let Ok(ip) = real.trim().parse::<IpAddr>() {
-            return Some(ip);
-        }
-    }
-
-    None
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{ip_allowed, ip_in_cidr, IpRules};
+    use super::{IpRules, ip_allowed, ip_in_cidr};
 
     fn ip(s: &str) -> std::net::IpAddr {
         s.parse()

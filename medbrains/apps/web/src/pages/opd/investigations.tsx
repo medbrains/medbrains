@@ -2,21 +2,11 @@
 // direct (walk-in) orders, each openable to its results.
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Card,
-  Group,
-  Modal,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
+import { Card, Group, Select, SimpleGrid, Stack, Text, Textarea, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { OpdLabOrderFormInput } from "@medbrains/schemas";
 import { opdLabOrderFormSchema } from "@medbrains/schemas";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   DuplicateOrderInfo,
   LabOrder,
@@ -26,7 +16,7 @@ import type {
   RadiologyDicomStudy,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconEye, IconFlask, IconPlus, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconFlask, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -38,7 +28,17 @@ import {
 } from "@/components/Lab/LabOrderHistoryTable";
 import { LabOrderResults } from "@/components/Lab/LabOrderResults";
 import { RadiologyReportList } from "@/components/Radiology/RadiologyReportList";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import { StudyImageActions } from "@/components/Radiology/StudyImageActions";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  IconButton,
+  Modal,
+  Table,
+  toast,
+} from "@/components/ui";
 import {
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
   OPD_LAB_PRIORITY_OPTIONS,
@@ -113,6 +113,11 @@ export function InvestigationsTab({
   // `/patients/{id}/lab-orders` answers `lab.orders.list`; without it the
   // query is not issued and the card says so rather than "nothing ordered".
   const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
+  const canReadLabCatalog = useHasAnyPermission([
+    P.LAB.ORDERS_LIST,
+    P.LAB.ORDERS_CREATE,
+    P.CAMP.LAB_MANAGE,
+  ]);
   // `cancel_order`: lab.orders.create, and the order is yours or you are the lab desk.
   const canCancelLab = useCanCancelOrder(P.LAB.ORDERS_CREATE, P.LAB.ORDERS_CANCEL_ANY);
   const [openVisitOrders, toggleVisitOrder] = useToggleSet();
@@ -139,11 +144,13 @@ export function InvestigationsTab({
   const { data: catalog = [] } = useQuery<LabTestCatalog[]>({
     queryKey: ["lab-catalog"],
     queryFn: () => opdService.listLabCatalog(),
+    enabled: canReadLabCatalog,
   });
 
   const { data: ordersResponse } = useQuery<LabOrderListResponse>({
     queryKey: ["lab-orders", encounterId],
     queryFn: () => opdService.listLabOrders({ encounter_id: encounterId }),
+    enabled: canListLabOrders,
   });
   const orders = ordersResponse?.orders ?? [];
 
@@ -269,7 +276,7 @@ export function InvestigationsTab({
       )}
 
       <Modal opened={formOpened} onClose={formHandlers.close} title="Order Investigation" size="lg">
-        <Card padding="sm" radius="md" withBorder style={{ border: "none", boxShadow: "none" }}>
+        <Card padding="sm" withBorder style={{ border: "none", boxShadow: "none" }}>
           <Stack gap="xs">
             <Controller
               control={control}
@@ -412,7 +419,7 @@ export function InvestigationsTab({
           <Badge tone="primary">Patient history</Badge>
         </Group>
 
-        <Card padding="xs" radius="md" withBorder>
+        <Card padding="xs" withBorder>
           <Stack gap="xs">
             <Group justify="space-between">
               <Text size="sm" fw={600}>
@@ -454,7 +461,7 @@ export function InvestigationsTab({
         </Card>
 
         <SimpleGrid cols={{ base: 1, lg: 2 }}>
-          <Card padding="xs" radius="md" withBorder>
+          <Card padding="xs" withBorder>
             <Stack gap="xs">
               <Text size="sm" fw={600}>
                 Radiology reports
@@ -463,7 +470,7 @@ export function InvestigationsTab({
             </Stack>
           </Card>
 
-          <Card padding="xs" radius="md" withBorder>
+          <Card padding="xs" withBorder>
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text size="sm" fw={600}>
@@ -500,32 +507,8 @@ export function InvestigationsTab({
                           </Group>
                         </Table.Td>
                         <Table.Td>
-                          <Group gap="xs" wrap="nowrap" justify="flex-end">
-                            {study.viewer_url ? (
-                              <Button
-                                tone="secondary"
-                                component="a"
-                                href={study.viewer_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                size="xs"
-                                leftSection={<IconEye size={14} />}
-                              >
-                                Viewer
-                              </Button>
-                            ) : null}
-                            {study.pacs_url ? (
-                              <Button
-                                tone="ghost"
-                                component="a"
-                                href={study.pacs_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                size="xs"
-                              >
-                                DICOM
-                              </Button>
-                            ) : null}
+                          <Group justify="flex-end">
+                            <StudyImageActions studyId={study.id} size="xs" />
                           </Group>
                         </Table.Td>
                       </Table.Tr>

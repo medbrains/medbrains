@@ -381,6 +381,7 @@ async fn transfer(
         super::bundle_records::document_files(state, &mut tx, caller.tenant_id, &contexts).await?;
     let documents =
         bundles::build(&mut tx, caller.tenant_id, patient_id, &contexts, &files).await?;
+    super::bundle_check::record(&mut tx, caller.tenant_id, patient_id, &documents).await?;
     tx.commit().await?;
 
     let km = &hi["keyMaterial"];

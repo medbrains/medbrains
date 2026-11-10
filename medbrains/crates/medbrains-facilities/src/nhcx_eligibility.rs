@@ -122,6 +122,8 @@ pub async fn check_nhcx_eligibility(
         AppError::BadRequest("this patient has no insurance policy on file — add it first".into())
     })?;
     let provider = nhcx_common::load_provider(&mut tx, claims.tenant_id).await?;
+    // NRCeS makes `enterer` 1..1: the staff member asking.
+    let enterer = nhcx_common::load_doctor(&mut tx, claims.tenant_id, Some(claims.sub)).await?;
 
     // A request's correlation id is its own api call id.
     let api_call_id = Uuid::new_v4();
@@ -151,7 +153,7 @@ pub async fn check_nhcx_eligibility(
         patient: &patient,
         policy: &policy,
         provider: &provider,
-        doctor: None,
+        doctor: enterer.as_ref(),
         recipient,
     };
     let bundle = nhcx_bundle::eligibility_bundle(&parties, id, &asked);

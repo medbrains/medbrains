@@ -15,7 +15,13 @@ export const queueFormSchema = z
       .regex(/^[A-Za-z0-9]{1,6}$/, "1 to 6 letters or digits, like GEN or C1"),
     start_at: z.number().int().min(0, "Starts at 0 or more"),
     pad_width: z.number().int().min(1).max(6),
-    reset_rule: z.enum(["daily", "session", "never"]),
+    reset_rule: z.enum(["daily", "session", "never", "recycle"]),
+    number_pool_size: z.number().int().min(1, "At least 1").max(9999, "At most 9999").nullable(),
+    reuse_cooloff_minutes: z
+      .number()
+      .int()
+      .min(0, "0 or more")
+      .max(1440, "At most a day (1440 minutes)"),
     max_tokens_per_period: z.number().int().min(1, "At least 1").nullable(),
     lifecycle: z.enum(["permanent", "temporary"]),
     valid_from: z.date().nullable(),
@@ -33,6 +39,13 @@ export const queueFormSchema = z
       .max(240, "At most 4 hours before a session opens"),
   })
   .superRefine((value, ctx) => {
+    if (value.reset_rule === "recycle" && value.number_pool_size === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["number_pool_size"],
+        message: "Say how many numbers go round, like 99",
+      });
+    }
     if (value.lifecycle === "temporary" && (!value.valid_from || !value.valid_until)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -55,4 +68,30 @@ export type QueueFormInput = z.infer<typeof queueFormSchema>;
 export function previewQueueNumber(prefix: string, startAt: number, padWidth: number): string {
   const n = String(Math.max(0, startAt)).padStart(Math.min(Math.max(padWidth, 1), 6), "0");
   return `${prefix.trim().toUpperCase() || "?"}-${n}`;
+}
+
+/** The fields that decide whether two queues hand out the same numbers. */
+interface PoolQueue {
+  id: string;
+  prefix: string;
+  reset_rule: string;
+  status: string;
+}
+
+/**
+ * Other live recycling queues under this prefix. A number held anywhere in the
+ * hospital is not given out again, so queues that share a prefix share one
+ * pool: P-07 at one counter keeps P-07 from another.
+ */
+export function queuesSharingPool<T extends PoolQueue>(
+  queues: readonly T[],
+  prefix: string,
+  selfId: string | null,
+): T[] {
+  const wanted = prefix.trim().toUpperCase();
+  if (!wanted) return [];
+  return queues.filter(
+    (q) =>
+      q.id !== selfId && q.reset_rule === "recycle" && q.status !== "closed" && q.prefix === wanted,
+  );
 }

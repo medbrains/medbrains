@@ -642,10 +642,10 @@ pub async fn update_home_visit(
         id,
     )
     .await?;
-    if let Some(s) = &body.status {
-        if !["scheduled", "en_route", "completed", "cancelled", "missed"].contains(&s.as_str()) {
-            return Err(AppError::BadRequest("Invalid visit status".to_owned()));
-        }
+    if let Some(s) = &body.status
+        && !["scheduled", "en_route", "completed", "cancelled", "missed"].contains(&s.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid visit status".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1252,10 +1252,10 @@ pub async fn update_hospice(
         id,
     )
     .await?;
-    if let Some(s) = &body.status {
-        if !["active", "discharged", "deceased"].contains(&s.as_str()) {
-            return Err(AppError::BadRequest("Invalid hospice status".to_owned()));
-        }
+    if let Some(s) = &body.status
+        && !["active", "discharged", "deceased"].contains(&s.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid hospice status".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

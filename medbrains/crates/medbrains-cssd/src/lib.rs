@@ -716,29 +716,25 @@ pub async fn create_issuance(
 
     // Auto-bill CSSD issuance if issued to a patient
     if let Some(patient_id) = row.issued_to_patient_id {
-        if medbrains_server_services::billing::is_auto_billing_enabled(
+        medbrains_server_services::billing::charge_or_queue(
             &mut tx,
-            &claims.tenant_id,
-            "cssd",
-        )
-        .await
-        .unwrap_or(false)
-        {
-            let _ = medbrains_server_services::billing::create_service_charge(
-                &mut tx,
-                medbrains_server_services::billing::ServiceChargeInput {
-                    tenant_id: claims.tenant_id,
+            medbrains_server_services::billing::ChargeRequest {
+                tenant_id: claims.tenant_id,
+                requested_by: claims.sub,
+                setting_module: "cssd",
+                charge: medbrains_server_services::billing::AutoChargeInput {
                     patient_id,
-                    encounter_id: row.id,
-                    charge_code: "CSSD_SUPPLY",
+                    encounter_id: None,
+                    charge_code: "CSSD_SUPPLY".to_owned(),
+                    source: "cssd".to_owned(),
+                    source_id: row.id,
                     quantity: 1,
-                    source_module: "cssd",
-                    source_entity_id: row.id,
-                    requested_by: claims.sub,
+                    ..Default::default()
                 },
-            )
-            .await;
-        }
+                apply_concessions: true,
+            },
+        )
+        .await?;
     }
 
     tx.commit().await?;

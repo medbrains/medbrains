@@ -1,0 +1,119 @@
+#!/bin/bash
+# A main machine's first start: generate every secret and the database cluster.
+# Nothing secret is in the image; everything lands on the data partition. Setup runs
+# this when a person chooses a new hospital, so a node never holds any of it.
+# Secret generation mirrors deploy/standalone/install.sh.
+set -euo pipefail
+
+CONF=/var/lib/medbrains/config
+AGENT_DIR=/var/lib/medbrains-agent
+ENV="$CONF/env"
+PG_VERSION=17
+
+# Prints N random alphanumeric characters.
+rand() { openssl rand -base64 48 | LC_ALL=C tr -cd 'A-Za-z0-9' | cut -c1-"$1"; }
+
+write_env() {
+    local tmp priv pub
+    tmp="$(mktemp -d)"
+    agent_token="$(rand 48)"
+    # JWT: PKCS#8 DER private key; raw 32-byte public key (see install.sh).
+    openssl genpkey -algorithm Ed25519 -outform DER -out "$tmp/priv.der" 2>/dev/null
+    openssl pkey -inform DER -in "$tmp/priv.der" -pubout -outform DER -out "$tmp/spki.der" 2>/dev/null
+    priv="$(base64 -w0 < "$tmp/priv.der")"
+    pub="$(tail -c 32 "$tmp/spki.der" | base64 -w0)"
+    rm -rf "$tmp"
+
+    install -m 0640 -o root -g medbrains /dev/null "$ENV.new"
+    cat > "$ENV.new" <<ENVEOF
+# Generated on first boot by /usr/lib/medbrains/firstboot. Back this file up
+# with the database: the keys below cannot be regenerated without data loss.
+MEDBRAINS_ENV=production
+MEDBRAINS_SINGLE_HOSPITAL=true
+DATABASE_URL=postgres://medbrains:$(rand 32)@127.0.0.1:5432/medbrains
+DB_POOL_MAX_CONNECTIONS=10
+DB_POOL_MIN_CONNECTIONS=1
+HOST=127.0.0.1
+PORT=3000
+STATIC_DIR=/usr/share/medbrains/web
+CORS_ORIGIN=https://medbrains.local
+SECURE_COOKIES=true
+TRUSTED_PROXIES=127.0.0.1/32,::1/128
+RUST_LOG=medbrains_server=info,tower_http=warn
+MEDBRAINS_OBJECTS_HOT=/var/lib/medbrains/objects
+MEDBRAINS_OBJECTS_COLD=/var/lib/medbrains/cold
+MEDBRAINS_OBJECTS_ARCHIVE=/var/lib/medbrains/archive
+MEDBRAINS_ICD_LOCAL_SERVICE=false
+MEDBRAINS_PUBLIC_BASE_URL=https://medbrains.local
+MEDBRAINS_SSO_SCREEN_BASE=https://screen.medbrains.local:8443
+SSL_CERT_FILE=$CONF/idp-front.pem
+SSL_CERT_DIR=/etc/ssl/certs
+MEDBRAINS_MACHINE_AGENT_TOKEN=$agent_token
+JWT_PRIVATE_KEY=$priv
+JWT_PUBLIC_KEY=$pub
+MEDBRAINS_IDENTIFIER_HMAC_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_ABDM_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_NHCX_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_PACS_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_EVENT_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY=$(openssl rand -base64 48 | tr -d '\n')
+MEDBRAINS_OAUTH_TOKEN_KEY=$(openssl rand -base64 48 | tr -d '\n')
+ENVEOF
+    mv "$ENV.new" "$ENV"
+}
+
+# Each file below is checked by itself, because a crash can fall between any two: the agent's token
+# and the certificate's copies come from what already exists, so repeating this finishes the job.
+
+# The agent's half of the server's token, in its own directory, so it never reads the env.
+ensure_agent_token() {
+    local token tmp="$AGENT_DIR/server-token.new"
+    token="$(sed -n 's/^MEDBRAINS_MACHINE_AGENT_TOKEN=//p' "$ENV")"
+    [[ -n "$token" ]] || { echo "the env has no agent token" >&2; return 1; }
+    install -m 0600 -o medbrains-agent -g kiosk /dev/null "$tmp"
+    printf '%s' "$token" > "$tmp"
+    mv "$tmp" "$AGENT_DIR/server-token"
+}
+
+create_cluster() {
+    # Data checksums catch silent flash corruption; crash safety is never
+    # traded for speed (§8o). JIT off: small box, and W^X under systemd.
+    pg_createcluster "$PG_VERSION" main --start-conf=auto -- \
+        --data-checksums --auth-local=peer --auth-host=scram-sha-256 --encoding=UTF8
+    cat > "/etc/postgresql/$PG_VERSION/main/conf.d/10-medbrains.conf" <<'PGEOF'
+listen_addresses = 'localhost'
+fsync = on
+full_page_writes = on
+synchronous_commit = on
+jit = off
+max_connections = 50
+wal_compression = on
+checkpoint_timeout = 15min
+max_wal_size = 1GB
+log_min_duration_statement = 2000
+# Slow queries must not copy patient values into the log. The journal bounds its size.
+log_parameter_max_length = 0
+log_parameter_max_length_on_error = 0
+log_destination = 'syslog'
+PGEOF
+    # Sized from this machine's memory: the same image runs on 4 GB and on 64 GB. A sixteenth keeps
+    # 256 MB on 4 GB, the size measured so far, and the floor and ceiling hold the extremes.
+    local mem_mb buffers_mb
+    mem_mb=$(awk '/MemTotal/ { print int($2 / 1024) }' /proc/meminfo)
+    buffers_mb=$((mem_mb / 16))
+    ((buffers_mb < 128)) && buffers_mb=128
+    ((buffers_mb > 8192)) && buffers_mb=8192
+    cat >> "/etc/postgresql/$PG_VERSION/main/conf.d/10-medbrains.conf" <<PGEOF
+shared_buffers = ${buffers_mb}MB
+effective_cache_size = $((mem_mb / 2))MB
+PGEOF
+    # This script runs under UMask=0077; PostgreSQL must be able to read it.
+    chown postgres:postgres "/etc/postgresql/$PG_VERSION/main/conf.d/10-medbrains.conf"
+}
+
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/medbrains.conf
+[[ -s "$ENV" ]] || write_env
+[[ -f "/etc/postgresql/$PG_VERSION/main/postgresql.conf" ]] || create_cluster
+/usr/lib/medbrains/front-certs
+ensure_agent_token
+touch "$CONF/.firstboot-done"

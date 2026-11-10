@@ -3,6 +3,7 @@ import {
   IconApps,
   IconBed,
   IconBinaryTree,
+  IconBug,
   IconBuildingCommunity,
   IconCash,
   IconChartBar,
@@ -14,6 +15,7 @@ import {
   IconHeartRateMonitor,
   IconMapPin,
   IconMedicalCross,
+  IconMicrophone,
   IconNotebook,
   IconPalette,
   IconPill,
@@ -48,10 +50,14 @@ import { CriticalValueRulesSettings } from "@/pages/admin/settings/CriticalValue
 import { DepartmentsSettings } from "@/pages/admin/settings/DepartmentsSettings";
 import { DeviceIntegrationsSettings } from "@/pages/admin/settings/DeviceIntegrationsSettings";
 import { DiagnosisCodingSettings } from "@/pages/admin/settings/DiagnosisCodingSettings";
+import { DictationSettings } from "@/pages/admin/settings/DictationSettings";
 import { DrugInteractionsSettings } from "@/pages/admin/settings/DrugInteractionsSettings";
+import { ErrorTrackingSettings } from "@/pages/admin/settings/ErrorTrackingSettings";
+import { EwsPolicySettings } from "@/pages/admin/settings/EwsPolicySettings";
 import { FacilitiesSettings } from "@/pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "@/pages/admin/settings/GeneralSettings";
 import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
+import { Hl7AdtSettings } from "@/pages/admin/settings/Hl7AdtSettings";
 import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
@@ -308,6 +314,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: BrandingSettings,
   },
   {
+    value: "hl7-adt",
+    i18nKey: "settings.hl7Adt",
+    icon: "IconPlug",
+    requiredPermission: "integration.hl7_adt.view",
+    component: Hl7AdtSettings,
+  },
+  {
     value: "device-integrations",
     i18nKey: "settings.deviceIntegrations",
     icon: "IconPlug",
@@ -364,6 +377,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: DrugInteractionsSettings,
   },
   {
+    value: "early-warning",
+    i18nKey: "settings.earlyWarning",
+    icon: "IconHeartRateMonitor",
+    requiredPermission: "nurse.ews.policy",
+    component: EwsPolicySettings,
+  },
+  {
     value: "critical-values",
     i18nKey: "settings.criticalValues",
     icon: "IconShieldCheck",
@@ -399,11 +419,25 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: ClinicalNotesSettings,
   },
   {
+    value: "dictation",
+    i18nKey: "settings.dictation",
+    icon: "IconMicrophone",
+    requiredPermission: "admin.settings.dictation.manage",
+    component: DictationSettings,
+  },
+  {
     value: "system-health",
     i18nKey: "settings.systemHealth",
     icon: "IconHeartRateMonitor",
     requiredPermission: "admin.settings.general.manage",
     component: SystemHealthSettings,
+  },
+  {
+    value: "error-tracking",
+    i18nKey: "settings.errorTracking",
+    icon: "IconBug",
+    requiredPermission: "admin.error_tracking.view",
+    component: ErrorTrackingSettings,
   },
   {
     value: "offline-mode",
@@ -415,6 +449,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 ];
 
 export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
+  IconMicrophone,
   IconBinaryTree,
   IconClockCog,
   IconSettings,
@@ -444,5 +479,6 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconStethoscope,
   IconChartBar,
   IconHeartRateMonitor,
+  IconBug,
   IconCloudOff,
 };

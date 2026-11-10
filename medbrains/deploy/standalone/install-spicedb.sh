@@ -41,6 +41,13 @@ else
     trap 'rm -rf "$tmp"' EXIT
     url="https://github.com/authzed/spicedb/releases/download/v${SPICEDB_VERSION}/spicedb_${SPICEDB_VERSION}_linux_${SPICEDB_ARCH}.tar.gz"
     curl -fsSL "$url" -o "$tmp/spicedb.tar.gz"
+    # Checksums for the pinned version only: anything else must bring its own.
+    case "$SPICEDB_VERSION/$SPICEDB_ARCH" in
+        1.56.1/amd64) sum=91d8f1029eacc92fe6f1011ac3ef9c4af934a88461f424fc3dfb31fb75374a4c ;;
+        1.56.1/arm64) sum=4277d472bd6e965626f0c9e16530569f23ecc210ebcfcd25c97808c8f860068c ;;
+        *) sum="${SPICEDB_SHA256:?set SPICEDB_SHA256 for spicedb $SPICEDB_VERSION ($SPICEDB_ARCH)}" ;;
+    esac
+    echo "$sum  $tmp/spicedb.tar.gz" | sha256sum --check --quiet
     tar -xzf "$tmp/spicedb.tar.gz" -C "$tmp" spicedb
     install -m 0755 "$tmp/spicedb" /usr/local/bin/spicedb
     say "installed $(/usr/local/bin/spicedb version 2>/dev/null | head -1)"

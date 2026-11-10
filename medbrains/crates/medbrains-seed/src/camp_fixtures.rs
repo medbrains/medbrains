@@ -887,7 +887,7 @@ async fn seed_camp_person(
     let site = scope.site;
     let site_index = scope.site_index;
 
-    let linked_patient = person_index % 5 != 0;
+    let linked_patient = !person_index.is_multiple_of(5);
     let first = FIRST_NAMES[(person_index + site_index) % FIRST_NAMES.len()];
     let last = LAST_NAMES[(person_index * 3 + site_index) % LAST_NAMES.len()];
     let gender = match person_index % 4 {
@@ -932,7 +932,7 @@ async fn seed_camp_person(
             "pincode": site.pincode
         }))
         .bind(blood_group(person_index))
-        .bind(person_index % 11 != 0)
+        .bind(!person_index.is_multiple_of(11))
         .bind(user_id)
         .bind(if matches!(site.state, "Kerala") {
             "Malayalam"
@@ -957,7 +957,7 @@ async fn seed_camp_person(
         .fetch_one(&mut **tx)
         .await?;
 
-        if person_index % 17 == 0 {
+        if person_index.is_multiple_of(17) {
             seed_allergy(tx, tenant_id, id, person_index).await?;
         }
 
@@ -970,8 +970,8 @@ async fn seed_camp_person(
     let seq = person_index + 1;
     let registration_number = format!("CR-{}-{seq:04}", site.code);
     let referred = is_referral(person_index);
-    let screened = person_index % 10 != 0;
-    let lab_sampled = screened && (person_index % 3 == 0 || high_sugar(person_index));
+    let screened = !person_index.is_multiple_of(10);
+    let lab_sampled = screened && (person_index.is_multiple_of(3) || high_sugar(person_index));
     let status = if referred {
         "referred"
     } else if screened {
@@ -1048,7 +1048,7 @@ async fn seed_camp_person(
         )
         .await?;
     }
-    if person_index == 12 && site_index % 2 == 0 {
+    if person_index == 12 && site_index.is_multiple_of(2) {
         seed_incident(tx, tenant_id, camp_id, registration_id, user_id).await?;
     }
 
@@ -1265,7 +1265,7 @@ async fn seed_allergy(
     patient_id: Uuid,
     person_index: usize,
 ) -> Result<(), sqlx::Error> {
-    let (allergen, reaction, severity) = if person_index % 34 == 0 {
+    let (allergen, reaction, severity) = if person_index.is_multiple_of(34) {
         ("Penicillin", "Rash and wheeze", "severe")
     } else {
         ("Dust", "Sneezing", "mild")
@@ -1332,12 +1332,12 @@ async fn seed_screening(
     .bind(format!("{:.1}", bmi(f64::from(weight), f64::from(height))))
     .bind(height.to_string())
     .bind(weight.to_string())
-    .bind(if person_index % 7 == 0 {
+    .bind(if person_index.is_multiple_of(7) {
         Some("6/12")
     } else {
         Some("6/9")
     })
-    .bind(if person_index % 9 == 0 {
+    .bind(if person_index.is_multiple_of(9) {
         Some("6/18")
     } else {
         Some("6/9")
@@ -1355,7 +1355,7 @@ async fn seed_screening(
     } else {
         None
     })
-    .bind(if person_index % 19 == 0 {
+    .bind(if person_index.is_multiple_of(19) {
         Some("urgent")
     } else if referred {
         Some("routine")
@@ -1397,7 +1397,7 @@ async fn seed_lab_sample(
     })
     .bind(barcode)
     .bind(user_id)
-    .bind(person_index % 6 != 0)
+    .bind(!person_index.is_multiple_of(6))
     .execute(&mut **tx)
     .await?;
 
@@ -1425,18 +1425,18 @@ async fn seed_referral(
     .bind(registration_id)
     .bind(site.referral_facility)
     .bind(referral_department(person_index))
-    .bind(if person_index % 19 == 0 {
+    .bind(if person_index.is_multiple_of(19) {
         "urgent"
     } else {
         "routine"
     })
     .bind("Camp screening threshold met for higher-centre review")
-    .bind(if person_index % 19 == 0 {
+    .bind(if person_index.is_multiple_of(19) {
         Some("ambulance")
     } else {
         Some("own_transport")
     })
-    .bind(person_index % 19 == 0)
+    .bind(person_index.is_multiple_of(19))
     .bind("Family attendant")
     .bind("9003100300")
     .bind(user_id)
@@ -1534,9 +1534,9 @@ fn blood_group(person_index: usize) -> &'static str {
 fn priority_category(age: i32, person_index: usize) -> &'static str {
     if age >= 70 {
         "elderly"
-    } else if person_index % 23 == 0 {
+    } else if person_index.is_multiple_of(23) {
         "disabled"
-    } else if person_index % 29 == 0 {
+    } else if person_index.is_multiple_of(29) {
         "pregnant"
     } else {
         "normal"
@@ -1544,19 +1544,19 @@ fn priority_category(age: i32, person_index: usize) -> &'static str {
 }
 
 fn high_sugar(person_index: usize) -> bool {
-    person_index % 11 == 0 || person_index % 37 == 0
+    person_index.is_multiple_of(11) || person_index.is_multiple_of(37)
 }
 
 fn is_referral(person_index: usize) -> bool {
-    person_index % 13 == 0 || person_index % 19 == 0 || high_sugar(person_index)
+    person_index.is_multiple_of(13) || person_index.is_multiple_of(19) || high_sugar(person_index)
 }
 
 fn referral_department(person_index: usize) -> &'static str {
     if high_sugar(person_index) {
         "General Medicine"
-    } else if person_index % 19 == 0 {
+    } else if person_index.is_multiple_of(19) {
         "Cardiology"
-    } else if person_index % 7 == 0 {
+    } else if person_index.is_multiple_of(7) {
         "Ophthalmology"
     } else {
         "General Medicine"
@@ -1568,7 +1568,7 @@ fn screening_finding(systolic: i32, sugar: i32, person_index: usize) -> &'static
         "Raised blood pressure on camp screening"
     } else if sugar >= 220 {
         "High random blood sugar"
-    } else if person_index % 7 == 0 {
+    } else if person_index.is_multiple_of(7) {
         "Reduced visual acuity"
     } else {
         "No immediate danger signs"
@@ -1580,7 +1580,7 @@ fn screening_diagnosis(systolic: i32, sugar: i32, person_index: usize) -> &'stat
         "Hypertension suspected"
     } else if sugar >= 220 {
         "Diabetes control review required"
-    } else if person_index % 7 == 0 {
+    } else if person_index.is_multiple_of(7) {
         "Refractive error suspected"
     } else {
         "General health screening"

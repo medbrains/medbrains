@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { AbdmConformanceIssues } from "@/components/Patient/abdm/AbdmConformanceIssues";
 import { AbdmStat } from "@/components/Patient/abdm/AbdmStat";
 import { LINK_STATUS } from "@/components/Patient/abdm/abdmStatus";
 import { Alert, Badge, Button, Card, SegmentedControl, Table, toast } from "@/components/ui";
@@ -151,6 +152,7 @@ export function AbdmSharingSettings() {
                         {LINK_STATUS[f.link_status].label}
                       </Badge>
                       <Text size="xs">{f.last_error ?? "—"}</Text>
+                      <AbdmConformanceIssues issues={f.conformance_issues} />
                     </Table.Td>
                     {canManage && (
                       <Table.Td>

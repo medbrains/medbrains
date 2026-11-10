@@ -130,7 +130,7 @@ export function TriageModal({
               <Stack gap={2} mt="xs">
                 {result.reasoning.map((r) => (
                   <Text key={r.flag} size="xs">
-                    🚩 {r.flag.replace(/_/g, " ")} — {r.rule}
+                    Red flag: {r.flag.replace(/_/g, " ")} — {r.rule}
                   </Text>
                 ))}
               </Stack>

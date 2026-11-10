@@ -1,0 +1,33 @@
+[package]
+name = "medbrains-sop-flows"
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+# SOP flows (RFCs/RFC-SOP-FLOWS.md): library flows built in code, switches a
+# hospital flips, and an engine that walks a patient through the stations by
+# calling the existing domain actions. It writes only `workflow_*` rows.
+[dependencies]
+medbrains-approvals-core = { path = "../medbrains-approvals-core" }
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-ipd = { path = "../medbrains-ipd" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+axum = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true }

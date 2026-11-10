@@ -18,13 +18,15 @@ import {
   billingInvoiceHasReceivedPayment,
   billingInvoiceIsFinalized,
   billingInvoiceRequiresFollowUp,
+  bloodGroupLabel,
   hasReviewedPatientPharmacyPrescriptionForJourney,
   P,
 } from "@medbrains/types";
-import { fieldAccessText } from "@medbrains/utils";
+import { fieldAccessText, snakeToTitle } from "@medbrains/utils";
 import {
   IconAlertTriangle,
   IconCalendar,
+  IconChartLine,
   IconEye,
   IconFile,
   IconFlask,
@@ -52,6 +54,7 @@ import { ActivePackagesSection } from "@/components/Patient/ActivePackagesSectio
 import { AbdmOtherHospitalsSection } from "@/components/Patient/abdm/AbdmOtherHospitalsSection";
 import { AbdmRecordsSection } from "@/components/Patient/abdm/AbdmRecordsSection";
 import { ClinicalTimelineTab } from "@/components/Patient/ClinicalTimelineTab";
+import { GroupIdentitySection } from "@/components/Patient/groupIdentity/GroupIdentitySection";
 import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
@@ -85,6 +88,7 @@ import { CampsTab } from "./camps-tab";
 import { ChronicCareTab } from "./chronic-care-tab";
 import { DetailDocumentsTab } from "./documents-tab";
 import { DetailFamilyLinksTab } from "./family-links-tab";
+import { GrowthTab } from "./growth-tab";
 import { ImagingTab } from "./imaging-tab";
 import { ImmunizationsTab } from "./immunizations-tab";
 import { LabOrdersTab } from "./lab-orders-tab";
@@ -102,6 +106,13 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
   "observation",
 ]);
 
+/** Growth charts run to 18 years. */
+function isChild(dateOfBirth: string | null): boolean {
+  if (!dateOfBirth) return false;
+  const years = (Date.now() - new Date(dateOfBirth).getTime()) / (365.25 * 86_400_000);
+  return years <= 18;
+}
+
 export function PatientDetailPageInner() {
   useRequirePermission(P.PATIENTS.VIEW);
   const { id } = useParams<{ id: string }>();
@@ -116,8 +127,12 @@ export function PatientDetailPageInner() {
   const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
+  const canViewGrowth = useHasPermission(P.PATIENTS.GROWTH.VIEW);
   const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
   const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
+  // Admissions and radiology reports are read only by those who may list
+  // them; the front desk opening a record sent both and was refused.
+  const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const canListPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
@@ -170,7 +185,7 @@ export function PatientDetailPageInner() {
   const { data: radiologyReports = [] } = useQuery({
     queryKey: ["patient-radiology-reports", patientId],
     queryFn: () => patientDetailService.listRadiologyReports(patientId),
-    enabled: patientId.length > 0,
+    enabled: canListRadiologyOrders && patientId.length > 0,
   });
   // Reports miss orders not yet reported (a desk walk-in, mostly); prescriptions
   // miss direct counter sales. Both lists are read for the flow bar.
@@ -200,7 +215,7 @@ export function PatientDetailPageInner() {
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-admissions", patientId, "admitted"],
     queryFn: () => patientDetailService.listPatientAdmissions(patientId, "admitted"),
-    enabled: patientId.length > 0,
+    enabled: canListAdmissions && patientId.length > 0,
   });
   const activeAdmission = activeAdmissions?.admissions[0];
   const { data: emergencyVisits = [] } = useQuery<ErVisit[]>({
@@ -376,6 +391,16 @@ export function PatientDetailPageInner() {
       section: "Profile",
       icon: <IconVaccine size={14} />,
     },
+    ...(canViewGrowth && isChild(patient.date_of_birth)
+      ? [
+          {
+            value: "growth" as const,
+            label: "Growth",
+            section: "Profile",
+            icon: <IconChartLine size={14} />,
+          },
+        ]
+      : []),
     {
       value: "timeline",
       label: "Timeline",
@@ -514,9 +539,11 @@ export function PatientDetailPageInner() {
                       Deceased
                     </Badge>
                   )}
-                  <Badge tone="primary">{patient.category}</Badge>
-                  <Badge tone="neutral">{patient.financial_class}</Badge>
-                  {patient.blood_group && <Badge tone="danger">{patient.blood_group}</Badge>}
+                  <Badge tone="primary">{snakeToTitle(patient.category)}</Badge>
+                  <Badge tone="neutral">{snakeToTitle(patient.financial_class)}</Badge>
+                  {patient.blood_group && (
+                    <Badge tone="danger">{bloodGroupLabel(patient.blood_group)}</Badge>
+                  )}
                   {patient.is_vip && <Badge tone="accent">VIP</Badge>}
                   {patient.is_medico_legal && (
                     <Badge tone="danger" variant="filled">
@@ -540,7 +567,7 @@ export function PatientDetailPageInner() {
                   <Badge tone="primary" variant="light">
                     UHID {displayUhid}
                   </Badge>
-                  {patient.gender && <Badge tone="neutral">{patient.gender}</Badge>}
+                  {patient.gender && <Badge tone="neutral">{snakeToTitle(patient.gender)}</Badge>}
                   {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
                   {displayPhone && displayPhone !== "-" && (
                     <Badge tone="neutral">{displayPhone}</Badge>
@@ -573,61 +600,67 @@ export function PatientDetailPageInner() {
         <Grid align="flex-start" className={classes.workspaceGrid}>
           <Grid.Col span={12}>
             <Stack className={classes.workspaceMain}>
-              <Tabs.Panel id="patient-overview" value="overview" pt="md">
+              <Tabs.Panel value="overview" pt="md">
                 <OverviewTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-allergies" value="allergies" pt="md">
+              <Tabs.Panel value="allergies" pt="md">
                 <AllergiesTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-immunizations" value="immunizations" pt="md">
+              <Tabs.Panel value="immunizations" pt="md">
                 <ImmunizationsTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-timeline" value="timeline" pt="md">
+              {canViewGrowth && (
+                <Tabs.Panel value="growth" pt="md">
+                  <GrowthTab patient={patient} />
+                </Tabs.Panel>
+              )}
+              <Tabs.Panel value="timeline" pt="md">
                 <ClinicalTimelineTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-visits" value="visits" pt="md">
+              <Tabs.Panel value="visits" pt="md">
                 <VisitsTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-prescriptions" value="prescriptions" pt="md">
+              <Tabs.Panel value="prescriptions" pt="md">
                 <PrescriptionsTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-lab" value="lab" pt="md">
+              <Tabs.Panel value="lab" pt="md">
                 <LabOrdersTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-imaging" value="imaging" pt="md">
+              <Tabs.Panel value="imaging" pt="md">
                 <ImagingTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-billing" value="billing" pt="md">
+              <Tabs.Panel value="billing" pt="md">
                 <BillingTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-camps" value="camps" pt="md">
+              <Tabs.Panel value="camps" pt="md">
                 <CampsTab patientId={patient.id} />
               </Tabs.Panel>
 
-              <Tabs.Panel id="patient-appointments" value="appointments" pt="md">
+              <Tabs.Panel value="appointments" pt="md">
                 <AppointmentsTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-family" value="family" pt="md">
+              <Tabs.Panel value="family" pt="md">
                 <DetailFamilyLinksTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-documents" value="documents" pt="md">
+              <Tabs.Panel value="documents" pt="md">
                 <Stack>
                   <DetailDocumentsTab patientId={patient.id} />
                   <AbdmRecordsSection patientId={patient.id} />
                   <AbdmOtherHospitalsSection patientId={patient.id} />
+                  <GroupIdentitySection patientId={patient.id} />
                   <PatientAccessLogSection patientId={patient.id} />
                 </Stack>
               </Tabs.Panel>
-              <Tabs.Panel id="patient-chronic" value="chronic" pt="md">
+              <Tabs.Panel value="chronic" pt="md">
                 <ChronicCareTab patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-packages" value="packages" pt="md">
+              <Tabs.Panel value="packages" pt="md">
                 <ActivePackagesSection patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-notes" value="notes" pt="md">
+              <Tabs.Panel value="notes" pt="md">
                 <ChartReview patientId={patient.id} />
               </Tabs.Panel>
-              <Tabs.Panel id="patient-merge" value="merge" pt="md">
+              <Tabs.Panel value="merge" pt="md">
                 <MergeTab patient={patient} />
               </Tabs.Panel>
             </Stack>

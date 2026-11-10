@@ -17,8 +17,21 @@ import { isTauriDesktopRuntime } from "@/lib/desktop-runtime";
 import { getRememberedHospitalCode, rememberHospitalCode } from "@/lib/hospital-code";
 import classes from "./login.module.scss";
 
-/** `/login?hospital=AMH` — the hospital step 1 chose. */
+/** `/login?hospital=CITYHOSP` — the hospital step 1 chose. */
 const HOSPITAL_PARAM = "hospital";
+/** `/login?sso_error=…` — the server sent the person back from the identity provider. */
+const SSO_ERROR_PARAM = "sso_error";
+/** What each of the server's sign-in failures means, in plain words with a next step. */
+const SSO_ERRORS: Record<string, string> = {
+  unavailable:
+    "The sign-in service is not answering, so you can't sign in with it right now. Anyone already signed in can carry on. Try again in a minute; if it keeps happening, call IT.",
+  "1": "Sign-in was cancelled or refused. Try again.",
+  link: "Your sign-in matches a MedBrains account that is not linked to it yet. Ask IT to link it in Users, then sign in again.",
+  admin_group:
+    "This is an administrator's account, so its sign-in must be in the IT administrators group, which uses a second step. Ask IT to add you to it, then sign in again.",
+  admin_group_unchecked:
+    "This is an administrator's account, and the sign-in service could not confirm its IT administrators group, so sign-in stopped. Try again in a minute; if it keeps happening, call IT.",
+};
 
 /**
  * Sign-in starts with the hospital. Its code (remembered on this device), or
@@ -37,6 +50,7 @@ export function LoginPage() {
   const setCode = (next: string | null) =>
     setParams(next ? { [HOSPITAL_PARAM]: next } : {}, { replace: true });
   const [choosing, setChoosing] = useState(false);
+  const ssoError = SSO_ERRORS[params.get(SSO_ERROR_PARAM) ?? ""];
   const options = useQuery({
     queryKey: ["sign-in-options", code ?? "@domain"],
     queryFn: () => api.getSignInOptions(code ?? undefined).catch(nullOn404),
@@ -67,7 +81,6 @@ export function LoginPage() {
               size="sm"
               fw={600}
               c="var(--mb-text-secondary)"
-              tt="uppercase"
               className={classes.title}
             >
               Sign in
@@ -82,6 +95,11 @@ export function LoginPage() {
             </Text>
           </Stack>
 
+          {ssoError && (
+            <Alert tone="danger" mb="md" data-testid="login-sso-error">
+              {ssoError}
+            </Alert>
+          )}
           {options.isPending && !choosing ? (
             <Center py="md">
               <Loader size="sm" aria-label="Checking how your hospital signs in" />
@@ -143,7 +161,7 @@ function HospitalSignIn({
       {hasSso && showPassword && <Divider label="or" labelPosition="center" />}
       {showPassword && <PasswordSignIn hospitalCode={hospital.code} />}
       {!hasSso && !showPassword && (
-        <Alert tone="warning" radius="md" data-testid="login-no-methods">
+        <Alert tone="warning" data-testid="login-no-methods">
           {hospital.name} hasn't set up sign-in yet. Ask your IT desk.
         </Alert>
       )}
@@ -160,15 +178,17 @@ function HospitalSignIn({
               Administrator? Use a password
             </Anchor>
           )}
-          <Anchor
-            component="button"
-            type="button"
-            size="sm"
-            onClick={onChangeHospital}
-            data-testid="login-change-hospital"
-          >
-            Not {hospital.name}? Change hospital
-          </Anchor>
+          {!hospital.single_hospital && (
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              onClick={onChangeHospital}
+              data-testid="login-change-hospital"
+            >
+              Not {hospital.name}? Change hospital
+            </Anchor>
+          )}
         </Stack>
       </Center>
     </Stack>
@@ -209,7 +229,7 @@ function LoginFooter({ needsSetup, trialOpen }: { needsSetup: boolean; trialOpen
           )}
         </Box>
       )}
-      <Box className={classes.version}>MedBrains HMS v0.1.0</Box>
+      <Box className={classes.version}>MedBrains v{__APP_VERSION__}</Box>
       <Text size="xs" c="var(--mb-text-secondary)" ta="center" mt={4}>
         <Anchor component={Link} to="/terms" c="inherit">
           Terms

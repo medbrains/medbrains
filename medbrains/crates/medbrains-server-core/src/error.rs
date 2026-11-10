@@ -155,7 +155,11 @@ impl IntoResponse for AppError {
             }
             Self::TooManyRequests(msg) => {
                 tracing::warn!(detail = %msg, "too many requests");
-                (StatusCode::TOO_MANY_REQUESTS, "too many requests", msg.clone())
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "too many requests",
+                    msg.clone(),
+                )
             }
             Self::ServiceUnavailable(msg) => {
                 tracing::warn!(detail = %msg, "service unavailable");
@@ -194,8 +198,9 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
     match code {
         // Foreign key violation — referenced row doesn't exist.
         Some("23503") => (StatusCode::NOT_FOUND, "not found"),
-        // Unique constraint violation — duplicate.
-        Some("23505") => (StatusCode::CONFLICT, "conflict"),
+        // Unique constraint violation — duplicate; MB409 is an edit to a
+        // signed field of a finalized record (migration 1418's edit guard).
+        Some("23505" | "MB409") => (StatusCode::CONFLICT, "conflict"),
         // Check constraint, not-null — bad input.
         Some("23514" | "23502") => (StatusCode::BAD_REQUEST, "bad request"),
         // Data exceptions — the request carried a value Postgres can't even
@@ -203,9 +208,7 @@ fn db_error_status(code: Option<&str>) -> (StatusCode, &'static str) {
         // that binds a free-text `status`/`type` query param into a `$N::<enum>`
         // cast raises it for an unknown value (`?status=bogus`), which used to
         // 500. Numeric overflow and unparseable dates are the same class.
-        Some("22P02" | "22003" | "22007" | "22008") => {
-            (StatusCode::BAD_REQUEST, "bad request")
-        }
+        Some("22P02" | "22003" | "22007" | "22008") => (StatusCode::BAD_REQUEST, "bad request"),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "database error"),
     }
 }
@@ -246,7 +249,10 @@ fn extract_db_detail(db_err: &medbrains_db::pool::DbError) -> String {
             // Data exception — e.g. `invalid input value for enum foo_status: "bogus"`.
             // The PG message names the offending value, which is exactly what the
             // caller needs to fix the request.
-            if matches!(e.code().as_deref(), Some("22P02" | "22003" | "22007" | "22008")) {
+            if matches!(
+                e.code().as_deref(),
+                Some("22P02" | "22003" | "22007" | "22008")
+            ) {
                 return format!("Invalid value: {msg}");
             }
             // Other database errors — return the PG message directly
@@ -265,6 +271,22 @@ impl From<sqlx::Error> for AppError {
     }
 }
 
+/// How a kernel failure answers over HTTP: each variant becomes the `AppError` of
+/// the same name, so the kernel moving below this crate changed no status or body.
+impl From<medbrains_kernel::KernelError> for AppError {
+    fn from(err: medbrains_kernel::KernelError) -> Self {
+        use medbrains_kernel::KernelError as K;
+        match err {
+            K::Database(e) => Self::Database(e),
+            K::Forbidden => Self::Forbidden,
+            K::NotFound => Self::NotFound,
+            K::BadRequest(msg) => Self::BadRequest(msg),
+            K::ServiceUnavailable(msg) => Self::ServiceUnavailable(msg),
+            K::Internal(msg) => Self::Internal(msg),
+        }
+    }
+}
+
 /// A refused stock movement is the caller's problem, not the server's.
 ///
 /// "Short by 12" and "this line was never linked to the catalogue" are both
@@ -279,6 +301,19 @@ impl From<medbrains_db::stock::StockError> for AppError {
     }
 }
 
+/// A body that did not parse, surfaced *after* the permission check.
+///
+/// Axum runs a `Json<T>` extractor before the handler body, so a handler that
+/// takes `Json<T>` and then calls `require_permission` answers 415/422 to a
+/// caller who may not use the route at all — the refusal never runs. Taking
+/// `Result<Json<T>, JsonRejection>` and applying `?` after the guard puts the
+/// refusal first; this is what the `?` converts to.
+impl From<axum::extract::rejection::JsonRejection> for AppError {
+    fn from(err: axum::extract::rejection::JsonRejection) -> Self {
+        Self::BadRequest(err.body_text())
+    }
+}
+
 impl From<argon2::password_hash::Error> for AppError {
     fn from(_: argon2::password_hash::Error) -> Self {
         Self::Internal("password hashing error".to_owned())
@@ -287,12 +322,77 @@ impl From<argon2::password_hash::Error> for AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::{StatusCode, db_error_status};
+    use super::{AppError, StatusCode, db_error_status};
+    use axum::response::IntoResponse;
+    use medbrains_kernel::KernelError;
+
+    /// The status and body a client would receive.
+    async fn answer(err: AppError) -> (StatusCode, Vec<u8>) {
+        let response = err.into_response();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .map(|b| b.to_vec())
+            .unwrap_or_default();
+        (status, body)
+    }
+
+    /// Moving the kernel below this crate must not change a byte on the wire:
+    /// a failure through the kernel answers as the `AppError` it always was,
+    /// with the status pinned so a shared regression cannot pass unnoticed.
+    #[tokio::test]
+    async fn a_kernel_failure_answers_exactly_as_the_app_error_did() {
+        let msg = || "why".to_owned();
+        let db = || sqlx::Error::RowNotFound;
+        let cases: Vec<(KernelError, AppError, StatusCode)> = vec![
+            (
+                KernelError::Forbidden,
+                AppError::Forbidden,
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                KernelError::NotFound,
+                AppError::NotFound,
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                KernelError::BadRequest(msg()),
+                AppError::BadRequest(msg()),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                KernelError::ServiceUnavailable(msg()),
+                AppError::ServiceUnavailable(msg()),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            (
+                KernelError::Internal(msg()),
+                AppError::Internal(msg()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                KernelError::from(db()),
+                AppError::from(db()),
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                KernelError::from(sqlx::Error::PoolClosed),
+                AppError::from(sqlx::Error::PoolClosed),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+        ];
+        for (kernel, app, status) in cases {
+            let expected = answer(app).await;
+            assert_eq!(expected.0, status);
+            assert_eq!(answer(AppError::from(kernel)).await, expected);
+        }
+    }
 
     #[test]
     fn constraint_violations_are_client_errors() {
         assert_eq!(db_error_status(Some("23503")).0, StatusCode::NOT_FOUND);
         assert_eq!(db_error_status(Some("23505")).0, StatusCode::CONFLICT);
+        assert_eq!(db_error_status(Some("MB409")).0, StatusCode::CONFLICT);
         assert_eq!(db_error_status(Some("23514")).0, StatusCode::BAD_REQUEST);
         assert_eq!(db_error_status(Some("23502")).0, StatusCode::BAD_REQUEST);
     }
@@ -306,7 +406,11 @@ mod tests {
     fn data_exceptions_are_bad_request_not_500() {
         for code in ["22P02", "22003", "22007", "22008"] {
             let (status, _) = db_error_status(Some(code));
-            assert_eq!(status, StatusCode::BAD_REQUEST, "SQLSTATE {code} must be a 400");
+            assert_eq!(
+                status,
+                StatusCode::BAD_REQUEST,
+                "SQLSTATE {code} must be a 400"
+            );
         }
     }
 
@@ -317,5 +421,18 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR
         );
         assert_eq!(db_error_status(None).0, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+}
+
+impl From<medbrains_core::secrets::sealing::SealingKeyError> for AppError {
+    /// An unset or short key is a setting to fix; a failed store is a fault, and says so.
+    fn from(error: medbrains_core::secrets::sealing::SealingKeyError) -> Self {
+        use medbrains_core::secrets::sealing::SealingKeyError;
+        match &error {
+            SealingKeyError::Unreadable { .. } => Self::Internal(error.to_string()),
+            SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => Self::ServiceUnavailable(
+                format!("This feature is not configured: {error}. Ask your administrator."),
+            ),
+        }
     }
 }

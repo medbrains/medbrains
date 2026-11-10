@@ -3,15 +3,15 @@ import Orb from "./Orb.astro";
 
 // Every line here is what the product's assistant actually does (medbrains-ai):
 // it reads through the caller's own permissions and the audit stack, runs the
-// drug-safety check first, and never creates or signs an order.
+// drug-safety rules bind it, and it never creates or signs an order.
 const POINTS = [
   {
     title: "Answers from your own records",
     body: "Counts, lists and a patient's details come through the same screens and permissions your role already has. Every lookup lands on the audit trail.",
   },
   {
-    title: "Safety checks before suggestions",
-    body: "Before it suggests a medicine, it checks the patient's recorded allergies. When the safety rules block an order, it will not recommend it.",
+    title: "Safety rules it cannot skip",
+    body: "When the safety rules block an order, the assistant cannot get round them. Diagnosis, treatment and dose stay with the clinician.",
   },
   {
     title: "It drafts. A clinician signs.",
@@ -26,6 +26,7 @@ const POINTS = [
       <p class="eyebrow accent">Clinical AI</p>
       <h2 id="ai-title" class="section-title">An assistant that knows the rules, <span>and its place.</span></h2>
       <p class="section-lede">Ask in plain words from any screen. It works inside the same permissions, safety checks and audit trail as everyone else in the hospital.</p>
+      <p class="more"><a href="/ai-and-data-safety">How we keep AI and patient data safe <span aria-hidden="true">→</span></a></p>
       <div class="visual" aria-hidden="true">
         <Orb variant="pulse" size={132} />
         <div class="note">
@@ -57,6 +58,7 @@ const POINTS = [
       radial-gradient(800px 500px at 90% 10%, var(--glow-blue), transparent 65%),
       var(--night);
   }
+  .more { margin: 16px 0 0; a { color: #fff; font-weight: 600; } }
   .layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
   h2 span { color: #fff; background: var(--purple); padding: 0 .2em; border-radius: 6px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
   .visual { position: relative; display: flex; align-items: center; gap: 28px; margin-top: 44px; }

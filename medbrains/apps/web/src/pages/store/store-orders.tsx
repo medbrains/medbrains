@@ -1,8 +1,21 @@
 import { Group, Stack, Text } from "@mantine/core";
+import type { OutsidePrint, StoreOrder } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { OutsidePrintSheet } from "@/components/Pharmacy/OutsidePrintSheet";
 import { Alert, Badge, Card } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
+import { StoreOrderActions } from "./store-order-actions";
+import { StoreReturnForm } from "./store-return-form";
+import { StoreSubstituteConsent } from "./store-substitute-consent";
 import { ORDER_STATUS_VIEW, rejectReasonLabel } from "./storefront";
+
+const RETURN_VIEW: Record<string, string> = {
+  requested: "Return asked for: the pharmacy replies within 48 hours",
+  acknowledged: "Return being looked at",
+  received: "Return received: refund on its way",
+  refused: "Return not accepted",
+};
 
 /** Where each online order stands, with the pharmacist's answer per medicine. */
 export function StoreOrders({ token }: { token: string }) {
@@ -11,6 +24,8 @@ export function StoreOrders({ token }: { token: string }) {
     queryFn: () => portalService.getStoreOrders(token),
     refetchInterval: 60_000,
   });
+  const [returning, setReturning] = useState<StoreOrder | null>(null);
+  const [printed, setPrinted] = useState<OutsidePrint | null>(null);
   if (orders.isError) {
     return (
       <Alert tone="warning" title="Couldn't load your orders">
@@ -41,17 +56,27 @@ export function StoreOrders({ token }: { token: string }) {
                 </Badge>
               </Group>
               {o.lines.map((l) => (
-                <Text
-                  key={l.catalog_item_id}
-                  size="sm"
-                  td={l.status === "rejected" ? "line-through" : undefined}
-                >
-                  {l.drug_name} × {l.approved_quantity ?? l.quantity}
-                  {l.status === "rejected"
-                    ? ` — not approved: ${rejectReasonLabel(l.reject_reason) ?? ""}`
-                    : ""}
-                </Text>
+                <Stack key={l.line_id} gap={2}>
+                  <Text
+                    size="sm"
+                    td={
+                      l.status === "rejected" || l.status === "outside_pharmacy"
+                        ? "line-through"
+                        : undefined
+                    }
+                  >
+                    {l.substitute_name ?? l.drug_name} × {l.approved_quantity ?? l.quantity}
+                    {l.status === "rejected"
+                      ? ` — not approved: ${rejectReasonLabel(l.reject_reason) ?? ""}`
+                      : ""}
+                    {l.status === "outside_pharmacy" ? " — printed for another pharmacy" : ""}
+                  </Text>
+                  <StoreSubstituteConsent token={token} orderId={o.id} line={l} />
+                </Stack>
               ))}
+              {o.return_status && (
+                <Text size="xs">{RETURN_VIEW[o.return_status] ?? o.return_status}</Text>
+              )}
               {o.decision_note && <Text size="xs">Pharmacist: {o.decision_note}</Text>}
               <Text size="sm">
                 Total ₹{o.total} ·{" "}
@@ -62,10 +87,18 @@ export function StoreOrders({ token }: { token: string }) {
                   Follow the delivery under Medicines → Deliveries.
                 </Text>
               )}
+              <StoreOrderActions
+                token={token}
+                order={o}
+                onReturn={setReturning}
+                onPrinted={setPrinted}
+              />
             </Stack>
           </Card>
         );
       })}
+      <StoreReturnForm token={token} order={returning} onClose={() => setReturning(null)} />
+      <OutsidePrintSheet print={printed} onClose={() => setPrinted(null)} />
     </Stack>
   );
 }

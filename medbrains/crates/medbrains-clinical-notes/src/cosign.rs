@@ -74,12 +74,17 @@ async fn awaiting_me(
 }
 
 /// `POST /api/clinical-notes/{id}/countersign`
+///
+/// A countersignature puts the consultant's name to the resident's note, so
+/// it needs the same fresh step-up as signing one.
 pub async fn countersign(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Note>, AppError> {
     require_permission(&claims, permissions::clinical_notes::COSIGN)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     let mut tx = begin(&state, &claims).await?;
     let (_, version, type_code) = awaiting_me(&mut tx, &claims, id).await?;
     crate::soap_access::require_write(&state, &claims, &type_code).await?;

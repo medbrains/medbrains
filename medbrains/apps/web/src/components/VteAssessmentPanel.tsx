@@ -3,7 +3,7 @@ import { notifications } from "@mantine/notifications";
 import type { VteRiskFactors } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Badge, Button } from "@/components/ui";
+import { Alert, Badge, Button } from "@/components/ui";
 import { vteService } from "@/services/vte.service";
 
 const FACTORS: { key: keyof VteRiskFactors; label: string; weight: number }[] = [
@@ -27,7 +27,7 @@ export function VteAssessmentPanel({ patientId }: { patientId: string }) {
   const [bleeding, setBleeding] = useState(false);
   const [notes, setNotes] = useState("");
 
-  const { data: history = [] } = useQuery({
+  const { data: history = [], isError: historyFailed } = useQuery({
     queryKey: ["vte-assessments", patientId],
     queryFn: () => vteService.listVteAssessments(patientId),
     enabled: !!patientId,
@@ -96,6 +96,12 @@ export function VteAssessmentPanel({ patientId }: { patientId: string }) {
         Save assessment
       </Button>
 
+      {historyFailed && (
+        <Alert tone="danger" title="Couldn't load VTE history" data-testid="alert-vte-history">
+          Earlier assessments for this patient could not be shown. This is not the same as none
+          recorded — check access or try again.
+        </Alert>
+      )}
       {history.length > 0 && (
         <Stack gap={4}>
           <Text fw={600} size="sm">

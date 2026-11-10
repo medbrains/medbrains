@@ -1,7 +1,4 @@
-use argon2::{
-    Argon2,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHasher};
 use sqlx::{PgPool, Postgres, Transaction};
 
 type SeedTx<'a> = Transaction<'a, Postgres>;
@@ -1413,7 +1410,11 @@ async fn ensure_admission(
     .bind(diagnosis)
     .bind(serde_json::json!(["Hypertension", "Diabetes mellitus"]))
     .bind(2 + i32::try_from(index % 5).unwrap_or(0))
-    .bind(if index % 6 == 0 { "urgent" } else { "routine" })
+    .bind(if index.is_multiple_of(6) {
+        "urgent"
+    } else {
+        "routine"
+    })
     .bind(format!("{}", 52 + i32::try_from(index % 38).unwrap_or(0)))
     .bind(format!("{}", 150 + i32::try_from(index % 35).unwrap_or(0)))
     .bind(created_by)
@@ -1470,7 +1471,7 @@ async fn seed_mar_rows(
             "scheduled"
         })
         .bind(nurse_id)
-        .bind(index % 4 == 0)
+        .bind(index.is_multiple_of(4))
         .bind(*high_alert)
         .bind("Demo MAR row for bedside medication workflow")
         .execute(&mut **tx)
@@ -1567,7 +1568,11 @@ async fn seed_bedside_observations(
     .bind(encounter_id)
     .bind(nurse_id)
     .bind(i32::try_from(index % 8).unwrap_or(0))
-    .bind(if index % 2 == 0 { "abdomen" } else { "chest" })
+    .bind(if index.is_multiple_of(2) {
+        "abdomen"
+    } else {
+        "chest"
+    })
     .bind("Positioning and medication as ordered")
     .execute(&mut **tx)
     .await?;
@@ -1586,9 +1591,9 @@ async fn seed_bedside_observations(
     .bind(admission_id)
     .bind(nurse_id)
     .bind(25 + i32::try_from(index % 55).unwrap_or(0))
-    .bind(if index % 4 == 0 {
+    .bind(if index.is_multiple_of(4) {
         "high"
-    } else if index % 3 == 0 {
+    } else if index.is_multiple_of(3) {
         "medium"
     } else {
         "low"

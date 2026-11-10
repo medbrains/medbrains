@@ -1,0 +1,12 @@
+-- ====================================================================
+-- Migration: 1275_ihip_reporting_unit.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- The hospital's reporting-unit ID on IHIP, the portal that replaced the
+-- weekly IDSP returns in 2021. It heads every P- and L-form line list the
+-- hospital prepares, so the District Surveillance Unit can tell whose list it
+-- is. Given by the DSU when the hospital is registered as a reporting unit.
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS ihip_unit_id TEXT;

@@ -5,7 +5,10 @@
 //! from `medbrains-server` as a leaf domain crate; `medbrains-server` mounts
 //! [`router`] under its main router.
 
-use axum::{Router, routing::post};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod aldrete;
@@ -16,8 +19,10 @@ pub mod child_pugh;
 pub mod ciwa_ar;
 pub mod cpot;
 pub mod curb65;
+pub mod ews;
 pub mod gcs;
 pub mod glasgow_blatchford;
+pub mod growth;
 pub mod has_bled;
 pub mod lung_protective;
 pub mod meld;
@@ -35,6 +40,11 @@ pub mod wells_pe;
 /// All `/api/clinical/*` scoring routes owned by this crate, mounted by `medbrains-server`.
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/api/patients/{id}/growth", get(growth::get_growth))
+        .route(
+            "/api/patients/{id}/growth/gestation",
+            put(growth::set_gestation),
+        )
         .route("/api/clinical/news2", post(news2::news2_score))
         .route("/api/clinical/aldrete", post(aldrete::aldrete_score))
         .route("/api/clinical/gcs", post(gcs::gcs_score))

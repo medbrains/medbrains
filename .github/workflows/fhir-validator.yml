@@ -1,0 +1,90 @@
+name: FHIR validator
+
+# The official HL7 validator over the bundles our builders produce — the 8
+# ABDM hiTypes and the NHCX messages — against the NRCeS IG ndhm.in#6.5.0,
+# both pinned by sha256 in medbrains/scripts/check_fhir_validator.py.
+#
+# PRs that touch FHIR or NHCX code run offline (`-tx n/a`); the nightly run
+# also checks codes against tx.fhir.org. Every bundle is synthetic test data,
+# so nothing real leaves CI. Java is installed here only: it never ships in
+# the product.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [master, main]
+    paths:
+      - "medbrains/crates/medbrains-fhir/**"
+      - "medbrains/crates/medbrains-fhir-api/**"
+      - "medbrains/crates/medbrains-facilities/src/nhcx_*"
+      - "medbrains/crates/medbrains-core/src/nhcx*"
+      - "medbrains/crates/medbrains-nhcx-callback/src/payments.rs"
+      - "medbrains/scripts/check_fhir_validator.py"
+      - "medbrains/scripts/fhir_validator_allowlist.json"
+      - "medbrains/scripts/nrces_profile_fixture.py"
+      - ".github/workflows/fhir-validator.yml"
+  schedule:
+    - cron: "30 21 * * *" # 03:00 IST
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: HL7 validator (ndhm.in 6.5.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            medbrains/target
+          key: ${{ runner.os }}-cargo-fhir-${{ hashFiles('medbrains/**/Cargo.lock') }}
+      # The validator jar, the IG package and the FHIR core packages the
+      # validator pulls in; the script re-checks the pinned hashes.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/medbrains-fhir
+            ~/.fhir/packages
+          key: fhir-validator-6.3.11-ndhm.in-6.5.0
+      - name: Validate (offline terminology)
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/check_fhir_validator.py
+      - name: Validate (tx.fhir.org)
+        if: github.event_name != 'pull_request'
+        run: python3 scripts/check_fhir_validator.py --tx https://tx.fhir.org/r4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: fhir-validator-report
+          path: |
+            medbrains/target/fhir-validator-report.json
+            medbrains/target/fhir-golden/

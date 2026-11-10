@@ -20,6 +20,7 @@
 //! holding `device_code`, which is never displayed — so a `user_code` read off
 //! a screen by a passer-by is not enough to take the session.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
@@ -275,6 +276,7 @@ pub async fn poll_device_token(
         // The other pairing flow. Same reasoning as `pair_device`: without the
         // claim, revoking a device paired by code would not stop it.
         paired_device_id: Some(paired_id),
+        act: None,
         exp: (Utc::now() + Duration::days(DEVICE_JWT_DAYS)).timestamp() as usize,
     };
     let jwt = encode_jwt(&claims, &state.jwt_encoding_key)
@@ -316,7 +318,7 @@ pub async fn list_pairing_requests(
     let rows = sqlx::query_as::<_, PendingRequest>(
         "SELECT id, user_code, app_variant, requested_label, expires_at, created_at \
          FROM device_pairing_requests \
-         WHERE status = 'pending' AND expires_at > now() \
+         WHERE status = 'pending' AND expires_at > now() AND node_id IS NULL \
          ORDER BY created_at DESC LIMIT 100",
     )
     .fetch_all(&mut *conn)
@@ -352,13 +354,16 @@ pub struct ApproveRequest {
     pub station_id: Option<Uuid>,
 }
 
-const BOARD_MODULES: [&str; 6] = [
+/// `flow` is the MedBrains Flow floor map (#4901): it shows the floor the
+/// chosen department's zone is on, and answers only while the add-on is on.
+const BOARD_MODULES: [&str; 7] = [
     "registration",
     "opd",
     "lab",
     "radiology",
     "pharmacy",
     "billing",
+    "flow",
 ];
 
 /// A customer display: bound to one billing or pharmacy counter, not a
@@ -423,9 +428,10 @@ async fn display_account(
 pub async fn approve_pairing_request(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<ApproveRequest>,
+    body: Result<Json<ApproveRequest>, JsonRejection>,
 ) -> Result<Json<PendingRequest>, AppError> {
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
+    let Json(body) = body?;
 
     let normalized = normalize_user_code(&body.user_code);
     let status = if body.deny { "denied" } else { "approved" };

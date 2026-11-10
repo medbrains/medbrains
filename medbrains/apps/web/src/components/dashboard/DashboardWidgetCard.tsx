@@ -1,4 +1,15 @@
-import { Box, Card, Group, Loader, Stack, Table, Tabs, Text, ThemeIcon } from "@mantine/core";
+import {
+  Box,
+  Card,
+  Group,
+  Loader,
+  Skeleton,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type { DashboardWidget } from "@medbrains/types";
 import { IconArrowsMaximize } from "@tabler/icons-react";
@@ -14,13 +25,19 @@ import { compareKpi, formatKpi, isKpiReading, type KpiBaseline } from "./kpi-rea
 import { ReportWidgetTile } from "./ReportWidgetTile";
 import { SeriesMetrics } from "./SeriesMetrics";
 import { columnValues } from "./series-stats";
-import { TrendChart, type TrendKind } from "./TrendChart";
+import type { TrendKind } from "./TrendChart";
 import { useWidgetCompare } from "./useWidgetCompare";
-import { WidgetExpandedView } from "./WidgetExpandedView";
-import { cellText, field, formatValue, rows } from "./widget-data";
+import { asOfNote, cellText, field, formatValue, rows } from "./widget-data";
 import { WidgetIcon } from "./widgetIcons";
 
 const WidgetAskAi = lazy(() => import("./WidgetAskAi"));
+// Charts (recharts) load after the tile itself has drawn.
+const TrendChart = lazy(() => import("./TrendChart").then((m) => ({ default: m.TrendChart })));
+const CHART_LOADING_HEIGHT = 160;
+// The expanded view (its own charts and tables) loads when a widget is expanded.
+const WidgetExpandedView = lazy(() =>
+  import("./WidgetExpandedView").then((m) => ({ default: m.WidgetExpandedView })),
+);
 
 interface Props {
   widget: DashboardWidget;
@@ -28,6 +45,8 @@ interface Props {
   loading: boolean;
   /** What a management KPI is set against; the same weekday unless chosen. */
   compare?: KpiBaseline;
+  /** The past day the dashboard is read for (YYYY-MM-DD); null when live. */
+  asOf?: string | null;
 }
 
 interface QuickAction {
@@ -62,7 +81,7 @@ function EmptyBody({ label }: { label: string }) {
 function UnavailableBody() {
   return (
     <Stack gap={4} align="center" py="md">
-      <ThemeIcon variant="light" color="orange" size={28} radius="md">
+      <ThemeIcon variant="light" color="orange" size={28}>
         <WidgetIcon name="IconAlertTriangle" size={16} />
       </ThemeIcon>
       <Text size="sm" c="dimmed" ta="center">
@@ -86,7 +105,7 @@ function WidgetShell({ widget, children, onExpand }: ShellProps) {
   return (
     <Card withBorder padding="md" h="100%">
       <Group gap="xs" mb="sm" wrap="nowrap">
-        <ThemeIcon variant="light" color={widget.color ?? "primary"} size={28} radius="md">
+        <ThemeIcon variant="light" color={widget.color ?? "primary"} size={28}>
           <WidgetIcon name={widget.icon} size={16} />
         </ThemeIcon>
         <Box style={{ minWidth: 0 }}>
@@ -137,12 +156,14 @@ export function DashboardWidgetCard(props: Props) {
               <Tabs.Tab value="ask">Ask AI</Tabs.Tab>
             </Tabs.List>
             <Tabs.Panel value="details">
-              <WidgetExpandedView
-                widget={widget}
-                data={data}
-                compare={compare}
-                onCompareChange={setCompare}
-              />
+              <Suspense fallback={<Loader size="sm" />}>
+                <WidgetExpandedView
+                  widget={widget}
+                  data={data}
+                  compare={compare}
+                  onCompareChange={setCompare}
+                />
+              </Suspense>
             </Tabs.Panel>
             <Tabs.Panel value="ask">
               <Suspense fallback={<Loader size="sm" />}>
@@ -162,6 +183,7 @@ function WidgetBody({
   data,
   loading,
   compare = "weekday",
+  asOf,
   onExpand,
   onCompareChange,
 }: Props & { onExpand?: () => void; onCompareChange: (next: KpiBaseline) => void }) {
@@ -190,6 +212,7 @@ function WidgetBody({
         icon={<WidgetIcon name={widget.icon} />}
         color={widget.color ?? "primary"}
         comparison={compareKpi(data, compare) ?? undefined}
+        note={data.value === null ? "No data for this day" : undefined}
         sparkline={data.series.map((d) => d.value)}
         actions={
           <>
@@ -219,6 +242,7 @@ function WidgetBody({
         }
         icon={<WidgetIcon name={widget.icon} />}
         color={widget.color ?? "primary"}
+        note={loading ? undefined : asOfNote(data, asOf)}
         onClick={onExpand}
         actionLabel={`Expand ${widget.title}`}
       />
@@ -333,7 +357,9 @@ function WidgetBody({
         ) : (
           <Stack gap="xs">
             <SeriesMetrics values={columnValues(series, y)} compact />
-            <TrendChart data={series} xKey={x} yKey={y} kind={kind} />
+            <Suspense fallback={<Skeleton height={CHART_LOADING_HEIGHT} />}>
+              <TrendChart data={series} xKey={x} yKey={y} kind={kind} />
+            </Suspense>
           </Stack>
         )}
       </WidgetShell>
@@ -345,7 +371,7 @@ function WidgetBody({
     return (
       <WidgetShell widget={widget}>
         <Group gap="xs">
-          <ThemeIcon variant="light" color={status === "ok" ? "teal" : "red"} size={20} radius="xl">
+          <ThemeIcon variant="light" color={status === "ok" ? "teal" : "red"} size={20}>
             <WidgetIcon name="IconServer" size={12} />
           </ThemeIcon>
           <Text size="sm">{status === "ok" ? "All systems operational" : "Degraded"}</Text>

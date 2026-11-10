@@ -118,6 +118,10 @@ endif
 # (no docker, no QEMU). Output lands at
 # target/$(STARTER_TARGET)/release/, which is what the terraform
 # `binaries_dir` default points to.
+# jemalloc builds with autoconf, which takes macOS ar and ranlib unless told; they index the
+# Linux objects as Mach-O and the link then fails with undefined _rjem_* symbols.
+build-starter: export AR = zig ar
+build-starter: export RANLIB = zig ranlib
 build-starter:
 	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-server
 	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-archive
@@ -235,8 +239,8 @@ pre-apply-backup:
 	@# with "hostname contains invalid characters".
 	@set -e; \
 	if [ "$(TIER)" = "attach" ]; then \
-		echo "==> pre-apply-backup: tier=attach - the host and its Postgres are the operator's;"; \
-		echo "    backing them up from here would be presumptuous. Skipping."; \
+		echo "==> pre-apply-backup: tier=attach - install.sh takes the pre-deploy backup on the"; \
+		echo "    host itself (medbrains-pg-backup.service) and stops if it fails. Skipping here."; \
 		exit 0; \
 	fi; \
 	if ! terraform state list 2>/dev/null | grep -q aws_instance.this; then \

@@ -4,8 +4,10 @@ import { type FoodTiming, P, type PrescriptionItem, type TimeOfDay } from "@medb
 import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useMemo, useRef } from "react";
 import {
+  FREQUENCY_NOT_RECOGNISED,
   foodTimingLabel,
   frequencyToDefaultSlots,
+  isRecognisedFrequency,
   parseInstructions,
 } from "@/lib/medication-timing-utils";
 import {
@@ -175,6 +177,12 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
                   );
                 })}
               </div>
+
+              {label.time_slots.length === 0 && !isRecognisedFrequency(label.frequency) && (
+                <Text size="xs" fw={700}>
+                  {FREQUENCY_NOT_RECOGNISED}
+                </Text>
+              )}
 
               {label.food_timing && label.food_timing !== "any" && (
                 <div className={`${classes.labelFoodInstruction} pharmacy-food-instruction`}>

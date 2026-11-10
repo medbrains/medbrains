@@ -1,0 +1,23 @@
+# Debug images only: a root shell on a serial port, started by udev when the port appears.
+# Never in a release image: it gives root to anyone with a serial cable.
+[Unit]
+Description=Debug shell on %I
+DefaultDependencies=no
+After=dev-%i.device
+Conflicts=serial-getty@%i.service shutdown.target
+Before=shutdown.target
+
+[Service]
+Environment=TERM=vt220 HOME=/root
+WorkingDirectory=/
+ExecStart=/bin/bash -i
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/%I
+TTYReset=yes
+Restart=always
+# An interactive bash ignores SIGTERM, which held every shutdown for 90 seconds.
+KillSignal=SIGHUP
+TimeoutStopSec=2s
+RestartSec=1s

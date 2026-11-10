@@ -223,32 +223,32 @@ export function AccreditationTab() {
     <Stack>
       {/* Compliance Dashboard */}
       <SimpleGrid cols={4} spacing="md">
-        <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder p="md">
+          <Text size="xs" c="dimmed" fw={700}>
             Total Standards
           </Text>
           <Text size="xl" fw={700} mt={4}>
             {standards.length}
           </Text>
         </Card>
-        <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder p="md">
+          <Text size="xs" c="dimmed" fw={700}>
             Compliant
           </Text>
           <Text size="xl" fw={700} mt={4} c="success">
             {compliantCount}
           </Text>
         </Card>
-        <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder p="md">
+          <Text size="xs" c="dimmed" fw={700}>
             Partially Compliant
           </Text>
           <Text size="xl" fw={700} mt={4} c="yellow.7">
             {partialCount}
           </Text>
         </Card>
-        <Card withBorder shadow="sm" p="md">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+        <Card withBorder p="md">
+          <Text size="xs" c="dimmed" fw={700}>
             Non-Compliant
           </Text>
           <Text size="xl" fw={700} mt={4} c="danger">
@@ -258,7 +258,7 @@ export function AccreditationTab() {
       </SimpleGrid>
 
       {donutData.length > 0 && (
-        <Card withBorder shadow="sm" p="md">
+        <Card withBorder p="md">
           <Text fw={600} mb="sm">
             Compliance Distribution
           </Text>
@@ -474,7 +474,7 @@ export function AccreditationTab() {
           <Stack>
             <SimpleGrid cols={3} spacing="md">
               <Card withBorder p="sm">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                <Text size="xs" c="dimmed" fw={700}>
                   Accreditation Body
                 </Text>
                 <Text fw={600} mt={4}>
@@ -482,7 +482,7 @@ export function AccreditationTab() {
                 </Text>
               </Card>
               <Card withBorder p="sm">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                <Text size="xs" c="dimmed" fw={700}>
                   Total Standards
                 </Text>
                 <Text fw={600} mt={4}>
@@ -490,7 +490,7 @@ export function AccreditationTab() {
                 </Text>
               </Card>
               <Card withBorder p="sm">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                <Text size="xs" c="dimmed" fw={700}>
                   Compliance Rate
                 </Text>
                 <Text

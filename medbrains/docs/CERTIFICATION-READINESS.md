@@ -182,7 +182,7 @@ management under IMDRF. Audit not yet run.
 
 | requirement | state |
 |---|---|
-| incident reporting within **six hours** | not built |
+| incident reporting within **six hours** | built — breach register on the security incident (`medbrains-security/src/breach.rs`, migration 1069) starts the 6-hour clock at `discovered_at`, escalates overdue clocks and records the notice; the report itself is still filed with CERT-In by a person |
 | 180-day log retention, held **in India** | unverified |
 | NTP sync to NIC/NPL | unverified |
 | designated point of contact | needs a person |
@@ -191,14 +191,20 @@ management under IMDRF. Audit not yet run.
 
 | requirement | state |
 |---|---|
-| consent records with purpose | partial — `patient_consents`, `consent_records`, `consent_audit_log` exist |
-| data-subject access / erasure | not built |
-| breach notification | not built |
+| consent records with purpose | built — `dpdp_consents` (migration 1081), append-only, purpose by purpose, withdrawal as easy as agreeing; desk and patient portal (`portal_privacy.rs`). **Not enforced as a gate**: ABDM linking and insurer sharing do not yet check it before sending |
+| data-subject access / erasure | built as a rights desk — `privacy_requests` (migration 1083): access, correction, erasure, nominee and grievance, 90-day due date, a refusal must say why; patients raise and follow them from the portal. **No automatic erasure**: completing an erasure request records the decision, it does not delete or anonymise anything |
+| breach notification | built — breach register (migration 1069) tracks the DPDP Board intimation and 72-hour report and notice to each affected patient; notices are recorded, not sent automatically |
+| processor register | built — `medbrains-security/src/processors.rs` (s.8(2)): agreement, data held, country, flagged when missing, expired or outside India |
 | DPO contact published | needs a person |
 
 Worth noting the soft-delete guardrail: every `DELETE` is converted to a soft
 delete by a trigger. That is right for clinical records and wrong for an
-erasure request, which needs a real deletion path with its own audit.
+erasure request, which needs a real deletion path with its own audit — still
+the open piece behind the rights desk above.
+
+Tested: `privacy_requests_test`, `dpdp_consent_test`,
+`security_breach_register_test`, `data_processors_test` (server integration
+suite).
 
 ---
 

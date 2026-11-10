@@ -1,10 +1,4 @@
-import {
-  api,
-  configureNativeAuth,
-  getApiBase,
-  setApiBase,
-  setStrictResponseValidation,
-} from "@medbrains/api";
+import { api, setApiBase, setStrictResponseValidation } from "@medbrains/api";
 
 export const sessionService = {
   health: (...args: Parameters<typeof api.health>) => api.health(...args),
@@ -16,16 +10,6 @@ export const sessionService = {
     api.reportClientError(...args),
   getTenantSettings: (...args: Parameters<typeof api.getTenantSettings>) =>
     api.getTenantSettings(...args),
-  getApiBase,
   setApiBase,
-  configureNativeAuth,
   setStrictResponseValidation,
-  testHealthAtBase: async (apiBase: string) => {
-    const response = await fetch(`${apiBase}/health`, {
-      credentials: "include",
-    });
-    if (!response.ok) {
-      throw new Error(`Health check failed: ${response.status}`);
-    }
-  },
 };

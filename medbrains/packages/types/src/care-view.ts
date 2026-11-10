@@ -1,3 +1,5 @@
+import type { EwsBand, EwsTool } from "./early-warning";
+
 // Care view / ward dashboard types — split from index.ts, barrel-re-exported.
 
 // ── Care View / Ward Dashboard ──────────────────────────
@@ -24,6 +26,16 @@ export interface PatientCardRow {
   vitals_due: boolean;
   fall_risk_level: string | null;
   latest_news2_score: number | null;
+  /** The score charted with the latest vitals. */
+  ews_tool: EwsTool | null;
+  ews_total: number | null;
+  ews_band: EwsBand | null;
+  ews_incomplete: boolean | null;
+  ews_next_due_at: string | null;
+  /** The last six scores, oldest first. */
+  ews_trend: number[];
+  open_escalation_id: string | null;
+  open_escalation_band: EwsBand | null;
   active_clinical_docs: number;
   expected_discharge_date: string | null;
 }
@@ -110,6 +122,7 @@ export interface DischargeReadinessRow {
   expected_discharge_date: string | null;
   billing_cleared: boolean;
   pharmacy_cleared: boolean;
+  nursing_cleared: boolean;
   doctor_cleared: boolean;
   pending_lab_count: number;
   readiness_pct: number;

@@ -1,10 +1,14 @@
-import { Box, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Box, Group, Stack, Text, ThemeIcon } from "@mantine/core";
 import { IconUser } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { AiLabel, AiOrb } from "@/components/ui";
+import { AiLabel, AiOrb, Alert } from "@/components/ui";
+import { MessageMeta } from "./MessageMeta";
 import styles from "./message.module.scss";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
 import { UnifiedResponse } from "./UnifiedResponse";
+import { ReplayWidget } from "./widgets/ReplayWidget";
+import { WidgetView } from "./widgets/WidgetView";
 
 export interface MessageProps {
   message: ChatMessage;
@@ -33,7 +37,16 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
       className={styles.row}
     >
       {!isUser && <MessageAvatar role={message.role} status={message.status} custom={avatar} />}
-      <Stack gap={4} className={isUser ? styles.userStack : styles.assistantStack}>
+      <Stack
+        gap={4}
+        className={
+          isUser
+            ? styles.userStack
+            : message.widgets?.length || message.replays?.length
+              ? `${styles.assistantStack} ${styles.wide}`
+              : styles.assistantStack
+        }
+      >
         {message.role === "assistant" && (
           <AiLabel size="xs" text="generated" aria-label="AI-generated answer" />
         )}
@@ -41,17 +54,57 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
           className={isUser ? styles.userBubble : styles.assistantBubble}
           data-status={message.status}
         >
-          {isStreaming && isEmpty ? (
-            <Loader size="sm" aria-label="Assistant is responding" />
-          ) : isUser ? (
+          {isUser ? (
             <Text size="sm" className={styles.userText}>
               {message.content}
             </Text>
           ) : (
-            <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
+            <Stack gap="xs">
+              {(!isEmpty || (message.toolCalls?.length ?? 0) > 0) && (
+                <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
+              )}
+              {message.widgets?.map((widget, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: widgets arrive in order and never move
+                <WidgetView key={i} widget={widget} />
+              ))}
+              {message.replays?.map((r) => (
+                <ReplayWidget
+                  key={r.index}
+                  messageId={message.id}
+                  index={r.index}
+                  title={r.title}
+                />
+              ))}
+              {isStreaming && isEmpty && !message.widgets?.length && <ThinkingIndicator />}
+            </Stack>
           )}
         </Box>
-        {actions && !isUser && <Box className={styles.actions}>{actions}</Box>}
+        {message.guardNotices && message.guardNotices.length > 0 && (
+          <Alert tone="warning" title="Part of this answer was removed">
+            <Stack gap={4}>
+              {message.guardNotices.map((notice) => (
+                <Text key={notice} size="sm">
+                  {notice}
+                </Text>
+              ))}
+            </Stack>
+          </Alert>
+        )}
+        {message.status === "error" && message.error && (
+          <Alert tone="danger" role="alert">
+            {message.error}
+          </Alert>
+        )}
+        {!isUser && message.status === "complete" && !isEmpty && (
+          <Group gap="xs" className={styles.actions}>
+            <MessageMeta
+              text={message.content}
+              usage={message.usage}
+              elapsedMs={message.elapsedMs}
+            />
+            {actions}
+          </Group>
+        )}
       </Stack>
       {isUser && <MessageAvatar role={message.role} status={message.status} custom={avatar} />}
     </Group>
@@ -70,7 +123,7 @@ function MessageAvatar({
   if (custom) return <>{custom}</>;
   if (role === "user") {
     return (
-      <ThemeIcon variant="light" radius="md" size="md" aria-hidden>
+      <ThemeIcon variant="light" size="md" aria-hidden>
         <IconUser size={16} />
       </ThemeIcon>
     );

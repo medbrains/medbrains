@@ -1,0 +1,11 @@
+{
+  "kind": "list",
+  "title": "Discharge clearances",
+  "source": {
+    "billing": "cleared",
+    "discharge_summary_signed": false,
+    "nursing_checklist": "pending",
+    "pharmacy_return": "pending",
+    "tpa_final_approval": "awaited"
+  }
+}

@@ -30,6 +30,10 @@ export interface PrescriptionItem {
   discontinued_by: string | null;
   discontinue_reason: string | null;
   catalog_item_id: string | null;
+  /** Chosen by the prescriber: bought outside, never dispensed or billed. */
+  buy_outside: boolean;
+  /** Who marked it bought outside. */
+  buy_outside_by: string | null;
 }
 
 export interface PrescriptionItemInput {
@@ -40,6 +44,8 @@ export interface PrescriptionItemInput {
   route?: string;
   instructions?: string;
   catalog_item_id?: string;
+  /** The hospital does not stock it: the patient buys it outside. */
+  buy_outside?: boolean;
 }
 
 export type RxOrderMode = "written" | "verbal" | "telephone";
@@ -191,6 +197,7 @@ export interface VitalHistoryPoint {
   spo2: number | null;
   weight_kg: number | null;
   height_cm: number | null;
+  head_circumference_cm: number | null;
   bmi: number | null;
   recorded_at: string;
 }
@@ -1491,6 +1498,14 @@ export interface AgingBucket {
   total_amount: string;
 }
 
+/** One day of billing (`GET /billing/reports/daily-revenue`). Decimals are strings. */
+export interface DailyRevenueRow {
+  date: string;
+  billed: string;
+  collected: string;
+  invoice_count: number;
+}
+
 export interface DailySummary {
   date: string;
   invoices_created: number;
@@ -2170,6 +2185,8 @@ export interface PatientIdentity {
   uhid: string;
   full_name: string;
   gender: Gender;
+  /** Whole years; null when not recorded or not readable whole by the caller. */
+  age_years: number | null;
 }
 
 export interface LabOrderListResponse {
@@ -2213,6 +2230,9 @@ export interface LabOrderDetailResponse {
   /** What the catalogue says this test is measured in. Absent when the
    *  catalogue row has been retired since the order was placed. */
   test: LabTestDefaults | null;
+  /** Who the order is for (name, UHID, sex, age): the lab reaches the order,
+   *  not the patient's record. */
+  patient: PatientIdentity | null;
 }
 
 export interface LabTestDefaults {
@@ -2354,6 +2374,35 @@ export interface LabCriticalAlert {
   readback_value: string | null;
   readback_verified: boolean;
   created_at: string;
+  /** Escalation rounds sent so far (0 = not escalated). */
+  escalation_tier: number;
+  escalated_at: string | null;
+  /** Why the last escalation could not be sent. */
+  escalation_blocked_reason: string | null;
+  /** The documented lab-to-clinician phone calls, oldest first (list only). */
+  calls?: LabCriticalCall[] | null;
+}
+
+/** One lab-to-clinician phone call for a critical value (NABL read-back). Append-only. */
+export interface LabCriticalCall {
+  id: string;
+  alert_id: string;
+  called_by: string;
+  received_by: string;
+  called_at: string;
+  attempts: number;
+  /** What the receiver read back. */
+  readback_value: string;
+  /** Whether it matched the reported value; decided by the server. */
+  readback_confirmed: boolean;
+}
+
+/** Record one critical-value phone call. */
+export interface RecordCriticalCallRequest {
+  received_by: string;
+  called_at?: string;
+  attempts: number;
+  readback_value: string;
 }
 
 export interface LabReagentLot {
@@ -3146,6 +3195,8 @@ export interface RadiologyModality {
   is_active: boolean;
   /** An ultrasound on a pregnant woman needs a PC-PNDT Form F. */
   is_ultrasound: boolean;
+  /** Uses ionising radiation: the pregnancy question comes first. */
+  is_ionising: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3234,6 +3285,59 @@ export interface RadiologyOrder {
   accession_number: string;
   /** The study the PACS holds for this order, once it has arrived. */
   pacs_study_uid?: string | null;
+  pregnancy_status?: PregnancyStatus | null;
+  pregnancy_check_method?: PregnancyCheckMethod | null;
+  pregnancy_justification?: string | null;
+  pregnancy_checked_by?: string | null;
+  pregnancy_checked_at?: string | null;
+}
+
+export type PregnancyStatus = "not_pregnant" | "pregnant" | "cannot_rule_out";
+export type PregnancyCheckMethod = "asked" | "lmp" | "urine_test" | "serum_test";
+
+export interface RecordPregnancyCheck {
+  status: PregnancyStatus;
+  method: PregnancyCheckMethod;
+  /** Required unless she is not pregnant. */
+  justification?: string;
+}
+
+export type DrlRegion = "head" | "head_neck" | "neck" | "chest" | "abdomen_pelvis" | "trunk";
+export type DrlMetric = "ctdi_vol" | "dlp";
+
+/** A diagnostic reference level the hospital audits its median against. */
+export interface DiagnosticReferenceLevel {
+  id: string;
+  region: DrlRegion;
+  metric: DrlMetric;
+  value: string;
+  source: string;
+}
+
+export interface SaveReferenceLevel {
+  region: DrlRegion;
+  metric: DrlMetric;
+  value: number;
+  source: string;
+}
+
+export interface DrlAuditRow {
+  level_id: string;
+  region: DrlRegion;
+  metric: DrlMetric;
+  drl: number;
+  source: string;
+  exams: number;
+  median: number | null;
+  p75: number | null;
+  verdict: "above" | "within" | "too_few";
+}
+
+export interface DrlAuditReport {
+  from: string;
+  to: string;
+  min_exams: number;
+  rows: DrlAuditRow[];
 }
 
 export interface RadiologyReport {
@@ -3266,9 +3370,190 @@ export interface RadiationDoseRecord {
   ctdi_vol: string | null;
   dap: string | null;
   fluoroscopy_time_seconds: number | null;
+  /** Radiographs: how many exposures were taken. */
+  exposure_count: number | null;
+  kvp: string | null;
+  mas: string | null;
+  /** Typed by a person, read from the scanner's dose report, or from image headers. */
+  source: RadiationDoseSource;
+  dicom_study_id: string | null;
+  /** Null when the PACS sync read it. */
   recorded_by: string | null;
   recorded_at: string;
   created_at: string;
+}
+
+export type ShareRecipientKind = "clinician" | "patient";
+
+export interface CreateStudyShareLink {
+  study_id: string;
+  recipient_kind: ShareRecipientKind;
+  /** The clinician's name; the patient's own link uses their record. */
+  recipient_name?: string;
+  /** Where the clinician's code goes — one of the two is required. */
+  recipient_phone?: string;
+  recipient_email?: string;
+  /** Replace identifying DICOM attributes. Clinician links only. */
+  deidentify?: boolean;
+  /** 1 to 168; 24 when absent. */
+  expires_hours?: number;
+}
+
+export interface CreatedStudyShareLink {
+  id: string;
+  /** The page the recipient opens and enters their code on; prefix the origin. */
+  share_url: string;
+  expires_at: string;
+}
+
+/** What a share link's landing page may show before the code: no PHI. */
+export interface PublicShareLink {
+  recipient_name: string | null;
+  recipient_kind: ShareRecipientKind;
+  /** Masked: "98•••••210" or "d•••@example.org". */
+  code_sent_to: string | null;
+  deidentified: boolean;
+  expires_at: string;
+}
+
+/** Who a study was shared with. The token itself is never listed. */
+export interface StudyShareLink {
+  id: string;
+  recipient_kind: ShareRecipientKind;
+  recipient_name: string | null;
+  recipient_email: string | null;
+  deidentify: boolean;
+  expires_at: string;
+  accessed_count: number;
+  last_accessed: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+/** A study the PACS received that no imaging order claimed. */
+export interface UnmatchedStudy {
+  id: string;
+  orthanc_id: string;
+  study_instance_uid: string;
+  accession_number: string | null;
+  /** As the modality wrote them. */
+  dicom_patient_id: string | null;
+  dicom_patient_name: string | null;
+  dicom_birth_date: string | null;
+  dicom_sex: string | null;
+  modality: string | null;
+  study_date: string | null;
+  study_description: string | null;
+  instance_count: number;
+  series_count: number;
+  status: UnmatchedStudyStatus;
+  linked_order_id: string | null;
+  resolution_note: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+export type UnmatchedStudyStatus = "open" | "linked" | "dismissed";
+
+export interface LinkUnmatchedStudyResult {
+  study: UnmatchedStudy;
+  /** How the images differed from the order's patient, confirmed by the note. */
+  mismatches: string[];
+  /** False when the dose could not be read — enter it on the order. */
+  dose_captured: boolean;
+}
+
+/** What is expired, due or missing on a register entry. */
+export interface RadiationSafetyAlert {
+  level: "danger" | "warning";
+  message: string;
+}
+
+/** A unit's AERB record, over its biomedical register entry. */
+export interface RadiationEquipment {
+  id: string;
+  bme_equipment_id: string;
+  name: string;
+  make: string | null;
+  model: string | null;
+  serial_number: string | null;
+  modality_id: string | null;
+  modality_code: string | null;
+  aerb_licence_number: string | null;
+  elora_id: string | null;
+  licence_valid_until: string | null;
+  rso_user_id: string | null;
+  rso_name: string | null;
+  qa_agency: string | null;
+  last_qa_date: string | null;
+  qa_due_date: string | null;
+  notes: string | null;
+  alerts: RadiationSafetyAlert[];
+}
+
+export interface SaveRadiationEquipment {
+  bme_equipment_id: string;
+  modality_id?: string;
+  aerb_licence_number?: string;
+  elora_id?: string;
+  licence_valid_until?: string;
+  rso_user_id?: string;
+  qa_agency?: string;
+  last_qa_date?: string;
+  qa_due_date?: string;
+  notes?: string;
+}
+
+export interface DosimetryReading {
+  id: string;
+  staff_id: string;
+  staff_name: string | null;
+  badge_number: string;
+  monitoring_period_start: string;
+  monitoring_period_end: string;
+  /** mSv */
+  dose_value: string;
+  notes: string | null;
+}
+
+/** One person's dose against the AERB occupational limits. */
+export interface StaffDose {
+  staff_id: string;
+  staff_name: string | null;
+  year_msv: number;
+  five_year_msv: number;
+  readings: number;
+  last_period_end: string | null;
+  alerts: RadiationSafetyAlert[];
+}
+
+export interface Dosimetry {
+  year: number;
+  staff: StaffDose[];
+  readings: DosimetryReading[];
+}
+
+export interface RecordDosimetryReading {
+  staff_id: string;
+  badge_number: string;
+  period_start: string;
+  period_end: string;
+  dose_value: number;
+  notes?: string;
+}
+
+export type RadiationDoseSource = "manual" | "rdsr" | "dicom_header";
+
+/** One exam's dose in the patient's history. */
+export interface PatientDoseRecord extends RadiationDoseRecord {
+  accession_number: string | null;
+  exam: string | null;
+  /** The body region the estimate used. */
+  region: string | null;
+  /** Estimated effective dose (mSv); null with no DLP or when not estimable. */
+  estimated_msv: number | null;
+  not_estimated: "region_unknown" | "age_unknown" | null;
 }
 
 export interface RadiologyOrderListResponse {
@@ -3301,6 +3586,8 @@ export interface CreateRadiologyOrderRequest {
 
 export interface RadiologyOrderDetailResponse {
   order: RadiologyOrder;
+  /** The pregnancy question must be answered before the exposure. */
+  pregnancy_check_required: boolean;
   report: RadiologyReport | null;
   dose_records: RadiationDoseRecord[];
 }
@@ -3338,6 +3625,7 @@ export interface CreateModalityRequest {
   name: string;
   description?: string;
   is_ultrasound?: boolean;
+  is_ionising?: boolean;
 }
 
 export interface UpdateModalityRequest {
@@ -3345,17 +3633,25 @@ export interface UpdateModalityRequest {
   description?: string;
   is_active?: boolean;
   is_ultrasound?: boolean;
+  is_ionising?: boolean;
 }
 
 export interface RecordDoseRequest {
-  modality_code: string;
+  /** Defaults to the order's modality. */
+  modality_code?: string;
   body_part?: string;
   dose_value?: number;
   dose_unit?: string;
+  /** mGy·cm */
   dlp?: number;
+  /** mGy */
   ctdi_vol?: number;
+  /** Gy·cm² */
   dap?: number;
   fluoroscopy_time_seconds?: number;
+  exposure_count?: number;
+  kvp?: number;
+  mas?: number;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3412,6 +3708,8 @@ export interface PharmacyCatalog {
   sold_online: boolean;
   /** Online: pickup only, a unit at a time. */
   habit_forming: boolean;
+  /** Charge the patient when used from ward stock; off for overhead items. */
+  is_patient_billable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3501,6 +3799,10 @@ export interface PharmacyOrderItem {
   removed_by: string | null;
   remove_reason: string | null;
   created_at: string;
+  /** Bought outside, not dispensed here: no catalogue item, no price. */
+  buy_outside: boolean;
+  /** Who chose or confirmed it: the prescriber, or the reviewing pharmacist. */
+  buy_outside_by: string | null;
 }
 
 /** A dispensable batch (FEFO order) for a catalog item. */
@@ -3595,7 +3897,9 @@ export interface PharmacyOrderItemInput {
   catalog_item_id?: string;
   drug_name: string;
   quantity: number;
+  /** Zero for a line with no catalogue item: nothing here sells it. */
   unit_price: number;
+  buy_outside?: boolean;
 }
 
 export interface PharmacyOrderDetailResponse {
@@ -3667,6 +3971,8 @@ export interface UpdatePharmacyCatalogRequest {
   barcode?: string;
   refill_policy?: RefillPolicy;
   needs_cold_chain?: boolean;
+  /** Charge the patient when used from ward stock. */
+  is_patient_billable?: boolean;
 }
 
 export interface CreateStockTransactionRequest {

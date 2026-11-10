@@ -9,6 +9,7 @@ import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { AuditActor } from "@/components/ai/AuditActor";
 import type { Column } from "@/components/DataTable";
 import { Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
@@ -173,7 +174,7 @@ export function AuditLogTab() {
     {
       key: "user_name",
       label: "User",
-      render: (r) => <Text size="sm">{r.user_name ?? "System"}</Text>,
+      render: (r) => <AuditActor userName={r.user_name} actingAgent={r.acting_agent} />,
     },
     {
       key: "action",
@@ -347,7 +348,7 @@ function AuditDetailDrawer({
             <Text fw={600} size="sm" w={100}>
               User:
             </Text>
-            <Text size="sm">{entry.user_name ?? "System"}</Text>
+            <AuditActor userName={entry.user_name} actingAgent={entry.acting_agent} />
           </Group>
           <Group gap="xs">
             <Text fw={600} size="sm" w={100}>

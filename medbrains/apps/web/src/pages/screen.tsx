@@ -7,6 +7,7 @@ import { BOARDS } from "@/components/Devices/PendingScreensCard";
 import { ScreenPairing } from "@/components/Devices/ScreenPairing";
 import { TokenBoardLive } from "@/components/TokenBoardLive";
 import { Alert, Button } from "@/components/ui";
+import { FlowBoard } from "./flow/flow-board";
 import { Clock } from "./token-display";
 import styles from "./token-display.module.scss";
 
@@ -114,7 +115,8 @@ export function ScreenPage() {
             </Button>
           </Stack>
         )}
-        {bound?.module && bound.department_id && (
+        {bound?.module === "flow" && <FlowBoard />}
+        {bound?.module && bound.module !== "flow" && bound.department_id && (
           <TokenBoardLive
             title={`${boardLabel} · ${bound.department_name ?? ""}`}
             module={bound.module}

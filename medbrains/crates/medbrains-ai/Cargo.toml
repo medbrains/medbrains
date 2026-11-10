@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-research = { path = "../medbrains-research" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-core = { path = "../medbrains-core" }
@@ -23,7 +24,10 @@ tracing = { workspace = true }
 futures = { workspace = true }
 tower = { workspace = true }
 async-stream = { workspace = true }
-rig-core = { workspace = true }
+rig = { workspace = true }
+rust_decimal = { workspace = true }
+sqlparser = { workspace = true }
+rig-agent = { workspace = true }
 tokio = { workspace = true }
 
 [lints]

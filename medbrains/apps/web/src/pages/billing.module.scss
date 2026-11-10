@@ -6,10 +6,8 @@
   position: sticky;
   top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
   z-index: 12;
-  border-left: 4px solid light-dark(var(--mantine-color-orange-6), var(--mantine-color-orange-4));
-  background: var(--mb-glass-from);
+  background: var(--mb-surface);
   box-shadow: var(--mb-shadow-md);
-  backdrop-filter: blur(10px);
 }
 
 .workspaceGrid {

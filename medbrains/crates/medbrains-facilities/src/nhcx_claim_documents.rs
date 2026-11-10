@@ -41,6 +41,9 @@ pub const MAX_TOTAL_BYTES: usize = 10 * 1024 * 1024;
 /// Most investigation reports gathered for a stay — the latest released.
 pub const MAX_INVESTIGATION_REPORTS: i64 = 10;
 
+/// An NRCeS code and its display.
+type Code = (&'static str, &'static str);
+
 /// What a document is, as the payer's adjudicator files it.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
@@ -55,13 +58,17 @@ pub enum DocKind {
 impl DocKind {
     /// NRCeS `ndhm-supportinginfo-category` and `ndhm-supportinginfo-code`
     /// (IG 6.5.0). A desk-added document has no fixed code.
-    pub(crate) const fn nrces_codes(self) -> (&'static str, Option<&'static str>) {
+    pub(crate) const fn nrces_codes(self) -> (Code, Option<Code>) {
+        const INVESTIGATION: Code = ("INV", "Document Type - Investigation");
         match self {
-            Self::DischargeSummary => ("HDS", Some("DCR")),
-            Self::FinalBill => ("MB", Some("FB")),
-            Self::LabReport => ("INV", Some("LIR")),
-            Self::RadiologyReport => ("INV", Some("RDR")),
-            Self::PatientDocument => ("ATT", None),
+            Self::DischargeSummary => (
+                ("HDS", "Hospital discharge summary"),
+                Some(("DCR", "Discharge Summary Report")),
+            ),
+            Self::FinalBill => (("MB", "Medical bill"), Some(("FB", "Final Bill"))),
+            Self::LabReport => (INVESTIGATION, Some(("LIR", "Lab Investigation Report"))),
+            Self::RadiologyReport => (INVESTIGATION, Some(("RDR", "Radiology Report"))),
+            Self::PatientDocument => (("ATT", "Attachment"), None),
         }
     }
 

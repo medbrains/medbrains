@@ -319,7 +319,7 @@ pub struct ApproveWriteOffRequest {
     pub notes: Option<String>,
 }
 
-async fn generate_write_off_number(
+pub(crate) async fn generate_write_off_number(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<String, AppError> {

@@ -16,18 +16,29 @@ const resolveSchema = z.object({
 });
 type ResolveValues = z.infer<typeof resolveSchema>;
 
+interface ResolveReportModalProps {
+  report: Pick<NotifiableReport, "id" | "disease_name" | "icd10_code"> | null;
+  onClose: () => void;
+  /** What the authority's acknowledgement is called there. */
+  refLabel?: string;
+  refPlaceholder?: string;
+  /** A submission is not recorded without the acknowledgement (Ni-kshay ID). */
+  requireRef?: boolean;
+}
+
 export function ResolveReportModal({
   report,
   onClose,
-}: {
-  report: NotifiableReport | null;
-  onClose: () => void;
-}) {
+  refLabel = "Report reference (IHIP/IDSP ack no.)",
+  refPlaceholder = "e.g. IHIP-2026-00481",
+  requireRef = false,
+}: ResolveReportModalProps) {
   const qc = useQueryClient();
   const {
     control,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<ResolveValues>({
     resolver: zodResolver(resolveSchema),
@@ -43,6 +54,7 @@ export function ResolveReportModal({
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ckb-notifiable-reports"] });
+      void qc.invalidateQueries({ queryKey: ["ckb-nikshay"] });
       toast.success("Report updated", { title: "Notifiable disease" });
       reset();
       onClose();
@@ -61,8 +73,9 @@ export function ResolveReportModal({
           name="report_ref"
           render={({ field }) => (
             <TextInput
-              label="Report reference (IHIP/IDSP ack no.)"
-              placeholder="e.g. IHIP-2026-00481"
+              label={refLabel}
+              placeholder={refPlaceholder}
+              required={requireRef}
               value={field.value ?? ""}
               onChange={field.onChange}
               error={errors.report_ref?.message}
@@ -93,7 +106,13 @@ export function ResolveReportModal({
           <Button
             tone="primary"
             loading={mutation.isPending}
-            onClick={handleSubmit((v) => mutation.mutate({ ...v, status: "submitted" }))}
+            onClick={handleSubmit((v) => {
+              if (requireRef && !v.report_ref) {
+                setError("report_ref", { message: `Give the ${refLabel}` });
+                return;
+              }
+              mutation.mutate({ ...v, status: "submitted" });
+            })}
           >
             Mark submitted
           </Button>

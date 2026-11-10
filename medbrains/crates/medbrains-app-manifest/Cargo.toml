@@ -8,7 +8,7 @@ rust-version.workspace = true
 [dependencies]
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
-medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -212,11 +212,11 @@ function StatCard({
   return (
     <Card padding="md" withBorder>
       <Group gap="sm" wrap="nowrap" align="flex-start">
-        <ThemeIcon variant="light" color={color} size={36} radius="md">
+        <ThemeIcon variant="light" color={color} size={36}>
           {icon}
         </ThemeIcon>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+          <Text size="xs" c="dimmed" fw={500}>
             {label}
           </Text>
           <Text fw={700} size="xl">
@@ -249,7 +249,7 @@ function QuickAction({
   return (
     <Card padding="sm" withBorder onClick={onClick} style={{ cursor: "pointer" }}>
       <Group gap="sm" wrap="nowrap" align="flex-start">
-        <ThemeIcon variant="light" size={32} radius="md">
+        <ThemeIcon variant="light" size={32}>
           {icon}
         </ThemeIcon>
         <div style={{ flex: 1, minWidth: 0 }}>

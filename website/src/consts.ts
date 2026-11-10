@@ -26,15 +26,15 @@ export const WHATSAPP = {
 export const SOCIAL = {
   facebook: env.PUBLIC_FACEBOOK ?? "https://www.facebook.com/share/17i9Q7CDHs/?mibextid=wwXIfr",
   instagram: env.PUBLIC_INSTAGRAM ?? "https://instagram.com/medbrains_official",
+  linkedin: env.PUBLIC_LINKEDIN ?? "https://www.linkedin.com/company/medbrainshq",
   // Shown only once set: a link to a placeholder page is worse than none.
-  linkedin: env.PUBLIC_LINKEDIN ?? "",
   x: env.PUBLIC_X ?? "",
   youtube: env.PUBLIC_YOUTUBE ?? "",
 };
 
 // Every official profile that exists, for schema.org `sameAs`, so search and AI
-// tools tie them to one company. TODO: add the LinkedIn company page and
-// Crunchbase once they exist (set PUBLIC_LINKEDIN; never a placeholder URL).
+// tools tie them to one company. TODO: add Crunchbase once it exists (never a
+// placeholder URL).
 export const SAME_AS = [
   ...Object.values(SOCIAL),
   "https://github.com/medbrains",

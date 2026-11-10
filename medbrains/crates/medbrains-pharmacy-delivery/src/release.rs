@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::arrange::charge_fee;
 use crate::choice::open_delivery;
-use crate::facts::{bill_balance, order_facts, order_invoice, settings};
+use crate::facts::{bill_balance, delivers_free, order_facts, order_invoice, settings};
 use crate::pay::payment_link;
 use crate::source::Source;
 
@@ -106,7 +106,21 @@ async fn deliver(
         .await?;
         return Ok(());
     }
-    let (fee, _) = settings(tx, tenant_id).await?;
+    let (mut fee, _) = settings(tx, tenant_id).await?;
+    // An online order over the hospital's threshold delivers free.
+    if matches!(source, Source::Store(_)) {
+        let goods: Decimal = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(total_price), 0) FROM pharmacy_order_items \
+              WHERE tenant_id = $1 AND order_id = $2",
+        )
+        .bind(tenant_id)
+        .bind(order_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if delivers_free(tx, tenant_id, goods).await? {
+            fee = Decimal::ZERO;
+        }
+    }
     // Read before the fee is billed, so it isn't counted twice.
     let due = bill_balance(tx, tenant_id, order_id).await? + fee;
     let fee_invoice = if fee > Decimal::ZERO {

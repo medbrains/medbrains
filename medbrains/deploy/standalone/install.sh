@@ -67,6 +67,11 @@ Attach tier (host already runs other applications):
       sudo -E bash install.sh hims.example.org ops@example.org
   Picks free ports, never touches 80/443, never stops another proxy.
 
+Host security updates (unattended-upgrades, security archive only):
+  OS_AUTO_UPDATES=1|0  OS_UPDATE_WINDOW=03:30  OS_UPDATE_REBOOT=0|1  OS_UPDATE_REBOOT_TIME=04:30
+  On by default except on an attach host. MedBrains itself updates through
+  its signed releases, never apt. See os-auto-updates.sh.
+
 Prerequisites:
   - Ubuntu 22.04 / 24.04 or Debian 12 host (root access)
   - DNS A/AAAA record for <domain> already pointing at this server's
@@ -98,6 +103,24 @@ PACKAGES=(ca-certificates curl gnupg lsb-release openssl)
 # does not exist when the host's own Postgres is the database.
 [[ "$ATTACH_REUSE_POSTGRES" == "1" ]] && PACKAGES+=(postgresql-client)
 apt-get install -y --no-install-recommends "${PACKAGES[@]}"
+# age seals every backup to an offline public key (medbrains-pg-backup).
+# Separate and non-fatal: it lives in Ubuntu's universe component, which a
+# hospital's own host may not enable, and a missing age must not stop a
+# deploy — the backup unit refuses loudly (and pages) instead.
+apt-get install -y --no-install-recommends age \
+    || echo "    WARNING: could not install age — sealed backups will fail until it is installed"
+
+# Host security updates, unattended. Not on an attach host unless asked: its
+# owner already has an update policy, and a reboot there stops their services.
+# shellcheck source=./os-auto-updates.sh
+source "$DEPLOY_DIR/os-auto-updates.sh"
+OS_AUTO_UPDATES_DEFAULT=1
+[[ "$ATTACH_MODE" == "1" ]] && OS_AUTO_UPDATES_DEFAULT=0
+if [[ "${OS_AUTO_UPDATES:-$OS_AUTO_UPDATES_DEFAULT}" == "1" ]]; then
+    configure_os_auto_updates
+else
+    echo "    OS security updates: left to the host's owner (OS_AUTO_UPDATES=1 to turn them on)"
+fi
 
 # Docker CE + compose plugin from Docker's official apt repo.
 # Ubuntu 24.04 noble doesn't ship docker-compose-plugin; the
@@ -139,6 +162,9 @@ echo "==> [3/9] Writing /etc/medbrains/env (preserving existing if present)"
 # shellcheck source=./db-roles.sh
 . "$DEPLOY_DIR/db-roles.sh"
 ENV_CREATED=0
+# Keys are written into these files before their final modes are set.
+PREVIOUS_UMASK="$(umask)"
+umask 077
 if [[ ! -f /etc/medbrains/env ]]; then
     ENV_CREATED=1
     cp "$DEPLOY_DIR/env.example" /etc/medbrains/env
@@ -148,16 +174,17 @@ if [[ ! -f /etc/medbrains/env ]]; then
     # - JWT_PRIVATE_KEY: PKCS#8 v1 DER (jsonwebtoken EncodingKey::from_ed_der)
     # - JWT_PUBLIC_KEY:  raw 32-byte pub key (ring's Ed25519 verifier — NOT SPKI)
     # Both base64-encoded.
-    PRIV_DER="/tmp/medbrains-jwt-priv.der"
-    SPKI_DER="/tmp/medbrains-jwt-pub-spki.der"
-    PUB_RAW="/tmp/medbrains-jwt-pub-raw.bin"
+    JWT_TMP="$(mktemp -d)"
+    PRIV_DER="$JWT_TMP/priv.der"
+    SPKI_DER="$JWT_TMP/pub-spki.der"
+    PUB_RAW="$JWT_TMP/pub-raw.bin"
     openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
     openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
     # SPKI for Ed25519 is 44 bytes; raw 32-byte key = last 32 bytes.
     tail -c 32 "$SPKI_DER" > "$PUB_RAW"
     PRIV="$(base64 -w0 < "$PRIV_DER")"
     PUB="$(base64 -w0 < "$PUB_RAW")"
-    rm -f "$PRIV_DER" "$SPKI_DER" "$PUB_RAW"
+    rm -rf "$JWT_TMP"
     sed -i "s|^JWT_PRIVATE_KEY=$|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
     sed -i "s|^JWT_PUBLIC_KEY=$|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
 
@@ -182,19 +209,21 @@ else
     [[ "${#EXISTING_PUB}" -eq 60 ]] && NEEDS_ROTATE=1
     if [[ "$NEEDS_ROTATE" -eq 1 ]]; then
         echo "    JWT key format incompatible with jsonwebtoken — rotating"
-        PRIV_DER="/tmp/medbrains-jwt-priv.der"
-        SPKI_DER="/tmp/medbrains-jwt-pub-spki.der"
-        PUB_RAW="/tmp/medbrains-jwt-pub-raw.bin"
+        JWT_TMP="$(mktemp -d)"
+        PRIV_DER="$JWT_TMP/priv.der"
+        SPKI_DER="$JWT_TMP/pub-spki.der"
+        PUB_RAW="$JWT_TMP/pub-raw.bin"
         openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
         openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
         tail -c 32 "$SPKI_DER" > "$PUB_RAW"
         PRIV="$(base64 -w0 < "$PRIV_DER")"
         PUB="$(base64 -w0 < "$PUB_RAW")"
-        rm -f "$PRIV_DER" "$SPKI_DER" "$PUB_RAW"
+        rm -rf "$JWT_TMP"
         sed -i "s|^JWT_PRIVATE_KEY=.*|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
         sed -i "s|^JWT_PUBLIC_KEY=.*|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
     fi
 fi
+umask "$PREVIOUS_UMASK"
 
 env_value() {
     local key="$1"
@@ -204,9 +233,12 @@ env_value() {
 # Keys with no safe default (the server's fallback is a development value in the
 # source). Generated once, here, on new and existing hosts alike; never
 # overwritten — changing the HMAC key orphans every stored ID fingerprint,
-# changing the ABDM or NHCX key makes the stored ABDM or NHCX secrets unreadable. Back
-# /etc/medbrains/env up with the database.
-for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY MEDBRAINS_NHCX_SECRET_KEY; do
+# changing the ABDM, NHCX or PACS key makes the stored ABDM, NHCX or PACS secrets unreadable. Back
+# /etc/medbrains/env up with the database. The server refuses to start in production without the
+# event token, signature and OAuth keys. On a host that ran before they existed, values sealed under
+# the old development fallback stop opening: doctors re-enrol signing keys, accounts reconnect.
+for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY MEDBRAINS_NHCX_SECRET_KEY MEDBRAINS_PACS_SECRET_KEY \
+    MEDBRAINS_EVENT_TOKEN_KEY MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY MEDBRAINS_OAUTH_TOKEN_KEY; do
     if [[ -z "$(env_value "$key")" ]]; then
         sed -i "/^$key=/d" /etc/medbrains/env
         echo "$key=$(openssl rand -base64 48 | tr -d '\n')" >> /etc/medbrains/env
@@ -337,6 +369,15 @@ else
     echo "    WHO ICD-API local sidecar disabled; using cloud OAuth or local cache based on /etc/medbrains/env."
 fi
 
+# Error tracking (Rustrak) — opt-in with INSTALL_RUSTRAK=1, remembered in the
+# env so a re-run keeps it. Optional: a failure here never stops the HMS.
+INSTALL_RUSTRAK="${INSTALL_RUSTRAK:-$(env_value INSTALL_RUSTRAK)}"
+if [[ "$INSTALL_RUSTRAK" == "1" ]]; then
+    grep -q '^INSTALL_RUSTRAK=1$' /etc/medbrains/env || echo "INSTALL_RUSTRAK=1" >> /etc/medbrains/env
+    DOMAIN="$DOMAIN" ADMIN_EMAIL="$ADMIN_EMAIL" bash "$DEPLOY_DIR/install-rustrak.sh" \
+        || echo "    WARNING: Rustrak install failed — error tracking stays off."
+fi
+
 if [[ "$ATTACH_REUSE_POSTGRES" != "1" ]]; then
     echo "    Waiting for postgres ready…"
     for _ in {1..30}; do
@@ -354,8 +395,12 @@ fi
 if [[ "$ENV_CREATED" == "1" || -n "$(env_value MIGRATION_DATABASE_URL)" \
       || "${DB_ROLE_SPLIT:-0}" == "1" ]]; then
     if ! db_roles_configure /etc/medbrains/env; then
-        echo "ERROR: database roles not configured — the server will connect as the owner,"
-        echo "       and row level security will not apply. See docs/ops/DB-ROLES.md."
+        # Stop here rather than start a server whose env names a role that was
+        # never created, or that connects as the owner where row level
+        # security does not apply.
+        echo "ERROR: the database roles could not be configured, so the server cannot start"
+        echo "       until they are fixed. See docs/ops/DB-ROLES.md, then re-run install.sh."
+        exit 1
     fi
 else
     echo "    NOTE: this install connects as the database owner; row level security does"
@@ -529,6 +574,19 @@ install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-ba
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-log-archive" /usr/local/bin/medbrains-log-archive
+# Backup public keys. Not secret — the matching private key lives offline
+# with the founder — so the committed kit file is the source of truth
+# (setup lives in git); BACKUP_AGE_RECIPIENT is the per-install override.
+RECIPIENTS=/etc/medbrains/backup-recipients.txt
+if [[ -s "$DEPLOY_DIR/backup-recipients.txt" ]]; then
+    install -m 0644 "$DEPLOY_DIR/backup-recipients.txt" "$RECIPIENTS"
+elif [[ -n "${BACKUP_AGE_RECIPIENT:-}" ]]; then
+    printf '%s\n' "$BACKUP_AGE_RECIPIENT" > "$RECIPIENTS" && chmod 0644 "$RECIPIENTS"
+fi
+if [[ -s "$RECIPIENTS" ]] && command -v age >/dev/null && ! age -R "$RECIPIENTS" </dev/null >/dev/null; then
+    echo "ERROR: $RECIPIENTS holds no valid age public key (age1…)" >&2
+    exit 1
+fi
 if [[ "$HAVE_EDGE" == "1" ]]; then
     install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
 fi
@@ -643,6 +701,23 @@ fi
 
 install_attach_dropins
 systemctl daemon-reload
+# Pre-deploy dump. A re-deploy restarts the server, and the restart runs
+# the new binary's migrations; take a backup first, through the same unit
+# the timer uses, so it is encrypted, shipped and recorded the same way.
+# Refuse to continue if it fails — a migration with no fresh backup behind
+# it is the one change that cannot be walked back. SKIP_PREDEPLOY_BACKUP=1
+# is for the operator who has just taken one by hand.
+if systemctl is-active --quiet medbrains-server.service \
+    && [[ -n "$(env_value BACKUP_BUCKET)$(env_value BACKUP_DIR)" ]] \
+    && [[ "${SKIP_PREDEPLOY_BACKUP:-0}" != "1" ]]; then
+    echo "==> pre-deploy backup (medbrains-pg-backup.service)"
+    if ! systemctl start medbrains-pg-backup.service; then
+        echo "ERROR: pre-deploy backup failed — not restarting onto new migrations." >&2
+        journalctl -u medbrains-pg-backup -n 20 --no-pager >&2 || true
+        echo "       Fix it, or re-run with SKIP_PREDEPLOY_BACKUP=1 after a manual dump." >&2
+        exit 1
+    fi
+fi
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
 # BACKUP_BUCKET) AND re-run migrations if RESET_PGDATA=1 wiped them.
@@ -670,6 +745,15 @@ fi
 
 if [[ -n "$BACKUP_BUCKET" || -n "$BACKUP_DIR" ]]; then
     systemctl enable --now medbrains-pg-backup.timer
+    if [[ ! -s "$RECIPIENTS" ]]; then
+        if [[ -n "$BACKUP_BUCKET" ]]; then
+            echo "    WARNING: BACKUP_BUCKET is set but there is no $RECIPIENTS —"
+            echo "             every backup will FAIL (and page) until a public key is"
+            echo "             installed: S3 never receives an unencrypted dump."
+        else
+            echo "    WARNING: no $RECIPIENTS — local dumps are NOT encrypted."
+        fi
+    fi
 else
     systemctl disable --now medbrains-pg-backup.timer 2>/dev/null || true
     echo "    WARNING: no BACKUP_BUCKET and no BACKUP_DIR — postgres backups"
@@ -753,12 +837,20 @@ systemctl stop caddy 2>/dev/null || true
 systemctl disable caddy 2>/dev/null || true
 systemctl stop medbrains-proxy.service 2>/dev/null || true
 
+# errors.<domain> rides on the same certificate: the edge serves one.
+CERT_NAMES=(-d "$DOMAIN")
+[[ "$INSTALL_RUSTRAK" == "1" ]] && CERT_NAMES+=(-d "errors.$DOMAIN")
 certbot certonly --standalone --non-interactive --agree-tos \
-    --email "$ADMIN_EMAIL" -d "$DOMAIN" --keep-until-expiring
+    --email "$ADMIN_EMAIL" --cert-name "$DOMAIN" --expand "${CERT_NAMES[@]}" --keep-until-expiring
 bash "$DEPLOY_DIR/copy-medbrains-proxy-cert" "/etc/letsencrypt/live/$DOMAIN"
 
 sed -e "s|{{DOMAIN}}|$DOMAIN|g" \
     "$DEPLOY_DIR/PingoraProxy.toml.tmpl" > /etc/medbrains/proxy.toml
+if [[ "$INSTALL_RUSTRAK" == "1" ]]; then
+    # Rustrak has its own login and its own security headers.
+    printf '\n[[routes]]\ndomain = "errors.%s"\nupstream = "127.0.0.1:%s"\npassthrough = true\n' \
+        "$DOMAIN" "${RUSTRAK_PORT:-8180}" >> /etc/medbrains/proxy.toml
+fi
 chmod 640 /etc/medbrains/proxy.toml
 chown root:medbrains /etc/medbrains/proxy.toml
 

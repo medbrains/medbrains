@@ -15,6 +15,15 @@ use tower_http::{
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
+/// rig logs tool arguments (redacted, but still conversation text) at DEBUG;
+/// whatever `RUST_LOG` says, its targets stop at INFO.
+const RIG_AT_MOST_INFO: [&str; 4] = [
+    "rig_core=info",
+    "rig_agent=info",
+    "rig_http=info",
+    "rig_reqwest=info",
+];
+
 use medbrains_server::{
     config::AppConfig,
     middleware::{
@@ -47,24 +56,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let colour = medbrains_server_core::http_trace::terminal_supports_colour();
     medbrains_server_core::http_trace::init_colour(colour);
 
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        // The leading `info` is the global default, and it is what makes
+        // the rest of the application audible at all. Route handlers moved
+        // out of this crate into ~118 leaf crates, whose targets are
+        // `medbrains_dashboard`, `medbrains_pharmacy` and so on — none of
+        // which `medbrains_server=debug` matches. 173 warn!/error! sites
+        // outside this crate were being dropped before they reached a log,
+        // against 55 inside it that were not.
+        //
+        // Found when a dashboard widget failure logged nothing: the handler
+        // reported the failing relation by name and the line went nowhere.
+        "info,medbrains_server=debug,tower_http=debug"
+            .parse()
+            .unwrap_or_default()
+    });
+    let filter = RIG_AT_MOST_INFO
+        .iter()
+        .filter_map(|d| d.parse().ok())
+        .fold(filter, EnvFilter::add_directive);
     tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            // The leading `info` is the global default, and it is what makes
-            // the rest of the application audible at all. Route handlers moved
-            // out of this crate into ~118 leaf crates, whose targets are
-            // `medbrains_dashboard`, `medbrains_pharmacy` and so on — none of
-            // which `medbrains_server=debug` matches. 173 warn!/error! sites
-            // outside this crate were being dropped before they reached a log,
-            // against 55 inside it that were not.
-            //
-            // Found when a dashboard widget failure logged nothing: the handler
-            // reported the failing relation by name and the line went nowhere.
-            "info,medbrains_server=debug,tower_http=debug"
-                .parse()
-                .unwrap_or_default()
-        }))
+        .with(filter)
         .with(tracing_subscriber::fmt::layer().with_ansi(colour))
+        .with(medbrains_error_tracking::tracing_layer())
         .init();
+
+    // Error reports to the self-hosted Rustrak, when SENTRY_DSN is set. The
+    // guard flushes pending reports on shutdown, so it lives as long as main.
+    let _error_tracking = medbrains_error_tracking::init();
 
     // Load configuration
     let config = AppConfig::from_env()?;
@@ -233,13 +252,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("SPICEDB_ENDPOINT")
     {
         let token = std::env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
-        match medbrains_authz::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token).await {
+        match medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend::connect(&endpoint, &token)
+            .await
+        {
             Ok(client) => {
                 tracing::info!(endpoint = %endpoint, "rebac: connected to SpiceDB sidecar");
                 spicedb_live = Some((endpoint, token));
                 spicedb_outbox_client = Some(client.clone());
                 Arc::new(
-                    medbrains_authz::backend_durable_spicedb::DurableSpiceDbBackend::new(
+                    medbrains_authz_spicedb::backend_durable_spicedb::DurableSpiceDbBackend::new(
                         db_pool.clone(),
                         client,
                     ),
@@ -271,7 +292,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // on the request role the UPDATE would match no rows.
         let watch_db = worker_pool.clone();
         tokio::spawn(async move {
-            medbrains_authz::watch::run_user_watcher(
+            medbrains_authz_spicedb::watch::run_user_watcher(
                 spicedb_endpoint,
                 watch_token,
                 move |user_ids| {
@@ -308,8 +329,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(spicedb) = spicedb_outbox_client {
         let outbox_db = db_pool.clone();
         tokio::spawn(async move {
-            medbrains_authz::backend_durable_spicedb::run_spicedb_outbox_worker(outbox_db, spicedb)
-                .await;
+            medbrains_authz_spicedb::backend_durable_spicedb::run_spicedb_outbox_worker(
+                outbox_db, spicedb,
+            )
+            .await;
         });
         tracing::info!("rebac: SpiceDB outbox worker spawned");
     }
@@ -371,6 +394,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DEFAULT. Cheap, idempotent, and the only thing that repairs a tenant
     // whose roles table was never populated — or was emptied.
     medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
+
+    // The live vendor-domain list, then the back-fill. Only a mistake in the
+    // list itself stops the boot: a single label or public suffix, a
+    // hospital's own site domain, or more accounts than the ceiling. One
+    // account never takes every hospital offline: an account whose flag would
+    // leave its hospital with no administrator of its own is skipped (it is
+    // still gated at request time by the domain rule) and logged as an error,
+    // which the error-tracking layer raises to platform operators.
+    let refused = medbrains_core::vendor::configured_refusals();
+    if !refused.is_empty() {
+        return Err(format!(
+            "MEDBRAINS_VENDOR_EMAIL_DOMAINS refused: {refused:?} is a single label or a public \
+             suffix, which would make every account under it a MedBrains account. Fix the \
+             setting and restart."
+        )
+        .into());
+    }
+    let domains = medbrains_core::vendor::vendor_domains();
+    let (flagged, skipped): (i32, Vec<uuid::Uuid>) =
+        sqlx::query_as(
+            "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
+        )
+            .bind(&domains)
+            .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+            .bind(medbrains_core::vendor::backfill_max())
+            .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
+            .fetch_one(&bootstrap_pool)
+            .await
+            .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;
+    sqlx::query("SELECT public.app_set_vendor_domains($1)")
+        .bind(&domains)
+        .execute(&bootstrap_pool)
+        .await?;
+    if flagged > 0 {
+        tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
+    }
+    for user_id in skipped {
+        tracing::error!(
+            %user_id,
+            "vendor-domain account not flagged: it is its hospital's last administrator. It is \
+             still refused without a grant; hand the hospital an administrator account of its \
+             own (docs/compliance/vendor-access.md)"
+        );
+    }
 
     // Every startup check, reported at once; production does not serve on a
     // failure. After seeding, so a fresh database is judged as it will run.
@@ -589,8 +656,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // among thousands.
         .layer(
             TraceLayer::new_for_http()
+                .make_span_with(medbrains_server_core::http_trace::make_span)
                 .on_response(medbrains_server_core::http_trace::on_response),
         )
+        // A Sentry hub per request, outside the trace layer so its log lines
+        // land on the request's scope; a no-op while error tracking is off.
+        .layer(medbrains_error_tracking::http_layer())
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
 
     // Make the finalized router available to the AI assistant's in-process read
@@ -656,18 +727,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Room-rent auto-billing — hourly idempotent pass posting one
     // bed charge per occupied admission per hospital-local day.
     medbrains_server::services::room_rent::spawn(worker_pool.clone());
+    // Revenue leakage — daily pass queueing orders done but never billed.
+    medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
+    // Paperless meter — daily recount of the last week's documents and paper.
+    medbrains_server::services::paperless_meter::spawn(worker_pool.clone());
+    medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
+    // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
+    medbrains_hrms_gateway::spawn(worker_pool.clone());
 
     // Appointment reminders — 5-min pass enqueuing outbox SMS events
     // for appointments entering their reminder windows.
     medbrains_server::services::appointment_reminders::spawn(worker_pool.clone());
+    medbrains_server::services::vaccination_reminders::spawn(worker_pool.clone());
 
     // Critical-value escalation — unacknowledged lab alerts escalate
     // to the doctor's supervisor after the tenant's ack window.
-    medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
+    // It needs the credential store to know whether SMS is set up: an
+    // escalation it cannot text is reported as blocked, never as sent.
+    medbrains_server::services::critical_alert_escalation::spawn(
+        worker_pool.clone(),
+        medbrains_server::secret_backend::build_secret_resolver().await,
+    );
+    // A code blue nobody answers is re-paged wider, a bounded number of times.
+    medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
+    // Late or missing MRD files to the supervisor; tomorrow's pull list each evening.
+    medbrains_mrd::file_requests::jobs::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
     medbrains_server::services::access_alert_scan::spawn(worker_pool.clone());
+    // Security intelligence (RFC-OSINT phase 1): continuous checks with
+    // heartbeats, findings into vulnerabilities, honeytokens.
+    medbrains_security_intel::Runner::new(
+        medbrains_security_intel::Ctx {
+            request: db_pool.clone(),
+            worker: worker_pool.clone(),
+        },
+        medbrains_security_intel::all_checks(chrono::Utc::now()),
+    )
+    .spawn();
     medbrains_server::services::prescription_expiry::spawn(worker_pool.clone());
     medbrains_server::services::pacs_sync::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
@@ -675,16 +773,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Verbal/telephone order countersignature escalation — overdue orders
     // notify the prescriber + supervisor (NABH medication safety).
     medbrains_server::services::verbal_order_escalation::spawn(worker_pool.clone());
+    medbrains_server::services::notifiable_report_escalation::spawn(worker_pool.clone());
+    // Health intelligence (RFC-OSINT §4) — hourly condition counts vs usual,
+    // weather + air per hospital, notice tagging; each writes a heartbeat.
+    medbrains_health_intel::job::spawn(worker_pool.clone());
+    medbrains_server::services::crs_registration_escalation::spawn(worker_pool.clone());
 
     // Nurse-call escalation — an unanswered call reaches the ward's on-call
     // nurse, then the supervisor. The board already coloured it; nobody was
     // told (NABH CL-3).
     medbrains_server::services::nurse_call_escalation::spawn(worker_pool.clone());
 
+    // MedBrains Flow — one bounded aggregate per source per tenant a minute
+    // into flow_zone_minute, then alerts and recommendations (#4901). Only
+    // tenants with the `flow` add-on enabled are read.
+    medbrains_flow::aggregate::spawn(worker_pool.clone());
+
     // Restraint observations — a restrained patient missing the 30-minute
     // check reaches the on-call nurse and whoever started the restraint
     // (MHCA 2017 s.97).
     medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
+    // Dictation recordings never outlive 24 hours unsaved.
+    medbrains_dictation::purge::spawn(worker_pool.clone());
+
+    // Early-warning scores — an urgent or emergency NEWS2/PEWS/MEOWS nobody
+    // acknowledges goes to the duty doctor, then wider (NABH/IPSG).
+    medbrains_server::services::ews_escalation::spawn(worker_pool.clone());
 
     // Calibration lock — equipment past its calibration date is locked and
     // taken out of service, so an analyser cannot report on an expired one.
@@ -703,7 +817,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Graceful shutdown: stop accepting new connections on SIGTERM/SIGINT
     // and let in-flight requests (and their transactions) finish instead
     // of aborting mid-write on every deploy restart.
-    axum::serve(listener, app)
+    // Not `axum::serve(listener, app)`: that form copies the whole route table for every
+    // connection (DECISIONS, 2026-11-04), and gives handlers no connecting address, leaving them
+    // only headers that a client can write.
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
@@ -827,17 +944,32 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // them sent without sending anything.
     registry.register(twilio::SmsSendHandler::new("sms.mlc_police_intimation"));
     registry.register(twilio::SmsSendHandler::new("sms.mass_casualty_alert"));
+    // The code blue page: one round of paging, then its SMS and WhatsApp per
+    // person. Unregistered, the fallback marked the page sent while no
+    // pipeline acted on it (medbrains-nursing::code_blue_alert).
+    registry.register(medbrains_nursing::code_blue_alert::CodeBlueAlertHandler);
+    registry.register(twilio::SmsSendHandler::new(
+        medbrains_nursing::code_blue_alert::SMS_EVENT,
+    ));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        medbrains_nursing::code_blue_alert::WHATSAPP_EVENT,
+    ));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.mlc_police_intimation",
     ));
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
+    // Tells an account holder their sign-in was linked to, or unlinked from, a Kanidm person.
+    registry.register(email_stub::SmtpSendHandler::new("email.account_link"));
     registry.register(email_stub::SmtpSendHandler::new("email.mis_daily_export"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.appointment_confirmation",
     ));
     registry.register(email_stub::SmtpSendHandler::new("email.invoice_receipt"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        medbrains_payment_gateway::payment_settings_notice::EMAIL_EVENT,
+    ));
     registry.register(email_stub::SmtpSendHandler::new("email.lab_report"));
     registry.register(email_stub::SmtpSendHandler::new(
         "email.refund_notification",
@@ -888,6 +1020,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(medbrains_outbox::handlers::webhook::WebhookDeliverHandler);
     // Radiology orders onto the PACS modality worklist (#226).
     registry.register(medbrains_outbox::handlers::pacs_worklist::WorklistCreateHandler);
+    registry.register(medbrains_outbox::handlers::hl7_adt::AdtSendHandler);
 
     // Fallback: route any unregistered event_type to user-defined pipelines.
     let dispatcher = Arc::new(EventsPipelineDispatcher);
@@ -912,7 +1045,7 @@ impl medbrains_outbox::handlers::pipeline_fallback::PipelineDispatcher
         user_id: uuid::Uuid,
         event_type: &str,
         payload: &serde_json::Value,
-    ) -> Result<(), String> {
+    ) -> Result<usize, String> {
         medbrains_server::events::dispatch_to_pipelines(
             pool, tenant_id, user_id, event_type, payload,
         )

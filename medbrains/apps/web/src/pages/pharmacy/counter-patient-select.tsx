@@ -18,7 +18,7 @@ import { pharmacyService } from "@/services/pharmacy.service";
 /** The server searches from three characters; fewer match half the register. */
 const MIN_SEARCH = 3;
 
-function describe(patient: CounterPatient): string {
+function describePatient(patient: CounterPatient): string {
   const facts = [patient.age_years != null ? `${patient.age_years}y` : null, patient.gender]
     .filter(Boolean)
     .join(" ");
@@ -55,11 +55,11 @@ export function CounterPatientSelect({ value, onChange, error }: CounterPatientS
       minSearchLength={MIN_SEARCH}
       typeToSearchLabel="Type at least 3 characters..."
       getItemValue={(patient) => patient.id}
-      getItemDisplay={describe}
+      getItemDisplay={describePatient}
       onSelect={(patient) => onChange(patient.id)}
       onClear={() => onChange("")}
       emptyLabel="No patient found"
-      renderItem={(patient) => <Text size="sm">{describe(patient)}</Text>}
+      renderItem={(patient) => <Text size="sm">{describePatient(patient)}</Text>}
     />
   );
 }

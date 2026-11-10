@@ -62,7 +62,6 @@ pub trait Permission {
     const CODE: &'static str;
 }
 
-
 /// A requirement an endpoint places on the caller.
 ///
 /// Deliberately flat rather than a general algebra. The API needs exactly two
@@ -259,6 +258,7 @@ mod tests {
             department_ids: Vec::new(),
             perm_version: 0,
             paired_device_id: None,
+            act: None,
             exp: 0,
         }
     }

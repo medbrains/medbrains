@@ -98,7 +98,7 @@ async fn an_order_reaches_the_worklist_and_its_study_comes_back_to_it() {
         .json(&json!({ "Tags": {
             "PatientID": format!("UH-PX-{tag}"), "PatientName": "Devi^Lakshmi",
             "AccessionNumber": accession, "Modality": "CT", "StudyDescription": "CT head plain",
-            "SOPClassUID": "1.2.840.10008.5.1.4.1.1.2",
+            "SOPClassUID": "1.2.840.10008.5.1.4.1.1.2", "CTDIvol": "14.9",
         }}))
         .send()
         .await
@@ -112,9 +112,12 @@ async fn an_order_reaches_the_worklist_and_its_study_comes_back_to_it() {
     let mut linked = false;
     for _ in 0..30 {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        medbrains_server::services::pacs_sync::scan_once(&app.db, &http)
-            .await
-            .expect("sync");
+        medbrains_server::services::pacs_sync::scan_once(
+            &app.db,
+            &medbrains_core::secrets::EnvSecretResolver::new(),
+        )
+        .await
+        .expect("sync");
         let uid: Option<String> =
             sqlx::query_scalar("SELECT pacs_study_uid FROM radiology_orders WHERE id = $1::uuid")
                 .bind(&order_id)
@@ -138,6 +141,17 @@ async fn an_order_reaches_the_worklist_and_its_study_comes_back_to_it() {
     assert_eq!(status, "completed", "the images are in: the exam is done");
     assert!(viewer.contains("/ohif/viewer?StudyInstanceUIDs="));
     assert_eq!(instances, 1);
+
+    // The scanner's CTDIvol came with the image: recorded without anyone typing it.
+    let (source, ctdi): (String, f64) = sqlx::query_as(
+        "SELECT source, ctdi_vol::float8 FROM radiation_dose_records \
+          WHERE order_id = $1::uuid AND deleted_at IS NULL",
+    )
+    .bind(&order_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("dose read from the image headers");
+    assert_eq!((source.as_str(), ctdi), ("dicom_header", 14.9));
 
     let _ = http
         .delete(format!("{ORTHANC}/studies/{study_id}"))

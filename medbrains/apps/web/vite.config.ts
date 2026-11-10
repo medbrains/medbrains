@@ -6,6 +6,7 @@ import wasm from "vite-plugin-wasm";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import pkg from "./package.json" with { type: "json" };
 
 /** Where built source maps go: beside dist, never inside it. */
@@ -15,22 +16,47 @@ const SOURCE_MAP_DIR = path.resolve(import.meta.dirname, "sourcemaps");
  * Source maps carry the original source, so they must never ship with the
  * app — production served every one of them from /assets until 2026-09-28.
  * They are still built (hidden) to decode client error reports, and moved
- * out of dist the moment the bundle is written, so nothing that packages
- * dist can publish them.
+ * out of dist once the bundle is written — after the error-tracker upload
+ * below has read them — so nothing that packages dist can publish them.
  */
 function keepSourceMapsPrivate(): PluginOption {
   return {
     name: "keep-source-maps-private",
     apply: "build",
-    writeBundle(options, bundle) {
-      const outDir = options.dir ?? path.resolve(import.meta.dirname, "dist");
-      for (const file of Object.keys(bundle).filter((f) => f.endsWith(".map"))) {
-        const target = path.join(SOURCE_MAP_DIR, file);
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.renameSync(path.join(outDir, file), target);
-      }
+    closeBundle: {
+      order: "post",
+      sequential: true,
+      handler() {
+        const outDir = path.resolve(import.meta.dirname, "dist");
+        const files = fs.readdirSync(outDir, { recursive: true, encoding: "utf8" });
+        for (const file of files.filter((f) => f.endsWith(".map"))) {
+          const target = path.join(SOURCE_MAP_DIR, file);
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          fs.renameSync(path.join(outDir, file), target);
+        }
+      },
     },
   };
+}
+
+/**
+ * Uploads this build's source maps to the hospital's Rustrak, keyed to the
+ * release the app reports (the commit), so its stack traces read as source.
+ * Only when the deploy supplies SENTRY_URL and SENTRY_AUTH_TOKEN; the plugin's
+ * own telemetry to sentry.io is off.
+ */
+function uploadSourceMapsToErrorTracker(release: string): PluginOption[] {
+  const url = process.env.SENTRY_URL;
+  const authToken = process.env.SENTRY_AUTH_TOKEN;
+  if (!url || !authToken) return [];
+  return sentryVitePlugin({
+    url,
+    authToken,
+    org: "medbrains",
+    project: process.env.SENTRY_PROJECT ?? "medbrains",
+    release: { name: release, inject: false },
+    telemetry: false,
+  });
 }
 
 /**
@@ -187,10 +213,13 @@ export default defineConfig(async () => {
     }
   })();
 
+  const appCommit = gitDirty ? `${gitCommit}+local` : gitCommit;
+  plugins.push(...uploadSourceMapsToErrorTracker(appCommit));
+
   return {
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
-      __APP_COMMIT__: JSON.stringify(gitDirty ? `${gitCommit}+local` : gitCommit),
+      __APP_COMMIT__: JSON.stringify(appCommit),
       __APP_BUILT__: JSON.stringify(new Date().toISOString()),
     },
     cacheDir: process.env.VITE_CACHE_DIR ?? path.resolve(import.meta.dirname, "node_modules/.vite"),

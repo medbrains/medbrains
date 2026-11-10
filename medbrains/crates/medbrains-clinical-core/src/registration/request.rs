@@ -68,15 +68,15 @@ pub fn registration_request(draft: &Draft, today_year: i32) -> Value {
         insert(&mut body, "phone", Value::from(""));
     }
     body.entry("phone").or_insert_with(|| Value::from(""));
-    if value(draft, "date_of_birth").is_empty() {
-        if let Ok(age) = value(draft, "age_years").parse::<u32>() {
-            insert(
-                &mut body,
-                "date_of_birth",
-                Value::from(estimated_date_of_birth(age, today_year)),
-            );
-            insert(&mut body, "is_dob_estimated", Value::Bool(true));
-        }
+    if value(draft, "date_of_birth").is_empty()
+        && let Ok(age) = value(draft, "age_years").parse::<u32>()
+    {
+        insert(
+            &mut body,
+            "date_of_birth",
+            Value::from(estimated_date_of_birth(age, today_year)),
+        );
+        insert(&mut body, "is_dob_estimated", Value::Bool(true));
     }
     if value(draft, "attributes.allergy_status") == "no_known_allergies" {
         insert(

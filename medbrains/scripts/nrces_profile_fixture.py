@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Extract the NRCeS FHIR IG rules the HIP bundles must satisfy into the small
+"""Extract the NRCeS FHIR IG rules the HIP bundles and the NHCX messages must
+satisfy into the small
 fixture `crates/medbrains-fhir/src/nrces/profiles.json`, read by
 `medbrains_fhir::nrces::conformance`.
 
@@ -20,7 +21,12 @@ COMPOSITIONS = ["OPConsultRecord", "PrescriptionRecord", "DiagnosticReportRecord
                 "ImmunizationRecord", "WellnessRecord", "HealthDocumentRecord", "InvoiceRecord"]
 RESOURCES = ["Patient", "Practitioner", "Organization", "Encounter", "Condition",
              "MedicationRequest", "Observation", "DiagnosticReportLab", "Immunization",
-             "ObservationVitalSigns", "ObservationBodyMeasurement", "DocumentReference", "Invoice"]
+             "ObservationVitalSigns", "ObservationBodyMeasurement", "DocumentReference", "Invoice",
+             # NHCX (same package)
+             "Claim", "CoverageEligibilityRequest", "Coverage", "Task", "Communication"]
+# NHCX message bundles: a `collection` whose entries are sliced by the focal
+# resource's profile.
+BUNDLES = ["ClaimBundle", "CoverageEligibilityRequestBundle", "TaskBundle"]
 
 
 def load(src, name):
@@ -107,6 +113,20 @@ def resource(sd):
     return {"type": root, "required": required(sd), "codings": codings, "identifier_requires": identifier}
 
 
+def bundle(sd):
+    el = elements(sd)
+    focal = next(e for i, e in el.items() if i.startswith("Bundle.entry:") and i.count(".") == 1)
+    resource = el[f"{focal['id']}.resource"]
+    profile = next(p for t in resource["type"] for p in t.get("profile", []))
+    return {
+        "version": sd["version"],
+        "type": el["Bundle.type"].get("fixedCode"),
+        "focal": profile.rsplit("/", 1)[-1],
+        "focal_min": focal["min"],
+        "focal_max": focal["max"],
+    }
+
+
 def main(tgz, dst):
     with open(tgz, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
@@ -117,6 +137,7 @@ def main(tgz, dst):
         "source": f"ndhm.in#6.5.0 package (sha256 {PINNED_SHA256}), extracted by scripts/nrces_profile_fixture.py",
         "compositions": {n: composition(load(src, n)) for n in COMPOSITIONS},
         "resources": {n: resource(load(src, n)) for n in RESOURCES},
+        "bundles": {n: bundle(load(src, n)) for n in BUNDLES},
     }
     with open(dst, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=1, sort_keys=True)

@@ -15,11 +15,14 @@ mod nhcx_common;
 pub mod nhcx_eligibility;
 mod nhcx_final_claim;
 pub mod nhcx_participants;
+mod nhcx_parties;
 pub mod nhcx_preauth;
 pub mod nhcx_queries;
 pub mod nhcx_sla;
 pub mod nhcx_submit;
 mod nhcx_task_bundle;
+#[cfg(test)]
+mod nhcx_golden_tests;
 pub mod nhcx_tasks;
 
 pub fn router() -> Router<AppState> {

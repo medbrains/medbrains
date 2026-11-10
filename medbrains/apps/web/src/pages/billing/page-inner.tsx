@@ -2,7 +2,7 @@
 
 import { Group, Progress, Select, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { Invoice } from "@medbrains/types";
 import { billingInvoiceBalanceSignal, billingInvoiceStatusSignal, P } from "@medbrains/types";
 import {
@@ -63,6 +63,8 @@ import {
 } from "./accounting-tabs";
 import { AdvancesTab } from "./advances";
 import { AuditLogTab } from "./audit-log";
+import { ChargeAttentionCount } from "./charge-attention/ChargeAttentionCount";
+import { ChargeAttentionTab } from "./charge-attention/ChargeAttentionTab";
 import { ChargeMasterTab } from "./charge-master";
 import { CorporateTab } from "./corporate";
 import { CreateInvoiceDrawer } from "./create-invoice-drawer";
@@ -75,6 +77,7 @@ import { RatePlansTab } from "./rate-plans";
 import { RefundsCreditsTab } from "./refunds-credits";
 import { ReportsTab } from "./reports";
 import { BillingSettingsTab } from "./settings";
+import { InsuranceSettlementsTab } from "./settlements/InsuranceSettlementsTab";
 import {
   BILLING_INVOICE_STATUS_OPTIONS,
   invoiceBalance,
@@ -106,6 +109,14 @@ export function BillingPageInner() {
   const canConcessions = useHasPermission(P.BILLING.CONCESSIONS_LIST);
   const canApproveConcessions = useHasPermission(P.BILLING.CONCESSIONS_APPROVE);
   const canReconcile = useHasPermission(P.BILLING.PAYMENTS_RECONCILE);
+  const canChargeAttention = useHasAnyPermission([
+    P.BILLING.CHARGE_ATTENTION.VIEW,
+    P.BILLING.LEAKAGE.VIEW,
+  ]);
+  const canSettlements = useHasAnyPermission([
+    P.BILLING.CLAIMS.SETTLEMENT.RECORD,
+    P.BILLING.CLAIMS.SETTLEMENT.APPROVE,
+  ]);
 
   const [page, setPage] = useState(1);
   const [invoiceSort, setInvoiceSort] = useState<SortState | null>(null);
@@ -129,6 +140,8 @@ export function BillingPageInner() {
     "financial-mis",
     ...(canErp ? ["erp-export"] : []),
     ...(canConcessions ? ["concessions"] : []),
+    ...(canChargeAttention ? ["charge-attention"] : []),
+    ...(canSettlements ? ["insurance-settlements"] : []),
     ...(canReconcile ? ["payment-exceptions"] : []),
     "settings",
   ]);
@@ -557,6 +570,20 @@ export function BillingPageInner() {
               Concessions
             </Tabs.Tab>
           )}
+          {canChargeAttention && (
+            <Tabs.Tab
+              value="charge-attention"
+              leftSection={<IconAlertTriangle size={14} />}
+              rightSection={<ChargeAttentionCount />}
+            >
+              Charges needing attention
+            </Tabs.Tab>
+          )}
+          {canSettlements && (
+            <Tabs.Tab value="insurance-settlements" leftSection={<IconShieldCheck size={14} />}>
+              Insurance settlements
+            </Tabs.Tab>
+          )}
           {canReconcile && (
             <Tabs.Tab value="payment-exceptions" leftSection={<IconAlertTriangle size={14} />}>
               {t("paymentExceptions")}
@@ -686,6 +713,18 @@ export function BillingPageInner() {
         {canConcessions && (
           <Tabs.Panel value="concessions">
             <ConcessionsTab canApprove={canApproveConcessions} />
+          </Tabs.Panel>
+        )}
+
+        {canChargeAttention && (
+          <Tabs.Panel value="charge-attention">
+            <ChargeAttentionTab />
+          </Tabs.Panel>
+        )}
+
+        {canSettlements && (
+          <Tabs.Panel value="insurance-settlements">
+            <InsuranceSettlementsTab />
           </Tabs.Panel>
         )}
 

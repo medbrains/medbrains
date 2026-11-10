@@ -1,0 +1,34 @@
+[package]
+name = "medbrains-knowledge"
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+# Knowledge change sets (RFCs/RFC-KNOWLEDGE-CHANGE-SETS.md): draft, preview
+# impact, approve, apply, roll back and prove edits to clinical knowledge.
+[dependencies]
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-lab = { path = "../medbrains-lab" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-sop-flows = { path = "../medbrains-sop-flows" }
+axum = { workspace = true }
+chrono = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+medbrains-authz = { path = "../medbrains-authz" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-telehealth = { path = "../medbrains-telehealth" }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true }

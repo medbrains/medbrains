@@ -19,6 +19,7 @@ use medbrains_server_core::{
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie, clear_cookie},
         field_access,
     },
+    os_identity::{KANIDM_CODE, SETUP_ADMIN_SQL},
     state::AppState,
 };
 
@@ -51,63 +52,16 @@ pub struct UserInfo {
     pub email_verified: bool,
 }
 
-const MAX_FAILED_LOGINS: i32 = 5;
-const LOCKOUT_MINUTES: i32 = 15;
-
-/// Increment the per-account failure counter, lock the account once the
-/// threshold is reached, and audit the failure with the caller's address —
-/// every failure, not only the lockout, so a slow guess below the threshold
-/// still leaves a trail (DPDP Rule 6, NABH IMS).
+/// Count a wrong sign-in password against the account's shared lockout
+/// (`medbrains_server_core::lockout`, which step-up counts against too).
 async fn record_failed_login(
     state: &AppState,
-    (user_id, tenant_id): (Uuid, Uuid),
+    account: (Uuid, Uuid),
     ip: Option<&str>,
 ) -> Result<(), AppError> {
-    let now_locked: bool = sqlx::query_scalar(
-        "UPDATE users SET \
-           failed_login_attempts = failed_login_attempts + 1, \
-           locked_until = CASE \
-             WHEN failed_login_attempts + 1 >= $2 \
-             THEN now() + make_interval(mins => $3) \
-             ELSE locked_until END \
-         WHERE id = $1 \
-         RETURNING failed_login_attempts >= $2",
-    )
-    .bind(user_id)
-    .bind(MAX_FAILED_LOGINS)
-    .bind(LOCKOUT_MINUTES)
-    .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?)
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let actions: &[&str] = if now_locked {
-        &["login_failed", "account_locked"]
-    } else {
-        &["login_failed"]
-    };
-    for action in actions {
-        medbrains_db::audit::AuditLogger::log(
-            &mut tx,
-            &medbrains_db::audit::AuditEntry {
-                tenant_id,
-                user_id: Some(user_id),
-                action,
-                entity_type: "user",
-                entity_id: Some(user_id),
-                old_values: None,
-                new_values: None,
-                ip_address: ip,
-            },
-        )
+    medbrains_server_core::lockout::record_failed_password(state, account, ip, "login_failed")
         .await
-        .map_err(AppError::from)?;
-    }
-    tx.commit().await?;
-    if now_locked {
-        tracing::warn!(%user_id, "account locked after repeated failed logins");
-    }
-    Ok(())
+        .map(|_| ())
 }
 
 /// A sign-in for a name no account in that hospital has. Audited against the
@@ -261,14 +215,20 @@ fn wants_native_token_response(headers: &HeaderMap) -> bool {
 }
 
 /// SSO-first tenant policy: when `tenant_settings(auth, password_login_disabled)`
-/// is true, password login is refused for everyone except the break-glass admin
-/// named in `tenant_settings(auth, break_glass_username)`. Returns true if this
+/// is true, password login is refused for everyone except the setup
+/// administrator (`setup_admin`), the one named break-glass. Returns true if this
 /// password attempt must be rejected. Absent settings = passwords allowed (default).
+///
+/// The break-glass is never a username in a setting: an administrator could name
+/// any account there and give it a password route nobody else has.
 async fn password_login_blocked(
     db: &PgPool,
     tenant_id: Uuid,
-    username: &str,
+    setup_admin: bool,
 ) -> Result<bool, AppError> {
+    if setup_admin {
+        return Ok(false);
+    }
     // `tenant_settings` is row-level secured, and this decides whether a
     // password login is allowed at all. Unscoped it reads nothing, which here
     // means "passwords are fine" — the permissive answer, arrived at by not
@@ -282,24 +242,30 @@ async fn password_login_blocked(
     .bind(tenant_id)
     .fetch_optional(&mut *conn)
     .await?;
-    let is_disabled =
-        disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
-    if !is_disabled {
-        return Ok(false);
-    }
-    // Passwords disabled — allow only the break-glass admin through.
-    let break_glass: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username' \
-           AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?;
-    let break_glass = break_glass.and_then(|v| v.as_str().map(str::to_owned));
-    Ok(break_glass.as_deref() != Some(username))
+    Ok(disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true")))
 }
 
+/// The audit action of a password sign-in through the setup administrator's break-glass.
+pub const BREAK_GLASS_LOGIN: &str = "break_glass_password_login";
+
+/// Whether a password may open this account, and whether doing so is the break-glass. An account linked to
+/// the OS's Kanidm signs in there, with its second step and lockout; only the setup administrator keeps a
+/// password beside the link, so an outage of Kanidm cannot lock the hospital out (os/README.md).
+fn password_route(kanidm_linked: bool, setup_admin: bool) -> Result<bool, AppError> {
+    match (kanidm_linked, setup_admin) {
+        (false, _) => Ok(false),
+        (true, true) => Ok(true),
+        (true, false) => Err(AppError::BadRequest(KANIDM_SIGN_IN.to_owned())),
+    }
+}
+
+/// What a linked account sees when it tries a password.
+const KANIDM_SIGN_IN: &str = "This account signs in with your MedBrains account, not a password here. \
+     Choose \"Sign in with MedBrains account\" on this page.";
+
+/// POST /api/auth/login — password sign-in: finds the account in the named hospital, applies lockout, then the
+/// SSO-only policy and the Kanidm-link rule (both only after the password is proven), checks MFA, and opens a
+/// session.
 #[allow(clippy::too_many_lines)]
 pub async fn login(
     State(state): State<AppState>,
@@ -345,22 +311,18 @@ pub async fn login(
         return Err(AppError::Unauthorized);
     }
 
-    // SSO-first policy: when the tenant disables password login, only the
-    // designated break-glass admin may still use a password — everyone else
-    // must sign in via SSO (so an IdP outage can't lock the hospital out).
-    if password_login_blocked(&state.db, row.tenant_id, &body.username).await? {
-        return Err(AppError::BadRequest(
-            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
-        ));
-    }
-
     // Per-account lockout — independent of the per-IP rate limit so a
     // distributed credential-stuffing run still locks the account.
     // The account's hospital is known from here on; `users` needs it under RLS.
-    let locked: bool = sqlx::query_scalar(
-        "SELECT locked_until IS NOT NULL AND locked_until > now() FROM users WHERE id = $1",
-    )
+    // Read with it: whether the account is linked to the OS's Kanidm, and whether
+    // it is the setup administrator, the one linked account a password still opens.
+    let (locked, kanidm_linked, setup_admin): (bool, bool, bool) = sqlx::query_as(&format!(
+        "SELECT u.locked_until IS NOT NULL AND u.locked_until > now(), \
+         EXISTS (SELECT 1 FROM identity_providers p WHERE p.id = u.idp_id AND p.code = $2), \
+         {SETUP_ADMIN_SQL} FROM users u WHERE u.id = $1"
+    ))
     .bind(row.id)
+    .bind(KANIDM_CODE)
     .fetch_one(&mut *medbrains_db::pool::tenant_conn(&state.db, &row.tenant_id).await?)
     .await?;
     if locked {
@@ -385,6 +347,19 @@ pub async fn login(
         record_failed_login(&state, (row.id, row.tenant_id), ip.as_deref()).await?;
         return Err(AppError::Unauthorized);
     }
+    // Only now, with the password proven, does the account hear that a password is not its way in: said
+    // before, the SSO-only answer would point at the one account it exempts (the break-glass), and the Kanidm
+    // one at every linked account.
+    //
+    // SSO-first policy: when the tenant disables password login, only the
+    // setup administrator may still use a password — everyone else must sign
+    // in via SSO (so an IdP outage can't lock the hospital out).
+    if password_login_blocked(&state.db, row.tenant_id, setup_admin).await? {
+        return Err(AppError::BadRequest(
+            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
+        ));
+    }
+    let break_glass = password_route(kanidm_linked, setup_admin)?;
 
     // MFA gate — when enabled, credentials alone never open a session.
     // The client resubmits the same credentials with mfa_code.
@@ -445,6 +420,7 @@ pub async fn login(
         department_ids: department_ids.clone(),
         perm_version: row.perm_version,
         paired_device_id: None,
+        act: None,
         exp: (now + chrono::Duration::minutes(15)).timestamp() as usize,
     };
     let access_token = encode_jwt(&access_claims, &state.jwt_encoding_key)
@@ -460,7 +436,7 @@ pub async fn login(
 
     // Store refresh token — set tenant context for RLS
     let device_fp = extract_device_fingerprint(&headers);
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = ip.clone();
     let user_agent = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
@@ -495,17 +471,23 @@ pub async fn login(
     .execute(&mut *tx)
     .await?;
 
-    // Audit log
+    // Audit log. The break-glass is named in it, so every use is found by one action.
+    let break_glass_details =
+        serde_json::json!({ "route": "setup administrator password beside Kanidm" });
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
         &medbrains_db::audit::AuditEntry {
             tenant_id: row.tenant_id,
             user_id: Some(row.id),
-            action: "login",
+            action: if break_glass {
+                BREAK_GLASS_LOGIN
+            } else {
+                "login"
+            },
             entity_type: "user",
             entity_id: Some(row.id),
             old_values: None,
-            new_values: None,
+            new_values: break_glass.then_some(&break_glass_details),
             ip_address: None,
         },
     )
@@ -569,6 +551,7 @@ pub struct RefreshResponse {
 #[allow(clippy::too_many_lines)]
 pub async fn refresh_token(
     State(state): State<AppState>,
+    client_ip: Option<Extension<ClientIp>>,
     headers: HeaderMap,
     jar: CookieJar,
     body: Option<Json<RefreshRequestBody>>,
@@ -653,39 +636,39 @@ pub async fn refresh_token(
 
     // ── Device Fingerprint Validation ──
     let current_fp = extract_device_fingerprint(&headers);
-    if let Some(ref stored_fp) = row.device_fingerprint {
-        if *stored_fp != current_fp {
-            // Fingerprint mismatch — possible stolen cookie used in different browser
-            let mut tx = state.db.begin().await?;
-            medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
+    if let Some(ref stored_fp) = row.device_fingerprint
+        && *stored_fp != current_fp
+    {
+        // Fingerprint mismatch — possible stolen cookie used in different browser
+        let mut tx = state.db.begin().await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, &row.tenant_id).await?;
 
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: row.tenant_id,
-                    user_id: Some(row.user_id),
-                    action: "device_fingerprint_mismatch",
-                    entity_type: "refresh_token",
-                    entity_id: Some(row.id),
-                    old_values: None,
-                    new_values: None,
-                    ip_address: None,
-                },
-            )
-            .await
-            .map_err(AppError::from)?;
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: row.tenant_id,
+                user_id: Some(row.user_id),
+                action: "device_fingerprint_mismatch",
+                entity_type: "refresh_token",
+                entity_id: Some(row.id),
+                old_values: None,
+                new_values: None,
+                ip_address: None,
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
 
-            // Revoke this token
-            sqlx::query!(
-                "UPDATE refresh_tokens SET revoked = true WHERE id = $1",
-                row.id
-            )
-            .execute(&mut *tx)
-            .await?;
+        // Revoke this token
+        sqlx::query!(
+            "UPDATE refresh_tokens SET revoked = true WHERE id = $1",
+            row.id
+        )
+        .execute(&mut *tx)
+        .await?;
 
-            tx.commit().await?;
-            return Err(AppError::Unauthorized);
-        }
+        tx.commit().await?;
+        return Err(AppError::Unauthorized);
     }
 
     // ── Token Rotation ──
@@ -696,7 +679,7 @@ pub async fn refresh_token(
     let new_refresh_hash = hex::encode(new_hasher.finalize());
     let new_expires = Utc::now() + chrono::Duration::days(7);
 
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = client_ip.map(|Extension(ip)| ip.as_str());
     let user_agent_val = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
@@ -748,26 +731,26 @@ pub async fn refresh_token(
     .await?
     .flatten();
 
-    if let (Some(stored), Some(current)) = (&stored_ip, &client_ip) {
-        if stored != current {
-            let old_vals = serde_json::json!({ "ip": stored });
-            let new_vals = serde_json::json!({ "ip": current });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: row.tenant_id,
-                    user_id: Some(row.user_id),
-                    action: "ip_change_on_refresh",
-                    entity_type: "refresh_token",
-                    entity_id: Some(row.id),
-                    old_values: Some(&old_vals),
-                    new_values: Some(&new_vals),
-                    ip_address: None,
-                },
-            )
-            .await
-            .map_err(AppError::from)?;
-        }
+    if let (Some(stored), Some(current)) = (&stored_ip, &client_ip)
+        && stored != current
+    {
+        let old_vals = serde_json::json!({ "ip": stored });
+        let new_vals = serde_json::json!({ "ip": current });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: row.tenant_id,
+                user_id: Some(row.user_id),
+                action: "ip_change_on_refresh",
+                entity_type: "refresh_token",
+                entity_id: Some(row.id),
+                old_values: Some(&old_vals),
+                new_values: Some(&new_vals),
+                ip_address: None,
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
     }
 
     tx.commit().await?;
@@ -794,6 +777,7 @@ pub async fn refresh_token(
         department_ids,
         perm_version: row.perm_version,
         paired_device_id: None,
+        act: None,
         exp: (Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
     };
 
@@ -919,10 +903,14 @@ pub struct LogoutAllRequest {
     pub user_id: Option<Uuid>,
 }
 
+/// Sign a user out everywhere: revoke their refresh tokens and bump their
+/// `perm_version`. The caller by default; another user needs
+/// `admin.users.force_logout` and a fresh step-up, and an administrator's
+/// account only another bypass administrator may sign out.
 pub async fn logout_all(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    jar: CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     body: Option<Json<LogoutAllRequest>>,
 ) -> Result<impl IntoResponse, AppError> {
     let target_user = body.as_ref().and_then(|b| b.user_id).unwrap_or(claims.sub);
@@ -936,12 +924,26 @@ pub async fn logout_all(
             return Err(AppError::Forbidden);
         }
         // Force-logging out another user is high-risk → require fresh re-auth.
-        medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
     }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    if target_user != claims.sub {
+        // Signing an administrator out is locking them out of the screen that
+        // could undo it; only another bypass administrator may.
+        let role = sqlx::query_scalar!(
+            r#"SELECT role::text AS "role!" FROM users
+               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"#,
+            target_user,
+            claims.tenant_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        medbrains_server_core::permissions::refuse_bypass_target(&claims, &role)?;
+    }
 
     sqlx::query!(
         "UPDATE refresh_tokens SET revoked = true \
@@ -1035,13 +1037,23 @@ pub async fn me(
     .await?;
 
     // Edition entitlement: the modules this tenant has switched off (drives nav/route hiding).
-    let disabled_modules: Vec<String> = sqlx::query_scalar(
+    let mut disabled_modules: Vec<String> = sqlx::query_scalar(
         "SELECT code FROM module_config \
          WHERE tenant_id = $1 AND status::text IN ('disabled', 'coming_soon')",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+    // A brick that needs a switched-off brick is off too, as the server's module check has it.
+    let implied: Vec<&str> = disabled_modules
+        .iter()
+        .flat_map(|code| medbrains_core::bricks::dependents(code))
+        .collect();
+    for code in implied {
+        if !disabled_modules.iter().any(|c| c == code) {
+            disabled_modules.push(code.to_owned());
+        }
+    }
     let restrict_copy: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1 \
          AND category = 'security' AND key = 'restrict_copy' \
@@ -1057,12 +1069,24 @@ pub async fn me(
         return Err(AppError::NotFound);
     };
 
-    let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
-
-    let field_access = field_access_to_wire(
-        field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
-            .await?,
-    );
+    // A MedBrains account is what its grant makes it this request — the
+    // grant's codes and no bypass — not the role on its row, which would have
+    // the web app draw every screen and the server refuse each one.
+    let is_vendor = claims.role == medbrains_server_core::middleware::vendor_access::VENDOR_ROLE;
+    let (role, permissions, field_access) = if is_vendor {
+        (
+            claims.role.clone(),
+            claims.permissions.clone(),
+            HashMap::new(),
+        )
+    } else {
+        let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
+        let field_access = field_access_to_wire(
+            field_access::resolve_restricted_fields(&state.db, row.tenant_id, row.id, &row.role)
+                .await?,
+        );
+        (row.role.clone(), permissions, field_access)
+    };
 
     let must_change_password = fetch_must_change_password(&state.db, row.tenant_id, row.id).await?;
 
@@ -1083,7 +1107,7 @@ pub async fn me(
             username: row.username,
             email: row.email,
             full_name: row.full_name,
-            role: row.role,
+            role,
             must_change_password,
             email_verified,
         },
@@ -1098,10 +1122,57 @@ pub async fn me(
 
 // ── Change Password ─────────────────────────────────────────
 
+/// The real address the seeded admin must give at first sign-in on a
+/// hospital's own server, checked; `None` when the account needs none.
+///
+/// The hand-over (`docs/compliance/vendor-access.md`): the account seeded as
+/// `admin@medbrains.localhost` becomes the hospital's administrator, so it gets
+/// the hospital's own address — never the placeholder and never a vendor
+/// domain, which would make it a vendor account.
+async fn handed_over_email(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    given: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    let current: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+    if !current
+        .as_deref()
+        .is_some_and(medbrains_core::vendor::needs_real_admin_email)
+    {
+        return Ok(None);
+    }
+    let email = given.map(str::trim).unwrap_or_default().to_lowercase();
+    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
+    medbrains_server_core::validation::validate_email(&mut errors, "email", &email);
+    if errors.has_errors() {
+        return Err(AppError::ValidationFailed(errors));
+    }
+    let placeholder = [medbrains_core::vendor::SEED_ADMIN_DOMAIN.to_owned()];
+    if medbrains_core::vendor::email_on_domains(&email, &placeholder)
+        || medbrains_core::vendor::email_on_domains(
+            &email,
+            &medbrains_core::vendor::vendor_domains(),
+        )
+    {
+        return Err(AppError::BadRequest(
+            "Enter the hospital administrator's own email address.".to_owned(),
+        ));
+    }
+    Ok(Some(email))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ChangePasswordRequest {
     pub current_password: String,
     pub new_password: String,
+    /// A real address for the seeded admin handed to a hospital: required
+    /// while the account still has the `@medbrains.localhost` placeholder on a
+    /// server the hospital runs itself, ignored otherwise.
+    #[serde(default)]
+    pub email: Option<String>,
 }
 
 pub async fn change_password(
@@ -1122,6 +1193,8 @@ pub async fn change_password(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let new_email = handed_over_email(&mut tx, claims.sub, body.email.as_deref()).await?;
 
     // Get current hash
     let current_hash =
@@ -1165,6 +1238,13 @@ pub async fn change_password(
         .bind(claims.sub)
         .execute(&mut *tx)
         .await?;
+    if let Some(email) = new_email {
+        sqlx::query("UPDATE users SET email = $1, email_verified = false WHERE id = $2")
+            .bind(email)
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
+    }
 
     // Revoke every active refresh token for this user — a password change
     // implies any token previously issued is potentially compromised.
@@ -1449,38 +1529,6 @@ fn extract_device_fingerprint(headers: &HeaderMap) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Extract client IP from request headers (X-Forwarded-For, X-Real-IP, or fallback).
-/// Strips port if present (e.g., "1.2.3.4:12345" → "1.2.3.4").
-fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
-    let raw = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_owned())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.trim().to_owned())
-        });
-
-    // The column is `inet`, which takes an address and not a socket address.
-    // Both forms arrive here: a proxy that forwards its peer verbatim sends
-    // `1.2.3.4:5678` or `[::1]:5678`, a conforming one sends the bare IP.
-    // Parsing both beats stripping the port by hand -- the hand-rolled version
-    // skipped anything containing '[', which is precisely the IPv6-with-port
-    // form, so every login over IPv6 died on `invalid input syntax for inet`.
-    // Anything that parses as neither is dropped rather than handed to
-    // Postgres: an unparseable address is not worth failing a login over.
-    raw.and_then(|s| {
-        s.parse::<std::net::SocketAddr>()
-            .map(|socket| socket.ip())
-            .or_else(|_| s.parse::<std::net::IpAddr>())
-            .ok()
-            .map(|ip| ip.to_string())
-    })
-}
-
 /// Resolve `department_ids` for a user from the database.
 /// Bypass roles get an empty list (they can access everything).
 async fn resolve_department_ids(
@@ -1666,59 +1714,6 @@ mod native_client_tests {
             );
         }
         assert!(!wants_native_token_response(&HeaderMap::new()));
-    }
-}
-
-#[cfg(test)]
-mod client_ip_tests {
-    use super::extract_client_ip;
-    use axum::http::HeaderMap;
-
-    fn forwarded(value: &str) -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-forwarded-for", value.parse().expect("header value"));
-        headers
-    }
-
-    #[test]
-    fn a_socket_address_is_reduced_to_its_address() {
-        // The bracketed form is the regression: it reached the `inet` column
-        // intact and 400d every login once the proxy started answering on IPv6.
-        for (raw, want) in [
-            ("[::1]:53579", "::1"),
-            ("127.0.0.1:53579", "127.0.0.1"),
-            ("[2001:db8::1]:443", "2001:db8::1"),
-        ] {
-            assert_eq!(
-                extract_client_ip(&forwarded(raw)).as_deref(),
-                Some(want),
-                "{raw} should reduce to {want}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_bare_address_survives_unchanged() {
-        for raw in ["::1", "1.2.3.4", "2001:db8::1"] {
-            assert_eq!(extract_client_ip(&forwarded(raw)).as_deref(), Some(raw));
-        }
-    }
-
-    #[test]
-    fn an_unparseable_address_is_dropped_rather_than_forwarded() {
-        // Whatever this is, it is not something to hand to an `inet` column.
-        for raw in ["not-an-ip", "", "1.2.3.4.5"] {
-            assert_eq!(extract_client_ip(&forwarded(raw)), None, "{raw:?}");
-        }
-        assert_eq!(extract_client_ip(&HeaderMap::new()), None);
-    }
-
-    #[test]
-    fn the_first_hop_wins_in_a_chain() {
-        assert_eq!(
-            extract_client_ip(&forwarded("[::1]:53579, 10.0.0.1")).as_deref(),
-            Some("::1")
-        );
     }
 }
 

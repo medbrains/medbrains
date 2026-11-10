@@ -36,7 +36,7 @@ import {
   Select,
   TagsInput,
 } from "@mantine/core";
-import { DateInput, DatePickerInput, DateTimePicker } from "@mantine/dates";
+import type { DateInputProps, DatePickerInputProps, DateTimePickerProps } from "@mantine/dates";
 import { ramps, roleCssVars, roles } from "./colors.generated";
 import {
   ANATOMY_PALETTE,
@@ -176,6 +176,19 @@ const MODAL_DROPDOWN_PROPS = {
     },
   },
 };
+
+/**
+ * Defaults shared by the three date fields. Plain objects, not
+ * `DateInput.extend(...)`: `extend` is an identity function, and calling it
+ * imported all of @mantine/dates (~70 kB) into the theme, which every page —
+ * sign-in included — loads first. The type-only import keeps the checking.
+ */
+const DATE_FIELD_DEFAULTS = {
+  popoverProps: MODAL_DROPDOWN_PROPS,
+  radius: "md",
+  size: "md",
+  variant: "default",
+} satisfies Partial<DateInputProps> & Partial<DatePickerInputProps> & Partial<DateTimePickerProps>;
 
 // ═══════════════════════════════════════════════════════════════════
 // ── Mantine Theme Factory
@@ -429,32 +442,11 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         },
       }),
 
-      DateInput: DateInput.extend({
-        defaultProps: {
-          popoverProps: MODAL_DROPDOWN_PROPS,
-          radius: "md",
-          size: "md",
-          variant: "default",
-        },
-      }),
+      DateInput: { defaultProps: DATE_FIELD_DEFAULTS },
 
-      DatePickerInput: DatePickerInput.extend({
-        defaultProps: {
-          popoverProps: MODAL_DROPDOWN_PROPS,
-          radius: "md",
-          size: "md",
-          variant: "default",
-        },
-      }),
+      DatePickerInput: { defaultProps: DATE_FIELD_DEFAULTS },
 
-      DateTimePicker: DateTimePicker.extend({
-        defaultProps: {
-          popoverProps: MODAL_DROPDOWN_PROPS,
-          radius: "md",
-          size: "md",
-          variant: "default",
-        },
-      }),
+      DateTimePicker: { defaultProps: DATE_FIELD_DEFAULTS },
 
       Table: {
         defaultProps: {
@@ -628,14 +620,35 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       // Signature Spectrum toast look — applies to EVERY notification
       // (toast.* helper AND raw notifications.show). Theme-level so it is
       // layer-safe (Mantine's notification classes are hashed + layered).
+      // Mantine's previous/next arrows are icons with no name, and a page
+      // number alone does not say it is a page.
+      Pagination: {
+        defaultProps: {
+          getControlProps: (control: "first" | "previous" | "last" | "next") => ({
+            "aria-label": {
+              first: "First page",
+              previous: "Previous page",
+              next: "Next page",
+              last: "Last page",
+            }[control],
+          }),
+          getItemProps: (page: number) => ({ "aria-label": `Page ${page}` }),
+        },
+      },
+
       Notification: {
         defaultProps: {
           withBorder: true,
           radius: "lg",
+          // Mantine's close button is an icon with no name.
+          closeButtonProps: { "aria-label": "Dismiss notification" },
         },
         styles: {
           root: { boxShadow: "var(--mb-shadow-md)" },
           title: { fontWeight: 600, fontSize: "14px", letterSpacing: "-0.01em" },
+          // Mantine dims the message, which on a tinted toast in the dark
+          // theme fell under 4.5:1; the message is what the desk reads out.
+          description: { color: "var(--mb-text-primary)" },
         },
       },
 
@@ -754,6 +767,18 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     ...Object.fromEntries(
       Object.entries(ANATOMY_PALETTE).map(([k, v]) => [`--mb-anatomy-${k}`, v]),
     ),
+
+    // ── MedBrains Flow floor map: crowd bands 0 (quiet) .. 4 (over limit) ──
+    // Every band is also written as a number and a word on the map; colour
+    // never carries the meaning alone.
+    "--mb-flow-density-0": scheme.bg.subtle,
+    "--mb-flow-density-1": scheme.status.success.bg,
+    "--mb-flow-density-2": scheme.status.warning.bg,
+    "--mb-flow-density-3": scheme.status.warning.border,
+    "--mb-flow-density-4": scheme.status.danger.border,
+    "--mb-flow-alarm": scheme.status.danger.emphasis,
+    "--mb-flow-queue": scheme.status.info.emphasis,
+    "--mb-flow-unknown": scheme.bg.muted,
 
     // ── Surface tiers ────────────────────────────────────────────
     "--mb-bg-canvas": scheme.bg.canvas,

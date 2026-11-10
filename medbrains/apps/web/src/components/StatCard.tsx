@@ -1,7 +1,11 @@
-import { Sparkline } from "@mantine/charts";
-import { Card, Group, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
+import { Box, Card, Group, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
 import { IconArrowDownRight, IconArrowUpRight, IconMinus } from "@tabler/icons-react";
-import type { ReactNode } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
+
+// @mantine/charts brings recharts and d3 (~120 kB gzip). A tile draws its
+// figure and words first; the sparkline arrives when the chart code has.
+const Sparkline = lazy(() => import("@mantine/charts").then((m) => ({ default: m.Sparkline })));
+const SPARKLINE_HEIGHT = 28;
 
 /** How the value sits against a baseline. Tone is good/bad for this measure, not up/down. */
 export interface StatComparison {
@@ -28,6 +32,8 @@ interface StatCardProps {
   icon: ReactNode;
   color?: string;
   comparison?: StatComparison;
+  /** A short line under the figure — e.g. the day it is for. */
+  note?: string;
   /** Daily values behind the number, oldest first; gaps are unknown days. */
   sparkline?: (number | null)[];
   onClick?: () => void;
@@ -37,12 +43,14 @@ interface StatCardProps {
   actions?: ReactNode;
 }
 
+/** A KPI tile: label, figure, comparison against a baseline, and an optional sparkline. */
 export function StatCard({
   label,
   value,
   icon,
   color = "primary",
   comparison,
+  note,
   sparkline,
   onClick,
   actionLabel,
@@ -53,7 +61,6 @@ export function StatCard({
       <Group justify="space-between" mb="sm">
         <Text
           size="xs"
-          tt="uppercase"
           c="var(--mb-text-caption)"
           fw={500}
           ff="var(--font-mono, 'JetBrains Mono', monospace)"
@@ -61,7 +68,7 @@ export function StatCard({
         >
           {label}
         </Text>
-        <ThemeIcon variant="light" color={color} size={36} radius="lg">
+        <ThemeIcon variant="light" color={color} size={36}>
           {icon}
         </ThemeIcon>
       </Group>
@@ -76,19 +83,26 @@ export function StatCard({
         {value}
       </Text>
       {comparison && <ComparisonLine comparison={comparison} />}
+      {note && (
+        <Text size="xs" mt="sm" c="var(--mb-text-caption)">
+          {note}
+        </Text>
+      )}
       {sparkline && sparkline.length > 1 && (
         // The line above says it in words; the shape is for the eye only.
-        <Sparkline
-          mt="xs"
-          h={28}
-          data={sparkline}
-          connectNulls
-          curveType="linear"
-          color="var(--mb-text-caption)"
-          fillOpacity={0.08}
-          strokeWidth={1.5}
-          aria-hidden
-        />
+        <Suspense fallback={<Box mt="xs" h={SPARKLINE_HEIGHT} aria-hidden />}>
+          <Sparkline
+            mt="xs"
+            h={SPARKLINE_HEIGHT}
+            data={sparkline}
+            connectNulls
+            curveType="linear"
+            color="var(--mb-text-caption)"
+            fillOpacity={0.08}
+            strokeWidth={1.5}
+            aria-hidden
+          />
+        </Suspense>
       )}
       {actions && (
         // The tile's own controls sit at its foot, so the figure stays where

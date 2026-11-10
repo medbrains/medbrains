@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE device_node_keys k SET revoked_at = now() FROM paired_devices d WHERE d.id = k.paired_device_id AND k.revoked_at IS NULL AND d.revoked_at IS NULL AND d.last_seen_at IS NULL AND d.paired_at < now() - make_interval(mins => $1) AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b9ba1000b28e57056494f347c3017861b59c9c8fed65dff22df07db6bb754281"
+}

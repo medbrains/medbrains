@@ -1,27 +1,44 @@
 //! Platform leaf crate: integration hub, geo lookups, terminology, clinical
 //! knowledge base, station registry + handoff. Mounted via router().
 
-use axum::{Router, routing::{get, post, put}};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod ckb;
+pub mod disclosure;
+pub mod facility_codes;
 pub mod geo;
+pub mod hl7_adt;
+pub mod ihip;
 pub mod integration;
+pub mod nikshay;
+pub mod nikshay_sheet;
+pub mod notifiable;
+pub mod notifiable_rules;
 pub mod station_handoff;
 pub mod stations;
 pub mod terminology;
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route(
+            "/api/integrations/hl7-adt/destinations",
+            get(hl7_adt::list_destinations).post(hl7_adt::create_destination),
+        )
+        .route(
+            "/api/integrations/hl7-adt/destinations/{id}",
+            put(hl7_adt::update_destination).delete(hl7_adt::delete_destination),
+        )
+        .route(
+            "/api/integrations/hl7-adt/deliveries",
+            get(hl7_adt::list_deliveries),
+        )
         .route("/api/geo/countries", get(geo::list_countries))
-        .route(
-            "/api/geo/countries/{id}/states",
-            get(geo::list_states),
-        )
-        .route(
-            "/api/geo/states/{id}/districts",
-            get(geo::list_districts),
-        )
+        .route("/api/geo/countries/{id}/states", get(geo::list_states))
+        .route("/api/geo/states/{id}/districts", get(geo::list_districts))
         .route("/api/geo/regulators", get(geo::list_regulators))
         .route(
             "/api/geo/regulators/auto-detect",
@@ -31,14 +48,8 @@ pub fn router() -> Router<AppState> {
             "/api/geo/districts/{id}/subdistricts",
             get(geo::list_subdistricts),
         )
-        .route(
-            "/api/geo/subdistricts/{id}/towns",
-            get(geo::list_towns),
-        )
-        .route(
-            "/api/geo/pincode/{code}",
-            get(geo::search_pincode),
-        )
+        .route("/api/geo/subdistricts/{id}/towns", get(geo::list_towns))
+        .route("/api/geo/pincode/{code}", get(geo::search_pincode))
         .route(
             "/api/stations",
             get(stations::list_stations).post(stations::create_station),
@@ -65,10 +76,34 @@ pub fn router() -> Router<AppState> {
         .route("/api/ckb/nlem-generics", get(ckb::list_nlem_generics))
         .route("/api/ckb/state-schemes", get(ckb::list_state_schemes))
         .route("/api/ckb/state-formulary", get(ckb::list_state_formulary))
-        .route("/api/ckb/notifiable-reports", get(ckb::list_notifiable_reports))
+        .route(
+            "/api/ckb/notifiable-reports",
+            get(ckb::list_notifiable_reports),
+        )
         .route(
             "/api/ckb/notifiable-reports/{id}",
             put(ckb::update_notifiable_report),
+        )
+        .route("/api/ckb/ihip/line-list", get(ihip::line_list))
+        .route("/api/ckb/ihip/submit", post(ihip::submit_line_list))
+        .route("/api/ckb/nikshay", get(nikshay::list_cases))
+        .route("/api/ckb/nikshay/sheet", get(nikshay_sheet::notification_sheet))
+        .route("/api/ckb/nikshay/{report_id}", put(nikshay::save_details))
+        .route(
+            "/api/ckb/facility-codes",
+            get(facility_codes::facility_codes).put(facility_codes::set_facility_codes),
+        )
+        .route(
+            "/api/ckb/notifiable-list",
+            get(notifiable_rules::effective_list),
+        )
+        .route(
+            "/api/ckb/notifiable-overrides",
+            get(notifiable_rules::list_overrides).put(notifiable_rules::upsert_override),
+        )
+        .route(
+            "/api/ckb/notifiable-overrides/{id}",
+            delete(notifiable_rules::delete_override),
         )
         .route(
             "/api/integration/default-pipelines",
@@ -110,12 +145,12 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/integration/node-templates",
-            get(integration::list_node_templates)
-                .post(integration::create_node_template),
+            get(integration::list_node_templates).post(integration::create_node_template),
         )
         .route(
             "/api/station-handoffs",
-            get(station_handoff::list_station_handoffs).post(station_handoff::create_station_handoff),
+            get(station_handoff::list_station_handoffs)
+                .post(station_handoff::create_station_handoff),
         )
         .route(
             "/api/station-handoffs/{id}/acknowledge",

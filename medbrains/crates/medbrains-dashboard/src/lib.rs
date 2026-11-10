@@ -6,9 +6,10 @@ use axum::{
 };
 use std::collections::HashMap;
 
+mod as_of;
 pub mod management_doctors;
-pub mod my_widgets;
 pub mod management_kpis;
+pub mod my_widgets;
 
 use chrono::{NaiveDate, Utc};
 use medbrains_core::dashboard::{
@@ -35,8 +36,8 @@ struct DataFilters {
     department_ids: Vec<Uuid>,
     /// The viewer's user ID — used for "my_*" queries (e.g. my patients today).
     user_id: Option<Uuid>,
-    /// The day the viewer is looking at; today when absent.
-    as_of: Option<NaiveDate>,
+    /// The past day the viewer is looking at; live (today) when absent.
+    day: Option<as_of::DayWindow>,
     /// One department the viewer has narrowed this widget to, where the
     /// widget's data can be (a KPI that says so); hospital-wide when absent.
     department_id: Option<Uuid>,
@@ -57,7 +58,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
             DataFilters {
                 department_ids: Vec::new(),
                 user_id: Some(claims.sub),
-                as_of: None,
+                day: None,
                 department_id: None,
             }
         }
@@ -79,7 +80,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: widget_dept_ids,
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             } else {
@@ -91,7 +92,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: intersected,
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             }
@@ -103,14 +104,14 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: Vec::new(),
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             } else {
                 DataFilters {
                     department_ids: claims.department_ids.clone(),
                     user_id: Some(claims.sub),
-                    as_of: None,
+                    day: None,
                     department_id: None,
                 }
             }
@@ -334,7 +335,7 @@ pub async fn get_my_dashboard(
                  JOIN access_group_members m ON m.group_id = g.id
                  WHERE d.is_active = true AND d.user_id IS NULL
                    AND d.group_ids != '[]'::jsonb
-                   AND m.user_id = $1
+                   AND m.user_id = $1 AND m.deleted_at IS NULL
                    AND (m.expires_at IS NULL OR m.expires_at > now())
                  ORDER BY g.priority DESC, d.is_default DESC LIMIT 1",
             )
@@ -1065,10 +1066,11 @@ pub async fn get_widget_data(
     // Enforce the widget's own permission_code — fetching a widget by ID must not
     // bypass the gate fetch_visible_widgets applies when rendering dashboards.
     // 404 (not 403) so a widget the caller can't see isn't confirmed to exist.
-    if let Some(perm) = widget.permission_code.as_ref() {
-        if !is_bypass_role(&claims) && !claims.permissions.iter().any(|p| p == perm) {
-            return Err(AppError::NotFound);
-        }
+    if let Some(perm) = widget.permission_code.as_ref()
+        && !is_bypass_role(&claims)
+        && !claims.permissions.iter().any(|p| p == perm)
+    {
+        return Err(AppError::NotFound);
     }
 
     // Apply the viewer's variant overrides (data_source/config) before resolving.
@@ -1136,13 +1138,15 @@ pub async fn batch_widget_data(
     let restricted =
         resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
 
+    // The day is resolved once for the whole batch, in the tenant's zone.
+    let day = as_of::past_day(&mut tx, req.as_of).await?;
     let fetched_at = Utc::now().to_rfc3339();
     let mut results = Vec::with_capacity(widgets.len());
 
     for widget in &widgets {
         // Re-set department context per widget (each widget may have different scope)
         let mut filters = resolve_data_filters(widget, &claims);
-        filters.as_of = req.as_of;
+        filters.day = day;
         filters.department_id = req.filters.get(&widget.id).and_then(|f| f.department_id);
         medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &filters.department_ids)
             .await?;
@@ -1288,7 +1292,7 @@ async fn resolve_widget_data(
 
             resolve_module_query(tx, module, query, &params, filters).await
         }
-        "sql_count" => resolve_sql_count(tx, source).await,
+        "sql_count" => resolve_sql_count(tx, source, filters.day).await,
         "static" => Ok(source
             .get("static_data")
             .cloned()
@@ -1320,13 +1324,16 @@ const SQL_COUNT_TABLES: &[&str] = &[
 ];
 const SQL_COUNT_FILTERS: &[&str] = &[
     "status = 'admitted'",
-    "DATE(encounter_date) = CURRENT_DATE",
+    // Today's OPD: OPD visits only (admissions and ER visits are encounters
+    // too, and were counted), on the hospital's own calendar day.
+    "encounter_type = 'opd' AND encounter_date = tenant_local_date(tenant_id, now())",
     "status IN ('ordered','sample_collected')",
 ];
 
 async fn resolve_sql_count(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     source: &serde_json::Value,
+    day: Option<as_of::DayWindow>,
 ) -> Result<serde_json::Value, AppError> {
     // A misconfigured widget reports that it could not load, never a count.
     // Both of these returned `0`, and a zero on "Patients Today" is a
@@ -1345,19 +1352,42 @@ async fn resolve_sql_count(
         .and_then(serde_json::Value::as_str)
         .filter(|f| !f.is_empty());
 
+    // A past day, where the count can be read for it: `as_of` in the answer
+    // is what tells the tile it is dated, not live.
+    if let (Some(day), Some(predicate)) = (day, as_of::sql_count_as_of(table, filter)) {
+        let sql = format!(
+            "SELECT COUNT(*) FROM {table}, (SELECT $1::date AS day, $2::timestamptz AS day_end) w \
+             WHERE tenant_id = app_current_tenant() AND {predicate}"
+        );
+        let count = sqlx::query_scalar::<_, i64>(&sql)
+            .bind(day.date)
+            .bind(day.end)
+            .fetch_one(&mut **tx)
+            .await?;
+        return Ok(serde_json::json!({ "value": count, "as_of": day.date }));
+    }
+
+    // Scoped to the hospital the session is working at, not left to RLS
+    // alone: a connection that bypasses RLS (the owner, a platform
+    // administrator's group scope) would otherwise count every hospital.
     let sql = match filter {
         // Both table and filter are allowlisted literals — safe to format.
         Some(f) if SQL_COUNT_FILTERS.contains(&f) => {
-            format!("SELECT COUNT(*) FROM {table} WHERE {f}")
+            format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant() AND {f}")
         }
         Some(f) => {
-            tracing::warn!(filter = f, "sql_count widget filter not allowlisted; counting all");
-            format!("SELECT COUNT(*) FROM {table}")
+            tracing::warn!(
+                filter = f,
+                "sql_count widget filter not allowlisted; counting all"
+            );
+            format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant()")
         }
-        None => format!("SELECT COUNT(*) FROM {table}"),
+        None => format!("SELECT COUNT(*) FROM {table} WHERE tenant_id = app_current_tenant()"),
     };
 
-    let count = sqlx::query_scalar::<_, i64>(&sql).fetch_one(&mut **tx).await?;
+    let count = sqlx::query_scalar::<_, i64>(&sql)
+        .fetch_one(&mut **tx)
+        .await?;
     Ok(serde_json::json!({ "value": count }))
 }
 
@@ -1374,7 +1404,10 @@ fn redact_widget_data(
     config: &serde_json::Value,
     restricted: &HashMap<String, FieldAccessLevel>,
 ) -> serde_json::Value {
-    let Some(sensitive) = config.get("sensitive").and_then(serde_json::Value::as_object) else {
+    let Some(sensitive) = config
+        .get("sensitive")
+        .and_then(serde_json::Value::as_object)
+    else {
         return data;
     };
     if sensitive.is_empty() || restricted.is_empty() {
@@ -1435,13 +1468,17 @@ async fn fetch_viewer_groups(
         "SELECT g.id, g.priority FROM access_groups g
          JOIN access_group_members m ON m.group_id = g.id
          WHERE m.user_id = $1 AND g.tenant_id = $2 AND g.is_active = true
+           AND m.deleted_at IS NULL
            AND (m.expires_at IS NULL OR m.expires_at > now())",
     )
     .bind(user_id)
     .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
-    Ok(rows.into_iter().map(|(id, pri)| (id.to_string(), pri)).collect())
+    Ok(rows
+        .into_iter()
+        .map(|(id, pri)| (id.to_string(), pri))
+        .collect())
 }
 
 /// Score a variant's `match` audience against the viewer. Higher = more specific:
@@ -1453,10 +1490,10 @@ fn variant_match_score(
     groups: &[(String, i32)],
 ) -> Option<u64> {
     let m = m?;
-    if let Some(users) = m.get("users").and_then(serde_json::Value::as_array) {
-        if users.iter().any(|u| u.as_str() == Some(user_id)) {
-            return Some(1_000_000);
-        }
+    if let Some(users) = m.get("users").and_then(serde_json::Value::as_array)
+        && users.iter().any(|u| u.as_str() == Some(user_id))
+    {
+        return Some(1_000_000);
     }
     if let Some(gids) = m.get("groups").and_then(serde_json::Value::as_array) {
         let best_pri = groups
@@ -1468,10 +1505,10 @@ fn variant_match_score(
             return Some(1000 + u64::try_from(p.max(0)).unwrap_or(0));
         }
     }
-    if let Some(roles) = m.get("roles").and_then(serde_json::Value::as_array) {
-        if roles.iter().any(|r| r.as_str() == Some(role)) {
-            return Some(1);
-        }
+    if let Some(roles) = m.get("roles").and_then(serde_json::Value::as_array)
+        && roles.iter().any(|r| r.as_str() == Some(role))
+    {
+        return Some(1);
     }
     None
 }
@@ -1479,7 +1516,12 @@ fn variant_match_score(
 /// Apply the best-matching variant's overrides onto a widget in place: `title`,
 /// `subtitle` and `data_source` are replaced; `config` is shallow-merged so a
 /// variant can tweak one key (e.g. add `sensitive` or change `format`).
-fn apply_variant(widget: &mut DashboardWidget, role: &str, user_id: Uuid, groups: &[(String, i32)]) {
+fn apply_variant(
+    widget: &mut DashboardWidget,
+    role: &str,
+    user_id: Uuid,
+    groups: &[(String, i32)],
+) {
     let Some(variants) = widget.variants.as_array() else {
         return;
     };
@@ -1530,10 +1572,11 @@ async fn resolve_module_query(
     match (module, query) {
         // ── Patients (hospital-wide — no department scoping) ──
         ("management", "kpi") => {
-            management_kpis::reading(tx, params, filters.as_of, filters.department_id).await
+            let as_of = filters.day.map(|d| d.date);
+            management_kpis::reading(tx, params, as_of, filters.department_id).await
         }
         ("management", "doctor_documentation") => {
-            management_doctors::documentation_by_doctor(tx, filters.as_of).await
+            management_doctors::documentation_by_doctor(tx, filters.day.map(|d| d.date)).await
         }
         ("patients", "count") => {
             let count = sqlx::query_scalar::<_, i64>(
@@ -1705,30 +1748,32 @@ async fn resolve_module_query(
         }
 
         // ── Billing (invoices has no department_id — JOIN through encounters) ──
+        // The day's invoices on the hospital's calendar — the past day read,
+        // or today from local midnight (CURRENT_DATE is the server's day).
         ("billing", "today_revenue") => {
-            let total = if has_dept_filter {
-                sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
-                    "SELECT SUM(i.total_amount) FROM invoices i
-                     JOIN encounters e ON e.id = i.encounter_id
-                     WHERE i.created_at >= CURRENT_DATE AND i.status != 'cancelled'
-                       AND e.department_id = ANY($1)",
-                )
-                .bind(&filters.department_ids)
-                .fetch_optional(&mut **tx)
-                .await?
-                .flatten()
-                .unwrap_or_default()
-            } else {
-                sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
-                    "SELECT SUM(total_amount) FROM invoices
-                     WHERE created_at >= CURRENT_DATE AND status != 'cancelled'",
-                )
-                .fetch_optional(&mut **tx)
-                .await?
-                .flatten()
-                .unwrap_or_default()
-            };
-            Ok(serde_json::json!({"value": total.to_string(), "label": "Revenue Today"}))
+            let (start, end) = filters.day.map(|d| (d.start, d.end)).unzip();
+            let total = sqlx::query_scalar::<_, Option<rust_decimal::Decimal>>(
+                "SELECT SUM(i.total_amount) FROM invoices i
+                 WHERE i.status != 'cancelled'
+                   AND i.created_at >= COALESCE($1, date_trunc('day', now(),
+                         (SELECT COALESCE(timezone, 'UTC') FROM tenants
+                           WHERE id = app_current_tenant())))
+                   AND i.created_at < COALESCE($2, 'infinity'::timestamptz)
+                   AND (cardinality($3::uuid[]) = 0 OR EXISTS (
+                         SELECT 1 FROM encounters e WHERE e.id = i.encounter_id
+                            AND e.department_id = ANY($3)))",
+            )
+            .bind(start)
+            .bind(end)
+            .bind(&filters.department_ids)
+            .fetch_one(&mut **tx)
+            .await?
+            .unwrap_or_default();
+            Ok(serde_json::json!({
+                "value": total.to_string(),
+                "label": "Revenue Today",
+                "as_of": filters.day.map(|d| d.date),
+            }))
         }
         ("billing", "pending_invoices") => {
             let count = if has_dept_filter {
@@ -2139,11 +2184,9 @@ async fn resolve_module_query(
             .bind(dept_filter)
             .fetch_one(&mut **tx)
             .await?;
-            let rows = sqlx::query_as::<
-                _,
-                (String, Option<String>, chrono::DateTime<Utc>, bool, String),
-            >(
-                "SELECT ima.drug_name, ima.dose, ima.scheduled_at, ima.is_high_alert, \
+            let rows =
+                sqlx::query_as::<_, (String, Option<String>, chrono::DateTime<Utc>, bool, String)>(
+                    "SELECT ima.drug_name, ima.dose, ima.scheduled_at, ima.is_high_alert, \
                         CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) \
                  FROM ipd_medication_administration ima \
                  JOIN admissions a ON a.id = ima.admission_id AND a.status = 'admitted' \
@@ -2153,21 +2196,23 @@ async fn resolve_module_query(
                    AND ima.scheduled_at <= now() + interval '2 hours' \
                    AND ($1::uuid[] IS NULL OR e.department_id = ANY($1)) \
                  ORDER BY ima.scheduled_at ASC LIMIT 20",
-            )
-            .bind(dept_filter)
-            .fetch_all(&mut **tx)
-            .await?;
+                )
+                .bind(dept_filter)
+                .fetch_all(&mut **tx)
+                .await?;
             let items: Vec<serde_json::Value> = rows
                 .into_iter()
-                .map(|(drug_name, dose, scheduled_at, is_high_alert, patient_name)| {
-                    serde_json::json!({
-                        "drug_name": drug_name,
-                        "dose": dose,
-                        "scheduled_at": scheduled_at,
-                        "is_high_alert": is_high_alert,
-                        "patient_name": patient_name,
-                    })
-                })
+                .map(
+                    |(drug_name, dose, scheduled_at, is_high_alert, patient_name)| {
+                        serde_json::json!({
+                            "drug_name": drug_name,
+                            "dose": dose,
+                            "scheduled_at": scheduled_at,
+                            "is_high_alert": is_high_alert,
+                            "patient_name": patient_name,
+                        })
+                    },
+                )
                 .collect();
             Ok(serde_json::json!({
                 "items": items,
@@ -2734,14 +2779,22 @@ mod redaction_tests {
     #[test]
     fn masks_scalar_value() {
         let config = json!({ "sensitive": { "value": "billing.amount" } });
-        let out = redact_widget_data(json!({ "value": 12345 }), &config, &restricted(FieldAccessLevel::Mask));
+        let out = redact_widget_data(
+            json!({ "value": 12345 }),
+            &config,
+            &restricted(FieldAccessLevel::Mask),
+        );
         assert_eq!(out, json!({ "value": "•••" }));
     }
 
     #[test]
     fn hides_scalar_value() {
         let config = json!({ "sensitive": { "value": "billing.amount" } });
-        let out = redact_widget_data(json!({ "value": 12345 }), &config, &restricted(FieldAccessLevel::Hidden));
+        let out = redact_widget_data(
+            json!({ "value": 12345 }),
+            &config,
+            &restricted(FieldAccessLevel::Hidden),
+        );
         assert_eq!(out, json!({}));
     }
 
@@ -2750,7 +2803,10 @@ mod redaction_tests {
         let config = json!({ "sensitive": { "total": "billing.amount" } });
         let data = json!([{ "id": 1, "total": 100 }, { "id": 2, "total": 200 }]);
         let out = redact_widget_data(data, &config, &restricted(FieldAccessLevel::Mask));
-        assert_eq!(out, json!([{ "id": 1, "total": "•••" }, { "id": 2, "total": "•••" }]));
+        assert_eq!(
+            out,
+            json!([{ "id": 1, "total": "•••" }, { "id": 2, "total": "•••" }])
+        );
     }
 
     #[test]
@@ -2765,10 +2821,20 @@ mod redaction_tests {
     fn noop_without_sensitive_config_or_restrictions() {
         let plain = json!({ "value": 7 });
         // no sensitive declaration
-        assert_eq!(redact_widget_data(plain.clone(), &json!({}), &restricted(FieldAccessLevel::Mask)), plain);
+        assert_eq!(
+            redact_widget_data(
+                plain.clone(),
+                &json!({}),
+                &restricted(FieldAccessLevel::Mask)
+            ),
+            plain
+        );
         // sensitive declared but viewer unrestricted (e.g. bypass role)
         let config = json!({ "sensitive": { "value": "billing.amount" } });
-        assert_eq!(redact_widget_data(plain.clone(), &config, &HashMap::new()), plain);
+        assert_eq!(
+            redact_widget_data(plain.clone(), &config, &HashMap::new()),
+            plain
+        );
     }
 }
 
@@ -2807,7 +2873,10 @@ mod variant_tests {
     #[test]
     fn no_match_returns_none() {
         let m = json!({ "roles": ["doctor"], "groups": ["gX"] });
-        assert_eq!(variant_match_score(Some(&m), "nurse", "u1", &[("g1".to_owned(), 5)]), None);
+        assert_eq!(
+            variant_match_score(Some(&m), "nurse", "u1", &[("g1".to_owned(), 5)]),
+            None
+        );
         assert_eq!(variant_match_score(None, "nurse", "u1", &[]), None);
     }
 }
@@ -2829,19 +2898,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/dashboards/my/report-widgets/{report_id}",
             put(my_widgets::set_my_report_widget),
         )
-        .route(
-            "/api/dashboards/{id}",
-            get(get_dashboard),
-        )
-        .route(
-            "/api/widget-templates",
-            get(list_widget_templates),
-        )
+        .route("/api/dashboards/{id}", get(get_dashboard))
+        .route("/api/widget-templates", get(list_widget_templates))
         .route("/api/dashboard/summary", get(dashboard_summary))
-        .route(
-            "/api/dashboard/widget-data/batch",
-            post(batch_widget_data),
-        )
+        .route("/api/dashboard/widget-data/batch", post(batch_widget_data))
         .route(
             "/api/dashboard/widget-data/{widget_id}",
             get(get_widget_data),

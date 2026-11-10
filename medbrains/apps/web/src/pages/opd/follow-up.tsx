@@ -108,7 +108,7 @@ export function FollowUpTab({
 
   if (booked) {
     return (
-      <Card padding="md" radius="md" withBorder>
+      <Card padding="md" withBorder>
         <Stack align="center" gap="sm" py="md">
           <IconCheck size={40} color="var(--mantine-color-green-6)" />
           <Text fw={600} size="lg">
@@ -135,13 +135,7 @@ export function FollowUpTab({
   return (
     <Stack>
       {canUpdate ? (
-        <Card
-          component="form"
-          onSubmit={handleSubmit(handleBook)}
-          padding="sm"
-          radius="md"
-          withBorder
-        >
+        <Card component="form" onSubmit={handleSubmit(handleBook)} padding="sm" withBorder>
           <Stack gap="sm">
             <Text size="sm" fw={600}>
               Schedule Follow-up Appointment

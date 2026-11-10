@@ -28,7 +28,7 @@
 use axum::routing::{delete, get, post};
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, State, rejection::JsonRejection},
 };
 
 pub mod binding;
@@ -37,6 +37,9 @@ pub mod binding_token;
 pub mod counter_display;
 pub mod counter_display_routes;
 pub mod device_code;
+pub mod machine_agent;
+pub mod machine_sync;
+pub mod machines;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
 use medbrains_core::permissions;
@@ -95,9 +98,10 @@ pub struct MintTokenResponse {
 pub async fn mint_pairing_token(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<MintTokenRequest>,
+    body: Result<Json<MintTokenRequest>, JsonRejection>,
 ) -> Result<Json<MintTokenResponse>, AppError> {
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
+    let Json(body) = body?;
     if !is_valid_app_variant(&body.intended_app_variant) {
         return Err(AppError::BadRequest(format!(
             "invalid intended_app_variant '{}'",
@@ -338,6 +342,7 @@ pub async fn pair_device(
         department_ids,
         perm_version,
         paired_device_id: Some(paired_id),
+        act: None,
         exp: (now + Duration::days(DEVICE_JWT_DAYS)).timestamp() as usize,
     };
     let jwt = encode_jwt(&claims, &state.jwt_encoding_key)
@@ -421,9 +426,16 @@ pub async fn revoke_paired_device(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<RevokeBody>,
+    body: Result<Json<RevokeBody>, JsonRejection>,
 ) -> Result<Json<PairedDeviceRow>, AppError> {
     require_permission(&claims, permissions::devices::pairing::PAIRED_REVOKE)?;
+    // The reason is optional, so a DELETE with no body revokes too; a body
+    // that is there but malformed is still refused.
+    let reason = match body {
+        Ok(Json(body)) => body.reason,
+        Err(JsonRejection::MissingJsonContentType(_)) => None,
+        Err(other) => return Err(other.into()),
+    };
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -434,7 +446,7 @@ pub async fn revoke_paired_device(
          WHERE id = $3 AND tenant_id = $4 AND revoked_at IS NULL \
          RETURNING id",
         claims.sub,
-        body.reason.as_deref(),
+        reason.as_deref(),
         id,
         claims.tenant_id,
     )
@@ -634,6 +646,25 @@ pub async fn register_device_node_key(
         return Err(AppError::NotFound);
     }
 
+    // A MedBrains OS machine gets onto the roster only by being approved, with its code, through
+    // `machines`. Device-management rights must not be a second way past that.
+    let machine = sqlx::query_scalar!(
+        r#"SELECT (d.app_variant IN ('Desktop-Workstation', 'Desktop-Display')
+                   AND NOT EXISTS (SELECT 1 FROM device_pairing_requests r
+                                    WHERE r.paired_device_id = d.id AND r.node_id = $2
+                                      AND r.status = 'claimed')) AS "unapproved_machine!"
+             FROM paired_devices d WHERE d.id = $1"#,
+        id,
+        node_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if machine {
+        return Err(AppError::ForbiddenReason(
+            "A machine's key comes from approving it on the Machines screen.".to_owned(),
+        ));
+    }
+
     // Retire whatever this device had. Revoked rows are kept: an audit asking
     // which device held a key at a point in time needs the history.
     sqlx::query(
@@ -776,6 +807,7 @@ pub async fn get_peer_roster(
          FROM device_node_keys k \
          JOIN paired_devices d ON d.id = k.paired_device_id \
          WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL \
+           AND d.app_variant NOT IN ('Desktop-Workstation', 'Desktop-Display') \
          ORDER BY k.node_id",
     )
     .bind(claims.tenant_id)

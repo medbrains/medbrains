@@ -404,7 +404,6 @@ export function DiagnosisPanel({
               : "var(--mantine-color-gray-3)",
           }}
           padding="sm"
-          radius="md"
         >
           <Group justify="space-between" wrap="nowrap">
             <div>
@@ -509,7 +508,7 @@ export function DiagnosisPanel({
       ))}
 
       {patientDiagnoses.length > 0 && (
-        <Card padding="sm" radius="md" withBorder>
+        <Card padding="sm" withBorder>
           <Group justify="space-between" mb="xs">
             <Text size="sm" fw={700}>
               Diagnosis timeline

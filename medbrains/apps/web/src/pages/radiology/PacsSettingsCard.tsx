@@ -3,6 +3,10 @@
  * imaging order goes onto the modality worklist, and studies the modalities
  * send come back to their orders. Read by the radiology desk; changed only by
  * whoever manages modalities.
+ *
+ * The password is write-only: the server never sends it back, only whether
+ * one is saved. A new address or username needs it entered again, so the
+ * saved password can never follow the PACS to a new host.
  */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack, Text } from "@mantine/core";
@@ -12,41 +16,72 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { QueryError } from "@/components/QueryError";
-import { Button, Card, Input, toast } from "@/components/ui";
+import { Button, Card, Input, PasswordField, toast } from "@/components/ui";
 import { radiologyService } from "@/services/radiology.service";
 
-const schema = z.object({
-  orthanc_url: z
-    .string()
-    .trim()
-    .refine(
-      (v) => v === "" || /^https?:\/\/\S+$/.test(v),
-      "An address like https://pacs.hospital.local:8042",
-    ),
-  orthanc_username: z.string().trim(),
-});
-type Form = z.infer<typeof schema>;
+const savedSchema = z
+  .object({
+    orthanc_url: z.string().catch(""),
+    orthanc_username: z.string().catch(""),
+    password_set: z.boolean().catch(false),
+  })
+  .passthrough();
+type Saved = z.infer<typeof savedSchema>;
+
+const trimSlash = (v: string) => v.trim().replace(/\/+$/, "");
+
+function formSchema(saved: Saved | undefined) {
+  return z
+    .object({
+      orthanc_url: z
+        .string()
+        .trim()
+        .refine(
+          (v) => v === "" || /^https?:\/\/\S+$/.test(v),
+          "An address like http://192.168.10.5:8042 or https://pacs.hospital.local",
+        ),
+      orthanc_username: z.string().trim(),
+      orthanc_password: z.string(),
+    })
+    .superRefine((v, ctx) => {
+      if (v.orthanc_url === "" || v.orthanc_username === "" || v.orthanc_password !== "") return;
+      const moved =
+        trimSlash(v.orthanc_url) !== trimSlash(saved?.orthanc_url ?? "") ||
+        v.orthanc_username !== (saved?.orthanc_username ?? "");
+      if (moved || !saved?.password_set) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["orthanc_password"],
+          message: moved
+            ? "Enter the password again: a new address or username needs it"
+            : "Enter the PACS password",
+        });
+      }
+    });
+}
+type Form = z.infer<ReturnType<typeof formSchema>>;
 
 export function PacsSettingsCard() {
   const canManage = useHasPermission(P.RADIOLOGY.MODALITIES_MANAGE);
   const queryClient = useQueryClient();
   const config = useQuery({
     queryKey: ["radiology-pacs-config"],
-    queryFn: () =>
-      radiologyService.getRadiologyPacsConfig() as Promise<Partial<Form> & Record<string, unknown>>,
+    queryFn: async () => savedSchema.parse(await radiologyService.getRadiologyPacsConfig()),
   });
   const form = useForm<Form>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(formSchema(config.data)),
     values: {
       orthanc_url: config.data?.orthanc_url ?? "",
       orthanc_username: config.data?.orthanc_username ?? "",
+      orthanc_password: "",
     },
   });
   const save = useMutation({
     mutationFn: (v: Form) =>
       radiologyService.updateRadiologyPacsConfig({
-        ...(config.data ?? {}),
-        ...v,
+        orthanc_url: v.orthanc_url,
+        orthanc_username: v.orthanc_username,
+        ...(v.orthanc_password === "" ? {} : { orthanc_password: v.orthanc_password }),
         viewer_type: "ohif",
       }),
     onSuccess: () => {
@@ -60,6 +95,7 @@ export function PacsSettingsCard() {
 
   if (config.isError)
     return <QueryError error={config.error} onRetry={() => void config.refetch()} />;
+  const passwordSet = config.data?.password_set ?? false;
   return (
     <Card withBorder padding="md">
       <form
@@ -70,8 +106,8 @@ export function PacsSettingsCard() {
         <Stack gap="sm">
           <Text fw={600}>PACS</Text>
           <Text size="sm" c="dimmed">
-            Orthanc address. Orders go onto its modality worklist; studies return by accession
-            number. Leave empty to switch off.
+            Orthanc address on the hospital network or VPN. Orders go onto its modality worklist;
+            studies return by accession number. Leave empty to switch off.
           </Text>
           <Group align="flex-start" grow>
             <Controller
@@ -97,6 +133,23 @@ export function PacsSettingsCard() {
                 />
               )}
             />
+            {canManage && (
+              <Controller
+                control={form.control}
+                name="orthanc_password"
+                render={({ field, fieldState }) => (
+                  <PasswordField
+                    label="Password"
+                    autoComplete="new-password"
+                    description={
+                      passwordSet ? "A password is saved. Leave blank to keep it." : "None saved"
+                    }
+                    {...field}
+                    error={fieldState.error?.message}
+                  />
+                )}
+              />
+            )}
           </Group>
           {canManage && (
             <Group justify="flex-end">

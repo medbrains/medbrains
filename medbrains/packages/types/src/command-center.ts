@@ -161,6 +161,15 @@ export interface KpiTile {
 //  Audit Trail
 // ══════════════════════════════════════════════════════════
 
+/** The AI agent that made a request on the user's behalf (RFC-AUTHZ §2A.5). */
+export interface ActingAgent {
+  kind: "ai_agent";
+  agent: string;
+  model: string;
+  run_id: string;
+  conversation_id?: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   user_id: string | null;
@@ -173,6 +182,7 @@ export interface AuditLogEntry {
   ip_address: string | null;
   module: string | null;
   description: string | null;
+  acting_agent: ActingAgent | null;
   created_at: string;
 }
 
@@ -184,6 +194,7 @@ export interface AuditLogSummary {
   entity_id: string | null;
   module: string | null;
   description: string | null;
+  acting_agent: ActingAgent | null;
   created_at: string;
 }
 
@@ -198,6 +209,7 @@ export interface AccessLogEntry {
   action: string;
   ip_address: string | null;
   module: string | null;
+  acting_agent: ActingAgent | null;
   created_at: string;
 }
 

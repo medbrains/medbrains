@@ -11,7 +11,7 @@ import type {
   OnboardingUser,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconClipboardCheck } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { Alert, Button } from "@/components/ui";
@@ -105,8 +105,8 @@ export function ReviewStep({ onBack }: Props) {
   return (
     <Stack gap="lg">
       <div style={{ textAlign: "center" }}>
-        <ThemeIcon variant="light" size={64} radius="xl" color="teal">
-          <IconRocket size={32} />
+        <ThemeIcon variant="light" size={64} color="teal">
+          <IconClipboardCheck size={32} />
         </ThemeIcon>
         <Title order={3} mt="md">
           Review & Launch

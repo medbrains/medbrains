@@ -533,7 +533,26 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
         }
     };
 
-    let preamble = build_preamble(cell, ctx.context);
+    // Every text this agent sends a model goes through one redaction session,
+    // so placeholders stay stable across its turns.
+    let mut redactor = medbrains_core::ai_redact::Redactor::new(
+        medbrains_core::ai_redact::PseudonymMap::default(),
+        &medbrains_core::ai_redact::KnownIdentifiers::default(),
+        chrono::Utc::now().date_naive(),
+    );
+    let preamble = match redactor.redact(&build_preamble(cell, ctx.context)) {
+        Ok(p) => p,
+        Err(err) => {
+            acc.findings.push(confirmed(finding(
+                &cell_json,
+                "error",
+                "medium",
+                format!("Agent not run: {err}"),
+                None,
+            )));
+            return;
+        }
+    };
     let tools = build_tool_defs();
     let mut history: Vec<Value> = Vec::new();
     let mut turn = 0u32;
@@ -548,6 +567,16 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
                 untranslated, or wrong."
         })
         .to_string();
+        let Ok(prompt) = redactor.redact(&prompt) else {
+            acc.findings.push(confirmed(finding(
+                &cell_json,
+                "error",
+                "medium",
+                "Agent stopped: a prompt could not be redacted, so it was not sent.".to_owned(),
+                None,
+            )));
+            break;
+        };
 
         let call =
             match decision::choose_action(ctx.state, &ctx.tenant_id, &preamble, &prompt, &tools).await {
@@ -646,7 +675,8 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
             "status": outcome.status,
             "ok": outcome.success,
             // Sent to the model as history: no one's identity in it.
-            "result": medbrains_core::ai_egress::scrub(&truncate(&outcome.body, 250))
+            // The whole prompt is redacted before each call.
+            "result": truncate(&outcome.body, 250)
         }));
         if history.len() > 8 {
             history.remove(0);
@@ -691,7 +721,10 @@ fn record_outcome(acc: &mut RunAcc, cell_json: &Value, tool: &'static str, outco
             format!(
                 "{tool} → HTTP {}: {}",
                 outcome.status,
-                medbrains_core::ai_egress::scrub(&truncate(&outcome.body, 300))
+                medbrains_core::ai_redact::redact_for_record(
+                    &truncate(&outcome.body, 300),
+                    chrono::Utc::now().date_naive()
+                )
             ),
             outcome.target_id,
         )));

@@ -34,7 +34,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card padding="sm">
       <Stack gap={2}>
-        <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+        <Text size="xs" c="dimmed" fw={600}>
           {label}
         </Text>
         <Text size="lg" fw={700}>

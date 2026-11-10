@@ -24,6 +24,7 @@
 //! time — outbox rows carry keys, never document bytes.
 
 use async_trait::async_trait;
+use medbrains_core::secrets::{SecretError, TenantSecretError, resolve_tenant_secret};
 use serde_json::{Value, json};
 
 use crate::handler::{Handler, HandlerCtx, HandlerError};
@@ -106,6 +107,90 @@ async fn cfg_or_secret(config: &Value, ctx: &HandlerCtx, json_key: &str, env_key
         .await
         .ok()
         .filter(|s| !s.is_empty())
+}
+
+/// Secret-store purpose of a hospital's SMTP password: its short name resolves
+/// to `medbrains/<env>/<tenant>/smtp-<name>` (the settings screen shows that).
+const SMTP_SECRET_PURPOSE: &str = "smtp";
+
+/// A non-empty string field of the tenant's email config.
+fn config_str<'a>(config: &'a Value, key: &str) -> Option<&'a str> {
+    config
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+}
+
+/// The SMTP login for a send to `host`, or `None` to send without one.
+///
+/// A hospital's own mail host only ever gets the hospital's own password: the
+/// short name in `smtp_password_secret`, resolved inside its namespace. The
+/// platform's `SMTP_USERNAME` / `SMTP_PASSWORD` go only to the platform's own
+/// `SMTP_HOST`. A stored name outside the namespace (a legacy `SMTP_PASSWORD`,
+/// a full path) is refused and logged, and the email is not sent at all.
+///
+/// # Errors
+/// [`HandlerError::Permanent`] for a refused stored name.
+async fn smtp_credentials(
+    ctx: &HandlerCtx,
+    config: &Value,
+    host: &str,
+) -> Result<Option<(String, String)>, HandlerError> {
+    let to_platform = ctx
+        .secret_resolver
+        .get("SMTP_HOST")
+        .await
+        .is_ok_and(|p| !p.trim().is_empty() && p.trim().eq_ignore_ascii_case(host.trim()));
+    let password = match config_str(config, "smtp_password_secret") {
+        Some(name) => {
+            match resolve_tenant_secret(
+                ctx.secret_resolver.as_ref(),
+                &ctx.tenant_id,
+                SMTP_SECRET_PURPOSE,
+                name,
+            )
+            .await
+            {
+                Ok(v) => Some(v),
+                Err(TenantSecretError::Refused(_)) => {
+                    tracing::warn!(
+                        tenant_id = %ctx.tenant_id,
+                        event_id = %ctx.event_id,
+                        "smtp: stored password secret name is outside the hospital's namespace; refused, email not sent"
+                    );
+                    return Err(HandlerError::Permanent(
+                        "smtp: the saved password secret name is no longer accepted; \
+                         re-enter it in Settings → Domains & email"
+                            .to_owned(),
+                    ));
+                }
+                Err(TenantSecretError::Store(SecretError::NotFound(_))) => None,
+                // An unreadable store is retried, never sent without a login.
+                Err(TenantSecretError::Store(e)) => {
+                    return Err(HandlerError::Transient(format!(
+                        "smtp: the password secret could not be read: {e}"
+                    )));
+                }
+            }
+        }
+        None if to_platform => ctx.secret_resolver.get("SMTP_PASSWORD").await.ok(),
+        None => None,
+    };
+    let username = match config_str(config, "smtp_username") {
+        Some(u) => Some(u.to_owned()),
+        None if to_platform => ctx.secret_resolver.get("SMTP_USERNAME").await.ok(),
+        None => None,
+    };
+    Ok(username
+        .filter(|u| !u.is_empty())
+        .zip(password.filter(|p| !p.is_empty())))
+}
+
+/// Whether the dev-only `SMTP_INSECURE_TLS` flag must be refused in `env`:
+/// a production server never accepts an unverified mail server certificate.
+fn insecure_tls_refused(env: &str) -> bool {
+    matches!(env.trim().to_ascii_lowercase().as_str(), "prod" | "production")
 }
 
 #[derive(Debug)]
@@ -423,6 +508,11 @@ async fn send_via_smtp(
     // SMTP_INSECURE_TLS is set, accept the cert — same dev-only flag style as
     // STALWART_INSECURE_TLS. Never set this in production.
     if std::env::var("SMTP_INSECURE_TLS").is_ok() && tls_mode != "none" {
+        if insecure_tls_refused(&medbrains_core::secrets::tenant_name::deploy_env()) {
+            return Err(HandlerError::Permanent(
+                "smtp: SMTP_INSECURE_TLS is set on a production server; unset it".to_owned(),
+            ));
+        }
         use lettre::transport::smtp::client::{Tls, TlsParameters};
         let params = TlsParameters::builder(host.clone())
             .dangerous_accept_invalid_certs(true)
@@ -435,20 +525,14 @@ async fn send_via_smtp(
         });
     }
 
-    let username = cfg_or_secret(config, ctx, "smtp_username", "SMTP_USERNAME").await;
-    // The password is always a secret — config holds only a REFERENCE key in the
-    // secret backend (`smtp_password_secret`), defaulting to env `SMTP_PASSWORD`.
-    let password_key = config
-        .get("smtp_password_secret")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or("SMTP_PASSWORD");
-    let password = ctx.secret_resolver.get(password_key).await.ok();
-    if let (Some(user), Some(pass)) = (
-        username.filter(|v| !v.is_empty()),
-        password.filter(|v| !v.is_empty()),
-    ) {
+    if let Some((user, pass)) = smtp_credentials(ctx, config, &host).await? {
+        if tls_mode == "none" {
+            return Err(HandlerError::Permanent(
+                "smtp: refusing to send a password over an unencrypted connection; \
+                 choose starttls or implicit TLS in Settings → Domains & email"
+                    .to_owned(),
+            ));
+        }
         transport = transport.credentials(Credentials::new(user, pass));
     }
 
@@ -478,5 +562,18 @@ async fn send_via_smtp(
                 Err(HandlerError::Transient(format!("smtp: {error}")))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::insecure_tls_refused;
+
+    #[test]
+    fn the_insecure_tls_flag_is_refused_only_in_production() {
+        assert!(insecure_tls_refused("prod"));
+        assert!(insecure_tls_refused("Production"));
+        assert!(!insecure_tls_refused("dev"));
+        assert!(!insecure_tls_refused("staging"));
     }
 }

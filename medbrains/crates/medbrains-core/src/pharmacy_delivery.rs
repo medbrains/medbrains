@@ -72,6 +72,10 @@ pub struct History {
 /// Deliveries a patient completes before they may pay at the door, unless the
 /// hospital sets otherwise.
 pub const DEFAULT_COD_MIN_DELIVERIES: i64 = 2;
+/// Online orders whose medicines come to at least this (₹) deliver free
+/// (`pharmacy.free_delivery_above`), unless the hospital says otherwise.
+/// The research brief's default.
+pub const DEFAULT_FREE_DELIVERY_ABOVE: i64 = 500;
 
 /// Whether this patient may pay on delivery; `Err` says why not, for the
 /// pharmacist, who then takes payment before dispatch.

@@ -22,6 +22,7 @@ import {
   toCreateAdmissionRequest,
 } from "@/forms/ipd.form";
 import { ipdService } from "@/services/ipd.service";
+import { RoomEligibilityNotice, useRoomConsent } from "./room-eligibility-notice";
 
 interface AdmissionFormProps {
   initialPatientId?: string;
@@ -47,6 +48,9 @@ export function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Ad
   });
   const admissionSource = watch("admission_source");
   const wardId = watch("ward_id");
+  const patientId = watch("patient_id");
+  const bedId = watch("bed_id") ?? "";
+  const [roomConsent, setRoomConsent] = useRoomConsent(bedId);
 
   const resetAdmissionForm = () =>
     reset({
@@ -56,7 +60,10 @@ export function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Ad
 
   const createMutation = useMutation({
     mutationFn: (values: IpdAdmissionFormInput) =>
-      ipdService.createAdmission(toCreateAdmissionRequest(values)),
+      ipdService.createAdmission({
+        ...toCreateAdmissionRequest(values),
+        room_consent: roomConsent,
+      }),
     onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       toast.success("Patient admitted successfully", { title: "Admitted" });
@@ -116,7 +123,15 @@ export function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Ad
       <Controller
         control={control}
         name="doctor_id"
-        render={({ field }) => <DoctorSearchSelect value={field.value} onChange={field.onChange} />}
+        render={({ field }) => (
+          <DoctorSearchSelect
+            label="Admitting doctor"
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.doctor_id?.message}
+            required
+          />
+        )}
       />
       <Controller
         control={control}
@@ -130,6 +145,7 @@ export function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Ad
           <BedSelect value={field.value} onChange={field.onChange} wardId={wardId || undefined} />
         )}
       />
+      <RoomEligibilityNotice patientId={patientId} bedId={bedId} onConsentChange={setRoomConsent} />
       <Controller
         control={control}
         name="admission_source"

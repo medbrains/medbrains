@@ -52,7 +52,10 @@ pub struct HypoglycemiaView {
 /// patient is not fully conscious (can't safely take oral carbohydrate).
 pub fn classify_hypoglycemia(glucose: f64, conscious: bool) -> (&'static str, &'static str) {
     if glucose >= RECOVERY_THRESHOLD {
-        ("none", "Glucose is not in the hypoglycaemic range; no acute treatment indicated.")
+        (
+            "none",
+            "Glucose is not in the hypoglycaemic range; no acute treatment indicated.",
+        )
     } else if glucose < SEVERE_THRESHOLD || !conscious {
         (
             "severe",
@@ -73,7 +76,10 @@ const COLS: &str = "id, patient_id, admission_id, glucose_value, conscious, seve
 
 fn view(event: HypoglycemiaEvent) -> HypoglycemiaView {
     let (_, advice) = classify_hypoglycemia(event.glucose_value, event.conscious);
-    HypoglycemiaView { event, treatment_advice: advice }
+    HypoglycemiaView {
+        event,
+        treatment_advice: advice,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -99,18 +105,21 @@ pub async fn create_hypoglycemia_event(
 ) -> Result<Json<HypoglycemiaView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
     // A hypoglycaemia event is recorded against the patient the body names.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.glucose_value <= 0.0 || body.glucose_value > 2000.0 {
         return Err(AppError::BadRequest("glucose_value out of range".into()));
     }
-    if let Some(t) = body.treatment.as_deref() {
-        if !TREATMENTS.contains(&t) {
-            return Err(AppError::BadRequest(format!("invalid treatment '{t}'")));
-        }
+    if let Some(t) = body.treatment.as_deref()
+        && !TREATMENTS.contains(&t)
+    {
+        return Err(AppError::BadRequest(format!("invalid treatment '{t}'")));
     }
     let (severity, _) = classify_hypoglycemia(body.glucose_value, body.conscious);
-    let treatment_given_at = body.treatment.as_deref().filter(|t| *t != "none").map(|_| Utc::now());
+    let treatment_given_at = body
+        .treatment
+        .as_deref()
+        .filter(|t| *t != "none")
+        .map(|_| Utc::now());
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -194,8 +203,7 @@ pub async fn list_hypoglycemia_events(
 ) -> Result<Json<Vec<HypoglycemiaView>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     // The query names one patient; this is their hypoglycaemia history.
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HypoglycemiaEvent>(&format!(

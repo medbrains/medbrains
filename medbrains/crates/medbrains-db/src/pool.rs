@@ -111,7 +111,9 @@ pub async fn create_pool_with_config(
                      RESET app.ip_address; \
                      RESET app.user_agent; \
                      RESET app.session_id; \
-                     RESET app.correlation_id",
+                     RESET app.correlation_id; \
+                     RESET medbrains.signable_amendment; \
+                     RESET app.allow_physical_delete",
                 ))
                 .await?;
                 Ok(true)
@@ -207,6 +209,39 @@ pub async fn set_tenant_context(
     tenant_id: &uuid::Uuid,
 ) -> Result<(), DbError> {
     apply_context(tx, Some(tenant_id), None, None, None, None, None, None).await
+}
+
+/// Take this hospital's audit chain lock now, before locking a money row.
+///
+/// Every audited write takes this lock and holds it to commit. A transaction
+/// that locks a bill and then writes audit, against one that writes audit and
+/// then locks that bill, deadlock. So: chain first, then the row. Same key as
+/// `audit_log_hash_chain`; migration 1403 does the same for plain `UPDATE`s.
+pub async fn take_audit_chain_first(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &uuid::Uuid,
+) -> Result<(), DbError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('audit_chain'), hashtext($1))")
+        .bind(tenant_id.to_string())
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// Hold a database-wide advisory lock for as long as the returned transaction lives.
+///
+/// Rolling back or dropping the transaction releases it, on every exit path. It keeps one
+/// connection busy, so the pool needs a second one for the work done under the lock.
+pub async fn hold_advisory_lock(
+    pool: &PgPool,
+    key: i64,
+) -> Result<Transaction<'_, Postgres>, DbError> {
+    let mut lock = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(key)
+        .execute(&mut *lock)
+        .await?;
+    Ok(lock)
 }
 
 /// Set both tenant and department context for RLS.
@@ -369,7 +404,9 @@ async fn apply_context(
             CASE WHEN $6::text IS NOT NULL \
                 THEN set_config('app.session_id', $6::text, true) ELSE NULL END, \
             CASE WHEN $7::text IS NOT NULL \
-                THEN set_config('app.bypass_dept_rls', $7::text, true) ELSE NULL END",
+                THEN set_config('app.bypass_dept_rls', $7::text, true) ELSE NULL END, \
+            CASE WHEN $8::text IS NOT NULL \
+                THEN set_config('app.acting_agent', $8::text, true) ELSE NULL END",
     )
     .bind(tenant_id.map(ToString::to_string))
     .bind(department_ids)
@@ -378,6 +415,9 @@ async fn apply_context(
     .bind(user_agent)
     .bind(session_id)
     .bind(bypass_dept_rls)
+    // The AI actor in scope, so rows the handler or the audit trigger writes in
+    // this transaction default `acting_agent` to it (migration 1211).
+    .bind(crate::audit::acting_agent().map(|a| a.to_string()))
     .fetch_optional(&mut **tx)
     .await?;
 
@@ -388,28 +428,90 @@ async fn apply_context(
     Ok(())
 }
 
+/// Fallback when a hospital has no timezone, or one PostgreSQL doesn't know.
+const DEFAULT_TIMEZONE: &str = "Asia/Kolkata";
+
+/// Every timezone name this PostgreSQL knows, read once per process.
+///
+/// `pg_timezone_names` reads the whole timezone database from disk (~600 rows);
+/// checking a hospital's zone against it inside every transaction cost about
+/// 16 ms per unit of work. The list only changes when PostgreSQL's tz data is
+/// upgraded, which needs a restart, so one read per process is exact.
+static VALID_TIMEZONES: tokio::sync::OnceCell<std::collections::HashSet<String>> =
+    tokio::sync::OnceCell::const_new();
+
+async fn valid_timezones(
+    tx: &mut Transaction<'_, Postgres>,
+) -> Result<&'static std::collections::HashSet<String>, DbError> {
+    if let Some(set) = VALID_TIMEZONES.get() {
+        return Ok(set);
+    }
+    let names: Vec<String> = sqlx::query_scalar("SELECT name FROM pg_timezone_names")
+        .fetch_all(&mut **tx)
+        .await?;
+    Ok(VALID_TIMEZONES
+        .get_or_init(|| async { names.into_iter().collect() })
+        .await)
+}
+
+/// The zone to use: the hospital's own if PostgreSQL knows it, else the default.
+fn resolve_timezone(raw: Option<String>, valid: &std::collections::HashSet<String>) -> String {
+    raw.filter(|tz| !tz.is_empty() && valid.contains(tz))
+        .unwrap_or_else(|| DEFAULT_TIMEZONE.to_owned())
+}
+
 async fn apply_tenant_timezone(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: &uuid::Uuid,
 ) -> Result<(), DbError> {
+    // Read fresh every time (a cheap primary-key lookup) so a changed timezone
+    // takes effect at once; only the list of valid names is cached.
+    let raw: Option<String> = sqlx::query_scalar("SELECT timezone FROM tenants WHERE id = $1")
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .flatten();
+    let zone = resolve_timezone(raw, valid_timezones(tx).await?);
     let _ = sqlx::query(
-        "WITH raw_timezone AS ( \
-             SELECT COALESCE(NULLIF((SELECT timezone FROM tenants WHERE id = $1), ''), 'Asia/Kolkata') AS value \
-         ), safe_timezone AS ( \
-             SELECT CASE \
-                 WHEN EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = raw_timezone.value) \
-                 THEN raw_timezone.value \
-                 ELSE 'Asia/Kolkata' \
-             END AS value \
-             FROM raw_timezone \
-         ) \
-         SELECT set_config('app.tenant_timezone', value, true), \
-                set_config('TimeZone', value, true) \
-         FROM safe_timezone",
+        "SELECT set_config('app.tenant_timezone', $1, true), set_config('TimeZone', $1, true)",
     )
-    .bind(tenant_id)
+    .bind(&zone)
     .fetch_optional(&mut **tx)
     .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod timezone_tests {
+    use super::{DEFAULT_TIMEZONE, resolve_timezone};
+    use std::collections::HashSet;
+
+    fn zones() -> HashSet<String> {
+        ["Asia/Kolkata", "Asia/Dubai", "UTC"]
+            .iter()
+            .map(|z| (*z).to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn known_zone_is_kept() {
+        assert_eq!(
+            resolve_timezone(Some("Asia/Dubai".to_owned()), &zones()),
+            "Asia/Dubai"
+        );
+    }
+
+    #[test]
+    fn missing_empty_or_unknown_zone_falls_back() {
+        assert_eq!(resolve_timezone(None, &zones()), DEFAULT_TIMEZONE);
+        assert_eq!(
+            resolve_timezone(Some(String::new()), &zones()),
+            DEFAULT_TIMEZONE
+        );
+        assert_eq!(
+            resolve_timezone(Some("Mars/Olympus".to_owned()), &zones()),
+            DEFAULT_TIMEZONE
+        );
+    }
 }

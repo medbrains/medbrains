@@ -118,6 +118,16 @@ const MODULES: &[(&str, &str, &str, &str, &[&str])] = &[
         "disabled",
         &["registration"],
     ),
+    // A licensed add-on (#4901), seeded DISABLED for the same reason as the
+    // companion; migration 1380 does the same for existing tenants. An
+    // operator enables it in Admin -> Modules.
+    (
+        "flow",
+        "MedBrains Flow",
+        "Live crowd and wait view of the building, estimated from queues, check-ins, visitor passes and rosters",
+        "disabled",
+        &["opd"],
+    ),
 ];
 
 /// Seed module configuration for the DEFAULT tenant.

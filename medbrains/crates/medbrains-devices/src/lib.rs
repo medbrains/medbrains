@@ -15,8 +15,7 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 
 pub mod analyzer_orders;
-mod hl7_flag;
-use hl7_flag::map_hl7_flag;
+pub mod vitals;
 
 fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
     if claims.role == "super_admin" || claims.role == "hospital_admin" {
@@ -153,7 +152,7 @@ pub async fn list_manufacturers(
 // ── Device Instances (per-tenant CRUD) ───────────────────────
 // ═══════════════════════════════════════════════════════════════
 
-const INSTANCE_SELECT: &str = "SELECT id, tenant_id, adapter_code, facility_id, department_id, \
+const INSTANCE_SELECT: &str = "SELECT id, tenant_id, adapter_code, facility_id, department_id, bed_location_id, \
     name, code, serial_number, hostname, port, \
     protocol_config, field_mappings, data_transforms, qc_config, \
     ai_config_version, ai_confidence, human_overrides, config_source, \
@@ -372,6 +371,55 @@ pub async fn update_device_instance(
         .fetch_one(&mut *tx)
         .await?;
 
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignBedRequest {
+    /// `None` takes the monitor off its bed.
+    pub bed_location_id: Option<Uuid>,
+}
+
+/// `PUT /api/devices/instances/{id}/bed` — the bed a bedside monitor
+/// watches, so its readings reach the patient admitted there.
+pub async fn assign_bed(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AssignBedRequest>,
+) -> Result<Json<DeviceInstanceRow>, AppError> {
+    require_permission(&claims, permissions::devices::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if let Some(bed) = body.bed_location_id {
+        let is_bed: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM locations WHERE id = $1 AND tenant_id = $2 \
+               AND level = 'bed' AND deleted_at IS NULL)",
+        )
+        .bind(bed)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !is_bed {
+            return Err(AppError::BadRequest("Choose a bed.".to_owned()));
+        }
+    }
+    let updated = sqlx::query(
+        "UPDATE device_instances SET bed_location_id = $3, updated_by = $4 \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.bed_location_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    let q = format!("{INSTANCE_SELECT} WHERE id = $1");
+    let row = sqlx::query_as::<_, DeviceInstanceRow>(&q).bind(id).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -788,6 +836,17 @@ pub async fn ingest_device_data(
         .await?
         .ok_or(AppError::NotFound)?;
 
+    // A patient monitor's results are vital signs, whatever path the bridge
+    // posted them to: the bridge sends every ORU as "lab".
+    let is_monitor: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM device_adapter_catalog \
+           WHERE adapter_code = $1 AND device_category IN ('patient_monitor', 'pulse_oximeter'))",
+    )
+    .bind(&device.adapter_code)
+    .fetch_one(&mut *tx)
+    .await?;
+    let module = if is_monitor { "vitals".to_owned() } else { module };
+
     // Store message
     let msg_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO device_messages \
@@ -815,44 +874,78 @@ pub async fn ingest_device_data(
     // An analyser past its calibration (or out of service) must not report
     // patient results. The message is kept, marked rejected, for the lab to
     // rerun the samples once biomedical engineering recalibrates it.
-    if module == "lab" {
-        if let Some(reason) = instrument_lock_reason(&mut tx, body.device_instance_id).await? {
-            refuse_locked_instrument(&mut tx, (device.tenant_id, claims.sub), msg_id, &reason)
-                .await?;
-            tx.commit().await?;
-            return Err(AppError::Conflict(format!(
-                "Results refused: {} is locked — {reason}. Recalibrate it and rerun \
-                 the samples; the message is kept for review.",
-                device.name
-            )));
-        }
+    if module == "lab"
+        && let Some(reason) = instrument_lock_reason(&mut tx, body.device_instance_id).await?
+    {
+        refuse_locked_instrument(&mut tx, (device.tenant_id, claims.sub), msg_id, &reason)
+            .await?;
+        tx.commit().await?;
+        return Err(AppError::Conflict(format!(
+            "Results refused: {} is locked — {reason}. Recalibrate it and rerun \
+             the samples; the message is kept for review.",
+            device.name
+        )));
     }
 
     // ── Route data based on module ──
     let mut routed_entity_id: Option<Uuid> = None;
     let mut route_status = "delivered";
+    let mut note: Option<String> = None;
 
     if module == "lab" {
-        match route_lab_data(&mut tx, device.tenant_id, &body.mapped_data).await {
-            Ok(ids) => {
-                routed_entity_id = ids.first().copied();
-                tracing::info!(results = ids.len(), "lab results created from device data");
+        let actor = (device.tenant_id, claims.sub);
+        match medbrains_lab::analyser::route_analyser_results(
+            &mut tx,
+            actor.0,
+            actor.1,
+            &body.mapped_data,
+            None,
+        )
+        .await?
+        {
+            medbrains_lab::analyser::Routed::Posted {
+                order_id,
+                posted,
+                skipped,
+            } => {
+                routed_entity_id = Some(order_id);
+                tracing::info!(results = posted, "lab results created from device data");
+                note = (!skipped.is_empty()).then(|| format!("not posted: {}", skipped.join("; ")));
             }
-            Err(e) => {
-                tracing::warn!(error = %e, "lab routing failed — message stored for manual review");
-                route_status = "mapped"; // stored but not fully routed
+            medbrains_lab::analyser::Routed::Held(reason) => {
+                tracing::warn!(reason = %reason, "analyser results held for review");
+                route_status = "needs_review";
+                hold_for_review(&mut tx, actor, msg_id, &reason).await?;
+                note = Some(reason);
             }
         }
     }
-    // Future: module == "vitals", "radiology", etc.
+    if module == "vitals" {
+        match vitals::route(&mut tx, (device.tenant_id, device.id), msg_id, &body.mapped_data).await? {
+            vitals::Routed::Draft(id) => routed_entity_id = Some(id),
+            vitals::Routed::Thinned => {
+                note = Some("normal reading within 15 minutes of one already kept".to_owned());
+            }
+            vitals::Routed::Empty => {
+                route_status = "rejected";
+                note = Some("no vital sign in the message".to_owned());
+            }
+            vitals::Routed::Held(id, reason) => {
+                routed_entity_id = Some(id);
+                route_status = "needs_review";
+                note = Some(reason);
+            }
+        }
+    }
 
-    // Update message status + target entity
     sqlx::query(
-        "UPDATE device_messages SET processing_status = $2::device_message_status, target_entity_id = $3 WHERE id = $1",
+        "UPDATE device_messages SET processing_status = $2::device_message_status, \
+         target_entity_id = $3, error_message = $4 WHERE id = $1",
     )
     .bind(msg_id)
     .bind(route_status)
     .bind(routed_entity_id)
+    .bind(&note)
     .execute(&mut *tx)
     .await?;
 
@@ -922,147 +1015,30 @@ async fn refuse_locked_instrument(
     Ok(())
 }
 
-/// Route lab device data: extract OBX results, match to `lab_order` by sample barcode, create `lab_results`.
-async fn route_lab_data(
+/// Log that a message's results were held for a technologist, so a held
+/// result is never only a status flag on a row.
+async fn hold_for_review(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    mapped_data: &serde_json::Value,
-) -> Result<Vec<Uuid>, AppError> {
-    // Extract identifiers from mapped data
-    let identifiers = mapped_data.get("identifiers").unwrap_or(mapped_data);
-    let sample_barcode = identifiers
-        .get("sample_barcode")
-        .or_else(|| identifiers.get("order_id"))
-        .and_then(serde_json::Value::as_str);
-    let patient_id_str = identifiers
-        .get("patient_id")
-        .and_then(serde_json::Value::as_str);
-
-    // Find matching lab order
-    let order_id: Option<Uuid> = if let Some(barcode) = sample_barcode {
-        sqlx::query_scalar(
-            "SELECT id FROM lab_orders WHERE sample_barcode = $1 AND tenant_id = $2 LIMIT 1",
-        )
-        .bind(barcode)
-        .bind(tenant_id)
-        .fetch_optional(&mut **tx)
-        .await?
-    } else if let Some(pid) = patient_id_str {
-        // Fallback: find most recent pending order for this patient
-        sqlx::query_scalar(
-            "SELECT id FROM lab_orders WHERE patient_id = (SELECT id FROM patients WHERE uhid = $1 AND tenant_id = $2 LIMIT 1) \
-             AND status IN ('ordered', 'sample_collected', 'processing') \
-             ORDER BY created_at DESC LIMIT 1"
-        )
-        .bind(pid)
-        .bind(tenant_id)
-        .fetch_optional(&mut **tx)
-        .await?
-    } else {
-        None
-    };
-
-    let order_id = order_id.ok_or_else(|| {
-        AppError::BadRequest(format!(
-            "No matching lab order found for barcode={} patient={}",
-            sample_barcode.unwrap_or("none"),
-            patient_id_str.unwrap_or("none"),
-        ))
-    })?;
-
-    // Extract OBX results from fields
-    let fields = mapped_data.get("fields").unwrap_or(mapped_data);
-    let mut created_ids = Vec::new();
-
-    // Strategy 1: structured OBX array
-    if let Some(serde_json::Value::Array(obx_list)) = mapped_data.get("results") {
-        for obx in obx_list {
-            let name = obx
-                .get("test_code")
-                .or_else(|| obx.get("name"))
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("Unknown");
-            let value = obx
-                .get("value")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("");
-            let unit = obx.get("unit").and_then(serde_json::Value::as_str);
-            let range = obx
-                .get("reference_range")
-                .and_then(serde_json::Value::as_str);
-            let flag_str = obx.get("abnormal_flag").and_then(serde_json::Value::as_str);
-
-            let flag = map_hl7_flag(flag_str);
-
-            let result_id = sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO lab_results (tenant_id, order_id, parameter_name, value, unit, normal_range, flag) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag) RETURNING id",
-            )
-            .bind(tenant_id)
-            .bind(order_id)
-            .bind(name)
-            .bind(value)
-            .bind(unit)
-            .bind(range)
-            .bind(flag)
-            .fetch_one(&mut **tx)
-            .await?;
-
-            created_ids.push(result_id);
-        }
-    }
-
-    // Strategy 2: flat HL7 fields — scan for OBX.* patterns
-    if created_ids.is_empty() {
-        if let serde_json::Value::Object(map) = fields {
-            // Find all OBX segments by looking for OBX.3 (test identifier) fields
-            let mut obx_indices: Vec<String> = Vec::new();
-            for key in map.keys() {
-                if key.starts_with("OBX.3") {
-                    obx_indices.push(key.clone());
-                }
-            }
-
-            // For simple single-OBX messages, OBX.3 = test code, OBX.5 = value
-            if obx_indices.is_empty() {
-                // Try direct OBX fields
-                if let (Some(test_code), Some(value)) = (
-                    map.get("OBX.3").and_then(serde_json::Value::as_str),
-                    map.get("OBX.5").and_then(serde_json::Value::as_str),
-                ) {
-                    let unit = map.get("OBX.6").and_then(serde_json::Value::as_str);
-                    let range = map.get("OBX.7").and_then(serde_json::Value::as_str);
-                    let flag_str = map.get("OBX.8").and_then(serde_json::Value::as_str);
-
-                    let result_id = sqlx::query_scalar::<_, Uuid>(
-                        "INSERT INTO lab_results (tenant_id, order_id, parameter_name, value, unit, normal_range, flag) \
-                         VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag) RETURNING id",
-                    )
-                    .bind(tenant_id)
-                    .bind(order_id)
-                    .bind(test_code)
-                    .bind(value)
-                    .bind(unit)
-                    .bind(range)
-                    .bind(map_hl7_flag(flag_str))
-                    .fetch_one(&mut **tx)
-                    .await?;
-
-                    created_ids.push(result_id);
-                }
-            }
-        }
-    }
-
-    // Update order status to 'processing' if results were created
-    if !created_ids.is_empty() {
-        sqlx::query("UPDATE lab_orders SET status = 'processing' WHERE id = $1 AND status IN ('ordered', 'sample_collected')")
-            .bind(order_id)
-            .execute(&mut **tx)
-            .await?;
-    }
-
-    Ok(created_ids)
+    (tenant_id, actor): (Uuid, Uuid),
+    msg_id: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
+    let values = serde_json::json!({ "reason": reason });
+    medbrains_db::audit::AuditLogger::log(
+        tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id,
+            user_id: Some(actor),
+            action: "lab.analyser_results_held",
+            entity_type: "device_messages",
+            entity_id: Some(msg_id),
+            old_values: None,
+            new_values: Some(&values),
+            ip_address: None,
+        },
+    )
+    .await?;
+    Ok(())
 }
 
 /// devices routes.
@@ -1085,6 +1061,7 @@ pub fn router() -> axum::Router<AppState> {
                 .put(update_device_instance)
                 .delete(decommission_device),
         )
+        .route("/api/devices/instances/{id}/bed", put(assign_bed))
         .route(
             "/api/devices/instances/{id}/test",
             post(test_device_connection),

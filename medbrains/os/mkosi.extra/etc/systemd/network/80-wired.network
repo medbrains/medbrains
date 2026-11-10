@@ -1,0 +1,20 @@
+[Match]
+Name=en* eth*
+
+[Network]
+DHCP=yes
+MulticastDNS=yes
+
+# Multicast needs a route, and a hospital LAN with no gateway has no other. Without this mDNS cannot
+# send or join, so a machine would not find its main machine.
+[Route]
+Destination=224.0.0.0/4
+Scope=link
+Metric=1024
+
+# A DHCP server must not rename the machine: the name is in its certificate and its authority.
+[DHCPv4]
+UseHostname=no
+
+[DHCPv6]
+UseHostname=no

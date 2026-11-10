@@ -44,6 +44,16 @@ export const portalService = {
   getStoreOrder: (token: string, id: string) => api.getStoreOrder(token, id),
   orderPortalPrescription: (token: string, prescriptionId: string) =>
     api.orderPortalPrescription(token, prescriptionId),
+  holdStoreCart: (...args: Parameters<typeof api.holdStoreCart>) => api.holdStoreCart(...args),
+  getStoreServiceability: (token: string, pincode?: string) =>
+    api.getStoreServiceability(token, pincode),
+  cancelStoreOrder: (token: string, id: string) => api.cancelStoreOrder(token, id),
+  requestStoreReturn: (...args: Parameters<typeof api.requestStoreReturn>) =>
+    api.requestStoreReturn(...args),
+  consentStoreSubstitution: (...args: Parameters<typeof api.consentStoreSubstitution>) =>
+    api.consentStoreSubstitution(...args),
+  printStoreOutside: (...args: Parameters<typeof api.printStoreOutside>) =>
+    api.printStoreOutside(...args),
   getPortalExport: (token: string) => api.getPortalExport(token),
   setPortalDpdpConsent: (...args: Parameters<typeof api.setPortalDpdpConsent>) =>
     api.setPortalDpdpConsent(...args),

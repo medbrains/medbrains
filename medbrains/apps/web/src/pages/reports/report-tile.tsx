@@ -44,7 +44,7 @@ export function ReportTile({
 
   if (report.id === "nabh-evidence-matrix") {
     return (
-      <Card withBorder radius="md" padding="md" h="100%">
+      <Card withBorder padding="md" h="100%">
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <Stack gap={3}>

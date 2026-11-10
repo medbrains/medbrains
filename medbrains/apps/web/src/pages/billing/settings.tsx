@@ -2,15 +2,17 @@
 
 import { Group, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
-import type { TenantSettingsRow } from "@medbrains/types";
+import type { TenantSettingsRow, UpdateBillingPaymentSettings } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryError } from "@/components/QueryError";
 import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { ExchangeRatesSection } from "./exchange-rates-section";
 import { BillingLanesSettings } from "./lanes-settings";
 import { NonPayablesCard } from "./NonPayablesCard";
 import { PaymentLinkSettingsCard } from "./PaymentLinkSettingsCard";
+import { PreauthAlertThresholdCard } from "./PreauthAlertThresholdCard";
 import { RevisitWindowCard } from "./RevisitWindowCard";
 
 const AUTO_BILLING_KEYS = [
@@ -62,20 +64,40 @@ function BillingTenantSettings() {
   const canRead = useHasAnyPermission([P.ADMIN.SETTINGS_READ, P.ADMIN.SETTINGS_GENERAL_MANAGE]);
   const canManage = useHasPermission(P.ADMIN.SETTINGS_GENERAL_MANAGE);
 
-  const { data: settings = [], isLoading } = useQuery({
+  const {
+    data: settings = [],
+    isLoading,
+    error: settingsError,
+    refetch: refetchSettings,
+  } = useQuery({
     queryKey: ["tenant-settings", "billing"],
     queryFn: () => billingService.getTenantSettings("billing"),
     enabled: canRead,
   });
 
   const settingsMap = new Map(settings.map((s: TenantSettingsRow) => [s.key, s.value]));
-  // The UPI ID lives with payments: the counter's QR reads it too.
-  const { data: paymentSettings = [], isLoading: paymentsLoading } = useQuery({
-    queryKey: ["tenant-settings", "payments"],
-    queryFn: () => billingService.getTenantSettings("payments"),
-    enabled: canRead,
+  // The UPI ID and link terms have their own endpoint and permission: the
+  // `payments` category also holds provider keys, which this screen never reads.
+  const canViewPayments = useHasPermission(P.BILLING.PAYMENT_SETTINGS.VIEW);
+  const canManagePayments = useHasPermission(P.BILLING.PAYMENT_SETTINGS.MANAGE);
+  const {
+    data: paymentSettings,
+    isLoading: paymentsLoading,
+    error: paymentsError,
+    refetch: refetchPayments,
+  } = useQuery({
+    queryKey: ["billing-payment-settings"],
+    queryFn: () => billingService.getBillingPaymentSettings(),
+    enabled: canViewPayments,
   });
-  const upiVpa = paymentSettings.find((s: TenantSettingsRow) => s.key === "upi_vpa")?.value;
+  const upiVpa = paymentSettings?.upi_vpa ?? "";
+
+  const paymentsMutation = useMutation({
+    mutationFn: (data: UpdateBillingPaymentSettings) =>
+      billingService.updateBillingPaymentSettings(data),
+    onSuccess: (saved) => queryClient.setQueryData(["billing-payment-settings"], saved),
+    onError: (err: Error) => toast.error(err.message, { title: "Payment settings not saved" }),
+  });
 
   const updateMutation = useMutation({
     mutationFn: (data: { category: string; key: string; value: unknown }) =>
@@ -83,9 +105,7 @@ function BillingTenantSettings() {
     onSuccess: (_, data) => {
       void queryClient.invalidateQueries({ queryKey: ["tenant-settings", data.category] });
     },
-    onError: () => {
-      toast.error("Failed to update setting", { title: "Error" });
-    },
+    onError: (err: Error) => toast.error(err.message, { title: "Setting not saved" }),
   });
 
   const isEnabled = (key: string) =>
@@ -116,7 +136,23 @@ function BillingTenantSettings() {
     );
   }
 
-  if (isLoading || paymentsLoading) return <Text c="dimmed">Loading settings...</Text>;
+  if (isLoading || (canViewPayments && paymentsLoading)) {
+    return <Text c="dimmed">Loading settings...</Text>;
+  }
+
+  // A failed read must not render as blank defaults: the GSTIN is written back
+  // on blur, so tabbing through an empty field would erase the real number,
+  // and every auto-charge switch would read "off".
+  if (settingsError) {
+    return (
+      <QueryError
+        title="Billing settings did not load"
+        error={settingsError}
+        onRetry={() => void refetchSettings()}
+      />
+    );
+  }
+  const paymentsReady = canViewPayments && !paymentsError;
 
   return (
     <Stack>
@@ -178,33 +214,50 @@ function BillingTenantSettings() {
           disabled={!canManage}
           onBlur={(e) => updateStr("drug_licence", e.currentTarget.value.trim())}
         />
-        <TextInput
-          label="UPI ID"
-          description="Payments to this ID go to the hospital's account"
-          placeholder="e.g. hospital@okaxis"
-          defaultValue={typeof upiVpa === "string" ? upiVpa : ""}
-          disabled={!canManage}
-          onBlur={(e) =>
-            updateMutation.mutate({
-              category: "payments",
-              key: "upi_vpa",
-              value: e.currentTarget.value.trim(),
-            })
-          }
-        />
+        {paymentsReady && (
+          <TextInput
+            label="UPI ID"
+            description="Payments to this ID go to the hospital's account. Management is told of every change."
+            placeholder="e.g. hospital@okaxis"
+            defaultValue={upiVpa}
+            disabled={!canManagePayments}
+            onBlur={(e) => {
+              const next = e.currentTarget.value.trim();
+              if (next === upiVpa) return;
+              paymentsMutation.mutate(
+                { upi_vpa: next },
+                {
+                  onSuccess: () =>
+                    toast.success("Management has been told of the change.", {
+                      title: "UPI ID saved",
+                    }),
+                },
+              );
+            }}
+          />
+        )}
       </Group>
 
-      <PaymentLinkSettingsCard
-        value={paymentSettings.find((s: TenantSettingsRow) => s.key === "balance_link")?.value}
-        canManage={canManage}
-        saving={updateMutation.isPending}
-        onSave={(value) =>
-          updateMutation.mutate(
-            { category: "payments", key: "balance_link", value },
-            { onSuccess: () => toast.success("Payment link terms saved", { title: "Billing" }) },
-          )
-        }
-      />
+      {canViewPayments && paymentsError && (
+        <QueryError
+          title="The UPI ID and payment link terms did not load"
+          error={paymentsError}
+          onRetry={() => void refetchPayments()}
+        />
+      )}
+      {paymentsReady && (
+        <PaymentLinkSettingsCard
+          value={paymentSettings?.balance_link}
+          canManage={canManagePayments}
+          saving={paymentsMutation.isPending}
+          onSave={(value) =>
+            paymentsMutation.mutate(
+              { balance_link: value },
+              { onSuccess: () => toast.success("Payment link terms saved", { title: "Billing" }) },
+            )
+          }
+        />
+      )}
 
       <Text fw={600} mt="lg">
         Advance Settings
@@ -259,6 +312,28 @@ function BillingTenantSettings() {
           disabled={!canManage || updateMutation.isPending}
         />
       ))}
+
+      <Text fw={600} mt="lg">
+        Room-category pricing
+      </Text>
+      <Switch
+        label="Charges differ by room category (differential billing)"
+        description="On (the default): an insurer may cut room-linked charges in proportion when a patient takes a room above the policy limit, and the desk warns before allocating. Off: this hospital charges the same in every room, so IRDAI allows no such cut."
+        checked={
+          settingsMap.get("differential_billing") !== false &&
+          settingsMap.get("differential_billing") !== "false"
+        }
+        onChange={(e) =>
+          updateMutation.mutate({
+            category: "billing",
+            key: "differential_billing",
+            value: e.currentTarget.checked,
+          })
+        }
+        disabled={!canManage || updateMutation.isPending}
+      />
+
+      <PreauthAlertThresholdCard />
     </Stack>
   );
 }

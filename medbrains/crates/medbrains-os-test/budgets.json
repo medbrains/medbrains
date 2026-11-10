@@ -1,0 +1,7 @@
+{
+  "_comment": "Ratchets, measured on QEMU with 4 GB. Lower them as they improve; RFC-HOSPITAL-OS targets are 512 MB and 1 GB.",
+  "idle_machine_mb": 850,
+  "server_after_page_load_mb": 300,
+  "growth_50_connections_mb": 40,
+  "system_disk_used_mb": 1300
+}

@@ -276,6 +276,22 @@ export function CodesTab({
     { key: "location", label: "Location", render: (r: ErCodeActivation) => r.location ?? "---" },
     { key: "outcome", label: "Outcome", render: (r: ErCodeActivation) => r.outcome ?? "---" },
     {
+      key: "paging",
+      label: "Paging",
+      // Who the code paged, and what did not go out, in words. A blank here
+      // for a live code means paging has not been confirmed.
+      render: (r: ErCodeActivation) => (
+        <Stack gap={2}>
+          <Text size="sm">{r.routing_note ?? "Paging not confirmed"}</Text>
+          {r.delivery_warning && (
+            <Badge tone="warning" size="sm">
+              {r.delivery_warning}
+            </Badge>
+          )}
+        </Stack>
+      ),
+    },
+    {
       key: "deactivated_at",
       label: "Status",
       render: (r: ErCodeActivation) =>
@@ -535,11 +551,11 @@ export function CodesTab({
                   {CRASH_CART_ITEMS.map((item) => (
                     <Group key={item.key} gap="xs">
                       {selectedChecklist[item.key] ? (
-                        <ThemeIcon color="success" size="sm" radius="xl">
+                        <ThemeIcon color="success" size="sm">
                           <IconCheck size={12} />
                         </ThemeIcon>
                       ) : (
-                        <ThemeIcon color="danger" size="sm" radius="xl" variant="light">
+                        <ThemeIcon color="danger" size="sm" variant="light">
                           <IconAlertTriangle size={12} />
                         </ThemeIcon>
                       )}

@@ -33,7 +33,7 @@ export function LearningPathsTab() {
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {paths.map((p: LmsLearningPath) => (
-            <Card key={p.id} shadow="xs" radius="md" padding="md" withBorder>
+            <Card key={p.id} padding="md" withBorder>
               <Group justify="space-between" mb="xs">
                 <Text fw={600} size="sm" lineClamp={1}>
                   {p.title}

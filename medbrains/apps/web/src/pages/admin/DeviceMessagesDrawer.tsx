@@ -20,6 +20,7 @@ const STATUS_TONE: Partial<Record<string, BadgeTone>> = {
   rejected: "danger",
   dead_letter: "danger",
   mapped: "warning",
+  needs_review: "warning",
 };
 
 interface Mapped {

@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+pub mod cancer_registry;
 pub mod dialysis_dialyzers;
 pub mod dialysis_machines;
 pub mod dialysis_rules;
@@ -2031,6 +2032,17 @@ pub fn router() -> axum::Router<AppState> {
             "/api/specialty/oncology/staging",
             get(list_cancer_stagings)
                 .post(create_cancer_staging),
+        )
+        .route("/api/specialty/oncology/registry", get(cancer_registry::worklist))
+        .route("/api/specialty/oncology/registry/export", get(cancer_registry::export_sheet))
+        .route("/api/specialty/oncology/registry/codes", get(cancer_registry::code_lists))
+        .route(
+            "/api/specialty/oncology/registry/{staging_id}",
+            get(cancer_registry::get_abstract).put(cancer_registry::save_abstract),
+        )
+        .route(
+            "/api/specialty/oncology/registry/{staging_id}/submitted",
+            post(cancer_registry::mark_submitted),
         )
         .route(
             "/api/specialty/oncology/radiation",

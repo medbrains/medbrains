@@ -63,6 +63,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DoctorHprModal, HPR_COVERAGE_KEY } from "@/components/admin/DoctorHprModal";
+import { DoctorRegistrationModal } from "@/components/admin/DoctorRegistrationModal";
 import { HprCoveragePanel } from "@/components/admin/HprCoveragePanel";
 import { PageHeader } from "@/components/PageHeader";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
@@ -81,6 +82,8 @@ export function AdminDoctorsPage() {
   const [credentialDoctor, setCredentialDoctor] = useState<DoctorProfile | null>(null);
   const canManageHpr = useHasPermission(P.ABDM.HPR.MANAGE);
   const [hprDoctor, setHprDoctor] = useState<DoctorProfile | null>(null);
+  const canUpdateDoctor = useHasPermission(P.ADMIN.DOCTORS.UPDATE);
+  const [registrationDoctor, setRegistrationDoctor] = useState<DoctorProfile | null>(null);
   const hprCoverage = useQuery({
     queryKey: HPR_COVERAGE_KEY,
     queryFn: () => abdmRegistryService.getHprCoverage(),
@@ -123,6 +126,7 @@ export function AdminDoctorsPage() {
     activeDefaultsByDoctor.has(doctor.user_id),
   ).length;
   const signingBlockedCount = Math.max(doctors.length - readyToSignCount, 0);
+  const registrationMissingCount = doctors.filter(isRegistrationMissing).length;
 
   const create = useMutation({
     mutationFn: (data: CreateDoctorRequest) => adminDoctorsService.createDoctor(data),
@@ -166,10 +170,11 @@ export function AdminDoctorsPage() {
         }
       />
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" mb="md">
+      <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="sm" mb="md">
         <MetricCard label="Active doctors" value={activeDoctorCount} tone="primary" />
         <MetricCard label="Ready to sign" value={readyToSignCount} tone="success" />
         <MetricCard label="Credential missing" value={signingBlockedCount} tone="warning" />
+        <MetricCard label="Registration missing" value={registrationMissingCount} tone="warning" />
       </SimpleGrid>
 
       {canManageHpr && <HprCoveragePanel />}
@@ -215,6 +220,7 @@ export function AdminDoctorsPage() {
               activeCredentialCount={activeCredentialCount}
               onOpenCredentials={() => setCredentialDoctor(doctor)}
               onOpenHpr={canManageHpr ? () => setHprDoctor(doctor) : undefined}
+              onEditRegistration={canUpdateDoctor ? () => setRegistrationDoctor(doctor) : undefined}
             />
           );
         })}
@@ -232,6 +238,13 @@ export function AdminDoctorsPage() {
 
       {credentialDoctor && (
         <CredentialsModal doctor={credentialDoctor} onClose={() => setCredentialDoctor(null)} />
+      )}
+
+      {registrationDoctor && (
+        <DoctorRegistrationModal
+          doctor={registrationDoctor}
+          onClose={() => setRegistrationDoctor(null)}
+        />
       )}
 
       {hprDoctor && (
@@ -252,6 +265,7 @@ function DoctorProfileCard({
   activeCredentialCount,
   onOpenCredentials,
   onOpenHpr,
+  onEditRegistration,
 }: {
   doctor: DoctorProfile;
   credentialsLoading: boolean;
@@ -260,6 +274,8 @@ function DoctorProfileCard({
   onOpenCredentials: () => void;
   /** Present only for holders of `abdm.hpr.manage`. */
   onOpenHpr?: () => void;
+  /** Present only for holders of `admin.doctors.update`. */
+  onEditRegistration?: () => void;
 }) {
   const displayName = `${doctor.prefix ? `${doctor.prefix} ` : ""}${doctor.display_name}`;
 
@@ -382,6 +398,16 @@ function DoctorProfileCard({
           </Button>
         )}
 
+        {onEditRegistration && (
+          <Button
+            tone={isRegistrationMissing(doctor) ? "secondary" : "ghost"}
+            leftSection={<IconId size={16} />}
+            onClick={onEditRegistration}
+          >
+            {isRegistrationMissing(doctor) ? "Add registration" : "Edit registration"}
+          </Button>
+        )}
+
         {onOpenHpr && (
           <Button tone="ghost" leftSection={<IconId size={16} />} onClick={onOpenHpr}>
             {doctor.hpr_id ? "HPR ID" : "Add HPR ID"}
@@ -466,6 +492,11 @@ function CredentialStatus({
       </Text>
     </Stack>
   );
+}
+
+/** No NMC/MCI and no state council number: the doctor cannot be verified. */
+function isRegistrationMissing(doctor: DoctorProfile): boolean {
+  return !doctor.mci_number?.trim() && !doctor.state_council_number?.trim();
 }
 
 function initials(name: string): string {

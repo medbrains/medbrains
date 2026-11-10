@@ -80,20 +80,33 @@ pub async fn anion_gap(
 ) -> Result<Json<AnionGapResult>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
     if !(100.0..=180.0).contains(&body.sodium) {
-        return Err(AppError::BadRequest("sodium must be between 100 and 180 mmol/L".into()));
+        return Err(AppError::BadRequest(
+            "sodium must be between 100 and 180 mmol/L".into(),
+        ));
     }
     if !(60.0..=140.0).contains(&body.chloride) {
-        return Err(AppError::BadRequest("chloride must be between 60 and 140 mmol/L".into()));
+        return Err(AppError::BadRequest(
+            "chloride must be between 60 and 140 mmol/L".into(),
+        ));
     }
     if !(2.0..=50.0).contains(&body.bicarbonate) {
-        return Err(AppError::BadRequest("bicarbonate must be between 2 and 50 mmol/L".into()));
+        return Err(AppError::BadRequest(
+            "bicarbonate must be between 2 and 50 mmol/L".into(),
+        ));
     }
-    if let Some(a) = body.albumin_g_dl {
-        if !(0.5..=6.0).contains(&a) {
-            return Err(AppError::BadRequest("albumin_g_dl must be between 0.5 and 6".into()));
-        }
+    if let Some(a) = body.albumin_g_dl
+        && !(0.5..=6.0).contains(&a)
+    {
+        return Err(AppError::BadRequest(
+            "albumin_g_dl must be between 0.5 and 6".into(),
+        ));
     }
-    Ok(Json(compute_anion_gap(body.sodium, body.chloride, body.bicarbonate, body.albumin_g_dl)))
+    Ok(Json(compute_anion_gap(
+        body.sodium,
+        body.chloride,
+        body.bicarbonate,
+        body.albumin_g_dl,
+    )))
 }
 
 #[cfg(test)]

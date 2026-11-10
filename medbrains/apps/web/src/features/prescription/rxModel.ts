@@ -42,6 +42,12 @@ export interface RxItem {
   route?: Route;
   /** Nurse-drafted Rx-only item awaiting MD sign-off. */
   pendingMD?: boolean;
+  /**
+   * Chosen on purpose: the hospital does not stock it, the patient buys it
+   * outside. Prints as "Buy from outside the hospital"; never dispensed or
+   * billed here. `id` is then a local key, not a catalogue id.
+   */
+  buyOutside?: boolean;
 }
 
 /** CDSCO drug schedule. X = duplicate Rx + register; H1 = written Rx + register. */
@@ -72,7 +78,7 @@ export interface FormularyDrug {
   penicillin?: boolean;
   crossPen?: boolean;
   sedative?: boolean;
-  // ── regulatory (CLAUDE.md §Pharmacology) ──
+  // ── regulatory (ENGINEERING.md §Pharmacology) ──
   /** CDSCO schedule — drives badge + Rx/register rules. */
   schedule?: DrugSchedule;
   /** NDPS controlled substance — register + dual-lock on dispense. */

@@ -90,9 +90,16 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSFaceIDUsageDescription: Unlock MedBrains with Face ID.
+        # Read only: the app never writes to Apple Health.
+        NSHealthShareUsageDescription: MedBrains reads the readings you choose to share — blood pressure, glucose, weight, oxygen and heart rate — so your care team can see them.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: MedBrainsPatient/Resources/MedBrainsPatient.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.medbrains.patient

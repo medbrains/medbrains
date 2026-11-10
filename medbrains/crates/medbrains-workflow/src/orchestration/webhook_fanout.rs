@@ -16,25 +16,32 @@ use medbrains_outbox::queue::{OutboxRow, queue_in_tx};
 /// At most this many partners are told about one event.
 const MAX_SUBSCRIPTIONS: i64 = 50;
 
+/// Queue the event for every subscribed partner. Returns how many deliveries
+/// were queued; a failure is logged and counts as none.
 pub async fn fan_out(
     pool: &PgPool,
     tenant_id: Uuid,
     event_type: &str,
     envelope: &Value,
     data: &Value,
-) {
-    if let Err(error) = try_fan_out(pool, tenant_id, event_type, envelope, data).await {
-        tracing::error!(%tenant_id, event_type, %error, "webhook fan-out failed");
+) -> usize {
+    match try_fan_out(pool, tenant_id, event_type, envelope, data).await {
+        Ok(queued) => queued,
+        Err(error) => {
+            tracing::error!(%tenant_id, event_type, %error, "webhook fan-out failed");
+            0
+        }
     }
 }
 
+/// [`fan_out`]'s fallible body: one outbox row per matching subscription.
 async fn try_fan_out(
     pool: &PgPool,
     tenant_id: Uuid,
     event_type: &str,
     envelope: &Value,
     data: &Value,
-) -> Result<(), sqlx::Error> {
+) -> Result<usize, sqlx::Error> {
     let mut tx = super::default_pipelines::tenant_tx(pool, tenant_id).await?;
     let subscriptions: Vec<Uuid> = sqlx::query_scalar(
         "SELECT id FROM webhook_subscriptions \
@@ -47,8 +54,9 @@ async fn try_fan_out(
     .fetch_all(&mut *tx)
     .await?;
     if subscriptions.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
+    let mut queued_count = 0;
     let event_key = hex::encode(Sha256::digest(envelope.to_string().as_bytes()));
     let data = minimal_data(data);
     for subscription in subscriptions {
@@ -68,9 +76,11 @@ async fn try_fan_out(
             },
         )
         .await;
-        if let Err(error) = queued {
-            tracing::error!(%subscription, %error, "webhook delivery not queued");
+        match queued {
+            Ok(_) => queued_count += 1,
+            Err(error) => tracing::error!(%subscription, %error, "webhook delivery not queued"),
         }
     }
-    tx.commit().await
+    tx.commit().await?;
+    Ok(queued_count)
 }

@@ -79,6 +79,9 @@ export const ipdService = {
     api.assignBedToWard(...args),
   removeBedFromWard: (...args: Parameters<typeof api.removeBedFromWard>) =>
     api.removeBedFromWard(...args),
+  updateWardBed: (...args: Parameters<typeof api.updateWardBed>) => api.updateWardBed(...args),
+  listBedTypes: () => api.listBedTypes(),
+  listLocations: () => api.listLocations(),
   listIpTypes: (...args: Parameters<typeof api.listIpTypes>) => api.listIpTypes(...args),
   updateIpType: (...args: Parameters<typeof api.updateIpType>) => api.updateIpType(...args),
   bedDashboardSummary: (...args: Parameters<typeof api.bedDashboardSummary>) =>
@@ -159,6 +162,12 @@ export const ipdService = {
   generateDischargeSummary: (...args: Parameters<typeof api.generateDischargeSummary>) =>
     api.generateDischargeSummary(...args),
   bedTransfer: (...args: Parameters<typeof api.bedTransfer>) => api.bedTransfer(...args),
+  checkRoomEligibility: (...args: Parameters<typeof api.checkRoomEligibility>) =>
+    api.checkRoomEligibility(...args),
+  setRoomRentLimit: (...args: Parameters<typeof api.setRoomRentLimit>) =>
+    api.setRoomRentLimit(...args),
+  listRoomConsentWitnesses: (...args: Parameters<typeof api.listRoomConsentWitnesses>) =>
+    api.listRoomConsentWitnesses(...args),
   expectedDischarges: (...args: Parameters<typeof api.expectedDischarges>) =>
     api.expectedDischarges(...args),
   listAnesthesiaComplications: (...args: Parameters<typeof api.listAnesthesiaComplications>) =>

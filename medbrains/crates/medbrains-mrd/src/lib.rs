@@ -1,6 +1,8 @@
 #![allow(clippy::too_many_lines)]
 
 mod access;
+pub mod crs;
+pub mod file_requests;
 
 use axum::{
     Extension, Json,
@@ -463,6 +465,7 @@ pub async fn update_record(
 //  Handlers — Record Movements
 // ══════════════════════════════════════════════════════════
 
+/// A record's movements, newest first: where the file has been and is now.
 pub async fn list_movements(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -471,9 +474,8 @@ pub async fn list_movements(
     require_permission(&claims, permissions::mrd::records::LIST)?;
     access::open_record(&state, &claims, record_id, "list movements").await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let rows = sqlx::query_as::<_, MrdRecordMovement>(
         "SELECT * FROM mrd_record_movements \
@@ -2534,12 +2536,12 @@ pub async fn file_case_sheet_packet(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::BadRequest("active shelf location is required".to_owned()))?;
-    if let Some(capacity) = location.capacity {
-        if location.current_count >= capacity {
-            return Err(AppError::BadRequest(
-                "selected shelf location is already at capacity".to_owned(),
-            ));
-        }
+    if let Some(capacity) = location.capacity
+        && location.current_count >= capacity
+    {
+        return Err(AppError::BadRequest(
+            "selected shelf location is already at capacity".to_owned(),
+        ));
     }
 
     let shelf_location = format!("{} - {}", location.code, location.name);
@@ -2733,6 +2735,9 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/mrd/births/{id}", get(get_birth))
         .route("/api/mrd/deaths", get(list_deaths).post(create_death))
         .route("/api/mrd/deaths/{id}", get(get_death))
+        .route("/api/mrd/crs", get(crs::list_events))
+        .route("/api/mrd/crs/{id}", put(crs::record_registration))
+        .route("/api/mrd/crs/{id}/form", get(crs::event_form))
         .route(
             "/api/mrd/retention-policies",
             get(list_retention_policies).post(create_retention_policy),
@@ -2787,4 +2792,5 @@ pub fn router() -> axum::Router<AppState> {
             "/api/mrd/stats/admission-discharge",
             get(stats_admission_discharge),
         )
+        .merge(file_requests::router())
 }

@@ -20,6 +20,14 @@ export const labService = {
   cancelLabOrder: (...args: Parameters<typeof api.cancelLabOrder>) => api.cancelLabOrder(...args),
   rejectSample: (...args: Parameters<typeof api.rejectSample>) => api.rejectSample(...args),
   addLabResults: (...args: Parameters<typeof api.addLabResults>) => api.addLabResults(...args),
+  listHeldAnalyserResults: (...args: Parameters<typeof api.listHeldAnalyserResults>) =>
+    api.listHeldAnalyserResults(...args),
+  listAnalyserCandidateOrders: (...args: Parameters<typeof api.listAnalyserCandidateOrders>) =>
+    api.listAnalyserCandidateOrders(...args),
+  attachAnalyserResults: (...args: Parameters<typeof api.attachAnalyserResults>) =>
+    api.attachAnalyserResults(...args),
+  dismissAnalyserResults: (...args: Parameters<typeof api.dismissAnalyserResults>) =>
+    api.dismissAnalyserResults(...args),
   updateLabReportStatus: (...args: Parameters<typeof api.updateLabReportStatus>) =>
     api.updateLabReportStatus(...args),
   getLabReportPrintData: (...args: Parameters<typeof api.getLabReportPrintData>) =>
@@ -27,6 +35,8 @@ export const labService = {
   lockLabReport: (...args: Parameters<typeof api.lockLabReport>) => api.lockLabReport(...args),
   acknowledgeCriticalAlert: (...args: Parameters<typeof api.acknowledgeCriticalAlert>) =>
     api.acknowledgeCriticalAlert(...args),
+  recordCriticalCall: (...args: Parameters<typeof api.recordCriticalCall>) =>
+    api.recordCriticalCall(...args),
   listDoctorCriticalAlerts: (...args: Parameters<typeof api.listDoctorCriticalAlerts>) =>
     api.listDoctorCriticalAlerts(...args),
   amendLabResult: (...args: Parameters<typeof api.amendLabResult>) => api.amendLabResult(...args),

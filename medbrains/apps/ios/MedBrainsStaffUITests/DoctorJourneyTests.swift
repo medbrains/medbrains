@@ -94,6 +94,15 @@ final class DoctorJourneyTests: JourneyCase {
         shoot("doctor-consultation-draft")
 
         tapWhenReady(el("consultation-sign"))
+        // Signing asks for the password again; the draft stays saved meanwhile.
+        let password = app.secureTextFields["step-up-password"]
+        XCTAssertTrue(password.waitForExistence(timeout: 15), "the sheet asks the doctor to confirm it's them")
+        XCTAssertTrue(el("consultation-confirm-identity").exists, "the form says the draft is saved and why it waits")
+        XCTAssertEqual(api.notes(visit.encounterId).first?["status"] as? String, "draft", "not signed without the password")
+        shoot("doctor-consultation-step-up")
+        password.typeText("not-the-password\n")
+        XCTAssertTrue(app.staticTexts["That password is not right."].waitForExistence(timeout: 10), "a typo keeps the sheet open")
+        password.typeText("\(doctor.password)\n")
         XCTAssertTrue(el("note-status-signed").waitForExistence(timeout: 15), "signed, on the sheet")
         let signed = api.notes(visit.encounterId).first
         XCTAssertEqual(signed?["status"] as? String, "signed")

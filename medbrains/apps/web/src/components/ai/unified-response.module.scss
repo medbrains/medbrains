@@ -18,6 +18,16 @@
   background: color-mix(in srgb, var(--mb-danger, var(--mantine-color-red-6)) 8%, transparent);
 }
 
+.toolUnchecked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--mb-warning-border, var(--mantine-color-yellow-6));
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mb-warning-bg, var(--mantine-color-yellow-0));
+}
+
 .toolBlockedMsg {
   color: var(--mb-danger, var(--mantine-color-red-7));
 }

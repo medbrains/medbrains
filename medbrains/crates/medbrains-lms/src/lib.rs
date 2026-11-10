@@ -1583,10 +1583,16 @@ pub struct AiQuestionOption {
     pub text: String,
 }
 
+/// System prompt for AI course generation.
+const COURSE_PREAMBLE: &str = "You are a medical education expert creating training courses \
+         for hospital staff. Generate comprehensive, clinically accurate \
+         course content with detailed module text (500-800 words each) \
+         and well-crafted quiz questions with explanations.";
+
 /// POST /api/lms/courses/ai-generate — generate a course outline + quiz using AI.
 ///
 /// Uses Rig.rs for type-safe structured extraction via Claude API.
-/// Requires `ANTHROPIC_API_KEY` env var. Returns a preview — admin reviews and saves.
+/// Uses the tenant's AI provider (`llm::extract`). Returns a preview — admin reviews and saves.
 pub async fn ai_generate_course(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -1604,10 +1610,6 @@ pub async fn ai_generate_course(
     let lang = req.language.as_deref().unwrap_or("English");
     let category = req.category.as_deref().unwrap_or("general");
 
-    let preamble = "You are a medical education expert creating training courses \
-         for hospital staff. Generate comprehensive, clinically accurate \
-         course content with detailed module text (500-800 words each) \
-         and well-crafted quiz questions with explanations.";
 
     let prompt = format!(
         "Generate a training course on: \"{topic}\"\n\
@@ -1628,9 +1630,16 @@ pub async fn ai_generate_course(
         num_questions = num_questions,
     );
 
-    let generated =
-        medbrains_server_services::llm::extract::<AiGeneratedCourse>(&state, &claims.tenant_id, preamble, &prompt)
-            .await?;
+    let preamble = medbrains_core::ai_redact::Redacted::fixed(COURSE_PREAMBLE);
+    // A course topic, not a record: "HIV counselling" is the subject.
+    let prompt = medbrains_server_services::llm::redact_topic(&prompt)?;
+    let generated = medbrains_server_services::llm::extract::<AiGeneratedCourse>(
+        &state,
+        &claims.tenant_id,
+        &preamble,
+        &prompt,
+    )
+    .await?;
 
     Ok(Json(generated))
 }
@@ -1754,3 +1763,4 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/lms/courses/ai-generate", post(ai_generate_course))
         .route("/api/lms/courses/ai-save", post(ai_save_course))
 }
+

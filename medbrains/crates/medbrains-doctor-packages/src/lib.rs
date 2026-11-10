@@ -1,7 +1,8 @@
 //! Doctor packages (admin) — package templates + inclusion lines.
 //! See `RFCs/sprints/SPRINT-doctor-activities.md` §2.3.
 
-use axum::routing::{delete,get,post};
+use axum::extract::rejection::JsonRejection;
+use axum::routing::{delete, get, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -159,9 +160,10 @@ pub async fn get_package(
 pub async fn create_package(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreatePackageRequest>,
+    body: Result<Json<CreatePackageRequest>, JsonRejection>,
 ) -> Result<Json<PackageWithInclusions>, AppError> {
     require_permission(&claims, permissions::admin::doctor_packages::MANAGE)?;
+    let Json(body) = body?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -219,9 +221,10 @@ pub async fn update_package(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<UpdatePackageRequest>,
+    body: Result<Json<UpdatePackageRequest>, JsonRejection>,
 ) -> Result<Json<DoctorPackage>, AppError> {
     require_permission(&claims, permissions::admin::doctor_packages::MANAGE)?;
+    let Json(body) = body?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -255,9 +258,10 @@ pub async fn add_inclusion(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(package_id): Path<Uuid>,
-    Json(body): Json<CreateInclusionRequest>,
+    body: Result<Json<CreateInclusionRequest>, JsonRejection>,
 ) -> Result<Json<DoctorPackageInclusion>, AppError> {
     require_permission(&claims, permissions::admin::doctor_packages::MANAGE)?;
+    let Json(body) = body?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

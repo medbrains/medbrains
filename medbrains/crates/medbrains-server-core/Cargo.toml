@@ -9,6 +9,7 @@ rust-version.workspace = true
 medbrains-api-keys = { path = "../medbrains-api-keys" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-crypto = { path = "../medbrains-crypto" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 medbrains-db-topology = { path = "../medbrains-db-topology" }

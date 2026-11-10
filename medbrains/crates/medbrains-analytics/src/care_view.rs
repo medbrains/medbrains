@@ -101,6 +101,16 @@ pub struct PatientCardRow {
     pub vitals_due: bool,
     pub fall_risk_level: Option<String>,
     pub latest_news2_score: Option<Decimal>,
+    /// The score charted with the latest vitals (NEWS2 / PEWS / MEOWS).
+    pub ews_tool: Option<String>,
+    pub ews_total: Option<i32>,
+    pub ews_band: Option<String>,
+    pub ews_incomplete: Option<bool>,
+    pub ews_next_due_at: Option<DateTime<Utc>>,
+    /// The last six scores, oldest first — NEWS2 only means anything as a trend.
+    pub ews_trend: Vec<i32>,
+    pub open_escalation_id: Option<Uuid>,
+    pub open_escalation_band: Option<String>,
     pub active_clinical_docs: i64,
     pub expected_discharge_date: Option<NaiveDate>,
 }
@@ -215,6 +225,7 @@ pub struct DischargeReadinessRow {
     pub expected_discharge_date: Option<NaiveDate>,
     pub billing_cleared: bool,
     pub pharmacy_cleared: bool,
+    pub nursing_cleared: bool,
     pub doctor_cleared: bool,
     pub pending_lab_count: i64,
     pub readiness_pct: i32,
@@ -279,8 +290,18 @@ pub async fn ward_patient_grid(
             COALESCE((SELECT COUNT(*) FROM ipd_medication_administration m
                 WHERE m.admission_id = ad.admission_id AND m.status = 'scheduled'
                 AND m.scheduled_at < NOW()), 0) AS overdue_meds,
-            COALESCE((SELECT EXTRACT(EPOCH FROM (NOW() - MAX(v.recorded_at))) / 3600 > 4
-                FROM vitals v WHERE v.encounter_id = ad.encounter_id), true) AS vitals_due,
+            -- Due by the score's band when the latest set was scored; else 4-hourly.
+            COALESCE(lv.ews_next_due_at < NOW(),
+                (SELECT EXTRACT(EPOCH FROM (NOW() - MAX(v.recorded_at))) / 3600 > 4
+                   FROM vitals v WHERE v.encounter_id = ad.encounter_id AND v.deleted_at IS NULL),
+                true) AS vitals_due,
+            lv.ews_tool, lv.ews_total, lv.ews_band, lv.ews_incomplete, lv.ews_next_due_at,
+            COALESCE(ARRAY(SELECT t.ews_total FROM (
+                SELECT v.ews_total, v.recorded_at FROM vitals v
+                 WHERE v.encounter_id = ad.encounter_id AND v.deleted_at IS NULL
+                   AND v.ews_total IS NOT NULL
+                 ORDER BY v.recorded_at DESC LIMIT 6) t ORDER BY t.recorded_at), '{}') AS ews_trend,
+            ox.id AS open_escalation_id, ox.band AS open_escalation_band,
             (SELECT ca.risk_level FROM ipd_clinical_assessments ca
                 WHERE ca.admission_id = ad.admission_id
                 AND ca.assessment_type = 'morse_fall_scale'
@@ -292,6 +313,13 @@ pub async fn ward_patient_grid(
             COALESCE((SELECT COUNT(*) FROM ipd_clinical_documentations cd
                 WHERE cd.admission_id = ad.admission_id AND NOT cd.is_resolved), 0) AS active_clinical_docs
         FROM admitted ad
+        LEFT JOIN LATERAL (
+            SELECT v.ews_tool, v.ews_total, v.ews_band, v.ews_incomplete, v.ews_next_due_at
+              FROM vitals v
+             WHERE v.encounter_id = ad.encounter_id AND v.deleted_at IS NULL
+             ORDER BY v.recorded_at DESC LIMIT 1) lv ON true
+        LEFT JOIN ews_escalations ox ON ox.encounter_id = ad.encounter_id
+             AND ox.status = 'open' AND ox.deleted_at IS NULL
         ORDER BY ad.is_critical DESC, ad.ward_name, ad.bed_name"
     )
     .bind(params.ward_id)
@@ -444,15 +472,18 @@ pub async fn vitals_checklist(
                 bl.bed_number AS bed_name,
                 lv.last_vitals_at,
                 EXTRACT(EPOCH FROM (NOW() - lv.last_vitals_at)) / 3600 AS hours_since_last,
-                CASE WHEN lv.last_vitals_at IS NULL
-                     OR EXTRACT(EPOCH FROM (NOW() - lv.last_vitals_at)) / 3600 > 4
-                     THEN true ELSE false END AS vitals_due
+                CASE WHEN lv.last_vitals_at IS NULL THEN true
+                     WHEN lv.next_due_at IS NOT NULL THEN lv.next_due_at < NOW()
+                     ELSE EXTRACT(EPOCH FROM (NOW() - lv.last_vitals_at)) / 3600 > 4
+                END AS vitals_due
          FROM admissions a
          JOIN patients p ON p.id = a.patient_id
          LEFT JOIN beds bl ON bl.id = a.bed_id
          LEFT JOIN LATERAL (
-             SELECT MAX(v.recorded_at) AS last_vitals_at
-             FROM vitals v WHERE v.encounter_id = a.encounter_id
+             -- The latest set's score decides when the next is due.
+             SELECT v.recorded_at AS last_vitals_at, v.ews_next_due_at AS next_due_at
+             FROM vitals v WHERE v.encounter_id = a.encounter_id AND v.deleted_at IS NULL
+             ORDER BY v.recorded_at DESC LIMIT 1
          ) lv ON true
          WHERE a.status = 'admitted'
            AND ($1::uuid IS NULL OR a.ward_id = $1)
@@ -577,48 +608,41 @@ pub async fn discharge_readiness(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Three clearances, not four. `ipd_discharge_tat_logs` records
-    // bill_finalized_at, pharmacy_cleared_at and discharge_summary_signed_at
-    // -- signing the summary is the doctor's act of clearing a discharge. It
-    // has never had billing_cleared_at, nursing_cleared_at or
-    // doctor_cleared_at, so this query errored on every call and the tracker
-    // showed nothing at all.
+    // Reads `ipd_discharge_tat_log`, the row the discharge workflow writes
+    // (`medbrains-ipd`, the IPD discharge TAT screen). This used to read
+    // `ipd_discharge_tat_logs`, a lookalike table nothing writes, so every
+    // clearance showed pending for ever.
     //
-    // Nursing clearance is dropped rather than renamed: no column anywhere
-    // records it. Adding one would need the screen that sets it too, and a
-    // gate nothing can satisfy would hold every patient at 75% for ever.
-    // Nursing clearance is a real step in a real discharge and this system
-    // does not capture it -- that is a gap, named here, not papered over.
-    //
-    // `admissions.bed_id` REFERENCES locations(id), per its foreign key. The
-    // join read `beds`, a table with no rows on any tenant, so the bed column
-    // was blank even when the rest worked.
+    // `admissions.bed_id` REFERENCES locations(id), per its foreign key.
     let rows = sqlx::query_as::<_, DischargeReadinessRow>(
         "SELECT a.id AS admission_id,
                 p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
                 p.uhid,
-                bl.bed_number AS bed_name,
+                bl.name AS bed_name,
                 w.name AS ward_name,
                 a.expected_discharge_date,
-                COALESCE(tat.bill_finalized_at IS NOT NULL, false) AS billing_cleared,
+                COALESCE(tat.billing_cleared_at IS NOT NULL, false) AS billing_cleared,
                 COALESCE(tat.pharmacy_cleared_at IS NOT NULL, false) AS pharmacy_cleared,
-                COALESCE(tat.discharge_summary_signed_at IS NOT NULL, false) AS doctor_cleared,
+                COALESCE(tat.nursing_cleared_at IS NOT NULL, false) AS nursing_cleared,
+                COALESCE(tat.doctor_cleared_at IS NOT NULL, false) AS doctor_cleared,
                 COALESCE((SELECT COUNT(*) FROM lab_orders lo
                     WHERE lo.encounter_id = a.encounter_id
                     AND lo.status NOT IN ('completed', 'cancelled')), 0) AS pending_lab_count,
                 CASE
                     WHEN tat.id IS NULL THEN 0
                     ELSE (
-                        (CASE WHEN tat.bill_finalized_at IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN tat.billing_cleared_at IS NOT NULL THEN 1 ELSE 0 END) +
                         (CASE WHEN tat.pharmacy_cleared_at IS NOT NULL THEN 1 ELSE 0 END) +
-                        (CASE WHEN tat.discharge_summary_signed_at IS NOT NULL THEN 1 ELSE 0 END)
-                    ) * 100 / 3
+                        (CASE WHEN tat.nursing_cleared_at IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN tat.doctor_cleared_at IS NOT NULL THEN 1 ELSE 0 END)
+                    ) * 100 / 4
                 END AS readiness_pct
          FROM admissions a
          JOIN patients p ON p.id = a.patient_id
-         LEFT JOIN beds bl ON bl.id = a.bed_id
+         LEFT JOIN locations bl ON bl.id = a.bed_id
          LEFT JOIN wards w ON w.id = a.ward_id
-         LEFT JOIN ipd_discharge_tat_logs tat ON tat.admission_id = a.id
+         LEFT JOIN ipd_discharge_tat_log tat
+                ON tat.admission_id = a.id AND tat.deleted_at IS NULL
          WHERE a.status = 'admitted'
            AND (
                a.expected_discharge_date <= CURRENT_DATE + INTERVAL '7 days'
@@ -671,8 +695,7 @@ pub async fn update_primary_nurse(
     Json(body): Json<UpdatePrimaryNurseRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::care_view::MANAGE_TASKS)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

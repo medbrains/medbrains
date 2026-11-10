@@ -92,7 +92,10 @@ function baselinePhrase(reading: KpiReading, baseline: KpiBaseline): string {
 /** The comparison line for the chosen baseline, or null when there is none to make. */
 export function compareKpi(reading: KpiReading, baseline: KpiBaseline): KpiComparison | null {
   const base = reading.baselines[baseline];
-  if (reading.value === null || base === null) return null;
+  if (reading.value === null) return null;
+  // Nothing to compare with (e.g. imported history without the field): say
+  // so, rather than reading the absence as a 0 the day differs from.
+  if (base === null) return { text: "No baseline yet", tone: "neutral", direction: "flat" };
   const phrase = baselinePhrase(reading, baseline);
   const delta = round(reading.value - base, reading.unit);
   if (delta === 0) return { text: `Same as ${phrase}`, tone: "neutral", direction: "flat" };

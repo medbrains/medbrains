@@ -1,9 +1,9 @@
 ---
-title: "When someone you love is struggling: mental health warning signs, how to help, and where to get support in India"
-description: "Mental health help in India: the signs someone needs support, how to start the conversation, the free Tele-MANAS helpline 14416, and when to seek urgent care."
+title: "When someone you love is struggling: mental health warning signs, how to help, and where to get support"
+description: "Mental health help: the signs someone needs support, how to start the conversation, the free Tele-MANAS helpline 14416, and when to seek urgent care."
 date: 2026-10-23
 category: patient-education
-seoTitle: "Mental health helpline India: Tele-MANAS | MedBrains Blog"
+seoTitle: "Mental health helpline Tele-MANAS 14416 | MedBrains Blog"
 featured: false
 tags: ["Mental health", "Tele-MANAS", "Depression", "Suicide prevention", "Mental Healthcare Act", "Family health"]
 faq:
@@ -11,7 +11,7 @@ faq:
     a: "Tele-MANAS is the Government of India's free, 24x7 tele-mental health service, launched on 10 October 2022. You can call 14416 or 1-800-891-4416. Trained counsellors answer first, and calls can be escalated to psychiatrists, clinical psychologists, psychiatric social workers and psychiatric nurses, with referral to in-person care through the District Mental Health Programme."
   - q: "Will asking someone whether they are thinking about suicide put the idea in their head?"
     a: "No. A review of the published research in Psychological Medicine found no study showing a significant increase in suicidal thoughts among people who were asked about them, and suggested that talking about it may reduce such thoughts. Asking directly and calmly is one of the most helpful things you can do."
-  - q: "Is attempting suicide a crime in India?"
+  - q: "Is attempting suicide punishable under the Mental Healthcare Act, 2017?"
     a: "Under section 115 of the Mental Healthcare Act, 2017, a person who attempts suicide is presumed, unless proved otherwise, to have severe stress and is not to be tried and punished. The government has a duty to provide that person with care, treatment and rehabilitation."
 sources:
   - title: "Ministry of Health and Family Welfare, via ANI. Health Ministry to observe World Mental Health Day 2026 on Oct 10; Tele MANAS receives 47.75 lakh calls since its launch (9 October 2026)"
@@ -50,7 +50,7 @@ cover:
 > health counsellor at any hour, call **Tele-MANAS on 14416 or
 > 1-800-891-4416**. The call is free.
 
-On 10 October, India marked World Mental Health Day. This year's global
+On 10 October, the world marked World Mental Health Day. This year's global
 theme, which the Union Health Ministry adopted for its observance, is "Lived
 experiences heard: real voices, real change": a reminder that the people who
 know most about mental illness are the people who have lived through it.
@@ -62,7 +62,7 @@ states and union territories. Of the 13,35,275 callers whose profile was
 recorded, 73.2% were between 18 and 45 years old: students, young workers,
 new parents, people in the busiest years of their lives.
 
-That is encouraging. It also means that, in many Indian homes, someone is
+That is encouraging. It also means that, in many homes, someone is
 quietly struggling and the people around them are not sure what to do. This
 guide is for them: the parent, the spouse, the friend, the room-mate.
 
@@ -204,7 +204,7 @@ government-run or government-funded facilities.
 
 ## Your rights under the Mental Healthcare Act, 2017
 
-India's mental health law is built around the dignity and choices of the
+The Mental Healthcare Act, 2017 is built around the dignity and choices of the
 person receiving care. Some of the rights it gives are worth knowing before
 you need them:
 
@@ -266,7 +266,7 @@ themselves, and let the hospital team know what you have seen.
 
 ## The bottom line
 
-Mental health conditions are common in India, treatable, and still too often
+Mental health conditions are common, treatable, and still too often
 hidden. The steps that help most are simple: notice the change, ask
 honestly, listen without judging, and help the person take the next step
 towards care. Recovery is possible, and many people who have been through a

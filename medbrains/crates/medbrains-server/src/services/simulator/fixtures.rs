@@ -103,10 +103,10 @@ pub fn random_diagnosis_weighted(
             if holiday_boost.iter().any(|c| c == code) {
                 w += festival_weight_boost;
             }
-            if natural_blend > 0.0 {
-                if let Some((_, n)) = natural_icds.iter().find(|(c, _)| c == code) {
-                    w += natural_blend * (*n as f32 / max_natural as f32);
-                }
+            if natural_blend > 0.0
+                && let Some((_, n)) = natural_icds.iter().find(|(c, _)| c == code)
+            {
+                w += natural_blend * (*n as f32 / max_natural as f32);
             }
             w
         })

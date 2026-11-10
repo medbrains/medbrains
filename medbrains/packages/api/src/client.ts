@@ -25,6 +25,7 @@ import type {
   AccessLogEntry,
   AccessLogQuery,
   AcknowledgeAlertRequest,
+  AcknowledgeEwsRequest,
   ActivateOrderSetRequest,
   ActivationResult,
   ActivationWithItems,
@@ -59,6 +60,9 @@ import type {
   AdmitFromOpdResponse,
   AdrReport,
   AdrReportPrintData,
+  AdtDelivery,
+  AdtDestination,
+  AdtDestinationInput,
   AdvanceAdjustment,
   AdvanceDirective,
   AdvanceReceiptPrintData,
@@ -86,6 +90,7 @@ import type {
   AmbulanceTripRow,
   AmcContractPrintData,
   AmendResultRequest,
+  AnalyserCandidateOrder,
   AnalyticsDoctorRevenueRow,
   AnalyzerOrderSent,
   AnalyzerWorklist,
@@ -111,7 +116,9 @@ import type {
   ApprovalListParams,
   ApprovalRequestDetail,
   ApprovalRequestSummary,
+  ApproveClaimSettlementRequest,
   ApproveDisposalRequest,
+  ApprovedMachine,
   ApproveIndentRequest,
   ApproveRejectRequest,
   ApproveWriteOffRequest,
@@ -191,6 +198,7 @@ import type {
   BillingLaneInput,
   BillingLaneName,
   BillingPackage,
+  BillingPaymentSettings,
   BillingQueueDisplay,
   BillingServicePackage,
   BillingSummaryReport,
@@ -291,6 +299,8 @@ import type {
   CensusWardRow,
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
+  ChargeAttentionItem,
+  ChargeAttentionSummary,
   ChargeMaster,
   ChartPage,
   ChartQuery,
@@ -312,6 +322,9 @@ import type {
   CiwaArRequest,
   CiwaArResult,
   ClaimNhcxView,
+  ClaimSettlementBackfillResult,
+  ClaimSettlementPosting,
+  ClaimSettlementReasonRequest,
   // Housekeeping
   CleaningSchedule,
   CleaningTask,
@@ -343,7 +356,10 @@ import type {
   CmsSettings,
   CmsSubscriber,
   CmsTag,
+  CodeBlueEventRow,
   CodeBlueResponder,
+  CodeTeamRoster,
+  CodeTeamTier,
   CodeTestRequest,
   CodeTestResult,
   CollectionEfficiencyReport,
@@ -373,12 +389,19 @@ import type {
   ComplianceCheckRow,
   // Regulatory
   ComplianceDashboard,
+  ComplianceDrill,
   ComplianceGap,
+  CompliancePolicy,
+  CompliancePolicyKind,
+  CompliancePolicyTemplate,
   ComplianceRequirement,
   ComplianceRow,
   ComponentSlipPrintData,
   ConcessionListResponse,
   ConfirmPoliceReceiptRequest,
+  ConnectedApp,
+  ConnectedAppCredentials,
+  ConnectedAppDelivery,
   // Orchestration Engine
   ConnectorHealthCheckResponse,
   ConnectorRow,
@@ -409,6 +432,7 @@ import type {
   CounterDisplayEvent,
   CounterDisplayStatus,
   CounterDisplayView,
+  CounterOpenTodayRow,
   CounterPatient,
   CourseWithModules,
   CoverageAssignment,
@@ -566,6 +590,8 @@ import type {
   CreateDrugInteractionRequest,
   CreateDrugScreenRequest,
   CreatedApiKey,
+  CreatedStudyShareLink,
+  CreatedVital,
   CreateEmergencyPoRequest,
   CreateEmployeeRequest,
   CreateEncounterRequest,
@@ -812,6 +838,7 @@ import type {
   CreateStoreIndentRequest,
   CreateStoreLocationRequest,
   CreateStoreStockMovementRequest,
+  CreateStudyShareLink,
   CreateSupplierPaymentRequest,
   CreateSurgeonPreferenceRequest,
   CreateSurveillanceEventRequest,
@@ -834,6 +861,7 @@ import type {
   CreateUrReviewRequest,
   CreateUserHospitalAssignment,
   CreateVaccinationRequest,
+  CreateVendorAccessGrant,
   CreateVendorRequest,
   CreateVirtualAccountRequest,
   CreateVirtualAccountResponse,
@@ -853,6 +881,8 @@ import type {
   CrossMatchRequisitionPrintData,
   CrossmatchReportPrintData,
   CrossmatchRequest,
+  CrsEvent,
+  CrsForm,
   CssdIndicatorResult,
   CssdInstrument,
   CssdInstrumentSet,
@@ -879,6 +909,7 @@ import type {
   // Custom Code
   CustomCodeSnippet,
   CustomRole,
+  DailyRevenueRow,
   DailySummary,
   DashboardStatsResponse,
   DashboardSummary,
@@ -941,10 +972,12 @@ import type {
   Diagnosis,
   DiagnosisCodingStatus,
   DiagnosisReference,
+  DiagnosticReferenceLevel,
   DialysisMachine,
   DialysisSession,
   DialysisSlot,
   Dialyzer,
+  DictationConfig,
   DietOrder,
   // Diet & Kitchen
   DietTemplate,
@@ -958,6 +991,10 @@ import type {
   DischargeSummary,
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
+  DismissChargeAttentionRequest,
+  DismissPreauthRequest,
+  // Pharmacy Phase 2
+  DispenseWitness,
   DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
@@ -995,8 +1032,11 @@ import type {
   DomainStatus,
   // Blood Bank
   DonorListResponse,
+  Dosimetry,
   DpdpConsentInput,
   DpdpConsentPrintData,
+  DpdpDashboard,
+  DrlAuditReport,
   DrugExpiryAlertPrintData,
   DrugInteraction,
   DrugInteractionCheckRequest,
@@ -1029,6 +1069,7 @@ import type {
   EndoscopyScope,
   EnergyAnalytics,
   EnrollmentWithCourse,
+  EnvironmentView,
   EodDigestHistory,
   EodDigestSubscription,
   EquipmentBreakdownReportPrintData,
@@ -1046,6 +1087,8 @@ import type {
   ErpExportRequest,
   ErQueueDisplay,
   ErResuscitationLog,
+  ErrorTrackingClientConfig,
+  ErrorTrackingSummary,
   ErTriageAssessment,
   // Emergency
   ErVisit,
@@ -1055,6 +1098,10 @@ import type {
   EventListResponse,
   EventSchema,
   EvidenceCompilation,
+  EwsEscalation,
+  EwsPlan,
+  EwsPolicy,
+  EwsScoringInputs,
   ExamHallTicketPrintData,
   // Billing Phase 3
   ExchangeRate,
@@ -1076,6 +1123,28 @@ import type {
   FireEquipmentInspectionPrintData,
   FireMockDrillReportPrintData,
   // Phase 3 Print Data - Clinical Charts
+  FlowAlert,
+  FlowBuilder,
+  FlowConfigZone,
+  FlowControlRoom,
+  FlowDecision,
+  FlowDetail,
+  FlowFloorLive,
+  FlowFloorSetup,
+  FlowFloorSummary,
+  FlowForecast,
+  FlowHistoryPoint,
+  FlowImpactReport,
+  FlowRecommendation,
+  FlowRunRequest,
+  FlowSaveDraft,
+  FlowSourceInput,
+  FlowSummary,
+  FlowSwitches,
+  FlowTestDrive,
+  FlowTicket,
+  FlowZoneConfigInput,
+  FlowZoneDetail,
   FluidBalanceChartPrintData,
   FmsEnergyReading,
   FmsFireDrill,
@@ -1125,12 +1194,17 @@ import type {
   GrnScanDraft,
   GrnScanListItem,
   GrnScanReview,
+  GroupCandidate,
+  GroupCandidateDecision,
   GroupDashboard,
   GroupDrugMaster,
+  GroupIdentity,
   GroupKpiSnapshot,
+  GroupScanOutcome,
   GroupTariffMaster,
   GroupTemplate,
   GroupTestMaster,
+  GrowthResponse,
   GstInvoicePrintData,
   GstReturnSummary,
   // Batch 2 — Analytics & Reporting
@@ -1139,11 +1213,26 @@ import type {
   HandoverSummaryResponse,
   HasBledRequest,
   HasBledResult,
+  HbcrCoding,
+  HealthAppReading,
+  HealthAppReadingsResult,
+  HealthDataSharing,
+  HealthDataSource,
+  HealthDataType,
+  HealthIntel,
   HealthPackage,
   HealthResponse,
+  HeldAnalyserMessage,
   HemovigilanceReport,
   HfrRegistration,
   HistopathReportPrintData,
+  HistoryImportBatch,
+  HistoryImportBatchRequest,
+  HistoryImportResult,
+  HistoryImportSettings,
+  Holiday,
+  HolidayCalendar,
+  HolidayInput,
   HomeCarePackage,
   HomeCareReferral,
   HomeCollectionStatsRow,
@@ -1163,7 +1252,11 @@ import type {
   HostelAllotmentOrderPrintData,
   HourlyFlowRow,
   HprCoverage,
+  HrmsEntityOutcome,
+  HrmsSyncStatus,
   HsnSummaryRow,
+  HumanexConfigInput,
+  HumanexConfigView,
   HypoglycemiaRecheckRequest,
   HypoglycemiaView,
   IamAccessRequest,
@@ -1180,6 +1273,10 @@ import type {
   IcuScore,
   IcuVentilatorRecord,
   IecApprovalCertificatePrintData,
+  IhipForm,
+  IhipLineList,
+  ImmunizationDueList,
+  ImmunizationScheduleSetting,
   ImplantRegistryEntry,
   ImportBankTransactionsRequest,
   ImportBankTransactionsResponse,
@@ -1275,11 +1372,19 @@ import type {
   JobStats,
   JournalEntry,
   JournalEntryDetail,
+  KanidmPerson,
+  KernelHealth,
   KioskCheckinResult,
   KitchenAudit,
   KitchenInventory,
   KitchenMenu,
   KitchenMenuItem,
+  KnowledgeArea,
+  KnowledgeChangeSet,
+  KnowledgeChangeSetDetail,
+  KnowledgeChangeSetFilter,
+  KnowledgeLiveRow,
+  KnowledgeProof,
   KpiTile,
   LabAnalyzerWorklistRow,
   LabB2bClient,
@@ -1288,6 +1393,7 @@ import type {
   LabCalibration,
   LabCollectionCenter,
   LabCriticalAlert,
+  LabCriticalCall,
   LabCrossmatchLink,
   LabCytologyReport,
   LabEqasResult,
@@ -1331,6 +1437,8 @@ import type {
   LeaveActionRequest,
   LeaveApplicationPrintData,
   LeaveBalance,
+  LeaveDayCount,
+  LeaveListRow,
   LeaveRequest,
   LicenseDashboardItem,
   LinenCondemnation,
@@ -1341,6 +1449,7 @@ import type {
   LinkCampLabSampleRequest,
   LinkHfrRequest,
   LinkMlcRequest,
+  LinkUnmatchedStudyResult,
   ListAssetsParams,
   ListCampAssetCandidatesParams,
   ListMrdCaseSheetPacketsParams,
@@ -1366,6 +1475,7 @@ import type {
   LtcMedication,
   LungProtectiveRequest,
   LungProtectiveResult,
+  MachineList,
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
@@ -1440,23 +1550,31 @@ import type {
   ModuleEntitySchema,
   ModuleSummary,
   ModuleToken,
+  MonitorReading,
   MonthlySurveillanceReport,
   MortuaryRecord,
   MoveMarketingStageRequest,
   MpiMatchRequest,
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
+  // MRD
+  MrdBackscanItem,
   MrdBirthRegister,
   MrdCaseSheetCompletenessResponse,
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
-  // MRD
+  MrdDeliveryTimeRow,
+  MrdDigitalSummary,
+  MrdFileRequest,
+  MrdFileScanRequest,
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
+  MrdPullListBuilt,
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
+  MrdVisitFileStatus,
   MyDayResponse,
   MyProfileResponse,
   MyShiftResponse,
@@ -1466,6 +1584,7 @@ import type {
   NabhRollupResponse,
   NablDocumentSummary,
   NablQualityReportPrintData,
+  NamePatientChargeAttentionRequest,
   NdpsListResponse,
   NdpsRegisterEntry,
   NdpsRegisterPrintData,
@@ -1473,6 +1592,8 @@ import type {
   NearExpiryRow,
   NeedleStickIncident,
   NewbornRecord,
+  NewKnowledgeChangeSet,
+  NewResearchExport,
   News2Request,
   News2Result,
   NewsFeedArticle,
@@ -1491,6 +1612,7 @@ import type {
   NhcxSlaReport,
   NhcxStatus,
   NhcxTask,
+  NikshaySheet,
   NmcComplianceReportPrintData,
   NonPayableRule,
   // Scheduling
@@ -1499,6 +1621,8 @@ import type {
   Note,
   NoteSectionPatch,
   NoteType,
+  NotifiableList,
+  NotifiableOverride,
   NotifiableReport,
   NotificationListResponse,
   NuclearMedAdministration,
@@ -1513,6 +1637,7 @@ import type {
   OAuthConnection,
   OAuthExchangeRequest,
   OAuthProviderInfo,
+  OAuthTokenResponse,
   OccHealthAnalytics,
   OccHealthDrugScreen,
   OccHealthExposure,
@@ -1540,6 +1665,7 @@ import type {
   OpdProcedureConsentPrintData,
   OpdRegistrationPolicy,
   OpenCampRegistrationEncounterRequest,
+  OpenedIncident,
   OperationNotesPrintData,
   OphthoExam,
   OrderBasketDraft,
@@ -1583,6 +1709,9 @@ import type {
   PaediatricFluidResult,
   PainAssessment,
   PainAssessmentPrintData,
+  PaperlessQuery,
+  PaperlessRebuilt,
+  PaperlessReport,
   PaRequirementRule,
   Patient,
   PatientAccessLogRow,
@@ -1602,6 +1731,7 @@ import type {
   PatientDataSummary,
   PatientDiagnosisRow,
   PatientDocument,
+  PatientDoseRecord,
   PatientDpdpConsent,
   PatientDues,
   PatientFamilyLink,
@@ -1610,6 +1740,7 @@ import type {
   PatientFlowSnapshot,
   PatientIdentifier,
   PatientImmunization,
+  PatientImmunizationSchedule,
   PatientInvoiceRow,
   PatientLabOrderRow,
   PatientListResponse,
@@ -1658,6 +1789,8 @@ import type {
   PendingDischargeRow,
   PendingSafetyReview,
   PendingSignoffEntry,
+  PerioChart,
+  PerioTooth,
   PersonalizeDashboardRequest,
   PesoComplianceReportPrintData,
   PestControlLog,
@@ -1677,6 +1810,7 @@ import type {
   PharmacyDeliveryList,
   PharmacyDestructionLog,
   PharmacyDispatchStatus,
+  PharmacyDispenseContext,
   PharmacyDrugRecall,
   PharmacyEmergencyKit,
   PharmacyOrder,
@@ -1691,13 +1825,13 @@ import type {
   PharmacyQueueDisplay,
   PharmacyReturn,
   PharmacyRxDetailResponse,
+  PharmacySafetyRecordRow,
   PharmacySalesRow,
   PharmacyStockTransaction,
   PharmacyStoreAssignment,
   PharmacyStoreIndent,
   PharmacySubstitute,
   PharmacyTransferRequest,
-  // Pharmacy Phase 2
   PharmacyValidationResult,
   PickLine,
   PincodeResult,
@@ -1727,7 +1861,9 @@ import type {
   PostNhcxPaymentRequest,
   PostnatalRecord,
   PostopOrdersPrintData,
+  PostureReport,
   PreAuthorizationRequest,
+  PreauthAlertSettings,
   PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
@@ -1748,6 +1884,8 @@ import type {
   PriorAuthDetail,
   PriorAuthDocument,
   PriorAuthRequestRow,
+  PrivacyOfficer,
+  PrivacyOfficerRole,
   PrivacyRequest,
   ProcedureCatalog,
   ProcedureConsent,
@@ -1778,7 +1916,11 @@ import type {
   PublicBookingResponse,
   PublicEnquiryRequest,
   PublicEnquiryResponse,
+  PublicHealthFacility,
   PublicInvite,
+  PublicPrivacyContact,
+  PublicShareLink,
+  PublicSignatureCheck,
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
@@ -1821,6 +1963,8 @@ import type {
   QuizAttemptResult,
   QuizAttemptStart,
   RadiationDoseRecord,
+  RadiationEquipment,
+  RadiationSafetyAlert,
   RadiationSession,
   RadiologyAppointment,
   RadiologyDicomStudy,
@@ -1855,14 +1999,20 @@ import type {
   ReconSummary,
   RecordAdherenceRequest,
   RecordBedsideVideoViewRequest,
+  RecordClaimSettlementRequest,
+  RecordCriticalCallRequest,
+  RecordCrsRegistrationRequest,
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
+  RecordDosimetryReading,
+  RecordDrillRequest,
   RecordIncidentNoticeRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
   RecordPatientImmunization,
   RecordPaymentRequest,
+  RecordPregnancyCheck,
   RecordReactionRequest,
   RecordScoreRequest,
   RecordSecurityTagEventRequest,
@@ -1880,6 +2030,10 @@ import type {
   RegisterAbdmBridge,
   RegisterHfrRequest,
   RegistrationCardPrintData,
+  RegistryCase,
+  RegistryCodeLists,
+  RegistrySheet,
+  RegistryWorklistRow,
   RegulatoryBody,
   RegulatorySubmission,
   // Specialty Clinical: PMR / Audiology
@@ -1897,9 +2051,12 @@ import type {
   RepeatRow,
   ReportCatalogResponse,
   ReportDataResponse,
+  RequestEnhancementRequest,
   Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
+  ResearchExport,
+  ResearchExportFile,
   ResearchProposalFormPrintData,
   ResendLinkRequest,
   ResolveCommAlertRequest,
@@ -1923,12 +2080,16 @@ import type {
   ReturnResult,
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
+  RevenueAlert,
+  RevenueAlertKind,
   ReviewBreakGlassRequest,
   ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
   ReviewPostAction,
+  ReviewRequest,
   ReviewRoiInput,
   ReviewStewardshipRequest,
+  ReviewSummary,
   RevokeConsentRequest,
   RevokeCredentialRequest,
   RevokePassRequest,
@@ -1936,6 +2097,11 @@ import type {
   RoiAccessInput,
   RoiAccessLogRow,
   RoiRequest,
+  RoomCheck,
+  RoomConsentInput,
+  RoomConsentWitness,
+  RoomRentLimit,
+  RoomRentLimitInput,
   RoomTurnaround,
   RoomUtilization,
   RunPayoutsRequest,
@@ -1948,6 +2114,9 @@ import type {
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
   SaveNhcxSettings,
+  SaveRadiationEquipment,
+  SaveReferenceLevel,
+  SaveTbDetailsRequest,
   SaveUhiSettings,
   ScheduleAnalytics,
   ScheduleAuditsRequest,
@@ -1960,6 +2129,7 @@ import type {
   ScopeStatus,
   ScoreAppointmentRequest,
   ScoreBatchRequest,
+  ScoredVital,
   SearchClinicalCorpusParams,
   SearchTerminologyParams,
   SecureTenantSettingRow,
@@ -1967,6 +2137,7 @@ import type {
   SecurityAccessLog,
   SecurityBandMatchResult,
   SecurityCamera,
+  SecurityCheckStatus,
   SecurityCodeDebrief,
   SecurityIncident,
   SecurityIncidentUpdate,
@@ -1985,17 +2156,22 @@ import type {
   ServiceBondAgreementPrintData,
   ServiceRow,
   ServiceTimeStats,
+  SessionView,
   SetCampusFenceRequest,
   SetDiagnosisCodingRequest,
   SetDonorDeferralRequest,
+  SetEwsPlanRequest,
   SetHprRequest,
   SetKeys,
+  SetPrivacyOfficerRequest,
   SettleDayRequest,
   SettleDayResult,
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
+  SignableTypeInfo,
   SignatureCredential,
+  SignatureVerifyLink,
   SignBasketRequest,
   SignBasketResponse,
   SignedRecord,
@@ -2032,6 +2208,7 @@ import type {
   // Specialty Clinical: Other Specialties
   SpecialtyTemplate,
   SsoGroupMapping,
+  SsoLink,
   SsoProvider,
   SsoPublicProvider,
   StaffAttendanceReportPrintData,
@@ -2062,7 +2239,9 @@ import type {
   StoreStockMovement,
   // Phase 6: Academic/Medical College Forms
   StudentAdmissionFormPrintData,
+  StudyShareLink,
   SubmitBedsideFeedbackRequest,
+  SubmitIhipLineListRequest,
   SubmitPostForReview,
   SubmitPreauthToNhcxRequest,
   SubscribeRequest,
@@ -2081,6 +2260,7 @@ import type {
   TatRecord,
   TatRecordSummary,
   TaxCategoryRow,
+  TbCase,
   TdsDeduction,
   TeachingConsentPrintData,
   TeamLeaveResponse,
@@ -2142,7 +2322,10 @@ import type {
   TvDisplay,
   UhiRequest,
   UhiSettingsView,
+  UnbilledScanResult,
   UnifiedAsset,
+  UnmatchedStudy,
+  UnmatchedStudyStatus,
   UnreadCountResponse,
   UnsignedNote,
   UpdateAdmissionRequest,
@@ -2165,6 +2348,7 @@ import type {
   UpdateBedStatusRequest,
   UpdateBedsideRequestStatusPayload,
   UpdateBedsideVideoRequest,
+  UpdateBillingPaymentSettings,
   UpdateBirthRecordRequest,
   UpdateBmeBreakdownStatusRequest,
   UpdateBmeCalibrationRequest,
@@ -2298,6 +2482,7 @@ import type {
   UpdatePipelineStatusRequest,
   UpdatePostopRecordRequest,
   UpdatePreAuthRequest,
+  UpdatePreauthAlertSettings,
   UpdatePreopAssessmentRequest,
   UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
@@ -2347,6 +2532,7 @@ import type {
   UpsertMarketingAreaRequest,
   UpsertMarketingCampaignRequest,
   UpsertNhcxParticipantRequest,
+  UpsertNotifiableOverrideRequest,
   UpsertParLevelRequest,
   UpsertPreopHandoffInput,
   UpsertQueuePriorityRequest,
@@ -2357,6 +2543,7 @@ import type {
   UrStatusConversion,
   UserFacilityAssignment,
   UserHospitalAssignment,
+  UserImportResult,
   UserWithAssignments,
   // Utilization Review
   UtilizationReview,
@@ -2364,6 +2551,8 @@ import type {
   VedAnalysisRow,
   // Procurement
   Vendor,
+  VendorAccessEvent,
+  VendorAccessGrant,
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
@@ -2398,6 +2587,7 @@ import type {
   VoidMedicalCertificateRequest,
   VteRiskAssessment,
   Vulnerability,
+  VulnerabilityQuery,
   WaitEstimate,
   // IPD Phase 2
   WaitingRoomItem,
@@ -2409,6 +2599,8 @@ import type {
   WardGridResponse,
   WardListRow,
   WardOnDutyRow,
+  WardStockConsumeRequest,
+  WardStockConsumeResponse,
   WardStockRow,
   WaterQualityTestPrintData,
   WebhookDelivery,
@@ -2430,6 +2622,7 @@ import type {
   WoundCertificatePrintData,
   WristbandPrintData,
 } from "@medbrains/types";
+
 import { getApiBase } from "./config.js";
 
 // Re-export type guards for use by consumers
@@ -2486,8 +2679,20 @@ export {
 // Import for internal use
 import {
   describeShapeDrift,
+  flowBuilderResponseSchema,
+  flowControlRoomResponseSchema,
+  flowDetailResponseSchema,
+  flowImpactResponseSchema,
+  flowListResponseSchema,
+  flowTestDriveResponseSchema,
+  flowTicketOrNullResponseSchema,
+  flowTicketResponseSchema,
   invoiceDetailResponseSchema,
   invoiceListResponseSchema,
+  knowledgeChangeSetDetailResponseSchema,
+  knowledgeChangeSetListResponseSchema,
+  knowledgeLiveRowsResponseSchema,
+  knowledgeProofResponseSchema,
   labOrderDetailResponseSchema,
   labOrderListResponseSchema,
   labResultListResponseSchema,
@@ -3062,6 +3267,13 @@ export interface AssignPharmacyStaffRequest {
   is_default?: boolean;
 }
 
+/** One patient behind an assistant aggregate row (`GET /ai/aggregate/{metric}/patients`). */
+export interface AiAggregatePatient {
+  patient_id: string;
+  name: string;
+  uhid: string;
+}
+
 export interface AiConversationSummary {
   id: string;
   title: string | null;
@@ -3073,6 +3285,8 @@ export interface AiConversationMessage {
   role: string;
   content: string;
   created_at: string;
+  /** What an answer kept besides its text: widgets, steps, sources, notices, usage. */
+  parts?: Record<string, unknown> | null;
 }
 
 export const api = {
@@ -3122,6 +3336,10 @@ export const api = {
     });
   },
   listAiConversations: () => request<AiConversationSummary[]>("/ai/conversations"),
+  aiAggregatePatients: (metric: string, params: { key: string; from: string; to: string }) =>
+    request<AiAggregatePatient[]>(
+      `/ai/aggregate/${metric}/patients?${new URLSearchParams(params)}`,
+    ),
 
   // VPN platform — device enrollment (RFC-VPN-PLATFORM).
   enrollVpn: (deviceName: string) =>
@@ -3143,6 +3361,8 @@ export const api = {
     request<{ status: string }>(`/vpn/devices/${id}/revoke`, { method: "POST" }),
   getAiConversationMessages: (id: string) =>
     request<AiConversationMessage[]>(`/ai/conversations/${id}/messages`),
+  aiReplayWidget: (messageId: string, index: number) =>
+    request<Record<string, unknown>>(`/ai/messages/${messageId}/widgets/${index}`),
 
   // Auth
   login: async (data: LoginRequest): Promise<LoginResponse> => {
@@ -3172,6 +3392,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getErrorTrackingClientConfig: () =>
+    request<ErrorTrackingClientConfig>("/public/error-tracking/config"),
+  getErrorTrackingSummary: () => request<ErrorTrackingSummary>("/admin/error-tracking/summary"),
+  getKernelHealth: () => request<KernelHealth>("/admin/kernel"),
+  getHealthIntel: () => request<HealthIntel>("/health-intel"),
+  /** The paperless meter for a range of days (default: the last 30). */
+  getPaperless: (params?: PaperlessQuery) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined) qs.set(k, String(v));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<PaperlessReport>(`/analytics/paperless${suffix}`);
+  },
+  /** Recount the paperless meter's last `days` days now. */
+  refreshPaperless: (days?: number) =>
+    request<PaperlessRebuilt>("/analytics/paperless/refresh", {
+      method: "POST",
+      body: JSON.stringify({ days }),
+    }),
+  getHealthEnvironment: () => request<EnvironmentView>("/health-intel/environment"),
   refreshToken: async (): Promise<RefreshResponse> => {
     const resp = await refreshSession();
     if (!resp) {
@@ -3206,7 +3445,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(user_id ? { user_id } : {}),
     }),
-  changePassword: (data: { current_password: string; new_password: string }) =>
+  changePassword: (data: { current_password: string; new_password: string; email?: string }) =>
     request<{ status: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify(data),
@@ -3370,6 +3609,44 @@ export const api = {
   listWebhookDeliveries: (id: string) =>
     request<WebhookDelivery[]>(`/admin/webhooks/${id}/deliveries`),
 
+  // ── connected apps (RFC-HOSPITAL-OS C1) ──────────────────────────────────
+  listConnectedApps: () => request<ConnectedApp[]>("/admin/connected-apps"),
+  /** Register from a manifest. The response carries the credentials, once. */
+  registerConnectedApp: (manifest: unknown) =>
+    request<ConnectedAppCredentials>("/admin/connected-apps", {
+      method: "POST",
+      body: JSON.stringify({ manifest }),
+    }),
+  approveConnectedApp: (id: string) =>
+    request<{ approved: boolean }>(`/admin/connected-apps/${id}/approve`, { method: "POST" }),
+  /** Cuts the app off at once: its tokens are revoked in the same transaction. */
+  revokeConnectedApp: (id: string, reason?: string) =>
+    request<{ revoked: boolean; tokens_revoked: number }>(`/admin/connected-apps/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  rotateConnectedAppSecret: (id: string) =>
+    request<ConnectedAppCredentials>(`/admin/connected-apps/${id}/rotate-secret`, {
+      method: "POST",
+    }),
+  listConnectedAppDeliveries: (id: string) =>
+    request<ConnectedAppDelivery[]>(`/admin/connected-apps/${id}/deliveries`),
+  /**
+   * OAuth 2.0 client credentials. Called by connected apps (see `@medbrains/sdk`),
+   * not by the web app; here so the contract check pairs the route.
+   */
+  oauthToken: (clientId: string, clientSecret: string, scope?: string) =>
+    request<OAuthTokenResponse>("/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+        ...(scope ? { scope } : {}),
+      }).toString(),
+    }),
+
   // ── central approvals ─────────────────────────────────────────────────────
   //
   // One set of methods for every request type. What a request *is* — its form,
@@ -3445,6 +3722,155 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getOnboardingWorkbook: () => request<OnboardingWorkbook>("/setup/workbook"),
+  getHistoryImportSettings: () => request<HistoryImportSettings>("/history-import/settings"),
+  saveHistoryImportSettings: (data: HistoryImportSettings) =>
+    request<HistoryImportSettings>("/history-import/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  runHistoryImportBatch: (data: HistoryImportBatchRequest) =>
+    request<HistoryImportResult>("/history-import/batches", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listHistoryImportBatches: () => request<HistoryImportBatch[]>("/history-import/batches"),
+  getHistoryImportBatch: (id: string) =>
+    request<HistoryImportBatch>(`/history-import/batches/${id}`),
+  listKnowledgeChangeSets: (filter: KnowledgeChangeSetFilter = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(filter).filter((e): e is [string, string] => Boolean(e[1])),
+    ).toString();
+    return checkedRequest<KnowledgeChangeSet[]>(
+      knowledgeChangeSetListResponseSchema,
+      `/knowledge/change-sets${qs ? `?${qs}` : ""}`,
+    );
+  },
+  getKnowledgeChangeSet: (id: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}`,
+    ),
+  createKnowledgeChangeSet: (data: NewKnowledgeChangeSet) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      "/knowledge/change-sets",
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  previewKnowledgeChangeSet: (id: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/preview`,
+      { method: "POST" },
+    ),
+  approveKnowledgeChangeSet: (id: string, note?: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/approve`,
+      { method: "POST", body: JSON.stringify({ note }) },
+    ),
+  rejectKnowledgeChangeSet: (id: string, note?: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/reject`,
+      { method: "POST", body: JSON.stringify({ note }) },
+    ),
+  applyKnowledgeChangeSet: (id: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/apply`,
+      { method: "POST" },
+    ),
+  rollbackKnowledgeChangeSet: (id: string, reason: string) =>
+    checkedRequest<KnowledgeChangeSetDetail>(
+      knowledgeChangeSetDetailResponseSchema,
+      `/knowledge/change-sets/${id}/rollback`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
+  getKnowledgeChangeSetProof: (id: string) =>
+    checkedRequest<KnowledgeProof>(
+      knowledgeProofResponseSchema,
+      `/knowledge/change-sets/${id}/proof`,
+    ),
+  listKnowledgeLiveRows: (area: KnowledgeArea) =>
+    checkedRequest<KnowledgeLiveRow[]>(
+      knowledgeLiveRowsResponseSchema,
+      `/knowledge/areas/${area}/rows`,
+    ),
+  listFlows: () => checkedRequest<FlowSummary[]>(flowListResponseSchema, "/flows"),
+  getFlow: (code: string) =>
+    checkedRequest<FlowDetail>(flowDetailResponseSchema, `/flows/${encodeURIComponent(code)}`),
+  previewFlowImpact: (code: string, switches: FlowSwitches) =>
+    checkedRequest<FlowImpactReport>(
+      flowImpactResponseSchema,
+      `/flows/${encodeURIComponent(code)}/impact`,
+      { method: "POST", body: JSON.stringify({ switches }) },
+    ),
+  getFlowControlRoom: (code: string) =>
+    checkedRequest<FlowControlRoom>(
+      flowControlRoomResponseSchema,
+      `/flows/${encodeURIComponent(code)}/control-room`,
+    ),
+  startFlow: (code: string, subjectId: string) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/start`,
+      { method: "POST" },
+    ),
+  getFlowTicket: (code: string, subjectId: string) =>
+    checkedRequest<FlowTicket | null>(
+      flowTicketOrNullResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/ticket`,
+    ),
+  runFlowStation: (code: string, subjectId: string, data: FlowRunRequest) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/run`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  getFlowBuilder: (code: string) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build`,
+    ),
+  saveFlowDraft: (code: string, data: FlowSaveDraft) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/draft`,
+      { method: "PUT", body: JSON.stringify(data) },
+    ),
+  discardFlowDraft: (code: string) =>
+    checkedRequest<FlowBuilder>(
+      flowBuilderResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/draft`,
+      { method: "DELETE" },
+    ),
+  dryRunFlowDraft: (code: string, revision: number) =>
+    checkedRequest<FlowTestDrive>(
+      flowTestDriveResponseSchema,
+      `/flows/${encodeURIComponent(code)}/build/dry-run`,
+      { method: "POST", body: JSON.stringify({ revision }) },
+    ),
+  completeFlowTask: (code: string, subjectId: string, station: string) =>
+    checkedRequest<FlowTicket>(
+      flowTicketResponseSchema,
+      `/flows/${encodeURIComponent(code)}/subjects/${subjectId}/tasks/${station}/complete`,
+      { method: "POST" },
+    ),
+  listResearchExports: () => request<ResearchExport[]>("/research/exports"),
+  createResearchExport: (data: NewResearchExport) =>
+    request<ResearchExport>("/research/exports", { method: "POST", body: JSON.stringify(data) }),
+  approveResearchExport: (id: string, note?: string) =>
+    request<ResearchExport>(`/research/exports/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  rejectResearchExport: (id: string, note?: string) =>
+    request<ResearchExport>(`/research/exports/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  getResearchExportFile: (id: string, file: "data" | "dictionary") =>
+    request<ResearchExportFile>(`/research/exports/${id}/files/${file}`),
   importOnboardingWorkbook: (data: WorkbookSheets & { dry_run: boolean }) =>
     request<WorkbookImportResult>("/setup/workbook/import", {
       method: "POST",
@@ -4075,7 +4501,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   importUsers: (data: CsvImportRequest) =>
-    request<CsvImportResult>("/setup/users/import", {
+    request<UserImportResult>("/setup/users/import", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -4455,12 +4881,49 @@ export const api = {
   // and the desk has to find them whoever registered them. Identity only.
   findPatients: (q: string) =>
     request<MpiMatchResult[]>(`/patients/find?q=${encodeURIComponent(q)}`),
+  transliterateName: (text: string, to: string) =>
+    request<{ suggestions: string[] }>(
+      `/patients/transliterate?text=${encodeURIComponent(text)}&to=${encodeURIComponent(to)}`,
+    ),
 
   // MPI
   matchPatients: (data: MpiMatchRequest) =>
     request<MpiMatchResult[]>("/patients/match", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  // Group patient identity — linked across a hospital group, never merged
+  getGroupIdentity: (patientId: string) =>
+    request<GroupIdentity>(`/patients/${patientId}/group-identity`),
+  scanGroupIdentity: (patientId: string) =>
+    request<GroupScanOutcome>(`/patients/${patientId}/group-identity/scan`, { method: "POST" }),
+  listGroupIdentityCandidates: (status: "pending" | "linked" | "rejected" = "pending") =>
+    request<GroupCandidate[]>(`/patients/group-identity/candidates?status=${status}`),
+  decideGroupIdentityCandidate: (id: string, data: GroupCandidateDecision) =>
+    request<GroupCandidate>(`/patients/group-identity/candidates/${id}/decide`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  // HL7 ADT outbound feeds
+  listHl7AdtDestinations: () => request<AdtDestination[]>("/integrations/hl7-adt/destinations"),
+  createHl7AdtDestination: (data: AdtDestinationInput) =>
+    request<AdtDestination>("/integrations/hl7-adt/destinations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateHl7AdtDestination: (id: string, data: AdtDestinationInput) =>
+    request<AdtDestination>(`/integrations/hl7-adt/destinations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteHl7AdtDestination: (id: string) =>
+    request<{ deleted: string }>(`/integrations/hl7-adt/destinations/${id}`, { method: "DELETE" }),
+  listHl7AdtDeliveries: () => request<AdtDelivery[]>("/integrations/hl7-adt/deliveries"),
+  unlinkGroupIdentity: (linkId: string, reason: string) =>
+    request<{ unlinked: string }>(`/patients/group-identity/links/${linkId}/unlink`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
 
   // ── Patient: Merge ─────────────────────────────
@@ -4544,9 +5007,10 @@ export const api = {
       { method: "PUT", body: JSON.stringify({ visible }) },
     ),
   // Public — how a hospital signs in: by its code, or (no code) by the
-  // hospital's own domain the page is on. 404 when neither names one.
+  // hospital's own domain the page is on. null when the domain names none;
+  // 404 when the code names none.
   getSignInOptions: (code?: string) =>
-    request<SignInOptions>(
+    request<SignInOptions | null>(
       `/auth/sign-in-options${code ? `?code=${encodeURIComponent(code)}` : ""}`,
     ),
   // ── Enterprise SSO (admin config) ──
@@ -4567,6 +5031,16 @@ export const api = {
     }),
   deleteSsoProvider: (id: string) =>
     request<{ deleted: boolean }>(`/admin/sso/providers/${id}`, { method: "DELETE" }),
+  listKanidmPeople: (q: string) =>
+    request<KanidmPerson[]>(`/admin/identity/kanidm/people?q=${encodeURIComponent(q)}`),
+  getUserSsoLink: (userId: string) => request<SsoLink | null>(`/admin/users/${userId}/sso-link`),
+  linkUserSso: (userId: string, subject: string) =>
+    request<SsoLink>(`/admin/users/${userId}/sso-link`, {
+      method: "PUT",
+      body: JSON.stringify({ subject }),
+    }),
+  unlinkUserSso: (userId: string) =>
+    request<{ unlinked: boolean }>(`/admin/users/${userId}/sso-link`, { method: "DELETE" }),
   listSsoGroupMappings: (providerId: string) =>
     request<SsoGroupMapping[]>(`/admin/sso/providers/${providerId}/mappings`),
   createSsoGroupMapping: (providerId: string, data: CreateSsoGroupMappingRequest) =>
@@ -4787,13 +5261,44 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Monitor readings waiting for a nurse, newest first. */
+  listMonitorReadings: (encounterId: string) =>
+    request<MonitorReading[]>(`/nurse/encounters/${encounterId}/monitor-readings`),
+  confirmMonitorReading: (id: string, data: EwsScoringInputs & { notes?: string }) =>
+    request<CreatedVital>(`/nurse/monitor-readings/${id}/confirm`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  discardMonitorReading: (id: string, reason: string) =>
+    request<{ status: string }>(`/nurse/monitor-readings/${id}/discard`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   createNurseVital: (data: CreateVitalRequest & { encounter_id: string }) =>
-    request<Vital>("/nurse/vitals", {
+    request<CreatedVital>("/nurse/vitals", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   listNurseVitals: (encounterId: string) =>
-    request<Vital[]>(`/nurse/vitals/encounter/${encounterId}`),
+    request<ScoredVital[]>(`/nurse/vitals/encounter/${encounterId}`),
+  listEwsEscalations: (params?: { status?: "open" | "acknowledged" | "all"; ward_id?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params as Record<string, string>)}` : "";
+    return request<EwsEscalation[]>(`/nurse/ews/escalations${qs}`);
+  },
+  acknowledgeEwsEscalation: (id: string, data: AcknowledgeEwsRequest) =>
+    request<EwsEscalation>(`/nurse/ews/escalations/${id}/acknowledge`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getEwsPlan: (encounterId: string) => request<EwsPlan>(`/nurse/ews/plan/${encounterId}`),
+  setEwsPlan: (encounterId: string, data: SetEwsPlanRequest) =>
+    request<EwsPlan>(`/nurse/ews/plan/${encounterId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getEwsPolicy: () => request<EwsPolicy>("/nurse/ews/policy"),
+  setEwsPolicy: (data: EwsPolicy) =>
+    request<EwsPolicy>("/nurse/ews/policy", { method: "PUT", body: JSON.stringify(data) }),
   getConsultation: (encounterId: string) =>
     request<Consultation>(`/opd/encounters/${encounterId}/consultation`),
   listDiagnoses: (encounterId: string) =>
@@ -4938,6 +5443,32 @@ export const api = {
     request<Note>(`/clinical-notes/${noteId}/entered-in-error`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+
+  // ── AI notes from dictation (RFC-MODULE-ai-dictation) ──
+  /** The recording is the body; the server transcribes it and drafts the note. */
+  createDictation: (
+    encounterId: string,
+    audio: Blob,
+    durationMs: number,
+    source: "recorded" | "uploaded",
+  ) =>
+    request<SessionView>(
+      `/opd/encounters/${encounterId}/dictations?duration_ms=${Math.round(durationMs)}&source=${source}`,
+      { method: "POST", body: audio, headers: { "Content-Type": audio.type || "audio/webm" } },
+    ),
+  retryDictation: (dictationId: string) =>
+    request<SessionView>(`/opd/dictations/${dictationId}/retry`, { method: "POST", body: "{}" }),
+  reviewDictation: (dictationId: string, data: ReviewRequest) =>
+    request<ReviewSummary>(`/opd/dictations/${dictationId}/review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDictationSettings: () => request<DictationConfig>("/admin/dictation/settings"),
+  saveDictationSettings: (data: DictationConfig) =>
+    request<DictationConfig>("/admin/dictation/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
 
   // ── Procedure Catalog & Orders ──────────────────────────
@@ -5306,6 +5837,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   // -- Collect anywhere (#4885) --
+  listCounterOpenToday: () => request<CounterOpenTodayRow[]>("/billing/counter/open-today"),
   getPatientDues: (patientId: string, lane?: BillingLaneName) =>
     request<PatientDues>(
       `/billing/patients/${patientId}/dues${lane ? `?lane=${encodeURIComponent(lane)}` : ""}`,
@@ -5698,6 +6230,8 @@ export const api = {
   billingReportAging: () => request<AgingBucket[]>("/billing/reports/aging"),
   billingReportDaily: (date: string) =>
     request<DailySummary>(`/billing/reports/daily?date=${date}`),
+  billingReportDailyRevenue: (from: string, to: string) =>
+    request<DailyRevenueRow[]>(`/billing/reports/daily-revenue?from=${from}&to=${to}`),
   billingReportDoctorRevenue: (from: string, to: string) =>
     request<DoctorRevenueRow[]>(`/billing/reports/doctor-revenue?from=${from}&to=${to}`),
   billingReportInsurancePanel: (from: string, to: string) =>
@@ -5746,6 +6280,97 @@ export const api = {
     }),
 
   // -- Write-Offs --
+  listClaimSettlements: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<Paginated<ClaimSettlementPosting>>(`/billing/claim-settlements${qs}`);
+  },
+  recordClaimSettlement: (data: RecordClaimSettlementRequest) =>
+    request<ClaimSettlementPosting>("/billing/claim-settlements", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveClaimSettlement: (id: string, data: ApproveClaimSettlementRequest) =>
+    request<ClaimSettlementPosting>(`/billing/claim-settlements/${id}/approve`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  rejectClaimSettlement: (id: string, data: ClaimSettlementReasonRequest) =>
+    request<ClaimSettlementPosting>(`/billing/claim-settlements/${id}/reject`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  reverseClaimSettlement: (id: string, data: ClaimSettlementReasonRequest) =>
+    request<ClaimSettlementPosting>(`/billing/claim-settlements/${id}/reverse`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listChargeAttention: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<Paginated<ChargeAttentionItem>>(`/billing/charge-attention${qs}`);
+  },
+  chargeAttentionSummary: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<ChargeAttentionSummary>(`/billing/charge-attention/summary${qs}`);
+  },
+  scanUnbilledOrders: () =>
+    request<UnbilledScanResult>("/billing/charge-attention/unbilled-scan", { method: "POST" }),
+  postChargeAttention: (id: string) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/post`, { method: "PUT" }),
+  dismissChargeAttention: (id: string, data: DismissChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Pre-auths nearly used up or rooms above the policy limit, by kind. */
+  listRevenueAlerts: (params: { kind: RevenueAlertKind; status?: string }) =>
+    request<Paginated<RevenueAlert>>(`/billing/revenue-alerts?${new URLSearchParams(params)}`),
+  /** Ask the payer for more on a pre-auth nearly used up; closes the alert. */
+  requestPreauthEnhancement: (id: string, data: RequestEnhancementRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/request-enhancement`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Dismiss a "no usable pre-auth" alert with why none is needed. */
+  dismissPreauthAlert: (id: string, data: DismissPreauthRequest) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/dismiss`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** The hospital's pre-auth alert threshold, and whether the stored one is unreadable. */
+  getPreauthAlertSettings: () => request<PreauthAlertSettings>("/billing/preauth-alert-settings"),
+  /** Save the pre-auth alert threshold (1 to 100%). */
+  updatePreauthAlertSettings: (data: UpdatePreauthAlertSettings) =>
+    request<PreauthAlertSettings>("/billing/preauth-alert-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Record the family's consent to a room above the policy limit; closes the alert. */
+  recordRoomConsent: (id: string, data: RoomConsentInput) =>
+    request<RevenueAlert>(`/billing/revenue-alerts/${id}/room-consent`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Staff who may witness a family's room consent, by name. */
+  listRoomConsentWitnesses: (search?: string) =>
+    request<RoomConsentWitness[]>(
+      `/billing/room-consent/witnesses${search ? `?${new URLSearchParams({ search })}` : ""}`,
+    ),
+  /** Set the eligible room rent on a patient's policy (₹ a day or % of sum insured). */
+  setRoomRentLimit: (policyId: string, data: RoomRentLimitInput) =>
+    request<RoomRentLimit>(`/billing/policies/${policyId}/room-rent-limit`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  namePatientChargeAttention: (id: string, data: NamePatientChargeAttentionRequest) =>
+    request<ChargeAttentionItem>(`/billing/charge-attention/${id}/patient`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  backfillClaimSettlements: (data: { dry_run: boolean }) =>
+    request<ClaimSettlementBackfillResult>("/billing/claim-settlements/backfill", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listWriteOffs: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<Paginated<BadDebtWriteOff>>(`/billing/write-offs${qs}`);
@@ -6000,6 +6625,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Analyser results held for review (no barcode, ambiguous, conflicting). */
+  listHeldAnalyserResults: (page = 1) =>
+    request<HeldAnalyserMessage[]>(`/lab/analyser-review?page=${page}`),
+  listAnalyserCandidateOrders: (messageId: string, barcode?: string) =>
+    request<AnalyserCandidateOrder[]>(
+      `/lab/analyser-review/${messageId}/candidates${
+        barcode ? `?${new URLSearchParams({ barcode })}` : ""
+      }`,
+    ),
+  attachAnalyserResults: (messageId: string, orderId: string) =>
+    request<{ status: string; order_id: string; posted: number }>(
+      `/lab/analyser-review/${messageId}/attach`,
+      { method: "POST", body: JSON.stringify({ order_id: orderId }) },
+    ),
+  dismissAnalyserResults: (messageId: string, reason: string) =>
+    request<{ status: string }>(`/lab/analyser-review/${messageId}/dismiss`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   listLabResults: (orderId: string) =>
     checkedRequest<LabResult[]>(labResultListResponseSchema, `/lab/orders/${orderId}/results`),
   listLabCatalog: (params?: Record<string, string>) => {
@@ -6064,6 +6708,12 @@ export const api = {
   acknowledgeCriticalAlert: (alertId: string, data: { readback_value: string }) =>
     request<LabCriticalAlert>(`/lab/critical-alerts/${alertId}/acknowledge`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Document the lab-to-clinician phone call for a critical value. */
+  recordCriticalCall: (alertId: string, data: RecordCriticalCallRequest) =>
+    request<LabCriticalCall>(`/lab/critical-alerts/${alertId}/phone-call`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
@@ -6669,6 +7319,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  markRadiationDoseEnteredInError: (id: string, reason: string) =>
+    request<RadiationDoseRecord>(`/radiology/dose-records/${id}/entered-in-error`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listUnmatchedStudies: (status: UnmatchedStudyStatus = "open") =>
+    request<UnmatchedStudy[]>(`/radiology/unmatched-studies?status=${status}`),
+  linkUnmatchedStudy: (id: string, data: { order_id: string; note?: string }) =>
+    request<LinkUnmatchedStudyResult>(`/radiology/unmatched-studies/${id}/link`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  dismissUnmatchedStudy: (id: string, reason: string) =>
+    request<UnmatchedStudy>(`/radiology/unmatched-studies/${id}/dismiss`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listPatientDoseRecords: (patientId: string) =>
+    request<PatientDoseRecord[]>(`/radiology/patients/${patientId}/dose-records`),
 
   listRadiologyModalities: () => request<RadiologyModality[]>("/radiology/modalities"),
 
@@ -6762,11 +7431,17 @@ export const api = {
     data?: {
       items?: unknown[];
       witnessed_by?: string;
+      /** The witness's own password, typed by them; checked on the server. */
+      witness_password?: string;
       allergy_override_reason?: string;
       ndps_override_reason?: string;
       unpaid_override_reason?: string;
       /** Clinical reason for dispensing past a blocking safety finding. */
       safety_override_reason?: string;
+      /** Scan id or serial of the retained Schedule X duplicate prescription. */
+      schedule_x_duplicate_ref?: string;
+      /** The pharmacist asked: the patient's allergy status was unknown. */
+      allergy_status_acknowledged?: boolean;
     },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
@@ -6840,6 +7515,17 @@ export const api = {
     request<PharmacyValidationResult>(`/pharmacy/orders/${id}/validate`, {
       method: "POST",
     }),
+
+  getPharmacyOrderSafetyRecord: (id: string) =>
+    request<PharmacySafetyRecordRow[]>(`/pharmacy/orders/${id}/safety-record`),
+
+  listDispenseWitnesses: (q?: string) =>
+    request<DispenseWitness[]>(
+      `/pharmacy/dispense-witnesses${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+
+  getPharmacyDispenseContext: (patientId: string) =>
+    request<PharmacyDispenseContext>(`/pharmacy/patients/${patientId}/dispense-context`),
   createOtcSale: (data: CreateOtcSaleRequest) =>
     request<PharmacyOrderDetailResponse>("/pharmacy/otc-sale", {
       method: "POST",
@@ -6902,8 +7588,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ department_id: departmentId }),
     }),
-  consumeWardStock: (data: { department_id: string; catalog_item_id: string; quantity: number }) =>
-    request<{ remaining: number }>("/pharmacy/ward-stock/consume", {
+  consumeWardStock: (data: WardStockConsumeRequest) =>
+    request<WardStockConsumeResponse>("/pharmacy/ward-stock/consume", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -7120,8 +7806,14 @@ export const api = {
   },
   getFulfilmentPickList: (orderId: string) =>
     request<PickLine[]>(`/pharmacy/fulfilment/${orderId}/pick-list`),
-  /** Claim for picking. A reason is needed only to override a medication safety block. */
-  claimFulfilmentOrder: (orderId: string, data?: { safety_override_reason?: string }) =>
+  /**
+   * Claim for picking. A reason is needed only to override a medication safety
+   * block; the acknowledgement only when the patient's allergy status is unknown.
+   */
+  claimFulfilmentOrder: (
+    orderId: string,
+    data?: { safety_override_reason?: string; allergy_status_acknowledged?: boolean },
+  ) =>
     request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, {
       method: "POST",
       ...(data ? { body: JSON.stringify(data) } : {}),
@@ -7294,6 +7986,13 @@ export const api = {
   listAdmissions: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<AdmissionListResponse>(`/ipd/admissions${qs}`);
+  },
+  /** The bed's rate against the patient's policy room-rent limit, before allocating it. */
+  checkRoomEligibility: (params: { patient_id: string; bed_id: string; admission_id?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter((e): e is [string, string] => Boolean(e[1])),
+    );
+    return request<RoomCheck>(`/ipd/room-eligibility?${qs}`);
   },
   createAdmission: (data: CreateAdmissionRequest) =>
     request<CreateAdmissionResponse>("/ipd/admissions", {
@@ -7972,6 +8671,11 @@ export const api = {
   assignBedToWard: (wardId: string, data: AssignBedToWardRequest) =>
     request<WardBedMapping>(`/ipd/wards/${wardId}/beds`, {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateWardBed: (wardId: string, mappingId: string, data: { bed_type_id: string | null }) =>
+    request<WardBedMapping>(`/ipd/wards/${wardId}/beds/${mappingId}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
   removeBedFromWard: (wardId: string, mappingId: string) =>
@@ -9307,6 +10011,17 @@ export const api = {
       }>
     >("/integration/uncovered-events"),
 
+  /** The hospital's Humanex HRMS connection (the key is never returned). */
+  getHumanexConfig: () => request<HumanexConfigView>("/hrms/humanex/config"),
+  updateHumanexConfig: (data: HumanexConfigInput) =>
+    request<HumanexConfigView>("/hrms/humanex/config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Pull from Humanex now rather than at the next 15-minute pass. */
+  syncHumanex: () => request<HrmsEntityOutcome[]>("/hrms/humanex/sync", { method: "POST" }),
+  getHumanexStatus: () => request<HrmsSyncStatus>("/hrms/humanex/status"),
+
   /** Turn one built-in pipeline on or off for this hospital. */
   setDefaultPipelineEnabled: (eventType: string, disabled: boolean) =>
     request<{
@@ -9467,8 +10182,38 @@ export const api = {
     request<StateFormularyRow[]>(`/ckb/state-formulary?state=${encodeURIComponent(state)}`),
   listNotifiableReports: (status?: string) =>
     request<NotifiableReport[]>(`/ckb/notifiable-reports${status ? `?status=${status}` : ""}`),
+  getNotifiableList: () => request<NotifiableList>("/ckb/notifiable-list"),
+  listNotifiableOverrides: () => request<NotifiableOverride[]>("/ckb/notifiable-overrides"),
+  upsertNotifiableOverride: (data: UpsertNotifiableOverrideRequest) =>
+    request<NotifiableOverride>("/ckb/notifiable-overrides", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteNotifiableOverride: (id: string) =>
+    request<{ deleted: boolean }>(`/ckb/notifiable-overrides/${id}`, { method: "DELETE" }),
   updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>
     request<NotifiableReport>(`/ckb/notifiable-reports/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listTbCases: (status?: string) =>
+    request<TbCase[]>(`/ckb/nikshay${status ? `?status=${status}` : ""}`),
+  saveTbDetails: (reportId: string, data: SaveTbDetailsRequest) =>
+    request<TbCase>(`/ckb/nikshay/${reportId}`, { method: "PUT", body: JSON.stringify(data) }),
+  getNikshaySheet: () => request<NikshaySheet>("/ckb/nikshay/sheet"),
+  getPublicHealthFacility: () => request<PublicHealthFacility>("/ckb/facility-codes"),
+  getIhipLineList: (form: IhipForm, from: string, to: string) =>
+    request<IhipLineList>(`/ckb/ihip/line-list?form=${form}&from=${from}&to=${to}`),
+  submitIhipLineList: (data: SubmitIhipLineListRequest) =>
+    request<{ submitted: number }>("/ckb/ihip/submit", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  setPublicHealthFacilityCodes: (data: {
+    nikshay_he_code: string | null;
+    ihip_unit_id: string | null;
+  }) =>
+    request<PublicHealthFacility>("/ckb/facility-codes", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -10555,12 +11300,18 @@ export const api = {
     request<LeaveBalance[]>(`/hr/employees/${employeeId}/leave-balances`),
 
   // Leave Requests
-  listLeaveRequests: (params?: { employee_id?: string; status?: string }) => {
+  /** `status` may list several, comma-separated; `from`/`to` return leave overlapping the window. */
+  listLeaveRequests: (params?: {
+    employee_id?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    department_id?: string;
+  }) => {
     const qs = new URLSearchParams();
-    if (params?.employee_id) qs.set("employee_id", params.employee_id);
-    if (params?.status) qs.set("status", params.status);
+    for (const [k, v] of Object.entries(params ?? {})) if (v) qs.set(k, v);
     const q = qs.toString();
-    return request<LeaveRequest[]>(`/hr/leaves${q ? `?${q}` : ""}`);
+    return request<LeaveListRow[]>(`/hr/leaves${q ? `?${q}` : ""}`);
   },
 
   createLeaveRequest: (data: CreateLeaveRequestInput) =>
@@ -10578,6 +11329,35 @@ export const api = {
   cancelLeave: (id: string) =>
     request<LeaveRequest>(`/hr/leaves/${id}/cancel`, {
       method: "PUT",
+    }),
+
+  /** The days a leave of these dates would take — the same rule that files it. */
+  previewLeaveDays: (params: {
+    leave_type: string;
+    start_date: string;
+    end_date: string;
+    is_half_day: boolean;
+  }) => {
+    const qs = new URLSearchParams({ ...params, is_half_day: String(params.is_half_day) });
+    return request<LeaveDayCount>(`/hr/leaves/preview?${qs}`);
+  },
+
+  // Holidays and weekly offs (HR → Holidays)
+  listHolidays: (from: string, to: string) =>
+    request<HolidayCalendar>(`/hr/holidays?${new URLSearchParams({ from, to })}`),
+
+  createHoliday: (data: HolidayInput) =>
+    request<Holiday>("/hr/holidays", { method: "POST", body: JSON.stringify(data) }),
+
+  updateHoliday: (id: string, data: HolidayInput) =>
+    request<Holiday>(`/hr/holidays/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteHoliday: (id: string) => request<Holiday>(`/hr/holidays/${id}`, { method: "DELETE" }),
+
+  setWeeklyOffs: (weeklyOffs: number[]) =>
+    request<{ weekly_offs: number[] }>("/hr/weekly-offs", {
+      method: "PUT",
+      body: JSON.stringify({ weekly_offs: weeklyOffs }),
     }),
 
   // Leave — self-service (the caller's own employee record)
@@ -11430,6 +12210,40 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // File requests: the paper file a patient waits for
+  listMrdFileRequests: (params?: { date?: string }) =>
+    request<MrdFileRequest[]>(
+      `/mrd/file-requests${params?.date ? `?date=${encodeURIComponent(params.date)}` : ""}`,
+    ),
+  scanMrdFileRequest: (id: string, body: MrdFileScanRequest) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/scan`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  markMrdFileNotFound: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/not-found`, { method: "POST" }),
+  returnMrdFileToShelf: (id: string) =>
+    request<MrdFileRequest>(`/mrd/file-requests/${id}/return`, { method: "POST" }),
+  buildMrdPullList: (body: { date?: string }) =>
+    request<MrdPullListBuilt>("/mrd/file-requests/pull-list", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listMrdBackscanOrder: (days?: number) =>
+    request<MrdBackscanItem[]>(`/mrd/file-requests/backscan${days ? `?days=${days}` : ""}`),
+  getMrdFileDeliveryTimes: (from: string, to: string) =>
+    request<MrdDeliveryTimeRow[]>(
+      `/mrd/file-requests/delivery-times?${new URLSearchParams({ from, to })}`,
+    ),
+  getVisitFileStatus: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}`),
+  requestVisitFile: (encounterId: string) =>
+    request<MrdVisitFileStatus>(`/mrd/file-requests/by-encounter/${encounterId}/request`, {
+      method: "POST",
+    }),
+  getVisitDigitalSummary: (encounterId: string) =>
+    request<MrdDigitalSummary>(`/mrd/file-requests/by-encounter/${encounterId}/summary`),
+
   // Record Movements
   listMrdMovements: (recordId: string) =>
     request<MrdRecordMovement[]>(`/mrd/records/${recordId}/movements`),
@@ -11472,6 +12286,13 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getMrdDeath: (id: string) => request<MrdDeathRegister>(`/mrd/deaths/${id}`),
+
+  // Civil registration (CRS)
+  listCrsEvents: (status?: string) =>
+    request<CrsEvent[]>(`/mrd/crs${status ? `?status=${status}` : ""}`),
+  getCrsForm: (id: string) => request<CrsForm>(`/mrd/crs/${id}/form`),
+  recordCrsRegistration: (id: string, body: RecordCrsRegistrationRequest) =>
+    request<CrsEvent>(`/mrd/crs/${id}`, { method: "PUT", body: JSON.stringify(body) }),
 
   // Retention Policies
   listMrdRetentionPolicies: () => request<MrdRetentionPolicy[]>("/mrd/retention-policies"),
@@ -11631,6 +12452,13 @@ export const api = {
     request<DentalTreatmentItem>(`/specialty/dental/treatment/${id}/complete`, { method: "POST" }),
   cancelDentalTreatment: (id: string) =>
     request<DentalTreatmentItem>(`/specialty/dental/treatment/${id}/cancel`, { method: "POST" }),
+  recordPerioChart: (examId: string, data: { teeth: PerioTooth[]; notes?: string | null }) =>
+    request<string>(`/specialty/dental/exams/${examId}/perio`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPatientPerioCharts: (patientId: string) =>
+    request<PerioChart[]>(`/specialty/dental/patients/${patientId}/perio`),
   createDentalChartEntry: (examId: string, data: CreateDentalChartEntryRequest) =>
     request<DentalChartEntry>(`/specialty/dental/exams/${examId}/chart`, {
       method: "POST",
@@ -11638,6 +12466,21 @@ export const api = {
     }),
 
   // Specialty — Oncology depth
+  listCancerRegistry: () => request<RegistryWorklistRow[]>("/specialty/oncology/registry"),
+  getRegistryCase: (stagingId: string) =>
+    request<RegistryCase>(`/specialty/oncology/registry/${stagingId}`),
+  saveRegistryAbstract: (stagingId: string, data: HbcrCoding) =>
+    request<RegistryCase>(`/specialty/oncology/registry/${stagingId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getRegistryCodeLists: () => request<RegistryCodeLists>("/specialty/oncology/registry/codes"),
+  exportRegistrySheet: () => request<RegistrySheet>("/specialty/oncology/registry/export"),
+  markRegistrySubmitted: (stagingId: string, ncdirReference: string) =>
+    request<RegistryCase>(`/specialty/oncology/registry/${stagingId}/submitted`, {
+      method: "POST",
+      body: JSON.stringify({ ncdir_reference: ncdirReference }),
+    }),
   listCancerStagings: (patientId?: string) =>
     request<CancerStaging[]>(
       `/specialty/oncology/staging${patientId ? `?patient_id=${patientId}` : ""}`,
@@ -15572,6 +16415,28 @@ export const api = {
     request<FormTemplate>(`/forms/templates/${id}/retire`, { method: "POST" }),
   getLiveForm: (code: string) => request<LiveForm>(`/forms/live/${code}`),
   getFormVersion: (id: string) => request<FormTemplateVersion>(`/forms/versions/${id}`),
+  // ── Security → MedBrains access (vendor support access) ──
+  listVendorAccessGrants: (page = 1) =>
+    request<Paginated<VendorAccessGrant>>(`/security/vendor-access/grants?page=${page}&limit=50`),
+  createVendorAccessGrant: (data: CreateVendorAccessGrant) =>
+    request<VendorAccessGrant>("/security/vendor-access/grants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  approveVendorAccessGrant: (id: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  revokeVendorAccessGrant: (id: string, reason?: string) =>
+    request<VendorAccessGrant>(`/security/vendor-access/grants/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  listVendorAccessEvents: (id: string, page = 1) =>
+    request<Paginated<VendorAccessEvent>>(
+      `/security/vendor-access/grants/${id}/events?page=${page}&limit=200`,
+    ),
   listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
   createDataProcessor: (data: DataProcessorInput) =>
     request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),
@@ -15744,7 +16609,23 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  listVulnerabilities: () => request<Vulnerability[]>("/vulnerabilities"),
+  listVulnerabilities: (params?: VulnerabilityQuery) => {
+    const qs = new URLSearchParams();
+    if (params?.severity) qs.set("severity", params.severity);
+    if (params?.status) qs.set("status", params.status);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<Vulnerability[]>(`/vulnerabilities${suffix}`);
+  },
+
+  /** Each continuous security check's cadence and latest heartbeat. */
+  listSecurityChecks: () => request<SecurityCheckStatus[]>("/security/intel/checks"),
+
+  /** The latest posture run; null when it has never run. */
+  getSecurityPosture: () => request<PostureReport | null>("/security/intel/posture"),
+
+  /** Open an incident in the breach register from a finding (once). */
+  openIncidentFromFinding: (id: string) =>
+    request<OpenedIncident>(`/security/intel/findings/${id}/incident`, { method: "POST" }),
 
   createVulnerability: (data: CreateVulnerabilityRequest) =>
     request<Vulnerability>("/vulnerabilities", { method: "POST", body: JSON.stringify(data) }),
@@ -15770,6 +16651,39 @@ export const api = {
   getSystemHealthDashboard: () => request<SystemHealthDashboard>("/system-health"),
 
   listBackups: () => request<BackupHistory[]>("/backups"),
+
+  // ── MedBrains Flow (#4901) ──────────────────────────────────
+  listFlowFloors: () => request<FlowFloorSummary[]>("/flow/floors"),
+  getFlowFloorLive: (floorId: string) => request<FlowFloorLive>(`/flow/floors/${floorId}/live`),
+  getFlowFloorHistory: (floorId: string) =>
+    request<FlowHistoryPoint[]>(`/flow/floors/${floorId}/history`),
+  getFlowFloorForecast: (floorId: string, hours = 4) =>
+    request<FlowForecast>(`/flow/floors/${floorId}/forecast?hours=${hours}`),
+  getFlowZone: (zoneId: string) => request<FlowZoneDetail>(`/flow/zones/${zoneId}`),
+  getFlowBoard: (floorId?: string) =>
+    request<FlowFloorLive>(`/flow/board${floorId ? `?floor_id=${floorId}` : ""}`),
+  decideFlowRecommendation: (
+    id: string,
+    data: { decision: FlowDecision; snooze_minutes?: number },
+  ) =>
+    request<FlowRecommendation>(`/flow/recommendations/${id}/decide`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  ackFlowAlert: (id: string) => request<FlowAlert>(`/flow/alerts/${id}/ack`, { method: "POST" }),
+  listFlowConfigFloors: () => request<FlowFloorSummary[]>("/flow/config/floors"),
+  getFlowFloorSetup: (floorId: string) =>
+    request<FlowFloorSetup>(`/flow/config/floors/${floorId}/zones`),
+  updateFlowZone: (zoneId: string, data: FlowZoneConfigInput) =>
+    request<FlowConfigZone>(`/flow/config/zones/${zoneId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  replaceFlowZoneSources: (zoneId: string, sources: FlowSourceInput[]) =>
+    request<FlowConfigZone>(`/flow/config/zones/${zoneId}/sources`, {
+      method: "PUT",
+      body: JSON.stringify({ sources }),
+    }),
 
   // ── Doctor payouts (#4886) ──────────────────────────────────
 
@@ -15969,6 +16883,12 @@ export const api = {
   createDeviceInstance: (data: CreateDeviceInstanceRequest) =>
     request<DeviceInstance>("/devices/instances", { method: "POST", body: JSON.stringify(data) }),
 
+  /** The bed a bedside monitor watches; `null` takes it off. */
+  assignDeviceBed: (id: string, bedLocationId: string | null) =>
+    request<DeviceInstance>(`/devices/instances/${id}/bed`, {
+      method: "PUT",
+      body: JSON.stringify({ bed_location_id: bedLocationId }),
+    }),
   updateDeviceInstance: (id: string, data: UpdateDeviceInstanceRequest) =>
     request<DeviceInstance>(`/devices/instances/${id}`, {
       method: "PUT",
@@ -16370,6 +17290,13 @@ export const api = {
     }),
   cancelPaymentLink: (id: string) =>
     request<PaymentLinkView>(`/payments/links/${id}/cancel`, { method: "POST" }),
+  /** The billing screen's UPI ID and payment-link terms (never provider keys). */
+  getBillingPaymentSettings: () => request<BillingPaymentSettings>("/billing/payment-settings"),
+  updateBillingPaymentSettings: (data: UpdateBillingPaymentSettings) =>
+    request<BillingPaymentSettings>("/billing/payment-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getOnlineSettings: () => request<OnlineSettings>("/payments/online-settings"),
   updateOnlineSettings: (data: ChooseProviders) =>
     request<ChooseProviders>("/payments/online-settings", {
@@ -16652,15 +17579,14 @@ export const api = {
     }),
 
   getMySignatureCredentials: () => request<SignatureCredential[]>("/signatures/my-credentials"),
-  previewSignature: (data: SignPreviewRequest) => {
-    const qs = new URLSearchParams({
-      record_type: data.record_type,
-      record_id: data.record_id,
-    });
-    if (data.signer_role) qs.set("signer_role", data.signer_role);
-    if (data.legal_class) qs.set("legal_class", data.legal_class);
-    return request<SignPreviewResponse>(`/signatures/preview?${qs.toString()}`);
-  },
+  /** Open a record to sign it: its canonical snapshot, and the review is recorded. */
+  reviewSignature: (data: SignPreviewRequest) =>
+    request<SignPreviewResponse>("/signatures/review", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** The record types the server signs, so no screen offers one it refuses. */
+  listSignableTypes: () => request<SignableTypeInfo[]>("/signatures/types"),
   signRecord: (data: SignRequest) =>
     request<SignResponse>("/signatures/sign", {
       method: "POST",
@@ -16675,6 +17601,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Public — the QR on a signed print; answers no patient or clinical detail. */
+  verifySignatureLink: (token: string) =>
+    request<PublicSignatureCheck>(`/public/signatures/verify/${encodeURIComponent(token)}`),
+  /** The signed record's live public check link, minted if the last was withdrawn. */
+  issueSignatureVerifyLink: (signedRecordId: string) =>
+    request<SignatureVerifyLink>(`/signatures/${encodeURIComponent(signedRecordId)}/verify-link`, {
+      method: "POST",
+    }),
+  /** Withdraw the record's public check link; printed copies then say "withdrawn". */
+  revokeSignatureVerifyLink: (signedRecordId: string, reason: string) =>
+    request<{ revoked: boolean }>(
+      `/signatures/${encodeURIComponent(signedRecordId)}/verify-link/revoke`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
 
   // Doctor Packages (admin)
   adminListDoctorPackages: (params?: { is_active?: boolean; search?: string }) => {
@@ -16947,8 +17887,22 @@ export const api = {
     if (params?.active_only) qs.set("active_only", "true");
     if (params?.limit !== undefined) qs.set("limit", String(params.limit));
     const q = qs.toString();
-    return request<unknown[]>(`/nurse/code-blue${q ? `?${q}` : ""}`);
+    return request<CodeBlueEventRow[]>(`/nurse/code-blue${q ? `?${q}` : ""}`);
   },
+  /** The code-blue roster, who can be added, and the re-page settings. */
+  getCodeBlueTeam: () => request<CodeTeamRoster>("/nurse/code-blue/team"),
+  addCodeBlueTeamMember: (data: { user_id: string; tier: CodeTeamTier; code_type: string }) =>
+    request<{ id: string }>("/nurse/code-blue/team", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removeCodeBlueTeamMember: (id: string) =>
+    request<{ removed: boolean }>(`/nurse/code-blue/team/${id}`, { method: "DELETE" }),
+  updateCodeBlueTeamSettings: (data: { response_secs: number; max_rounds: number }) =>
+    request<{ updated: boolean }>("/nurse/code-blue/team/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   startCodeBlue: (data: Record<string, unknown>) =>
     request<unknown>("/nurse/code-blue", { method: "POST", body: JSON.stringify(data) }),
   appendCodeBlueEntry: (id: string, data: { field: string; entry: unknown }) =>
@@ -17047,7 +18001,8 @@ export const api = {
   getMyActiveCashDrawer: () => request<unknown | null>("/pharmacy/cash-drawers/me/active"),
 
   // Day close
-  listCounterDays: () => request<CounterDay[]>("/pharmacy/day-close"),
+  listCounterDays: (q?: string) =>
+    request<CounterDay[]>(`/pharmacy/day-close${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   getDayCloseReport: (params: { pharmacy_location_id: string; business_date: string }) =>
     request<DayReport>(`/pharmacy/day-close/report?${new URLSearchParams(params)}`),
   closeCounterDay: (data: CloseDayRequest) =>
@@ -17356,6 +18311,20 @@ export const api = {
       body: JSON.stringify({ reason }),
     }),
 
+  // ── MedBrains OS machines joining this main machine ──
+  listMachines: () => request<MachineList>("/admin/machines"),
+  approveMachine: (id: string, code: string) =>
+    request<ApprovedMachine>(`/admin/machines/requests/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  getMachineConfirmCode: (id: string) =>
+    request<ApprovedMachine>(`/admin/machines/${id}/confirm-code`, { method: "POST" }),
+  rejectMachine: (id: string) =>
+    request<{ id: string }>(`/admin/machines/requests/${id}/reject`, { method: "POST" }),
+  removeMachine: (id: string) =>
+    request<{ id: string }>(`/admin/machines/${id}`, { method: "DELETE" }),
+
   // ── Hospital binding QR codes (apps scan one to bind to this hospital) ──
   listDeviceBindingCodes: () => request<DeviceBindingCode[]>("/admin/device-binding-codes"),
   issueDeviceBindingCode: (data: IssueDeviceBindingCodeInput) =>
@@ -17639,11 +18608,33 @@ export const api = {
   /** Ask ABDM to text the patient the ABHA app link (no ABHA here yet). */
   sendAbdmSmsLink: (patientId: string) =>
     request<AbdmSmsLink | null>(`/abdm/patients/${patientId}/sms-link`, { method: "POST" }),
+  /** WHO 0-5 y / IAP 2015 5-18 y growth charts, z-scores computed server-side. */
+  getPatientGrowth: (patientId: string) => request<GrowthResponse>(`/patients/${patientId}/growth`),
+  setPatientBirthGestation: (patientId: string, weeks: number | null) =>
+    request<{ weeks: number | null }>(`/patients/${patientId}/growth/gestation`, {
+      method: "PUT",
+      body: JSON.stringify({ weeks }),
+    }),
   listPatientImmunizations: (patientId: string) =>
     request<PatientImmunization[]>(`/patients/${patientId}/immunizations`),
   recordPatientImmunization: (patientId: string, data: RecordPatientImmunization) =>
     request<PatientImmunization>(`/patients/${patientId}/immunizations`, {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getPatientImmunizationSchedule: (patientId: string) =>
+    request<PatientImmunizationSchedule>(`/patients/${patientId}/immunization-schedule`),
+  listImmunizationDueList: (params?: { within_days?: number; page?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.within_days !== undefined) qs.set("within_days", String(params.within_days));
+    if (params?.page) qs.set("page", String(params.page));
+    const query = qs.toString();
+    return request<ImmunizationDueList>(`/immunizations/due-list${query ? `?${query}` : ""}`);
+  },
+  getImmunizationSettings: () => request<ImmunizationScheduleSetting>("/immunizations/settings"),
+  updateImmunizationSettings: (data: ImmunizationScheduleSetting) =>
+    request<ImmunizationScheduleSetting>("/immunizations/settings", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
   strikePatientImmunization: (id: string, reason: string) =>
@@ -17747,10 +18738,18 @@ export const api = {
       `/radiology/critical-alerts/${alertId}/acknowledge`,
       { method: "PUT" },
     ),
-  createRadiologyShareLink: (data: Record<string, unknown>) =>
-    request<unknown>("/radiology/share-links", {
+  createRadiologyShareLink: (data: CreateStudyShareLink) =>
+    request<CreatedStudyShareLink>("/radiology/share-links", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  listStudyShareLinks: (studyId: string) =>
+    request<StudyShareLink[]>(`/radiology/dicom-studies/${studyId}/share-links`),
+  revokeStudyShareLink: (id: string) =>
+    request<{ revoked: boolean }>(`/radiology/share-links/${id}/revoke`, { method: "POST" }),
+  openStudyViewer: (studyId: string) =>
+    request<{ viewer_url: string }>(`/radiology/dicom-studies/${studyId}/view`, {
+      method: "POST",
     }),
   getRadiologyPacsConfig: () => request<unknown>("/radiology/pacs-config"),
   updateRadiologyPacsConfig: (data: Record<string, unknown>) =>
@@ -17758,10 +18757,34 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listRadiologyDosimetry: () => request<unknown>("/radiology/dosimetry"),
-  createRadiologyDosimetry: (data: Record<string, unknown>) =>
-    request<unknown>("/radiology/dosimetry", {
+  listRadiologyDosimetry: (year?: number) =>
+    request<Dosimetry>(`/radiology/dosimetry${year ? `?year=${year}` : ""}`),
+  createRadiologyDosimetry: (data: RecordDosimetryReading) =>
+    request<{ id: string; year_msv: number; alerts: RadiationSafetyAlert[] }>(
+      "/radiology/dosimetry",
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  removeRadiologyDosimetry: (id: string) =>
+    request<{ removed: boolean }>(`/radiology/dosimetry/${id}`, { method: "DELETE" }),
+  recordPregnancyCheck: (orderId: string, data: RecordPregnancyCheck) =>
+    request<RadiologyOrder>(`/radiology/orders/${orderId}/pregnancy-check`, {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listReferenceLevels: () => request<DiagnosticReferenceLevel[]>("/radiology/drls"),
+  saveReferenceLevel: (data: SaveReferenceLevel) =>
+    request<DiagnosticReferenceLevel>("/radiology/drls", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  removeReferenceLevel: (id: string) =>
+    request<{ removed: boolean }>(`/radiology/drls/${id}`, { method: "DELETE" }),
+  drlAudit: (from: string, to: string) =>
+    request<DrlAuditReport>(`/radiology/drl-audit?from=${from}&to=${to}`),
+  listRadiationEquipment: () => request<RadiationEquipment[]>("/radiology/radiation-equipment"),
+  saveRadiationEquipment: (data: SaveRadiationEquipment) =>
+    request<{ id: string }>("/radiology/radiation-equipment", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
   downloadRadiologyPackage: (id: string) => request<unknown>(`/radiology/download-package/${id}`),
@@ -17920,7 +18943,68 @@ export const api = {
     request<PortalTeleconsult[]>("/portal/teleconsults", portalAuth(token)),
   getPortalRefills: (token: string) =>
     request<PortalRefill[]>("/portal/refills", portalAuth(token)),
+  // DPDP Act 2023 / Rules 2025 and CERT-In 2022 compliance pack
+  getDpdpDashboard: () => request<DpdpDashboard>("/regulatory/dpdp/dashboard"),
+  listPrivacyOfficers: () => request<PrivacyOfficer[]>("/regulatory/dpdp/officers"),
+  setPrivacyOfficer: (role: PrivacyOfficerRole, data: SetPrivacyOfficerRequest) =>
+    request<PrivacyOfficer[]>(`/regulatory/dpdp/officers/${role}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  publishPrivacyOfficer: (role: PrivacyOfficerRole) =>
+    request<PrivacyOfficer[]>(`/regulatory/dpdp/officers/${role}/publish`, { method: "PUT" }),
+  getDpdpPublicNotice: () => request<PublicPrivacyContact>("/regulatory/dpdp/public-notice"),
+  listCompliancePolicyTemplates: () =>
+    request<CompliancePolicyTemplate[]>("/regulatory/dpdp/templates"),
+  listCompliancePolicies: (kind?: CompliancePolicyKind) =>
+    request<CompliancePolicy[]>(`/regulatory/dpdp/policies${kind ? `?kind=${kind}` : ""}`),
+  startCompliancePolicyDraft: (data: { kind: CompliancePolicyKind; language: string }) =>
+    request<CompliancePolicy>("/regulatory/dpdp/policies", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  editCompliancePolicy: (id: string, data: { title: string; body: string }) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  submitCompliancePolicy: (id: string) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}/submit`, { method: "PUT" }),
+  approveCompliancePolicy: (id: string) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}/approve`, { method: "PUT" }),
+  returnCompliancePolicy: (id: string, reason: string) =>
+    request<CompliancePolicy>(`/regulatory/dpdp/policies/${id}/return`, {
+      method: "PUT",
+      body: JSON.stringify({ reason }),
+    }),
+  listComplianceDrills: () => request<ComplianceDrill[]>("/regulatory/dpdp/drills"),
+  recordComplianceDrill: (data: RecordDrillRequest) =>
+    request<ComplianceDrill[]>("/regulatory/dpdp/drills", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getPortalPrivacy: (token: string) => request<PortalPrivacy>("/portal/privacy", portalAuth(token)),
+  /** What the patient shares from Apple Health / Health Connect. */
+  getPortalHealthData: (token: string) =>
+    request<HealthDataSharing>("/portal/health-data", portalAuth(token)),
+  setPortalHealthDataConsent: (
+    token: string,
+    data: { source: HealthDataSource; data_type: HealthDataType; granted: boolean },
+  ) =>
+    request<HealthDataSharing>("/portal/health-data/consent", {
+      ...portalAuth(token),
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  postPortalHealthReadings: (
+    token: string,
+    data: { source: HealthDataSource; readings: HealthAppReading[] },
+  ) =>
+    request<HealthAppReadingsResult>("/portal/health-data/readings", {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   /** The patient's own record as a FHIR R4 collection bundle. */
   getPortalExport: (token: string) =>
     request<Record<string, unknown>>("/portal/privacy/export", portalAuth(token)),
@@ -18016,6 +19100,44 @@ export const api = {
       `/portal/store/prescriptions/${prescriptionId}/order`,
       { ...portalAuth(token), method: "POST" },
     ),
+  /** Checkout opened: the cart held at the pharmacy that will fill it. */
+  holdStoreCart: (token: string, data: { pincode?: string; pickup_store_id?: string }) =>
+    request<import("@medbrains/types").StoreHeldCart>("/portal/store/cart/hold", {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getStoreServiceability: (token: string, pincode?: string) =>
+    request<import("@medbrains/types").StoreServiceability>(
+      `/portal/store/serviceability${pincode ? `?pincode=${encodeURIComponent(pincode)}` : ""}`,
+      portalAuth(token),
+    ),
+  cancelStoreOrder: (token: string, id: string) =>
+    request<import("@medbrains/types").StoreOrder>(`/portal/store/orders/${id}/cancel`, {
+      ...portalAuth(token),
+      method: "POST",
+    }),
+  requestStoreReturn: (
+    token: string,
+    id: string,
+    data: import("@medbrains/types").StoreReturnRequest,
+  ) =>
+    request<import("@medbrains/types").StoreReturnTicket>(`/portal/store/orders/${id}/returns`, {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  consentStoreSubstitution: (token: string, id: string, sid: string, accept: boolean) =>
+    request<import("@medbrains/types").StoreOrder>(
+      `/portal/store/orders/${id}/substitutions/${sid}/consent`,
+      { ...portalAuth(token), method: "POST", body: JSON.stringify({ accept }) },
+    ),
+  printStoreOutside: (token: string, id: string, catalogItemIds: string[]) =>
+    request<import("@medbrains/types").OutsidePrint>(`/portal/store/orders/${id}/outside-print`, {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify({ catalog_item_ids: catalogItemIds }),
+    }),
   listStorefrontOrders: (status?: string) =>
     request<import("@medbrains/types").StorefrontQueue>(
       `/pharmacy/storefront/orders${status ? `?status=${status}` : ""}`,
@@ -18044,6 +19166,95 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  getStorefrontRules: () =>
+    request<import("@medbrains/types").StorefrontRules>("/pharmacy/storefront/rules"),
+  updateStorefrontRules: (data: import("@medbrains/types").StorefrontRules) =>
+    request<import("@medbrains/types").StorefrontRules>("/pharmacy/storefront/rules", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listOnlineStores: () =>
+    request<import("@medbrains/types").OnlineStore[]>("/pharmacy/storefront/stores"),
+  updateOnlineStore: (id: string, data: import("@medbrains/types").OnlineStoreUpdate) =>
+    request<import("@medbrains/types").OnlineStore[]>(`/pharmacy/storefront/stores/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listStorefrontFloors: () =>
+    request<import("@medbrains/types").StorefrontFloorRow[]>("/pharmacy/storefront/floors"),
+  listStorefrontSubstitutes: (orderId: string, itemId: string) =>
+    request<import("@medbrains/types").SubstituteCandidates>(
+      `/pharmacy/storefront/orders/${orderId}/lines/${itemId}/substitutes`,
+    ),
+  proposeStorefrontSubstitution: (
+    orderId: string,
+    data: import("@medbrains/types").ProposeSubstitution,
+  ) =>
+    request<import("@medbrains/types").StoreOrder>(
+      `/pharmacy/storefront/orders/${orderId}/substitutions`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  printStorefrontOutside: (orderId: string, catalogItemIds: string[]) =>
+    request<import("@medbrains/types").OutsidePrint>(
+      `/pharmacy/storefront/orders/${orderId}/outside-print`,
+      { method: "POST", body: JSON.stringify({ catalog_item_ids: catalogItemIds }) },
+    ),
+  getStoreSubstitutionRequest: (id: string) =>
+    request<import("@medbrains/types").DoctorSubstitutionRequest>(
+      `/doctor/store-substitutions/${id}`,
+    ),
+  decideStoreSubstitution: (
+    id: string,
+    data: import("@medbrains/types").DoctorSubstitutionDecision,
+  ) =>
+    request<import("@medbrains/types").DoctorSubstitutionRequest>(
+      `/doctor/store-substitutions/${id}/decide`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  listStorefrontReturns: () =>
+    request<import("@medbrains/types").StoreReturnQueue>("/pharmacy/storefront/returns"),
+  acknowledgeStorefrontReturn: (id: string) =>
+    request<{ id: string; status: string }>(`/pharmacy/storefront/returns/${id}/acknowledge`, {
+      method: "POST",
+    }),
+  receiveStorefrontReturn: (id: string, data: import("@medbrains/types").StoreReturnReceive) =>
+    request<{ id: string; status: string; credit_note_number: string; refund_id: string | null }>(
+      `/pharmacy/storefront/returns/${id}/receive`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  refuseStorefrontReturn: (id: string, note: string) =>
+    request<{ id: string; status: string }>(`/pharmacy/storefront/returns/${id}/refuse`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  listStorefrontRefunds: () =>
+    request<import("@medbrains/types").StoreRefund[]>("/pharmacy/storefront/refunds"),
+  issueStorefrontRefund: (id: string) =>
+    request<import("@medbrains/types").StoreRefund>(`/pharmacy/storefront/refunds/${id}/issue`, {
+      method: "POST",
+    }),
+  listQuarantine: () => request<import("@medbrains/types").QuarantineRow[]>("/pharmacy/quarantine"),
+  destroyQuarantine: (data: import("@medbrains/types").QuarantineDestroyRequest) =>
+    request<import("@medbrains/types").QuarantineDestroyed>("/pharmacy/quarantine/destroy", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listNppaCeilings: (q?: string) =>
+    request<import("@medbrains/types").NppaCeilings>(
+      `/pharmacy/nppa-ceilings${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+  setNppaCeiling: (id: string, data: import("@medbrains/types").NppaCeilingUpdate) =>
+    request<import("@medbrains/types").NppaCeilingRow>(`/pharmacy/nppa-ceilings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  importNppaCeilings: (rows: import("@medbrains/types").NppaImportRow[]) =>
+    request<import("@medbrains/types").NppaImported>("/pharmacy/nppa-ceilings/import", {
+      method: "POST",
+      body: JSON.stringify({ rows }),
+    }),
+  getPosReturnPolicy: () =>
+    request<import("@medbrains/types").CounterReturnPolicy>("/pharmacy/pos/return-policy"),
   getH1Register: (from: string, to: string) =>
     request<import("@medbrains/types").H1RegisterEntry[]>(
       `/pharmacy/h1-register?from=${from}&to=${to}`,
@@ -18133,7 +19344,15 @@ export const api = {
   /** The link the front desk hands a patient so they can follow their token. */
   getQueueTokenStatusLink: (id: string) =>
     request<PublicTokenLink>(`/opd/queue-tokens/${id}/status-link`),
-  getPublicRadiologyViewer: (id: string) => request<unknown>(`/public/radiology/viewer/${id}`),
+  getPublicRadiologyViewer: (token: string) =>
+    request<PublicShareLink>(`/public/radiology/viewer/${token}`),
+  sendShareLinkCode: (token: string) =>
+    request<{ sent_to: string }>(`/public/radiology/share/${token}/code`, { method: "POST" }),
+  verifyShareLinkCode: (token: string, code: string) =>
+    request<{ viewer_url: string }>(`/public/radiology/share/${token}/verify`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
   registerBridge: (data: Record<string, unknown>) =>
     request<unknown>("/bridge/register", {
       method: "POST",

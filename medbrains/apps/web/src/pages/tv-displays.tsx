@@ -113,7 +113,7 @@ export function TvDisplaysPage() {
       <Card withBorder className={styles.displayCommandBar}>
         <Group justify="space-between" align="flex-start" gap="md">
           <Stack gap={4}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               Queue display command center
             </Text>
             <Group gap="xs">
@@ -192,7 +192,7 @@ export function TvDisplaysPage() {
             <Card withBorder className={styles.displayRail}>
               <Stack gap="sm">
                 <Stack gap={2}>
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  <Text size="xs" fw={700} c="dimmed">
                     TV / kiosk workspace
                   </Text>
                   <Text size="sm" fw={700}>
@@ -238,7 +238,7 @@ export function TvDisplaysPage() {
                   <>
                     <Stack gap="xs">
                       <Group justify="space-between" align="center">
-                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                        <Text size="xs" fw={700} c="dimmed">
                           Launch targets
                         </Text>
                         <Badge tone="neutral" size="xs">

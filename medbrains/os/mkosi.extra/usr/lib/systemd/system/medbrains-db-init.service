@@ -1,0 +1,28 @@
+# Owner role + database, then the request/worker roles (deploy/standalone/db-roles.sh).
+# Runs before every server start; each step is idempotent.
+[Unit]
+Description=MedBrains database roles
+Requires=postgresql@17-main.service
+After=postgresql@17-main.service medbrains-firstboot.service
+Before=medbrains-server.service
+ConditionPathExists=!/var/lib/medbrains/config/.db-ready
+ConditionPathExists=/var/lib/medbrains/config/role-main
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/db-init
+UMask=0077
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native

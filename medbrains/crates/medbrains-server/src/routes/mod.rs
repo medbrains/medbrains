@@ -1,37 +1,38 @@
 pub mod abdm;
-pub mod uhi;
 pub mod access;
 pub mod admin;
 pub mod admin_simulator;
-pub mod message_simulator;
 pub mod appointments;
 pub mod audit;
+pub mod bill_verify;
 pub mod coverage;
 pub mod debug;
 pub mod health;
 pub mod immunizations;
+pub mod message_simulator;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_deliveries;
+pub mod portal_health;
 pub mod portal_pay;
 pub mod portal_privacy;
 pub mod portal_refills;
 pub mod portal_store;
 pub mod portal_tele;
-pub mod bill_verify;
 pub mod rx_verify;
 pub mod store_public;
+pub mod uhi;
 pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
 pub use medbrains_identity::sso;
+pub use medbrains_notifications as notifications;
 pub use medbrains_platform::ckb;
 pub use medbrains_print_data::billing as print_data_billing;
 pub use medbrains_print_data::clinical as print_data_clinical;
 pub use medbrains_scheduling::scheduling;
-pub use medbrains_notifications as notifications;
-pub use medbrains_signing::signed_documents;
 pub use medbrains_server_core::step_up;
+pub use medbrains_signing::signed_documents;
 pub use medbrains_telehealth::cds;
 // order_basket reaches diet's order-creation helper via super::diet
 pub use medbrains_diet as diet;
@@ -68,10 +69,11 @@ use crate::{
         auth::auth_middleware,
         client_ip::client_ip_middleware,
         csrf::csrf_middleware,
+        entitlement::gated,
         ip_restrict::ip_restrict_middleware,
         rate_limit::{
-            RateLimiter, rate_limit_middleware, storefront_rate_limit_middleware,
-            tiered_rate_limit_middleware,
+            RateLimiter, public_verify_rate_limit_middleware, rate_limit_middleware,
+            storefront_rate_limit_middleware, tiered_rate_limit_middleware,
         },
         system_state::system_state_layer,
     },
@@ -103,6 +105,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(login_route)
         .merge(password_reset_routes)
         .route("/api/health", get(health::health_check))
+        // Error tracking: the browser SDK's config and its envelope tunnel —
+        // errors on the sign-in page are reported too.
+        .merge(medbrains_error_tracking::public_router())
         // Caddy on-demand TLS asks before issuing a certificate.
         .merge(medbrains_infra_settings::public_router())
         // Enterprise SSO login flow — pre-auth (no JWT yet).
@@ -110,10 +115,7 @@ pub fn build_router(state: AppState) -> Router {
         // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
         // not a user session, so they live on the public router. The client
         // IP feeds the hospital's optional callback allow-list.
-        .merge(
-            medbrains_nhcx_callback::public_router()
-                .layer(from_fn_with_state(state.clone(), client_ip_middleware)),
-        )
+        .merge(medbrains_nhcx_callback::public_router())
         // ABDM gateway callbacks (HIP) — each authenticated by the gateway's
         // JWT and the HFR facility ID in X-HIP-ID, never by a user session.
         .merge(abdm::hip::public_router())
@@ -131,6 +133,13 @@ pub fn build_router(state: AppState) -> Router {
         // Device-code pairing — a display has no credentials yet, so asking for a
         // code and polling for the result are public; approving is not.
         .merge(medbrains_device_pairing::device_code_router())
+        // A machine's agent on this same box, with its own token.
+        .merge(medbrains_device_pairing::machine_agent::router())
+        // FHIR CapabilityStatement — clients read it before they authenticate.
+        .merge(medbrains_fhir_api::public_router())
+        // OAuth client credentials for connected apps (RFC-HOSPITAL-OS C1) —
+        // the app has no session yet; it presents its client id and secret.
+        .merge(medbrains_connected_apps::public_router())
         // Onboarding — public endpoints
         .merge(medbrains_onboarding::public_router())
         // Geo — public read-only endpoints
@@ -158,11 +167,13 @@ pub fn build_router(state: AppState) -> Router {
         // Auth — me/logout/change-password/revocations need Extension<Claims>
         .merge(medbrains_auth::protected_router())
         .merge(medbrains_client_errors::router())
+        .merge(medbrains_error_tracking::router())
         .merge(medbrains_device_pairing::device_code_admin_router())
         // Admin halves of three routers that used to sit on the public side,
         // where their handlers' `Claims` extension never arrived and every
         // call answered 500 — see each crate's admin_router doc comment.
         .merge(medbrains_device_pairing::admin_router())
+        .merge(medbrains_device_pairing::machines::admin_router())
         .merge(medbrains_invitations::admin_router())
         .merge(medbrains_cms::admin_router())
         .route("/api/access/manifest", get(access::get_manifest))
@@ -170,8 +181,13 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_clinical_scores::router())
         .merge(medbrains_clinical_ops::router())
         .merge(medbrains_vte::router())
+        .merge(medbrains_health_intel::router())
         .merge(medbrains_marketing::router())
         .merge(medbrains_setup::router())
+        .merge(medbrains_history_import::router())
+        .merge(medbrains_research::router())
+        .merge(medbrains_knowledge::router())
+        .merge(medbrains_sop_flows::router())
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
         .merge(medbrains_fhir_api::router())
         .route("/api/debug/authz-probe", get(health::authz_probe))
@@ -185,6 +201,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_approvals_api::router())
         .merge(medbrains_onboarding::router())
         .merge(medbrains_api_keys_api::router())
+        .merge(medbrains_connected_apps::router())
         .route("/api/auth/step-up", post(step_up::step_up))
         .merge(medbrains_mfa::router())
         // Phase A.1 — offline JWT revocation feed for mobile/TV/edge
@@ -220,7 +237,7 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — insurance providers
         // Setup — bulk / template / health / config
         // Patients
-        .merge(medbrains_patients::router())
+        .merge(gated("registration", medbrains_patients::router(), &state))
         // Patient — identifiers
         // Patient — addresses
         // Patient — contacts
@@ -266,61 +283,14 @@ pub fn build_router(state: AppState) -> Router {
             post(rx_verify::issue_verify_link),
         )
         .route(
-            "/api/opd/schedules",
-            get(appointments::list_schedules).post(appointments::create_schedule),
-        )
-        .route(
-            "/api/opd/schedules/{id}",
-            put(appointments::update_schedule).delete(appointments::delete_schedule),
-        )
-        .route(
-            "/api/opd/schedule-exceptions",
-            get(appointments::list_exceptions).post(appointments::create_exception),
-        )
-        .route(
-            "/api/opd/schedule-exceptions/{id}",
-            delete(appointments::delete_exception),
-        )
-        .route(
-            "/api/opd/doctors/{doctor_id}/slots",
-            get(appointments::get_available_slots),
-        )
-        .route(
-            "/api/opd/appointments",
-            get(appointments::list_appointments).post(appointments::book_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}",
-            get(appointments::get_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/reschedule",
-            put(appointments::reschedule_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/cancel",
-            put(appointments::cancel_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/check-in",
-            put(appointments::check_in_appointment),
-        )
-        .route(
             "/api/opd/queue-tokens/{id}/status-link",
             get(appointments::queue_token_status_link),
         )
-        .route(
-            "/api/opd/appointments/{id}/complete",
-            put(appointments::complete_appointment),
-        )
-        .route(
-            "/api/opd/appointments/{id}/no-show",
-            put(appointments::mark_appointment_no_show),
-        )
+        .merge(gated("opd", appointments::router(), &state))
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────
-        .merge(medbrains_billing::router())
+        .merge(gated("billing", medbrains_billing::router(), &state))
         // Interim MUST be before {id} to avoid matching "interim" as a UUID
         // ── Billing Advances ─────────────────────────────
         // ── Billing Corporates ───────────────────────────
@@ -350,19 +320,22 @@ pub fn build_router(state: AppState) -> Router {
         // ── OAuth connect (common token module) ──────────
         .merge(medbrains_oauth::router())
         // ── Lab ──────────────────────────────────────────
-        .merge(medbrains_lab::router())
+        .merge(gated("lab", medbrains_lab::router(), &state))
         .merge(medbrains_radiology::router())
         // ── Pharmacy ────────────────────────────────────
-        .merge(medbrains_pharmacy::router())
-        .merge(medbrains_ward_stock::router())
+        .merge(medbrains_pharmacy::catalog_router())
+        .merge(gated("pharmacy", medbrains_pharmacy::router(), &state))
+        .merge(gated("pharmacy", medbrains_ward_stock::router(), &state))
         .merge(medbrains_clinical_notes::router())
+        // ── AI notes from dictation (RFC-MODULE-ai-dictation) ──
+        .merge(medbrains_dictation::router())
         // ── Pharmacy Finance (credit notes + store indents) ──
-        .merge(medbrains_pharmacy_finance::router())
-        .merge(medbrains_pharmacy_fulfilment::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_finance::router(), &state))
+        .merge(gated("pharmacy", medbrains_pharmacy_fulfilment::router(), &state))
         // ── Pharmacy Safety ──────────────────────────────
-        .merge(medbrains_pharmacy_safety::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_safety::router(), &state))
         // ── Pharmacy Payments ────────────────────────────
-        .merge(medbrains_pharmacy_payments::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_payments::router(), &state))
         // ── ABDM (Phase 11): HFR/HPR registries + gateway HIP relay ─
         .route("/api/abdm/hfr", get(abdm::hfr::list_registrations))
         .route("/api/abdm/hfr/facilities", get(abdm::hfr::list_facilities))
@@ -556,25 +529,26 @@ pub fn build_router(state: AppState) -> Router {
             put(abdm::hip_relay::ack_callback),
         )
         // ── Pharmacy Improvements: Repeats ─────────────────
-        .merge(medbrains_pharmacy_repeats::router())
-        .merge(medbrains_pharmacy_delivery::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_repeats::router(), &state))
+        .merge(gated("pharmacy", medbrains_pharmacy_delivery::router(), &state))
         // ── Pharmacy Finance: Cash Drawer ──────────────────
-        .merge(medbrains_pharmacy_cash_drawer::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_cash_drawer::router(), &state))
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
-        .merge(medbrains_ipd::router())
+        .merge(gated("ipd", medbrains_ipd::router(), &state))
         .merge(medbrains_nursing::router())
+        .merge(gated("nursing", medbrains_nursing::station_router(), &state))
         // ── Clinical offline-mode REST adapters (Phase 7) ─────────────
         // Mirror endpoints for the four CRDT hooks. Same data the edge
         // node holds in Loro containers — surfaced here for tenants
         // running in REST mode.
         .merge(medbrains_clinical_offline::router())
         // ── Pharmacy Improvements: Substitution + Counseling + Coverage
-        .merge(medbrains_pharmacy_dispense_ops::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_dispense_ops::router(), &state))
         // ── Pharmacy Finance: Petty Cash + Float Movements ─
-        .merge(medbrains_pharmacy_petty_cash::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_petty_cash::router(), &state))
         // ── Pharmacy Finance: Free Dispensing + Overrides + Suppliers + Margins
-        .merge(medbrains_pharmacy_free_dispensing::router())
-        .merge(medbrains_indent::router())
+        .merge(gated("pharmacy", medbrains_pharmacy_free_dispensing::router(), &state))
+        .merge(gated("inventory", medbrains_indent::router(), &state))
         .merge(medbrains_materials::router())
         // ── Quality Management ──────────────────────────────
         .merge(medbrains_quality::router())
@@ -634,9 +608,9 @@ pub fn build_router(state: AppState) -> Router {
         // ── IPD Phase 2b: IP Types, Checklists, Reservations, Clinical Docs, etc. ──
         // ── IPD Phase 3a: Cross-module reads ────────────────
         // ── IPD post-discharge workflow (Track 1A.bis.4) ──
-        .merge(medbrains_ipd_post_discharge::router())
+        .merge(gated("ipd", medbrains_ipd_post_discharge::router(), &state))
         // ── NABH KPI rollup ───────────────────────────────
-        .merge(medbrains_reports::nabh_indicators::router())
+        .merge(gated("reports", medbrains_reports::nabh_indicators::router(), &state))
         // ── Operation Theatre ──────────────────────────────
         .merge(medbrains_ot::router())
         .merge(medbrains_blood_bank::router())
@@ -645,18 +619,19 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_diet::router())
         // ── HR & Staff Management ───────────────────────────
         .merge(medbrains_hr::router())
+        .merge(gated("hr", medbrains_hrms_gateway::router(), &state))
         // ── Payroll ──
-        .merge(medbrains_payroll::router())
+        .merge(gated("hr", medbrains_payroll::router(), &state))
         // ── BME / CMMS ───────────────────────────────────────
-        .merge(medbrains_bme::router())
+        .merge(gated("inventory", medbrains_bme::router(), &state))
         // ── Unified Assets & Stores ─────────────────────────
         .merge(medbrains_assets::router())
         .merge(medbrains_materials::ops::router())
-        .merge(medbrains_lms::router())
+        .merge(gated("hr", medbrains_lms::router(), &state))
         // ── MRD (Medical Records Department) ────────────────────
         .merge(medbrains_mrd::router())
         // ── Consent Management ───────────────────────────────
-        .merge(medbrains_consent::router())
+        .merge(gated("registration", medbrains_consent::router(), &state))
         .merge(medbrains_forms::router())
         // ── Camp Management ───────────────────────────────────
         .merge(medbrains_camp::router())
@@ -683,9 +658,11 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_order_basket::router())
         // ── Doctor Packages (admin) ─────────────────────────
         .merge(medbrains_doctor_packages::router())
-        .merge(medbrains_doctor_payouts::router())
+        .merge(gated("billing", medbrains_doctor_payouts::router(), &state))
+        // ── MedBrains Flow (crowd + wait add-on, #4901) ─────
+        .merge(medbrains_flow::router())
         // ── Patient Packages ────────────────────────────────
-        .merge(medbrains_patient_packages::router())
+        .merge(gated("billing", medbrains_patient_packages::router(), &state))
         // ── Doctor Coverage (admin) ─────────────────────────
         .route(
             "/api/admin/coverage",
@@ -698,11 +675,11 @@ pub fn build_router(state: AppState) -> Router {
         // ── Order Sets ──────────────────────────────────────
         .merge(medbrains_order_sets::router())
         .merge(medbrains_community_health::router())
-        .merge(medbrains_scheduling::router())
+        .merge(gated("opd", medbrains_scheduling::router(), &state))
         // ── Clinical & Operational Analytics ────────────────────
-        .merge(medbrains_reports::analytics::router())
+        .merge(gated("reports", medbrains_reports::analytics::router(), &state))
         // ── Governed Reports Command Center ───────────────────
-        .merge(medbrains_reports::reports::router())
+        .merge(gated("reports", medbrains_reports::reports::router(), &state))
         // ── Print Data (clinical) ─────────────────────────────
         .merge(medbrains_print_data::general::router())
         .merge(medbrains_print_data::clinical::router())
@@ -802,7 +779,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/admin/simulator/schedules/{id}/run-now",
             post(admin_simulator::run_now),
         )
-        // Message simulator phone view — 404 unless the simulator is on.
+        // Message simulator phone view — 403 without the permission, then 404 unless the simulator is on.
         .route(
             "/api/admin/message-simulator/messages",
             get(message_simulator::list_messages),
@@ -855,6 +832,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── IT Security: Break-Glass ─────────────────────────────────
         .merge(medbrains_it_security::router())
+        .merge(medbrains_security_intel::routes::router())
         // ── IT Security: Clinical Access Monitor ─────────────────────
         // ── IT Security: Stock Disposal ──────────────────────────────
         // ── IT Security: TAT Tracking ────────────────────────────────
@@ -876,6 +854,9 @@ pub fn build_router(state: AppState) -> Router {
         // device exchanges for JWT + cert fingerprint
         // S3 presigned upload / download URL endpoints
         .merge(medbrains_upload::router())
+        // Innermost: tags the request's error scope with the user hash,
+        // tenant and role, which the auth layer outside it has resolved.
+        .layer(from_fn(medbrains_error_tracking::tag_scope))
         // Sprint A.6 — system_state middleware short-circuits non-GET when
         // tenant is in read_only/degraded mode. Innermost so claims + path
         // are populated and 503 response carries no audit weight.
@@ -895,8 +876,7 @@ pub fn build_router(state: AppState) -> Router {
         .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))
-        .layer(from_fn_with_state(state.clone(), auth_middleware))
-        .layer(from_fn_with_state(state.clone(), client_ip_middleware));
+        .layer(from_fn_with_state(state.clone(), auth_middleware));
 
     // ── Bridge Agent Registration (no JWT auth — uses API key) ──
     let bridge_routes = medbrains_devices::bridge_router();
@@ -929,17 +909,53 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/public/radiology/viewer/{token}",
-            get(radiology::validate_share_link),
+            get(radiology::share_public::validate_share_link),
+        )
+        // A shared study, opened by its recipient: the token is the whole
+        // credential, scoped to one study, expiring, and every open audited.
+        .route(
+            "/api/public/radiology/share/{token}/code",
+            post(radiology::share_public::send_share_code),
+        )
+        .route(
+            "/api/public/radiology/share/{token}/verify",
+            post(radiology::share_public::verify_share_code),
+        )
+        .route(
+            "/api/public/radiology/share/{token}/ohif/",
+            get(radiology::share_public::public_ohif_index),
+        )
+        .route(
+            "/api/public/radiology/share/{token}/ohif/{*rest}",
+            get(radiology::share_public::public_ohif),
+        )
+        .route(
+            "/api/public/radiology/share/{token}/dicom-web/{*rest}",
+            get(radiology::share_public::public_dicomweb),
         )
         // Patient portal sign-in. Unauthenticated by necessity — this is how a
         // patient gets a token in the first place.
         .route("/api/portal/auth/request-otp", post(portal::request_portal_otp))
         .route("/api/portal/auth/verify", post(portal::verify_portal_otp))
-        // Scanned by a pharmacist at a counter, who is not a user of this
-        // system — so the token in the URL is the whole credential.
-        .route(
-            "/api/public/prescriptions/verify/{token}",
-            get(rx_verify::verify_prescription),
+        // The QR checks on paper: a prescription (scanned by a pharmacist) and
+        // a signed document (by an insurer, a court, another hospital). None
+        // of them is a user of this system, so the token in the URL is the
+        // whole credential and no permission applies; the answers carry no
+        // health data. Bounded per address.
+        .merge(
+            Router::new()
+                .route(
+                    "/api/public/prescriptions/verify/{token}",
+                    get(rx_verify::verify_prescription),
+                )
+                .route(
+                    "/api/public/signatures/verify/{token}",
+                    get(medbrains_documents::signature_verify::verify_signature_public),
+                )
+                .layer(from_fn_with_state(
+                    RateLimiter::new(),
+                    public_verify_rate_limit_middleware,
+                )),
         )
         // The QR on a printed bill: insurers and patients check it is genuine.
         .route("/api/public/bills/verify", get(bill_verify::verify_bill))
@@ -989,6 +1005,27 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/portal/store/checkout", post(portal_store::store_checkout))
         .route("/api/portal/store/orders", get(portal_store::store_orders))
         .route("/api/portal/store/orders/{id}", get(portal_store::store_order))
+        .route("/api/portal/store/cart/hold", post(portal_store::store_hold_cart))
+        .route(
+            "/api/portal/store/serviceability",
+            get(portal_store::store_serviceability),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/cancel",
+            post(portal_store::store_cancel_order),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/returns",
+            post(portal_store::store_request_return),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/substitutions/{sid}/consent",
+            post(portal_store::store_substitution_consent),
+        )
+        .route(
+            "/api/portal/store/orders/{id}/outside-print",
+            post(portal_store::store_outside_print),
+        )
         .route(
             "/api/portal/store/prescriptions/{id}/order",
             post(portal_store::store_order_prescription),
@@ -1000,6 +1037,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/portal/privacy", get(portal_privacy::portal_privacy))
         .route("/api/portal/privacy/export", get(portal_privacy::portal_export))
         .route("/api/portal/dpdp-consent", put(portal_privacy::portal_set_consent))
+        .route("/api/portal/health-data", get(portal_health::get_sharing))
+        .route("/api/portal/health-data/consent", put(portal_health::set_consent))
+        .route("/api/portal/health-data/readings", post(portal_health::post_readings))
         .route(
             "/api/portal/privacy-requests",
             post(portal_privacy::portal_create_request),
@@ -1009,8 +1049,14 @@ pub fn build_router(state: AppState) -> Router {
     // ── The storefront before sign-in: browse, and sign in with a mobile.
     //    Public, so bounded per IP; codes far more tightly than browsing.
     let store_public_routes = Router::new()
-        .route("/api/store/{tenant_code}/about", get(store_public::store_about))
-        .route("/api/store/{tenant_code}/items", get(store_public::store_items))
+        .route(
+            "/api/store/{tenant_code}/about",
+            get(store_public::store_about),
+        )
+        .route(
+            "/api/store/{tenant_code}/items",
+            get(store_public::store_items),
+        )
         .route(
             "/api/store/{tenant_code}/items/{id}",
             get(store_public::store_item),
@@ -1040,8 +1086,7 @@ pub fn build_router(state: AppState) -> Router {
         .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))
-        .layer(from_fn_with_state(state.clone(), auth_middleware))
-        .layer(from_fn_with_state(state.clone(), client_ip_middleware));
+        .layer(from_fn_with_state(state.clone(), auth_middleware));
 
     public
         .merge(protected)
@@ -1057,5 +1102,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/{*rest}",
             axum::routing::any(|| async { medbrains_server_core::error::AppError::NotFound }),
         )
+        // Outermost, so sign-in and every public route know the address too.
+        .layer(from_fn_with_state(state.clone(), client_ip_middleware))
         .with_state(state)
 }

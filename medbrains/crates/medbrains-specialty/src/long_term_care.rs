@@ -97,10 +97,10 @@ pub async fn create_mds_assessment(
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
-    if let Some(t) = &body.assessment_type {
-        if !MDS_TYPES.contains(&t.as_str()) {
-            return Err(AppError::BadRequest("Invalid assessment type".to_owned()));
-        }
+    if let Some(t) = &body.assessment_type
+        && !MDS_TYPES.contains(&t.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid assessment type".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -312,10 +312,10 @@ pub async fn update_ltc_medication(
         id,
     )
     .await?;
-    if let Some(s) = &body.status {
-        if !["active", "paused", "discontinued"].contains(&s.as_str()) {
-            return Err(AppError::BadRequest("Invalid status".to_owned()));
-        }
+    if let Some(s) = &body.status
+        && !["active", "paused", "discontinued"].contains(&s.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -868,15 +868,15 @@ pub async fn create_snf_admission(
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a resident outside the caller's reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
-    if let Some(s) = &body.source {
-        if !["hospital_discharge", "direct", "transfer"].contains(&s.as_str()) {
-            return Err(AppError::BadRequest("Invalid source".to_owned()));
-        }
+    if let Some(s) = &body.source
+        && !["hospital_discharge", "direct", "transfer"].contains(&s.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid source".to_owned()));
     }
-    if let Some(l) = &body.level_of_care {
-        if !["skilled_nursing", "rehab", "long_term"].contains(&l.as_str()) {
-            return Err(AppError::BadRequest("Invalid level of care".to_owned()));
-        }
+    if let Some(l) = &body.level_of_care
+        && !["skilled_nursing", "rehab", "long_term"].contains(&l.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid level of care".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

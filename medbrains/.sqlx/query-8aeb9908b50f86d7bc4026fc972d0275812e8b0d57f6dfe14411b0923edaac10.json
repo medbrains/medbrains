@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id, d.label, d.app_variant, d.paired_at, d.last_seen_at,\n                  COALESCE(d.last_seen_at > now() - make_interval(secs => $2), false) AS \"online!\",\n                  d.last_seen_at IS NULL AS \"awaiting_confirmation!\",\n                  host(d.last_seen_ip) AS screen_address\n             FROM paired_devices d\n            WHERE d.tenant_id = $1 AND d.revoked_at IS NULL\n              AND d.app_variant IN ('Desktop-Workstation', 'Desktop-Display')\n            ORDER BY d.label LIMIT 1000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "app_variant",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "paired_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_seen_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "online!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "awaiting_confirmation!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "screen_address",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "8aeb9908b50f86d7bc4026fc972d0275812e8b0d57f6dfe14411b0923edaac10"
+}

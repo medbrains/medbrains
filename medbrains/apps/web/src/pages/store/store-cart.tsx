@@ -23,6 +23,7 @@ import {
   refillChoiceSchema,
 } from "../portal/portal-delivery";
 import { DeliveryFields } from "../portal/portal-refill-choice";
+import { StoreCheckoutHold } from "./store-checkout-hold";
 import { checkoutBody, clampQuantity, pickupOnly, usablePrescriptions } from "./storefront";
 
 interface StoreCartProps {
@@ -120,6 +121,7 @@ export function StoreCart({ token, prescriptionId, onPlaced }: StoreCartProps) {
 function PlaceOrder({ token, cart, prescriptionId, onPlaced }: StoreCartProps & { cart: Cart }) {
   const queryClient = useQueryClient();
   const [hospitalRx, setHospitalRx] = useState<string | null>(prescriptionId);
+  const [pickupStore, setPickupStore] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   const refills = useQuery({
     queryKey: ["portal-refills"],
@@ -145,6 +147,7 @@ function PlaceOrder({ token, cart, prescriptionId, onPlaced }: StoreCartProps & 
     values: defaultChoice(offer.data),
   });
   const fulfilment = useWatch({ control, name: "fulfilment" });
+  const typedPincode = useWatch({ control, name: "pincode" });
   const place = useMutation({
     mutationFn: (values: RefillChoiceValues) => {
       const built = checkoutBody(
@@ -153,7 +156,12 @@ function PlaceOrder({ token, cart, prescriptionId, onPlaced }: StoreCartProps & 
         refillBody(values, offer.data).delivery,
       );
       if ("problem" in built) throw new Error(built.problem);
-      return portalService.storeCheckout(token, built.body);
+      return portalService.storeCheckout(
+        token,
+        values.fulfilment === "pickup" && pickupStore
+          ? { ...built.body, pickup_store_id: pickupStore }
+          : built.body,
+      );
     },
     onSuccess: (order) => {
       toast.success(
@@ -231,6 +239,14 @@ function PlaceOrder({ token, cart, prescriptionId, onPlaced }: StoreCartProps & 
       {deliverable && fulfilment === "delivery" && (
         <DeliveryFields control={control} offer={deliverable} />
       )}
+      <StoreCheckoutHold
+        token={token}
+        fulfilment={fulfilment === "delivery" ? "delivery" : "pickup"}
+        pincode={typedPincode.trim() || undefined}
+        pickupStore={pickupStore}
+        onPickupStore={setPickupStore}
+        returnPolicy={cart.return_policy}
+      />
       <Button type="submit" tone="primary" loading={place.isPending}>
         Place order
       </Button>

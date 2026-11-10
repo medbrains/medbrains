@@ -2,13 +2,15 @@
 //!
 //! Orthanc's worklists plugin (1.12.10+) takes `POST /worklists/create` with
 //! the item's DICOM tags; the modality then finds the patient with a C-FIND
-//! against Orthanc's DICOM port. The PACS is the hospital's own, on its own
-//! network, so this posts wherever the hospital configured it. Credentials:
-//! the configured username, and the `ORTHANC_PASSWORD` secret when set.
+//! against Orthanc's DICOM port. Where the PACS is and how to sign in are read
+//! at dispatch time from the hospital's own settings, through
+//! [`pacs_target`](super::pacs_target) — never from the event payload, and
+//! never sent to an address the network policy refuses.
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
+use super::pacs_target::{self, PacsError, Policy};
 use crate::handler::{Handler, HandlerCtx, HandlerError};
 
 #[derive(Debug, Default)]
@@ -21,25 +23,21 @@ impl Handler for WorklistCreateHandler {
     }
 
     async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
-        let url = payload["orthanc_url"]
-            .as_str()
-            .filter(|u| !u.is_empty())
-            .ok_or_else(|| HandlerError::Permanent("payload.orthanc_url missing".to_owned()))?;
-        let mut request = ctx
-            .http_client
-            .post(format!("{}/worklists/create", url.trim_end_matches('/')))
-            .timeout(std::time::Duration::from_secs(15))
-            .json(&json!({ "Tags": payload["tags"] }));
-        let username = payload["orthanc_username"].as_str().unwrap_or_default();
-        if !username.is_empty() {
-            let password = ctx
-                .secret_resolver
-                .get("ORTHANC_PASSWORD")
-                .await
-                .unwrap_or_default();
-            request = request.basic_auth(username, Some(password));
-        }
-        let response = request
+        let target = pacs_target::load_target(
+            &ctx.pool,
+            ctx.tenant_id,
+            ctx.secret_resolver.as_ref(),
+            &Policy::from_env(),
+        )
+        .await
+        .map_err(|e| match e {
+            PacsError::Db(_) => HandlerError::Transient(e.to_string()),
+            _ => HandlerError::Permanent(e.to_string()),
+        })?
+        .ok_or_else(|| HandlerError::Permanent("the hospital has no PACS configured".to_owned()))?;
+        let response = target
+            .post("/worklists/create")
+            .json(&json!({ "Tags": payload["tags"] }))
             .send()
             .await
             .map_err(|e| HandlerError::Transient(format!("PACS unreachable: {e}")))?;

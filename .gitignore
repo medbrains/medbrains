@@ -1,7 +1,3 @@
-# Claude Code: session state and personal settings stay local; the shared
-# hooks file (.claude/settings.json) is versioned.
-.claude/*
-!.claude/settings.json
 
 # OS
 .DS_Store
@@ -32,3 +28,28 @@ __pycache__/
 # 441MB of node_modules plus scan findings. Its own .gitignore reads as if the
 # directory were meant to be tracked; it is not. Decided 2026-08-16.
 medbrains/.deepsec/
+
+# Build output and test-run artefacts — rebuilt, never committed.
+**/target/
+**/dist/
+*.tsbuildinfo
+*.a
+allure-results/
+allure-report/
+allure-combined/
+medbrains/apps/web/e2e/smoke/latency-report.jsonl
+.DS_Store
+
+# Office lock files, editor folders, run debris
+~$*
+.idea/
+*.trace
+server_err.log
+test-results/
+
+# Local AI-assistant config (kept out of the public repo)
+CLAUDE.md
+AGENTS.md
+.claude/
+.mcp.json
+.cocoindex_code/

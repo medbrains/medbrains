@@ -5,7 +5,7 @@
 //! "who looked at this patient's record, when, from where" trail
 //! mandated by HIPAA / DPDP / DISHA / GDPR.
 //!
-//! Async via tokio::spawn so it never blocks the response. Failures are
+//! Async via `tokio::spawn` so it never blocks the response. Failures are
 //! logged at error level — fallback file logger is a Phase-2.5 follow-up.
 
 use axum::{
@@ -65,9 +65,6 @@ pub async fn access_log_layer(
     let path = request.uri().path().to_owned();
 
     let response = next.run(request).await;
-    if !response.status().is_success() {
-        return response;
-    }
 
     let Some(claims) = claims_opt else {
         return response;
@@ -77,25 +74,44 @@ pub async fn access_log_layer(
         return response;
     };
 
+    if !response.status().is_success() {
+        // A decoy patient is hidden from every query, so naming one is
+        // refused — and is exactly the read the honeytoken exists to catch.
+        if let (true, Some(patient_id)) = (entity_type == "patients", entity_id) {
+            let pool = state.db.clone();
+            let (tenant_id, user_id) = (claims.tenant_id, claims.sub);
+            tokio::spawn(async move {
+                if let Err(e) = probe_honeytoken(&pool, tenant_id, patient_id, user_id, &path).await
+                {
+                    tracing::error!(error = %e, %tenant_id, "honeytoken probe failed");
+                }
+            });
+        }
+        return response;
+    }
+
     let pool = state.db.clone();
     let tenant_id = claims.tenant_id;
-    let user_id = claims.sub;
     let module = entity_type.clone();
+    let patient_id = (entity_type == "patients").then_some(entity_id).flatten();
+    let row = AccessRow {
+        tenant_id,
+        user_id: claims.sub,
+        entity_type,
+        entity_id,
+        patient_id,
+        ip_address: ip_opt,
+        user_agent,
+        module,
+        correlation_id,
+        acting_agent: claims
+            .act
+            .as_ref()
+            .map(super::auth::ActingAgent::to_audit_json),
+    };
 
     tokio::spawn(async move {
-        if let Err(e) = insert_access_log(
-            &pool,
-            tenant_id,
-            user_id,
-            entity_type,
-            entity_id,
-            ip_opt,
-            user_agent,
-            module,
-            correlation_id,
-        )
-        .await
-        {
+        if let Err(e) = insert_access_log(&pool, &row).await {
             tracing::error!(
                 error = %e,
                 tenant_id = %tenant_id,
@@ -107,7 +123,7 @@ pub async fn access_log_layer(
     response
 }
 
-/// Match path against PHI_PREFIXES. Returns (entity_type, optional entity_id).
+/// Match path against `PHI_PREFIXES`. Returns (`entity_type`, optional `entity_id`).
 fn parse_phi_path(path: &str) -> Option<(String, Option<Uuid>)> {
     let stripped = path.trim_start_matches("/api/");
     let mut segments = stripped.split('/');
@@ -119,49 +135,83 @@ fn parse_phi_path(path: &str) -> Option<(String, Option<Uuid>)> {
     Some((prefix.to_owned(), entity_id))
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn insert_access_log(
-    pool: &sqlx::PgPool,
-    tenant_id: Uuid,
-    user_id: Uuid,
-    entity_type: String,
-    entity_id: Option<Uuid>,
-    ip_address: Option<String>,
-    user_agent: Option<String>,
-    module: String,
-    correlation_id: Option<Uuid>,
-) -> Result<(), sqlx::Error> {
+/// One `access_log` row: who read which record, and — when an AI agent made
+/// the read for them — which agent.
+#[derive(Debug)]
+pub struct AccessRow {
+    pub tenant_id: Uuid,
+    pub user_id: Uuid,
+    pub entity_type: String,
+    pub entity_id: Option<Uuid>,
+    pub patient_id: Option<Uuid>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub module: String,
+    pub correlation_id: Option<Uuid>,
+    pub acting_agent: Option<serde_json::Value>,
+}
+
+/// Write one access row in its own transaction. Public so reads that do not go
+/// through HTTP (the assistant's direct chart tools) leave the same trail.
+///
+/// # Errors
+/// The row could not be written.
+pub async fn insert_access_log(pool: &sqlx::PgPool, row: &AccessRow) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
     // allow-raw-sql: access-log writes its own scoped tx; tenant context bootstrap.
     sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id.to_string())
+        .bind(row.tenant_id.to_string())
         .execute(&mut *tx)
         .await?;
-    let patient_id = if entity_type == "patients" {
-        entity_id
-    } else {
-        None
-    };
-
     sqlx::query(
         "INSERT INTO access_log ( \
              tenant_id, user_id, entity_type, entity_id, patient_id, action, \
-             ip_address, user_agent, module, correlation_id \
-         ) VALUES ($1, $2, $3, $4, $5, 'view', $6, $7, $8, $9)",
+             ip_address, user_agent, module, correlation_id, acting_agent \
+         ) VALUES ($1, $2, $3, $4, $5, 'view', $6, $7, $8, $9, $10)",
     )
-    .bind(tenant_id)
-    .bind(user_id)
-    .bind(&entity_type)
-    .bind(entity_id)
-    .bind(patient_id)
-    .bind(ip_address.as_deref())
-    .bind(user_agent.as_deref())
-    .bind(&module)
-    .bind(correlation_id)
+    .bind(row.tenant_id)
+    .bind(row.user_id)
+    .bind(&row.entity_type)
+    .bind(row.entity_id)
+    .bind(row.patient_id)
+    .bind(row.ip_address.as_deref())
+    .bind(row.user_agent.as_deref())
+    .bind(&row.module)
+    .bind(row.correlation_id)
+    .bind(row.acting_agent.as_ref())
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(())
+}
+
+/// Raise the decoy-patient alarm if `patient_id` is a decoy. The same
+/// database function the `access_log` trigger calls, so the rule lives once.
+///
+/// # Errors
+/// The check could not be made.
+pub async fn probe_honeytoken(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    user_id: Uuid,
+    path: &str,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    // allow-raw-sql: tenant context bootstrap, as insert_access_log does.
+    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
+        .bind(tenant_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    let hit: bool = sqlx::query_scalar("SELECT public.security_honeytoken_hit($1, $2, $3, $4)")
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(user_id)
+        .bind(format!("request:{path}"))
+        .fetch_one(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(hit)
 }
 
 #[cfg(test)]

@@ -1,0 +1,12 @@
+#!/bin/bash
+# Compiles medbrains-shell with Debian's own compiler, here because GTK and WebKitGTK link
+# against this image's libraries and zigbuild cannot cross-compile them. Debian trixie's rustc
+# 1.85 is why the crate pins gtk4 0.10 and webkit6 0.5; Cargo.lock pins the rest by hash.
+set -euo pipefail
+
+CARGO_TARGET_DIR="$(mktemp -d)"
+export CARGO_TARGET_DIR
+cd "$SRCDIR/medbrains-shell"
+cargo build --release --locked
+install -D -m 0755 "$CARGO_TARGET_DIR/release/medbrains-shell" "$DESTDIR/usr/bin/medbrains-shell"
+install -D -m 0644 -t "$DESTDIR/usr/share/fonts/medbrains" fonts/*.ttf

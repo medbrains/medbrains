@@ -30,9 +30,7 @@ export function StoreFooter({ about }: { about: StoreAbout }) {
         </Text>
       )}
       <Text size="xs" c="dimmed">
-        Returns within {about.return_window_days} days for a wrong, damaged or short-dated medicine.
-        Refrigerated and controlled medicines can't be returned. Medicines are dispensed by a
-        registered pharmacist.
+        {about.return_policy} Medicines are dispensed by a registered pharmacist.
       </Text>
     </Stack>
   );

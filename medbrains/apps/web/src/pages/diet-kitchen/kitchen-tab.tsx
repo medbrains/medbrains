@@ -425,7 +425,7 @@ export function KitchenTab() {
           </Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 6 }}>
             <Card withBorder>
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Total Meals
               </Text>
               <Text size="xl" fw={700}>
@@ -433,7 +433,7 @@ export function KitchenTab() {
               </Text>
             </Card>
             <Card withBorder>
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Pending
               </Text>
               <Text size="xl" fw={700} c="slate">
@@ -441,7 +441,7 @@ export function KitchenTab() {
               </Text>
             </Card>
             <Card withBorder>
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Preparing
               </Text>
               <Text size="xl" fw={700} c="warning">
@@ -449,7 +449,7 @@ export function KitchenTab() {
               </Text>
             </Card>
             <Card withBorder>
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Ready
               </Text>
               <Text size="xl" fw={700} c="primary">
@@ -457,7 +457,7 @@ export function KitchenTab() {
               </Text>
             </Card>
             <Card withBorder>
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Dispatched
               </Text>
               <Text size="xl" fw={700} c="orange">
@@ -465,7 +465,7 @@ export function KitchenTab() {
               </Text>
             </Card>
             <Card withBorder>
-              <Text size="xs" c="dimmed" tt="uppercase">
+              <Text size="xs" c="dimmed">
                 Delivered
               </Text>
               <Text size="xl" fw={700} c="success">

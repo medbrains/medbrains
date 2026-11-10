@@ -1,5 +1,6 @@
 import { api } from "@medbrains/api";
-import type { ChatChunk, ChatMessage, ChatToolCall, ChatTransport, SendOptions } from "./types";
+import { type AguiState, fromAgui, newAguiState } from "./agui";
+import type { ChatChunk, ChatMessage, ChatTransport, SendOptions } from "./types";
 
 /** Pull the JSON payload out of one `data: {...}` SSE frame. */
 function parseFrame(frame: string): Record<string, unknown> | null {
@@ -13,12 +14,29 @@ function parseFrame(frame: string): Record<string, unknown> | null {
 }
 
 /**
- * Streams the assistant reply from `POST /api/ai/chat` over SSE — the real
- * backend transport (swap in for MockTransport). Stateful: it remembers the
- * server conversation id so multi-turn threads continue the same conversation.
+ * The server's own words for a refused turn — e.g. "Couldn't run the AI
+ * safely, so nothing was sent to it" (redaction failed closed) or "This
+ * conversation is about a different patient" — so the user knows why.
+ */
+export async function refusalReason(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    if (typeof body.detail === "string" && body.detail) return body.detail;
+  } catch {
+    // Not JSON: fall through to the status.
+  }
+  return `Assistant unavailable (${response.status})`;
+}
+
+/**
+ * Streams the assistant reply from `POST /api/ai/chat` as AG-UI events over
+ * SSE — the real backend transport (swap in for MockTransport). Stateful: it
+ * remembers the server conversation (AG-UI thread) id so multi-turn threads
+ * continue the same conversation.
  */
 export class SseTransport implements ChatTransport {
   private conversationId?: string;
+  private agui: AguiState = newAguiState();
 
   /** Continue a saved thread (resume) or start fresh when `undefined`. */
   setConversationId(id?: string): void {
@@ -28,6 +46,7 @@ export class SseTransport implements ChatTransport {
   async *send(messages: ChatMessage[], opts: SendOptions): AsyncIterable<ChatChunk> {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
+    this.agui = newAguiState();
 
     let response: Response;
     try {
@@ -46,7 +65,7 @@ export class SseTransport implements ChatTransport {
     }
 
     if (!response.ok || !response.body) {
-      yield { type: "error", error: `Assistant unavailable (${response.status})` };
+      yield { type: "error", error: await refusalReason(response) };
       return;
     }
 
@@ -73,30 +92,12 @@ export class SseTransport implements ChatTransport {
     }
   }
 
-  /** Map a backend frame to a ChatChunk, capturing the conversation id. */
+  /** Map an AG-UI frame to a ChatChunk, capturing the conversation (thread) id. */
   private mapFrame(frame: string): ChatChunk | null {
     const payload = parseFrame(frame);
     if (!payload) return null;
-    switch (payload.type) {
-      case "text":
-        return typeof payload.text === "string" ? { type: "text", delta: payload.text } : null;
-      case "tool":
-        return payload.toolCall
-          ? { type: "tool", toolCall: payload.toolCall as ChatToolCall }
-          : null;
-      case "tool_result":
-        return typeof payload.id === "string"
-          ? { type: "tool_result", id: payload.id, result: payload.result }
-          : null;
-      case "done":
-        if (typeof payload.conversationId === "string") {
-          this.conversationId = payload.conversationId;
-        }
-        return { type: "done" };
-      case "error":
-        return { type: "error", error: String(payload.message ?? "Assistant error") };
-      default:
-        return null;
-    }
+    const chunk = fromAgui(payload, this.agui);
+    if (this.agui.threadId) this.conversationId = this.agui.threadId;
+    return chunk;
   }
 }

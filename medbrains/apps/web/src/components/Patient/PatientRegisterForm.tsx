@@ -76,6 +76,7 @@ import { AbhaLinkPanel } from "./AbhaLinkPanel";
 import { CampaignSelect } from "./CampaignSelect";
 import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
 import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
+import { LocalNameRow } from "./LocalNameRow";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
@@ -315,6 +316,12 @@ export function PatientRegisterForm({
   // the patient was registered, the queue step failed into a warning, and the
   // patient simply was not in the queue. Every time, because it is the default.
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  // Opening the visit after registering only helps someone who works the
+  // visit. A front desk that may queue a patient but not update the visit was
+  // dropped on the doctor's workup screen, every read on it refused, with no
+  // way to print the patient's card from there.
+  const canUpdateOpdVisit = useHasPermission(P.OPD.VISIT_UPDATE);
+  const canWorkOpdVisit = canCreateOpdVisit && canUpdateOpdVisit;
   const canVerifyAbha = useHasPermission(P.ABDM.ABHA.MANAGE);
   const {
     register,
@@ -338,6 +345,7 @@ export function PatientRegisterForm({
       prefix: initialValues?.prefix,
       first_name: initialValues?.first_name ?? "",
       middle_name: initialValues?.middle_name,
+      full_name_local: initialValues?.full_name_local ?? "",
       last_name: initialValues?.last_name ?? "",
       is_unknown_patient: initialValues?.is_unknown_patient ?? false,
       suffix: initialValues?.suffix,
@@ -390,7 +398,7 @@ export function PatientRegisterForm({
       // patient registered and silently not queued.
       create_opd_visit: (initialValues?.create_opd_visit ?? !isEdit) && canCreateOpdVisit,
       open_opd_after_registration:
-        (initialValues?.open_opd_after_registration ?? !isEdit) && canCreateOpdVisit,
+        (initialValues?.open_opd_after_registration ?? !isEdit) && canWorkOpdVisit,
     },
   });
   const [activeStep, setActiveStep] = useState(0);
@@ -731,6 +739,7 @@ export function PatientRegisterForm({
       email: values.email || null,
       prefix: values.prefix || undefined,
       middle_name: values.middle_name || undefined,
+      full_name_local: values.full_name_local?.trim() || undefined,
       suffix: values.suffix || undefined,
       father_name: values.father_name || undefined,
       guardian_name: values.guardian_name || undefined,
@@ -994,6 +1003,26 @@ export function PatientRegisterForm({
                   />
                 </Grid.Col>
               </Grid>
+            </FormRow>
+            <FormRow label={t("registrationForm.row.localName", "Name in own script")}>
+              <Controller
+                control={control}
+                name="full_name_local"
+                render={({ field }) => (
+                  <LocalNameRow
+                    englishName={[watch("first_name"), watch("middle_name"), watch("last_name")]
+                      .filter(Boolean)
+                      .join(" ")}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onUseEnglish={(name) => {
+                      const [first, ...rest] = name.split(" ");
+                      setValue("first_name", first ?? "", { shouldDirty: true });
+                      setValue("last_name", rest.join(" "), { shouldDirty: true });
+                    }}
+                  />
+                )}
+              />
             </FormRow>
 
             <FormRow label={t("registrationForm.row.ageDob")}>
@@ -1660,21 +1689,23 @@ export function PatientRegisterForm({
                       )}
                     />
                   </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <Controller
-                      control={control}
-                      name="open_opd_after_registration"
-                      render={({ field }) => (
-                        <Checkbox
-                          aria-label={t("registrationForm.aria.openOpdAfterRegistration")}
-                          label={t("registrationForm.label.openOpdAfterQueue")}
-                          checked={(field.value ?? false) && Boolean(createOpdVisit)}
-                          disabled={!createOpdVisit}
-                          onChange={(event) => field.onChange(event.currentTarget.checked)}
-                        />
-                      )}
-                    />
-                  </Grid.Col>
+                  {canWorkOpdVisit && (
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Controller
+                        control={control}
+                        name="open_opd_after_registration"
+                        render={({ field }) => (
+                          <Checkbox
+                            aria-label={t("registrationForm.aria.openOpdAfterRegistration")}
+                            label={t("registrationForm.label.openOpdAfterQueue")}
+                            checked={(field.value ?? false) && Boolean(createOpdVisit)}
+                            disabled={!createOpdVisit}
+                            onChange={(event) => field.onChange(event.currentTarget.checked)}
+                          />
+                        )}
+                      />
+                    </Grid.Col>
+                  )}
                 </Grid>
               </FormRow>
             )}

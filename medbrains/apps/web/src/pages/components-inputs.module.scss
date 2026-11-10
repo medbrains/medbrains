@@ -43,7 +43,7 @@
   margin-bottom: 32px;
 
   h1 {
-    font: 400 32px/1.05 var(--font-serif);
+    font: 400 32px / 1.05 var(--font-serif);
     letter-spacing: -0.015em;
     margin: 0;
 
@@ -293,7 +293,7 @@
   gap: 8px;
 
   .num {
-    font: 400 28px/1 var(--font-serif);
+    font: 400 28px / 1 var(--font-serif);
     color: var(--ink);
     font-feature-settings: "tnum";
     min-width: 60px;
@@ -988,7 +988,7 @@
     border-bottom: 1px solid var(--rule-soft);
 
     h3 {
-      font: 400 22px/1.1 var(--font-serif);
+      font: 400 22px / 1.1 var(--font-serif);
       letter-spacing: -0.01em;
       margin: 0;
 
@@ -1107,7 +1107,7 @@
       gap: 6px;
     }
     .v {
-      font: 400 26px/1 var(--font-serif);
+      font: 400 26px / 1 var(--font-serif);
       color: var(--ink);
       font-feature-settings: "tnum";
       min-width: 50px;

@@ -8,18 +8,16 @@
 //! keyed on (tenant_id, code) so re-running a corrected file updates
 //! instead of duplicating.
 
+use axum::routing::post;
 use axum::{Extension, Json, extract::State};
-use axum::routing::{post};
 use rust_decimal::Decimal;
 
+use medbrains_core::permissions;
 use medbrains_server_core::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 use medbrains_setup::{CsvImportRequest, CsvImportResult};
-use medbrains_core::permissions;
 
 fn parse_decimal(value: &str) -> Option<Decimal> {
     let trimmed = value.trim();
@@ -105,8 +103,13 @@ pub async fn import_lab_catalog(
         // Absent means "not stated", not "no fasting". A column the sheet
         // omits must leave the existing value alone, which is why this is an
         // Option and the upsert COALESCEs it.
-        let fasting_required: Option<bool> = optional(cell(values, fasting_required_idx))
-            .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "true" | "yes" | "y" | "1"));
+        let fasting_required: Option<bool> =
+            optional(cell(values, fasting_required_idx)).map(|v| {
+                matches!(
+                    v.trim().to_ascii_lowercase().as_str(),
+                    "true" | "yes" | "y" | "1"
+                )
+            });
         let fasting_hours: Option<i32> =
             optional(cell(values, fasting_hours_idx)).and_then(|v| v.parse().ok());
 
@@ -229,14 +232,14 @@ pub async fn import_pharmacy_catalog(
             continue;
         };
         let schedule = optional(cell(values, schedule_idx)).map(str::to_uppercase);
-        if let Some(ref s) = schedule {
-            if !VALID_SCHEDULES.contains(&s.as_str()) {
-                errors.push(format!(
-                    "Row {row_num} ({code}): drug_schedule must be one of H, H1, X, G, OTC, NDPS"
-                ));
-                skipped += 1;
-                continue;
-            }
+        if let Some(ref s) = schedule
+            && !VALID_SCHEDULES.contains(&s.as_str())
+        {
+            errors.push(format!(
+                "Row {row_num} ({code}): drug_schedule must be one of H, H1, X, G, OTC, NDPS"
+            ));
+            skipped += 1;
+            continue;
         }
         let reorder_level: i32 = optional(cell(values, reorder_idx))
             .and_then(|v| v.parse().ok())
@@ -442,7 +445,9 @@ pub async fn import_charge_master(
         let name = cell(values, Some(name_idx));
         let category = cell(values, Some(category_idx));
         if code.is_empty() || name.is_empty() || category.is_empty() {
-            errors.push(format!("Row {row_num}: code, name and category are required"));
+            errors.push(format!(
+                "Row {row_num}: code, name and category are required"
+            ));
             skipped += 1;
             continue;
         }
@@ -538,8 +543,8 @@ pub async fn import_services(
         }
         let service_type = optional(cell(values, type_idx)).unwrap_or("other");
         let base_price = parse_decimal(cell(values, price_idx)).unwrap_or(Decimal::ZERO);
-        let department_id = optional(cell(values, dept_idx))
-            .and_then(|v| uuid::Uuid::parse_str(v).ok());
+        let department_id =
+            optional(cell(values, dept_idx)).and_then(|v| uuid::Uuid::parse_str(v).ok());
 
         let result = sqlx::query!(
             "INSERT INTO services \
@@ -675,10 +680,7 @@ pub async fn import_insurance_providers(
 /// catalog_import routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/setup/services/import",
-            post(import_services),
-        )
+        .route("/api/setup/services/import", post(import_services))
         .route(
             "/api/setup/masters/insurance-providers/import",
             post(import_insurance_providers),
@@ -691,10 +693,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/billing/charge-master/import",
             post(import_charge_master),
         )
-        .route(
-            "/api/lab/catalog/import",
-            post(import_lab_catalog),
-        )
+        .route("/api/lab/catalog/import", post(import_lab_catalog))
         .route(
             "/api/pharmacy/catalog/import",
             post(import_pharmacy_catalog),

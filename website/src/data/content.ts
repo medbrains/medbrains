@@ -130,3 +130,15 @@ export const FAQ = [
   { q: "Does it work for a small clinic?", a: "Yes. You switch on only the modules you use, and add departments as you grow." },
   { q: "What about internet outages?", a: "An on-premise install runs on your own local network, so the hospital keeps working when the internet drops." },
 ];
+
+/** Why we build MedBrains — the mission line and the values behind it (landing + pricing). */
+export const MISSION = {
+  line: "Every patient deserves safe care. Every hospital, big or small, deserves the tools to give it.",
+  sub: "So the software is free, forever. Built with love for patients, for hospitals, and for well-made software.",
+  values: [
+    { title: "Free, forever", body: "The software and every update cost ₹0. No subscription, no charge per user." },
+    { title: "Safety for everyone", body: "Every patient-safety check is free. Never an upgrade." },
+    { title: "Your data is yours", body: "A full export whenever you ask. We never sell clinical data." },
+    { title: "Every hospital", body: "Rural or city, charitable or private, a clinic or a group." },
+  ],
+};

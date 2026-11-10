@@ -133,6 +133,15 @@ pub struct PrescriptionItem {
     pub discontinued_by: Option<Uuid>,
     pub discontinue_reason: Option<String>,
     pub catalog_item_id: Option<Uuid>,
+    /// The prescriber chose to have the patient buy this outside: it prints
+    /// as "Buy from outside the hospital" and is never dispensed or billed.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub buy_outside: bool,
+    /// Who marked the line as bought outside.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub buy_outside_by: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -150,6 +159,8 @@ pub struct Vital {
     pub weight_kg: Option<rust_decimal::Decimal>,
     pub height_cm: Option<rust_decimal::Decimal>,
     pub bmi: Option<rust_decimal::Decimal>,
+    /// Occipitofrontal head circumference, charted for children.
+    pub head_circumference_cm: Option<rust_decimal::Decimal>,
     pub notes: Option<String>,
     pub recorded_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,

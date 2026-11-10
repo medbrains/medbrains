@@ -9,7 +9,20 @@ pub use accounting::*;
 // patient. Re-exported flat so `medbrains_billing::<handler>` paths stay unchanged.
 mod insurance;
 mod nhcx_recon;
+// Pre-auths nearly used up and rooms above the policy limit (mig 1423).
+pub mod preauth_alert_settings;
+pub mod preauth_dismiss;
+pub mod preauth_sweep;
+pub mod revenue_alerts;
+pub mod room_limit;
 pub use insurance::*;
+// Insurer settlements posted against bills under maker-checker (mig 1227).
+pub mod charge_attention;
+// Orders done but never billed, put on the charge attention queue (mig 1416).
+mod claim_settlement_post;
+mod claim_settlement_reverse;
+pub mod claim_settlements;
+pub mod leakage;
 
 // Advances and interim billing — money held before the bill exists.
 mod advances;
@@ -28,6 +41,9 @@ pub mod posting;
 // Read-only: nothing here writes.
 mod reports;
 pub use reports::*;
+// Billed and collected per day over a range (the assistant's revenue chart).
+mod daily_revenue;
+pub use daily_revenue::*;
 
 // Concessions — the one billing write that is a judgement, not a calculation,
 // which is why it alone carries an approve/reject cycle.
@@ -398,7 +414,12 @@ async fn ensure_invoice_view_access(
     let invoice = outcome_of(
         state
             .authz
-            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", invoice_id)
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "invoice",
+                invoice_id,
+            )
             .await,
         "invoice",
     );
@@ -423,7 +444,12 @@ async fn ensure_invoice_view_access(
     let direct = outcome_of(
         state
             .authz
-            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient)
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "patient",
+                patient,
+            )
             .await,
         "patient",
     );
@@ -612,15 +638,15 @@ pub async fn list_invoices(
         )
     };
 
-    if let Some(ref ids) = visible_ids {
-        if ids.is_empty() {
-            return Ok(Json(InvoiceListResponse {
-                invoices: Vec::new(),
-                total: 0,
-                page,
-                per_page,
-            }));
-        }
+    if let Some(ref ids) = visible_ids
+        && ids.is_empty()
+    {
+        return Ok(Json(InvoiceListResponse {
+            invoices: Vec::new(),
+            total: 0,
+            page,
+            per_page,
+        }));
     }
 
     let mut tx = state.db.begin().await?;
@@ -1491,6 +1517,7 @@ pub async fn close_zero_invoice(
 //  POST /api/billing/invoices/{id}/payments
 // ══════════════════════════════════════════════════════════
 
+/// Record a payment on a bill, taking the audit chain before the bill's row.
 pub async fn record_payment(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1529,6 +1556,7 @@ pub async fn record_payment(
         status: InvoiceStatus,
     }
 
+    medbrains_db::pool::take_audit_chain_first(&mut tx, &claims.tenant_id).await?;
     let invoice = sqlx::query_as::<_, InvoicePaymentGate>(
         "SELECT patient_id, encounter_id, admission_id, status \
          FROM invoices WHERE id = $1 AND tenant_id = $2 \
@@ -1565,7 +1593,11 @@ pub async fn record_payment(
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty()),
-            shift: body.shift.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+            shift: body
+                .shift
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty()),
             collection_id: None,
             station_id: None,
             shift_id: None,
@@ -2018,11 +2050,14 @@ pub async fn trigger_auto_charge(
                 .fetch_all(&mut *tx)
                 .await?;
 
+                // Only a line sold here is charged: a medicine bought outside,
+                // or typed by an order raised elsewhere, is never billed.
                 for o in &orders {
                     let items = sqlx::query_as::<_, PharmItemInfo>(
                         "SELECT id, catalog_item_id, drug_name, quantity, unit_price \
                          FROM pharmacy_order_items \
-                         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
+                         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
+                           AND catalog_item_id IS NOT NULL AND NOT buy_outside",
                     )
                     .bind(o.id)
                     .bind(claims.tenant_id)
@@ -3292,6 +3327,7 @@ async fn pay_installment_item(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
+    medbrains_db::pool::take_audit_chain_first(&mut tx, &tenant_id).await?;
     let item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
         "SELECT * FROM payment_installment_items \
          WHERE id = $1 AND installment_id = $2 AND tenant_id = $3 FOR UPDATE",
@@ -3539,6 +3575,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/billing/patients/{id}/dues",
             get(collect::dues::patient_dues),
         )
+        .route(
+            "/api/billing/counter/open-today",
+            get(collect::open_today::open_today),
+        )
         .route("/api/billing/collect", post(collect::post::collect))
         .route(
             "/api/billing/entities",
@@ -3650,6 +3690,10 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/billing/reports/aging", get(report_aging))
         .route("/api/billing/reports/daily", get(report_daily))
+        .route(
+            "/api/billing/reports/daily-revenue",
+            get(report_daily_revenue),
+        )
         .route(
             "/api/billing/reports/doctor-revenue",
             get(report_doctor_revenue),
@@ -3800,6 +3844,80 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/billing/erp/export", post(export_to_erp))
         .route("/api/billing/erp/exports", get(list_erp_exports))
         .route("/api/billing/er-invoice", post(er_fast_invoice))
+        .route(
+            "/api/billing/claim-settlements",
+            get(claim_settlements::list_claim_settlements)
+                .post(claim_settlements::record_claim_settlement),
+        )
+        .route(
+            "/api/billing/claim-settlements/backfill",
+            post(claim_settlements::backfill_claim_settlements),
+        )
+        .route(
+            "/api/billing/claim-settlements/{id}/approve",
+            put(claim_settlements::approve_claim_settlement),
+        )
+        .route(
+            "/api/billing/claim-settlements/{id}/reject",
+            put(claim_settlements::reject_claim_settlement),
+        )
+        .route(
+            "/api/billing/claim-settlements/{id}/reverse",
+            put(claim_settlements::reverse_claim_settlement),
+        )
+        .route(
+            "/api/billing/charge-attention",
+            get(charge_attention::list_charge_attention),
+        )
+        .route(
+            "/api/billing/charge-attention/summary",
+            get(charge_attention::charge_attention_summary),
+        )
+        .route(
+            "/api/billing/charge-attention/unbilled-scan",
+            post(leakage::scan_unbilled_orders),
+        )
+        .route(
+            "/api/billing/charge-attention/{id}/post",
+            put(charge_attention::post_charge_attention),
+        )
+        .route(
+            "/api/billing/charge-attention/{id}/dismiss",
+            put(charge_attention::dismiss_charge_attention),
+        )
+        .route(
+            "/api/billing/revenue-alerts",
+            get(revenue_alerts::list_revenue_alerts),
+        )
+        .route(
+            "/api/billing/revenue-alerts/{id}/request-enhancement",
+            put(revenue_alerts::request_enhancement),
+        )
+        .route(
+            "/api/billing/revenue-alerts/{id}/room-consent",
+            put(revenue_alerts::record_room_consent),
+        )
+        .route(
+            "/api/billing/revenue-alerts/{id}/dismiss",
+            put(preauth_dismiss::dismiss_preauth_alert),
+        )
+        .route(
+            "/api/billing/preauth-alert-settings",
+            get(preauth_alert_settings::get_preauth_alert_settings)
+                .put(preauth_alert_settings::put_preauth_alert_settings),
+        )
+        .route(
+            "/api/billing/policies/{id}/room-rent-limit",
+            put(room_limit::set_room_rent_limit),
+        )
+        .route(
+            "/api/billing/room-consent/witnesses",
+            get(room_limit::list_room_consent_witnesses),
+        )
+        .route(
+            "/api/billing/charge-attention/{id}/patient",
+            put(charge_attention::name_patient_charge_attention),
+        )
         .route(
             "/api/billing/concessions",
             get(list_concessions).post(create_concession),

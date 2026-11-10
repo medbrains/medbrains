@@ -168,8 +168,7 @@ pub async fn create_retro_encounter(
     require_permission(&claims, permissions::retrospective::CREATE)?;
     // Caller-named patient. A retrospective encounter writes to a chart, so
     // the chart has to be reachable.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -203,10 +202,10 @@ pub async fn create_retro_encounter(
 
     // Create the encounter
     let encounter_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO encounters (tenant_id, patient_id, department_id, doctor_id, \
-         encounter_date, visit_type, chief_complaint, notes, status, is_retrospective) \
-         VALUES ((current_setting('app.tenant_id'))::uuid, $1, $2, $3, $4, \
-         COALESCE($5, 'follow_up'), $6, $7, 'completed', true) \
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type, department_id, doctor_id, \
+         encounter_date, visit_type, chief_complaints, notes, status, is_retrospective, created_by) \
+         VALUES ((current_setting('app.tenant_id'))::uuid, $1, 'opd', $2, $3, $4::date, \
+         COALESCE($5, 'follow_up'), $6, $7, 'completed', true, $8) \
          RETURNING id",
     )
     .bind(body.patient_id)
@@ -216,6 +215,7 @@ pub async fn create_retro_encounter(
     .bind(&body.visit_type)
     .bind(&body.chief_complaint)
     .bind(&body.notes)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 

@@ -17,6 +17,8 @@ export const BOARDS = [
   { value: "radiology", label: "Radiology" },
   { value: "billing", label: "Billing" },
   { value: "counter_display", label: "Customer display (counter)" },
+  // MedBrains Flow: the crowd map of the floor this department's zone is on.
+  { value: "flow", label: "Flow (crowd map)" },
 ];
 
 /** A customer display is bound to a counter, not a department (#4883). */

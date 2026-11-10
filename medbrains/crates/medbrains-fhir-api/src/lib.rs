@@ -13,6 +13,7 @@
 //! Read-only for now. Write (POST `Bundle` transaction) is a follow-up
 //! once we add ABDM/NHCX outbound and validation.
 
+pub mod capability;
 pub mod diagnostic;
 pub mod export;
 
@@ -20,14 +21,12 @@ use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
 };
 use chrono::Utc;
 use medbrains_fhir::mapper::{EncounterView, PatientView, encounter_to_fhir, patient_to_fhir};
 use medbrains_fhir::r4::Resource;
 use medbrains_fhir::r4::bundle::{Bundle, BundleEntry, BundleType};
-use serde_json::json;
+use serde_json::Value;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -42,7 +41,7 @@ pub async fn read_patient(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Resource>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     // The permission says what may be read; access says whose record.
     medbrains_authz_gate::require_patient_access(&state, &claims, id).await?;
@@ -64,7 +63,9 @@ pub async fn read_patient(
 
     tx.commit().await?;
     let view = row.ok_or(AppError::NotFound)?;
-    Ok(Json(Resource::Patient(patient_to_fhir(&view))))
+    // The NRCeS Patient (typed identifiers, `meta.profile`), as the
+    // CapabilityStatement's supportedProfile says.
+    Ok(Json(medbrains_fhir::nrces::patient(&view)))
 }
 
 #[derive(sqlx::FromRow)]
@@ -259,44 +260,15 @@ pub async fn patient_everything(
     })))
 }
 
-// ── Capabilities ──────────────────────────────────────────────────
-
-/// `GET /api/fhir/metadata` — minimal CapabilityStatement listing
-/// implemented resources. Required for FHIR clients to feature-detect.
-pub async fn metadata() -> impl IntoResponse {
-    let body = json!({
-        "resourceType": "CapabilityStatement",
-        "status": "active",
-        "date": Utc::now().to_rfc3339(),
-        "kind": "instance",
-        "fhirVersion": "4.0.1",
-        "format": ["json"],
-        "rest": [{
-            "mode": "server",
-            "resource": [
-                {
-                    "type": "Patient",
-                    "interaction": [{ "code": "read" }],
-                    "operation": [{ "name": "everything", "definition": "Patient/$everything" }]
-                },
-                { "type": "Encounter", "interaction": [{ "code": "read" }] },
-                {
-                    "type": "Composition",
-                    "interaction": [{ "code": "read" }, { "code": "search-type" }],
-                    "searchParam": [{ "name": "encounter", "type": "reference" }]
-                },
-                { "type": "Observation", "interaction": [{ "code": "read" }] },
-                { "type": "DiagnosticReport", "interaction": [{ "code": "read" }] }
-            ]
-        }]
-    });
-    (StatusCode::OK, Json(body))
+/// The CapabilityStatement — public: it describes the server, holds no
+/// patient data, and FHIR clients read it before they authenticate.
+pub fn public_router() -> axum::Router<AppState> {
+    axum::Router::new().route("/api/fhir/metadata", get(capability::metadata))
 }
 
-/// FHIR R4 read API routes.
+/// FHIR R4 read API routes (authenticated).
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route("/api/fhir/metadata", get(metadata))
         .route("/api/fhir/Patient/{id}", get(read_patient))
         .route(
             "/api/fhir/Patient/{id}/$everything",

@@ -3,6 +3,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::conformance::violations;
+use super::golden::assert_conformant;
 use super::sections::{self, SectionCode};
 use super::{
     Clinical, DiagnosisLine, DocumentInput, EncounterInfo, LabReport, LabResult, Party, RecordKind,
@@ -127,11 +128,6 @@ fn result(value: &str, numeric: Option<f64>, unit: Option<&str>, loinc: Option<&
         flag: Some("low".into()),
         loinc: loinc.map(str::to_owned),
     }
-}
-
-fn assert_conformant(bundle: &Value) {
-    let v = violations(bundle);
-    assert!(v.is_empty(), "violations: {v:#?}");
 }
 
 #[test]
@@ -333,6 +329,7 @@ fn the_checker_catches_what_the_old_bundles_got_wrong() {
         o.remove("timestamp");
         o.remove("meta");
     }
+    super::golden::emit_broken(&b);
     let v = violations(&b).join("\n");
     assert!(v.contains("Bundle.timestamp missing"), "{v}");
     assert!(

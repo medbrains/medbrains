@@ -1,0 +1,198 @@
+---
+// How MedBrains uses AI and keeps hospital data safe. Every line comes from src/data/ai-safety.ts,
+// which separates what is live today from the commitments being built now.
+import Demo from "../components/Demo.astro";
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import Orb from "../components/Orb.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import { SITE } from "../consts";
+import {
+  AI_FAQ, COMMITMENTS, DATA_LIVE, DATA_NEXT, DATA_PROMISES, HOW_WE_CHECK, LIVE, PROTECTION, SCOPE,
+} from "../data/ai-safety";
+import Base from "../layouts/Base.astro";
+
+const title = "AI and Data Safety at MedBrains";
+const description = "How MedBrains uses AI in hospitals: operational checks while clinicians decide, a person approving every action, and how we protect patient data.";
+const home = new URL("/", Astro.site).href;
+const url = new URL("/ai-and-data-safety", Astro.site).href;
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: home },
+      { "@type": "ListItem", position: 2, name: "AI and data safety", item: url },
+    ],
+  },
+  { "@type": "WebPage", name: title, url, description, inLanguage: "en-IN" },
+  {
+    "@type": "FAQPage",
+    mainEntity: AI_FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+  },
+];
+---
+
+<Base title={title} description={description} schema={schema}>
+  <Header />
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <nav class="crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>AI and data safety</span></nav>
+        <p class="eyebrow">AI and data safety</p>
+        <h1>AI that helps, <span>and knows its place.</span></h1>
+        <p class="lede">MedBrains uses AI for clear-cut operational checks and data quality. Diagnosis, treatment and dose always stay with the clinician, a person approves every action, and patient data is protected before AI sees it.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#demo">Book a demo <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="#data-title">How we protect data</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="paper">
+      <section class="section" aria-labelledby="scope-title">
+        <div class="wrap">
+          <p class="eyebrow tag">What our AI is for</p>
+          <h2 id="scope-title" class="title">Clear-cut checks, not clinical decisions</h2>
+          <div class="split">
+            <article class="card">
+              <h3>It helps with questions like</h3>
+              <ul>{SCOPE.helps.map((h) => <li>{h}</li>)}</ul>
+            </article>
+            <article class="card never">
+              <h3>It never does</h3>
+              <ul>{SCOPE.never.map((n) => <li>{n}</li>)}</ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="live-title">
+        <div class="wrap">
+          <p class="eyebrow tag">In the product today</p>
+          <h2 id="live-title" class="title">How the assistant works now</h2>
+          <div class="grid">
+            {LIVE.map((d) => <article class="feature"><Orb size={24} /><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="commit-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Policy we hold ourselves to</p>
+          <h2 id="commit-title" class="title">Our AI commitments</h2>
+          <div class="grid">
+            {COMMITMENTS.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="protect-title">
+        <div class="wrap narrow">
+          <p class="eyebrow tag">Before any AI feature handles patient data</p>
+          <h2 id="protect-title" class="title">Protecting patient data when AI is used</h2>
+          <ul class="commit">{PROTECTION.map((p) => <li>{p}</li>)}</ul>
+          <p class="check"><strong>How we check.</strong> {HOW_WE_CHECK}</p>
+          <p class="small">These protections are being built into every AI feature now. An AI feature that handles patient data is released only once they are in place.</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="data-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Across MedBrains</p>
+          <h2 id="data-title" class="title">How we protect hospital data</h2>
+          <div class="grid">
+            {DATA_LIVE.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+          <div class="split later">
+            <article class="card">
+              <h3>Being completed now</h3>
+              <ul>{DATA_NEXT.map((n) => <li>{n}</li>)}</ul>
+            </article>
+            <article class="card">
+              <h3>Our promises</h3>
+              <ul>{DATA_PROMISES.map((n) => <li>{n}</li>)}</ul>
+              <p class="small">Full details in our <a href="/terms">commercial terms</a> and <a href="/privacy">privacy policy</a>.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="faq-title">
+        <div class="wrap narrow">
+          <h2 id="faq-title" class="title">Questions</h2>
+          {AI_FAQ.map((f) => <details><summary>{f.q}</summary><p>{f.a}</p></details>)}
+        </div>
+      </section>
+    </div>
+
+    <Demo source="ai-safety" />
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .hero {
+    color: #fff; padding: 72px 0 88px;
+    background:
+      radial-gradient(700px 460px at 12% 110%, var(--glow-purple), transparent 65%),
+      radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
+    .eyebrow { color: var(--pulse); }
+    h1 { font: 900 clamp(2.3rem, 6vw, 4.4rem) var(--display); letter-spacing: -.035em; line-height: 1.02; margin: 0 0 20px; max-width: 16ch; }
+    h1 span { color: var(--sky); }
+    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0 0 32px; }
+    .btn-ghost { color: #fff; }
+  }
+  .crumbs-dark { margin-bottom: 28px; font-size: .88rem; color: var(--night-text); a { color: #fff; } }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+  .paper { background: var(--paper); color: var(--ink); }
+  .paper .section { padding: 88px 0; }
+  .tinted { background: var(--paper-2); }
+  .narrow > * { max-width: 860px; }
+  .title { font: 800 clamp(1.7rem, 3.4vw, 2.4rem)/1.1 var(--display); letter-spacing: -.025em; margin: 0 0 32px; max-width: 26ch; }
+  .eyebrow.tag { color: var(--purple); }
+  .small { margin: 20px 0 0; color: var(--muted); font-size: .95rem; a { color: var(--blue-deep); } }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .feature {
+    padding: 26px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow-soft);
+    h3 { font: 800 1.12rem var(--display); letter-spacing: -.02em; margin: 12px 0 8px; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+  .feature:not(:has(:global(.orb))) h3 { margin-top: 0; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .split.later { margin-top: 32px; }
+  .card {
+    padding: 30px 26px; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: var(--radius-lg);
+    background: #fff; box-shadow: var(--shadow-soft);
+    h3 { font: 800 1.3rem var(--display); letter-spacing: -.02em; margin: 0 0 14px; }
+    ul { margin: 0; padding-left: 1.1em; display: grid; gap: 10px; color: var(--ink-2); }
+  }
+  .never { border-top-color: var(--purple); }
+
+  .commit {
+    margin: 0; padding: 0; list-style: none; display: grid; gap: 12px;
+    li { padding: 16px 20px 16px 24px; border-left: 4px solid var(--blue); background: #fff; border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); font-size: 1.05rem; }
+  }
+  .check {
+    margin: 28px 0 0; padding: 20px 24px; border-radius: var(--radius-lg); border: 1px solid var(--line); color: var(--ink-2);
+    background: linear-gradient(135deg, rgb(133 27 127 / 6%), rgb(15 98 254 / 6%)), var(--paper);
+    strong { color: var(--ink); }
+  }
+
+  details { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; padding: 20px 0; font-weight: 700; font-size: 1.08rem; }
+  details p { margin: 0 0 20px; color: var(--ink-2); }
+
+  @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } }
+  @include below(md) { .split { grid-template-columns: 1fr; } }
+  @include below(sm) {
+    .grid { grid-template-columns: 1fr; }
+    .paper .section { padding: 56px 0; }
+    .card { padding: 24px 20px; }
+  }
+</style>

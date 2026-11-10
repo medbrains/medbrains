@@ -31,6 +31,8 @@ export interface AbdmCareContext {
   notified_at: string | null;
   /** Why ABDM did not accept that notice, when it did not. */
   notify_error: string | null;
+  /** NRCeS profile rules its FHIR bundle broke when last sent; empty when clean. */
+  conformance_issues: string[];
 }
 
 export interface AbdmConsentArtefact {
@@ -88,6 +90,8 @@ export interface PatientImmunization {
   id: string;
   vaccine_name: string;
   vaccine_code: string | null;
+  /** The schedule product it was recorded as. */
+  vaccine_key: string | null;
   dose_number: number | null;
   administered_on: string;
   lot_number: string | null;
@@ -113,6 +117,7 @@ export type ImmunizationRoute =
 export interface RecordPatientImmunization {
   vaccine_name: string;
   vaccine_code?: string;
+  vaccine_key?: string;
   dose_number?: number;
   administered_on: string;
   lot_number?: string;
@@ -132,6 +137,8 @@ export interface AbdmSharingFailure {
   display: string;
   link_status: AbdmLinkStatus;
   last_error: string | null;
+  /** Sent, but its FHIR bundle broke these NRCeS profile rules. */
+  conformance_issues: string[];
   updated_at: string;
 }
 

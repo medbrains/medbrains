@@ -118,7 +118,7 @@ def body_for(module, sub, role, feature, platforms_label, meta, epic) -> str:
     return (
         f"> As a **{role}**, I want **{feature.lower()}**.\n\n"
         f"`{meta}`\n\n"
-        "**Before coding (per CLAUDE.md):** research the real-world scenario, then expand "
+        "**Before coding (per ENGINEERING.md):** research the real-world scenario, then expand "
         "these into concrete Given/When/Then business-logic acceptance criteria.\n\n"
         "**Acceptance criteria (starter — module-tailored)**\n" + "\n".join(ac) + "\n\n"
         f"Module: **{module}** › {sub}" + (f" · Part of #{epic}" if epic else "")

@@ -50,9 +50,11 @@ async fn double_admission_is_rejected() {
         .expect("patient id")
         .to_owned();
 
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
     let admit_body = serde_json::json!({
         "patient_id": patient_id,
         "department_id": department_id,
+        "doctor_id": doctor.user_id,
     });
 
     // First admission: the happy path succeeds.
@@ -91,4 +93,50 @@ async fn double_admission_is_rejected() {
         msg.contains("active admission") || msg.contains("already"),
         "the 409 body should explain the existing active admission: {body}"
     );
+}
+
+/// Given an admin keying an admission, When no admitting doctor is named,
+/// Then it is refused rather than recorded under the admin; And a nurse is not
+/// accepted as the doctor; And `admitting_doctor_id` names the doctor too.
+#[tokio::test]
+async fn an_admission_records_a_real_admitting_doctor() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
+    let nurse = common::provision_staff(&app, &csrf, "nurse", &[]).await;
+    let depts: serde_json::Value =
+        app.get(&app.client, "/api/setup/departments").await.json().await.expect("departments");
+    let department_id = depts[0]["id"].clone();
+    let patient: serde_json::Value = app
+        .client
+        .post(app.url("/api/patients"))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({ "first_name": "Guard", "last_name": "Doctor", "gender": "female", "date_of_birth": "1979-02-02", "phone": "9990000043" }))
+        .send()
+        .await
+        .expect("patient")
+        .json()
+        .await
+        .expect("patient json");
+    let admit = |doctor_field: Option<(&str, uuid::Uuid)>| {
+        let mut body = serde_json::json!({ "patient_id": patient["id"], "department_id": department_id });
+        if let Some((key, id)) = doctor_field {
+            body[key] = serde_json::json!(id);
+        }
+        app.client
+            .post(app.url("/api/ipd/admissions"))
+            .header("x-csrf-token", &csrf)
+            .json(&body)
+            .send()
+    };
+
+    assert_eq!(admit(None).await.expect("no doctor").status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        admit(Some(("doctor_id", nurse.user_id))).await.expect("nurse").status(),
+        StatusCode::BAD_REQUEST
+    );
+    let resp = admit(Some(("admitting_doctor_id", doctor.user_id))).await.expect("doctor");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let created: serde_json::Value = resp.json().await.expect("admission json");
+    assert_eq!(created["admission"]["admitting_doctor"], doctor.user_id.to_string());
 }

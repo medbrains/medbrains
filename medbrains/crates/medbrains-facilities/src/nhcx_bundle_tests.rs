@@ -30,6 +30,7 @@ fn final_claim(documents: &[DocumentRef]) -> Value {
     };
     let policy = PolicyParty::default();
     let provider = ProviderParty {
+        id: Uuid::new_v4(),
         name: "Hospital".to_owned(),
         hfr_facility_id: None,
     };

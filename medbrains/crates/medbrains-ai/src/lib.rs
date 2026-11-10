@@ -3,11 +3,8 @@
 //!
 //! Resolves the AI provider per tenant from `tenant_settings`
 //! (category `ai`, key `config` → `{ provider, model, api_key_secret }`),
-//! falling back to `ANTHROPIC_API_KEY` from the environment so existing
-//! deployments keep working. The API key is resolved through the configured
-//! [`SecretResolver`](medbrains_core::secrets::SecretResolver) backend when a
-//! `api_key_secret` reference is set, so keys live in the secret store rather
-//! than the database or process env.
+//! through `medbrains_server_services::llm`. Anthropic has no API key: it is
+//! reached by workload identity federation with the machine's AWS identity.
 
 use axum::response::IntoResponse as _;
 use axum::routing::{get, post};
@@ -16,14 +13,35 @@ use axum::{
     extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
-use futures::{Stream, StreamExt as _};
+use futures::Stream;
 use serde::{Deserialize, Serialize};
+use tower::ServiceExt as _;
 use uuid::Uuid;
 
+use medbrains_core::ai_drug_check::DrugCheck;
+use medbrains_core::ai_redact::Redacted;
 use medbrains_core::permissions;
+
+mod aggregate;
+mod aggregate_tool;
+mod agui;
+mod catalog;
+mod contact_access;
+mod dates;
+mod emit;
+mod kept;
+mod query;
+mod query_check;
+mod redaction;
+mod replay;
+mod research_tool;
+mod revenue;
+mod show;
+mod turn;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::{error::AppError, state::AppState};
+pub use redaction::session_for;
 
 /// The finalized app router, stashed by `main` after construction, so read tools
 /// can dispatch requests in-process (reusing auth/RLS/permission/audit). Set once.
@@ -109,50 +127,48 @@ struct HistoryRow {
     content: String,
 }
 
-/// De-identified clinical snapshot injected as grounding — clinical facts only
-/// (allergen / drug / diagnosis names), never patient name / UHID / identifiers.
-#[derive(Default)]
+/// De-identified clinical snapshot the overview tool returns — clinical facts
+/// only (allergen / drug / diagnosis names, lab values), never patient name /
+/// UHID / identifiers. Sent as JSON, so redaction withholds a restricted entry
+/// (an HIV result) on its own instead of the whole overview.
+#[derive(Default, Serialize)]
 struct Grounding {
+    #[serde(serialize_with = "none_recorded")]
     allergies: Vec<String>,
-    medications: Vec<String>,
-    diagnoses: Vec<String>,
+    #[serde(serialize_with = "none_recorded")]
+    active_medications: Vec<String>,
+    #[serde(serialize_with = "none_recorded")]
+    active_problems: Vec<String>,
     /// Entries withheld from this viewer (mental-health content). Only the
     /// count reaches the model — the tombstone, never the content.
-    withheld: usize,
-    labs: Vec<String>,
+    restricted_entries_not_shown: usize,
+    #[serde(serialize_with = "none_recorded")]
+    recent_lab_results: Vec<LabEntry>,
 }
 
-impl Grounding {
-    /// Render as a compact context block, or `None` when nothing is known.
-    fn as_context(&self) -> Option<String> {
-        let mut lines = Vec::new();
-        if !self.allergies.is_empty() {
-            lines.push(format!("Known allergies: {}", self.allergies.join(", ")));
-        }
-        if !self.medications.is_empty() {
-            lines.push(format!(
-                "Active medications: {}",
-                self.medications.join(", ")
-            ));
-        }
-        if !self.diagnoses.is_empty() {
-            lines.push(format!("Active problems: {}", self.diagnoses.join(", ")));
-        }
-        if self.withheld > 0 {
-            lines.push(format!(
-                "Restricted entries not shown to this user: {}",
-                self.withheld
-            ));
-        }
-        if !self.labs.is_empty() {
-            lines.push(format!("Recent lab results: {}", self.labs.join("; ")));
-        }
-        (!lines.is_empty()).then(|| lines.join("\n"))
+/// An empty list says so in words: the model reports "none recorded" rather
+/// than leaving the section out.
+fn none_recorded<S: serde::Serializer, T: Serialize>(items: &[T], s: S) -> Result<S::Ok, S::Error> {
+    if items.is_empty() {
+        s.serialize_str("none recorded")
+    } else {
+        items.serialize(s)
     }
 }
 
+/// One lab result in the overview.
+#[derive(sqlx::FromRow, Serialize)]
+struct LabEntry {
+    parameter: String,
+    value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flag: Option<String>,
+}
+
 /// Fetch a patient's allergies, active medications, and active problems, under
-/// the caller's RLS. Caller must have already passed the patient-viewer ReBAC.
+/// the caller's RLS. Caller must have already passed the patient-viewer `ReBAC`.
 async fn fetch_patient_grounding(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -168,7 +184,7 @@ async fn fetch_patient_grounding(
     .fetch_all(&mut **tx)
     .await?;
 
-    let medications = sqlx::query_scalar::<_, String>(
+    let active_medications = sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT drug_name FROM medication_timeline_events \
          WHERE patient_id = $1 AND tenant_id = $2 \
          AND event_type IN ('started', 'resumed', 'dose_changed') \
@@ -202,21 +218,14 @@ async fn fetch_patient_grounding(
     .bind(viewer.can_all)
     .fetch_all(&mut **tx)
     .await?;
-    let withheld = problems.iter().filter(|(_, hidden)| *hidden).count();
-    let diagnoses = problems
+    let restricted_entries_not_shown = problems.iter().filter(|(_, hidden)| *hidden).count();
+    let active_problems = problems
         .into_iter()
         .filter_map(|(description, hidden)| (!hidden).then_some(description))
         .collect();
 
-    #[derive(sqlx::FromRow)]
-    struct LabRow {
-        parameter_name: String,
-        value: String,
-        unit: Option<String>,
-        flag: Option<String>,
-    }
-    let labs = sqlx::query_as::<_, LabRow>(
-        "SELECT lr.parameter_name, lr.value, lr.unit, lr.flag::text AS flag \
+    let recent_lab_results = sqlx::query_as::<_, LabEntry>(
+        "SELECT lr.parameter_name AS parameter, lr.value, lr.unit, lr.flag::text AS flag \
          FROM lab_results lr JOIN lab_orders lo ON lr.order_id = lo.id \
          WHERE lo.patient_id = $1 AND lr.tenant_id = $2 \
          ORDER BY lr.created_at DESC LIMIT 30",
@@ -224,21 +233,14 @@ async fn fetch_patient_grounding(
     .bind(patient_id)
     .bind(tenant_id)
     .fetch_all(&mut **tx)
-    .await?
-    .into_iter()
-    .map(|r| {
-        let unit = r.unit.map(|u| format!(" {u}")).unwrap_or_default();
-        let flag = r.flag.map(|f| format!(" [{f}]")).unwrap_or_default();
-        format!("{}: {}{unit}{flag}", r.parameter_name, r.value)
-    })
-    .collect();
+    .await?;
 
     Ok(Grounding {
         allergies,
-        medications,
-        diagnoses,
-        withheld,
-        labs,
+        active_medications,
+        active_problems,
+        restricted_entries_not_shown,
+        recent_lab_results,
     })
 }
 
@@ -282,9 +284,17 @@ async fn retrieve_kb(
 /// Everything `open_turn` prepares for one assistant turn.
 struct PreparedTurn {
     conversation_id: Uuid,
-    history: Vec<rig::completion::Message>,
+    /// As stored (redacted since migration 1212); redacted again before use.
+    history: Vec<HistoryRow>,
+    /// The patient the turn names (whether or not the caller may see them):
+    /// their identifiers are redacted either way.
+    patient_id: Option<Uuid>,
     grounded_patient: Option<Uuid>,
     kb_hits: Vec<KbHit>,
+    /// The conversation's placeholder map, so placeholders stay stable.
+    pseudonyms: Option<serde_json::Value>,
+    /// The user's questions from before the recent history, oldest first.
+    earlier: Vec<String>,
 }
 
 // ── Guarded clinical tool: drug safety check (RFC Phase 3) ────────────
@@ -299,19 +309,16 @@ struct DrugSafetyArgs {
     drug: String,
 }
 
-#[derive(serde::Serialize)]
-struct DrugSafetyResult {
-    drug: String,
-    safe: bool,
-    warnings: Vec<String>,
-    notes: String,
-}
-
 struct DrugSafetyTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     db: sqlx::PgPool,
     tenant_id: Uuid,
     department_ids: Vec<Uuid>,
     patient_id: Option<Uuid>,
+    user_id: Uuid,
+    /// The assistant run reading the chart, for the access trail.
+    agent: serde_json::Value,
 }
 
 impl DrugSafetyTool {
@@ -322,6 +329,16 @@ impl DrugSafetyTool {
         drug: &str,
         patient_id: Uuid,
     ) -> Result<Vec<medbrains_pharmacy::MedicationSafetyWarning>, AppError> {
+        // The engine reads the patient's allergies and medicines: that is a
+        // chart read, and it is the assistant's, so it is on the trail as such.
+        record_ai_read(
+            &self.db,
+            self.tenant_id,
+            self.user_id,
+            patient_id,
+            &self.agent,
+        )
+        .await?;
         let mut tx = self.db.begin().await?;
         medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids)
             .await?;
@@ -346,75 +363,62 @@ impl rig::tool::Tool for DrugSafetyTool {
     const NAME: &'static str = "check_drug_safety";
     type Error = std::convert::Infallible;
     type Args = DrugSafetyArgs;
-    type Output = DrugSafetyResult;
+    type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Check a proposed drug against the current patient's allergies and drug \
-                interactions using the pharmacy safety engine. ALWAYS call this before suggesting or \
-                endorsing a medication, and never recommend a drug that returns a warning."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "drug": {
-                        "type": "string",
-                        "description": "Proposed drug (generic or brand name)"
-                    }
-                },
-                "required": ["drug"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Check a drug the clinician intends to give against the current \
+            patient's allergies and drug interactions using the pharmacy safety engine. Call \
+            it whenever a clinician names a medication, and report its warnings exactly."
+            .to_owned()
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let Some(patient_id) = self.patient_id else {
-            return Ok(DrugSafetyResult {
-                drug: args.drug,
-                safe: true,
-                warnings: Vec::new(),
-                notes:
-                    "No patient chart is loaded, so safety cannot be checked — ask the clinician \
-                    to open the patient's chart before relying on a drug suggestion."
-                        .to_owned(),
-            });
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "drug": {
+                    "type": "string",
+                    "description": "Proposed drug (generic or brand name)"
+                }
+            },
+            "required": ["drug"]
+        })
+    }
+
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
         };
-        match self.evaluate(&args.drug, patient_id).await {
-            Ok(warnings) if warnings.is_empty() => Ok(DrugSafetyResult {
-                drug: args.drug,
-                safe: true,
-                warnings: Vec::new(),
-                notes: "No allergy or interaction warnings from the safety engine. Still verify \
-                    dosing clinically."
-                    .to_owned(),
-            }),
-            Ok(warnings) => {
-                let messages: Vec<String> = warnings
+        Ok(redaction::for_model(
+            &self.session,
+            &serde_json::to_string(&out).unwrap_or_default(),
+        ))
+    }
+}
+
+impl DrugSafetyTool {
+    /// The check's status is always stated (`checked`), never left for the
+    /// model to infer from an empty warning list.
+    async fn answer(&self, args: DrugSafetyArgs) -> Result<DrugCheck, std::convert::Infallible> {
+        let Some(patient_id) = self.patient_id else {
+            return Ok(DrugCheck::no_chart(args.drug));
+        };
+        Ok(match self.evaluate(&args.drug, patient_id).await {
+            Ok(warnings) if warnings.is_empty() => DrugCheck::clear(args.drug),
+            Ok(warnings) => DrugCheck::flagged(
+                args.drug,
+                warnings
                     .iter()
                     .map(|w| format!("[{:?}] {}", w.severity, w.message))
-                    .collect();
-                let notes = format!(
-                    "SAFETY WARNINGS from the pharmacy engine — do NOT recommend this drug without \
-                     resolving these and flagging to the clinician: {}",
-                    messages.join("; ")
-                );
-                Ok(DrugSafetyResult {
-                    drug: args.drug,
-                    safe: false,
-                    warnings: messages,
-                    notes,
-                })
-            }
-            Err(_) => Ok(DrugSafetyResult {
-                drug: args.drug,
-                safe: false,
-                warnings: Vec::new(),
-                notes: "Could not verify drug safety (system error) — do not rely on an unchecked \
-                    recommendation; escalate to the clinician."
-                    .to_owned(),
-            }),
-        }
+                    .collect(),
+            ),
+            Err(_) => DrugCheck::failed(args.drug),
+        })
     }
 }
 
@@ -443,11 +447,14 @@ struct DraftPrescriptionResult {
 }
 
 struct DraftPrescriptionTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     db: sqlx::PgPool,
     tenant_id: Uuid,
     department_ids: Vec<Uuid>,
     patient_id: Option<Uuid>,
     user_id: Uuid,
+    agent: serde_json::Value,
 }
 
 impl DraftPrescriptionTool {
@@ -515,29 +522,48 @@ impl rig::tool::Tool for DraftPrescriptionTool {
     const NAME: &'static str = "draft_prescription";
     type Error = std::convert::Infallible;
     type Args = DraftPrescriptionArgs;
-    type Output = DraftPrescriptionResult;
+    type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description:
-                "Draft a prescription for the current patient. The server runs the pharmacy \
-                safety engine and REFUSES (decision='blocked') on a contraindication — you cannot \
-                override it. On success nothing is saved: tell the clinician it is a proposal \
-                for them to write on the prescription. You never prescribe."
-                    .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "drug": { "type": "string", "description": "Drug (generic or brand name)" },
-                    "dose": { "type": "string", "description": "Dose/frequency, optional" }
-                },
-                "required": ["drug"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Draft a prescription for the current patient. The server runs the pharmacy \
+        safety engine and REFUSES (decision='blocked') on a contraindication — you cannot \
+        override it. On success nothing is saved: tell the clinician it is a proposal \
+        for them to write on the prescription. You never prescribe."
+            .to_owned()
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "drug": { "type": "string", "description": "Drug (generic or brand name)" },
+                "dose": { "type": "string", "description": "Dose/frequency, optional" }
+            },
+            "required": ["drug"]
+        })
+    }
+
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
+        };
+        Ok(redaction::for_model(
+            &self.session,
+            &serde_json::to_string(&out).unwrap_or_default(),
+        ))
+    }
+}
+
+impl DraftPrescriptionTool {
+    async fn answer(
+        &self,
+        args: DraftPrescriptionArgs,
+    ) -> Result<DraftPrescriptionResult, std::convert::Infallible> {
         let Some(patient_id) = self.patient_id else {
             return Ok(DraftPrescriptionResult {
                 decision: "no_patient".to_owned(),
@@ -546,10 +572,15 @@ impl rig::tool::Tool for DraftPrescriptionTool {
                 message: "No patient chart is loaded — cannot draft a prescription.".to_owned(),
             });
         };
-        match self
-            .stage(patient_id, &args.drug, args.dose.as_deref())
-            .await
-        {
+        // The audit row for the decision is written inside the agent's scope,
+        // so it names the assistant as well as the clinician.
+        let staged = medbrains_db::audit::ACTING_AGENT
+            .scope(
+                self.agent.clone(),
+                self.stage(patient_id, &args.drug, args.dose.as_deref()),
+            )
+            .await;
+        match staged {
             Ok((true, messages)) => Ok(DraftPrescriptionResult {
                 decision: "blocked".to_owned(),
                 message: format!(
@@ -599,8 +630,12 @@ struct PatientOverviewArgs {
 }
 
 struct PatientOverviewTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     state: AppState,
     claims: Claims,
+    /// The overview also waits here, as `patient_overview`, for a widget.
+    shelf: show::Shelf,
 }
 
 impl PatientOverviewTool {
@@ -609,10 +644,16 @@ impl PatientOverviewTool {
         let is_admin = medbrains_server_core::middleware::authorization::BYPASS_ROLES
             .contains(&self.claims.role.as_str());
         if !is_admin {
-            medbrains_authz_gate::require_patient_access(
-                &self.state,
-                &self.claims,
+            medbrains_authz_gate::require_patient_access(&self.state, &self.claims, patient_id)
+                .await?;
+        }
+        if let Some(agent) = &self.claims.act {
+            record_ai_read(
+                &self.state.db,
+                self.claims.tenant_id,
+                self.claims.sub,
                 patient_id,
+                &agent.to_audit_json(),
             )
             .await?;
         }
@@ -631,11 +672,9 @@ impl PatientOverviewTool {
         )
         .await?;
         drop(tx);
-        Ok(grounding.as_context().unwrap_or_else(|| {
-            "This patient has no recorded allergies, active medications, active problems, or recent \
-             lab results."
-                .to_owned()
-        }))
+        // Empty lists say "none recorded"; the model is told not to fill them.
+        serde_json::to_string(&grounding)
+            .map_err(|e| AppError::Internal(format!("overview did not serialise: {e}")))
     }
 }
 
@@ -643,31 +682,45 @@ impl rig::tool::Tool for PatientOverviewTool {
     const NAME: &'static str = "get_patient_overview";
     type Error = std::convert::Infallible;
     type Args = PatientOverviewArgs;
-    type Output = String;
+    type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Fetch a patient's allergies, active medications, active problems, and \
-                recent lab results. Pass a REAL patient_id taken verbatim from the screen context. \
-                If no patient is in context, do NOT call this — call `request_patient` so the user \
-                can choose one; never guess or invent an id. Call it at most once and use whatever \
-                it returns."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "patient_id": {
-                        "type": "string",
-                        "description": "The patient's id from the screen context"
-                    }
-                },
-                "required": ["patient_id"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Fetch a patient's allergies, active medications, active problems, and \
+            recent lab results, as JSON. Pass a REAL patient_id taken verbatim from the screen context. \
+            If no patient is in context, do NOT call this — call `request_patient` so the user \
+            can choose one; never guess or invent an id. Call it at most once and use whatever \
+            it returns."
+            .to_owned()
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "patient_id": {
+                    "type": "string",
+                    "description": "The patient's id from the screen context"
+                }
+            },
+            "required": ["patient_id"]
+        })
+    }
+
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
+        };
+        Ok(redaction::for_model(&self.session, &out))
+    }
+}
+
+impl PatientOverviewTool {
+    async fn answer(&self, args: PatientOverviewArgs) -> Result<String, std::convert::Infallible> {
         let Ok(pid) = Uuid::parse_str(&args.patient_id) else {
             return Ok(
                 "No valid patient id was provided. If no patient is in the screen context, \
@@ -676,9 +729,18 @@ impl rig::tool::Tool for PatientOverviewTool {
             );
         };
         Ok(match self.overview(pid).await {
-            Ok(text) => text,
-            Err(_) => "You do not have access to this patient, or their data could not be loaded."
-                .to_owned(),
+            Ok(text) => {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                    show::shelve(&self.shelf, &self.session, "patient_overview", &json);
+                }
+                text
+            }
+            // A refusal and an outage are different answers (three outcomes,
+            // never two): "no access" must not be said when nobody could check.
+            Err(AppError::Forbidden | AppError::ForbiddenReason(_) | AppError::NotFound) => {
+                "You do not have access to this patient's record.".to_owned()
+            }
+            Err(_) => UNKNOWN_FOR_MODEL.to_owned(),
         })
     }
 }
@@ -695,46 +757,183 @@ struct CallApiArgs {
 }
 
 struct CallApiTool {
+    /// Every result goes back to the model through this turn's redaction.
+    session: redaction::Session,
     state: AppState,
+    /// The user's claims with `act` set to this assistant run.
     claims: Claims,
-    /// The model is outside the hospital: hand it records without identities.
-    scrub: bool,
+    /// Where the full result waits for a widget; the model gets it compacted.
+    shelf: show::Shelf,
+}
+
+/// Told to the user when their question names a restricted class.
+const RESTRICTED_QUESTION: &str = "This question mentions a restricted clinical area (HIV/STI, \
+    mental health, PC-PNDT, medico-legal, substance use or reproductive care). That is never \
+    shared with the AI, so it was not sent. Use the chart directly for it.";
+
+/// Told to the model when a check could not run, so it never reads an outage
+/// as "nothing there".
+const UNKNOWN_FOR_MODEL: &str = "UNKNOWN — the system could not check this right now (a fault, \
+    not an answer). Do not treat it as 'none' or 'no access'; tell the user it could not be checked.";
+
+/// Dispatch one read into `router` as the AI agent in `claims.act`.
+///
+/// It runs on the user's behalf, through the real auth, permission, `ReBAC`,
+/// RLS and audit stack with the user's authority — the agent can never exceed
+/// it — and every audit/access row it produces names the agent.
+///
+/// # Errors
+/// The token could not be minted or the path is not a valid URI.
+pub async fn call_api_as_agent(
+    router: axum::Router,
+    state: &AppState,
+    claims: &Claims,
+    path: &str,
+) -> Result<String, AppError> {
+    if claims.act.is_none() {
+        return Err(AppError::Internal("agent read without an actor".to_owned()));
+    }
+    if !CALL_API_ALLOWLIST.iter().any(|p| path.starts_with(p)) {
+        return Ok(format!("Path '{path}' is not permitted for the assistant."));
+    }
+    // Restricted clinical classes are never fetched for a model at all —
+    // cheaper and safer than fetching and withholding.
+    if RESTRICTED_PATHS.iter().any(|seg| path.contains(seg)) {
+        return Ok(
+            "Not shared with the AI: this is a restricted clinical record (mental health, \
+             medico-legal, PC-PNDT, HIV or reproductive care)."
+                .to_owned(),
+        );
+    }
+    // Mint a token for the caller so the request goes through the real auth path.
+    let token =
+        medbrains_server_core::middleware::auth::encode_jwt(claims, &state.jwt_encoding_key)
+            .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
+    let request = axum::http::Request::builder()
+        .method(axum::http::Method::GET)
+        .uri(path)
+        .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(axum::body::Body::empty())
+        .map_err(|_| AppError::BadRequest("invalid path".to_owned()))?;
+    let response = match router.oneshot(request).await {
+        Ok(r) => r,
+        Err(never) => match never {},
+    };
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
+        .await
+        .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
+    Ok(describe_response(
+        status,
+        &minimum_necessary(&String::from_utf8_lossy(&bytes)),
+    ))
+}
+
+/// Path segments of restricted-class records (MHCA 2017, PC&PNDT 1994,
+/// medico-legal, HIV/AIDS Act 2017, ART/MTP Acts).
+const RESTRICTED_PATHS: &[&str] = &[
+    "/psychiatry",
+    "/psychometric",
+    "/mlc",
+    "/pcpndt",
+    "/mortuary",
+    "/hiv",
+    "/ivf",
+    "/mtp",
+];
+
+/// Record metadata no assistant task needs: who edited it, from where, with
+/// what token. Dropped before redaction (minimum necessary, DPDP s.6).
+const NEVER_NEEDED: &[&str] = &[
+    "created_by",
+    "updated_by",
+    "deleted_by",
+    "ip_address",
+    "user_agent",
+    "session_id",
+    "password_hash",
+    "token",
+    "refresh_token",
+    "api_key",
+    "secret",
+    "signature",
+    "signature_url",
+    "photo_url",
+    "hash",
+    "prev_hash",
+];
+
+/// An API body cut down to what a model may need: metadata keys dropped.
+/// (Identifiers and restricted classes are handled by the redactor after.)
+fn minimum_necessary(body: &str) -> String {
+    fn prune(v: &mut serde_json::Value) {
+        match v {
+            serde_json::Value::Object(map) => {
+                map.retain(|k, _| !NEVER_NEEDED.contains(&k.as_str()));
+                map.values_mut().for_each(prune);
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(prune),
+            _ => {}
+        }
+    }
+    serde_json::from_str::<serde_json::Value>(body).map_or_else(
+        |_| body.to_owned(),
+        |mut json| {
+            prune(&mut json);
+            json.to_string()
+        },
+    )
+}
+
+/// What the model is told about one API answer. A server fault is UNKNOWN,
+/// never an empty answer; a refusal says so without the body.
+fn describe_response(status: axum::http::StatusCode, body: &str) -> String {
+    if status.is_server_error() {
+        return format!("HTTP {}\n{UNKNOWN_FOR_MODEL}", status.as_u16());
+    }
+    if status == axum::http::StatusCode::FORBIDDEN || status == axum::http::StatusCode::NOT_FOUND {
+        return format!(
+            "HTTP {}\nNot available to this user (no permission, or no such record).",
+            status.as_u16()
+        );
+    }
+    format!("HTTP {}\n{body}", status.as_u16())
+}
+
+/// One `access_log` row for a chart read the assistant made directly (not over
+/// HTTP), so the patient's access history names the assistant too.
+async fn record_ai_read(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    patient_id: Uuid,
+    agent: &serde_json::Value,
+) -> Result<(), AppError> {
+    let row = medbrains_server_core::middleware::access_log::AccessRow {
+        tenant_id,
+        user_id,
+        entity_type: "patients".to_owned(),
+        entity_id: Some(patient_id),
+        patient_id: Some(patient_id),
+        ip_address: None,
+        user_agent: None,
+        module: "ai".to_owned(),
+        correlation_id: None,
+        acting_agent: Some(agent.clone()),
+    };
+    medbrains_server_core::middleware::access_log::insert_access_log(db, &row)
+        .await
+        .map_err(|e| AppError::Internal(format!("access trail write failed: {e}")))
 }
 
 impl CallApiTool {
     async fn get(&self, path: &str) -> Result<String, AppError> {
-        if !CALL_API_ALLOWLIST.iter().any(|p| path.starts_with(p)) {
-            return Ok(format!("Path '{path}' is not permitted for the assistant."));
-        }
         let router = AI_ROUTER
             .get()
             .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
             .clone();
-        // Mint a token for the caller so the request goes through the real auth path.
-        let token = medbrains_server_core::middleware::auth::encode_jwt(
-            &self.claims,
-            &self.state.jwt_encoding_key,
-        )
-        .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
-        let request = axum::http::Request::builder()
-            .method(axum::http::Method::GET)
-            .uri(path)
-            .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
-            .body(axum::body::Body::empty())
-            .map_err(|_| AppError::BadRequest("invalid path".to_owned()))?;
-        use tower::ServiceExt as _;
-        let response = match router.oneshot(request).await {
-            Ok(r) => r,
-            Err(never) => match never {},
-        };
-        let status = response.status().as_u16();
-        let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
-            .await
-            .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
-        Ok(format!(
-            "HTTP {status}\n{}",
-            String::from_utf8_lossy(&bytes)
-        ))
+        let path = dates::fill(path, chrono::Local::now().date_naive());
+        call_api_as_agent(router, &self.state, &self.claims, &path).await
     }
 }
 
@@ -742,38 +941,76 @@ impl rig::tool::Tool for CallApiTool {
     const NAME: &'static str = "call_api";
     type Error = std::convert::Infallible;
     type Args = CallApiArgs;
-    type Output = String;
+    type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Fetch data from any MedBrains read API (GET). Runs with YOUR permissions, \
-                so you can only read what you're allowed to — prefer this over asking the user. If \
-                unsure which endpoint exists, call `list_apis` first to see them all. Pass a full \
-                path with ids filled from the screen context, e.g. GET /api/patients/{id}/allergies, \
-                /api/lab/orders/{orderId}/results, /api/billing/invoices?patient_id={id}."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "GET path, e.g. /api/patients/<id>/allergies"
-                    }
-                },
-                "required": ["path"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Fetch data from any MedBrains read API (GET). Runs with YOUR permissions, \
+            so you can only read what you're allowed to — prefer this over asking the user. If \
+            unsure which endpoint exists, call `list_apis` first to see them all. Pass a full \
+            path with ids filled from the screen context, e.g. GET /api/patients/{id}/allergies, \
+            /api/lab/orders/{orderId}/results, /api/billing/invoices?patient_id={id}. "
+            .to_owned()
+            + dates::HELP
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "GET path, e.g. /api/patients/<id>/allergies"
+                }
+            },
+            "required": ["path"]
+        })
+    }
+
+    async fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
+        let out = match self.answer(args).await {
+            Ok(out) => out,
+            Err(never) => match never {},
+        };
+        Ok(redaction::for_model(&self.session, &out))
+    }
+}
+
+impl CallApiTool {
+    async fn answer(&self, args: CallApiArgs) -> Result<String, std::convert::Infallible> {
         Ok(match self.get(&args.path).await {
-            Ok(text) if self.scrub => medbrains_core::ai_egress::scrub(&text),
-            Ok(text) => text,
-            Err(e) => format!("Error calling {}: {e}", args.path),
+            Ok(text) => self.shelve_compact(&args.path, text),
+            Err(e) => {
+                tracing::warn!(error = %e, "assistant call_api failed");
+                UNKNOWN_FOR_MODEL.to_owned()
+            }
         })
     }
 }
+
+impl CallApiTool {
+    /// A successful JSON answer goes on the shelf whole (for a widget) and
+    /// to the model compacted: a long list costs it a sample and a count.
+    fn shelve_compact(&self, path: &str, text: String) -> String {
+        let Some(json) = text
+            .strip_prefix(OK_PREFIX)
+            .and_then(|body| serde_json::from_str::<serde_json::Value>(body).ok())
+        else {
+            return text;
+        };
+        show::shelve(&self.shelf, &self.session, path, &json);
+        format!(
+            "{OK_PREFIX}{}",
+            medbrains_core::ai_widgets::compact_for_model(&json)
+        )
+    }
+}
+
+/// How [`describe_response`] opens a successful answer.
+const OK_PREFIX: &str = "HTTP 200\n";
 
 // ── Interactive tool: request a patient (client renders a picker) ────
 // The model calls this when it needs a patient but none is in context. The
@@ -789,30 +1026,33 @@ impl rig::tool::Tool for RequestPatientTool {
     const NAME: &'static str = "request_patient";
     type Error = std::convert::Infallible;
     type Args = RequestPatientArgs;
-    type Output = String;
+    type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "Show the user a patient search box to choose a patient. Call this \
-                WHENEVER you need a patient but none is in the screen context — NEVER invent or \
-                guess a patient id. The chosen patient will be in context on the next message."
-                .to_owned(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "reason": { "type": "string", "description": "Why a patient is needed" }
-                }
-            }),
-        }
+    fn description(&self) -> String {
+        "Show the user a patient search box to choose a patient. Call this \
+            WHENEVER you need a patient but none is in the screen context — NEVER invent or \
+            guess a patient id. The chosen patient will be in context on the next message."
+            .to_owned()
     }
 
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok(
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "reason": { "type": "string", "description": "Why a patient is needed" }
+            }
+        })
+    }
+
+    fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        _args: Self::Args,
+    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
+        std::future::ready(Ok(Redacted::fixed(
             "A patient search box is now shown to the user. STOP and wait for their selection; do \
-            not call patient tools or invent an id. The chosen patient arrives in the next message."
-                .to_owned(),
-        )
+            not call patient tools or invent an id. The chosen patient arrives in the next message.",
+        )))
     }
 }
 
@@ -821,32 +1061,50 @@ impl rig::tool::Tool for RequestPatientTool {
 // every request, the model calls this on demand to discover which path to hit,
 // then uses call_api. Catalog is generated from mod.rs by
 // scripts/gen_ai_read_catalog.py — regenerate after route changes.
-const READ_CATALOG: &str = include_str!("ai_read_catalog.txt");
 
 #[derive(serde::Deserialize)]
-struct ListApisArgs {}
+struct ListApisArgs {
+    /// Words from the question: `billing revenue`, `lab pending`.
+    #[serde(default)]
+    query: String,
+}
 
-struct ListApisTool;
+struct ListApisTool {
+    session: redaction::Session,
+}
 
 impl rig::tool::Tool for ListApisTool {
     const NAME: &'static str = "list_apis";
     type Error = std::convert::Infallible;
     type Args = ListApisArgs;
-    type Output = String;
+    type Output = Redacted;
 
-    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
-        rig::completion::ToolDefinition {
-            name: Self::NAME.to_owned(),
-            description: "List the read (GET) API endpoints available via call_api, grouped by \
-                domain (patients, lab, pharmacy, billing, ipd, …). Call this to discover the right \
-                endpoint before calling call_api. Call it at most once."
-                .to_owned(),
-            parameters: serde_json::json!({ "type": "object", "properties": {} }),
-        }
+    fn description(&self) -> String {
+        "Search the read (GET) API endpoints call_api can reach: pass a few words from the \
+            question (e.g. 'billing revenue', 'lab pending'); you get the matching paths. Call \
+            it before call_api when unsure of a path."
+            .to_owned()
     }
 
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok(READ_CATALOG.to_owned())
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string", "description": "A few words from the question" }
+            },
+            "required": ["query"]
+        })
+    }
+
+    fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
+        std::future::ready(Ok(redaction::for_model(
+            &self.session,
+            &catalog::search(&args.query),
+        )))
     }
 }
 
@@ -864,9 +1122,9 @@ fn sse(payload: &serde_json::Value) -> Result<Event, std::convert::Infallible> {
         .unwrap_or_else(|_| Event::default().data("{}")))
 }
 
-/// Resolve the grounded patient (ReBAC), persist the user turn, and load prior
-/// history + de-identified grounding — all under one RLS transaction. Returns
-/// `(conversation_id, rig history, grounding, grounded_patient)`.
+/// Resolve the grounded patient (`ReBAC`), open or continue the conversation,
+/// and load prior history, KB hits and the placeholder map — under one RLS
+/// transaction. The user's turn is stored later, redacted.
 async fn open_turn(
     state: &AppState,
     claims: &Claims,
@@ -899,11 +1157,7 @@ async fn open_turn(
         // the patient's chart silently missing from it, and nothing on screen
         // said so. An ungrounded answer that looks grounded is worse than no
         // answer, so the request fails instead.
-        Some(pid) => match medbrains_authz_gate::require_patient_access(
-            state, claims, pid,
-        )
-        .await
-        {
+        Some(pid) => match medbrains_authz_gate::require_patient_access(state, claims, pid).await {
             Ok(()) => Some(pid),
             Err(err @ AppError::ServiceUnavailable(_)) => return Err(err),
             Err(_) => None,
@@ -913,88 +1167,134 @@ async fn open_turn(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &tenant_id, &claims.department_ids).await?;
 
-    let conversation_id = match req.conversation_id {
-        Some(id) => {
-            let owner = sqlx::query_scalar::<_, Uuid>(
-                "SELECT owner_user_id FROM ai_conversations WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(id)
-            .bind(tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-            match owner {
-                Some(o) if o == claims.sub => id,
-                Some(_) => return Err(AppError::Forbidden),
-                None => return Err(AppError::BadRequest("conversation not found".to_owned())),
+    let mut pseudonyms = None;
+    let conversation_id = if let Some(id) = req.conversation_id {
+        let row = sqlx::query_as::<_, (Uuid, Option<Uuid>, serde_json::Value)>(
+            "SELECT owner_user_id, patient_id, pseudonym_map FROM ai_conversations \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        match row {
+            Some((owner, about, map)) if owner == claims.sub => {
+                bind_conversation_patient(&mut tx, id, about, patient_id).await?;
+                pseudonyms = Some(map);
+                id
             }
+            Some(_) => return Err(AppError::Forbidden),
+            None => return Err(AppError::BadRequest("conversation not found".to_owned())),
         }
-        None => {
-            let title: String = message.chars().take(60).collect();
-            sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model) \
-                 VALUES ($1, $2, $3, $4) RETURNING id",
-            )
-            .bind(tenant_id)
-            .bind(claims.sub)
-            .bind(&title)
-            .bind(&cfg.model)
-            .fetch_one(&mut *tx)
-            .await?
-        }
+    } else {
+        // The title is shown in the history menu only; a placeholder title
+        // keeps identifiers out of it until the turn's redaction exists.
+        let title = "New conversation";
+        sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO ai_conversations (tenant_id, owner_user_id, title, model, patient_id) \
+             VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(claims.sub)
+        .bind(title)
+        .bind(&cfg.model)
+        .bind(patient_id)
+        .fetch_one(&mut *tx)
+        .await?
     };
 
-    let history_rows = sqlx::query_as::<_, HistoryRow>(
+    // The most recent messages only, oldest first: a bounded read, and a
+    // bounded prompt however long the conversation runs.
+    // One bounded read: the last messages in full, and before them enough to
+    // find the user's earlier questions (a topic set many turns ago).
+    let recent = usize::from(medbrains_core::ai_guard::HISTORY_MESSAGES);
+    let window = recent + 2 * medbrains_core::ai_history::EARLIER_QUESTIONS;
+    let mut history_rows = sqlx::query_as::<_, HistoryRow>(
         "SELECT role, content FROM ai_messages \
-         WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at",
+         WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT $3",
     )
     .bind(conversation_id)
     .bind(tenant_id)
+    .bind(i64::try_from(window).unwrap_or(i64::MAX))
     .fetch_all(&mut *tx)
     .await?;
+    history_rows.reverse();
+    let older = history_rows.len().saturating_sub(recent);
+    let earlier: Vec<String> = history_rows
+        .drain(..older)
+        .filter(|r| r.role == "user")
+        .map(|r| r.content)
+        .collect();
 
     let kb_hits = retrieve_kb(&mut tx, message).await?;
-
-    sqlx::query(
-        "INSERT INTO ai_messages (tenant_id, conversation_id, role, content) \
-         VALUES ($1, $2, 'user', $3)",
-    )
-    .bind(tenant_id)
-    .bind(conversation_id)
-    .bind(message)
-    .execute(&mut *tx)
-    .await?;
     tx.commit().await?;
-
-    let egress = medbrains_core::ai_egress::leaves_the_hospital(&cfg.provider);
-    let history = history_rows
-        .into_iter()
-        .map(|r| {
-            let content = if egress { medbrains_core::ai_egress::scrub(&r.content) } else { r.content };
-            match r.role.as_str() {
-                "assistant" => rig::completion::Message::assistant(content),
-                _ => rig::completion::Message::user(content),
-            }
-        })
-        .collect();
 
     Ok(PreparedTurn {
         conversation_id,
-        history,
+        history: history_rows,
+        patient_id,
         grounded_patient,
         kb_hits,
+        pseudonyms,
+        earlier,
     })
 }
 
-/// Compose the turn preamble: system prompt + the generic screen context (the
-/// ids of whatever the user is viewing) + knowledge-base references. Data for
-/// those ids is fetched on demand by the assistant's tools, not pre-injected.
-fn build_preamble(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> String {
-    let mut parts: Vec<String> = Vec::new();
-    if let Some(ctx) = context.filter(|c| !c.is_null()) {
-        parts.push(format!(
-            "Current screen context (the record ids the user is viewing) — {ctx}\n\
-             Use your tools to fetch details for these ids rather than asking the user for data."
+/// Whether a turn about `asked` may continue a conversation about `about`.
+/// One conversation is about one patient: its history must never ground an
+/// answer shown on another patient's screen. A thread with no patient yet
+/// (the user picks one mid-thread) takes the first one named; a turn naming
+/// no patient adds nothing about anyone and may continue any thread.
+const fn continues_conversation(about: Option<Uuid>, asked: Option<Uuid>) -> bool {
+    match (about, asked) {
+        (Some(a), Some(b)) => a.as_u128() == b.as_u128(),
+        _ => true,
+    }
+}
+
+/// Refuse a turn about a different patient; pin a patient-less thread to the
+/// first patient a turn names.
+async fn bind_conversation_patient(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conversation_id: Uuid,
+    about: Option<Uuid>,
+    asked: Option<Uuid>,
+) -> Result<(), AppError> {
+    if !continues_conversation(about, asked) {
+        return Err(AppError::Conflict(
+            "This conversation is about a different patient. Start a new conversation for this \
+             patient."
+                .to_owned(),
         ));
+    }
+    if about.is_none() && asked.is_some() {
+        sqlx::query("UPDATE ai_conversations SET patient_id = $2 WHERE id = $1")
+            .bind(conversation_id)
+            .bind(asked)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
+}
+
+/// The turn's context block: the generic screen context (the ids of whatever
+/// the user is viewing) and knowledge-base references. Data for those ids is
+/// fetched on demand by the tools, not pre-injected. Redacted before use, and
+/// sent in the user turn — never in the system prompt, whose bytes must not
+/// change between turns or the cached prefix is rewritten every time.
+fn build_context(
+    context: Option<&serde_json::Value>,
+    kb_hits: &[KbHit],
+    earlier: &[String],
+) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    let refs: Vec<&str> = earlier.iter().map(String::as_str).collect();
+    if let Some(line) = medbrains_core::ai_history::earlier_questions(&refs) {
+        parts.push(line);
+    }
+    if let Some(ctx) = context.filter(|c| !c.is_null()) {
+        // Ids only, as JSON; what to do with them is in the cached system prompt.
+        parts.push(format!("Screen: {ctx}"));
     }
     if !kb_hits.is_empty() {
         let refs: Vec<String> = kb_hits
@@ -1008,16 +1308,9 @@ fn build_preamble(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> Str
                 )
             })
             .collect();
-        parts.push(format!(
-            "Knowledge-base references (cite these by name when you use them) —\n{}",
-            refs.join("\n")
-        ));
+        parts.push(format!("Knowledge base:\n{}", refs.join("\n")));
     }
-    if parts.is_empty() {
-        SYSTEM_PROMPT.to_owned()
-    } else {
-        format!("{SYSTEM_PROMPT}\n\n{}", parts.join("\n\n"))
-    }
+    parts.join("\n\n")
 }
 
 pub async fn chat(
@@ -1035,296 +1328,160 @@ pub async fn chat(
     if !cfg.enabled {
         return Err(AppError::Forbidden);
     }
+    // Refused outside India before the turn is opened or stored.
+    if cfg.provider == "bedrock" {
+        medbrains_server_services::llm::bedrock_base_url()?;
+    }
 
     let PreparedTurn {
         conversation_id,
         history,
+        patient_id,
         grounded_patient,
         kb_hits,
+        pseudonyms,
+        earlier,
     } = open_turn(&state, &claims, &req, &cfg, &message).await?;
     let tenant_id = claims.tenant_id;
-
-    let preamble = build_preamble(req.context.as_ref(), &kb_hits);
-    // What leaves for an outside model carries no one's identity; the
-    // conversation kept here stays as the clinician wrote it.
-    let egress = medbrains_core::ai_egress::leaves_the_hospital(&cfg.provider);
-    let (preamble, message) = if egress {
-        (
-            medbrains_core::ai_egress::scrub(&preamble),
-            medbrains_core::ai_egress::scrub(&message),
-        )
-    } else {
-        (preamble, message)
+    // The assistant acts for the clinician, never as them: every read its tools
+    // make carries this actor, so the trail says "AI assistant on behalf of".
+    let agent = medbrains_server_core::middleware::auth::ActingAgent {
+        kind: medbrains_server_core::middleware::auth::ActorKind::AiAgent,
+        agent: "clinical_assistant".to_owned(),
+        model: cfg.model.clone(),
+        run_id: Uuid::new_v4(),
+        conversation_id: Some(conversation_id),
+    };
+    let agent_json = agent.to_audit_json();
+    let run_id = agent.run_id;
+    let claims = Claims {
+        act: Some(agent),
+        ..claims
     };
 
-    use rig::client::CompletionClient as _;
-    let boxed: SseBody = match cfg.provider.as_str() {
-        "anthropic" => {
-            let client = rig::providers::anthropic::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client
-                .agent(cfg.model.as_str())
-                .preamble(preamble.as_str())
-                .tool(DrugSafetyTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                })
-                .tool(DraftPrescriptionTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                })
-                .tool(PatientOverviewTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                })
-                .tool(CallApiTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                    scrub: egress,
-                })
-                .tool(RequestPatientTool)
-                .tool(ListApisTool)
-                .build();
-            Box::pin(run_turn(
-                agent,
-                message,
-                history,
-                state,
-                tenant_id,
-                conversation_id,
-                kb_hits,
-            ))
-        }
-        "openrouter" => {
-            let client = rig::providers::openrouter::Client::new(&cfg.api_key)
-                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client
-                .agent(cfg.model.as_str())
-                .preamble(preamble.as_str())
-                .tool(DrugSafetyTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                })
-                .tool(DraftPrescriptionTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                })
-                .tool(PatientOverviewTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                })
-                .tool(CallApiTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                    scrub: egress,
-                })
-                .tool(RequestPatientTool)
-                .tool(ListApisTool)
-                .build();
-            Box::pin(run_turn(
-                agent,
-                message,
-                history,
-                state,
-                tenant_id,
-                conversation_id,
-                kb_hits,
-            ))
-        }
-        "ollama" => {
-            // Local, keyless inference — no PHI leaves the machine.
-            let base = std::env::var("OLLAMA_API_BASE_URL")
-                .unwrap_or_else(|_| "http://localhost:11434".to_owned());
-            let client = rig::providers::ollama::Client::builder()
-                .api_key(rig::client::Nothing)
-                .base_url(&base)
-                .build()
-                .map_err(|e| AppError::BadRequest(format!("Ollama client error: {e}")))?;
-            let agent = client
-                .agent(cfg.model.as_str())
-                .preamble(preamble.as_str())
-                .tool(DrugSafetyTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                })
-                .tool(DraftPrescriptionTool {
-                    db: state.db.clone(),
-                    tenant_id,
-                    department_ids: claims.department_ids.clone(),
-                    patient_id: grounded_patient,
-                    user_id: claims.sub,
-                })
-                .tool(PatientOverviewTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                })
-                .tool(CallApiTool {
-                    state: state.clone(),
-                    claims: claims.clone(),
-                    scrub: egress,
-                })
-                .tool(RequestPatientTool)
-                .tool(ListApisTool)
-                .build();
-            Box::pin(run_turn(
-                agent,
-                message,
-                history,
-                state,
-                tenant_id,
-                conversation_id,
-                kb_hits,
-            ))
-        }
-        other => {
-            return Err(AppError::BadRequest(format!(
-                "AI provider '{other}' does not support streaming chat in this build"
-            )));
-        }
+    // Everything below reaches the model only through this turn's redaction
+    // (every provider, local ones included). Fail closed: if it cannot be made
+    // safe, the call is refused and nothing is sent or stored.
+    let mut redactor = session_for(&state, &claims, patient_id, pseudonyms).await?;
+    // Before any redaction, so only the patient's own contacts can be shown.
+    let contacts = contact_access::for_turn(&state, &claims, grounded_patient, &redactor).await;
+    let unsafe_ = |e: medbrains_core::ai_redact::RedactError| {
+        medbrains_server_services::llm::unsafe_to_send(&e)
     };
+    let context = redactor
+        .redact(&build_context(req.context.as_ref(), &kb_hits, &earlier))
+        .map_err(unsafe_)?;
+    let message = redactor.redact(&message).map_err(unsafe_)?;
+    // A question that itself names a restricted class is not sent at all, and
+    // the user is told why rather than given an answer to an empty question.
+    if message.is_withheld() {
+        return Err(AppError::BadRequest(RESTRICTED_QUESTION.to_owned()));
+    }
+    let prior = replay_history(&mut redactor, history).map_err(unsafe_)?;
+    let session: redaction::Session = std::sync::Arc::new(std::sync::Mutex::new(redactor));
+    // Stored as the model received it, with the map to read it back.
+    store_turn(
+        &state,
+        tenant_id,
+        conversation_id,
+        "user",
+        message.for_model(),
+        &session,
+        None,
+    )
+    .await?;
+
+    let turn = turn::Turn {
+        guard: std::sync::Arc::new(std::sync::Mutex::new(
+            medbrains_core::ai_guard::AnswerGuard::new(message.for_model()).with_contacts(contacts),
+        )),
+        context: context.for_model().to_owned(),
+        prompt: if context.for_model().is_empty() {
+            message
+        } else {
+            context.join("\n\n", &message)
+        },
+        history: prior,
+        state: state.clone(),
+        tenant_id,
+        conversation_id,
+        run_id,
+        model: cfg.model.clone(),
+        kb_hits,
+        session: std::sync::Arc::clone(&session),
+    };
+
+    let deps = turn::ToolDeps {
+        session,
+        state,
+        claims,
+        grounded_patient,
+        agent_json,
+    };
+    let boxed = turn::stream_answer(&cfg, &deps, turn)?;
 
     // Heartbeat comments (default 15s) keep the connection alive through idle
     // gaps + proxy idle-timeouts (nginx/ALB) so a slow first token isn't dropped.
     Ok(Sse::new(boxed).keep_alive(KeepAlive::default()))
 }
 
-/// Stream one assistant turn from a built agent (provider-agnostic) and persist
-/// the result. Generic so anthropic + openrouter share the exact same loop.
-fn run_turn<M, P>(
-    agent: rig::agent::Agent<M, P>,
-    message: String,
-    history: Vec<rig::completion::Message>,
-    state: AppState,
-    tenant_id: Uuid,
-    conversation_id: Uuid,
-    kb_hits: Vec<KbHit>,
-) -> impl Stream<Item = Result<Event, std::convert::Infallible>>
-where
-    M: rig::completion::CompletionModel + 'static,
-    M::StreamingResponse: rig::completion::GetTokenUsage,
-    P: rig::agent::PromptHook<M> + 'static,
-{
-    use rig::agent::MultiTurnStreamItem;
-    use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt as _};
-
-    async_stream::stream! {
-        // Emit the retrieved KB entries as grounding sources (cited in the UI).
-        for (i, hit) in kb_hits.iter().enumerate() {
-            yield sse(&serde_json::json!({
-                "type": "source",
-                "source": {
-                    "id": format!("kb-{i}"),
-                    "title": hit.term,
-                    "url": hit.source_url,
-                    "snippet": hit.snippet,
-                }
-            }));
-        }
-
-        let mut answer = String::new();
-        // multi_turn > 0 is REQUIRED for the tool loop — rig defaults to 0
-        // ("one round-trip"), which errors after the first tool call.
-        let mut chunks = agent
-            .stream_prompt(message.as_str())
-            .multi_turn(8)
-            .with_history(history)
-            .await;
-        while let Some(item) = chunks.next().await {
-            match item {
-                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(t))) => {
-                    answer.push_str(&t.text);
-                    yield sse(&serde_json::json!({ "type": "text", "text": t.text }));
-                }
-                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
-                    tool_call,
-                    internal_call_id,
-                })) => {
-                    // Surface the guard the assistant is running.
-                    yield sse(&serde_json::json!({
-                        "type": "tool",
-                        "toolCall": {
-                            "id": internal_call_id,
-                            "name": tool_call.function.name,
-                            "args": tool_call.function.arguments,
-                            "status": "running"
-                        }
-                    }));
-                }
-                Ok(MultiTurnStreamItem::StreamUserItem(StreamedUserContent::ToolResult {
-                    tool_result,
-                    internal_call_id,
-                })) => {
-                    // The tool's JSON output (e.g. a block decision) → to the UI.
-                    let text = tool_result.content.iter().find_map(|c| match c {
-                        rig::completion::message::ToolResultContent::Text(t) => Some(t.text.clone()),
-                        rig::completion::message::ToolResultContent::Image(_) => None,
-                    });
-                    // Tool output may be JSON (a decision) or a plain string —
-                    // fall back to the raw text so the UI never shows null.
-                    let result: Option<serde_json::Value> = text.map(|t| {
-                        serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
-                    });
-                    yield sse(&serde_json::json!({
-                        "type": "tool_result",
-                        "id": internal_call_id,
-                        "result": result
-                    }));
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    yield sse(&serde_json::json!({ "type": "error", "message": e.to_string() }));
-                }
-            }
-        }
-
-        // Persist the assistant turn + bump the conversation timestamp.
-        match state.db.begin().await {
-            Ok(tx) => {
-                if let Err(e) = persist_assistant_turn(tx, &tenant_id, conversation_id, &answer).await {
-                    tracing::error!(error = %e, "failed to persist assistant turn");
-                }
-            }
-            Err(e) => tracing::error!(error = %e, "failed to open tx for assistant turn"),
-        }
-
-        yield sse(&serde_json::json!({ "type": "done", "conversationId": conversation_id }));
-    }
+/// Earlier messages as the model receives them: the user's redacted, the
+/// assistant's own with its amounts as written (it was given them already).
+fn replay_history(
+    redactor: &mut medbrains_core::ai_redact::Redactor,
+    history: Vec<HistoryRow>,
+) -> Result<Vec<rig::message::Message>, medbrains_core::ai_redact::RedactError> {
+    history
+        .into_iter()
+        .map(|row| {
+            Ok(if row.role == "assistant" {
+                rig::message::Message::assistant(
+                    redactor.redact_own_answer(&row.content)?.for_model(),
+                )
+            } else {
+                rig::message::Message::user(redactor.redact(&row.content)?.for_model())
+            })
+        })
+        .collect()
 }
 
-/// Write the completed assistant message and touch the conversation, under RLS.
-async fn persist_assistant_turn(
-    mut tx: sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
+/// Store one turn (redacted text) and the conversation's placeholder map, and
+/// touch the conversation, under RLS.
+async fn store_turn(
+    state: &AppState,
+    tenant_id: Uuid,
     conversation_id: Uuid,
-    answer: &str,
+    role: &'static str,
+    content: &str,
+    session: &redaction::Session,
+    parts: Option<&serde_json::Value>,
 ) -> Result<(), AppError> {
-    medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
+    let map = redaction::map_of(session)
+        .ok_or_else(|| AppError::Internal("redaction map unavailable".to_owned()))?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     sqlx::query(
-        "INSERT INTO ai_messages (tenant_id, conversation_id, role, content) \
-         VALUES ($1, $2, 'assistant', $3)",
+        "INSERT INTO ai_messages (tenant_id, conversation_id, role, content, parts) \
+         VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(tenant_id)
     .bind(conversation_id)
-    .bind(answer)
+    .bind(role)
+    .bind(content)
+    .bind(parts)
     .execute(&mut *tx)
     .await?;
     sqlx::query(
-        "UPDATE ai_conversations SET last_message_at = now() WHERE id = $1 AND tenant_id = $2",
+        "UPDATE ai_conversations SET last_message_at = now(), pseudonym_map = $3, \
+                title = CASE WHEN $4 = 'user' AND title = 'New conversation' \
+                             THEN left($5, 60) ELSE title END \
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(conversation_id)
     .bind(tenant_id)
+    .bind(map)
+    .bind(role)
+    .bind(content)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -1333,14 +1490,25 @@ async fn persist_assistant_turn(
 
 // ── Proactive whispers (step 1: critical-value SSE) ──────────────────
 // A long-lived SSE the assistant UI subscribes to; it surfaces newly-fired,
-// unacknowledged critical lab values (post-commit, polled) as "whispers". Rides
-// the normal auth/RLS middleware; tenant-scoped. ponytail: polling (~10s) for a
-// simple, reliable first version — a push bus off the outbox worker is the
-// upgrade path. Per-patient access filtering is a later refinement.
+// unacknowledged critical lab values (post-commit, polled) as "whispers", plus
+// emergency-code activations. Rides the normal auth/RLS middleware.
+//
+// Per patient: a critical value reaches only a caller who may see that patient
+// (the same visible set list screens use, one round trip per poll), and every
+// whisper names its patient, so a value for one patient can never be read as
+// belonging to the chart on screen. Per tenant: RLS plus the tenant predicate.
+//
+// A poll that cannot answer is "couldn't check", never silence: the stream
+// says so once when it goes unknown and again when it recovers.
+//
+// ponytail: polling (~10s) and the visible set re-fetched per poll; a push bus
+// off the outbox worker, and a cached visible set, are the upgrade paths.
 
 #[derive(sqlx::FromRow)]
 struct CriticalAlertRow {
     patient_id: Uuid,
+    patient_name: Option<String>,
+    uhid: Option<String>,
     parameter_name: String,
     value: String,
     flag: String,
@@ -1354,41 +1522,57 @@ struct CodeRow {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
-struct Whisper {
-    created_at: chrono::DateTime<chrono::Utc>,
-    payload: serde_json::Value,
+/// One event for the whisper stream.
+#[derive(Debug)]
+pub struct Whisper {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub payload: serde_json::Value,
 }
 
-/// Poll the committed alert tables for whisper-worthy events fired since `since`:
-/// critical lab values + emergency-code activations. Tenant-scoped under RLS.
-async fn fetch_new_whispers(
+/// Whisper-worthy events fired since `since`.
+///
+/// Critical lab values for patients the caller may see, and emergency-code
+/// activations. An unanswerable visible set is an error, never an empty list.
+///
+/// # Errors
+/// The caller's visible patients could not be resolved, or the database failed.
+pub async fn fetch_new_whispers(
     state: &AppState,
-    tenant_id: Uuid,
+    claims: &Claims,
     since: chrono::DateTime<chrono::Utc>,
 ) -> Result<Vec<Whisper>, AppError> {
+    let visible = medbrains_authz_gate::visible_patient_ids(state, claims).await?;
+    let tenant_id = claims.tenant_id;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
     let mut out: Vec<Whisper> = Vec::new();
 
     let alerts = sqlx::query_as::<_, CriticalAlertRow>(
-        "SELECT patient_id, parameter_name, value, flag::text AS flag, created_at \
-         FROM lab_critical_alerts \
-         WHERE tenant_id = $1 AND created_at > $2 AND acknowledged_at IS NULL \
-         ORDER BY created_at LIMIT 20",
+        "SELECT a.patient_id, \
+                NULLIF(concat_ws(' ', p.first_name, p.last_name), '') AS patient_name, \
+                p.uhid, a.parameter_name, a.value, a.flag::text AS flag, a.created_at \
+         FROM lab_critical_alerts a \
+         JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         WHERE a.tenant_id = $1 AND a.created_at > $2 AND a.acknowledged_at IS NULL \
+           AND ($3::uuid[] IS NULL OR a.patient_id = ANY($3)) \
+         ORDER BY a.created_at LIMIT 20",
     )
     .bind(tenant_id)
     .bind(since)
+    .bind(visible.as_deref())
     .fetch_all(&mut *tx)
     .await?;
     for a in alerts {
+        let who = patient_label(a.patient_name.as_deref(), a.uhid.as_deref());
         out.push(Whisper {
             created_at: a.created_at,
             payload: serde_json::json!({
                 "type": "whisper", "severity": "critical", "kind": "critical_lab_value",
-                "title": "Critical lab value",
+                "title": format!("Critical lab value — {who}"),
                 "message": format!("{} = {} [{}]", a.parameter_name, a.value, a.flag),
                 "patientId": a.patient_id,
+                "patientLabel": who,
             }),
         });
     }
@@ -1418,43 +1602,67 @@ async fn fetch_new_whispers(
     Ok(out)
 }
 
+/// "Name (UHID)" — so a whisper can never be taken for the chart on screen.
+fn patient_label(name: Option<&str>, uhid: Option<&str>) -> String {
+    match (name, uhid) {
+        (Some(n), Some(u)) => format!("{n} ({u})"),
+        (Some(n), None) => n.to_owned(),
+        (None, Some(u)) => u.to_owned(),
+        (None, None) => "unnamed patient".to_owned(),
+    }
+}
+
+/// The stream-health event to send after a poll, if the health changed:
+/// `unavailable` once when polls start failing, `ok` once when they answer
+/// again (and on the first good poll, so the screen knows it is live).
+fn health_change(was_ok: Option<bool>, now_ok: bool) -> Option<serde_json::Value> {
+    if was_ok == Some(now_ok) {
+        return None;
+    }
+    Some(if now_ok {
+        serde_json::json!({ "type": "whisper_status", "status": "ok" })
+    } else {
+        serde_json::json!({
+            "type": "whisper_status", "status": "unavailable",
+            "message": "Couldn't check for critical alerts. Check the lab worklist directly until \
+                this clears.",
+        })
+    })
+}
+
 pub async fn whispers(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> axum::response::Response {
-    // The stream carries `lab_critical_alerts` rows — patient id, parameter,
-    // value, flag. That is a patient's critical result, and without this any
-    // authenticated session could hold the stream open and receive every one
-    // in the hospital.
-    //
-    // Gated on the lab-report permission because that is the PHI-bearing half;
-    // the ER code activations it also carries are broadcast information. The
-    // better long-term shape is to filter each item by what the caller may
-    // see, rather than gate the whole stream — worth doing when a role needs
-    // the codes without the labs.
+    // The stream carries patients' critical results; a role without the
+    // lab-report permission has no business holding it open. Each item is
+    // then filtered to the patients the caller may see.
     if let Err(error) = require_permission(&claims, permissions::lab::reports::VIEW) {
         return error.into_response();
     }
 
-    let tenant_id = claims.tenant_id;
     let stream = async_stream::stream! {
         // Only surface alerts that fire AFTER the stream opens.
         let mut since = chrono::Utc::now();
+        let mut was_ok: Option<bool> = None;
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            let whispers = match fetch_new_whispers(&state, tenant_id, since).await {
-                Ok(w) => w,
-                Err(e) => {
-                    tracing::warn!(error = %e, "whisper poll failed");
-                    Vec::new()
-                }
-            };
-            for whisper in whispers {
+            let polled = fetch_new_whispers(&state, &claims, since).await;
+            if let Err(e) = &polled {
+                tracing::warn!(error = %e, "whisper poll failed");
+            }
+            if let Some(status) = health_change(was_ok, polled.is_ok()) {
+                yield sse(&status);
+            }
+            was_ok = Some(polled.is_ok());
+            // On failure `since` stays put, so alerts fired during an outage
+            // still arrive once polls answer again.
+            for whisper in polled.unwrap_or_default() {
                 if whisper.created_at > since {
                     since = whisper.created_at;
                 }
                 yield sse(&whisper.payload);
             }
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     };
     Sse::new(stream)
@@ -1477,6 +1685,8 @@ pub struct ConversationMessage {
     pub role: String,
     pub content: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Widgets, steps, sources, notices and usage kept with an answer.
+    pub parts: Option<serde_json::Value>,
 }
 
 /// The caller's own conversations, newest first — the assistant's history menu.
@@ -1487,8 +1697,16 @@ pub async fn list_conversations(
     require_permission(&claims, permissions::ai::assistant::USE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, ConversationSummary>(
-        "SELECT id, title, last_message_at FROM ai_conversations \
+    let rows = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Option<String>,
+            chrono::DateTime<chrono::Utc>,
+            serde_json::Value,
+        ),
+    >(
+        "SELECT id, title, last_message_at, pseudonym_map FROM ai_conversations \
          WHERE tenant_id = $1 AND owner_user_id = $2 AND archived_at IS NULL \
          ORDER BY last_message_at DESC LIMIT 100",
     )
@@ -1497,7 +1715,16 @@ pub async fn list_conversations(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(rows))
+    // Titles are stored redacted; read back for their owner.
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, title, last_message_at, map)| ConversationSummary {
+                id,
+                title: title.map(|t| redaction::map_from(Some(map)).rehydrate(&t)),
+                last_message_at,
+            })
+            .collect(),
+    ))
 }
 
 /// Messages of one conversation — owner-checked, so a thread only reopens for
@@ -1511,21 +1738,22 @@ pub async fn conversation_messages(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let owner = sqlx::query_scalar::<_, Uuid>(
-        "SELECT owner_user_id FROM ai_conversations WHERE id = $1 AND tenant_id = $2",
+    let owner = sqlx::query_as::<_, (Uuid, serde_json::Value)>(
+        "SELECT owner_user_id, pseudonym_map FROM ai_conversations \
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
-    match owner {
-        Some(o) if o == claims.sub => {}
+    let map = match owner {
+        Some((o, map)) if o == claims.sub => redaction::map_from(Some(map)),
         Some(_) => return Err(AppError::Forbidden),
         None => return Err(AppError::BadRequest("conversation not found".to_owned())),
-    }
+    };
 
-    let rows = sqlx::query_as::<_, ConversationMessage>(
-        "SELECT id, role, content, created_at FROM ai_messages \
+    let mut rows = sqlx::query_as::<_, ConversationMessage>(
+        "SELECT id, role, content, created_at, parts FROM ai_messages \
          WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at",
     )
     .bind(id)
@@ -1533,6 +1761,15 @@ pub async fn conversation_messages(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
+    // Stored as the model saw it; read back for its owner.
+    for row in &mut rows {
+        row.content = map.rehydrate(&row.content);
+        // Kept as the model saw it, like the text: read back the same way.
+        row.parts = row
+            .parts
+            .take()
+            .and_then(|p| serde_json::from_str(&map.rehydrate(&p.to_string())).ok());
+    }
     Ok(Json(rows))
 }
 
@@ -1540,10 +1777,109 @@ pub async fn conversation_messages(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/ai/chat", post(chat))
+        .route(
+            "/api/ai/aggregate/{metric}/patients",
+            get(aggregate::drill_patients),
+        )
         .route("/api/ai/whispers", get(whispers))
         .route("/api/ai/conversations", get(list_conversations))
         .route(
             "/api/ai/conversations/{id}/messages",
             get(conversation_messages),
         )
+        .route("/api/ai/messages/{id}/widgets/{index}", get(replay::widget))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UNKNOWN_FOR_MODEL, describe_response};
+    use axum::http::StatusCode;
+
+    /// An outage is UNKNOWN to the model, never an empty answer it could
+    /// read as "nothing recorded".
+    #[test]
+    fn a_server_fault_is_unknown_not_empty() {
+        let told = describe_response(StatusCode::SERVICE_UNAVAILABLE, "[]");
+        assert!(told.contains(UNKNOWN_FOR_MODEL));
+        assert!(!told.contains("[]"));
+    }
+
+    /// A refusal says so and carries no body.
+    #[test]
+    fn a_refusal_is_not_a_record() {
+        let told = describe_response(StatusCode::FORBIDDEN, "{\"secret\":1}");
+        assert!(told.starts_with("HTTP 403"));
+        assert!(!told.contains("secret"));
+    }
+
+    /// A failed poll is said once, and recovery is said once — never silence.
+    #[test]
+    fn whisper_health_is_announced_on_change_only() {
+        use super::health_change;
+        assert_eq!(
+            health_change(None, true).map(|v| v["status"].clone()),
+            Some("ok".into())
+        );
+        assert_eq!(health_change(Some(true), true), None);
+        let down = health_change(Some(true), false).map(|v| v["status"].clone());
+        assert_eq!(down, Some("unavailable".into()));
+        assert_eq!(health_change(Some(false), false), None);
+        assert_eq!(
+            health_change(None, false).map(|v| v["status"].clone()),
+            Some("unavailable".into())
+        );
+    }
+
+    /// One conversation, one patient.
+    #[test]
+    fn a_conversation_does_not_cross_patients() {
+        use super::continues_conversation;
+        let (a, b) = (uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+        assert!(continues_conversation(Some(a), Some(a)));
+        assert!(!continues_conversation(Some(a), Some(b)));
+        assert!(continues_conversation(None, Some(b)));
+        assert!(continues_conversation(Some(a), None));
+    }
+
+    #[test]
+    fn record_metadata_is_dropped_before_the_model() {
+        let out = super::minimum_necessary(
+            r#"{"id":"1","created_by":"u","ip_address":"10.0.0.1","items":[{"token":"t","dose":"5 mg"}]}"#,
+        );
+        assert_eq!(out, r#"{"id":"1","items":[{"dose":"5 mg"}]}"#);
+    }
+
+    #[test]
+    fn an_answer_passes_through() {
+        assert_eq!(describe_response(StatusCode::OK, "{}"), "HTTP 200\n{}");
+    }
+
+    /// One restricted lab withholds that entry, not the whole overview
+    /// (eval case 03); an empty section says "none recorded".
+    #[test]
+    fn a_restricted_lab_withholds_only_itself() {
+        let overview = super::Grounding {
+            allergies: vec!["Sulfa drugs".to_owned()],
+            recent_lab_results: vec![super::LabEntry {
+                parameter: "HIV 1/2 antibody".to_owned(),
+                value: "Reactive".to_owned(),
+                unit: None,
+                flag: None,
+            }],
+            ..super::Grounding::default()
+        };
+        let json = serde_json::to_string(&overview).unwrap_or_default();
+        let sent = medbrains_core::ai_redact::sensitive::withhold_in_text(&json);
+        let (sent, withheld) = sent.unwrap_or_default();
+        assert_eq!(withheld, 1);
+        assert!(sent.contains("Sulfa drugs"), "{sent}");
+        assert!(
+            sent.contains(r#""active_medications":"none recorded""#),
+            "{sent}"
+        );
+        assert!(
+            !sent.contains("Reactive") && !sent.contains("HIV"),
+            "{sent}"
+        );
+    }
 }

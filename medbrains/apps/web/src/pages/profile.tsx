@@ -74,7 +74,7 @@ function formToPayload(v: FormValues): UpdateMyProfileRequest {
 function ReadField({ label, value }: { label: string; value?: string | null }) {
   return (
     <Stack gap={2}>
-      <Text size="xs" c="dimmed" tt="uppercase" style={{ letterSpacing: "0.06em" }}>
+      <Text size="xs" c="dimmed" style={{ letterSpacing: "0.06em" }}>
         {label}
       </Text>
       <Text size="sm">{value || "—"}</Text>

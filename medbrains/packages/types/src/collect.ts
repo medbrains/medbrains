@@ -148,3 +148,14 @@ export interface BillingLaneInput {
   charge_at: FeeChargeAt;
   fee_amount: number | null;
 }
+
+/** A patient with an open bill charged today — the cashier counter's list. */
+export interface CounterOpenTodayRow {
+  patient_id: string;
+  /** Null for a caller who may not see patient names. */
+  patient_name: string | null;
+  uhid: string;
+  bill_count: number;
+  balance: string;
+  last_charged_at: string;
+}

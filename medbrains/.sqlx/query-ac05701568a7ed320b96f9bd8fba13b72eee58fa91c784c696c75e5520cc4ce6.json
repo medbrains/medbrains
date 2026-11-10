@@ -1,0 +1,142 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes, board_shows, voice_languages, announce_repeat, number_pool_size, reuse_cooloff_minutes FROM queues WHERE tenant_id = $1 ORDER BY (status = 'closed'), name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "module",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "scope_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_at",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "pad_width",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "reset_rule",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "max_tokens_per_period",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "lifecycle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 14,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "early_issue_minutes",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 16,
+        "name": "board_shows",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "voice_languages",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 18,
+        "name": "announce_repeat",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 19,
+        "name": "number_pool_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
+        "name": "reuse_cooloff_minutes",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "ac05701568a7ed320b96f9bd8fba13b72eee58fa91c784c696c75e5520cc4ce6"
+}

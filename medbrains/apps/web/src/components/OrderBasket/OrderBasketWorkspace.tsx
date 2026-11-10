@@ -27,7 +27,9 @@ import {
   IconStack2,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { Modal, toast } from "@/components/ui";
+import { canSignType, useSignableTypes } from "@/hooks/useSignableTypes";
 import { orderBasketService } from "@/services/orderBasket.service";
 import { BasketItemRow } from "./BasketItemRow";
 import { DrugPickerForm } from "./pickers/DrugPickerForm";
@@ -63,6 +65,11 @@ export function OrderBasketWorkspace({
   const canAddLab = useHasPermission(P.LAB.ORDERS_CREATE);
   const canAddRadiology = useHasPermission(P.RADIOLOGY.ORDERS_CREATE);
   const [orderSetOpen, setOrderSetOpen] = useState(false);
+  // The committed batch, offered for the doctor's digital signature once the
+  // basket closes (record type `order_basket`).
+  const [toSign, setToSign] = useState<string | null>(null);
+  const signable = useSignableTypes();
+  const canSignBatch = canSignType(signable.types?.get("order_basket"), signable.rights);
   const [carryFwdOpen, setCarryFwdOpen] = useState(false);
   const [costPreview, setCostPreview] = useState<{
     subtotal: string;
@@ -193,6 +200,7 @@ export function OrderBasketWorkspace({
       basket.clear();
       onSigned?.();
       onClose();
+      if (canSignBatch) setToSign(res.signature_id);
     } catch (err) {
       notifications.show({
         title: "Sign failed",
@@ -439,6 +447,14 @@ export function OrderBasketWorkspace({
         encounterId={encounterId}
         onAddItems={addPermittedItems}
       />
+      {toSign && (
+        <SignWorkspace
+          opened
+          target={{ record_type: "order_basket", record_id: toSign, summary: "Doctor's orders" }}
+          onClose={() => setToSign(null)}
+          onSigned={() => setToSign(null)}
+        />
+      )}
     </>
   );
 }

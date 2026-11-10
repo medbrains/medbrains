@@ -240,7 +240,7 @@ export function CommitteesTab() {
       </Group>
 
       {showFeedback && (
-        <Card withBorder shadow="sm" p="md" mb="md">
+        <Card withBorder p="md" mb="md">
           <Text fw={600} mb="md">
             Patient Feedback Analysis
           </Text>

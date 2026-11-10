@@ -102,6 +102,9 @@ pub enum DeviceMessageStatus {
     Failed,
     Rejected,
     DeadLetter,
+    /// Held for a technologist: the results could not be matched to exactly
+    /// one order, or conflict with what is recorded.
+    NeedsReview,
 }
 
 // ── Adapter Catalog (global) ───────────────────────────────
@@ -146,6 +149,8 @@ pub struct DeviceInstanceRow {
     pub adapter_code: String,
     pub facility_id: Option<Uuid>,
     pub department_id: Option<Uuid>,
+    /// The bed a bedside monitor watches; its readings belong to whoever is admitted there.
+    pub bed_location_id: Option<Uuid>,
     pub name: String,
     pub code: String,
     pub serial_number: Option<String>,
@@ -323,13 +328,12 @@ pub fn generate_device_config(
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false)
             {
-                if let Some(config) = quirk.get("config") {
-                    if let (serde_json::Value::Object(base), serde_json::Value::Object(patch)) =
+                if let Some(config) = quirk.get("config")
+                    && let (serde_json::Value::Object(base), serde_json::Value::Object(patch)) =
                         (&mut protocol_config, config)
-                    {
-                        for (k, v) in patch {
-                            base.insert(k.clone(), v.clone());
-                        }
+                {
+                    for (k, v) in patch {
+                        base.insert(k.clone(), v.clone());
                     }
                 }
                 if let Some(id) = quirk.get("id").and_then(serde_json::Value::as_str) {

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalHospital
@@ -101,7 +102,8 @@ fun PatientHome(auth: AuthStore) {
                 composable("prescriptions") { MedicinesScreen(portal) }
                 composable("bills") { BillsScreen(portal) }
                 composable("pharmacy") { StoreScreen(portal) }
-                composable("bands") { BandsScreen() }
+                composable("bands") { HealthDataScreen(portal) }
+                composable("health-data") { HealthDataScreen(portal) }
                 composable("consent") { PrivacyScreen(portal) }
                 composable("family-share") {
                     TilesScreen("family-share", "Family", "Family share", "Link family, share specific records, set expiry.", listOf(
@@ -124,6 +126,7 @@ fun HospitalTab(open: (String) -> Unit) {
         Entry("pharmacy", "Pharmacy", "Order your prescription or other medicines.", Icons.Filled.LocalPharmacy),
         Entry("bills", "Bills", "Invoices, payments and receipts.", Icons.Filled.AccountBalanceWallet),
         Entry("consent", "Privacy", "What you agree to, what we hold, and your requests.", Icons.Filled.VerifiedUser),
+        Entry("health-data", "Health data", "Share readings from Health Connect with your care team.", Icons.Filled.MonitorHeart),
         Entry("family-share", "Family share", "Link family, share specific records, set expiry.", Icons.Filled.Groups),
     )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("tab-hospital")) {

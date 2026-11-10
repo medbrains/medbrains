@@ -26,6 +26,7 @@ export const settingsSetupService = {
     api.importOnboardingWorkbook(...args),
   completenessCheck: () => api.completenessCheck(),
   systemHealth: () => api.systemHealth(),
+  listBackups: () => api.listBackups(),
   exportConfig: () => api.exportConfig(),
   importConfig: (data: ImportConfigInput) => api.importConfig(data),
   listModules: () => api.listModules(),

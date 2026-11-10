@@ -1,3 +1,4 @@
+import { AnalyserReviewTab } from "./lab/AnalyserReviewTab";
 import { B2bTab } from "./lab/b2b";
 import { LabCatalogTab } from "./lab/catalog";
 import { LabDispatchSection } from "./lab/dispatch";
@@ -63,6 +64,7 @@ function LabPageInner() {
   const canQc = useHasPermission(P.LAB.QC_LIST);
   const canPhlebotomy = useHasPermission(P.LAB.PHLEBOTOMY_LIST);
   const canOutsourced = useHasPermission(P.LAB.OUTSOURCED_LIST);
+  const canAnalyserReview = useHasPermission(P.LAB.RESULTS_ANALYSER_REVIEW);
   const canSamples = useHasPermission(P.LAB.SAMPLES_LIST);
   const canSpecialized = useHasPermission(P.LAB.SPECIALIZED_LIST);
   const canB2b = useHasPermission(P.LAB.B2B_LIST);
@@ -310,6 +312,7 @@ function LabPageInner() {
           {canSpecialized && <Tabs.Tab value="specialized">{t("specialized")}</Tabs.Tab>}
           {canB2b && <Tabs.Tab value="b2b">{t("b2b")}</Tabs.Tab>}
           {canOutsourced && <Tabs.Tab value="outsourced">{t("outsourced")}</Tabs.Tab>}
+          {canAnalyserReview && <Tabs.Tab value="analyser-review">Analyser review</Tabs.Tab>}
           <Tabs.Tab value="calculators">{t("calculators")}</Tabs.Tab>
         </Tabs.List>
 
@@ -432,6 +435,12 @@ function LabPageInner() {
         {canOutsourced && (
           <Tabs.Panel value="outsourced">
             <OutsourcedTab />
+          </Tabs.Panel>
+        )}
+
+        {canAnalyserReview && (
+          <Tabs.Panel value="analyser-review">
+            <AnalyserReviewTab />
           </Tabs.Panel>
         )}
 

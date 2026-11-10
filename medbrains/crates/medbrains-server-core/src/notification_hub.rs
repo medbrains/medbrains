@@ -5,7 +5,7 @@
 //! the substrate; P2 wires `create_notification` (post-commit) to `publish` and
 //! adds the authed `/api/ws/notifications` endpoint that calls `subscribe`.
 //!
-//! DSA / DP / cost discipline (CLAUDE.md + DEVICE-CONSTRAINED-RULES):
+//! DSA / DP / cost discipline (ENGINEERING.md + DEVICE-CONSTRAINED-RULES):
 //! - **Topic fan-out is O(subscribers)**, never an O(N) per-event DB scan: an
 //!   event is published once per topic to a `tokio::broadcast` channel and every
 //!   subscriber of that topic receives the shared `Arc`, no cloning of the body.
@@ -17,6 +17,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 use serde::Serialize;
 use tokio::sync::{RwLock, broadcast};
@@ -72,20 +74,40 @@ pub fn department_topic(department_id: Uuid) -> String {
     format!("department:{department_id}")
 }
 
-/// Topic key for a public board surface (e.g. `board:opd`, `board:pharmacy`).
+/// Topic key for one hospital's board surface (`board:<tenant>:lab`).
+///
+/// The tenant is part of the key because the hub is shared by every hospital on
+/// the server. Keyed by surface alone, a lab board in one hospital received the
+/// lab signals of every other hospital on the same server.
 #[must_use]
-pub fn board_topic(surface: &str) -> String {
-    format!("board:{surface}")
+pub fn board_topic(tenant_id: Uuid, surface: &str) -> String {
+    format!("board:{tenant_id}:{surface}")
 }
 
 /// Global emergency-broadcast topic (every display).
 pub const EMERGENCY_TOPIC: &str = "emergency";
 
+/// How often an open socket re-checks its account, by default: five minutes.
+const DEFAULT_RECHECK_SECS: u64 = 300;
+
 /// In-process real-time fan-out. Cheaply clonable (`Arc` inside); held in
 /// `AppState`.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct NotificationHub {
     topics: Arc<RwLock<HashMap<String, broadcast::Sender<Arc<NotificationEvent>>>>>,
+    /// How often, in milliseconds, an open socket re-checks that its account
+    /// may still hold it. Shared so a test can shorten it on a running server.
+    recheck_ms: Arc<AtomicU64>,
+}
+
+impl Default for NotificationHub {
+    /// An empty hub that re-checks open sockets every five minutes.
+    fn default() -> Self {
+        Self {
+            topics: Arc::default(),
+            recheck_ms: Arc::new(AtomicU64::new(DEFAULT_RECHECK_SECS * 1000)),
+        }
+    }
 }
 
 impl std::fmt::Debug for NotificationHub {
@@ -98,6 +120,29 @@ impl NotificationHub {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// How often an open socket re-checks its account.
+    #[must_use]
+    pub fn recheck_interval(&self) -> Duration {
+        Duration::from_millis(self.recheck_ms.load(Ordering::Relaxed).max(1))
+    }
+
+    /// Change how often open sockets re-check their accounts. Takes effect for
+    /// sockets opened afterwards.
+    pub fn set_recheck_interval(&self, every: Duration) {
+        let ms = u64::try_from(every.as_millis()).unwrap_or(u64::MAX).max(1);
+        self.recheck_ms.store(ms, Ordering::Relaxed);
+    }
+
+    /// How many live receivers a topic has: lets a caller wait until a socket
+    /// has actually subscribed before publishing to it.
+    pub async fn receiver_count(&self, topic: &str) -> usize {
+        self.topics
+            .read()
+            .await
+            .get(topic)
+            .map_or(0, broadcast::Sender::receiver_count)
     }
 
     /// Subscribe to a topic, creating its channel on first use. The returned

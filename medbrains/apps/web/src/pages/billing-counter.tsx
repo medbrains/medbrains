@@ -10,6 +10,7 @@ import { PageHeader, PatientSearchSelect } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { billsDue, rupees } from "@/components/payments/collect/collect-math";
 import { useCollect } from "@/components/payments/collect/collect-store";
+import { OpenTodayList } from "@/components/payments/collect/OpenTodayList";
 import { LANE_LABEL, useDues } from "@/components/payments/collect/use-dues";
 import { Alert, Badge, Button, Card, Input } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -112,6 +113,8 @@ export function BillingCounterPage() {
           />
         </Group>
       </Card>
+
+      {!patientId && <OpenTodayList onPick={setPatientId} />}
 
       {patientId && (
         <>

@@ -15,6 +15,7 @@ import { BodySitePicker } from "@/components/BodySite/BodySitePicker";
 import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { CumulativeDoseNotice } from "@/components/Radiology/CumulativeDoseNotice";
 import { RadiologyExamSelect } from "@/components/RadiologyExamSelect";
 import { Alert, Button, Modal } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
@@ -101,12 +102,6 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
     consentGate.outcome === "allow" ||
     consentGate.outcome === "checking" ||
     consentOverride;
-
-  const { data: cumulativeDose } = useQuery({
-    queryKey: ["cumulative-dose", patientId],
-    queryFn: () => radiologyService.cumulativeDose(patientId),
-    enabled: !!patientId,
-  });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateRadiologyOrderRequest) => radiologyService.createRadiologyOrder(data),
@@ -269,16 +264,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
               : "No contrast-safety concerns from renal function on record."}
           </Alert>
         )}
-        {cumulativeDose?.near_threshold && (
-          <Alert
-            tone={cumulativeDose.over_threshold ? "danger" : "warning"}
-            title={`Cumulative radiation ≈ ${Math.round(cumulativeDose.estimated_effective_msv)} mSv over ${cumulativeDose.study_count} CT stud${cumulativeDose.study_count === 1 ? "y" : "ies"}`}
-          >
-            {cumulativeDose.over_threshold
-              ? `Estimated cumulative effective dose has reached the ${cumulativeDose.review_threshold_msv} mSv review level — justify further imaging and consider a non-ionising alternative (US/MRI).`
-              : "Approaching the cumulative-dose review level — justify further ionising imaging and consider alternatives."}
-          </Alert>
-        )}
+        {patientId && <CumulativeDoseNotice patientId={patientId} />}
         <Controller
           control={control}
           name="pregnancy_checked"

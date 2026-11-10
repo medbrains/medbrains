@@ -6,6 +6,7 @@ pub mod allocate;
 pub mod bills;
 pub mod dues;
 pub mod lanes;
+pub mod open_today;
 pub mod post;
 pub mod receipts;
 pub mod settings;

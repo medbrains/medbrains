@@ -1,4 +1,8 @@
 import { AreaChart, BarChart, LineChart } from "@mantine/charts";
+import { count, rupees, rupeesAxis, shortDate } from "./chart-format";
+
+/** Wide enough for "₹10.5Cr" or "12,34,567" without clipping. */
+const Y_AXIS_WIDTH = 72;
 
 export type TrendKind = "line" | "bar" | "area";
 
@@ -16,6 +20,8 @@ interface TrendChartProps {
   reference?: { value: number; label: string };
   /** The tile's version: no axes or grid, just the shape. */
   bare?: boolean;
+  /** Rupees: ₹ lakh/crore on the axis, the full amount in the tooltip. */
+  money?: boolean;
 }
 
 /**
@@ -32,6 +38,7 @@ export function TrendChart({
   h = 160,
   reference,
   bare = false,
+  money = false,
 }: TrendChartProps) {
   const common = {
     h,
@@ -41,7 +48,13 @@ export function TrendChart({
     withXAxis: !bare,
     withYAxis: !bare,
     gridAxis: bare ? ("none" as const) : ("x" as const),
-    yAxisProps: { domain: [0, "auto"] as [number, string] },
+    yAxisProps: {
+      domain: [0, "auto"] as [number, string],
+      width: Y_AXIS_WIDTH,
+      tickFormatter: money ? rupeesAxis : count,
+    },
+    xAxisProps: { tickFormatter: shortDate },
+    valueFormatter: money ? rupees : count,
     referenceLines: reference
       ? [{ y: reference.value, label: reference.label, color: "gray.6", strokeDasharray: "4 4" }]
       : undefined,

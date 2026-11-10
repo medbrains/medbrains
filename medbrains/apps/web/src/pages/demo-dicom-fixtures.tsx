@@ -62,7 +62,7 @@ export function DemoDicomFixturesPage() {
 
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {fixtures.map((fixture) => (
-            <Card key={fixture.dicom} withBorder radius="md" padding="lg">
+            <Card key={fixture.dicom} withBorder padding="lg">
               <Stack gap="md">
                 <Group justify="space-between" align="flex-start">
                   <Stack gap={2}>

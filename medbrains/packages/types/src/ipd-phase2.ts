@@ -99,6 +99,22 @@ export interface IpdNoDuesCertificate {
   updated_at: string;
 }
 
+/**
+ * One medicine on an IPD discharge summary, picked from the formulary. The
+ * catalogue id is what the pharmacy matches a Schedule H/H1 discharge line to;
+ * the server refuses an entry without one, unless the doctor marked it
+ * `buy_outside` (then it names none and prints "Buy from outside the hospital").
+ */
+export interface DischargeMedicine {
+  catalog_item_id?: string;
+  /** The hospital does not stock it: the patient buys it outside. */
+  buy_outside?: boolean;
+  drug_name: string;
+  quantity: number;
+  /** How to take it, as the patient will read it on the summary. */
+  instructions?: string;
+}
+
 export interface IpdDischargeSummary {
   id: string;
   tenant_id: string;
@@ -111,7 +127,9 @@ export interface IpdDischargeSummary {
   treatment_given: string | null;
   procedures_performed: unknown[];
   investigation_summary: string | null;
-  medications_on_discharge: unknown[];
+  medications_on_discharge: DischargeMedicine[];
+  /** A doctor has signed this version; editing it removes the signature. */
+  is_signed: boolean;
   follow_up_instructions: string | null;
   follow_up_date: string | null;
   dietary_advice: string | null;
@@ -164,8 +182,9 @@ export interface WardBedRow {
   mapping_id: string;
   bed_location_id: string;
   bed_name: string;
+  bed_type_id: string | null;
   bed_type_name: string | null;
-  status: string;
+  bed_status: string | null;
   patient_name: string | null;
   patient_uhid: string | null;
   sort_order: number;
@@ -241,7 +260,7 @@ export interface CreateDischargeSummaryRequest {
   treatment_given?: string;
   procedures_performed?: unknown[];
   investigation_summary?: string;
-  medications_on_discharge?: unknown[];
+  medications_on_discharge?: DischargeMedicine[];
   follow_up_instructions?: string;
   follow_up_date?: string;
   dietary_advice?: string;
@@ -257,7 +276,7 @@ export interface UpdateDischargeSummaryRequest {
   treatment_given?: string;
   procedures_performed?: unknown[];
   investigation_summary?: string;
-  medications_on_discharge?: unknown[];
+  medications_on_discharge?: DischargeMedicine[];
   follow_up_instructions?: string;
   follow_up_date?: string;
   dietary_advice?: string;

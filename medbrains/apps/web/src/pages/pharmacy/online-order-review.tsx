@@ -1,14 +1,18 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack, Text } from "@mantine/core";
 import type {
+  OutsidePrint,
   StorefrontQueueRow,
   StorefrontVerifyRequest,
+  StoreOrderLine,
   StoreRejectReason,
 } from "@medbrains/types";
 import { IconExternalLink } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
+import { OutsidePrintSheet } from "@/components/Pharmacy/OutsidePrintSheet";
 import {
   Alert,
   Badge,
@@ -25,6 +29,13 @@ import {
 } from "@/components/ui";
 import { storefrontService } from "@/services/storefront.service";
 import { decisionProblem, defaultDecisions, REJECT_REASONS } from "../store/storefront";
+import { OnlineLineActions } from "./online-line-actions";
+import { SubstitutePanel } from "./substitute-panel";
+
+const FLAG_LABEL: Record<string, string> = {
+  out_of_stock: "A prescribed medicine is out of stock",
+  repeat_order: "Ordered again sooner than the last supply runs out",
+};
 
 const schema = z.object({
   lines: z.array(
@@ -81,6 +92,8 @@ function ReviewForm({ row, onDone }: { row: StorefrontQueueRow; onDone: () => vo
     },
   });
   const decisions = useWatch({ control, name: "lines" });
+  const [substituting, setSubstituting] = useState<StoreOrderLine | null>(null);
+  const [printed, setPrinted] = useState<OutsidePrint | null>(null);
   const verify = useMutation({
     mutationFn: (v: Review) => {
       const lines = v.lines.map((d) => ({
@@ -112,6 +125,11 @@ function ReviewForm({ row, onDone }: { row: StorefrontQueueRow; onDone: () => vo
 
   return (
     <Stack component="form" gap="md" onSubmit={handleSubmit((v) => verify.mutate(v))}>
+      {row.flags.map((flag) => (
+        <Alert key={flag} tone="warning" title={FLAG_LABEL[flag] ?? flag}>
+          Look at it before approving.
+        </Alert>
+      ))}
       {row.prescription_reused && (
         <Alert tone="warning" title="This prescription was uploaded for another patient too">
           Check it is this patient's before approving.
@@ -149,7 +167,13 @@ function ReviewForm({ row, onDone }: { row: StorefrontQueueRow; onDone: () => vo
                   </Badge>
                 )}
               </Group>
-              {index >= 0 && (
+              <OnlineLineActions
+                orderId={row.id}
+                line={line}
+                onSubstitute={setSubstituting}
+                onPrinted={setPrinted}
+              />
+              {index >= 0 && line.status === "pending" && (
                 <LineVerdict
                   control={control}
                   index={index}
@@ -196,6 +220,8 @@ function ReviewForm({ row, onDone }: { row: StorefrontQueueRow; onDone: () => vo
       <Button type="submit" tone="primary" loading={verify.isPending}>
         Save verdict
       </Button>
+      <SubstitutePanel orderId={row.id} line={substituting} onClose={() => setSubstituting(null)} />
+      <OutsidePrintSheet print={printed} onClose={() => setPrinted(null)} />
     </Stack>
   );
 }

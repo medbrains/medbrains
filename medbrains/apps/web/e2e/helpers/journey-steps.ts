@@ -6,6 +6,7 @@ import { type Page, expect } from "@playwright/test";
 import { RegistrationDesk } from "../journeys/pages/registration-desk";
 import { freshPerson } from "../journeys/support/world";
 import { api, qs, withStepUp } from "./api";
+import { getE2EIdentity } from "./e2e-identities";
 import {
   getOpdDept,
   getFirstDrug,
@@ -270,7 +271,16 @@ export async function createConsultation(
       { code: "plan", text: paragraph(body.plan) },
     ],
   });
-  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {});
+  await signNote(ctx, note.id, {});
+}
+
+/**
+ * Sign a note. Signing asks for the password again (step-up), so step up
+ * when the context knows its password; otherwise let the refusal surface.
+ */
+async function signNote(ctx: AuthContext, noteId: string, body: object): Promise<void> {
+  const signing = ctx.password ? await withStepUp(ctx) : ctx;
+  await api(signing, "POST", `/api/clinical-notes/${noteId}/sign`, body);
 }
 
 export interface PrescriptionFanout {
@@ -393,7 +403,12 @@ export async function dispensePharmacyOrder(
     ctx,
     "PUT",
     `/api/pharmacy/orders/${orderId}/dispense`,
-    reason ? { unpaid_override_reason: reason } : {},
+    // Fixture patients have no allergy recorded and none noted as asked: the
+    // pharmacist's acknowledgement, as the dispense screen asks for it.
+    {
+      allergy_status_acknowledged: true,
+      ...(reason ? { unpaid_override_reason: reason } : {}),
+    },
   );
 }
 
@@ -516,6 +531,8 @@ export async function admitToIpd(
     encounterId?: string;
     admissionType?: string;
     provisionalDiagnosis?: string;
+    /** Defaults to the E2E doctor: a non-doctor admitting must name one. */
+    admittingDoctorId?: string;
   },
 ): Promise<string> {
   const departmentId = args.departmentId ?? (await getIpdDept(ctx)).id;
@@ -535,6 +552,7 @@ export async function admitToIpd(
       bed_id: bedId,
       encounter_id: args.encounterId,
       admission_source: "opd",
+      doctor_id: args.admittingDoctorId ?? getE2EIdentity("doctor").id,
       admission_type: args.admissionType,
       provisional_diagnosis: args.provisionalDiagnosis,
     },
@@ -682,7 +700,7 @@ export async function createIpdProgressNote(
       },
     ],
   });
-  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {
+  await signNote(ctx, note.id, {
     late_entry_reason: dayOffset < 0 ? "Round written up after the day it was done" : undefined,
   });
   return note;

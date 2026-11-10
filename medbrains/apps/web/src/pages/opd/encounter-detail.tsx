@@ -127,6 +127,23 @@ export function EncounterDetail({
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
   const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
+  // Each read below is gated on the permission its endpoint enforces. The
+  // page opens on opd.queue.view, so a front desk reaching it sent six reads
+  // the server refused (authorization rule 8: gate the query, not the control).
+  const canListVitals = useHasPermission(P.OPD.VITALS_LIST);
+  const canReadVisitDiagnoses = useHasAnyPermission([
+    P.OPD.DIAGNOSES_LIST,
+    P.OPD.DIAGNOSES_CREATE,
+    P.OPD.DIAGNOSES_UPDATE,
+  ]);
+  const canListPatientDiagnoses = useHasPermission(P.OPD.DIAGNOSES_LIST);
+  const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
+  const canReadLabCatalog = useHasAnyPermission([
+    P.LAB.ORDERS_LIST,
+    P.LAB.ORDERS_CREATE,
+    P.CAMP.LAB_MANAGE,
+  ]);
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -167,6 +184,7 @@ export function EncounterDetail({
   const { data: vitals = [] } = useQuery({
     queryKey: ["vitals", encounterId],
     queryFn: () => opdService.listVitals(encounterId),
+    enabled: canListVitals,
   });
   const { data: consultation } = useQuery<Consultation | null>({
     queryKey: ["consultation", encounterId],
@@ -175,6 +193,7 @@ export function EncounterDetail({
   const { data: diagnoses = [] } = useQuery({
     queryKey: ["diagnoses", encounterId],
     queryFn: () => opdService.listDiagnoses(encounterId),
+    enabled: canReadVisitDiagnoses,
   });
   const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
     queryKey: ["prescriptions", encounterId],
@@ -183,10 +202,12 @@ export function EncounterDetail({
   const { data: labOrdersResponse } = useQuery({
     queryKey: ["lab-orders", encounterId],
     queryFn: () => opdService.listLabOrders({ encounter_id: encounterId }),
+    enabled: canListLabOrders,
   });
   const { data: labCatalog = [] } = useQuery({
     queryKey: ["lab-catalog"],
     queryFn: () => opdService.listLabCatalog(),
+    enabled: canReadLabCatalog,
   });
   // hospital_name / address / phone feed the printed summary's
   // letterhead. The tenant-settings read is served under admin.settings.read,
@@ -251,6 +272,7 @@ export function EncounterDetail({
   const { data: allergies = [] } = useQuery({
     queryKey: ["patient-allergies", patientId],
     queryFn: () => opdService.listPatientAllergies(patientId),
+    enabled: canViewPatient,
   });
   const activeAllergies = (allergies as PatientAllergy[]).filter((a) => a.is_active);
 
@@ -258,6 +280,7 @@ export function EncounterDetail({
   const { data: patientDiagnoses = [] } = useQuery({
     queryKey: ["patient-diagnoses", patientId],
     queryFn: () => opdService.listPatientDiagnoses(patientId),
+    enabled: canListPatientDiagnoses,
     staleTime: 120_000,
   });
   const chronicConditions = useMemo(() => {

@@ -1,0 +1,138 @@
+# Synthetic Indian clinical notes. Names in {braces}; nothing else is a name.
+# English
+{Ramesh} said he would bring the old reports tomorrow.
+Called {Ramesh} at noon, no answer.
+{Lakshmi} refused the evening dose of insulin.
+Patient's son {Karthik} wants the discharge by Friday.
+{Suresh Kumar} came at 6 pm with the X-ray films.
+Spoke to {Fatima} about the fasting before the scan.
+{Joseph} agreed to the procedure after counselling.
+{Anitha} and {Murugan} visited in the evening.
+Neighbour {Abdul} brought the patient in after the fall.
+{PRIYA} INFORMED THE NURSE ABOUT THE RASH.
+History given by {Gurpreet}.
+{Venkatesh} denied any chest pain since admission.
+Discussed with {Nandini}, she will arrange blood donors.
+{Rizwan} told the nurse that the pain is worse at night.
+{Meena} says the child has not passed urine since morning.
+{Chacko} phoned to ask about visiting hours.
+{Ramesh Babu} asked for a copy of the bill.
+Wife {Sunita} consented for surgery.
+{Arjun} mentioned an allergy to sulfa drugs.
+{Deepak} rang the ward twice about the report.
+Seen with {Harpreet}; plan explained in Punjabi.
+{Shanthi} said the baby fed well overnight.
+Reports collected by {Imran} at 4 pm.
+{Kalyani} left before the doctor's round.
+{Rohit} confirmed he took metformin this morning.
+# Names the list does not know, by context
+{Thangaraj} said he is the patient's cousin.
+{Brijmohan} told the night nurse about the fall.
+{Vellaisamy} came to collect the medicines.
+# Hinglish and Tanglish
+{Ramesh} ne kaha ki dard kam hai.
+{Sunita} bola ki bukhar raat se hai.
+{Murugan} sonnar, vali konjam kammi.
+{Selvi} vandhar, reports kondu vandhar.
+# Tamil and Devanagari script
+{முருகன்} காலையில் வந்தார்.
+{லட்சுமி} மருந்து சாப்பிடவில்லை.
+{राम} ने बताया कि दर्द कम है।
+{सुनीता} ने खाना नहीं खाया।
+# More English
+{Kavitha} wants to speak to the consultant before discharge.
+Message left for {Santosh} about the pending payment.
+{Ayesha} has not been allowed to stay overnight.
+The attendant {Raju} complained about the food.
+{Nikhil} signed the high-risk consent.
+Blood donated by {Manpreet} and {Jaswinder}.
+{Elango} asked whether the stitches can be removed at home.
+Call {Vijaya} when the report is ready.
+{Hemant} insisted on a second opinion.
+{Pradeep Nair} arrived from Kochi this morning.
+Collected by {Shabana}; receipt given.
+{Dinesh} reported two episodes of vomiting at home.
+{Mathew} said the patient fell in the bathroom.
+{Kishore} requested the medical certificate.
+{Rekha} explained the diet to the dietitian.
+Spoke with {Anil Sharma} on phone.
+{Gowri} stated that the patient is allergic to penicillin.
+{Bilal} was told to come back on Monday.
+{Padmini} brought the previous prescriptions.
+{Swati} called twice asking for the report.
+{Sanjay Gupta} confirmed the insurance details.
+{Deepa} and {Vinod} came for the family meeting.
+{Fernandes} said the bill has been paid.
+{Harish} denied smoking.
+{Jyothi} mentioned she is 3 months pregnant.
+# More unknown names, by context
+{Pothiraj} said the patient vomited twice.
+{Kumaresan} told the ward boy to call the doctor.
+{Bhagyalakshmi} refused admission.
+# More transliterated
+{Anil} ne bataya ki patient ne dawa nahi li.
+{Meena} boli ki baccha so nahi raha.
+{Saravanan} sonnaru, kaichal irukku.
+{Kannan} vandhaar, bill kattinaar.
+# More script
+{கண்ணன்} மருத்துவரிடம் பேசினார்.
+{செல்வி} இரவு வந்தார்.
+{सुरेश} ने रिपोर्ट दी।
+{मीना} कल आएगी।
+# More negatives
+Patient complained of headache since morning.
+Plan: continue Telmisartan 40 mg, review in 2 weeks.
+Hodgkin lymphoma, on ABVD cycle 3.
+Graves disease, on carbimazole.
+Kussmaul breathing noted, ABG sent.
+Romberg test positive.
+Trendelenburg gait on the left.
+Sent to Nehru Block for physiotherapy.
+Admitted under General Medicine unit 2.
+Consultant advised MRI brain.
+Pharmacist said the injection is out of stock.
+Security informed about the missing phone.
+Dietitian said low salt diet.
+Physio said mobilise with walker.
+Insulin said to be stopped by the night team? Not recorded.
+Pain score 6/10, Paracetamol 1 g given.
+Baby feeding well, Apgar 9.
+Relatives said they will decide tomorrow.
+Ward boy said the trolley is broken.
+Lab said the sample was haemolysed.
+Bukhar raat se hai, dawa di gayi.
+Kaichal irukku, maathirai koduthom.
+मरीज़ को बुखार है।
+நோயாளிக்கு காய்ச்சல் உள்ளது.
+Report from Metropolis lab attached.
+Sister said the drip was slow.
+Echo done; EF 55 percent.
+Wilson disease ruled out.
+# No names: drugs, eponyms, places, roles, common words
+Started Ramipril 5 mg once daily; continue Metformin 500 mg twice daily.
+Parkinson's disease, on levodopa; Alzheimer's dementia ruled out.
+Thomas splint applied for femur fracture.
+Babinski sign negative; Kernig sign negative.
+Glasgow Coma Scale 15/15; Apgar score 8 and 9.
+Transferred to Lakshmi Ward, bed 12.
+Patient said the pain is better.
+Nurse said the drip was stopped at 2 am.
+Family informed about the plan.
+ASHA worker brought the patient from the village.
+Down syndrome child for cardiac review.
+Mother says the baby is feeding well.
+Amlodipine said to cause ankle swelling.
+Atorvastatin 40 mg at night; Pantoprazole before breakfast.
+Crohn's disease in remission on azathioprine.
+Bell's palsy, right side, on prednisolone.
+Guillain-Barre syndrome suspected, NCS ordered.
+Hashimoto thyroiditis on levothyroxine.
+More pain in the night, needs analgesia.
+Raynaud phenomenon in winter.
+Seen in Apollo Hospital last year.
+Cushing syndrome workup sent.
+Wilson disease excluded, ceruloplasmin normal.
+Doctor said to continue the same treatment.
+They said the reports are with the family.
+Today morning BP 140/90, pulse 88.
+Murphy sign positive, USG abdomen ordered.

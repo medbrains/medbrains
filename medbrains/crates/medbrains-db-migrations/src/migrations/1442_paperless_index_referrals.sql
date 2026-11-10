@@ -1,0 +1,16 @@
+-- no-transaction
+-- ====================================================================
+-- Migration: 1442_paperless_index_referrals.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- The paperless meter (migration 1424) counts referrals for one hospital over a
+-- window of days by `created_at`; without this index each recount reads the whole
+-- table. Built CONCURRENTLY so writes to the table are not blocked, which
+-- needs its own migration outside a transaction (one statement per file:
+-- Postgres refuses CONCURRENTLY inside a multi-statement query). If a build
+-- fails, drop the INVALID index by hand and rerun; IF NOT EXISTS would
+-- otherwise skip it.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_referrals_tenant_created_at ON public.referrals (tenant_id, created_at);

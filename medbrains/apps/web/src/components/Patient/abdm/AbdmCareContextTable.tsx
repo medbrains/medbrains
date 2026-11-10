@@ -3,6 +3,7 @@ import type { AbdmCareContext } from "@medbrains/types";
 import { IconLink } from "@tabler/icons-react";
 import { Badge, Button, Table } from "@/components/ui";
 import { formatDate } from "@/lib/date-utils";
+import { AbdmConformanceIssues } from "./AbdmConformanceIssues";
 import { HI_TYPE_LABEL, LINK_STATUS } from "./abdmStatus";
 
 interface AbdmCareContextTableProps {
@@ -77,6 +78,7 @@ export function AbdmCareContextTable({ contexts, onLink, linkingId }: AbdmCareCo
                       {c.last_error}
                     </Text>
                   )}
+                  <AbdmConformanceIssues issues={c.conformance_issues} />
                 </Stack>
               </Table.Td>
               {onLink && (

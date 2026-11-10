@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE connected_apps SET status = 'revoked', revoked_at = now(), revoked_by = $3, revoke_reason = $4 WHERE id = $1 AND tenant_id = $2 AND status <> 'revoked' AND deleted_at IS NULL RETURNING service_user_id, webhook_subscription_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "service_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "webhook_subscription_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "9ef5f47c1a933df83f04a0739014fd79d311d91b0e76c037d79f7aef842e8b07"
+}

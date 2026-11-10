@@ -36,6 +36,11 @@ pub struct QueueConfig {
     pub voice_languages: Vec<String>,
     /// How many times each call is spoken.
     pub announce_repeat: i16,
+    /// `recycle` only: how many numbers go round, from `start_at`.
+    pub number_pool_size: Option<i32>,
+    /// `recycle` only: how long after its last holder finished a number may
+    /// be given out again.
+    pub reuse_cooloff_minutes: i32,
 }
 
 impl QueueConfig {
@@ -44,6 +49,27 @@ impl QueueConfig {
         let n = seq + self.start_at - 1;
         let width = usize::try_from(self.pad_width).unwrap_or(3);
         format!("{prefix}-{n:0width$}")
+    }
+
+    /// Every number a recycling queue gives out, lowest first.
+    pub fn pool_numbers(&self, prefix: &str) -> Vec<String> {
+        (1..=self.number_pool_size.unwrap_or(0))
+            .map(|seq| self.number(prefix, seq))
+            .collect()
+    }
+
+    /// Why a recycling queue has no number to give, in the desk's words.
+    pub fn pool_exhausted_reason(&self, next_free: Option<&str>) -> String {
+        let pool = self.number_pool_size.unwrap_or(0);
+        next_free.map_or_else(
+            || format!("All {pool} numbers of {} are in use", self.name),
+            |at| {
+                format!(
+                    "All {pool} numbers of {} are in use or cooling off — next free at {at}",
+                    self.name
+                )
+            },
+        )
     }
 
     /// Why this queue takes no tokens today, in the desk's words — before
@@ -73,7 +99,7 @@ impl QueueConfig {
         let max = self.max_tokens_per_period?;
         (issued >= i64::from(max)).then(|| {
             let period = match self.reset_rule.as_str() {
-                "daily" => " for today",
+                "daily" | "recycle" => " for today",
                 "session" => " for this session",
                 _ => "",
             };
@@ -92,7 +118,8 @@ pub async fn live_queue(
         QueueConfig,
         "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
                 reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-                early_issue_minutes, board_shows, voice_languages, announce_repeat \
+                early_issue_minutes, board_shows, voice_languages, announce_repeat, \
+                number_pool_size, reuse_cooloff_minutes \
            FROM queues \
           WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
             AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
@@ -145,6 +172,68 @@ async fn issued_in(
     )
     .fetch_one(&mut **tx)
     .await?)
+}
+
+/// The number a recycling queue gives out next, or why there is none.
+///
+/// The lowest in its pool that nobody holds and whose last holder finished at
+/// least the cool-off ago. Callers hold the queue's advisory lock.
+///
+/// A number is held by a token that is still in the queue, by today's no-show
+/// (the desk can still requeue it), and by a completed token whose patient was
+/// sent on and will be returned to it (`return_to_referrer` reopens that very
+/// token). Held is checked across the tenant, not this queue alone: a visit
+/// carries its first number into unconfigured queues.
+///
+/// The cool-off is at most a day, so two days of tokens cover every holder:
+/// the day-end rollover expires anything older that was still live.
+pub async fn recycled_number(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    queue: &QueueConfig,
+    prefix: &str,
+) -> Result<Result<String, String>, AppError> {
+    let pool = queue.pool_numbers(prefix);
+    let row = sqlx::query!(
+        r#"WITH usage AS (
+               SELECT t.number,
+                      bool_or(t.status IN ('waiting', 'on_hold', 'called', 'serving')
+                           OR (t.status = 'no_show' AND t.token_date = CURRENT_DATE)
+                           OR (t.status = 'completed' AND t.patient_id IS NOT NULL
+                               AND EXISTS (
+                                   SELECT 1 FROM tokens r
+                                    WHERE r.tenant_id = t.tenant_id
+                                      AND r.patient_id = t.patient_id
+                                      AND r.referred_from_module = t.module
+                                      AND r.referred_from_scope = t.scope
+                                      AND r.referred_from_scope_id IS NOT DISTINCT FROM t.scope_id
+                                      AND r.token_date = CURRENT_DATE
+                                      AND r.status IN ('waiting', 'on_hold', 'called', 'serving')))
+                      ) AS held,
+                      MAX(COALESCE(t.completed_at, t.updated_at))
+                          + make_interval(mins => $3) AS free_at
+                 FROM tokens t
+                WHERE t.tenant_id = $1 AND t.number = ANY($2)
+                  AND t.token_date >= CURRENT_DATE - 2
+                GROUP BY t.number
+           )
+           SELECT (SELECT p.number FROM unnest($2::text[]) WITH ORDINALITY AS p(number, ord)
+                     LEFT JOIN usage u ON u.number = p.number
+                    WHERE u.number IS NULL OR (NOT u.held AND u.free_at <= now())
+                    ORDER BY p.ord LIMIT 1) AS number,
+                  (SELECT to_char(MIN(u.free_at)
+                                  AT TIME ZONE (SELECT timezone FROM tenants WHERE id = $1),
+                                  'HH24:MI')
+                     FROM usage u WHERE NOT u.held) AS next_free"#,
+        tenant_id,
+        &pool,
+        queue.reuse_cooloff_minutes,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(row
+        .number
+        .ok_or_else(|| queue.pool_exhausted_reason(row.next_free.as_deref())))
 }
 
 /// The next position in this queue's numbering period.
@@ -206,6 +295,8 @@ impl QueueConfig {
             board_shows: "number".to_owned(),
             voice_languages: vec!["en".to_owned()],
             announce_repeat: 1,
+            number_pool_size: None,
+            reuse_cooloff_minutes: 30,
         }
     }
 }
@@ -226,6 +317,27 @@ mod tests {
         short.start_at = 1;
         short.pad_width = 4;
         assert_eq!(short.number("GEN", 7), "GEN-0007");
+    }
+
+    #[test]
+    fn a_recycling_pool_runs_from_the_first_number() {
+        let mut pharmacy = QueueConfig::for_tests();
+        pharmacy.name = "Pharmacy pickup".to_owned();
+        pharmacy.start_at = 1;
+        pharmacy.pad_width = 2;
+        pharmacy.number_pool_size = Some(99);
+        let pool = pharmacy.pool_numbers("P");
+        assert_eq!(pool.len(), 99);
+        assert_eq!(pool.first().map(String::as_str), Some("P-01"));
+        assert_eq!(pool.last().map(String::as_str), Some("P-99"));
+        assert_eq!(
+            pharmacy.pool_exhausted_reason(Some("14:05")),
+            "All 99 numbers of Pharmacy pickup are in use or cooling off — next free at 14:05"
+        );
+        assert_eq!(
+            pharmacy.pool_exhausted_reason(None),
+            "All 99 numbers of Pharmacy pickup are in use"
+        );
     }
 
     #[test]

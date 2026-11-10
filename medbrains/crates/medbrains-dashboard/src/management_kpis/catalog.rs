@@ -307,11 +307,15 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             clock: true,
             shape: Shape::Daily,
             departmental: false,
+            // A day with an in-house admission that has no bed recorded (imported
+            // history) is unknown, not a confident 0%: it read 0% for every day
+            // before the import's first bedded admission, baselines included.
             sql: "SELECT d::date AS day, \
-                    (100.0 * COUNT(a.id) / NULLIF((SELECT COUNT(*) FROM ward_bed_mappings \
-                      WHERE is_active AND deleted_at IS NULL), 0))::float8 \
+                    CASE WHEN COUNT(a.id) FILTER (WHERE a.bed_id IS NULL) > 0 THEN NULL \
+                    ELSE (100.0 * COUNT(a.id) / NULLIF((SELECT COUNT(*) FROM ward_bed_mappings \
+                      WHERE is_active AND deleted_at IS NULL), 0))::float8 END \
                   FROM generate_series($1::date, $2::date, INTERVAL '1 day') d \
-                  LEFT JOIN admissions a ON a.deleted_at IS NULL AND a.bed_id IS NOT NULL \
+                  LEFT JOIN admissions a ON a.deleted_at IS NULL \
                    AND a.admitted_at < timezone($3, d::date + COALESCE($4::time, '24:00'::time)) \
                    AND (a.discharged_at IS NULL OR a.discharged_at \
                         >= timezone($3, d::date + COALESCE($4::time, '24:00'::time))) \
@@ -386,7 +390,23 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
                     AND timezone($3, discharged_at)::date BETWEEN $1 AND $2 \
                   GROUP BY 1",
         },
-        _ => return None,
+        // Clinical documents made in the system that are signed digitally,
+        // from the paperless meter's daily rows (migration 1424), already
+        // dated by the hospital's clock. A day never counted has no row, so a
+        // week the meter did not run is unknown, not 0%.
+        "paperless_signed_pct" => Kpi {
+            unit: "%",
+            better: Better::Higher,
+            zero_fill: false,
+            clock: false,
+            shape: Shape::Rate,
+            departmental: false,
+            sql: "SELECT day, SUM(signed)::float8, SUM(created)::float8 \
+                  FROM paperless_daily \
+                  WHERE day BETWEEN $1 AND $2 \
+                  GROUP BY day",
+        },
+        _ => return super::file_delivery::kpi(code),
     })
 }
 
@@ -394,7 +414,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
 mod tests {
     use super::{Shape, kpi};
 
-    const CODES: [&str; 19] = [
+    const CODES: [&str; 20] = [
         "opd_visits",
         "patient_registrations",
         "opd_wait_minutes",
@@ -414,6 +434,7 @@ mod tests {
         "mortality_pct",
         "readmission_30d_pct",
         "lama_dama_pct",
+        "paperless_signed_pct",
     ];
 
     /// Postgres refuses a statement bound with parameters it does not use, at
@@ -431,7 +452,11 @@ mod tests {
                 k.clock && k.shape == Shape::Daily,
                 "{code}: $4 is the clock cut-off, daily KPIs only"
             );
-            assert_eq!(k.sql.contains("$5"), k.departmental, "{code}: $5 is the department");
+            assert_eq!(
+                k.sql.contains("$5"),
+                k.departmental,
+                "{code}: $5 is the department"
+            );
             assert!(
                 !k.departmental || (k.clock && k.shape == Shape::Daily),
                 "{code}: a department filter needs $3 and $4 bound before it"

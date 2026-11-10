@@ -1,7 +1,7 @@
 ---
 title: "Angithis, heaters and gas geysers: how to stay safe from carbon monoxide this winter"
 description: "Angithis, coal heaters, gas geysers and idling cars can fill a closed room with carbon monoxide. Learn the early signs, what to do and how to stay safe."
-summary: "Carbon monoxide is a gas you cannot see or smell. In Indian winters it builds up when an angithi, coal or wood heater, gas geyser or car engine burns in a closed space. Never sleep with a fire in the room, keep gas geysers out of bathrooms, and if anyone gets a headache, dizziness or confusion, get everyone into fresh air and call 112."
+summary: "Carbon monoxide is a gas you cannot see or smell. In winter it builds up when an angithi, coal or wood heater, gas geyser or car engine burns in a closed space. Never sleep with a fire in the room, keep gas geysers out of bathrooms, and if anyone gets a headache, dizziness or confusion, get everyone into fresh air and call 112."
 date: 2026-10-24
 category: patient-education
 seoTitle: "Carbon monoxide safety: angithi, gas geyser | MedBrains Blog"
@@ -11,7 +11,7 @@ faq:
   - q: "How can I tell carbon monoxide poisoning from a cold, flu or an ordinary headache?"
     a: "You often cannot tell from the symptoms alone, because the US CDC describes them as flu-like: headache, dizziness, weakness, nausea and confusion. The clues are the setting. Suspect carbon monoxide if several people or pets in the same room feel ill at once, if the symptoms began after a heater, angithi, geyser or engine was running, if there is no fever, and if you feel better after going outside. When in doubt, get everyone into fresh air first and then seek help."
   - q: "Is an angithi safe if I keep a window slightly open?"
-    a: "It lowers the risk but does not remove it. Fire officials and India's NDMA advise ventilation, and a gap in the window is far better than a sealed room. But there is no way to know how much air is enough without a carbon monoxide alarm, and most of the deaths in Indian studies happened in closed rooms, often to people who were asleep. The safer rule is to use the angithi only while everyone is awake, then put it out completely and carry it outside before anyone goes to sleep."
+    a: "It lowers the risk but does not remove it. Fire officials and the NDMA advise ventilation, and a gap in the window is far better than a sealed room. But there is no way to know how much air is enough without a carbon monoxide alarm, and most of the deaths in published studies happened in closed rooms, often to people who were asleep. The safer rule is to use the angithi only while everyone is awake, then put it out completely and carry it outside before anyone goes to sleep."
   - q: "Can a gas geyser be installed inside the bathroom?"
     a: "It should not be. Maharashtra Natural Gas Limited's installation guideline says no gas geyser is permitted in a bathroom or concealed area, because fumes can collect and cause suffocation. It recommends a well-ventilated kitchen, utility area or passage, a model that meets IS 15558 with a flame failure device and an oxygen depletion sensor, and a service every six months. If your geyser is already inside the bathroom, ask a qualified technician to move or flue it, and until then fill a bucket with the door and ventilator open, then switch the geyser off before you close the door and bathe."
   - q: "Do I need a carbon monoxide alarm, and where should it go?"
@@ -58,7 +58,7 @@ cover:
   alt: "Soft 3D illustration of a clay angithi with glowing coals and pale fumes rising, beside an open window, a white carbon monoxide alarm with a blue ring and a blue shield with a tick, on a round pink pedestal, with floating tiles showing a flame, an alarm bell and a medical cross"
 ---
 
-Every winter, the same news story runs in North India with different names.
+Every winter, the same news story runs with different names.
 In January 2024, Delhi's fire service said 15 people had died in the city
 that month after sleeping in closed rooms with an angithi, a coal brazier,
 and that the toll passed 20 once the rest of the National Capital Region was
@@ -69,7 +69,7 @@ rented room in Srinagar.
 These are not freak accidents. They are carbon monoxide poisoning, and it is
 almost entirely preventable. Yet most of what you will find about it online
 is either a news report after a death or advice written for American homes
-with central heating. This guide is for Indian homes: the angithi and the
+with central heating. This guide is for homes heated by fire and gas: the angithi and the
 sigri, the bukhari and the kangri, the LPG geyser in a small bathroom, the
 car parked with its engine running for warmth. It explains what the gas
 does, who is most at risk, the early signs, what to do in the first minutes,
@@ -79,7 +79,7 @@ and the habits that keep a family safe.
 
 Carbon monoxide (CO) is a gas made whenever a fuel burns without enough
 oxygen: coal, charcoal, wood, cow-dung cakes, kerosene, LPG, piped gas,
-petrol or diesel. India's National Disaster Management Authority (NDMA)
+petrol or diesel. The National Disaster Management Authority (NDMA)
 describes it as colourless, odourless and tasteless. That is the whole
 danger. Smoke can make your eyes water, but the CO that comes with it gives
 no warning of its own, and a bed of glowing coals with no visible smoke can
@@ -89,7 +89,7 @@ Once breathed in, CO takes the place of oxygen in the blood, so the brain
 and heart are starved of oxygen even though the person is breathing
 normally. The US Centers for Disease Control and Prevention (CDC) warns that
 people who are asleep, or who have been drinking, can die before they ever
-notice a symptom. That is why so many Indian cases are found in the
+notice a symptom. That is why so many cases are found in the
 morning.
 
 Worldwide, a study from the Global Burden of Disease project estimated that
@@ -99,7 +99,7 @@ them men. The global death rate fell by more than half between 2000 and
 preventable, through safer heating and cooking devices, cleaner generators
 and carbon monoxide alarms.
 
-## Where does carbon monoxide come from in Indian homes?
+## Where does carbon monoxide come from at home?
 
 Two autopsy studies from the All India Institute of Medical Sciences (AIIMS)
 in New Delhi show the pattern clearly. The first looked at 40 deaths between
@@ -132,7 +132,7 @@ The usual sources are:
 
 ## The bathroom faint: gas geyser syndrome
 
-Indian neurologists have a name for a pattern they see every winter:
+Neurologists have a name for a pattern they see every winter:
 **gas geyser syndrome**. A person, often young and healthy, collapses or
 has a fit while bathing in a small, closed bathroom with an LPG geyser
 running.
@@ -354,8 +354,8 @@ again.
 
 ## The bottom line
 
-Carbon monoxide gives no warning you can see or smell, and in Indian
-winters it kills people in their sleep, most often young, healthy adults in
+Carbon monoxide gives no warning you can see or smell, and in
+winter it kills people in their sleep, most often young, healthy adults in
 closed rooms with an angithi or a coal heater. The fix costs almost nothing:
 never sleep with anything burning in the room, keep gas geysers out of
 closed bathrooms, never sit in a running car in a closed space, and consider

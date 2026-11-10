@@ -304,10 +304,20 @@ pub(crate) async fn place_in_queue(
         };
         // A configured queue numbers by its own rule; it does not borrow the
         // visit's number, or the prefix the administrator chose would never show.
+        // `seq` orders the queue and stays monotonic in every mode; recycling
+        // changes only the number on the slip.
         let seq = queues::next_seq(tx, queue.id, &admission.period_key).await?;
+        let number = if queue.reset_rule == "recycle" {
+            match queues::recycled_number(tx, tenant_id, &queue, &admission.prefix).await? {
+                Ok(number) => number,
+                Err(reason) => return Ok(Err(reason)),
+            }
+        } else {
+            queue.number(&admission.prefix, seq)
+        };
         return Ok(Ok(Placement {
             queue_id: Some(queue.id),
-            number: queue.number(&admission.prefix, seq),
+            number,
             period_key: Some(admission.period_key),
             seq,
         }));
@@ -831,6 +841,10 @@ pub struct BoardQuery {
     /// what happened rather than a screen that has forgotten them.
     ///
     /// Off by default, so every existing caller sees exactly what it saw.
+    ///
+    /// A recycling queue can give one number out twice in a day; a finished
+    /// token whose number has a newer holder is left off, so a public board
+    /// never shows one number as both done and waiting.
     #[serde(default)]
     pub include_finished: bool,
     /// Worklist only: `mine` — the caller's own patients, then their
@@ -860,7 +874,13 @@ pub async fn list_board(
            AND ($2::text IS NULL OR scope = $2) \
            AND ($3::uuid IS NULL OR scope_id = $3) \
            AND (status IN ('waiting', 'on_hold', 'called', 'serving') \
-                OR ($4::bool AND status IN ('completed', 'no_show', 'expired'))) \
+                OR ($4::bool AND status IN ('completed', 'no_show', 'expired') \
+                    AND NOT EXISTS (SELECT 1 FROM tokens n \
+                                     WHERE n.tenant_id = tokens.tenant_id \
+                                       AND n.number = tokens.number \
+                                       AND n.token_date = tokens.token_date \
+                                       AND n.queue_id = tokens.queue_id \
+                                       AND n.created_at > tokens.created_at))) \
          ORDER BY token_queue_weight(queue_id, priority, created_at), seq ASC"
     ))
     .bind(&query.module)
@@ -1926,6 +1946,29 @@ async fn missed_token_recall_after(
         .filter(|n| *n > 0))
 }
 
+/// Why a token cannot be put back in the queue, in the desk's words.
+///
+/// Only today's no-show can: the token is read for today only, and the desk's
+/// "came back" list offers nothing else. Anything finished keeps its place in
+/// the record, and its number may already have gone round to somebody else in
+/// a recycling queue — reopening it would put two holders of one number in the
+/// queue at once.
+fn requeue_refusal(number: &str, status: &str) -> Option<String> {
+    match status {
+        "no_show" => None,
+        "waiting" | "on_hold" | "called" | "serving" => {
+            Some(format!("{number} is still in the queue"))
+        }
+        "completed" => Some(format!(
+            "{number} was already seen — issue a new token if they need to be seen again"
+        )),
+        other => Some(format!(
+            "{number} is {} — only a missed token can be put back in the queue; issue a new one",
+            other.replace('_', " ")
+        )),
+    }
+}
+
 /// POST /api/tokens/{id}/requeue — a no-show who came back.
 ///
 /// Where they land is the hospital's policy, not ours. By default they go to
@@ -1972,6 +2015,16 @@ pub async fn requeue_token(
     .bind(existing.scope_id)
     .execute(&mut *tx)
     .await?;
+
+    // Read again under the lock: a console that was open for a while may be
+    // offering a token another desk has since called back or finished.
+    let status: String = sqlx::query_scalar("SELECT status FROM tokens WHERE id = $1 FOR UPDATE")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+    if let Some(reason) = requeue_refusal(&existing.number, &status) {
+        return Err(AppError::Conflict(reason));
+    }
 
     let seq = match recall_after {
         Some(after) => place_after(&mut tx, &existing, after).await?,
@@ -2264,6 +2317,7 @@ mod queue_permission_tests {
             department_ids: Vec::new(),
             perm_version: 0,
             paired_device_id: None,
+            act: None,
             exp: 0,
         }
     }
@@ -2289,6 +2343,17 @@ mod queue_permission_tests {
         for module in ["opd", "pharmacy", "lab", "billing"] {
             assert!(require_queue_manage(&claims(&["front_office.queue.manage"]), module).is_ok());
         }
+    }
+
+    #[test]
+    fn only_a_no_show_goes_back_in_the_queue() {
+        assert_eq!(super::requeue_refusal("P-1", "no_show"), None);
+        assert_eq!(
+            super::requeue_refusal("P-1", "completed").as_deref(),
+            Some("P-1 was already seen — issue a new token if they need to be seen again")
+        );
+        assert!(super::requeue_refusal("P-1", "waiting").is_some());
+        assert!(super::requeue_refusal("P-1", "cancelled").is_some());
     }
 
     #[test]

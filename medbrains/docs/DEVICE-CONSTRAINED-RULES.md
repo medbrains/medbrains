@@ -118,7 +118,7 @@ network loss + reconnect without leaking sockets or file handles.
 - [ ] Profiled: JS heap under the surface budget and **flat over a 30-min soak**.
 
 ## Enforcement
-Referenced as law from `CLAUDE.md` and the [DESIGN-RULES index](./DESIGN-RULES.md). A device PR that
+Referenced as law from `ENGINEERING.md` and the [DESIGN-RULES index](./DESIGN-RULES.md). A device PR that
 adds a screen/feature must tick the checklist in its description; reviewers reject unbounded memory,
 un-torn-down effects, non-virtualized lists, copy-pasted logic, and un-budgeted bundles. Pairs with the
 DSA/reuse memory rule (`feedback_dsa_reuse_constrained_surfaces`).

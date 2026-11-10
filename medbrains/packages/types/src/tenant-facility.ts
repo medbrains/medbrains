@@ -69,7 +69,10 @@ export type UserRole =
   | "facilities_manager"
   | "audit_officer"
   /** A new sign-in no administrator has given a role yet: dashboard only. */
-  | "staff";
+  | "staff"
+  // Any other role the server has (mrd_officer, radiology_tech, …): the
+  // database is the source of truth, and the names above are only hints.
+  | (string & {});
 
 export interface User {
   id: string;

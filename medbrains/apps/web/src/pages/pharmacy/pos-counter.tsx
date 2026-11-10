@@ -45,6 +45,7 @@ import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
 import { CounterDrawer, useActiveCashDrawer } from "./counter-drawer";
 import { CounterPatientSelect } from "./counter-patient-select";
+import { CounterReturnPolicy } from "./counter-return-policy";
 import { CounterRxFields } from "./counter-rx-fields";
 import { CounterSettings } from "./counter-settings";
 import {
@@ -596,6 +597,7 @@ export function PosCounterTab({
   return (
     <Stack>
       <CounterSettings />
+      <CounterReturnPolicy enabled={canCreate || canView} />
       {canView && daySummary && (
         <Group gap="lg">
           <Card withBorder p="xs" style={{ flex: 1 }}>

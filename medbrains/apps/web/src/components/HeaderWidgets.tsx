@@ -1,4 +1,7 @@
 import { Group, Text, Tooltip } from "@mantine/core";
+import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import {
   IconClock,
   IconCloudFog,
@@ -16,13 +19,6 @@ import { useEffectOnce } from "react-use";
 import styles from "./header-widgets.module.scss";
 import { MyShiftWidget } from "./Nurse/MyShiftWidget";
 
-// Fallback location until the browser grants geolocation (Chennai).
-const FALLBACK = { lat: 13.0827, lon: 80.2707 };
-
-interface WeatherNow {
-  current: { temperature_2m: number; weather_code: number };
-}
-
 /** Map a WMO weather code to a tabler icon, label, and a vivid colour. */
 function weatherInfo(code: number): { Icon: TablerIcon; label: string; color: string } {
   if (code === 0) return { Icon: IconSun, label: "Clear", color: "#f1c21b" };
@@ -36,6 +32,7 @@ function weatherInfo(code: number): { Icon: TablerIcon; label: string; color: st
   return { Icon: IconCloudStorm, label: "Thunderstorm", color: "#8a3ffc" };
 }
 
+/** The current time, updated every second. */
 function useClock(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffectOnce(() => {
@@ -45,28 +42,17 @@ function useClock(): Date {
   return now;
 }
 
-function useCoords(): { lat: number; lon: number } {
-  const [coords, setCoords] = useState(FALLBACK);
-  useEffectOnce(() => {
-    if (!("geolocation" in navigator) || !navigator.permissions) return;
-    // Only when the browser already allows it: weather is not worth a
-    // location prompt on every member of staff's first visit.
-    navigator.permissions
-      .query({ name: "geolocation" })
-      .then((status) => {
-        if (status.state !== "granted") return;
-        navigator.geolocation.getCurrentPosition(
-          (pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-          () => {}, // unavailable — keep fallback
-          { timeout: 6000, maximumAge: 1_800_000 },
-        );
-      })
-      .catch(() => {}); // permissions API unavailable — keep fallback
-  });
-  return coords;
+/** The full date for the clock's tooltip, read when the tooltip opens. */
+function FullDate() {
+  return <>{new Date().toLocaleDateString([], { dateStyle: "full" })}</>;
 }
 
-function ClockWidget() {
+/**
+ * The ticking part of the clock. Only this re-renders each second; the
+ * tooltip, its portal and the pill around it used to re-render with it on
+ * every screen, all day.
+ */
+function ClockFace() {
   const now = useClock();
   const time = now.toLocaleTimeString([], {
     hour: "2-digit",
@@ -75,37 +61,49 @@ function ClockWidget() {
   });
   const date = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
   return (
-    <Tooltip label={now.toLocaleDateString([], { dateStyle: "full" })} withArrow>
+    <>
+      <Text size="xs" fw={700} ff="var(--mb-font-mono)" className={styles.clockTime}>
+        {time}
+      </Text>
+      <Text size="xs" c="var(--mb-text-muted)" visibleFrom="xl">
+        {date}
+      </Text>
+    </>
+  );
+}
+
+/** Header clock pill: static frame and tooltip around the ticking face. */
+function ClockWidget() {
+  return (
+    <Tooltip label={<FullDate />} withArrow>
       <Group gap={6} wrap="nowrap" className={`${styles.pill} ${styles.pillClock}`}>
         <IconClock size={15} className={styles.pulse} aria-hidden />
-        <Text size="xs" fw={700} ff="var(--mb-font-mono)" className={styles.clockTime}>
-          {time}
-        </Text>
-        <Text size="xs" c="var(--mb-text-muted)" visibleFrom="xl">
-          {date}
-        </Text>
+        <ClockFace />
       </Group>
     </Tooltip>
   );
 }
 
+/**
+ * The hospital's weather, fetched by the server for the hospital's own
+ * location (RFC-OSINT §4) — staff browsers no longer send theirs. Shown only
+ * while the reading is current; anything else hides the pill.
+ */
 function WeatherWidget() {
-  const { lat, lon } = useCoords();
+  const canView = useHasPermission(P.HEALTH.INTEL.VIEW);
   const { data } = useQuery({
-    queryKey: ["weather", lat.toFixed(2), lon.toFixed(2)],
-    queryFn: async (): Promise<WeatherNow | null> => {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`;
-      // Weather is decoration: offline or blocked, the tile simply hides.
-      const res = await fetch(url).catch(() => null);
-      return res?.ok ? res.json() : null;
-    },
-    staleTime: 1_800_000,
+    queryKey: ["health-intel", "environment"],
+    queryFn: () => api.getHealthEnvironment(),
+    enabled: canView,
+    staleTime: 900_000,
     retry: false,
   });
 
-  if (!data?.current) return null;
-  const { Icon, label, color } = weatherInfo(data.current.weather_code);
-  const temp = Math.round(data.current.temperature_2m);
+  if (data?.status !== "current" || data.temperature_c === null || data.weather_code === null) {
+    return null;
+  }
+  const { Icon, label, color } = weatherInfo(data.weather_code);
+  const temp = Math.round(data.temperature_c);
   return (
     <Tooltip label={`${label} · ${temp}°C`} withArrow>
       <Group

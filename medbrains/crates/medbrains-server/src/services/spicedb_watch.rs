@@ -110,12 +110,11 @@ fn parse_user_subject(subject: &WatchedSubject) -> Option<Uuid> {
 /// the first `/` is sufficient — the tail is the actual object_type
 /// the schema declared.
 fn parse_resource_namespace(raw: &str, default_tenant: Uuid) -> (Uuid, String) {
-    if let Some((prefix, rest)) = raw.split_once('/') {
-        if let Some(uuid_str) = prefix.strip_prefix("tenant_") {
-            if let Ok(t) = Uuid::parse_str(uuid_str) {
-                return (t, rest.to_owned());
-            }
-        }
+    if let Some((prefix, rest)) = raw.split_once('/')
+        && let Some(uuid_str) = prefix.strip_prefix("tenant_")
+        && let Ok(t) = Uuid::parse_str(uuid_str)
+    {
+        return (t, rest.to_owned());
     }
     (default_tenant, raw.to_owned())
 }

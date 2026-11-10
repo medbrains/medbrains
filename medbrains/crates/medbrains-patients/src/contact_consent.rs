@@ -34,13 +34,13 @@ const METHODS: [&str; 4] = ["sms", "whatsapp", "email", "call"];
 impl ContactPreferences {
     /// Refuse what cannot be honoured, before anything is written.
     pub fn validate(&self, has_email: bool) -> Result<(), AppError> {
-        if let Some(method) = self.preferred_method.as_deref() {
-            if !METHODS.contains(&method) {
-                return Err(AppError::BadRequest(format!(
-                    "preferred contact method must be one of {}",
-                    METHODS.join(", ")
-                )));
-            }
+        if let Some(method) = self.preferred_method.as_deref()
+            && !METHODS.contains(&method)
+        {
+            return Err(AppError::BadRequest(format!(
+                "preferred contact method must be one of {}",
+                METHODS.join(", ")
+            )));
         }
         if self.email_opt_in && !has_email {
             return Err(AppError::BadRequest(
@@ -66,7 +66,10 @@ pub async fn record_at_registration(
     (tenant_id, patient_id, recorded_by): (Uuid, Uuid, Uuid),
     prefs: &ContactPreferences,
 ) -> Result<(), AppError> {
-    for (channel, granted) in [("whatsapp", prefs.whatsapp_opt_in), ("email", prefs.email_opt_in)] {
+    for (channel, granted) in [
+        ("whatsapp", prefs.whatsapp_opt_in),
+        ("email", prefs.email_opt_in),
+    ] {
         if !granted {
             continue;
         }
@@ -208,7 +211,10 @@ async fn read_consents(
     )
     .fetch_all(&mut **tx)
     .await?;
-    Ok(PatientContactConsents { preferred_method, channels })
+    Ok(PatientContactConsents {
+        preferred_method,
+        channels,
+    })
 }
 
 #[cfg(test)]
@@ -231,7 +237,11 @@ mod tests {
 
     #[test]
     fn preferring_a_channel_needs_agreeing_to_it() {
-        assert!(prefs(Some("whatsapp"), false, false).validate(true).is_err());
+        assert!(
+            prefs(Some("whatsapp"), false, false)
+                .validate(true)
+                .is_err()
+        );
         assert!(prefs(Some("whatsapp"), true, false).validate(true).is_ok());
         assert!(prefs(Some("sms"), false, false).validate(false).is_ok());
     }

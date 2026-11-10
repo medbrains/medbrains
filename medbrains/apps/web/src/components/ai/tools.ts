@@ -9,6 +9,7 @@ export const AI_TOOL = {
   GET_PATIENT_OVERVIEW: "get_patient_overview",
   CALL_API: "call_api",
   REQUEST_PATIENT: "request_patient",
+  QUERY: "query",
 } as const;
 
 export type AiToolName = (typeof AI_TOOL)[keyof typeof AI_TOOL];
@@ -20,4 +21,5 @@ export const AI_TOOL_LABELS: Record<string, string> = {
   [AI_TOOL.GET_PATIENT_OVERVIEW]: "Reading patient record",
   [AI_TOOL.CALL_API]: "Fetching data",
   [AI_TOOL.REQUEST_PATIENT]: "Waiting for patient selection",
+  [AI_TOOL.QUERY]: "Query used",
 };

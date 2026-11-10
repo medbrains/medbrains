@@ -89,7 +89,9 @@ impl Handler for NhcxHandler {
         let outcome = match &result {
             Ok(v) if v.get("superseded").is_some() => None,
             Ok(_) => Some(("sent", None)),
-            Err(HandlerError::Permanent(reason)) => Some(("send_failed", Some(reason.as_str()))),
+            Err(HandlerError::Permanent(reason) | HandlerError::Undelivered(reason)) => {
+                Some(("send_failed", Some(reason.as_str())))
+            }
             // The outbox stops here; the desk must see it, not "waiting to send".
             Err(HandlerError::Transient(reason)) if ctx.attempts >= MAX_ATTEMPTS => {
                 gave_up = format!(

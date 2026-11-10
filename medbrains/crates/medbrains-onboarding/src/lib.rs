@@ -4,10 +4,7 @@ pub mod trial;
 
 use std::collections::HashMap;
 
-use argon2::{
-    Argon2,
-    PasswordHasher,
-};
+use argon2::{Argon2, PasswordHasher};
 use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State, response::IntoResponse};
 use axum_extra::extract::CookieJar;
@@ -23,6 +20,7 @@ use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::{Claims, encode_jwt},
+        client_ip::ClientIp,
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
     },
     state::AppState,
@@ -138,6 +136,7 @@ pub struct InitResponse {
 #[allow(clippy::too_many_lines)]
 pub async fn init(
     State(state): State<AppState>,
+    client_ip: Option<Extension<ClientIp>>,
     headers: axum::http::HeaderMap,
     Json(body): Json<InitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -151,12 +150,16 @@ pub async fn init(
             "Tell us about your facility to start a trial".to_owned(),
         ));
     }
-    let signup_ip = trial::client_ip(&headers);
+    let signup_ip = client_ip.map(|Extension(ip)| ip.as_str());
     if is_trial {
         trial::throttle(&state.db, signup_ip.as_deref()).await?;
     }
     // Never a platform administrator for a stranger's sign-up.
-    let admin_role = if is_trial { "hospital_admin" } else { "super_admin" };
+    let admin_role = if is_trial {
+        "hospital_admin"
+    } else {
+        "super_admin"
+    };
 
     // ── Field validation ────────────────────────────────
     let mut errors = ValidationErrors::new();
@@ -327,6 +330,7 @@ pub async fn init(
         department_ids: Vec::new(),
         perm_version: 1,
         paired_device_id: None,
+        act: None,
         exp: (now + chrono::Duration::minutes(60)).timestamp() as usize,
     };
     let access_token = encode_jwt(&access_claims, &state.jwt_encoding_key)
@@ -638,6 +642,11 @@ fn is_module_enabled_for_edition(hospital_type: &str, code: &str) -> bool {
     }
 }
 
+/// Run the onboarding wizard once, in one transaction.
+///
+/// It writes the hospital's details, facilities, departments, roles, first
+/// staff accounts, modules and sequences. The staff accounts' roles must be
+/// within the caller's own.
 #[allow(clippy::too_many_lines)]
 pub async fn setup(
     State(state): State<AppState>,
@@ -652,6 +661,14 @@ pub async fn setup(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
+    // The wizard's accounts are grants like any other: a caller outside the
+    // bypass roles (the first administrator is one) gives only roles within
+    // their own codes, and never a bypass role. The wizard's roles are created
+    // with no codes, so they grant nothing to check.
+    let mut roles: Vec<&str> = body.users.iter().map(|u| u.role.as_str()).collect();
+    roles.sort_unstable();
+    roles.dedup();
+    medbrains_server_core::permissions::refuse_roles_beyond_own(&state.db, &claims, &roles).await?;
 
     // ── Idempotency check ───────────────────────────────
     let already_complete: bool = sqlx::query_scalar(
@@ -751,10 +768,10 @@ pub async fn setup(
             "branding.secondary_color",
             &branding.secondary_color,
         );
-        if let Some(ref url) = branding.logo_url {
-            if !url.is_empty() {
-                validation::validate_optional_url(&mut errors, "branding.logo_url", url);
-            }
+        if let Some(ref url) = branding.logo_url
+            && !url.is_empty()
+        {
+            validation::validate_optional_url(&mut errors, "branding.logo_url", url);
         }
     }
 
@@ -1175,9 +1192,10 @@ pub async fn setup(
             .await?;
         }
 
-        if let Some(ref logo_url) = branding.logo_url {
-            if !logo_url.is_empty() {
-                sqlx::query(
+        if let Some(ref logo_url) = branding.logo_url
+            && !logo_url.is_empty()
+        {
+            sqlx::query(
                     "INSERT INTO tenant_settings (tenant_id, category, key, value) \
                      VALUES ($1, 'branding', 'logo_url', to_jsonb($2::text)) \
                      ON CONFLICT (tenant_id, category, key) \
@@ -1187,7 +1205,6 @@ pub async fn setup(
                 .bind(logo_url)
                 .execute(&mut *tx)
                 .await?;
-            }
         }
     }
 
@@ -1329,6 +1346,7 @@ pub async fn setup(
     .map_err(AppError::from)?;
 
     tx.commit().await?;
+    medbrains_server_core::middleware::entitlement::invalidate_modules(claims.tenant_id);
 
     tracing::info!(tenant_id = %claims.tenant_id, "Onboarding setup completed");
 
@@ -1546,6 +1564,7 @@ pub async fn apply_edition(
     .await?;
 
     tx.commit().await?;
+    medbrains_server_core::middleware::entitlement::invalidate_modules(claims.tenant_id);
     Ok(Json(serde_json::json!({
         "hospital_type": body.hospital_type,
         "enabled": enabled.len(),

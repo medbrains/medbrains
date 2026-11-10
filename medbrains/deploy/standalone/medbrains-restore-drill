@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# medbrains-restore-drill — prove the latest backup restores. Runs on the
+# OPERATOR's machine, never on the server: it needs the offline age private
+# key, which by design does not exist on the server.
+#
+#   medbrains-restore-drill --from <source> --identity <age-key-file> [options]
+#
+#   --from          s3://<bucket>/pg-backups/<host>/   newest object under it
+#                   /path/to/dir                       newest *.dump.age in it
+#                   /path/to/file.dump.age             that file
+#   --identity      age identity (private key) file; may be passphrase-protected
+#   --target-url    a scratch Postgres to restore into, as a superuser
+#                   (row counts must not be filtered by RLS). Default: a
+#                   throwaway docker container (PG_IMAGE, postgres:17-alpine).
+#   --secrets-from  same forms as --from, for the sealed /etc/medbrains
+#                   archive: decrypted and LISTED (key names only, never values)
+#   --counts-out    write "table<TAB>rows" for every public table to this file
+#   --keep          leave the scratch database (and container) for inspection
+#
+# Needs: age, pg_restore/psql >= the server's major version (17), aws CLI for
+# s3:// sources (operator credentials: s3:GetObject + kms:Decrypt), docker
+# when --target-url is not given. Exits non-zero if any check fails.
+#
+# The plaintext dump exists only in a 0700 temp directory for the length of
+# the run and is removed on exit — it is a full copy of patient records.
+
+set -euo pipefail
+
+FROM="" IDENTITY="" TARGET_URL="" SECRETS_FROM="" COUNTS_OUT="" KEEP=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --from) FROM="$2"; shift 2 ;;
+        --identity) IDENTITY="$2"; shift 2 ;;
+        --target-url) TARGET_URL="$2"; shift 2 ;;
+        --secrets-from) SECRETS_FROM="$2"; shift 2 ;;
+        --counts-out) COUNTS_OUT="$2"; shift 2 ;;
+        --keep) KEEP=1; shift ;;
+        -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+        *) echo "unknown argument: $1" >&2; exit 2 ;;
+    esac
+done
+[[ -n "$FROM" && -n "$IDENTITY" ]] || { sed -n '2,25p' "$0" >&2; exit 2; }
+[[ -r "$IDENTITY" ]] || { echo "cannot read identity $IDENTITY" >&2; exit 2; }
+
+WORK="$(mktemp -d)"; chmod 700 "$WORK"
+CONTAINER="" DB="medbrains_drill_$(date -u +%Y%m%d%H%M%S)"
+# shellcheck disable=SC2329 # the EXIT trap calls it
+cleanup() {
+    rm -rf "$WORK"
+    [[ "$KEEP" == "1" ]] && { echo "kept: $DB${CONTAINER:+ in container $CONTAINER}"; return; }
+    [[ -n "$CONTAINER" ]] && docker rm -f "$CONTAINER" >/dev/null 2>&1
+    [[ -z "$CONTAINER" && -n "$TARGET_URL" ]] && psql -XAq "$TARGET_URL" -c "DROP DATABASE IF EXISTS $DB" >/dev/null 2>&1
+    return 0
+}
+trap cleanup EXIT
+
+now() { date +%s; }
+T0="$(now)"
+fail=0
+check() { # check <label> <ok:0|1> [detail]
+    if [[ "$2" == "1" ]]; then echo "ok   $1${3:+ — $3}"; else echo "FAIL $1${3:+ — $3}"; fail=1; fi
+}
+
+fetch() { # fetch <source> <glob> <out> — copies the newest match to <out>, prints its name
+    local src="$1" glob="$2" out="$3" name
+    if [[ "$src" == s3://* ]]; then
+        src="${src%/}/"
+        name="$(aws s3 ls "$src" | awk '{print $4}' | grep -E "${glob}\$" | sort | tail -1)"
+        [[ -n "$name" ]] || { echo "nothing matching $glob under $src" >&2; return 1; }
+        aws s3 cp --only-show-errors "${src}${name}" "$out"
+    elif [[ -d "$src" ]]; then
+        name="$(find "$src" -maxdepth 1 -type f -name "*${glob}" | sort | tail -1)"
+        [[ -n "$name" ]] || { echo "nothing matching *$glob in $src" >&2; return 1; }
+        cp "$name" "$out"
+    else
+        name="$src"; cp "$src" "$out"
+    fi
+    echo "${name##*/}"
+}
+
+# ── 1. fetch + decrypt ────────────────────────────────────────────────
+NAME="$(fetch "$FROM" '.dump.age' "$WORK/backup.age")"
+T_FETCH="$(now)"
+echo "backup: $NAME ($(wc -c < "$WORK/backup.age" | tr -d ' ') bytes, sealed)"
+# age authenticates every 64 KiB chunk: a truncated or altered object fails
+# here instead of restoring short.
+age -d -i "$IDENTITY" -o "$WORK/backup.dump" "$WORK/backup.age"
+T_DECRYPT="$(now)"
+TOC_TABLES="$(pg_restore --list "$WORK/backup.dump" | grep -c 'TABLE DATA' || true)"
+check "decrypts with the offline key and parses as a pg_dump archive" 1 "$TOC_TABLES tables with data"
+
+# ── 2. scratch server ─────────────────────────────────────────────────
+if [[ -z "$TARGET_URL" ]]; then
+    CONTAINER="medbrains-restore-drill-$$"
+    docker run -d --name "$CONTAINER" -e POSTGRES_PASSWORD=drill \
+        -p 127.0.0.1::5432 "${PG_IMAGE:-postgres:17-alpine}" >/dev/null
+    PORT="$(docker port "$CONTAINER" 5432/tcp | head -1 | sed 's/.*://')"
+    TARGET_URL="postgres://postgres:drill@127.0.0.1:${PORT}/postgres"
+    for _ in $(seq 1 60); do
+        psql -XAq "$TARGET_URL" -c 'SELECT 1' >/dev/null 2>&1 && break
+        sleep 1
+    done
+fi
+psql -XAq -v ON_ERROR_STOP=1 "$TARGET_URL" -c "CREATE DATABASE $DB" >/dev/null
+base="${TARGET_URL%%\?*}"
+DB_URL="${base%/*}/${DB}${TARGET_URL#"$base"}"
+sql() { psql -XAtq -v ON_ERROR_STOP=1 "$DB_URL" "$@"; }
+
+# Roles are cluster-wide and not in a database dump. Create every role the
+# archive grants to or names in a policy, so --exit-on-error can stay on and
+# the grants are restored for real (drill finding 1, 2026-10-12).
+pg_restore --list "$WORK/backup.dump" | grep -E ' (ACL|DEFAULT ACL|POLICY) ' > "$WORK/acl.list" || true
+ROLES="$(pg_restore -L "$WORK/acl.list" -f - "$WORK/backup.dump" \
+    | grep -oE '( TO| FOR ROLE) "?[a-z_][a-z0-9_]*' | awk '{gsub(/"/,"",$NF); print $NF}' \
+    | grep -vxE 'public|postgres|current_user|session_user' | sort -u || true)"
+for role in $ROLES; do
+    psql -XAq "$TARGET_URL" -c "DO \$\$BEGIN CREATE ROLE \"$role\" NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END\$\$" >/dev/null
+done
+
+# ── 3. restore ────────────────────────────────────────────────────────
+pg_restore -d "$DB_URL" --no-owner --exit-on-error -j 4 "$WORK/backup.dump"
+T_RESTORE="$(now)"
+check "pg_restore --exit-on-error completed" 1
+
+# ── 4. integrity ──────────────────────────────────────────────────────
+mig="$(sql -c "SELECT count(*), coalesce(max(version),0), count(*) FILTER (WHERE NOT success) FROM _sqlx_migrations" 2>/dev/null || echo "0|0|-1")"
+IFS='|' read -r mig_n mig_max mig_bad <<<"$mig"
+check "migrations recorded, none failed" "$([[ $mig_n -gt 0 && $mig_bad == 0 ]] && echo 1 || echo 0)" \
+    "$mig_n applied, latest $mig_max"
+
+sql > "$WORK/counts.tsv" -F $'\t' <<'SQL'
+SELECT table_name,
+       (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text::bigint
+  FROM information_schema.tables
+ WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+ ORDER BY 1
+SQL
+[[ -n "$COUNTS_OUT" ]] && cp "$WORK/counts.tsv" "$COUNTS_OUT"
+rows() { awk -F'\t' -v t="$1" '$1 == t { print $2 }' "$WORK/counts.tsv"; }
+echo "     $(wc -l < "$WORK/counts.tsv" | tr -d ' ') tables, $(awk -F'\t' '{s+=$2} END {print s+0}' "$WORK/counts.tsv") rows"
+for t in tenants users patients encounters invoices audit_log; do
+    n="$(rows "$t")"; [[ -n "$n" ]] && printf '     %-12s %s\n' "$t" "$n"
+done
+check "at least one tenant and one user" "$([[ "$(rows tenants)" -gt 0 && "$(rows users)" -gt 0 ]] 2>/dev/null && echo 1 || echo 0)"
+
+if [[ -n "$(rows audit_log)" ]]; then
+    check "newest audit entry" 1 "$(sql -c 'SELECT coalesce(max(created_at)::text, '"'none'"') FROM audit_log')"
+fi
+# Requests connect as medbrains_app. A restore without its grants is a
+# database every request is refused on.
+if grep -qx medbrains_app <<<"$ROLES" && [[ -n "$(rows patients)" ]]; then
+    perm="$(sql -c 'SET ROLE medbrains_app; SELECT 1 FROM patients LIMIT 1;' 2>&1 >/dev/null || true)"
+    check "medbrains_app can read patients (grants restored)" "$([[ "$perm" != *"permission denied"* ]] && echo 1 || echo 0)" "$perm"
+fi
+
+# ── 5. secrets archive ────────────────────────────────────────────────
+if [[ -n "$SECRETS_FROM" ]]; then
+    SNAME="$(fetch "$SECRETS_FROM" '.tar.age' "$WORK/secrets.age")"
+    keys="$(age -d -i "$IDENTITY" "$WORK/secrets.age" | tar -xOf - medbrains/env 2>/dev/null \
+        | grep -oE '^[A-Z_][A-Z0-9_]*=' | tr -d '=' | sort | tr '\n' ' ' || true)"
+    check "secrets archive $SNAME decrypts and holds env" "$([[ "$keys" == *MEDBRAINS_IDENTIFIER_HMAC_KEY* ]] && echo 1 || echo 0)" \
+        "keys: ${keys:-none}"
+fi
+
+T_END="$(now)"
+echo
+echo "timings: fetch $((T_FETCH - T0))s · decrypt $((T_DECRYPT - T_FETCH))s · restore $((T_RESTORE - T_DECRYPT))s · total $((T_END - T0))s"
+[[ $fail -eq 0 ]] && echo "RESTORE DRILL PASSED — $NAME" || echo "RESTORE DRILL FAILED — $NAME"
+exit "$fail"

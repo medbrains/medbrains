@@ -4,6 +4,10 @@
 //! the single-section records, coding systems the profiles fix, identifier
 //! parts, and that every `urn:uuid:` reference resolves inside the bundle.
 //!
+//! [`nhcx_violations`] does the same for the NHCX messages (ClaimBundle,
+//! CoverageEligibilityRequestBundle, TaskBundle, Communication), from the
+//! same IG package.
+//!
 //! The rules come from `profiles.json`, extracted from the published
 //! StructureDefinitions by `scripts/nrces_profile_fixture.py`. This is not a
 //! full FHIR validator (no terminology, no FHIRPath invariants beyond the
@@ -58,13 +62,7 @@ fn profile_name(resource: &Value) -> Option<&str> {
 pub fn violations(bundle: &Value) -> Vec<String> {
     let mut out = Vec::new();
     let entries = bundle["entry"].as_array().cloned().unwrap_or_default();
-    let mut by_url: HashMap<&str, &Value> = HashMap::new();
-    for e in &entries {
-        let url = e["fullUrl"].as_str().unwrap_or_default();
-        if by_url.insert(url, &e["resource"]).is_some() {
-            out.push(format!("duplicate fullUrl {url}"));
-        }
-    }
+    let by_url = resolve_references(bundle, &entries, &mut out);
     if bundle["type"] != "document" {
         out.push("Bundle.type is not document".into());
     }
@@ -77,6 +75,30 @@ pub fn violations(bundle: &Value) -> Vec<String> {
     if !present(&bundle["identifier"]["system"]) || !present(&bundle["identifier"]["value"]) {
         out.push("Bundle.identifier needs system and value".into());
     }
+    match entries.first().map(|e| &e["resource"]) {
+        Some(c) if c["resourceType"] == "Composition" => composition(c, &by_url, &mut out),
+        _ => out.push("first entry is not a Composition".into()),
+    }
+    for e in &entries {
+        resource(&e["resource"], &mut out);
+    }
+    out
+}
+
+/// Each entry by its `fullUrl`, reporting a repeated one and every
+/// `urn:uuid:` reference that names no entry.
+fn resolve_references<'a>(
+    bundle: &Value,
+    entries: &'a [Value],
+    out: &mut Vec<String>,
+) -> HashMap<&'a str, &'a Value> {
+    let mut by_url: HashMap<&str, &Value> = HashMap::new();
+    for e in entries {
+        let url = e["fullUrl"].as_str().unwrap_or_default();
+        if by_url.insert(url, &e["resource"]).is_some() {
+            out.push(format!("duplicate fullUrl {url}"));
+        }
+    }
     let mut refs = Vec::new();
     collect_refs(bundle, &mut refs);
     for r in refs {
@@ -84,9 +106,49 @@ pub fn violations(bundle: &Value) -> Vec<String> {
             out.push(format!("reference {r} does not resolve in the bundle"));
         }
     }
-    match entries.first().map(|e| &e["resource"]) {
-        Some(c) if c["resourceType"] == "Composition" => composition(c, &by_url, &mut out),
-        _ => out.push("first entry is not a Composition".into()),
+    by_url
+}
+
+/// Every rule an NHCX message breaks (a ClaimBundle, a
+/// CoverageEligibilityRequestBundle, a TaskBundle, or a bare Communication):
+/// the bundle's type and focal entry, the required elements and identifier
+/// parts of each profiled resource, and that every `urn:uuid:` reference
+/// resolves. Empty means conformant. A `{}` payload (a status enquiry)
+/// carries nothing to check.
+#[must_use]
+pub fn nhcx_violations(message: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    if message.as_object().is_some_and(serde_json::Map::is_empty) {
+        return out;
+    }
+    if message["resourceType"] != "Bundle" {
+        resource(message, &mut out);
+        return out;
+    }
+    let name = profile_name(message).unwrap_or_default();
+    let Some(rules) = profiles()["bundles"].get(name) else {
+        out.push(format!(
+            "Bundle profile {name} is not an NHCX message we check"
+        ));
+        return out;
+    };
+    let entries = message["entry"].as_array().cloned().unwrap_or_default();
+    resolve_references(message, &entries, &mut out);
+    if message["type"] != rules["type"] {
+        out.push(format!("{name}: Bundle.type must be {}", rules["type"]));
+    }
+    if !present(&message["timestamp"]) {
+        out.push(format!("{name}: Bundle.timestamp missing"));
+    }
+    let focal = rules["focal"].as_str().unwrap_or_default();
+    let n = entries
+        .iter()
+        .filter(|e| profile_name(&e["resource"]) == Some(focal))
+        .count();
+    if (n as u64) < rules["focal_min"].as_u64().unwrap_or(1) || !below(&rules["focal_max"], n) {
+        out.push(format!(
+            "{name}: {n} {focal} entries is outside its cardinality"
+        ));
     }
     for e in &entries {
         resource(&e["resource"], &mut out);
@@ -121,10 +183,10 @@ fn composition(c: &Value, by_url: &HashMap<&str, &Value>, out: &mut Vec<String>)
             out.push(format!("{name}: Composition.{r} is required"));
         }
     }
-    if let Some(code) = rules["type_code"].as_str() {
-        if c["type"]["coding"][0]["code"] != code {
-            out.push(format!("{name}: Composition.type must be {code}"));
-        }
+    if let Some(code) = rules["type_code"].as_str()
+        && c["type"]["coding"][0]["code"] != code
+    {
+        out.push(format!("{name}: Composition.type must be {code}"));
     }
     let sections = c["section"].as_array().cloned().unwrap_or_default();
     if !below(&rules["section_max"], sections.len()) {
@@ -214,10 +276,10 @@ fn entry_sliced<'a>(
             rules["section_system"]
         ));
     }
-    if let Some(code) = rules["section_code"].as_str() {
-        if coding["code"] != code {
-            out.push(format!("{name}: section code must be {code}"));
-        }
+    if let Some(code) = rules["section_code"].as_str()
+        && coding["code"] != code
+    {
+        out.push(format!("{name}: section code must be {code}"));
     }
     let entries = s["entry"].as_array().cloned().unwrap_or_default();
     let min = rules["entry_min"].as_u64().unwrap_or(0);
@@ -306,21 +368,21 @@ fn codings(name: &str, r: &Value, rule: &Value, out: &mut Vec<String>) {
         .iter()
         .flat_map(|c| c["coding"].as_array().into_iter().flatten())
     {
-        if let Some(allowed) = rule["closed_systems"].as_array() {
-            if !allowed.contains(&coding["system"]) {
-                out.push(format!(
-                    "{name}: {path} coding system {} matches no slice (closed)",
-                    coding["system"]
-                ));
-            }
+        if let Some(allowed) = rule["closed_systems"].as_array()
+            && !allowed.contains(&coding["system"])
+        {
+            out.push(format!(
+                "{name}: {path} coding system {} matches no slice (closed)",
+                coding["system"]
+            ));
         }
-        if let Some(only) = rule["only_system"].as_str() {
-            if coding["system"] != only {
-                out.push(format!(
-                    "{name}: {path} codings must be {only}, got {}",
-                    coding["system"]
-                ));
-            }
+        if let Some(only) = rule["only_system"].as_str()
+            && coding["system"] != only
+        {
+            out.push(format!(
+                "{name}: {path} codings must be {only}, got {}",
+                coding["system"]
+            ));
         }
         if rule["system"]
             .as_str()

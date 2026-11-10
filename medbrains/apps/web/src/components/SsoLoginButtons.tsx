@@ -53,7 +53,7 @@ export function SsoLoginButtons({
       {!hideDivider && (
         <Divider
           label={
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+            <Text size="xs" c="dimmed" fw={600}>
               Or continue with
             </Text>
           }

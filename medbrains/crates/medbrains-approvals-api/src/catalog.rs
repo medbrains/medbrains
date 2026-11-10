@@ -274,13 +274,13 @@ pub async fn create_type(
     // An effect_key nothing implements would collect approvals and then do
     // nothing, while everybody involved believed it had worked. Better to
     // refuse at creation, where a person is present to read why.
-    if let Some(key) = body.effect_key.as_deref() {
-        if !crate::registry_for(&state).can_satisfy(Some(key)) {
-            return Err(AppError::BadRequest(format!(
-                "no effect named '{key}' is implemented on this server; leave it unset for a \
+    if let Some(key) = body.effect_key.as_deref()
+        && !crate::registry_for(&state).can_satisfy(Some(key))
+    {
+        return Err(AppError::BadRequest(format!(
+            "no effect named '{key}' is implemented on this server; leave it unset for a \
                  request where the approval itself is the outcome"
-            )));
-        }
+        )));
     }
 
     let code = body.code.trim().to_lowercase();

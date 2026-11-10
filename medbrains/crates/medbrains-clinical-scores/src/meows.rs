@@ -5,9 +5,8 @@
 //! OR two YELLOW triggers -> summon senior obstetric review. Computed server-side so the trigger can't
 //! be missed at the bedside. NABH/CEMACH maternal-deterioration safety measure.
 //!
-//! The band thresholds follow a widely-published MEOWS chart. Exact cut-offs vary between local
-//! charts, so treat them as the shipped default policy — the robust, non-negotiable part is the
-//! one-red-or-two-yellow trigger rule.
+//! The bands are the CEMACH MEOWS chart validated by Singh et al. 2012 — see `ews::meows_table`
+//! for the table and its sources.
 
 use axum::{Extension, Json, extract::State};
 use medbrains_core::permissions;
@@ -52,76 +51,74 @@ pub struct MeowsResult {
     pub response: &'static str,
 }
 
-fn band_resp_rate(rr: i32) -> &'static str {
-    if !(10..=30).contains(&rr) {
-        RED
-    } else if rr >= 21 {
-        YELLOW
-    } else {
-        WHITE
+// The bands are the auto-score's own (`ews::meows_table`), so the calculator
+// and the score charted with each vitals reading can never disagree.
+fn band(scored: (i32, crate::ews::Zone)) -> &'static str {
+    match scored.1 {
+        crate::ews::Zone::White => WHITE,
+        crate::ews::Zone::Yellow => YELLOW,
+        _ => RED,
     }
+}
+
+fn band_resp_rate(rr: i32) -> &'static str {
+    band(crate::ews::meows_table::respiration(rr))
 }
 
 fn band_spo2(spo2: i32) -> &'static str {
-    if spo2 < 92 {
-        RED
-    } else if spo2 <= 95 {
-        YELLOW
-    } else {
-        WHITE
-    }
+    band(crate::ews::meows_table::spo2(spo2))
 }
 
 fn band_temp(t: f64) -> &'static str {
-    if !(35.0..=38.0).contains(&t) {
-        RED
-    } else if t <= 36.0 || t >= 37.5 {
-        YELLOW
-    } else {
-        WHITE
-    }
+    // Charted to one decimal place; tenths make the 35.0 / 38.0 edges exact.
+    #[allow(clippy::cast_possible_truncation)]
+    let tenths = (t * 10.0).round() as i32;
+    band(crate::ews::meows_table::temperature(tenths))
 }
 
 fn band_sbp(sbp: i32) -> &'static str {
-    if !(90..=160).contains(&sbp) {
-        RED
-    } else if sbp <= 100 || sbp >= 150 {
-        YELLOW
-    } else {
-        WHITE
-    }
+    band(crate::ews::meows_table::systolic(sbp))
 }
 
 fn band_dbp(dbp: i32) -> &'static str {
-    if dbp > 100 {
-        RED
-    } else if dbp >= 90 {
-        YELLOW
-    } else {
-        WHITE
-    }
+    band(crate::ews::meows_table::diastolic(dbp))
 }
 
 fn band_pulse(p: i32) -> &'static str {
-    if !(40..=120).contains(&p) {
-        RED
-    } else if p <= 50 || p >= 100 {
-        YELLOW
-    } else {
-        WHITE
-    }
+    band(crate::ews::meows_table::heart_rate(p))
 }
 
 pub fn compute_meows(r: &MeowsRequest) -> MeowsResult {
     let params = vec![
-        MeowsParam { name: "Respiratory rate", band: band_resp_rate(r.respiratory_rate) },
-        MeowsParam { name: "SpO₂", band: band_spo2(r.spo2) },
-        MeowsParam { name: "Temperature", band: band_temp(r.temperature) },
-        MeowsParam { name: "Systolic BP", band: band_sbp(r.systolic_bp) },
-        MeowsParam { name: "Diastolic BP", band: band_dbp(r.diastolic_bp) },
-        MeowsParam { name: "Pulse", band: band_pulse(r.pulse) },
+        MeowsParam {
+            name: "Respiratory rate",
+            band: band_resp_rate(r.respiratory_rate),
+        },
+        MeowsParam {
+            name: "SpO₂",
+            band: band_spo2(r.spo2),
+        },
+        MeowsParam {
+            name: "Temperature",
+            band: band_temp(r.temperature),
+        },
+        MeowsParam {
+            name: "Systolic BP",
+            band: band_sbp(r.systolic_bp),
+        },
+        MeowsParam {
+            name: "Diastolic BP",
+            band: band_dbp(r.diastolic_bp),
+        },
+        MeowsParam {
+            name: "Pulse",
+            band: band_pulse(r.pulse),
+        },
         // Any reduction in consciousness is a red trigger on its own.
-        MeowsParam { name: "Consciousness (AVPU)", band: if r.not_alert { RED } else { WHITE } },
+        MeowsParam {
+            name: "Consciousness (AVPU)",
+            band: if r.not_alert { RED } else { WHITE },
+        },
     ];
     let red_count = params.iter().filter(|p| p.band == RED).count() as i32;
     let yellow_count = params.iter().filter(|p| p.band == YELLOW).count() as i32;
@@ -133,7 +130,13 @@ pub fn compute_meows(r: &MeowsRequest) -> MeowsResult {
     } else {
         "Within normal MEOWS parameters — continue routine observations at the charted frequency."
     };
-    MeowsResult { params, yellow_count, red_count, triggered, response }
+    MeowsResult {
+        params,
+        yellow_count,
+        red_count,
+        triggered,
+        response,
+    }
 }
 
 /// `POST /api/clinical/meows` — compute the MEOWS bands + escalation trigger from bedside parameters.

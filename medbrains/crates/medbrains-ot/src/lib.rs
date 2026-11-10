@@ -16,6 +16,7 @@
 //!
 //! **What retires this:** a relation saying which lists an OT scheduler runs.
 
+mod billing;
 pub mod consent;
 pub mod consent_link;
 pub mod emergency_consent;
@@ -31,7 +32,6 @@ use medbrains_core::ot::{
     OtPreopAssessment, OtPreopHandoff, OtRoom, OtSurgeonPreference, OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -138,7 +138,9 @@ pub struct UpdateBookingStatusRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePreopRequest {
-    pub clearance_status: String,
+    /// A new assessment is pending until the anaesthetist clears it; the web
+    /// form never sent this, so every pre-op assessment from it was a 422.
+    pub clearance_status: Option<String>,
     pub asa_class: Option<String>,
     pub airway_assessment: Option<serde_json::Value>,
     pub cardiac_assessment: Option<serde_json::Value>,
@@ -536,7 +538,8 @@ pub async fn list_bookings(
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!("SELECT COUNT(*) FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause}");
+    let count_sql =
+        format!("SELECT COUNT(*) FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
         if let Some(u) = b.uuid_val {
@@ -775,12 +778,12 @@ pub async fn update_booking(
     // IPSG-4 (safe surgery): `consent_obtained` may only be set true when a signed consent for
     // THIS operation is linked to the booking — not merely attested by the client, and not any
     // consent the patient ever signed.
-    if body.consent_obtained == Some(true) {
-        if let Some(reason) = consent::booking_consent_gap(&mut tx, claims.tenant_id, id).await? {
-            consent::audit_blocked(&mut tx, &claims, id, &reason).await?;
-            tx.commit().await?;
-            return Err(AppError::BadRequest(reason));
-        }
+    if body.consent_obtained == Some(true)
+        && let Some(reason) = consent::booking_consent_gap(&mut tx, claims.tenant_id, id).await?
+    {
+        consent::audit_blocked(&mut tx, &claims, id, &reason).await?;
+        tx.commit().await?;
+        return Err(AppError::BadRequest(reason));
     }
 
     // Blood arranged may only be set true when a live blood request exists for the patient.
@@ -953,103 +956,10 @@ pub async fn update_booking_status(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    // Auto-bill OT charges on surgery completion
-    if body.status == "completed"
-        && medbrains_server_services::billing::is_auto_billing_enabled(
-            &mut tx,
-            &claims.tenant_id,
-            "ot",
-        )
-        .await
-        .unwrap_or(false)
-    {
-        let encounter_id = row.admission_id.unwrap_or(row.id);
-        let _ = medbrains_server_services::billing::create_service_charge(
-            &mut tx,
-            medbrains_server_services::billing::ServiceChargeInput {
-                tenant_id: claims.tenant_id,
-                patient_id: row.patient_id,
-                encounter_id,
-                charge_code: "OT_SURGERY",
-                quantity: 1,
-                source_module: "ot",
-                source_entity_id: row.id,
-                requested_by: claims.sub,
-            },
-        )
-        .await;
-
-        // Anaesthesia professional fee — only when an anaesthetist was
-        // assigned. Distinct source id (the booking id collides with the
-        // surgery charge under auto_charge's (source, source_id) idempotency).
-        if row.anesthetist_id.is_some() {
-            let _ = medbrains_server_services::billing::create_service_charge(
-                &mut tx,
-                medbrains_server_services::billing::ServiceChargeInput {
-                    tenant_id: claims.tenant_id,
-                    patient_id: row.patient_id,
-                    encounter_id,
-                    charge_code: "ANAES_OT",
-                    quantity: 1,
-                    source_module: "ot",
-                    source_entity_id: Uuid::new_v5(&row.id, b"ot-anaesthesia"),
-                    requested_by: claims.sub,
-                },
-            )
-            .await;
-        }
-
-        // OT time — billed per hour of actual theatre occupancy, rounded up
-        // (any positive duration bills at least one hour).
-        if let (Some(start), Some(end)) = (row.actual_start, row.actual_end) {
-            let minutes = (end - start).num_minutes();
-            if minutes > 0 {
-                let hours = i32::try_from((minutes + 59) / 60).unwrap_or(1).max(1);
-                let _ = medbrains_server_services::billing::create_service_charge(
-                    &mut tx,
-                    medbrains_server_services::billing::ServiceChargeInput {
-                        tenant_id: claims.tenant_id,
-                        patient_id: row.patient_id,
-                        encounter_id,
-                        charge_code: "OT_TIME",
-                        quantity: hours,
-                        source_module: "ot",
-                        source_entity_id: Uuid::new_v5(&row.id, b"ot-time"),
-                        requested_by: claims.sub,
-                    },
-                )
-                .await;
-            }
-        }
-
-        // Consumables used in theatre — billed at their recorded unit price so the OT bill
-        // reflects the actual materials, not just the procedure fee. Idempotent per usage row.
-        let consumables: Vec<(Uuid, String, i32, Option<Decimal>)> = sqlx::query_as(
-            "SELECT id, item_name, GREATEST(ROUND(quantity)::int, 1) AS qty, unit_price \
-             FROM ot_consumable_usage WHERE tenant_id = $1 AND booking_id = $2",
-        )
-        .bind(claims.tenant_id)
-        .bind(row.id)
-        .fetch_all(&mut *tx)
-        .await?;
-        for (usage_id, item_name, qty, unit_price) in consumables {
-            let _ = medbrains_server_services::billing::auto_charge(
-                &mut tx,
-                &claims.tenant_id,
-                medbrains_server_services::billing::AutoChargeInput {
-                    patient_id: row.patient_id,
-                    encounter_id: Some(encounter_id),
-                    charge_code: "OT_CONSUMABLE".to_owned(),
-                    source: "ot".to_owned(),
-                    source_id: usage_id,
-                    quantity: qty,
-                    description_override: Some(item_name),
-                    unit_price_override: unit_price,
-                    tax_percent_override: None,
-                },
-            )
-            .await;
-        }
+    // Auto-bill OT charges on surgery completion: posted, or queued for the
+    // billing desk — never blocking the completion and never lost.
+    if body.status == "completed" {
+        billing::charge_completion(&mut tx, &claims, &row).await?;
     }
 
     tx.commit().await?;
@@ -1158,7 +1068,7 @@ pub async fn create_preop(
     )
     .bind(claims.tenant_id)
     .bind(booking_id)
-    .bind(&body.clearance_status)
+    .bind(body.clearance_status.as_deref().unwrap_or("pending"))
     .bind(&body.asa_class)
     .bind(body.airway_assessment.as_ref().unwrap_or(&empty))
     .bind(body.cardiac_assessment.as_ref().unwrap_or(&empty))

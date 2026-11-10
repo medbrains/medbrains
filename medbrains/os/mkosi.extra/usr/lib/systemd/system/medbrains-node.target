@@ -1,0 +1,10 @@
+# What a node runs: the screen and the agent, no database, server or front, and nothing open to
+# the network. Off until setup writes the role, once a person has approved the machine.
+[Unit]
+Description=MedBrains node (workstation or display)
+ConditionPathExists=/var/lib/medbrains/config/role-node
+Wants=medbrains-agent.service cage-console.service
+After=medbrains-agent.service
+
+[Install]
+WantedBy=multi-user.target

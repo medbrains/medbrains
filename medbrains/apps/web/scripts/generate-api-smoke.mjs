@@ -65,22 +65,41 @@ const SKIP_FILE = resolve(OUTPUT_DIR, "_skiplist.json");
 
 // ─── Parse routes/mod.rs ──────────────────────────────────────────
 
+/**
+ * Every `.route("path", handlers)` in a source, with the handler expression
+ * cut at the parenthesis that closes `.route(` — found by counting, not by
+ * regex. The regex this replaces ended the expression at the first `)`
+ * followed by a dot, which for `get(list).post(create)` is the one after
+ * `list`: every chained verb after the first was lost, in smoke, in the write
+ * negatives and in the permission denials alike.
+ */
+export function routeBlocks(source) {
+  const stripped = source.replace(/\/\/[^\n]*/g, "");
+  const out = [];
+  const open = /\.route\s*\(\s*"([^"]+)"\s*,/g;
+  let m;
+  while ((m = open.exec(stripped)) !== null) {
+    let depth = 1;
+    let i = m.index + m[0].length;
+    // `.route(` is open; walk to the parenthesis that closes it.
+    while (i < stripped.length && depth > 0) {
+      const ch = stripped[i];
+      if (ch === "(") depth += 1;
+      else if (ch === ")") depth -= 1;
+      i += 1;
+    }
+    out.push({ path: m[1], handlers: stripped.slice(m.index + m[0].length, i - 1) });
+    open.lastIndex = i;
+  }
+  return out;
+}
+
 export function parseRoutes(source) {
   const routes = [];
-  const stripped = source.replace(/\/\/[^\n]*/g, "");
-  // The handler block ends at a `)` followed by `.` or `;`. That trailing
-  // character must be a LOOKAHEAD: consuming it ate the dot of the next
-  // `.route(`, so every second registration in a chain was skipped.
-  const re = /\.route\s*\(\s*"([^"]+)"\s*,\s*([\s\S]*?)\)\s*(?=[.;])/g;
-  let m;
-  while ((m = re.exec(stripped)) !== null) {
-    const path = m[1];
-    const handlerBlock = m[2];
+  for (const { path, handlers } of routeBlocks(source)) {
     const methods = new Set();
     for (const verb of ["get", "post", "put", "patch", "delete"]) {
-      if (new RegExp(`\\b${verb}\\s*\\(`, "g").test(handlerBlock)) {
-        methods.add(verb.toUpperCase());
-      }
+      if (new RegExp(`\\b${verb}\\s*\\(`, "g").test(handlers)) methods.add(verb.toUpperCase());
     }
     if (methods.size > 0) routes.push({ path, methods: [...methods] });
   }

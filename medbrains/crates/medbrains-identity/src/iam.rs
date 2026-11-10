@@ -234,6 +234,10 @@ pub async fn create_access_request(
     Ok(Json(row))
 }
 
+/// Approve a pending access request.
+///
+/// Appends its time-bound grant to the target's `access_matrix`. The matrix is read `FOR UPDATE`, so two reviews
+/// at once cannot each write over the other's grant or revocation.
 pub async fn approve_access_request(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -253,30 +257,37 @@ pub async fn approve_access_request(
             row.status
         )));
     }
-    if let Some(expires_at) = row.requested_expires_at {
-        if expires_at <= Utc::now() {
-            sqlx::query(
-                "UPDATE iam_access_requests \
+    if let Some(expires_at) = row.requested_expires_at
+        && expires_at <= Utc::now()
+    {
+        sqlx::query(
+            "UPDATE iam_access_requests \
                  SET status = 'expired', reviewed_by = $3, reviewed_at = now(), review_note = $4 \
                  WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(id)
-            .bind(claims.tenant_id)
-            .bind(claims.sub)
-            .bind(body.note.as_deref())
-            .execute(&mut *tx)
-            .await?;
-            // Keep the 'expired' mark: returning the error drops the tx.
-            tx.commit().await?;
-            return Err(AppError::Conflict(
-                "request expired before approval".to_owned(),
-            ));
-        }
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .bind(claims.sub)
+        .bind(body.note.as_deref())
+        .execute(&mut *tx)
+        .await?;
+        // Keep the 'expired' mark: returning the error drops the tx.
+        tx.commit().await?;
+        return Err(AppError::Conflict(
+            "request expired before approval".to_owned(),
+        ));
     }
     validate_review_authority(&claims, &row)?;
+    medbrains_server_core::permissions::refuse_escalation_now(
+        &state.db,
+        &claims,
+        &row.requested_permissions,
+        "a temporary grant",
+    )
+    .await?;
 
     let access_matrix = sqlx::query_scalar::<_, Value>(
-        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+        "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(row.target_user_id)
     .bind(claims.tenant_id)
@@ -393,6 +404,10 @@ pub async fn reject_access_request(
     Ok(Json(updated))
 }
 
+/// Revoke an approved or pending access request.
+///
+/// Marks its grant revoked in the target's `access_matrix`, which is read `FOR UPDATE` for the same
+/// reason as on approval.
 pub async fn revoke_access_request(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -416,7 +431,7 @@ pub async fn revoke_access_request(
 
     if row.status == "approved" {
         let access_matrix = sqlx::query_scalar::<_, Value>(
-            "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
+            "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
         )
         .bind(row.target_user_id)
         .bind(claims.tenant_id)
@@ -592,22 +607,22 @@ fn revoke_temporary_grant(
     let request_id_text = request_id.to_string();
 
     for grant in &mut grants {
-        if grant.get("request_id").and_then(Value::as_str) == Some(request_id_text.as_str()) {
-            if let Value::Object(grant_map) = grant {
+        if grant.get("request_id").and_then(Value::as_str) == Some(request_id_text.as_str())
+            && let Value::Object(grant_map) = grant
+        {
+            grant_map.insert(
+                "revoked_at".to_owned(),
+                Value::String(Utc::now().to_rfc3339()),
+            );
+            grant_map.insert(
+                "revoked_by".to_owned(),
+                Value::String(revoked_by.to_string()),
+            );
+            if let Some(reason) = reason.filter(|r| !r.trim().is_empty()) {
                 grant_map.insert(
-                    "revoked_at".to_owned(),
-                    Value::String(Utc::now().to_rfc3339()),
+                    "revoke_reason".to_owned(),
+                    Value::String(reason.trim().to_owned()),
                 );
-                grant_map.insert(
-                    "revoked_by".to_owned(),
-                    Value::String(revoked_by.to_string()),
-                );
-                if let Some(reason) = reason.filter(|r| !r.trim().is_empty()) {
-                    grant_map.insert(
-                        "revoke_reason".to_owned(),
-                        Value::String(reason.trim().to_owned()),
-                    );
-                }
             }
         }
     }

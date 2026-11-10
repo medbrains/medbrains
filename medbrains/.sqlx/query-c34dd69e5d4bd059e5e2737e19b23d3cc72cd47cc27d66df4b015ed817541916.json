@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE signature_verify_links SET accessed_count = accessed_count + 1, last_accessed = now() WHERE token = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c34dd69e5d4bd059e5e2737e19b23d3cc72cd47cc27d66df4b015ed817541916"
+}

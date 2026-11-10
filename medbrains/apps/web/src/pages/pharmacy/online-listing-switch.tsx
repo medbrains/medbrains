@@ -3,13 +3,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch, toast } from "@/components/ui";
 import { storefrontService } from "@/services/storefront.service";
 
+/** The on/off switches; the online floor has its own editor. */
+type ListingSwitch = keyof Pick<StorefrontListing, "sold_online" | "habit_forming">;
+
 interface OnlineListingSwitchProps {
   row: PharmacyCatalog;
-  field: keyof StorefrontListing;
+  field: ListingSwitch;
   canManage: boolean;
 }
 
-const LABEL: Record<keyof StorefrontListing, string> = {
+const LABEL: Record<ListingSwitch, string> = {
   sold_online: "sold online",
   habit_forming: "habit-forming",
 };

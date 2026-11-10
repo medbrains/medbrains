@@ -176,8 +176,15 @@ fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
     }
     for a in &result.pregnancy_alerts {
         // Category X (contraindicated) is critical; category D is a warning.
-        let rank = if a.severity == "contraindicated" { 2 } else { 1 };
-        issues.push((rank, format!("pregnancy {}: {}", a.pregnancy_category, a.drug_name)));
+        let rank = if a.severity == "contraindicated" {
+            2
+        } else {
+            1
+        };
+        issues.push((
+            rank,
+            format!("pregnancy {}: {}", a.pregnancy_category, a.drug_name),
+        ));
     }
 
     let issue_count = issues.len() as u32;
@@ -195,7 +202,11 @@ fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
     let top: Vec<String> = issues.iter().take(3).map(|i| i.1.clone()).collect();
     let summary = format!(
         "{issue_count} issue(s){}: {}.",
-        if critical > 0 { format!(" ({critical} critical)") } else { String::new() },
+        if critical > 0 {
+            format!(" ({critical} critical)")
+        } else {
+            String::new()
+        },
         top.join("; ")
     );
     let recommendation = if critical > 0 {
@@ -203,7 +214,12 @@ fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
     } else {
         "Review the advisories; proceed with monitoring if clinically appropriate.".to_owned()
     };
-    ClinicalConclusion { severity: severity.to_owned(), summary, recommendation, issue_count }
+    ClinicalConclusion {
+        severity: severity.to_owned(),
+        summary,
+        recommendation,
+        issue_count,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -334,7 +350,8 @@ pub async fn check_drug_safety(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Check drug-drug interactions for all pairs
-    let interactions = interaction_alerts_for_drugs(&mut tx, claims.tenant_id, &body.drug_names).await?;
+    let interactions =
+        interaction_alerts_for_drugs(&mut tx, claims.tenant_id, &body.drug_names).await?;
 
     // Check allergy conflicts
     let mut allergy_conflicts = Vec::new();
@@ -381,18 +398,15 @@ pub async fn check_drug_safety(
     // Paediatric weight-based (mg/kg/day) advisory — only when the patient is a
     // child with a recorded weight. Advisory only; never gates prescribing.
     let mut weight_alerts = Vec::new();
-    if let Some(patient_id) = body.patient_id {
-        if !body.items.is_empty() {
-            if let Some((weight_kg, age_years)) =
-                patient_weight_and_age(&mut tx, claims.tenant_id, patient_id).await?
-            {
-                if age_years < 18 && weight_kg > 0.0 {
-                    weight_alerts =
-                        weight_alerts_for_items(&mut tx, claims.tenant_id, &body.items, weight_kg)
-                            .await?;
-                }
-            }
-        }
+    if let Some(patient_id) = body.patient_id
+        && !body.items.is_empty()
+        && let Some((weight_kg, age_years)) =
+            patient_weight_and_age(&mut tx, claims.tenant_id, patient_id).await?
+        && age_years < 18
+        && weight_kg > 0.0
+    {
+        weight_alerts =
+            weight_alerts_for_items(&mut tx, claims.tenant_id, &body.items, weight_kg).await?;
     }
 
     // Renal (eGFR-based) + hepatic dosing advisory — pharmacist-seeded rules on
@@ -408,7 +422,8 @@ pub async fn check_drug_safety(
     };
 
     // Combination chemistry: duplicate active ingredients + incompatible pairs.
-    let ingredient_alerts = ingredient_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
+    let ingredient_alerts =
+        ingredient_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
 
     // Pregnancy teratogenicity: category D/X products when the patient is pregnant.
     let pregnancy_alerts = match body.patient_id {
@@ -557,7 +572,10 @@ async fn ingredient_alerts_for_items(
     let mut generic_to_ings: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
     for r in ing_rows {
-        generic_to_ings.entry(r.generic_name).or_default().push(r.ingredient);
+        generic_to_ings
+            .entry(r.generic_name)
+            .or_default()
+            .push(r.ingredient);
     }
 
     // ingredient → distinct product names that contain it.
@@ -572,7 +590,10 @@ async fn ingredient_alerts_for_items(
             .cloned()
             .unwrap_or_else(|| vec![generic.clone()]);
         for ing in ings {
-            ing_to_drugs.entry(ing).or_default().insert(item.drug_name.clone());
+            ing_to_drugs
+                .entry(ing)
+                .or_default()
+                .insert(item.drug_name.clone());
         }
     }
 
@@ -582,7 +603,10 @@ async fn ingredient_alerts_for_items(
             alerts.push(IngredientAlert {
                 kind: "duplicate".to_owned(),
                 label: ing.clone(),
-                detail: format!("Same ingredient in: {}", drugs.iter().cloned().collect::<Vec<_>>().join(", ")),
+                detail: format!(
+                    "Same ingredient in: {}",
+                    drugs.iter().cloned().collect::<Vec<_>>().join(", ")
+                ),
                 severity: "duplicate".to_owned(),
             });
         }
@@ -689,7 +713,11 @@ async fn renal_hepatic_alerts_for_items(
         let Some(row) = rows.iter().find(|r| r.id == catalog_id) else {
             continue;
         };
-        if let Some(caution) = row.hepatic_caution.as_deref().filter(|c| !c.trim().is_empty()) {
+        if let Some(caution) = row
+            .hepatic_caution
+            .as_deref()
+            .filter(|c| !c.trim().is_empty())
+        {
             hepatic.push(HepaticAlert {
                 drug_name: item.drug_name.clone(),
                 caution: caution.to_owned(),
@@ -698,16 +726,17 @@ async fn renal_hepatic_alerts_for_items(
         if let (Some(egfr), Some(threshold), Some(rule)) = (
             egfr,
             row.renal_adjust_egfr_threshold,
-            row.renal_adjust_rule.as_deref().filter(|r| !r.trim().is_empty()),
-        ) {
-            if egfr < threshold {
-                renal.push(RenalDoseAlert {
-                    drug_name: item.drug_name.clone(),
-                    egfr,
-                    threshold,
-                    rule: rule.to_owned(),
-                });
-            }
+            row.renal_adjust_rule
+                .as_deref()
+                .filter(|r| !r.trim().is_empty()),
+        ) && egfr < threshold
+        {
+            renal.push(RenalDoseAlert {
+                drug_name: item.drug_name.clone(),
+                egfr,
+                threshold,
+                rule: rule.to_owned(),
+            });
         }
     }
     Ok((renal, hepatic))
@@ -731,7 +760,12 @@ async fn patient_weight_and_age(
         return Ok(None);
     };
     let age_years = i32::try_from(
-        (Utc::now().date_naive().signed_duration_since(dob).num_days() / 365).max(0),
+        (Utc::now()
+            .date_naive()
+            .signed_duration_since(dob)
+            .num_days()
+            / 365)
+            .max(0),
     )
     .unwrap_or(0);
 
@@ -1475,12 +1509,12 @@ pub async fn update_pre_auth_request(
             "approved amount cannot be negative".to_owned(),
         ));
     }
-    if let (Some(valid_from), Some(valid_until)) = (body.valid_from, body.valid_until) {
-        if valid_from > valid_until {
-            return Err(AppError::BadRequest(
-                "valid from cannot be after valid until".to_owned(),
-            ));
-        }
+    if let (Some(valid_from), Some(valid_until)) = (body.valid_from, body.valid_until)
+        && valid_from > valid_until
+    {
+        return Err(AppError::BadRequest(
+            "valid from cannot be after valid until".to_owned(),
+        ));
     }
 
     let auth_number = trimmed_optional(body.auth_number);

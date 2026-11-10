@@ -81,7 +81,7 @@ function ClinicalIndicatorCard({
     <Card withBorder padding="sm">
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Group gap="xs" align="flex-start" wrap="nowrap">
-          <ThemeIcon color={status.color} variant="light" radius="md">
+          <ThemeIcon color={status.color} variant="light">
             {icon}
           </ThemeIcon>
           <Stack gap={1}>

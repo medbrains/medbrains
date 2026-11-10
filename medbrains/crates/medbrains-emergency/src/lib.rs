@@ -567,10 +567,16 @@ async fn auto_create_mlc_case_for_visit(
     history_of_incident: Option<&str>,
 ) -> Result<(), AppError> {
     let created_mlc_case = sqlx::query_as::<_, (Uuid, String)>(
+        // The case goes to the hospital's jurisdictional station, configured
+        // in Emergency settings; it was left blank, so every auto-registered
+        // MLC had no station to intimate until someone typed it in.
         "INSERT INTO mlc_cases
          (tenant_id, er_visit_id, patient_id, mlc_number, case_type,
-          history_of_incident, registered_by)
-         SELECT $1, $2, $3, $4, $5, $6, $7
+          history_of_incident, registered_by, police_station)
+         SELECT $1, $2, $3, $4, $5, $6, $7,
+                (SELECT NULLIF(btrim(value->>'station'), '') FROM tenant_settings
+                  WHERE tenant_id = $1 AND category = 'emergency' AND key = 'police_contact'
+                    AND deleted_at IS NULL)
          WHERE NOT EXISTS (
            SELECT 1 FROM mlc_cases WHERE tenant_id = $1 AND er_visit_id = $2
          )
@@ -830,18 +836,13 @@ pub async fn create_visit(
     .await?;
 
     // Auto-bill ER consultation charge
-    if medbrains_server_services::billing::is_auto_billing_enabled(
+    medbrains_server_services::billing::charge_or_queue(
         &mut tx,
-        &claims.tenant_id,
-        "emergency",
-    )
-    .await
-    .unwrap_or(false)
-    {
-        let _ = medbrains_server_services::billing::auto_charge(
-            &mut tx,
-            &claims.tenant_id,
-            medbrains_server_services::billing::AutoChargeInput {
+        medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "emergency",
+            charge: medbrains_server_services::billing::AutoChargeInput {
                 patient_id: row.patient_id,
                 encounter_id: Some(encounter_id),
                 charge_code: "CON_EMERGENCY".to_owned(),
@@ -852,12 +853,12 @@ pub async fn create_visit(
                     "Emergency consultation - {}",
                     row.visit_number
                 )),
-                unit_price_override: None,
-                tax_percent_override: None,
+                ..Default::default()
             },
-        )
-        .await;
-    }
+            apply_concessions: false,
+        },
+    )
+    .await?;
 
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -1440,8 +1441,8 @@ pub async fn create_code_activation(
     tx.commit().await?;
 
     // Emit the SpiceDB tuple (best-effort — failures logged, backfill catches up).
-    if let Some(gid) = group_id {
-        if let Err(e) = state
+    if let Some(gid) = group_id
+        && let Err(e) = state
             .authz
             .write_tuple(
                 &medbrains_server_core::middleware::authorization::authz_context(&claims),
@@ -1453,12 +1454,26 @@ pub async fn create_code_activation(
                 Some("break_glass_code_blue".to_owned()),
             )
             .await
-        {
-            tracing::warn!(error = %e, user = %claims.sub,
+    {
+        tracing::warn!(error = %e, user = %claims.sub,
                 "rebac: failed to write code_blue_team#member tuple — backfill will retry");
-        }
     }
 
+    // Page the responders now. The insert trigger already queued this round
+    // in the outbox with the activation (the durable copy, which also covers
+    // a Code Pink raised by an infant tag); this sends the in-app alarm
+    // without waiting for the worker, and fills in who was reached.
+    // Off the request path, as for a code blue: the button returns at once.
+    let (pool, resolver, tenant_id) = (
+        state.db.clone(),
+        std::sync::Arc::clone(&state.secret_resolver),
+        claims.tenant_id,
+    );
+    let subject = medbrains_nursing::code_blue_subject::Subject::ErCode(row.id);
+    tokio::spawn(async move {
+        medbrains_nursing::code_blue_alert::page_now(&pool, tenant_id, subject, resolver.as_ref())
+            .await;
+    });
     Ok(Json(row))
 }
 
@@ -1688,7 +1703,12 @@ pub async fn create_mlc_case(
             examining_doctor_id, examined_at, date_time_of_incident, place_of_incident, weapon_used,
             police_officer_name, police_officer_rank, police_dd_number, condition_on_arrival,
             treatment_given, samples_handed_to, patient_condition_at_discharge)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, false), COALESCE($15, false), $16,
+         VALUES ($1, $2, $3, $4, $5, $6,
+            COALESCE(NULLIF(btrim($7), ''),
+                     (SELECT NULLIF(btrim(value->>'station'), '') FROM tenant_settings
+                       WHERE tenant_id = $1 AND category = 'emergency' AND key = 'police_contact'
+                         AND deleted_at IS NULL)),
+            $8, $9, $10, $11, $12, $13, COALESCE($14, false), COALESCE($15, false), $16,
             $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
          RETURNING *",
     )
@@ -2593,12 +2613,12 @@ pub async fn admit_from_er(
         ));
     }
 
-    if let (Some(requested_ward_id), Some(selected_bed_ward_id)) = (body.ward_id, bed_ward_id) {
-        if requested_ward_id != selected_bed_ward_id {
-            return Err(AppError::BadRequest(
-                "Selected bed does not belong to the requested ward".to_owned(),
-            ));
-        }
+    if let (Some(requested_ward_id), Some(selected_bed_ward_id)) = (body.ward_id, bed_ward_id)
+        && requested_ward_id != selected_bed_ward_id
+    {
+        return Err(AppError::BadRequest(
+            "Selected bed does not belong to the requested ward".to_owned(),
+        ));
     }
     let admission_ward_id = bed_ward_id.or(body.ward_id);
     let department_id = match body.department_id {
@@ -2954,6 +2974,33 @@ pub async fn finalize_discharge_summary(
     .ok_or_else(|| {
         AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
     })?;
+
+    // A notifiable disease named in the ER's final diagnosis goes on the
+    // statutory worklist, the same as one coded in OPD.
+    if let Some(final_diagnosis) = row.final_diagnosis.as_deref() {
+        let (patient_id, encounter_id) = sqlx::query_as::<_, (Uuid, Option<Uuid>)>(
+            "SELECT patient_id, encounter_id FROM er_visits WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(er_visit_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        medbrains_platform::notifiable::detect(
+            &mut tx,
+            medbrains_platform::notifiable::Context {
+                tenant_id: claims.tenant_id,
+                patient_id: Some(patient_id),
+                encounter_id,
+                actor: claims.sub,
+                notify: None,
+            },
+            medbrains_platform::notifiable::Signal::Text {
+                text: final_diagnosis,
+                source: "er_diagnosis",
+            },
+        )
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(Json(row))

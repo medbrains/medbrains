@@ -21,10 +21,10 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, A
     }
 
     // Bearer-authenticated requests (mobile/API) skip CSRF
-    if let Some(auth_method) = request.extensions().get::<AuthMethod>() {
-        if matches!(auth_method, AuthMethod::Bearer) {
-            return Ok(next.run(request).await);
-        }
+    if let Some(auth_method) = request.extensions().get::<AuthMethod>()
+        && matches!(auth_method, AuthMethod::Bearer)
+    {
+        return Ok(next.run(request).await);
     }
     if request
         .headers()
@@ -63,10 +63,10 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Result<Response, A
 fn parse_cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
     for pair in header.split(';') {
         let trimmed = pair.trim();
-        if let Some(val) = trimmed.strip_prefix(name) {
-            if let Some(val) = val.strip_prefix('=') {
-                return Some(val.trim());
-            }
+        if let Some(val) = trimmed.strip_prefix(name)
+            && let Some(val) = val.strip_prefix('=')
+        {
+            return Some(val.trim());
         }
     }
     None

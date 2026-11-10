@@ -40,6 +40,8 @@ pub struct AbdmCareContext {
     pub notified_at: Option<DateTime<Utc>>,
     /// Why ABDM did not accept the notify, when it did not.
     pub notify_error: Option<String>,
+    /// The NRCeS profile rules its bundle broke when last sent (empty: clean).
+    pub conformance_issues: Vec<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -85,7 +87,7 @@ pub struct AbdmPatientRecords {
 
 const CONTEXT_COLUMNS: &str = "id, patient_id, source_kind, reference_number, display, hi_types, \
      record_date, link_status, linked_at, linked_via, last_error, dhis_category, notified_at, \
-     notify_error";
+     notify_error, conformance_issues";
 
 /// `GET /api/abdm/patients/{patient_id}/records`.
 ///
@@ -221,6 +223,8 @@ pub struct AbdmSharingFailure {
     pub display: String,
     pub link_status: String,
     pub last_error: Option<String>,
+    /// Sent, but its bundle broke these NRCeS profile rules.
+    pub conformance_issues: Vec<String>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -295,18 +299,20 @@ const STATUS_SQL: &str = "SELECT \
            AND date_trunc('month', timezone('Asia/Kolkata', transferred_at))::date = $2) AS transfers \
      FROM abdm_care_contexts WHERE tenant_id = $1 AND deleted_at IS NULL";
 
-/// Records that failed to link, newest first — every one, not the month's:
-/// a failure stays open until it is retried.
+/// Records that failed to link, or went to an HIU with a bundle that breaks
+/// its NRCeS profile, newest first — every one, not the month's: a failure
+/// stays open until it is retried or sent clean.
 pub(crate) async fn open_failures(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<Vec<AbdmSharingFailure>, sqlx::Error> {
     sqlx::query_as::<_, AbdmSharingFailure>(
         "SELECT cc.id, cc.patient_id, p.uhid, btrim(p.first_name || ' ' || p.last_name) AS patient_name, \
-                cc.display, cc.link_status, cc.last_error, cc.updated_at \
+                cc.display, cc.link_status, cc.last_error, cc.conformance_issues, cc.updated_at \
            FROM abdm_care_contexts cc JOIN patients p ON p.id = cc.patient_id \
           WHERE cc.tenant_id = $1 AND cc.deleted_at IS NULL \
-            AND (cc.link_status = 'failed' OR (cc.link_status = 'not_linked' AND cc.last_error IS NOT NULL)) \
+            AND (cc.link_status = 'failed' OR (cc.link_status = 'not_linked' AND cc.last_error IS NOT NULL) \
+                 OR cardinality(cc.conformance_issues) > 0) \
           ORDER BY cc.updated_at DESC LIMIT 50",
     )
     .bind(tenant_id)

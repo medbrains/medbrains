@@ -39,7 +39,11 @@ pub async fn verify(state: &AppState, tenant_id: &Uuid, kind: &str, message: &st
     })
     .to_string();
 
-    match llm::extract::<VerifyResult>(state, tenant_id, PREAMBLE, &prompt).await {
+    let Ok(prompt) = llm::redact_standalone(&prompt) else {
+        return "plausible".to_owned();
+    };
+    let preamble = medbrains_core::ai_redact::Redacted::fixed(PREAMBLE);
+    match llm::extract::<VerifyResult>(state, tenant_id, &preamble, &prompt).await {
         Ok(result) => {
             tracing::debug!(verdict = %result.verdict, rationale = %result.rationale, "simulator verifier verdict");
             sanitize_verdict(&result.verdict)

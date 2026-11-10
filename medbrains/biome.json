@@ -1,13 +1,15 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "files": {
     "includes": [
       "packages/*/src/**/*.ts",
       "apps/*/src/**/*.ts",
       "apps/*/src/**/*.tsx",
-      "apps/*/src/**/*.scss"
-    ],
-    "experimentalScannerIgnores": ["dist/", "lib/", "node_modules/", ".turbo/"]
+      "apps/*/src/**/*.scss",
+      "!!**/dist/",
+      "!!**/node_modules/",
+      "!!**/.turbo/"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -18,7 +20,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
@@ -47,7 +49,7 @@
         "noDangerouslySetInnerHtml": "warn"
       },
       "a11y": {
-        "recommended": true,
+        "preset": "recommended",
         "noAccessKey": "error",
         "noAriaHiddenOnFocusable": "error",
         "noAriaUnsupportedElements": "error",

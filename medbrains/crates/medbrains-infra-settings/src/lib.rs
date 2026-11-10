@@ -8,12 +8,13 @@
 
 pub mod domain_ownership;
 pub mod preflight;
+use axum::extract::rejection::JsonRejection;
+use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State};
 use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{CLOUDFLARE, ResolverConfig};
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use hickory_resolver::proto::rr::{RData, RecordType};
-use axum::routing::{get,post};
 use medbrains_core::deploy_mode::DeployMode;
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -51,10 +52,6 @@ pub async fn get_infra_status(
 pub struct AiSettings {
     pub provider: String,
     pub model: String,
-    /// Reference (not the value) to the API key in the secret backend.
-    pub api_key_secret: Option<String>,
-    /// Whether `ANTHROPIC_API_KEY` is present as a fallback.
-    pub env_fallback: bool,
 }
 
 /// GET /api/admin/ai-settings
@@ -87,8 +84,6 @@ pub async fn get_ai_settings(
     Ok(Json(AiSettings {
         provider: field("provider").unwrap_or_else(|| "anthropic".to_owned()),
         model: field("model").unwrap_or_default(),
-        api_key_secret: field("api_key_secret"),
-        env_fallback: std::env::var("ANTHROPIC_API_KEY").is_ok(),
     }))
 }
 
@@ -96,16 +91,16 @@ pub async fn get_ai_settings(
 pub struct UpdateAiSettings {
     pub provider: String,
     pub model: String,
-    pub api_key_secret: Option<String>,
 }
 
 /// PUT /api/admin/ai-settings
 pub async fn update_ai_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateAiSettings>,
+    body: Result<Json<UpdateAiSettings>, JsonRejection>,
 ) -> Result<Json<AiSettings>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let Json(body) = body?;
 
     let provider = body.provider.trim();
     if provider != "anthropic" {
@@ -114,15 +109,11 @@ pub async fn update_ai_settings(
         )));
     }
 
-    let secret = body
-        .api_key_secret
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
+    // Anthropic has no key to store: access is AWS identity federation,
+    // configured per node and checked at startup (`ai.anthropic_federation`).
     let value = serde_json::json!({
         "provider": provider,
         "model": body.model.trim(),
-        "api_key_secret": secret,
     });
 
     let mut tx = state.db.begin().await?;
@@ -142,8 +133,6 @@ pub async fn update_ai_settings(
     Ok(Json(AiSettings {
         provider: provider.to_owned(),
         model: body.model.trim().to_owned(),
-        api_key_secret: secret.map(ToOwned::to_owned),
-        env_fallback: std::env::var("ANTHROPIC_API_KEY").is_ok(),
     }))
 }
 
@@ -157,8 +146,12 @@ pub struct EmailSettings {
     pub from_address: String,
     pub from_name: String,
     pub smtp_username: String,
-    /// Reference (not the value) to the SMTP password in the secret backend.
+    /// Short name (not the value) of the SMTP password in the secret backend.
     pub smtp_password_secret: Option<String>,
+    /// Where the operator keeps that password: the key built from the short
+    /// name in this hospital's namespace, or `None` when no name is set or the
+    /// stored name is a legacy one that will not be used.
+    pub smtp_password_secret_path: Option<String>,
     /// Whether `EMAIL_FROM_ADDRESS` is present in the environment as a fallback.
     pub env_fallback: bool,
 }
@@ -198,11 +191,16 @@ pub async fn get_email_settings(
         smtp_port: field("smtp_port"),
         smtp_tls: {
             let t = field("smtp_tls");
-            if t.is_empty() { "starttls".to_owned() } else { t }
+            if t.is_empty() {
+                "starttls".to_owned()
+            } else {
+                t
+            }
         },
         from_address: field("from_address"),
         from_name: field("from_name"),
         smtp_username: field("smtp_username"),
+        smtp_password_secret_path: secret_path(&claims.tenant_id, &field("smtp_password_secret")),
         smtp_password_secret: Some(field("smtp_password_secret")).filter(|s| !s.is_empty()),
         env_fallback: std::env::var("EMAIL_FROM_ADDRESS").is_ok(),
     }))
@@ -220,14 +218,54 @@ pub struct UpdateEmailSettings {
     pub smtp_password_secret: Option<String>,
 }
 
+/// The secret-store purpose for a hospital's SMTP password
+/// (`medbrains/<env>/<tenant>/smtp-<name>`). The send path in
+/// `medbrains-outbox` uses the same constant's value.
+pub const SMTP_SECRET_PURPOSE: &str = "smtp";
+
+/// The resolver key a stored short name points at, for the screen to show the
+/// operator; `None` for an empty or illegal (legacy) name.
+fn secret_path(tenant_id: &Uuid, name: &str) -> Option<String> {
+    let env = medbrains_core::secrets::tenant_name::deploy_env();
+    medbrains_core::secrets::tenant_secret_name(&env, tenant_id, SMTP_SECRET_PURPOSE, name).ok()
+}
+
+/// Refuse email settings that would send a credential where it must not go:
+/// a password name outside the hospital's namespace, an unknown TLS mode, or
+/// a password over an unencrypted connection.
+///
+/// # Errors
+/// [`AppError::BadRequest`] with a plain message.
+fn check_email_settings(body: &UpdateEmailSettings, secret: Option<&str>) -> Result<(), AppError> {
+    if let Some(name) = secret {
+        medbrains_core::secrets::check_short_name(name)
+            .map_err(|e| AppError::BadRequest(format!("SMTP password secret: {e}")))?;
+    }
+    let tls = body.smtp_tls.trim();
+    if !matches!(tls, "" | "starttls" | "implicit" | "none") {
+        return Err(AppError::BadRequest(
+            "SMTP security must be starttls, implicit or none".to_owned(),
+        ));
+    }
+    if tls == "none" && secret.is_some() {
+        return Err(AppError::BadRequest(
+            "A mail server that takes a password needs an encrypted connection: \
+             choose starttls or implicit TLS"
+                .to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 /// PUT /api/admin/email-settings — non-secret email config; the SMTP password
 /// is referenced (not stored) via the secret backend.
 pub async fn update_email_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateEmailSettings>,
+    body: Result<Json<UpdateEmailSettings>, JsonRejection>,
 ) -> Result<Json<EmailSettings>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let Json(body) = body?;
 
     let provider = body.provider.trim();
     if !matches!(provider, "sendgrid" | "smtp" | "stalwart") {
@@ -241,6 +279,7 @@ pub async fn update_email_settings(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
+    check_email_settings(&body, secret)?;
     let value = serde_json::json!({
         "provider": provider,
         "smtp_host": body.smtp_host.trim(),
@@ -274,6 +313,7 @@ pub async fn update_email_settings(
         from_address: body.from_address.trim().to_owned(),
         from_name: body.from_name.trim().to_owned(),
         smtp_username: body.smtp_username.trim().to_owned(),
+        smtp_password_secret_path: secret.and_then(|n| secret_path(&claims.tenant_id, n)),
         smtp_password_secret: secret.map(ToOwned::to_owned),
         env_fallback: std::env::var("EMAIL_FROM_ADDRESS").is_ok(),
     }))
@@ -308,7 +348,10 @@ pub async fn get_domain_status(
             .bind(claims.tenant_id)
             .fetch_one(&state.db)
             .await?;
-    let Some(domain) = domain.map(|d| d.trim().to_lowercase()).filter(|d| !d.is_empty()) else {
+    let Some(domain) = domain
+        .map(|d| d.trim().to_lowercase())
+        .filter(|d| !d.is_empty())
+    else {
         return Err(AppError::BadRequest(
             "Set a custom domain first (Settings → Organization)".to_owned(),
         ));
@@ -382,7 +425,9 @@ async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
     out.push(DomainRecordStatus {
         kind: "MX".to_owned(),
         host: domain.to_owned(),
-        ok: mx_hosts.iter().any(|h| h.eq_ignore_ascii_case(&expected_mx)),
+        ok: mx_hosts
+            .iter()
+            .any(|h| h.eq_ignore_ascii_case(&expected_mx)),
         detail: if mx_hosts.is_empty() {
             "no MX record".to_owned()
         } else {
@@ -395,7 +440,9 @@ async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
     out.push(DomainRecordStatus {
         kind: "SPF".to_owned(),
         host: domain.to_owned(),
-        ok: apex_txt.iter().any(|t| t.to_lowercase().starts_with("v=spf1")),
+        ok: apex_txt
+            .iter()
+            .any(|t| t.to_lowercase().starts_with("v=spf1")),
         detail: spf_detail(&apex_txt),
     });
 
@@ -403,7 +450,9 @@ async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
     out.push(DomainRecordStatus {
         kind: "DMARC".to_owned(),
         host: format!("_dmarc.{domain}"),
-        ok: dmarc_txt.iter().any(|t| t.to_uppercase().starts_with("V=DMARC1")),
+        ok: dmarc_txt
+            .iter()
+            .any(|t| t.to_uppercase().starts_with("V=DMARC1")),
         detail: if dmarc_txt.is_empty() {
             "no DMARC record".to_owned()
         } else {
@@ -463,12 +512,15 @@ pub struct EmailTestRequest {
 pub async fn send_email_test(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<EmailTestRequest>,
+    body: Result<Json<EmailTestRequest>, JsonRejection>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let Json(body) = body?;
     let to = body.to.trim();
     if !to.contains('@') || to.len() < 3 {
-        return Err(AppError::BadRequest("Enter a valid email address".to_owned()));
+        return Err(AppError::BadRequest(
+            "Enter a valid email address".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -498,10 +550,7 @@ pub async fn send_email_test(
 /// infra_settings routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/admin/infra-status",
-            get(get_infra_status),
-        )
+        .route("/api/admin/infra-status", get(get_infra_status))
         .route(
             "/api/admin/ai-settings",
             get(get_ai_settings).put(update_ai_settings),
@@ -511,14 +560,8 @@ pub fn router() -> axum::Router<AppState> {
             get(get_email_settings).put(update_email_settings),
         )
         .route("/api/admin/email-log", get(get_email_log))
-        .route(
-            "/api/admin/email-test",
-            post(send_email_test),
-        )
-        .route(
-            "/api/admin/domain-status",
-            get(get_domain_status),
-        )
+        .route("/api/admin/email-test", post(send_email_test))
+        .route("/api/admin/domain-status", get(get_domain_status))
         .route(
             "/api/admin/domain-ownership",
             get(domain_ownership::get_domain_ownership),
@@ -538,19 +581,29 @@ pub fn public_router() -> axum::Router<AppState> {
 #[cfg(test)]
 mod dns_tests {
     use super::record_text;
+    use hickory_resolver::proto::rr::Name;
     use hickory_resolver::proto::rr::RData;
     use hickory_resolver::proto::rr::rdata::{A, MX, TXT};
-    use hickory_resolver::proto::rr::Name;
 
     #[test]
     fn reads_the_fields_the_domain_checks_compare() -> Result<(), Box<dyn std::error::Error>> {
         let mx = RData::MX(MX::new(10, Name::from_ascii("mail.example.in.")?));
         assert_eq!(record_text(&mx).as_deref(), Some("mail.example.in."));
-        let spf = RData::TXT(TXT::new(vec!["v=spf1 include:_spf.example.in ~all".to_owned()]));
-        assert_eq!(record_text(&spf).as_deref(), Some("v=spf1 include:_spf.example.in ~all"));
+        let spf = RData::TXT(TXT::new(vec![
+            "v=spf1 include:_spf.example.in ~all".to_owned(),
+        ]));
+        assert_eq!(
+            record_text(&spf).as_deref(),
+            Some("v=spf1 include:_spf.example.in ~all")
+        );
         let a = RData::A(A::new(203, 0, 113, 7));
         assert_eq!(record_text(&a).as_deref(), Some("203.0.113.7"));
-        assert_eq!(record_text(&RData::Update0(hickory_resolver::proto::rr::RecordType::NULL)), None);
+        assert_eq!(
+            record_text(&RData::Update0(
+                hickory_resolver::proto::rr::RecordType::NULL
+            )),
+            None
+        );
         Ok(())
     }
 }

@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { HrmsLinkCard } from "@/components/Integration/HrmsLinkCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Alert, Badge, Switch, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -62,7 +63,7 @@ export function IntegrationHubPage() {
         </Alert>
       )}
 
-      <Card withBorder shadow="sm" radius="md">
+      <Card withBorder>
         <Card.Section withBorder inheritPadding py="xs">
           <Group justify="space-between">
             <Text fw={600}>Active subscribers</Text>
@@ -133,7 +134,7 @@ export function IntegrationHubPage() {
         </Table>
       </Card>
 
-      <Card withBorder shadow="sm" radius="md">
+      <Card withBorder>
         <Card.Section withBorder inheritPadding py="xs">
           <Group justify="space-between">
             <Text fw={600}>Events landing nowhere</Text>
@@ -199,7 +200,9 @@ export function IntegrationHubPage() {
         </Table>
       </Card>
 
-      <Card withBorder radius="md">
+      <HrmsLinkCard />
+
+      <Card withBorder>
         <Stack gap="xs">
           <Text fw={600} size="sm">
             How a new pipeline gets added

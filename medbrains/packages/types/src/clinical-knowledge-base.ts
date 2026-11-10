@@ -22,6 +22,143 @@ export interface NotifiableReport {
   report_ref?: string | null;
   submitted_at?: string | null;
   notes?: string | null;
+  /** IDSP P-form (presumptive) or L-form (lab-confirmed). */
+  case_class: "presumptive" | "confirmed";
+  /** opd_diagnosis | ipd_diagnosis | er_diagnosis | discharge_summary | lab_result */
+  source?: string | null;
+  confirmed_at?: string | null;
+  lab_order_id?: string | null;
+  /** The presumptive report's acknowledgement, kept when a lab result reopened it. */
+  presumptive_ref?: string | null;
+  due_at?: string | null;
+  escalated_at?: string | null;
+}
+
+/** A disease on the hospital's effective notifiable list. */
+export interface NotifiableDisease {
+  disease_code: string;
+  icd11_code?: string | null;
+  disease_name: string;
+  reporting_body?: string | null;
+  report_timeframe?: string | null;
+  /** The hospital's state overlay set or changed it. */
+  overridden: boolean;
+}
+
+export interface NotifiableList {
+  state_name?: string | null;
+  diseases: NotifiableDisease[];
+}
+
+/** One row of the hospital's state overlay. */
+export interface NotifiableOverride {
+  id: string;
+  icd10_code: string;
+  icd11_code?: string | null;
+  disease_name?: string | null;
+  is_notifiable: boolean;
+  reporting_body?: string | null;
+  report_timeframe?: string | null;
+  notes?: string | null;
+  updated_at: string;
+}
+
+export interface UpsertNotifiableOverrideRequest {
+  icd10_code: string;
+  icd11_code?: string | null;
+  disease_name?: string | null;
+  is_notifiable: boolean;
+  reporting_body?: string | null;
+  report_timeframe?: "24h" | "weekly" | null;
+  notes?: string | null;
+}
+
+export type TbSite = "P" | "EP";
+export type TbPatientType = "new" | "recurrent" | "treatment_change";
+export type TbBasis =
+  | "smear"
+  | "culture"
+  | "pcr"
+  | "lpa"
+  | "fnac"
+  | "histopathology"
+  | "clinical"
+  | "xray";
+
+/** A TB case owed to Ni-kshay, with the details its notification needs. */
+export interface TbCase {
+  report_id: string;
+  patient_id: string | null;
+  uhid: string | null;
+  patient_name: string | null;
+  icd10_code: string;
+  disease_name: string;
+  case_class: "presumptive" | "confirmed";
+  status: string;
+  nikshay_id: string | null;
+  detected_at: string;
+  due_at: string | null;
+  site: TbSite | null;
+  ep_site: string | null;
+  patient_type: TbPatientType | null;
+  basis: TbBasis | null;
+  diagnosed_on: string | null;
+  treatment_started_on: string | null;
+  weight_kg: string | number | null;
+  regimen: string | null;
+  notifying_doctor_id: string | null;
+  notifying_doctor_name: string | null;
+}
+
+export interface SaveTbDetailsRequest {
+  site: TbSite | null;
+  ep_site: string | null;
+  patient_type: TbPatientType | null;
+  basis: TbBasis | null;
+  diagnosed_on: string | null;
+  treatment_started_on: string | null;
+  weight_kg: number | null;
+  regimen: string | null;
+  notifying_doctor_id: string | null;
+}
+
+export interface PublicHealthFacility {
+  name: string;
+  registration_no: string | null;
+  phone: string | null;
+  address: string | null;
+  nikshay_he_code: string | null;
+  ihip_unit_id: string | null;
+}
+
+export type IhipForm = "P" | "L";
+
+/** An IDSP P- or L-form line list, for entry on IHIP. */
+export interface IhipLineList {
+  form: IhipForm;
+  facility: PublicHealthFacility;
+  period_from: string;
+  period_to: string;
+  columns: string[];
+  rows: string[][];
+  report_ids: string[];
+  summary: { disease_name: string; icd10_code: string; cases: number }[];
+}
+
+export interface SubmitIhipLineListRequest {
+  form: IhipForm;
+  report_ids: string[];
+  acknowledgement: string;
+}
+
+/** The Ni-kshay notification sheet, in the MoHFW hospital format. */
+export interface NikshaySheet {
+  facility: PublicHealthFacility;
+  period_from: string | null;
+  period_to: string | null;
+  columns: string[];
+  rows: string[][];
+  missing: { report_id: string; patient_name: string | null; fields: string[] }[];
 }
 
 export interface UpdateNotifiableReportRequest {

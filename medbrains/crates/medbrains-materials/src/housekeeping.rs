@@ -605,6 +605,11 @@ pub async fn complete_turnaround(
     .fetch_one(&mut *tx)
     .await?;
 
+    if let Some(bed_id) = row.location_id {
+        medbrains_db::beds::release_cleaned_bed(&mut tx, claims.tenant_id, bed_id, claims.sub)
+            .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }

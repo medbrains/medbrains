@@ -169,6 +169,14 @@ pub const SCREENS: &[ScreenDef] = &[
         icon: "IconShield",
     },
     ScreenDef {
+        code: "privacy-compliance",
+        label: "Privacy & CERT-In",
+        route: "/privacy-compliance",
+        module: "regulatory",
+        required_permission: Some("regulatory.dpdp.view"),
+        icon: "IconUserShield",
+    },
+    ScreenDef {
         code: "front-office",
         label: "Front Office",
         route: "/front-office",

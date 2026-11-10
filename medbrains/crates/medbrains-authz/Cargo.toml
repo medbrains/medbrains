@@ -12,18 +12,11 @@ workspace = true
 anyhow.workspace = true
 async-trait = "0.1.92"
 chrono = { workspace = true }
-prost = "0.14.3"
-prost-types = "0.14.3"
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha2.workspace = true
-# Generated in-house from the official authzed/api protos; see
-# crates/medbrains-spicedb-proto/proto/README.md for the pinned sources.
-medbrains-spicedb-proto = { path = "../medbrains-spicedb-proto" }
 sqlx = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tonic = "0.14.5"
 tracing = { workspace = true }
 uuid = { workspace = true }
 
@@ -33,7 +26,3 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 [[bin]]
 name = "rebac-backfill"
 path = "src/bin/backfill.rs"
-
-[[bin]]
-name = "spicedb-schema-write"
-path = "src/bin/schema_write.rs"

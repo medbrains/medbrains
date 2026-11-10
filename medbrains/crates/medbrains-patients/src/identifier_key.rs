@@ -8,6 +8,7 @@
 //! from a database copy, and still lets registration spot the same person twice.
 
 use hmac::{Hmac, KeyInit, Mac};
+use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use sha2::Sha256;
 use uuid::Uuid;
@@ -17,11 +18,9 @@ const KEY_NAME: &str = "MEDBRAINS_IDENTIFIER_HMAC_KEY";
 /// Development fallback only; production sets the key in the secret store.
 const DEV_KEY: &[u8] = b"medbrains-dev-identifier-hmac-key";
 
-pub(crate) async fn identifier_key(state: &AppState) -> Vec<u8> {
-    match state.secret_resolver.get(KEY_NAME).await {
-        Ok(value) if value.len() >= 32 => value.into_bytes(),
-        _ => DEV_KEY.to_vec(),
-    }
+/// The fingerprint key. A wrong one would silently stop duplicates matching, so a fault is an error.
+pub(crate) async fn identifier_key(state: &AppState) -> Result<Vec<u8>, AppError> {
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), KEY_NAME, DEV_KEY).await.map_err(AppError::from)
 }
 
 /// HMAC-SHA256 of `tenant:kind:value`, hex.
@@ -39,6 +38,37 @@ pub(crate) fn keyed_fingerprint(key: &[u8], tenant_id: Uuid, kind: &str, value: 
                 .collect()
         },
     )
+}
+
+/// Keep an Aadhaar number as an HMAC keyed with the GROUP, so the same
+/// person registered at another hospital of the group matches. Nothing is
+/// stored for a hospital in no group.
+pub(crate) async fn store_group_fingerprint(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    key: &[u8],
+    (tenant_id, patient_id): (Uuid, Uuid),
+    aadhaar_digits: &str,
+) -> Result<(), AppError> {
+    let group: Option<Uuid> =
+        sqlx::query_scalar("SELECT group_id FROM tenants WHERE id = $1 AND group_id IS NOT NULL")
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let Some(group_id) = group else {
+        return Ok(());
+    };
+    let fingerprint = keyed_fingerprint(key, group_id, "group_aadhaar", aadhaar_digits);
+    sqlx::query(
+        "INSERT INTO patient_group_fingerprints (group_id, tenant_id, patient_id, kind, fingerprint) \
+         VALUES ($1, $2, $3, 'aadhaar', $4) ON CONFLICT DO NOTHING",
+    )
+    .bind(group_id)
+    .bind(tenant_id)
+    .bind(patient_id)
+    .bind(fingerprint)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 #[cfg(test)]

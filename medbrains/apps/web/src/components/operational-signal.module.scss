@@ -10,10 +10,13 @@
   max-width: 100%;
   padding: 3px 8px 3px 5px;
   border: 1px solid var(--signal-border);
-  border-radius: 9999px;
+  border-radius: 2px;
   background: var(--signal-fill);
   color: var(--signal-color);
-  white-space: nowrap;
+  // A status is never cut short: "Occu… Active…" told a ward nothing. Long
+  // labels wrap inside the chip instead.
+  flex-wrap: wrap;
+  row-gap: 0;
 }
 
 .signal[data-size="xs"] {
@@ -100,11 +103,10 @@
 .value,
 .label {
   min-width: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--mb-text-body);
   font-weight: 700;
   line-height: var(--mb-line-height-caption);
-  text-overflow: ellipsis;
 }
 
 .value {

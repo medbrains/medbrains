@@ -768,10 +768,10 @@ fn pick_department_for_doctor(
     departments: &[Uuid],
     rng: &mut StdRng,
 ) -> Option<Uuid> {
-    if let Some(doc) = doctor {
-        if let Some(d) = doc.department_ids.choose(rng).copied() {
-            return Some(d);
-        }
+    if let Some(doc) = doctor
+        && let Some(d) = doc.department_ids.choose(rng).copied()
+    {
+        return Some(d);
     }
     departments.choose(rng).copied()
 }

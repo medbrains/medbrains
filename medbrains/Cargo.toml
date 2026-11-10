@@ -1,11 +1,19 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/medbrains-os-test",
+    "crates/medbrains-os-setup",
+    "crates/medbrains-agent",
     "crates/medbrains-server",
     "crates/medbrains-automation",
     "crates/medbrains-automation-store",
     "crates/medbrains-automation-api",
     "crates/medbrains-core",
+    "crates/medbrains-research",
+    "crates/medbrains-knowledge",
+    "crates/medbrains-sop-flows",
+    "crates/medbrains-ai-eval",
+    "crates/medbrains-anthropic-auth",
     "crates/medbrains-authz-gate",
     "crates/medbrains-spicedb-proto",
     "crates/medbrains-nabh",
@@ -19,6 +27,7 @@ members = [
     "crates/medbrains-approvals-api",
     "crates/medbrains-api-keys",
     "crates/medbrains-api-keys-api",
+    "crates/medbrains-connected-apps",
     "crates/medbrains-db",
     "crates/medbrains-db-migrations",
     "crates/medbrains-abdm",
@@ -29,6 +38,7 @@ members = [
     "crates/medbrains-print",
     "crates/medbrains-proxy",
     "crates/medbrains-authz",
+    "crates/medbrains-authz-spicedb",
     "crates/medbrains-crypto",
     "crates/medbrains-fhir",
     "crates/medbrains-outbox",
@@ -91,6 +101,7 @@ members = [
     "crates/medbrains-payroll",
     "crates/medbrains-doctor-packages",
     "crates/medbrains-doctor-payouts",
+    "crates/medbrains-flow",
     "crates/medbrains-upload",
     "crates/medbrains-fhir-api",
     "crates/medbrains-case-sheet-scan",
@@ -103,11 +114,16 @@ members = [
     "crates/medbrains-pharmacy-delivery",
     "crates/medbrains-ward-stock",
     "crates/medbrains-clinical-notes",
+    "crates/medbrains-dictation",
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",
     "crates/medbrains-notes",
     "crates/medbrains-vte",
+    "crates/medbrains-health-intel",
+    "crates/medbrains-security-intel",
+    "crates/medbrains-kernel",
+    "crates/medbrains-health-services",
     "crates/medbrains-pharmacy-cash-drawer",
     "crates/medbrains-device-pairing",
     "crates/medbrains-nhcx-callback",
@@ -115,9 +131,12 @@ members = [
     "crates/medbrains-pharmacy-dispense-ops",
     "crates/medbrains-ipd-post-discharge",
     "crates/medbrains-client-errors",
+    "crates/medbrains-error-tracking",
     "crates/medbrains-vpn",
     "crates/medbrains-hr",
+    "crates/medbrains-hrms-gateway",
     "crates/medbrains-setup",
+    "crates/medbrains-history-import",
     "crates/medbrains-it-security",
     "crates/medbrains-assets",
     "crates/medbrains-bme",
@@ -168,9 +187,9 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
-rust-version = "1.95"
+rust-version = "1.97.1"
 license-file = "../LICENSE"
 
 [workspace.dependencies]
@@ -228,6 +247,7 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2-zli
 
 # Validation
 regex = "1"
+sqlparser = { version = "0.63", features = ["visitor"] }
 url = "2"
 
 # Async streams (WebSocket)
@@ -246,7 +266,13 @@ tempfile = "3"
 reqwest = { version = "0.13", features = ["json", "cookies", "form", "query", "rustls"], default-features = false }
 
 # AI / LLM
-rig-core = { version = "0.35", features = ["derive"] }
+# Pinned exactly: rig ships a breaking minor every few weeks. Provider types
+# stay inside medbrains-server-services::llm (the one model gateway).
+# The narrow crates, not the `rig` facade: its optional backends (LanceDB,
+# fastembed, DataFusion…) would all land in Cargo.lock.
+rig = { package = "rig-core", version = "=0.45.0", default-features = false, features = ["reqwest", "rustls"] }
+rig-agent = { version = "=0.45.0", default-features = false }
+rig-reqwest = { version = "=0.45.0", default-features = false, features = ["rustls"] }
 schemars = "1"
 
 # Code execution (pipeline custom code)
@@ -259,7 +285,7 @@ loro = "1.4"
 mdns-sd = "0.13"
 
 [patch.crates-io]
-pingora-core = { path = "vendor/pingora-core-0.9.0" }
+pingora-core = { path = "vendor/pingora-core-0.9.1" }
 sqlx = { path = "vendor/sqlx-0.8.6" }
 sqlx-macros-core = { path = "vendor/sqlx-macros-core-0.8.6" }
 

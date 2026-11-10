@@ -14,7 +14,7 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 sqlx = { workspace = true }
 rust_decimal = { workspace = true }
-# Scrubbing identifiers from text bound for an outside AI model (ai_egress).
+# Redacting identifiers from text bound for any AI model (ai_redact).
 regex = { workspace = true }
 
 # Hybrid deploy mode infrastructure (deploy_mode + secrets +

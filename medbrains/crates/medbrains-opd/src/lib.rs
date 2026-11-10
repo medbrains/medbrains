@@ -92,14 +92,6 @@ const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
     permissions::mrd::case_sheets::GENERATE,
 ];
 
-fn claims_have_permission(claims: &Claims, permission: &str) -> bool {
-    medbrains_server_core::middleware::authorization::is_bypass_role(claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|granted| granted == permission)
-}
-
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
 // ══════════════════════════════════════════════════════════
@@ -246,6 +238,8 @@ pub struct CreateVitalRequest {
     pub spo2: Option<i32>,
     pub weight_kg: Option<Decimal>,
     pub height_cm: Option<Decimal>,
+    /// Head circumference; charted on a child's growth chart.
+    pub head_circumference_cm: Option<Decimal>,
     pub notes: Option<String>,
 }
 
@@ -350,6 +344,56 @@ pub struct PrescriptionItemInput {
     pub route: Option<String>,
     pub instructions: Option<String>,
     pub catalog_item_id: Option<Uuid>,
+    /// Chosen on purpose: the hospital does not stock it and the patient
+    /// buys it outside. Never inferred from a missing catalogue id.
+    #[serde(default)]
+    pub buy_outside: bool,
+}
+
+/// Refuses a buy-outside line that names a catalogue item or no medicine:
+/// a stocked item is dispensed here, and an outside one needs its name.
+///
+/// # Errors
+/// `BadRequest` naming the line.
+fn check_buy_outside_lines(items: &[PrescriptionItemInput]) -> Result<(), AppError> {
+    let bad = items
+        .iter()
+        .find(|i| i.buy_outside && (i.catalog_item_id.is_some() || i.drug_name.trim().is_empty()));
+    bad.map_or(Ok(()), |i| {
+        Err(AppError::BadRequest(format!(
+            "\"{}\" is marked buy outside: give its name and leave the catalogue item empty.",
+            i.drug_name.trim()
+        )))
+    })
+}
+
+/// Writes one prescription line, with who marked it bought outside.
+async fn insert_prescription_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    prescription_id: Uuid,
+    item: &PrescriptionItemInput,
+) -> Result<PrescriptionItem, AppError> {
+    sqlx::query_as::<_, PrescriptionItem>(
+        "INSERT INTO prescription_items \
+         (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
+          route, instructions, catalog_item_id, buy_outside, buy_outside_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(prescription_id)
+    .bind(item.drug_name.trim())
+    .bind(&item.dosage)
+    .bind(&item.frequency)
+    .bind(&item.duration)
+    .bind(&item.route)
+    .bind(&item.instructions)
+    .bind(item.catalog_item_id)
+    .bind(item.buy_outside)
+    .bind(item.buy_outside.then_some(claims.sub))
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(AppError::from)
 }
 
 #[derive(Debug, Serialize)]
@@ -1110,9 +1154,11 @@ pub async fn get_encounter(
 ) -> Result<Json<Encounter>, AppError> {
     require_any_permission(&claims, OPD_ENCOUNTER_WORKSPACE_PERMISSIONS)?;
 
-    if claims_have_permission(&claims, permissions::opd::queue::VIEW)
-        && !medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
-    {
+    // The record check binds everyone who is not a bypass role. It used to
+    // run only for holders of `opd.queue.view`, so lab, pharmacy and
+    // radiology staff (who hold other workspace permissions) read any visit
+    // by id with no check at all.
+    if !medbrains_server_core::middleware::authorization::is_bypass_role(&claims) {
         let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
         medbrains_server_core::middleware::authorization::collapse(
             medbrains_server_core::middleware::authorization::outcome_of(
@@ -1463,15 +1509,14 @@ async fn charge_visit_fees(
         moment,
     )
     .await?;
-    if q.kind == "returned"
-        || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await?
-        || !medbrains_server_services::billing::is_auto_billing_enabled(
-            tx,
-            &claims.tenant_id,
-            "opd",
-        )
-        .await?
-    {
+    if q.kind == "returned" || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await? {
+        return Ok(());
+    }
+    // Setting first: the department and price lookups run only when billing
+    // is not off.
+    let setting =
+        medbrains_server_services::billing::read_auto_billing(tx, &claims.tenant_id, "opd").await?;
+    if setting == medbrains_server_services::billing::AutoBilling::Off {
         return Ok(());
     }
     let dept_code = sqlx::query_scalar::<_, String>(
@@ -1493,22 +1538,30 @@ async fn charge_visit_fees(
         q.department_id,
     )
     .await?;
-    let _ = medbrains_server_services::billing::auto_charge(
+    // `charge_or_queue` reads `auto_charge_opd`; a consult it cannot post
+    // waits on the billing desk's attention queue.
+    medbrains_server_services::billing::settle_charges(
         tx,
-        &claims.tenant_id,
-        medbrains_server_services::billing::AutoChargeInput {
-            patient_id,
-            encounter_id: Some(q.encounter_id),
-            charge_code,
-            source: "opd".to_owned(),
-            source_id: q.id,
-            quantity: 1,
-            description_override: Some(priced.description),
-            unit_price_override: priced.price,
-            tax_percent_override: None,
-        },
+        setting,
+        &[medbrains_server_services::billing::ChargeRequest {
+            tenant_id: claims.tenant_id,
+            requested_by: claims.sub,
+            setting_module: "opd",
+            charge: medbrains_server_services::billing::AutoChargeInput {
+                patient_id,
+                encounter_id: Some(q.encounter_id),
+                charge_code,
+                source: "opd".to_owned(),
+                source_id: q.id,
+                quantity: 1,
+                description_override: Some(priced.description),
+                unit_price_override: priced.price,
+                tax_percent_override: None,
+            },
+            apply_concessions: false,
+        }],
     )
-    .await;
+    .await?;
     Ok(())
 }
 
@@ -1878,8 +1931,8 @@ pub async fn create_vital(
         "INSERT INTO vitals \
          (tenant_id, encounter_id, recorded_by, temperature, pulse, \
           systolic_bp, diastolic_bp, respiratory_rate, spo2, \
-          weight_kg, height_cm, bmi, notes, recorded_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now()) \
+          weight_kg, height_cm, bmi, notes, head_circumference_cm, recorded_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now()) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1895,6 +1948,7 @@ pub async fn create_vital(
     .bind(body.height_cm)
     .bind(bmi)
     .bind(&body.notes)
+    .bind(body.head_circumference_cm)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2142,7 +2196,10 @@ fn filter_patient_diagnosis_response(
 ) -> PatientDiagnosisRow {
     // Mental-health content first: its class decides, whatever the role says.
     if row.withheld {
-        tombstone_patient_diagnosis(&mut row, medbrains_authz_gate::mental_health::TOMBSTONE_LABEL);
+        tombstone_patient_diagnosis(
+            &mut row,
+            medbrains_authz_gate::mental_health::TOMBSTONE_LABEL,
+        );
     } else if should_hide_opd_diagnosis(restricted) {
         tombstone_patient_diagnosis(&mut row, "Restricted diagnosis");
     } else if should_mask_opd_diagnosis(restricted) {
@@ -2265,49 +2322,7 @@ pub async fn create_diagnosis(
     .fetch_one(&mut *tx)
     .await?;
 
-    // CKB statutory hook: if this diagnosis is a notifiable disease, file a
-    // pending report and alert the reporter. The conclusion lives in one place
-    // (`ckb::flag_notifiable_diagnosis`) so it can later be AI-driven.
-    let patient_id = sqlx::query_scalar::<_, Option<Uuid>>(
-        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(encounter_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
-    let icd_code = body.icd_code.as_deref().unwrap_or_default();
-    if let Some((disease_name, reporting_body)) =
-        medbrains_platform::ckb::flag_notifiable_diagnosis(
-            &mut tx,
-            claims.tenant_id,
-            patient_id,
-            Some(encounter_id),
-            Some(claims.sub),
-            icd_code,
-        )
-        .await?
-    {
-        let body_text = format!(
-            "{disease_name} ({icd_code}) requires {} reporting.",
-            reporting_body.as_deref().unwrap_or("IDSP")
-        );
-        create_notification(
-            &mut tx,
-            claims.tenant_id,
-            NewNotification {
-                user_id: claims.sub,
-                kind: "warning",
-                title: "Notifiable disease — statutory report due",
-                body: Some(&body_text),
-                category: Some("Notifiable Disease"),
-                entity_type: Some("notifiable_disease_reports"),
-                entity_id: None,
-                action_url: Some("/clinical-kb#reports"),
-            },
-        )
-        .await?;
-    }
+    detect_notifiable_diagnosis(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
     Ok(Json(filter_diagnosis_response(row, &restricted_fields)))
@@ -2327,20 +2342,20 @@ pub async fn update_diagnosis(
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_diagnosis_write_access(&restricted_fields)?;
 
-    if let Some(value) = body.icd_system.as_deref() {
-        if !matches!(value, "icd10" | "icd11" | "snomed") {
-            return Err(AppError::BadRequest("invalid icd_system".to_owned()));
-        }
+    if let Some(value) = body.icd_system.as_deref()
+        && !matches!(value, "icd10" | "icd11" | "snomed")
+    {
+        return Err(AppError::BadRequest("invalid icd_system".to_owned()));
     }
-    if let Some(value) = body.severity.as_deref() {
-        if !matches!(value, "mild" | "moderate" | "severe" | "critical") {
-            return Err(AppError::BadRequest("invalid severity".to_owned()));
-        }
+    if let Some(value) = body.severity.as_deref()
+        && !matches!(value, "mild" | "moderate" | "severe" | "critical")
+    {
+        return Err(AppError::BadRequest("invalid severity".to_owned()));
     }
-    if let Some(value) = body.certainty.as_deref() {
-        if !matches!(value, "suspected" | "probable" | "confirmed" | "ruled_out") {
-            return Err(AppError::BadRequest("invalid certainty".to_owned()));
-        }
+    if let Some(value) = body.certainty.as_deref()
+        && !matches!(value, "suspected" | "probable" | "confirmed" | "ruled_out")
+    {
+        return Err(AppError::BadRequest("invalid certainty".to_owned()));
     }
 
     let should_update_onset = body.onset_date.is_some();
@@ -2419,8 +2434,57 @@ pub async fn update_diagnosis(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    if body.icd_code.is_some() || body.icd_system.is_some() || body.certainty.is_some() {
+        detect_notifiable_diagnosis(&mut tx, &claims, &row).await?;
+    }
+
     tx.commit().await?;
     Ok(Json(filter_diagnosis_response(row, &restricted_fields)))
+}
+
+/// A coded diagnosis on any encounter -- OPD, an admission's, an ER visit's
+/// -- is checked against the hospital's notifiable list, ICD-10 or ICD-11.
+/// A diagnosis recorded as ruled out is not a case.
+async fn detect_notifiable_diagnosis(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    row: &Diagnosis,
+) -> Result<(), AppError> {
+    let Some(code) = row.icd_code.as_deref().filter(|c| !c.trim().is_empty()) else {
+        return Ok(());
+    };
+    if row.certainty.as_deref() == Some("ruled_out") || row.icd_system == "snomed" {
+        return Ok(());
+    }
+    let (patient_id, encounter_type) = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT patient_id, encounter_type::text FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(row.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let source = match encounter_type.as_str() {
+        "ipd" => "ipd_diagnosis",
+        "emergency" => "er_diagnosis",
+        _ => "opd_diagnosis",
+    };
+    medbrains_platform::notifiable::detect(
+        tx,
+        medbrains_platform::notifiable::Context {
+            tenant_id: claims.tenant_id,
+            patient_id: Some(patient_id),
+            encounter_id: Some(row.encounter_id),
+            actor: claims.sub,
+            notify: None,
+        },
+        medbrains_platform::notifiable::Signal::Code {
+            code,
+            system: &row.icd_system,
+            source,
+        },
+    )
+    .await?;
+    Ok(())
 }
 
 pub async fn delete_diagnosis(
@@ -2624,7 +2688,7 @@ pub async fn create_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<CreatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -2637,13 +2701,14 @@ pub async fn create_prescription(
     )?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
             "At least one prescription item is required".to_owned(),
         ));
     }
+    check_buy_outside_lines(&body.items)?;
 
     let order_mode = body.order_mode.as_deref().unwrap_or("written");
     if !["written", "verbal", "telephone"].contains(&order_mode) {
@@ -2827,13 +2892,13 @@ pub async fn create_prescription(
 
         let mut by_ingredient: HashMap<String, Vec<String>> = HashMap::new();
         for item in &body.items {
-            if let Some(cid) = item.catalog_item_id {
-                if let Some(ingredient) = id_to_ingredient.get(&cid) {
-                    by_ingredient
-                        .entry(ingredient.clone())
-                        .or_default()
-                        .push(item.drug_name.clone());
-                }
+            if let Some(cid) = item.catalog_item_id
+                && let Some(ingredient) = id_to_ingredient.get(&cid)
+            {
+                by_ingredient
+                    .entry(ingredient.clone())
+                    .or_default()
+                    .push(item.drug_name.clone());
             }
         }
         for (ingredient, drugs) in by_ingredient {
@@ -2919,109 +2984,92 @@ pub async fn create_prescription(
         .await?;
     }
 
-    if let Some(reason) = allergy_reason {
-        if !allergy_conflicts.is_empty() {
-            let audit_values = serde_json::json!({
-                "prescription_id": rx.id,
-                "encounter_id": encounter_id,
-                "override_reason": reason,
-                "conflicts": allergy_conflicts,
-            });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: claims.tenant_id,
-                    user_id: Some(claims.sub),
-                    action: "prescription.allergy_override",
-                    entity_type: "prescription",
-                    entity_id: Some(rx.id),
-                    old_values: None,
-                    new_values: Some(&audit_values),
-                    ip_address: None,
-                },
-            )
-            .await?;
-        }
+    if let Some(reason) = allergy_reason
+        && !allergy_conflicts.is_empty()
+    {
+        let audit_values = serde_json::json!({
+            "prescription_id": rx.id,
+            "encounter_id": encounter_id,
+            "override_reason": reason,
+            "conflicts": allergy_conflicts,
+        });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "prescription.allergy_override",
+                entity_type: "prescription",
+                entity_id: Some(rx.id),
+                old_values: None,
+                new_values: Some(&audit_values),
+                ip_address: None,
+            },
+        )
+        .await?;
     }
 
-    if let Some(reason) = interaction_reason {
-        if !serious_interactions.is_empty() {
-            let audit_values = serde_json::json!({
-                "prescription_id": rx.id,
-                "encounter_id": encounter_id,
-                "override_reason": reason,
-                "interactions": serious_interactions
-                    .iter()
-                    .map(|i| serde_json::json!({
-                        "drug_a": i.drug_a,
-                        "drug_b": i.drug_b,
-                        "severity": i.severity,
-                        "description": i.description,
-                    }))
-                    .collect::<Vec<_>>(),
-            });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: claims.tenant_id,
-                    user_id: Some(claims.sub),
-                    action: "prescription.interaction_override",
-                    entity_type: "prescription",
-                    entity_id: Some(rx.id),
-                    old_values: None,
-                    new_values: Some(&audit_values),
-                    ip_address: None,
-                },
-            )
-            .await?;
-        }
+    if let Some(reason) = interaction_reason
+        && !serious_interactions.is_empty()
+    {
+        let audit_values = serde_json::json!({
+            "prescription_id": rx.id,
+            "encounter_id": encounter_id,
+            "override_reason": reason,
+            "interactions": serious_interactions
+                .iter()
+                .map(|i| serde_json::json!({
+                    "drug_a": i.drug_a,
+                    "drug_b": i.drug_b,
+                    "severity": i.severity,
+                    "description": i.description,
+                }))
+                .collect::<Vec<_>>(),
+        });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "prescription.interaction_override",
+                entity_type: "prescription",
+                entity_id: Some(rx.id),
+                old_values: None,
+                new_values: Some(&audit_values),
+                ip_address: None,
+            },
+        )
+        .await?;
     }
 
-    if let Some(reason) = duplicate_reason {
-        if !duplicate_groups.is_empty() {
-            let audit_values = serde_json::json!({
-                "prescription_id": rx.id,
-                "encounter_id": encounter_id,
-                "override_reason": reason,
-                "duplicates": duplicate_groups,
-            });
-            medbrains_db::audit::AuditLogger::log(
-                &mut tx,
-                &medbrains_db::audit::AuditEntry {
-                    tenant_id: claims.tenant_id,
-                    user_id: Some(claims.sub),
-                    action: "prescription.duplicate_override",
-                    entity_type: "prescription",
-                    entity_id: Some(rx.id),
-                    old_values: None,
-                    new_values: Some(&audit_values),
-                    ip_address: None,
-                },
-            )
-            .await?;
-        }
+    if let Some(reason) = duplicate_reason
+        && !duplicate_groups.is_empty()
+    {
+        let audit_values = serde_json::json!({
+            "prescription_id": rx.id,
+            "encounter_id": encounter_id,
+            "override_reason": reason,
+            "duplicates": duplicate_groups,
+        });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "prescription.duplicate_override",
+                entity_type: "prescription",
+                entity_id: Some(rx.id),
+                old_values: None,
+                new_values: Some(&audit_values),
+                ip_address: None,
+            },
+        )
+        .await?;
     }
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
-        let pi = sqlx::query_as::<_, PrescriptionItem>(
-            "INSERT INTO prescription_items \
-             (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
-              route, instructions, catalog_item_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-        )
-        .bind(claims.tenant_id)
-        .bind(rx.id)
-        .bind(&item.drug_name)
-        .bind(&item.dosage)
-        .bind(&item.frequency)
-        .bind(&item.duration)
-        .bind(&item.route)
-        .bind(&item.instructions)
-        .bind(item.catalog_item_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        items.push(pi);
+        items.push(insert_prescription_item(&mut tx, &claims, rx.id, item).await?);
     }
 
     // Antimicrobial stewardship + formulary (NABH AMS / DTC): a Reserve
@@ -3120,20 +3168,11 @@ pub async fn create_prescription(
 
     tx.commit().await?;
 
-    // The prescription reached the pharmacy's queue: pharmacy staff reach the
-    // patient through this visit to dispense it.
-    if pharmacy_rx_queue_id.is_some() {
-        medbrains_authz_gate::hand_off(
-            &state,
-            &claims,
-            medbrains_authz_gate::HandOff {
-                object_type: "encounter",
-                object_id: encounter_id,
-                department_code: medbrains_authz_gate::PHARMACY,
-            },
-        )
-        .await?;
-    }
+    // The prescription reached the pharmacy's queue. The queue is scoped by
+    // the pharmacy's own permission, and what dispensing needs of the patient
+    // goes through `require_patient_pharmacy_access`. The visit is NOT handed
+    // to the Pharmacy department: that tuple opened the patient's whole
+    // record to the department, with no end (migration 1413 revokes them).
 
     let rx_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
@@ -3176,7 +3215,7 @@ pub async fn update_prescription(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    jar: axum_extra::extract::CookieJar,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Json(body): Json<UpdatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
     // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
@@ -3198,13 +3237,14 @@ pub async fn update_prescription(
     )
     .await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
-    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
             "At least one prescription item is required".to_owned(),
         ));
     }
+    check_buy_outside_lines(&body.items)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3227,15 +3267,14 @@ pub async fn update_prescription(
     .fetch_optional(&mut *tx)
     .await?;
 
-    if let Some((_, status, pharmacy_order_id)) = &pharmacy_state {
-        if pharmacy_order_id.is_some()
-            || !matches!(status.as_str(), "pending_review" | "on_hold" | "rejected")
-        {
-            return Err(AppError::Conflict(
-                "Prescription can be edited only before pharmacy approval and billing calculation"
-                    .to_owned(),
-            ));
-        }
+    if let Some((_, status, pharmacy_order_id)) = &pharmacy_state
+        && (pharmacy_order_id.is_some()
+            || !matches!(status.as_str(), "pending_review" | "on_hold" | "rejected"))
+    {
+        return Err(AppError::Conflict(
+            "Prescription can be edited only before pharmacy approval and billing calculation"
+                .to_owned(),
+        ));
     }
 
     let rx = sqlx::query_as::<_, Prescription>(
@@ -3265,24 +3304,7 @@ pub async fn update_prescription(
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
-        let pi = sqlx::query_as::<_, PrescriptionItem>(
-            "INSERT INTO prescription_items \
-             (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
-              route, instructions, catalog_item_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-        )
-        .bind(claims.tenant_id)
-        .bind(id)
-        .bind(&item.drug_name)
-        .bind(&item.dosage)
-        .bind(&item.frequency)
-        .bind(&item.duration)
-        .bind(&item.route)
-        .bind(&item.instructions)
-        .bind(item.catalog_item_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        items.push(pi);
+        items.push(insert_prescription_item(&mut tx, &claims, id, item).await?);
     }
 
     // An edit is held to the same stewardship and formulary rules as a new
@@ -3939,6 +3961,7 @@ pub struct VitalHistoryPoint {
     pub weight_kg: Option<Decimal>,
     pub height_cm: Option<Decimal>,
     pub bmi: Option<Decimal>,
+    pub head_circumference_cm: Option<Decimal>,
     pub recorded_at: DateTime<Utc>,
 }
 
@@ -3962,7 +3985,7 @@ pub async fn list_patient_vitals_history(
         "SELECT v.id, v.encounter_id, e.encounter_date, \
          v.temperature, v.pulse, v.systolic_bp, v.diastolic_bp, \
          v.respiratory_rate, v.spo2, v.weight_kg, v.height_cm, v.bmi, \
-         v.recorded_at \
+         v.head_circumference_cm, v.recorded_at \
          FROM vitals v \
          JOIN encounters e ON e.id = v.encounter_id \
          WHERE e.patient_id = $1 AND v.deleted_at IS NULL AND e.deleted_at IS NULL \
@@ -4704,10 +4727,10 @@ async fn search_clinical_corpus_rows(
     let normalized_term = term.to_lowercase();
     let section = normalized_optional_text(section_filter);
     let corpus_type = normalized_optional_text(corpus_type_filter);
-    if let Some(value) = corpus_type.as_deref() {
-        if !is_valid_corpus_type(value) {
-            return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
-        }
+    if let Some(value) = corpus_type.as_deref()
+        && !is_valid_corpus_type(value)
+    {
+        return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
     }
 
     let cache_key = ClinicalCorpusCacheKey {
@@ -4819,10 +4842,10 @@ pub async fn create_clinical_corpus_entry(
     if !is_valid_corpus_type(&corpus_type) {
         return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
     }
-    if let Some(value) = body.license_status.as_deref() {
-        if !is_valid_license_status(value) {
-            return Err(AppError::BadRequest("invalid license_status".to_owned()));
-        }
+    if let Some(value) = body.license_status.as_deref()
+        && !is_valid_license_status(value)
+    {
+        return Err(AppError::BadRequest("invalid license_status".to_owned()));
     }
 
     let section = normalized_optional_text(body.section.as_deref());
@@ -4878,10 +4901,10 @@ pub async fn update_clinical_corpus_entry(
         permissions::admin::settings::clinical_masters::UPDATE,
     )?;
 
-    if let Some(value) = body.license_status.as_deref() {
-        if !is_valid_license_status(value) {
-            return Err(AppError::BadRequest("invalid license_status".to_owned()));
-        }
+    if let Some(value) = body.license_status.as_deref()
+        && !is_valid_license_status(value)
+    {
+        return Err(AppError::BadRequest("invalid license_status".to_owned()));
     }
 
     let section = normalized_optional_text(body.section.as_deref());
@@ -6127,6 +6150,7 @@ pub struct AdmitFromOpdResponse {
 pub async fn admit_from_opd(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    proof: medbrains_server_core::step_up::StepUpProof,
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
@@ -6193,7 +6217,12 @@ pub async fn admit_from_opd(
         ));
     }
 
-    let doctor_id = body.doctor_id.unwrap_or(claims.sub);
+    // The doctor who saw the patient in OPD admits them unless another is
+    // named; the clerk at the desk is never recorded as the admitting doctor.
+    let doctor_id = body
+        .doctor_id
+        .or(opd_encounter.doctor_id)
+        .unwrap_or(claims.sub);
     let today =
         medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
             .await?;
@@ -6285,11 +6314,27 @@ pub async fn admit_from_opd(
     .execute(&mut *tx)
     .await?;
 
-    // 7. Copy prescriptions from OPD to IPD (prescriptions + items)
+    // 7. Copy prescriptions from OPD to IPD (prescriptions + items). Copying
+    // writes prescriptions on the inpatient visit, so a visit that has any
+    // needs the admitting user's fresh step-up, as prescribing does; one with
+    // none admits without the password. Refused, the transaction is dropped.
+    // The gate and the copy read the same rows (live prescriptions only): a
+    // deleted OPD prescription is never revived as a live inpatient one.
+    let has_prescriptions = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM prescriptions
+            WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL) AS "exists!""#,
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if has_prescriptions {
+        medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
+    }
     let prescriptions_result = sqlx::query(
         "WITH src AS ( \
            SELECT id AS old_id FROM prescriptions \
-           WHERE encounter_id = $1 AND tenant_id = $3 \
+           WHERE encounter_id = $1 AND tenant_id = $3 AND deleted_at IS NULL \
          ), new_rx AS ( \
            INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, notes) \
            SELECT p.tenant_id, $2, p.doctor_id, p.notes \

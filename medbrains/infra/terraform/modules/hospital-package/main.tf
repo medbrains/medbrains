@@ -211,10 +211,12 @@ module "attach" {
   reset_pgdata   = var.reset_pgdata
   kms_key_arns   = local.kms_key_arns
 
-  attach_mode           = true
-  attach_reuse_tls      = var.attach_reuse_tls
-  attach_reuse_postgres = var.attach_reuse_postgres
-  attach_database_url   = var.attach_database_url
+  attach_mode            = true
+  attach_reuse_tls       = var.attach_reuse_tls
+  attach_reuse_postgres  = var.attach_reuse_postgres
+  attach_database_url    = var.attach_database_url
+  attach_backup_bucket   = var.attach_backup_bucket
+  attach_alert_topic_arn = var.attach_alert_topic_arn
 
   alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }

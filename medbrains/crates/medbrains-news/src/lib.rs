@@ -8,7 +8,8 @@
 //!
 //! Active = `is_active = true AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now())`.
 
-use axum::routing::{get,put};
+use axum::extract::rejection::JsonRejection;
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -152,9 +153,10 @@ pub async fn list_all(
 pub async fn create_article(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateNewsRequest>,
+    body: Result<Json<CreateNewsRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<NewsArticle>), AppError> {
     require_admin(&claims)?;
+    let Json(body) = body?;
     validate_category(&body.category)?;
     let severity = body.severity.as_deref().unwrap_or("info");
     validate_severity(severity)?;
@@ -190,9 +192,10 @@ pub async fn update_article(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<UpdateNewsRequest>,
+    body: Result<Json<UpdateNewsRequest>, JsonRejection>,
 ) -> Result<Json<NewsArticle>, AppError> {
     require_admin(&claims)?;
+    let Json(body) = body?;
     if let Some(cat) = body.category.as_deref() {
         validate_category(cat)?;
     }
@@ -258,10 +261,7 @@ pub async fn delete_article(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/news", get(list_active))
-        .route(
-            "/api/admin/news",
-            get(list_all).post(create_article),
-        )
+        .route("/api/admin/news", get(list_all).post(create_article))
         .route(
             "/api/admin/news/{id}",
             put(update_article).delete(delete_article),

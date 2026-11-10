@@ -123,11 +123,11 @@ async fn branding_context(
         "phone": tenant.phone,
         "registration_no": tenant.registration_no,
     });
-    if let Some(serde_json::Value::Object(extra)) = letterhead {
-        if let Some(obj) = branding.as_object_mut() {
-            for (k, v) in extra {
-                obj.insert(k, v);
-            }
+    if let Some(serde_json::Value::Object(extra)) = letterhead
+        && let Some(obj) = branding.as_object_mut()
+    {
+        for (k, v) in extra {
+            obj.insert(k, v);
         }
     }
     Ok(branding)
@@ -244,6 +244,7 @@ pub async fn render_stored(
         })
         .unwrap_or("none");
     let watermark = sign_or_mark_draft(&mut context, watermark);
+    stamp_signature_qr(&mut context)?;
 
     if let Some(obj) = context.as_object_mut() {
         obj.insert(
@@ -388,6 +389,39 @@ fn sign_or_mark_draft<'a>(context: &mut serde_json::Value, watermark: &'a str) -
         None if watermark == "none" => "draft",
         None => watermark,
     }
+}
+
+/// Put the signature block's QR to the public check page on the context.
+///
+/// A document's signatures sit at the top (`signatures`) or inside its one
+/// data object (`{"discharge": {..., "signatures": [...]}}`). The first is the
+/// page's signature block either way, and its `verify_url`, when it has one,
+/// is drawn as `signature.verify_qr_svg`. Reuses the bill's QR drawing.
+fn stamp_signature_qr(context: &mut serde_json::Value) -> Result<(), AppError> {
+    let Some(obj) = context.as_object_mut() else {
+        return Ok(());
+    };
+    if !obj.contains_key("signature") {
+        let nested = obj
+            .values()
+            .find_map(|v| v.get("signatures")?.as_array()?.first().cloned());
+        if let Some(first) = nested {
+            obj.insert("signature".to_owned(), first);
+        }
+    }
+    let Some(signature) = obj
+        .get_mut("signature")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return Ok(());
+    };
+    let Some(url) = signature.get("verify_url").and_then(serde_json::Value::as_str) else {
+        return Ok(());
+    };
+    let svg = medbrains_print::codes::qr_svg(url)
+        .map_err(|e| AppError::Internal(format!("signature qr: {e}")))?;
+    signature.insert("verify_qr_svg".to_owned(), serde_json::json!(svg));
+    Ok(())
 }
 
 /// GET /api/documents/templates/{code}/preview — render the template
@@ -605,7 +639,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/documents/render", post(render_document))
         .route("/api/documents/{id}/download", get(download_document))
         .route("/api/documents/{id}/queue-print", post(queue_print))
-        .route("/api/documents/print-jobs/claim", post(delivery::claim_print_jobs))
+        .route(
+            "/api/documents/print-jobs/claim",
+            post(delivery::claim_print_jobs),
+        )
         .route(
             "/api/documents/print-jobs/{id}/result",
             post(delivery::report_print_job),
@@ -636,6 +673,24 @@ mod signature_tests {
         let mut ctx = json!({ "signatures": [{ "verify_ref": "abc" }, { "verify_ref": "def" }] });
         assert_eq!(sign_or_mark_draft(&mut ctx, "none"), "none");
         assert_eq!(ctx["signature"]["verify_ref"], "abc");
+    }
+
+    #[test]
+    fn a_nested_signature_prints_with_the_qr_to_its_public_check() {
+        let mut ctx = json!({ "discharge": { "signatures": [
+            { "verify_ref": "abc", "verify_url": "https://h.example/verify/signature/ab" }
+        ] } });
+        super::stamp_signature_qr(&mut ctx).expect("qr");
+        assert_eq!(ctx["signature"]["verify_ref"], "abc");
+        let svg = ctx["signature"]["verify_qr_svg"].as_str().unwrap_or_default();
+        assert!(svg.contains("<svg"), "the QR is drawn: {svg}");
+    }
+
+    #[test]
+    fn a_signature_without_a_link_prints_no_qr() {
+        let mut ctx = json!({ "lab": { "signatures": [{ "verify_ref": "abc" }] } });
+        super::stamp_signature_qr(&mut ctx).expect("no qr");
+        assert!(ctx["signature"].get("verify_qr_svg").is_none());
     }
 
     #[test]

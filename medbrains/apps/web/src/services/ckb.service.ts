@@ -17,4 +17,19 @@ export const ckbService = {
     api.listNotifiableReports(...args),
   updateNotifiableReport: (...args: Parameters<typeof api.updateNotifiableReport>) =>
     api.updateNotifiableReport(...args),
+  getNotifiableList: () => api.getNotifiableList(),
+  listNotifiableOverrides: () => api.listNotifiableOverrides(),
+  upsertNotifiableOverride: (...args: Parameters<typeof api.upsertNotifiableOverride>) =>
+    api.upsertNotifiableOverride(...args),
+  deleteNotifiableOverride: (id: string) => api.deleteNotifiableOverride(id),
+  listTbCases: (status?: string) => api.listTbCases(status),
+  saveTbDetails: (...args: Parameters<typeof api.saveTbDetails>) => api.saveTbDetails(...args),
+  getNikshaySheet: () => api.getNikshaySheet(),
+  getPublicHealthFacility: () => api.getPublicHealthFacility(),
+  getIhipLineList: (...args: Parameters<typeof api.getIhipLineList>) =>
+    api.getIhipLineList(...args),
+  submitIhipLineList: (...args: Parameters<typeof api.submitIhipLineList>) =>
+    api.submitIhipLineList(...args),
+  setPublicHealthFacilityCodes: (...args: Parameters<typeof api.setPublicHealthFacilityCodes>) =>
+    api.setPublicHealthFacilityCodes(...args),
 };

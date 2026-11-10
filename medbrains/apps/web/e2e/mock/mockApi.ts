@@ -297,6 +297,11 @@ function isIdentifierSegment(segment: string): boolean {
 }
 
 function defaultGetBody(pathname: string): unknown {
+  // No shift today: the real endpoint answers null, and the header's shift
+  // widget (on every screen) cannot read a list as a shift.
+  if (pathname === "/api/hr/my-shift") {
+    return null;
+  }
   if (
     pathname.includes("/stats")
     || pathname.includes("/summary")

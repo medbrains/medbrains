@@ -9,7 +9,7 @@ export interface QueueConfig {
   prefix: string;
   start_at: number;
   pad_width: number;
-  reset_rule: "daily" | "session" | "never";
+  reset_rule: "daily" | "session" | "never" | "recycle";
   max_tokens_per_period: number | null;
   lifecycle: "permanent" | "temporary";
   valid_from: string | null;
@@ -23,6 +23,10 @@ export interface QueueConfig {
   voice_languages: ("en" | "hi" | "ta")[];
   /** How many times each call is spoken (1-3). */
   announce_repeat: number;
+  /** `recycle` only: how many numbers go round, from `start_at`. */
+  number_pool_size: number | null;
+  /** `recycle` only: minutes after its last holder finished before a number is given again. */
+  reuse_cooloff_minutes: number;
 }
 
 /** How the board for one place speaks. */

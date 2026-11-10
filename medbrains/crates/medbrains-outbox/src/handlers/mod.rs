@@ -14,8 +14,10 @@
 
 pub mod email_stub;
 pub mod google_meet;
+pub mod hl7_adt;
 pub mod hl7_stub;
 pub mod nhcx;
+pub mod pacs_target;
 pub mod pacs_worklist;
 pub mod pipeline_fallback;
 pub mod razorpayx;

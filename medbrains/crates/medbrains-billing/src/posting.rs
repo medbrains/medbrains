@@ -54,11 +54,13 @@ struct Balance {
     paid_amount: Decimal,
 }
 
+/// Lock the bill and read its balance, audit chain first (migration 1403).
 async fn lock_balance(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     invoice_id: Uuid,
 ) -> Result<Balance, AppError> {
+    medbrains_db::pool::take_audit_chain_first(tx, &tenant_id).await?;
     sqlx::query_as::<_, Balance>(
         "SELECT status, total_amount, paid_amount FROM invoices \
          WHERE id = $1 AND tenant_id = $2 FOR UPDATE",

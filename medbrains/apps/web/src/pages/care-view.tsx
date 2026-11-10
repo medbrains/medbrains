@@ -7,6 +7,7 @@ import {
   IconBabyBottle,
   IconBabyCarriage,
   IconBed,
+  IconBellRinging,
   IconBottle,
   IconBrain,
   IconCandy,
@@ -34,6 +35,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { careViewService } from "@/services/careView.service";
@@ -45,6 +47,7 @@ import { CiwaArTab } from "./care-view/CiwaArTab";
 import { CpotTab } from "./care-view/CpotTab";
 import { Curb65Tab } from "./care-view/Curb65Tab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
+import { EscalationsTab } from "./care-view/EscalationsTab";
 import { GcsTab } from "./care-view/GcsTab";
 import { GlasgowBlatchfordTab } from "./care-view/GlasgowBlatchfordTab";
 import { HandoverTab } from "./care-view/HandoverTab";
@@ -75,7 +78,10 @@ export function CareViewPage() {
   const canManage = useHasPermission(P.CARE_VIEW.MANAGE_TASKS);
 
   const [selectedWard, setSelectedWard] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string | null>("grid");
+  const canEws = useHasPermission(P.NURSE.EWS.VIEW);
+  // A notification links straight to an escalation: ?tab=escalations&escalation=<id>.
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<string | null>(searchParams.get("tab") ?? "grid");
 
   // care_view.view opens the dashboard; the ward list is served under the IPD
   // codes. Refused, wardOptions collapses to just "All Wards" and the nursing
@@ -114,6 +120,11 @@ export function CareViewPage() {
           <Tabs.Tab value="grid" leftSection={<IconBed size={16} />}>
             Patient Grid
           </Tabs.Tab>
+          {canEws && (
+            <Tabs.Tab value="escalations" leftSection={<IconBellRinging size={16} />}>
+              Escalations
+            </Tabs.Tab>
+          )}
           {canMyTasks && (
             <Tabs.Tab value="tasks" leftSection={<IconClipboardList size={16} />}>
               My Tasks
@@ -206,6 +217,12 @@ export function CareViewPage() {
         <Tabs.Panel value="grid" pt="md">
           <PatientGridTab wardId={selectedWard} />
         </Tabs.Panel>
+
+        {canEws && (
+          <Tabs.Panel value="escalations" pt="md">
+            <EscalationsTab wardId={selectedWard} focusId={searchParams.get("escalation")} />
+          </Tabs.Panel>
+        )}
 
         {canMyTasks && (
           <Tabs.Panel value="tasks" pt="md">

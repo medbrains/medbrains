@@ -11,6 +11,7 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-terminology = { path = "../medbrains-terminology" }
+medbrains-notifications = { path = "../medbrains-notifications" }
 tracing = { workspace = true }
 reqwest = { workspace = true }
 url = { workspace = true }

@@ -16,7 +16,13 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
-#[derive(Debug)]
+pub use crate::charge_queue::{
+    AutoBilling, ChargeOutcome, ChargeRequest, REASON_IMPLANT_NO_PATIENT,
+    REASON_SETTING_UNREADABLE, charge_or_queue, post_charge, queue_patient_unknown,
+    read_auto_billing, require_live_patient, settle_charges,
+};
+
+#[derive(Debug, Clone, Default)]
 pub struct AutoChargeInput {
     pub patient_id: Uuid,
     pub encounter_id: Option<Uuid>,
@@ -75,6 +81,26 @@ pub async fn admission_id_for_encounter_in_tx(
     .map_err(AppError::from)
 }
 
+/// The encounter an admission was opened under, for charging a service
+/// recorded against the admission.
+pub async fn encounter_id_for_admission_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    admission_id: Option<Uuid>,
+) -> Result<Option<Uuid>, AppError> {
+    let Some(admission_id) = admission_id else {
+        return Ok(None);
+    };
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT encounter_id FROM admissions WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(tenant_id)
+    .bind(admission_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
+}
+
 pub async fn verified_admission_id_for_invoice_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -119,6 +145,10 @@ pub async fn verified_admission_id_for_invoice_in_tx(
 }
 
 /// Check if auto-billing is enabled for a specific module.
+///
+/// A read error is returned, never read as "off". Callers posting a charge go
+/// through `charge_or_queue`, which reads this in a savepoint and queues the
+/// charge when the answer is unknown.
 pub async fn is_auto_billing_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -246,7 +276,36 @@ pub async fn auto_charge(
     auto_charge_with_batch(tx, tenant_id, input, BatchTrace::default()).await
 }
 
+/// Runs the charge inside a savepoint. Most callers treat billing as
+/// best-effort and discard the error -- but a failed statement aborts the whole
+/// Postgres transaction, so the module's own write then committed as a silent
+/// ROLLBACK and the handler answered 200 for a diet order, CSSD issuance or OT
+/// completion that was never saved. Rolling back to the savepoint undoes only
+/// the charge; the caller's write stands, and the error is still returned.
 pub async fn auto_charge_with_batch(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    input: AutoChargeInput,
+    batch: BatchTrace,
+) -> Result<AutoChargeResult, AppError> {
+    // A nested transaction is a savepoint on the caller's connection.
+    let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
+    let source = input.source.clone();
+    let source_id = input.source_id;
+    match charge_in_savepoint(&mut savepoint, tenant_id, input, batch).await {
+        Ok(result) => {
+            savepoint.commit().await?;
+            Ok(result)
+        }
+        Err(error) => {
+            savepoint.rollback().await?;
+            tracing::warn!(%error, %source, %source_id, "auto-charge not posted");
+            Err(error)
+        }
+    }
+}
+
+async fn charge_in_savepoint(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     input: AutoChargeInput,
@@ -489,6 +548,45 @@ pub async fn reverse_auto_charge_for_source(
     .await
 }
 
+/// A service reversed before its charge was ever posted: take it off the
+/// charge attention queue in the same transaction, so "Post charge" cannot
+/// bill a cancelled consult. A full reversal dismisses the open item with the
+/// reversal's reason; a partial one lowers its quantity, dismissing it when
+/// nothing is left.
+async fn dismiss_queued_charge(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    source: &str,
+    source_id: Uuid,
+    reversal_quantity: Option<i32>,
+    reversed_by: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "WITH gone AS ( \
+           SELECT id, ($4::int IS NULL OR quantity <= $4) AS whole \
+             FROM charge_attention_items \
+            WHERE tenant_id = $1 AND source_module = $2 AND source_entity_id = $3 \
+              AND status = 'open' AND deleted_at IS NULL FOR UPDATE) \
+         UPDATE charge_attention_items a SET \
+                quantity = CASE WHEN g.whole THEN a.quantity ELSE a.quantity - $4 END, \
+                status = CASE WHEN g.whole THEN 'dismissed' ELSE a.status END, \
+                dismiss_reason = CASE WHEN g.whole THEN $6 ELSE a.dismiss_reason END, \
+                resolved_by = CASE WHEN g.whole THEN $5 ELSE a.resolved_by END, \
+                resolved_at = CASE WHEN g.whole THEN now() ELSE a.resolved_at END \
+           FROM gone g WHERE a.id = g.id",
+    )
+    .bind(tenant_id)
+    .bind(source)
+    .bind(source_id)
+    .bind(reversal_quantity)
+    .bind(reversed_by)
+    .bind(format!("Service reversed: {reason}"))
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn reverse_auto_charge_quantity_for_source(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -501,6 +599,16 @@ pub async fn reverse_auto_charge_quantity_for_source(
     reversal_source_module: &str,
     reversal_source_id: Uuid,
 ) -> Result<Option<Uuid>, AppError> {
+    dismiss_queued_charge(
+        tx,
+        tenant_id,
+        source,
+        source_id,
+        reversal_quantity,
+        reversed_by,
+        reason,
+    )
+    .await?;
     let original_id = sqlx::query_scalar!(
         "SELECT id
          FROM invoice_items
@@ -688,55 +796,32 @@ pub async fn reverse_invoice_item_by_id_in_tx(
     recalculate_invoice_totals(tx, original.invoice_id, *tenant_id).await?;
     Ok(Some(reversal_id))
 }
-#[derive(Debug)]
-pub struct ServiceChargeInput<'a> {
-    pub tenant_id: Uuid,
-    pub patient_id: Uuid,
-    pub encounter_id: Uuid,
-    pub charge_code: &'a str,
-    pub quantity: i32,
-    pub source_module: &'a str,
-    pub source_entity_id: Uuid,
-    pub requested_by: Uuid,
-}
-
-/// Create a service charge on behalf of another module.
-/// Resolves price from charge_master + rate_plan, checks auto-concession rules,
-/// creates invoice_item, and logs any concession applied.
-/// Fails gracefully — callers should not let billing failures block module ops.
-pub async fn create_service_charge(
+/// Run the tenant's auto-concession rules on a line just posted, in its own
+/// savepoint: a failed concession statement must not abort the caller's write.
+/// A rule that cannot be applied leaves the line at full price and is logged.
+pub(crate) async fn apply_concessions_best_effort(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    inp: ServiceChargeInput<'_>,
-) -> Result<AutoChargeResult, AppError> {
-    let charge_input = AutoChargeInput {
-        patient_id: inp.patient_id,
-        encounter_id: Some(inp.encounter_id),
-        charge_code: inp.charge_code.to_owned(),
-        source: inp.source_module.to_owned(),
-        source_id: inp.source_entity_id,
-        quantity: inp.quantity,
-        description_override: None,
-        unit_price_override: None,
-        tax_percent_override: None,
+    req: &ChargeRequest<'_>,
+    result: &AutoChargeResult,
+) -> Result<(), AppError> {
+    let concession_inp = ConcessionCheckInput {
+        tenant_id: req.tenant_id,
+        patient_id: req.charge.patient_id,
+        invoice_id: result.invoice_id,
+        invoice_item_id: result.item_id,
+        source_module: &req.charge.source,
+        source_entity_id: req.charge.source_id,
+        requested_by: req.requested_by,
     };
-
-    let result = auto_charge(tx, &inp.tenant_id, charge_input).await?;
-
-    // Check auto-concession rules from tenant_settings
-    if !result.skipped_duplicate {
-        let concession_inp = ConcessionCheckInput {
-            tenant_id: inp.tenant_id,
-            patient_id: inp.patient_id,
-            invoice_id: result.invoice_id,
-            invoice_item_id: result.item_id,
-            source_module: inp.source_module,
-            source_entity_id: inp.source_entity_id,
-            requested_by: inp.requested_by,
-        };
-        apply_auto_concessions(tx, concession_inp).await.ok(); // best-effort — don't fail the charge if concession logic fails
+    let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
+    match apply_auto_concessions(&mut savepoint, concession_inp).await {
+        Ok(()) => savepoint.commit().await?,
+        Err(error) => {
+            savepoint.rollback().await?;
+            tracing::warn!(%error, "auto-concession not applied");
+        }
     }
-
-    Ok(result)
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -805,10 +890,10 @@ async fn apply_auto_concessions(
             continue;
         }
         // Match by module
-        if let Some(ref modules) = rule.applicable_modules {
-            if !modules.iter().any(|m| m == source_module) {
-                continue;
-            }
+        if let Some(ref modules) = rule.applicable_modules
+            && !modules.iter().any(|m| m == source_module)
+        {
+            continue;
         }
         // Match by patient category
         if let Some(ref cats) = rule.patient_categories {

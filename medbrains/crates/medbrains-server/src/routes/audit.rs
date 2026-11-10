@@ -75,7 +75,7 @@ pub async fn list_audit_log(
 
     let rows = sqlx::query_as::<_, AuditLogSummary>(
         "SELECT a.id, u.full_name AS user_name, a.action, a.entity_type, \
-         a.entity_id, a.module, a.description, a.created_at \
+         a.entity_id, a.module, a.description, a.acting_agent, a.created_at \
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE ($1::text IS NULL OR a.module = $1) \
@@ -118,7 +118,7 @@ pub async fn get_audit_entry(
     let row = sqlx::query_as::<_, AuditLogEntry>(
         "SELECT a.id, a.user_id, u.full_name AS user_name, a.action, a.entity_type, \
          a.entity_id, a.old_values, a.new_values, a.ip_address, a.module, \
-         a.description, a.created_at \
+         a.description, a.acting_agent, a.created_at \
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE a.id = $1",
@@ -145,7 +145,7 @@ pub async fn entity_audit_trail(
     let rows = sqlx::query_as::<_, AuditLogEntry>(
         "SELECT a.id, a.user_id, u.full_name AS user_name, a.action, a.entity_type, \
          a.entity_id, a.old_values, a.new_values, a.ip_address, a.module, \
-         a.description, a.created_at \
+         a.description, a.acting_agent, a.created_at \
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE a.entity_type = $1 AND a.entity_id = $2 \
@@ -252,7 +252,8 @@ pub async fn list_chain_verifications(
 
     // Bounded: this is a history panel, not an export. One run per night means
     // 60 rows is two months, which is as far back as anyone reads on a screen.
-    let rows = sqlx::query_as!( // allow-raw-sql: compile-time checked, filtered by tenant_id
+    let rows = sqlx::query_as!(
+        // allow-raw-sql: compile-time checked, filtered by tenant_id
         ChainVerification,
         "SELECT id, completed_at, rows_checked, head_hash, broken_at, valid, \
                 duration_ms, triggered_by \
@@ -286,7 +287,7 @@ pub async fn list_access_log(
     let rows = sqlx::query_as::<_, AccessLogEntry>(
         "SELECT al.id, al.user_id, u.full_name AS user_name, al.entity_type, \
          al.entity_id, al.patient_id, (p.first_name || ' ' || p.last_name) AS patient_name, \
-         al.action, al.ip_address, al.module, al.created_at \
+         al.action, al.ip_address, al.module, al.acting_agent, al.created_at \
          FROM access_log al \
          LEFT JOIN users u ON u.id = al.user_id \
          LEFT JOIN patients p ON p.id = al.patient_id \
@@ -355,7 +356,7 @@ pub async fn patient_access_log(
     let rows = sqlx::query_as::<_, AccessLogEntry>(
         "SELECT al.id, al.user_id, u.full_name AS user_name, al.entity_type, \
          al.entity_id, al.patient_id, (p.first_name || ' ' || p.last_name) AS patient_name, \
-         al.action, al.ip_address, al.module, al.created_at \
+         al.action, al.ip_address, al.module, al.acting_agent, al.created_at \
          FROM access_log al \
          LEFT JOIN users u ON u.id = al.user_id \
          LEFT JOIN patients p ON p.id = al.patient_id \
@@ -430,7 +431,7 @@ pub async fn export_audit_log(
 
     let rows = sqlx::query_as::<_, AuditLogSummary>(
         "SELECT a.id, u.full_name AS user_name, a.action, a.entity_type, \
-         a.entity_id, a.module, a.description, a.created_at \
+         a.entity_id, a.module, a.description, a.acting_agent, a.created_at \
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE ($1::text IS NULL OR a.module = $1) \
@@ -476,12 +477,19 @@ pub async fn export_audit_log(
     }
 
     // Default: CSV
-    let mut csv = String::from("timestamp,user,module,action,entity_type,entity_id,description\n");
+    let mut csv = String::from(
+        "timestamp,user,acting_agent,module,action,entity_type,entity_id,description\n",
+    );
     for r in &rows {
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{}\n",
             r.created_at,
             escape_csv(r.user_name.as_deref().unwrap_or("")),
+            escape_csv(
+                &r.acting_agent
+                    .as_ref()
+                    .map_or_else(String::new, ToString::to_string)
+            ),
             escape_csv(r.module.as_deref().unwrap_or("")),
             r.action,
             r.entity_type,
@@ -566,7 +574,7 @@ pub async fn user_activity(
 
     let rows = sqlx::query_as::<_, AuditLogSummary>(
         "SELECT a.id, u.full_name AS user_name, a.action, a.entity_type, \
-         a.entity_id, a.module, a.description, a.created_at \
+         a.entity_id, a.module, a.description, a.acting_agent, a.created_at \
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE a.user_id = $1 \
@@ -596,7 +604,7 @@ pub async fn entity_timeline(
     let rows = sqlx::query_as::<_, AuditLogEntry>(
         "SELECT a.id, a.user_id, u.full_name AS user_name, a.action, a.entity_type, \
          a.entity_id, a.old_values, a.new_values, a.ip_address, a.module, \
-         a.description, a.created_at \
+         a.description, a.acting_agent, a.created_at \
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE a.entity_type = $1 AND a.entity_id = $2 \

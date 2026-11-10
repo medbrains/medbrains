@@ -1,6 +1,41 @@
 import { api } from "@medbrains/api";
 
 export const radiologyService = {
+  recordPregnancyCheck: (...args: Parameters<typeof api.recordPregnancyCheck>) =>
+    api.recordPregnancyCheck(...args),
+  listReferenceLevels: (...args: Parameters<typeof api.listReferenceLevels>) =>
+    api.listReferenceLevels(...args),
+  saveReferenceLevel: (...args: Parameters<typeof api.saveReferenceLevel>) =>
+    api.saveReferenceLevel(...args),
+  removeReferenceLevel: (...args: Parameters<typeof api.removeReferenceLevel>) =>
+    api.removeReferenceLevel(...args),
+  drlAudit: (...args: Parameters<typeof api.drlAudit>) => api.drlAudit(...args),
+  getPublicShareLink: (...args: Parameters<typeof api.getPublicRadiologyViewer>) =>
+    api.getPublicRadiologyViewer(...args),
+  sendShareLinkCode: (...args: Parameters<typeof api.sendShareLinkCode>) =>
+    api.sendShareLinkCode(...args),
+  verifyShareLinkCode: (...args: Parameters<typeof api.verifyShareLinkCode>) =>
+    api.verifyShareLinkCode(...args),
+  listRadiologyDosimetry: (...args: Parameters<typeof api.listRadiologyDosimetry>) =>
+    api.listRadiologyDosimetry(...args),
+  createRadiologyDosimetry: (...args: Parameters<typeof api.createRadiologyDosimetry>) =>
+    api.createRadiologyDosimetry(...args),
+  removeRadiologyDosimetry: (...args: Parameters<typeof api.removeRadiologyDosimetry>) =>
+    api.removeRadiologyDosimetry(...args),
+  listRadiationEquipment: (...args: Parameters<typeof api.listRadiationEquipment>) =>
+    api.listRadiationEquipment(...args),
+  saveRadiationEquipment: (...args: Parameters<typeof api.saveRadiationEquipment>) =>
+    api.saveRadiationEquipment(...args),
+  listBmeEquipment: (...args: Parameters<typeof api.listBmeEquipment>) =>
+    api.listBmeEquipment(...args),
+  openStudyViewer: (...args: Parameters<typeof api.openStudyViewer>) =>
+    api.openStudyViewer(...args),
+  createRadiologyShareLink: (...args: Parameters<typeof api.createRadiologyShareLink>) =>
+    api.createRadiologyShareLink(...args),
+  listStudyShareLinks: (...args: Parameters<typeof api.listStudyShareLinks>) =>
+    api.listStudyShareLinks(...args),
+  revokeStudyShareLink: (...args: Parameters<typeof api.revokeStudyShareLink>) =>
+    api.revokeStudyShareLink(...args),
   listRadiologyOrders: (...args: Parameters<typeof api.listRadiologyOrders>) =>
     api.listRadiologyOrders(...args),
   cancelRadiologyOrder: (...args: Parameters<typeof api.cancelRadiologyOrder>) =>
@@ -14,6 +49,19 @@ export const radiologyService = {
   contrastScreening: (...args: Parameters<typeof api.contrastScreening>) =>
     api.contrastScreening(...args),
   cumulativeDose: (...args: Parameters<typeof api.cumulativeDose>) => api.cumulativeDose(...args),
+  listUnmatchedStudies: (...args: Parameters<typeof api.listUnmatchedStudies>) =>
+    api.listUnmatchedStudies(...args),
+  linkUnmatchedStudy: (...args: Parameters<typeof api.linkUnmatchedStudy>) =>
+    api.linkUnmatchedStudy(...args),
+  dismissUnmatchedStudy: (...args: Parameters<typeof api.dismissUnmatchedStudy>) =>
+    api.dismissUnmatchedStudy(...args),
+  listPatientDoseRecords: (...args: Parameters<typeof api.listPatientDoseRecords>) =>
+    api.listPatientDoseRecords(...args),
+  recordRadiationDose: (...args: Parameters<typeof api.recordRadiationDose>) =>
+    api.recordRadiationDose(...args),
+  markRadiationDoseEnteredInError: (
+    ...args: Parameters<typeof api.markRadiationDoseEnteredInError>
+  ) => api.markRadiationDoseEnteredInError(...args),
   getRadiologyOrder: (...args: Parameters<typeof api.getRadiologyOrder>) =>
     api.getRadiologyOrder(...args),
   createRadiologyReport: (...args: Parameters<typeof api.createRadiologyReport>) =>

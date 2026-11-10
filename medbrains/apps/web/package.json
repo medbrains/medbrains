@@ -1,8 +1,14 @@
 {
   "name": "@medbrains/web",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
+  "sideEffects": [
+    "*.css",
+    "*.scss",
+    "./src/i18n.ts",
+    "./src/main.tsx"
+  ],
   "scripts": {
     "dev": "vite",
     "gen:crabs": "node scripts/build-crab-lottie.mjs",
@@ -51,6 +57,7 @@
     "@medbrains/stores": "workspace:*",
     "@medbrains/types": "workspace:*",
     "@medbrains/utils": "workspace:*",
+    "@sentry/react": "11.6.0",
     "@tabler/icons-react": "^3.40.0",
     "@tanstack/react-pacer": "0.22.0",
     "@tanstack/react-query": "^5.90.21",
@@ -64,7 +71,6 @@
     "echarts": "^6.0.0",
     "i18next": "^26.5.6",
     "i18next-http-backend": "^4.0.4",
-    "motion": "^12.38.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -87,6 +93,7 @@
     "@biomejs/biome": "^2.4.6",
     "@dotlottie/dotlottie-js": "1.8.0",
     "@playwright/test": "^1.60.0",
+    "@sentry/vite-plugin": "5.4.1",
     "@storybook/react-vite": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",

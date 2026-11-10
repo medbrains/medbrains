@@ -69,7 +69,7 @@ export function TouchpointStrip({ contactId }: { contactId: string }) {
     // reason the channel report has a "not recorded" row.
     return canRecord ? (
       <Stack gap={4}>
-        <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+        <Text size="xs" c="dimmed" fw={600}>
           How they found us
         </Text>
         <Group>
@@ -89,7 +89,7 @@ export function TouchpointStrip({ contactId }: { contactId: string }) {
 
   return (
     <Stack gap={4}>
-      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+      <Text size="xs" c="dimmed" fw={600}>
         How they found us
       </Text>
       <Group gap="xs" wrap="wrap">

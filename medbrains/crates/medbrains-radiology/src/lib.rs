@@ -11,11 +11,10 @@ use medbrains_core::permissions;
 use medbrains_core::radiology::{
     RadiationDoseRecord, RadiologyModality, RadiologyOrder, RadiologyReport,
 };
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{delete, get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{
@@ -24,8 +23,22 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::state::AppState;
 
 pub mod exams;
+pub mod dose;
+pub mod dose_capture;
+pub mod dose_summary;
+pub mod drl;
+pub mod effective_dose;
 pub mod form_f;
 pub mod pacs;
+pub mod pacs_config;
+pub mod pacs_study;
+pub mod pregnancy_check;
+pub mod radiation_safety;
+pub mod deidentify;
+pub mod share;
+pub mod share_public;
+pub mod unmatched;
+pub mod viewer;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -233,102 +246,6 @@ pub async fn contrast_screening(
     )))
 }
 
-// ══════════════════════════════════════════════════════════
-//  Cumulative radiation dose
-// ══════════════════════════════════════════════════════════
-// Ionising radiation is cumulative and stochastic — repeated CT (especially in younger patients)
-// raises lifetime cancer risk, so each new study should be justified against the patient's exposure so
-// far (AERB/ICRP). Per-study dose is recorded (DLP for CT) but the running lifetime total is never
-// surfaced. This sums the recorded CT DLP and estimates the cumulative effective dose so the orderer
-// sees it before adding more.
-
-/// Effective-dose conversion factor for body CT: mSv per (mGy·cm) of DLP. 0.015 is the widely-used
-/// representative adult chest/abdomen/pelvis k-factor; the result is an ESTIMATE, not a measured dose.
-const DLP_TO_MSV_K: f64 = 0.015;
-/// Cumulative effective dose (mSv) at which further imaging warrants explicit justification / review.
-const CUMULATIVE_DOSE_REVIEW_MSV: f64 = 100.0;
-
-fn estimate_effective_msv(total_dlp: f64) -> f64 {
-    total_dlp * DLP_TO_MSV_K
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CumulativeDoseQuery {
-    pub patient_id: Uuid,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CumulativeDoseResult {
-    pub study_count: i64,
-    pub cumulative_dlp: f64,
-    pub estimated_effective_msv: f64,
-    pub review_threshold_msv: f64,
-    /// True once the estimated cumulative effective dose reaches the review threshold.
-    pub over_threshold: bool,
-    /// True from 75% of the threshold — approaching, justify carefully.
-    pub near_threshold: bool,
-}
-
-/// `GET /api/radiology/cumulative-dose?patient_id=` — the patient's cumulative recorded CT dose (DLP)
-/// and estimated lifetime effective dose, versus the review threshold.
-pub async fn cumulative_dose(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(params): Query<CumulativeDoseQuery>,
-) -> Result<Json<CumulativeDoseResult>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    // Lifetime radiation dose for one named patient. A dose history says how
-    // often they have been imaged and for what.
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
-        .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let (study_count, total_dlp): (i64, Option<f64>) = sqlx::query_as(
-        "SELECT COUNT(*), COALESCE(SUM(dlp), 0)::float8 FROM radiation_dose_records \
-         WHERE tenant_id = $1 AND patient_id = $2 AND dlp IS NOT NULL",
-    )
-    .bind(claims.tenant_id)
-    .bind(params.patient_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    tx.commit().await?;
-
-    let cumulative_dlp = total_dlp.unwrap_or(0.0);
-    let estimated_effective_msv = estimate_effective_msv(cumulative_dlp);
-    Ok(Json(CumulativeDoseResult {
-        study_count,
-        cumulative_dlp,
-        estimated_effective_msv,
-        review_threshold_msv: CUMULATIVE_DOSE_REVIEW_MSV,
-        over_threshold: estimated_effective_msv >= CUMULATIVE_DOSE_REVIEW_MSV,
-        near_threshold: estimated_effective_msv >= 0.75 * CUMULATIVE_DOSE_REVIEW_MSV,
-    }))
-}
-
-#[cfg(test)]
-mod dose_tests {
-    use super::estimate_effective_msv;
-
-    #[test]
-    fn dlp_converts_to_msv() {
-        // 1000 mGy·cm * 0.015 = 15 mSv (a couple of abdominal CTs).
-        assert!((estimate_effective_msv(1000.0) - 15.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn threshold_crossing() {
-        // ~6667 mGy·cm cumulative DLP -> ~100 mSv.
-        assert!(estimate_effective_msv(7000.0) >= 100.0);
-        assert!(estimate_effective_msv(5000.0) < 100.0);
-    }
-}
-
 #[cfg(test)]
 mod contrast_tests {
     use super::compute_contrast_screening;
@@ -425,6 +342,8 @@ pub struct CreateOrderRequest {
 #[derive(Debug, Serialize)]
 pub struct OrderDetailResponse {
     pub order: RadiologyOrder,
+    /// The pregnancy question must be answered before the exposure.
+    pub pregnancy_check_required: bool,
     pub report: Option<RadiologyReport>,
     pub dose_records: Vec<RadiationDoseRecord>,
 }
@@ -451,6 +370,8 @@ pub struct CreateModalityRequest {
     pub description: Option<String>,
     /// An ultrasound on a pregnant woman needs a PC-PNDT Form F.
     pub is_ultrasound: Option<bool>,
+    /// Uses ionising radiation: the pregnancy question comes first.
+    pub is_ionising: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -459,23 +380,39 @@ pub struct UpdateModalityRequest {
     pub description: Option<String>,
     pub is_active: Option<bool>,
     pub is_ultrasound: Option<bool>,
+    pub is_ionising: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct RecordDoseRequest {
-    pub modality_code: String,
-    pub body_part: Option<String>,
-    pub dose_value: Option<Decimal>,
-    pub dose_unit: Option<String>,
-    pub dlp: Option<Decimal>,
-    pub ctdi_vol: Option<Decimal>,
-    pub dap: Option<Decimal>,
-    pub fluoroscopy_time_seconds: Option<i32>,
-}
 
 // ══════════════════════════════════════════════════════════
 //  GET /api/radiology/orders
 // ══════════════════════════════════════════════════════════
+
+/// The radiology orders this caller holds `view` on; `None` for a bypass role
+/// (no filter). An authorization outage is a 503, never an empty list.
+async fn visible_order_ids(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<Option<Vec<Uuid>>, AppError> {
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    if authz_ctx.is_bypass {
+        return Ok(None);
+    }
+    match state
+        .authz
+        .list_accessible(&authz_ctx, "radiology_order", medbrains_authz::Relation::Viewer)
+        .await
+    {
+        Ok(ids) => Ok(Some(ids)),
+        Err(e) => {
+            tracing::error!(error = %e, object_type = "radiology_order",
+                "rebac: list_accessible failed; refusing rather than showing an empty list");
+            Err(AppError::ServiceUnavailable(
+                "authorization backend unavailable".to_owned(),
+            ))
+        }
+    }
+}
 
 pub async fn list_orders(
     State(state): State<AppState>,
@@ -494,24 +431,7 @@ pub async fn list_orders(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
-    // ── ReBAC scope — only radiology orders caller has `view` on ─
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
-        None
-    } else {
-        Some(
-            match state.authz.list_accessible(&authz_ctx, "radiology_order", medbrains_authz::Relation::Viewer,).await {
-            Ok(ids) => ids,
-            Err(e) => {
-                tracing::error!(error = %e, object_type = "radiology_order",
-                    "rebac: list_accessible failed; refusing rather than showing an empty list");
-                return Err(AppError::ServiceUnavailable(
-                    "authorization backend unavailable".to_owned(),
-                ));
-            }
-        },
-        )
-    };
+    let visible_ids = visible_order_ids(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -519,15 +439,13 @@ pub async fn list_orders(
 
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut bind_idx: usize = 2;
-    if let Some(ref ids) = visible_ids {
-        if ids.is_empty() {
-            return Ok(Json(OrderListResponse {
-                orders: Vec::new(),
-                total: 0,
-                page,
-                per_page,
-            }));
-        }
+    if visible_ids.as_ref().is_some_and(Vec::is_empty) {
+        return Ok(Json(OrderListResponse {
+            orders: Vec::new(),
+            total: 0,
+            page,
+            per_page,
+        }));
     }
 
     #[allow(clippy::items_after_statements)]
@@ -936,7 +854,8 @@ pub async fn get_order(
     .await?;
 
     let dose_records = sqlx::query_as::<_, RadiationDoseRecord>(
-        "SELECT * FROM radiation_dose_records WHERE order_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM radiation_dose_records \
+         WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at LIMIT 5000",
     )
     .bind(id)
@@ -944,9 +863,12 @@ pub async fn get_order(
     .fetch_all(&mut *tx)
     .await?;
 
+    let pregnancy_check_required =
+        pregnancy_check::is_required(&mut tx, claims.tenant_id, order.id).await?;
     tx.commit().await?;
     Ok(Json(OrderDetailResponse {
         order,
+        pregnancy_check_required,
         report,
         dose_records,
     }))
@@ -989,6 +911,11 @@ pub async fn update_order_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // An X-ray or CT of a woman who may be pregnant waits for the answer.
+    if matches!(body.status.as_str(), "in_progress" | "completed") {
+        pregnancy_check::require_answered(&mut tx, claims.tenant_id, id).await?;
+    }
 
     let completed_clause = if body.status == "completed" {
         ", completed_at = now()"
@@ -1539,14 +1466,18 @@ pub async fn create_modality(
         .await?;
 
     let modality = sqlx::query_as::<_, RadiologyModality>(
-        "INSERT INTO radiology_modalities (tenant_id, code, name, description, is_ultrasound) \
-         VALUES ($1, $2, $3, $4, COALESCE($5, false)) RETURNING *",
+        "INSERT INTO radiology_modalities \
+           (tenant_id, code, name, description, is_ultrasound, is_ionising) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, false), \
+                 COALESCE($6, upper($2) ~ '^(CT|CR|DX|XA|RF|MG|NM|PT|IO|PX|DXA|BMD|XR|FL|OPG)')) \
+         RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&body.code)
     .bind(&body.name)
     .bind(&body.description)
     .bind(body.is_ultrasound)
+    .bind(body.is_ionising)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1578,6 +1509,7 @@ pub async fn update_modality(
          description = COALESCE($2, description), \
          is_active = COALESCE($3, is_active), \
          is_ultrasound = COALESCE($6, is_ultrasound), \
+         is_ionising = COALESCE($7, is_ionising), \
          updated_at = now() \
          WHERE id = $4 AND tenant_id = $5 \
          RETURNING *",
@@ -1588,6 +1520,7 @@ pub async fn update_modality(
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.is_ultrasound)
+    .bind(body.is_ionising)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -1627,74 +1560,6 @@ pub async fn delete_modality(
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
-// ══════════════════════════════════════════════════════════
-//  POST /api/radiology/orders/{id}/dose  — radiation dose recording
-// ══════════════════════════════════════════════════════════
-
-pub async fn record_dose(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(order_id): Path<Uuid>,
-    Json(body): Json<RecordDoseRequest>,
-) -> Result<Json<RadiationDoseRecord>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::CREATE)?;
-    // Radiation dose is recorded against the patient the order belongs to.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::RADIOLOGY_ORDER,
-        order_id,
-    )
-    .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-
-    let dose_unit = body.dose_unit.as_deref().unwrap_or("mGy");
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    // Get patient_id from the order
-    let patient_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT patient_id FROM radiology_orders WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    let record = sqlx::query_as::<_, RadiationDoseRecord>(
-        "INSERT INTO radiation_dose_records \
-         (tenant_id, order_id, patient_id, modality_code, body_part, \
-          dose_value, dose_unit, dlp, ctdi_vol, dap, \
-          fluoroscopy_time_seconds, recorded_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(order_id)
-    .bind(patient_id)
-    .bind(&body.modality_code)
-    .bind(&body.body_part)
-    .bind(body.dose_value)
-    .bind(dose_unit)
-    .bind(body.dlp)
-    .bind(body.ctdi_vol)
-    .bind(body.dap)
-    .bind(body.fluoroscopy_time_seconds)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(record))
-}
 
 // ══════════════════════════════════════════════════════════
 //  GET /api/radiology/appointments — list scheduled orders
@@ -1736,6 +1601,8 @@ pub async fn list_radiology_appointments(
     )
     .await?;
 
+    // The schedule names patients: the same orders the worklist may show.
+    let visible_ids = visible_order_ids(&state, &claims).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1757,11 +1624,13 @@ pub async fn list_radiology_appointments(
              AND ($2::uuid IS NULL OR ro.modality_id = $2)
              AND ($3::date IS NULL
                   OR (COALESCE(ro.scheduled_at, ro.created_at) AT TIME ZONE t.timezone)::date = $3)
+             AND ($4::uuid[] IS NULL OR ro.id = ANY($4))
            ORDER BY COALESCE(ro.scheduled_at, ro.created_at)
            LIMIT 100"#,
         claims.tenant_id,
         query.modality_id,
         query.date,
+        visible_ids.as_deref(),
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1894,6 +1763,10 @@ pub async fn list_dicom_studies(
         "radiology",
     )
     .await?;
+    // A study list is a patient's imaging history. A named patient is checked
+    // (404 when not theirs to see); no patient means only the patients this
+    // caller may see — an unanswerable set is a 503, never an empty list.
+    let permitted = medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1918,10 +1791,11 @@ pub async fn list_dicom_studies(
         "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, orthanc_id, pacs_url, file_size_bytes \
          FROM radiology_dicom_studies \
-         WHERE deleted_at IS NULL AND tenant_id = $2 AND ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE deleted_at IS NULL AND tenant_id = $2 \
+           AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY study_date DESC NULLS LAST LIMIT 100",
     )
-    .bind(params.patient_id)
+    .bind(permitted)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
@@ -1985,7 +1859,8 @@ pub async fn get_prior_studies(
     >(
         "SELECT id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, pacs_url, file_size_bytes \
-         FROM radiology_dicom_studies WHERE patient_id = $1 AND tenant_id = $2 \
+         FROM radiology_dicom_studies \
+         WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY study_date DESC LIMIT 50",
     )
     .bind(patient_id)
@@ -2008,277 +1883,6 @@ pub async fn get_prior_studies(
     Ok(Json(result))
 }
 
-/// POST /api/radiology/share-links
-pub async fn create_share_link(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Minting a PUBLIC DICOM viewer link is a management action, not a read —
-    // gate on modalities::MANAGE, not the orders::LIST read permission.
-    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let token = Uuid::new_v4().to_string();
-    let study_id = body["study_id"]
-        .as_str()
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .ok_or_else(|| AppError::BadRequest("study_id required".into()))?;
-
-    // Confirm the study belongs to the caller's tenant before minting the link —
-    // the share_links FK to radiology_dicom_studies is validated as the table
-    // owner (RLS-exempt), so without this a foreign-tenant study_id would pass and
-    // expose another tenant's imaging via the public viewer.
-    let study_exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2)",
-    )
-    .bind(study_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    if !study_exists {
-        return Err(AppError::NotFound);
-    }
-    let hours = body["expires_hours"].as_i64().unwrap_or(72);
-    let expires = chrono::Utc::now() + chrono::Duration::hours(hours);
-
-    sqlx::query(
-        "INSERT INTO radiology_share_links (tenant_id, study_id, token, recipient_name, recipient_email, expires_at, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    )
-    .bind(claims.tenant_id).bind(study_id).bind(&token)
-    .bind(body["recipient_name"].as_str()).bind(body["recipient_email"].as_str())
-    .bind(expires).bind(claims.sub)
-    .execute(&mut *tx).await?;
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({
-        "token": token,
-        "viewer_url": format!("/api/public/radiology/viewer/{token}"),
-        "expires_at": expires,
-    })))
-}
-
-/// GET /api/public/radiology/viewer/{token} — validate share link (public, no auth)
-pub async fn validate_share_link(
-    State(state): State<AppState>,
-    Path(token): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Whoever opens a share link has no session and no hospital — the token is
-    // the whole credential, and the row it names is how the tenant is found.
-    // A `SECURITY DEFINER` lookup, the same shape as `app_api_key_by_
-    // fingerprint`, because a token the caller had to already hold is not
-    // something row level security can help with.
-    //
-    // Expiry is now checked inside the function rather than after the fact.
-    // Reading the row and comparing afterwards meant an expired link was still
-    // fetched and its access count still incremented — a link revoked by time
-    // should not leave a trace of having been opened.
-    let row = sqlx::query_as::<_, (Uuid, Uuid, Uuid, chrono::DateTime<chrono::Utc>)>(
-        "SELECT id, tenant_id, study_id, expires_at FROM public.app_share_link_by_token($1)",
-    )
-    .bind(&token)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    let (link_id, tenant_id, study_id) = (row.0, row.1, row.2);
-
-    // From here the tenant is known, so everything else is scoped to it.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
-
-    sqlx::query("SELECT public.app_share_link_touch($1, $2)")
-        .bind(link_id)
-        .bind(tenant_id)
-        .execute(&mut *conn)
-        .await?;
-
-    // Get study info
-    let study = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
-        "SELECT study_instance_uid, viewer_url, study_description \
-         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(study_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    Ok(Json(serde_json::json!({
-        "study_uid": study.0,
-        "viewer_url": study.1,
-        "description": study.2,
-        "valid": true,
-    })))
-}
-
-/// GET /api/radiology/pacs-config
-pub async fn get_pacs_config(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let config: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='radiology' AND key='pacs_config'",
-    ).bind(claims.tenant_id).fetch_optional(&mut *tx).await?;
-
-    tx.commit().await?;
-    Ok(Json(config.unwrap_or(serde_json::json!({
-        "orthanc_url": "", "orthanc_username": "", "viewer_type": "ohif",
-        "auto_sync": false, "sync_interval_minutes": 15
-    }))))
-}
-
-/// PUT /api/radiology/pacs-config
-pub async fn update_pacs_config(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Overwriting the tenant's PACS/Orthanc integration config is a management
-    // action — gate on modalities::MANAGE, not the orders::LIST read permission.
-    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    sqlx::query(
-        "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
-         VALUES (gen_random_uuid(),$1,'radiology','pacs_config',$2) \
-         ON CONFLICT (tenant_id,category,key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value=$2,updated_at=now()",
-    )
-    .bind(claims.tenant_id)
-    .bind(&body)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(body))
-}
-
-/// GET /api/radiology/dosimetry
-pub async fn list_dosimetry_records(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<serde_json::Value>>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, Decimal, bool)>(
-        "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
-         d.dose_value, d.is_compliant \
-         FROM radiology_dosimetry_records d WHERE d.deleted_at IS NULL AND d.tenant_id = $1 \
-         ORDER BY d.monitoring_period_end DESC LIMIT 100",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let result: Vec<serde_json::Value> = rows
-        .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.0, "staff_id": r.1, "badge_number": r.2,
-                "period_start": r.3, "period_end": r.4, "dose_mSv": r.5, "is_compliant": r.6,
-            })
-        })
-        .collect();
-
-    tx.commit().await?;
-    Ok(Json(result))
-}
-
-/// POST /api/radiology/dosimetry
-pub async fn create_dosimetry_record(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Recording staff radiation-dosimetry compliance is a management action —
-    // gate on modalities::MANAGE, not the orders::LIST read permission.
-    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(
-        &state.db,
-        claims.tenant_id,
-        "radiology",
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let dose: f64 = body["dose_value"].as_f64().unwrap_or(0.0);
-    let limit: f64 = body["annual_limit"].as_f64().unwrap_or(20.0);
-    let compliant = dose <= limit;
-
-    let id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO radiology_dosimetry_records \
-         (tenant_id, staff_id, badge_number, monitoring_period_start, monitoring_period_end, \
-          dose_value, annual_limit, is_compliant, notes, recorded_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
-    )
-    .bind(claims.tenant_id)
-    .bind(
-        body["staff_id"]
-            .as_str()
-            .and_then(|s| Uuid::parse_str(s).ok()),
-    )
-    .bind(body["badge_number"].as_str().unwrap_or(""))
-    .bind(
-        body["period_start"]
-            .as_str()
-            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
-    )
-    .bind(
-        body["period_end"]
-            .as_str()
-            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
-    )
-    .bind(dose)
-    .bind(limit)
-    .bind(compliant)
-    .bind(body["notes"].as_str())
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(
-        serde_json::json!({"id": id, "is_compliant": compliant}),
-    ))
-}
-
 /// GET /api/radiology/download-package/{study_id}
 pub async fn get_download_package(
     State(state): State<AppState>,
@@ -2292,13 +1896,21 @@ pub async fn get_download_package(
         "radiology",
     )
     .await?;
+    // The study's patient must be one this caller may see; 404 otherwise.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_DICOM_STUDY,
+        study_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let study = sqlx::query_as::<_, (String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
         "SELECT study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \
-         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2",
+         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
     .bind(study_id)
     .bind(claims.tenant_id)
@@ -2331,6 +1943,10 @@ pub struct PatientRadiologyReport {
     pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
     pub alert_id: Option<Uuid>,
     pub alert_acknowledged_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Who reported the study; signs it when no consultant verified it.
+    pub reported_by: Option<Uuid>,
+    /// The consultant who verified the report: its author, who signs it.
+    pub verified_by: Option<Uuid>,
 }
 
 /// All of a patient's radiology reports (findings + impression + critical
@@ -2360,7 +1976,8 @@ pub async fn list_patient_reports(
     let rows = sqlx::query_as::<_, PatientRadiologyReport>(
         "SELECT r.id AS report_id, r.order_id, m.name AS modality, o.created_at AS ordered_at, \
                 r.status::text AS status, r.findings, r.impression, r.is_critical, r.verified_at, \
-                ca.id AS alert_id, ca.acknowledged_at AS alert_acknowledged_at \
+                ca.id AS alert_id, ca.acknowledged_at AS alert_acknowledged_at, r.reported_by, \
+                r.verified_by \
          FROM radiology_reports r \
          JOIN radiology_orders o ON o.id = r.order_id AND o.tenant_id = r.tenant_id \
               AND o.deleted_at IS NULL \
@@ -2393,6 +2010,14 @@ pub async fn acknowledge_critical_alert(
     )
     .await?;
 
+    // Acknowledging is a statement in this patient's record.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_CRITICAL_ALERT,
+        alert_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2428,7 +2053,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/radiology/cumulative-dose",
-            get(cumulative_dose),
+            get(dose_summary::cumulative_dose),
         )
         .route(
             "/api/radiology/orders/{id}",
@@ -2452,7 +2077,27 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/radiology/orders/{id}/dose",
-            post(record_dose),
+            post(dose::record_dose),
+        )
+        .route(
+            "/api/radiology/unmatched-studies",
+            get(unmatched::list_unmatched_studies),
+        )
+        .route(
+            "/api/radiology/unmatched-studies/{id}/link",
+            post(unmatched::link_unmatched_study),
+        )
+        .route(
+            "/api/radiology/unmatched-studies/{id}/dismiss",
+            post(unmatched::dismiss_unmatched_study),
+        )
+        .route(
+            "/api/radiology/dose-records/{id}/entered-in-error",
+            post(dose::mark_dose_entered_in_error),
+        )
+        .route(
+            "/api/radiology/patients/{patient_id}/dose-records",
+            get(dose_summary::list_patient_dose_records),
         )
         .route(
             "/api/radiology/reports/{id}/verify",
@@ -2487,8 +2132,35 @@ pub fn router() -> axum::Router<AppState> {
         // Radiology Phase 2: PACS + Dosimetry
         .route("/api/radiology/dicom-studies", get(list_dicom_studies))
         .route("/api/radiology/dicom-studies/{patient_id}/prior", get(get_prior_studies))
-        .route("/api/radiology/share-links", post(create_share_link))
-        .route("/api/radiology/pacs-config", get(get_pacs_config).put(update_pacs_config))
-        .route("/api/radiology/dosimetry", get(list_dosimetry_records).post(create_dosimetry_record))
+        .route("/api/radiology/share-links", post(share::create_share_link))
+        .route("/api/radiology/share-links/{id}/revoke", post(share::revoke_share_link))
+        .route(
+            "/api/radiology/dicom-studies/{id}/share-links",
+            get(share::list_share_links),
+        )
+        .route("/api/radiology/dicom-studies/{id}/view", post(viewer::open_study_viewer))
+        .route("/api/radiology/pacs/ohif/", get(viewer::staff_ohif))
+        .route("/api/radiology/pacs/ohif/{*rest}", get(viewer::staff_ohif))
+        .route("/api/radiology/pacs/dicom-web/{*rest}", get(viewer::staff_dicomweb))
+        .route(
+            "/api/radiology/pacs-config",
+            get(pacs_config::get_pacs_config).put(pacs_config::update_pacs_config),
+        )
+        .route(
+            "/api/radiology/dosimetry",
+            get(radiation_safety::list_dosimetry).post(radiation_safety::record_reading),
+        )
+        .route("/api/radiology/dosimetry/{id}", delete(radiation_safety::remove_reading))
+        .route(
+            "/api/radiology/radiation-equipment",
+            get(radiation_safety::list_equipment).put(radiation_safety::save_equipment),
+        )
+        .route(
+            "/api/radiology/orders/{id}/pregnancy-check",
+            post(pregnancy_check::record_pregnancy_check),
+        )
+        .route("/api/radiology/drls", get(drl::list_levels).put(drl::save_level))
+        .route("/api/radiology/drls/{id}", delete(drl::remove_level))
+        .route("/api/radiology/drl-audit", get(drl::drl_audit))
         .route("/api/radiology/download-package/{study_id}", get(get_download_package))
 }

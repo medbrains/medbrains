@@ -79,7 +79,10 @@ export const Crab = forwardRef<HTMLSpanElement, CrabProps>(function Crab(
       {...rest}
     >
       <Svg className={styles.art} focusable="false" aria-hidden="true" />
-      {!reduceMotion && (
+      {/* Animated only while the crab is doing something: an idle crab on every
+          page (the launcher, the empty chat) looped its player forever and
+          kept a renderer busy. Idle shows the still art. */}
+      {!reduceMotion && state !== "idle" && (
         <Suspense fallback={null}>
           <CrabPlayer
             variant={variant}

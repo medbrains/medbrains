@@ -46,3 +46,20 @@
 .picker {
   padding: 0 12px 8px;
 }
+
+.starters {
+  width: 100%;
+  max-width: 420px;
+}
+
+// A long suggested question wraps instead of being cut off.
+.starter {
+  height: auto;
+  min-height: 2.25rem;
+  padding-block: var(--mantine-spacing-xs);
+}
+
+.starterLabel {
+  white-space: normal;
+  text-align: left;
+}

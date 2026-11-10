@@ -1,0 +1,16 @@
+#!/bin/bash
+# Removes the seed lines, password included, from the env once the server answers: it has
+# read them by then, because it seeds before it listens. Exits when none are left.
+set -uo pipefail
+
+ENV="${MEDBRAINS_ENV_FILE:-/var/lib/medbrains/config/env}"
+HEALTH="${MEDBRAINS_HEALTH_URL:-http://127.0.0.1:3000/api/health}"
+POLL_S="${MEDBRAINS_POLL_S:-3}"
+
+while grep -q '^MEDBRAINS_SEED_' "$ENV"; do
+    if curl -fsS -m 3 -o /dev/null "$HEALTH"; then
+        sed -i '/^MEDBRAINS_SEED_/d' "$ENV" || echo "could not remove the seed lines from $ENV" >&2
+    fi
+    # Always: a failing sed must not spin.
+    sleep "$POLL_S"
+done

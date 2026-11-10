@@ -7,6 +7,7 @@ import { AiInlinePanel, SseTransport } from "@/components/ai";
 import type { KpiBaseline } from "./kpi-reading";
 import { useReportWidgetData } from "./useReportWidgetData";
 import { widgetAiContext } from "./widget-ai-context";
+import styles from "./widget-ask-ai.module.scss";
 
 interface Props {
   widget: DashboardWidget;
@@ -35,17 +36,19 @@ export default function WidgetAskAi({ widget, data, compare }: Props) {
   );
   if (!canAsk) return null;
   return (
-    <Stack gap="xs">
+    <Stack gap="xs" className={styles.fill}>
       <Text fw={600}>Ask about this</Text>
       <Text size="xs" c="dimmed">
         The assistant sees this widget's figures, not the patients behind them.
       </Text>
+      {/* Takes the rest of the full-screen view: the conversation scrolls
+          inside it and the input stays at the bottom. */}
       <AiInlinePanel
         transport={transport}
         context={context}
         title={widget.title}
         suggestions={SUGGESTIONS}
-        height={380}
+        height="100%"
       />
     </Stack>
   );

@@ -160,6 +160,20 @@ describe("the generated registry", () => {
     expect(html).toContain("[ ] Known allergy reviewed");
   });
 
+  it("draws a signature's check link as a QR, not as text", async () => {
+    const url = "https://hospital.example/verify/signature/abc123";
+    fetchImpl = async () => ({
+      patient_name: "Asha R",
+      signatures: [{ signer_name: "Dr Iyer", verify_url: url }],
+    });
+    const written = captureWrite();
+    await printDocument("consent.general", "adm-1");
+    const html = written();
+    expect(html).toContain("<svg");
+    expect(html).toContain("Scan to check this document is unchanged");
+    expect(html).not.toContain(url);
+  });
+
   it("still prints the scalar fields beside the sections", async () => {
     fetchImpl = async () => ({ uhid: "UH-1", phases: [{ label: "Sign out", items: [] }] });
     const written = captureWrite();

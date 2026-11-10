@@ -1,0 +1,3 @@
+{"sent_at":"2026-10-25T09:57:11.938Z","sdk":{"name":"sentry.javascript.react","version":"11.6.0"},"dsn":"http://be5cd9a377344d13970ab1a8db64270f@127.0.0.1:8181/1"}
+{"type":"session"}
+{"sid":"0b0efa3e226b458ea91b1595ef303c2c","init":false,"started":"2026-10-25T09:57:06.042Z","timestamp":"2026-10-25T09:57:11.938Z","status":"unhandled","errors":1,"did":"e78b95c574fbc7f5063617dca39479ab","attrs":{"release":"0c7c3a7f6d02+local","environment":"dev","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36"}}

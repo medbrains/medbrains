@@ -138,7 +138,9 @@ def extract_frontend_endpoints() -> list[tuple[str, str, int, str]]:
     # Find all request<...>( calls by scanning the full source.
     # We find 'request<' then balance angle brackets to handle nested generics
     # like Record<string, unknown> or Array<Foo & { bar: string }>.
-    req_start_pattern = re.compile(r'request<')
+    # `checkedRequest<T>(schema, path, …)` is `request` with a response
+    # schema first; its path is the second argument.
+    req_start_pattern = re.compile(r'(?:\brequest|\bcheckedRequest)<')
 
     for m in req_start_pattern.finditer(source):
         # Balance angle brackets starting after 'request<'
@@ -155,8 +157,8 @@ def extract_frontend_endpoints() -> list[tuple[str, str, int, str]]:
             continue
         # pos is now right after the closing '>' of request<TYPE>
         # Skip whitespace and expect '('
-        rest = source[pos:pos + 20]
-        paren_match = re.match(r'\s*\(\s*(["`])', rest)
+        rest = source[pos:pos + 160]
+        paren_match = re.match(r'\s*\(\s*(?:\w+\s*,\s*)?(["`])', rest)
         if not paren_match:
             continue
         quote = paren_match.group(1)

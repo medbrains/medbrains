@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.medbrains.kit.ApiError
 import com.medbrains.kit.BloodPressure
+import com.medbrains.kit.EarlyWarning
 import com.medbrains.ui.BloodPressureFields
 import com.medbrains.ui.CarbonNotification
 import com.medbrains.ui.CarbonPageHeader
@@ -52,6 +53,10 @@ fun BedsideActionScreen(api: NurseApi, admission: AdmissionRow, mode: String) {
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var showBpErrors by remember { mutableStateOf(false) }
+    var consciousness by remember { mutableStateOf<String?>(null) }
+    var oxygenDevice by remember { mutableStateOf<String?>(null) }
+    var distress by remember { mutableStateOf<String?>(null) }
+    var score by remember { mutableStateOf<EarlyWarning.Score?>(null) }
     val scope = rememberCoroutineScope()
     val (title, badge, tone) = when (mode) {
         "io" -> Triple("Intake / output", "I/O", CarbonTone.Success)
@@ -87,7 +92,11 @@ fun BedsideActionScreen(api: NurseApi, admission: AdmissionRow, mode: String) {
                     field("Pulse", "pulse", KeyboardType.Number)
                     BloodPressureFields(form["systolic_bp"] ?: "", { form["systolic_bp"] = it }, form["diastolic_bp"] ?: "", { form["diastolic_bp"] = it }, showErrors = showBpErrors)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { field("SpO2", "spo2", KeyboardType.Number, modifier = Modifier.weight(1f)); field("Respiratory rate", "respiratory_rate", KeyboardType.Number, modifier = Modifier.weight(1f)) }
+                    EarlyWarningFields(
+                        consciousness, { consciousness = it }, oxygenDevice, { oxygenDevice = it }, distress, { distress = it },
+                    ) { label, key, decimal -> field(label, key, if (decimal) KeyboardType.Decimal else KeyboardType.Number) }
                     field("Notes", "notes", KeyboardType.Text)
+                    score?.let { EarlyWarningResult(it) }
                 }
                 "io" -> {
                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -125,9 +134,15 @@ fun BedsideActionScreen(api: NurseApi, admission: AdmissionRow, mode: String) {
                                     showBpErrors = true
                                     throw FormError(BloodPressure.validate(bpText.first, bpText.second).message ?: "Check the blood pressure")
                                 }
-                                val p = CreateVitalsPayload(admission.encounter_id, temp, int("pulse", "Pulse", 0..300), bp.systolic, bp.diastolic, int("respiratory_rate", "Respiratory rate", 0..80), int("spo2", "SpO2", 0..100), text("notes"))
+                                val ews = try {
+                                    EarlyWarning.inputs(consciousness, oxygenDevice, form["oxygen_flow_lpm"].orEmpty(), form["fio2_percent"].orEmpty(), form["capillary_refill_seconds"].orEmpty(), distress)
+                                } catch (e: EarlyWarning.Problem) { throw FormError(e.message ?: "Check the early-warning fields") }
+                                val p = CreateVitalsPayload(
+                                    admission.encounter_id, temp, int("pulse", "Pulse", 0..300), bp.systolic, bp.diastolic, int("respiratory_rate", "Respiratory rate", 0..80), int("spo2", "SpO2", 0..100), text("notes"),
+                                    ews.consciousness, ews.oxygen_device, ews.oxygen_flow_lpm, ews.fio2_percent, ews.capillary_refill_seconds, ews.respiratory_distress,
+                                )
                                 if (listOf(p.temperature, p.pulse, p.systolic_bp, p.diastolic_bp, p.respiratory_rate, p.spo2).all { it == null }) throw FormError("Enter at least one vital reading")
-                                api.createVitals(p); message = "Saved to bedside chart."
+                                score = api.createVitals(p).ews; message = "Saved to bedside chart."
                             }
                             "io" -> {
                                 val category = text("category") ?: throw FormError("Category is required")

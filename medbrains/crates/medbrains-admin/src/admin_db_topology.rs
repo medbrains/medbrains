@@ -2,6 +2,7 @@
 //!
 //! Sprint B.4.3 per RFCs/sprints/SPRINT-B-patroni-ha.md §4.
 
+use axum::extract::rejection::JsonRejection;
 use axum::{Extension, Json, extract::State};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -82,9 +83,10 @@ pub async fn get_db_topology(
 pub async fn update_db_topology(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateDbTopologyRequest>,
+    body: Result<Json<UpdateDbTopologyRequest>, JsonRejection>,
 ) -> Result<Json<DbTopologyResponse>, AppError> {
     require_permission(&claims, permissions::admin::db_topology::MANAGE)?;
+    let Json(body) = body?;
 
     let valid = ["aurora", "patroni", "aurora_with_patroni_reads"];
     if !valid.contains(&body.topology.as_str()) {

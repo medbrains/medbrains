@@ -9,9 +9,9 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
-       check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
+       check-field-classes check-authz-collapse check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
-       check-migration-headers check-migration-immutable e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
+       check-migration-headers check-migration-immutable perf-web e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
@@ -19,7 +19,7 @@
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
-       desktop desktop-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
+       desktop desktop-dev desktop-setup-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
        icd-up icd-down icd-logs icd-open \
        clean logs db-shell seed
 
@@ -225,6 +225,14 @@ dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password f
 		| docker compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U medbrains -d medbrains
 	@echo "medbrains_app and medbrains_outbox_worker log in with medbrains_dev"
 
+.PHONY: test-backups restore-drill
+test-backups: ## Backup kit: script checks + encrypted backup → restore drill end to end (docker, age, pg 17 client)
+	bash deploy/standalone/test-pg-backup-local.sh
+	bash deploy/standalone/test-backup-drill-e2e.sh
+
+restore-drill: ## Restore the latest backup into a scratch DB and verify it: make restore-drill FROM=s3://… IDENTITY=~/key.txt
+	bash deploy/standalone/medbrains-restore-drill --from "$(FROM)" --identity "$(IDENTITY)"
+
 db-shell: ## Open psql shell
 	docker compose exec postgres psql -U medbrains -d medbrains
 
@@ -292,6 +300,10 @@ safe-prepare-sqlx: guard-sqlx-nonprod ## prepare-sqlx that refuses unless the wo
 doctor: ## Find dev traps (root-owned caches, disk, stale master, busy cargo, .env, DB); prints fixes, changes nothing
 	@bash scripts/doctor.sh
 
+.PHONY: release
+release: ## Check a release is ready (VERSION=1.0.0) and print the tag commands; never tags or pushes
+	@bash scripts/release.sh "$(VERSION)"
+
 gate: ## Strict pre-merge gate: biome, packages+typecheck, check-all, targeted clippy+tests (CRATES=, TESTS=)
 	CRATES="$(CRATES)" TESTS="$(TESTS)" bash scripts/gate.sh
 
@@ -308,6 +320,9 @@ lint: ## Run biome lint + format check
 
 check-api: ## Verify frontend↔backend API contract
 	python3 ../scripts/check_api_contract.py
+
+check-fhir-validator: ## HL7 validator over our ABDM + NHCX bundles (needs Java; nightly adds TX=https://tx.fhir.org/r4)
+	python3 scripts/check_fhir_validator.py --tx $(or $(TX),n/a)
 
 check-sql-schema: ## Verify runtime SQL resolves against the migrations
 	python3 ../scripts/check_sql_schema.py
@@ -330,6 +345,9 @@ check-circular: ## Fail on circular imports in the web app (prevents TDZ-class b
 check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
 	python3 scripts/check_nav_drift.py
 
+check-ui-slop: ## Decorative effects in the web app only ever go down
+	python3 scripts/check_ui_slop.py
+
 check-ui-seam: ## Verify pages use @/components/ui (not raw Mantine Button/Badge)
 	python3 scripts/check_ui_seam.py
 
@@ -339,7 +357,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -396,8 +414,35 @@ check-ui-permission-match-update-baseline: ## Record the current under-gated set
 check-authz-collapse: ## Ban collapsing an authz check's error into a denial
 	python3 scripts/check_authz_collapse.py
 
+check-docs: ## Every function this branch adds or changes has a doc comment
+	cd .. && python3 medbrains/scripts/check_docs_on_new_functions.py
+
+check-kernel-boundary: ## Ratchet: apps reach the trusted core only through medbrains-kernel
+	python3 scripts/check_kernel_boundary.py --self-test
+	python3 scripts/check_kernel_boundary.py
+
+check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts, web first load
+	python3 scripts/check_size_budgets.py --self-test
+	python3 scripts/check_size_budgets.py
+
+check-kernel-no-domain: ## The kernel is technical: no domain crates below it, no domain words in it
+	python3 scripts/check_kernel_no_domain.py --self-test
+	python3 scripts/check_kernel_no_domain.py
+
 check-ai-label: ## Every screen that shows AI output carries the AiLabel (#4895)
 	python3 scripts/check_ai_label.py
+
+check-llm-redaction: ## Every LLM call goes through redaction (ai_redact) — no raw text to a model
+	python3 scripts/check_llm_redaction.py
+
+eval-ai: ## AI golden cases, offline from recordings (no key, no network) — exact, grounded, no leaks
+	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval
+
+eval-ai-live: ## AI golden cases against the real model (synthetic only; Bedrock ap-south-1, or EVAL_AI_PROVIDER=anthropic via AWS federation; skips without)
+	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval -- --live
+
+eval-ai-record: ## Re-record the golden answers from the real model (synthetic only)
+	bash scripts/build_guard.sh --wait && SQLX_OFFLINE=true cargo run -q -p medbrains-ai-eval -- --record
 
 check-query-collapse: ## Ban collapsing a DB read's error into an empty result
 	python3 scripts/check_query_collapse.py
@@ -474,6 +519,9 @@ check-pool-reads: ## Ban unscoped off-transaction reads of RLS-policed tables
 
 check-rls-only-writes: ## Ratchet writes keyed only on a caller-supplied id
 	python3 ../scripts/check_rls_only_writes.py
+
+check-bricks: ## Every module name comes from bricks.rs; ratchets bricks with no server check
+	python3 ../scripts/check_bricks.py
 
 check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
 	python3 ../scripts/check_tenant_leak.py
@@ -571,11 +619,14 @@ deploy-bootstrap: ## terraform apply bootstrap (state buckets, run ONCE per regi
 
 desktop: desktop-dev ## Start desktop app against the running make dev stack
 
-desktop-dev: ## Start desktop app against https://medbrains-desktop.localhost
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+desktop-dev: ## Start desktop app against the make dev server (https://medbrains.localhost)
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
+
+desktop-setup-dev: ## Start desktop app on its first-launch server setup screen
+	cd apps/desktop && pnpm install && pnpm dev
 
 desktop-reports-dev: ## Run desktop app directly on the reports command center
-	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_SERVER=$(DEV_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config src-tauri/tauri.dev.conf.json --config '{"build":{"beforeDevCommand":""}}'
 
 desktop-build: ## Build desktop bundle for current OS
 	cd apps/desktop && pnpm install && pnpm build
@@ -692,6 +743,9 @@ e2e-rbac: ## Layer 6 — RBAC matrix (REST, multi-role)
 
 e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
 	cd apps/web && pnpm exec playwright test --project=journeys
+
+perf-web: ## Web startup JS, heap, CPU and a shift-long heap slope (needs the backend on :3000)
+	bash apps/web/e2e/perf/run.sh
 
 e2e-linkages: ## Layer 5b — Cross-module linkages (an action in one module, its effect asserted in another)
 	cd apps/web && pnpm exec playwright test --project=linkages
@@ -917,3 +971,47 @@ hybrid-tf-validate: ## Validate every hybrid TF module without applying
 
 check-fabricated-print: ## Find printed documents that invent their contents
 	python3 scripts/check_fabricated_print_data.py
+
+# ── Demo hospital (G2DEMO) ─────────────────────────────────────────
+DEMO_PGPORT ?= 5435
+DEMO_MONTHS ?= 12
+DEMO_TARGET_CRORE ?= 10
+.PHONY: demo-seed demo-seed-history demo-restore
+demo-seed: ## Seed the G2DEMO demo hospital through the API (scripts/demo-seed/README.md)
+	python3 scripts/demo-seed/run_all.py
+
+demo-seed-history: ## Import DEMO_MONTHS of G2DEMO history worth ~DEMO_TARGET_CRORE crore through Admin -> Import history
+	cd scripts/demo-seed && python3 run_history.py --months $(DEMO_MONTHS) --target-crore $(DEMO_TARGET_CRORE)
+
+demo-restore: ## Restore a demo snapshot into a NEW database (DEMO_DUMP=… DEMO_DB=…)
+	@test -n "$(DEMO_DUMP)" -a -f "$(DEMO_DUMP)" || { echo "DEMO_DUMP must name a pg_dump -Fc file"; exit 1; }
+	@test -n "$(DEMO_DB)" || { echo "DEMO_DB must name the new database"; exit 1; }
+	@test "$(DEMO_DB)" != "medbrains" || { echo "refusing to restore over the shared medbrains database"; exit 1; }
+	@set -e; PW="$${PGPASSWORD:-$$(grep -s '^DATABASE_URL' .env | sed -E 's#.*//[^:]+:([^@]+)@.*#\1#')}"; \
+	PSQL="psql -w -h localhost -p $(DEMO_PGPORT) -U medbrains"; \
+	EXISTS=$$(PGPASSWORD="$$PW" $$PSQL -d postgres -Atc "select 1 from pg_database where datname='$(DEMO_DB)'"); \
+	test -z "$$EXISTS" || { echo "database $(DEMO_DB) already exists; pick a new name"; exit 1; }; \
+	PGPASSWORD="$$PW" createdb -w -h localhost -p $(DEMO_PGPORT) -U medbrains "$(DEMO_DB)"; \
+	PGPASSWORD="$$PW" pg_restore -w -h localhost -p $(DEMO_PGPORT) -U medbrains -d "$(DEMO_DB)" --no-owner "$(DEMO_DUMP)"; \
+	echo "restored $(DEMO_DUMP) into $(DEMO_DB) on :$(DEMO_PGPORT)"
+
+# ── MedBrains OS image (RFCs/RFC-HOSPITAL-OS.md §8b; os/README.md) ──────────
+OS_ARCH_TRIPLE = $(if $(filter arm64,$(or $(ARCH),arm64)),aarch64-unknown-linux-gnu,x86_64-unknown-linux-gnu)
+OS_TARGET_DIR ?= /tmp/mb-target-osimage
+
+.PHONY: os-image os-boot
+os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a serial root shell)
+	bash scripts/build_guard.sh --wait
+	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target. It also
+	# takes macOS ar and ranlib unless told, which index Linux objects as Mach-O and break the link.
+	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
+	OS_TARGET_DIR=$(OS_TARGET_DIR)-kanidm os/build-kanidm.sh --arch $(or $(ARCH),arm64)
+	pnpm turbo run build --filter=@medbrains/web...
+	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
+
+os-test: ## Boot a debug image and check security, boot and memory (IMAGE=path/to/image.raw)
+	bash scripts/build_guard.sh --wait
+	cargo run -q -p medbrains-os-test -- $(IMAGE)
+
+os-boot: ## Boot the built arm64 image in QEMU (FRESH=1 for a brand-new box)
+	os/qemu-run.sh $(if $(FRESH),--fresh)

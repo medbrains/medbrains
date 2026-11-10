@@ -1,0 +1,113 @@
+{
+  "format": 1,
+  "id": "30-query-revenue-by-month",
+  "synthetic": true,
+  "task": "query",
+  "today": "2026-10-25",
+  "identifiers": [
+    {
+      "kind": "Patient",
+      "value": "Ravi Kumar Sharma"
+    },
+    {
+      "kind": "Uhid",
+      "value": "MB-2026-000123"
+    },
+    {
+      "kind": "Phone",
+      "value": "+91 98450 11223"
+    }
+  ],
+  "planted": [],
+  "source": {
+    "rows": [
+      {
+        "month": "2025-11",
+        "billed": 6626578.56,
+        "collected": 5041362.96
+      },
+      {
+        "month": "2025-12",
+        "billed": 8893439.92,
+        "collected": 6101086.92
+      },
+      {
+        "month": "2026-01",
+        "billed": 8938627.04,
+        "collected": 6224127.92
+      },
+      {
+        "month": "2026-02",
+        "billed": 6460508.8,
+        "collected": 4851922.96
+      },
+      {
+        "month": "2026-03",
+        "billed": 8232945.52,
+        "collected": 5376090.84
+      },
+      {
+        "month": "2026-04",
+        "billed": 5160372.24,
+        "collected": 3413504.4
+      },
+      {
+        "month": "2026-05",
+        "billed": 0.0,
+        "collected": 0.0
+      },
+      {
+        "month": "2026-06",
+        "billed": 0.0,
+        "collected": 0.0
+      },
+      {
+        "month": "2026-07",
+        "billed": 0.0,
+        "collected": 0.0
+      },
+      {
+        "month": "2026-08",
+        "billed": 0.0,
+        "collected": 0.0
+      },
+      {
+        "month": "2026-09",
+        "billed": 0.0,
+        "collected": 0.0
+      },
+      {
+        "month": "2026-10",
+        "billed": 998718.2,
+        "collected": 449954.84
+      }
+    ],
+    "row_count": 12,
+    "show_source": "query:1",
+    "summary_of_all_rows": {
+      "billed": {
+        "sum": "45311190.28",
+        "min": "0.0",
+        "max": "8938627.04"
+      },
+      "collected": {
+        "sum": "31458050.84",
+        "min": "0.0",
+        "max": "6224127.92"
+      }
+    }
+  },
+  "question": "What did we bill and collect each month over the last 12 months?",
+  "expect": "answer",
+  "must_include": [
+    "89,38,627\\.04|8938627\\.04|4,53,11,190\\.28|45311190\\.28"
+  ],
+  "must_not_include": [
+    "30-day|30 day",
+    "(select|choose|pick) (a|the) patient",
+    "place-?holder",
+    "my (earlier|previous) (answer|reply)|tested|were wrong|mistake|apologi",
+    "\\bSELECT\\b|ai_query"
+  ],
+  "max_words": 120
+}

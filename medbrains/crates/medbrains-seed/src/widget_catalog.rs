@@ -50,12 +50,12 @@ const CATALOG: &[WidgetSpec] = &[
     WidgetSpec {
         code: "opd_today_count",
         name: "Today's OPD",
-        description: "OPD encounters created today",
+        description: "OPD visits today, by the hospital's calendar",
         wtype: "stat_card",
         icon: "IconStethoscope",
         color: "primary",
         config: r#"{"format": "number"}"#,
-        data_source: r#"{"type": "sql_count", "table": "encounters", "filter": "DATE(encounter_date) = CURRENT_DATE"}"#,
+        data_source: r#"{"type": "sql_count", "table": "encounters", "filter": "encounter_type = 'opd' AND encounter_date = tenant_local_date(tenant_id, now())"}"#,
         width: 3,
         height: 2,
         category: "metrics",
@@ -347,6 +347,27 @@ const KPI_WIDGETS: &[(&str, &str, &str, &str, &str)] = &[
         "LAMA, DAMA or absconded, 7 days",
         "IPD",
         "IconAlertTriangle",
+    ),
+    (
+        "paperless_signed_pct",
+        "Signed digitally",
+        "Clinical documents signed in the system, 7 days",
+        "Records",
+        "IconSignature",
+    ),
+    (
+        "mrd_file_delivery_minutes",
+        "Paper file wait",
+        "Median, registration to file at the clinic",
+        "OPD",
+        "IconFolder",
+    ),
+    (
+        "mrd_file_delivery_p90_minutes",
+        "Paper file wait, slowest",
+        "90th percentile, registration to file at the clinic",
+        "OPD",
+        "IconFolder",
     ),
 ];
 /// Who may place or see a management KPI.

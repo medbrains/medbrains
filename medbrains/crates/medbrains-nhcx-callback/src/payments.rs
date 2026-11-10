@@ -24,8 +24,8 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use medbrains_core::nhcx::{
-    FINANCIAL_TASK_CODE_SYSTEM, NDHM_TASK_OUTPUT_TYPE_SYSTEM, NDHM_TASK_OUTPUT_VALUE_SYSTEM,
-    NhcxOperation, NhcxRecord, TASK_BUNDLE_PROFILE,
+    BUNDLE_IDENTIFIER_SYSTEM, FINANCIAL_TASK_CODE_SYSTEM, NDHM_TASK_OUTPUT_TYPE_SYSTEM,
+    NDHM_TASK_OUTPUT_VALUE_SYSTEM, NhcxOperation, NhcxRecord, TASK_BUNDLE_PROFILE, TASK_PROFILE,
 };
 use medbrains_core::nhcx_wire::WORKFLOW_PAYMENT_SETTLED;
 use medbrains_server_core::error::AppError;
@@ -76,6 +76,7 @@ struct Allocation {
     gross_amount: Decimal,
     tds_amount: Decimal,
     payment_date: Option<NaiveDate>,
+    payment_reference: Option<String>,
 }
 
 /// Post one allocation to its claim: settle it, record the TDS, flag a
@@ -87,7 +88,7 @@ pub(crate) async fn post(
     posted_by: Option<Uuid>,
 ) -> Result<(), AppError> {
     let a = sqlx::query_as::<_, Allocation>(
-        "SELECT a.gross_amount, a.tds_amount, n.payment_date \
+        "SELECT a.gross_amount, a.tds_amount, n.payment_date, n.payment_reference \
            FROM nhcx_payment_allocations a JOIN nhcx_payment_notices n ON n.id = a.notice_id \
           WHERE a.id = $1 AND a.tenant_id = $2 AND a.status = 'unmatched' FOR UPDATE OF a",
     )
@@ -140,6 +141,18 @@ pub(crate) async fn post(
     .bind(tenant_id)
     .execute(&mut **tx)
     .await?;
+    // The bill side waits for finance: a pending posting, approved by hand.
+    sqlx::query("SELECT file_claim_settlement($1, $2, 'nhcx', $3, $4, $5, $6, $7, $8)")
+        .bind(tenant_id)
+        .bind(claim_id)
+        .bind(allocation_id.to_string())
+        .bind(a.gross_amount)
+        .bind(a.tds_amount)
+        .bind(&a.payment_reference)
+        .bind(a.payment_date)
+        .bind(posted_by)
+        .execute(&mut **tx)
+        .await?;
     // Doctors paid on insurer realisation earn their share as it settles.
     medbrains_doctor_payouts::accrual::sync_after_money(tx, tenant_id, c.invoice_id).await?;
     Ok(())
@@ -348,11 +361,12 @@ pub(crate) fn ack_bundle(notice_id: Uuid) -> Value {
         "resourceType": "Bundle",
         "id": Uuid::new_v4(),
         "meta": { "profile": [TASK_BUNDLE_PROFILE] },
-        "identifier": { "value": notice_id },
+        "identifier": { "system": BUNDLE_IDENTIFIER_SYSTEM, "value": notice_id },
         "type": "collection",
         "timestamp": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
         "entry": [{ "fullUrl": format!("urn:uuid:{task}"), "resource": {
             "resourceType": "Task", "id": task, "status": "completed", "intent": "order",
+            "meta": { "profile": [TASK_PROFILE] },
             "code": { "coding": [{ "system": FINANCIAL_TASK_CODE_SYSTEM, "code": "status" }] },
             "description": "response for payment status Check",
             "authoredOn": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
@@ -408,6 +422,22 @@ async fn acknowledge(tx: &mut Tx<'_>, m: &Inbound<'_>, notice_id: Uuid) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The acknowledgement meets the NRCeS TaskBundle; with
+    /// `NRCES_BUNDLE_DIR` set it is also written there for the HL7
+    /// validator (`make check-fhir-validator`).
+    #[test]
+    fn the_payment_ack_meets_the_task_bundle_profile() {
+        let ack = ack_bundle(Uuid::new_v4());
+        assert_eq!(
+            medbrains_fhir::nrces::conformance::nhcx_violations(&ack),
+            Vec::<String>::new()
+        );
+        if let Ok(dir) = std::env::var("NRCES_BUNDLE_DIR") {
+            let body = serde_json::to_vec_pretty(&ack).unwrap_or_default();
+            assert!(std::fs::write(format!("{dir}/nhcx-task-payment-ack.json"), body).is_ok());
+        }
+    }
 
     #[test]
     fn the_financial_year_runs_april_to_march() {

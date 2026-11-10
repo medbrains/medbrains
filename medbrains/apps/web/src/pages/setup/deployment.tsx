@@ -166,7 +166,7 @@ export function DeploymentCostPage() {
             <b>On-prem hardware:</b> {SIZES[size].hardware}
             {residency === "india" && " — or your own data centre for full residency."}
           </Text>
-          <Text size="xs" tt="uppercase" fw={600} c="dimmed" mb={4}>
+          <Text size="xs" fw={600} c="dimmed" mb={4}>
             Estimated monthly infra cost
           </Text>
           <Table>

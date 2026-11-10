@@ -9,6 +9,7 @@ rust-version.workspace = true
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 axum = { workspace = true }
 serde = { workspace = true }

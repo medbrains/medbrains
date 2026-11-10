@@ -71,7 +71,7 @@ export function DashboardPage() {
   if (isError || !dashboard) {
     return (
       <Stack align="center" gap="xs" py={64}>
-        <ThemeIcon variant="light" color="gray" size={48} radius="xl">
+        <ThemeIcon variant="light" color="gray" size={48}>
           <IconLayoutDashboard size={24} />
         </ThemeIcon>
         <Text fw={600}>No dashboard configured</Text>
@@ -139,6 +139,7 @@ export function DashboardPage() {
                 data={dataById.get(widget.id)}
                 loading={dataLoading}
                 compare={compare}
+                asOf={asOf}
               />
             </Box>
           ))}

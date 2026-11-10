@@ -310,6 +310,8 @@ pub const FINANCIAL_TASK_CODE_SYSTEM: &str =
     "http://terminology.hl7.org/CodeSystem/financialtaskcode";
 /// NRCeS task codes (`nullify`, `deliver`, `search`).
 pub const NDHM_TASK_CODE_SYSTEM: &str = "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-codes";
+/// NRCeS `Task` profile — the focal resource of every `TaskBundle`.
+pub const TASK_PROFILE: &str = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Task";
 /// NRCeS Task.input types (`claimNumber`, `fromDate`, `toDate`, …).
 pub const NDHM_TASK_INPUT_TYPE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-input-type-code";
@@ -325,6 +327,26 @@ pub const NDHM_REASON_CODE_SYSTEM: &str =
 /// NRCeS PaymentReconciliation.detail types (`approvedAmount`, `tds`).
 pub const NDHM_PAYMENT_TYPE_SYSTEM: &str =
     "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-payment-type";
+/// HL7 v2 identifier types (`NIIP` payer, `PRN` provider, `MR` record).
+pub const V2_0203: &str = "http://terminology.hl7.org/CodeSystem/v2-0203";
+/// NRCeS identifier types (`CLN` claim number, `ABHA`, …).
+pub const NDHM_IDENTIFIER_TYPE_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-identifier-type-code";
+/// Where NHCX participant codes live (as NHA's own sample bundles name them).
+pub const NHCX_PARTICIPANT_SYSTEM: &str = "https://nhcx.abdm.gov.in";
+/// HL7 organization types (`prov`, `ins`).
+pub const ORG_TYPE_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/organization-type";
+/// HL7 policy-holder relationships (`self`, `spouse`, `child`, …).
+pub const SUBSCRIBER_RELATIONSHIP_SYSTEM: &str =
+    "http://terminology.hl7.org/CodeSystem/subscriber-relationship";
+/// HL7 coverage class types (`plan`, `group`, …).
+pub const COVERAGE_CLASS_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/coverage-class";
+/// Our namespaces for the ids an NHCX message carries.
+pub const BUNDLE_IDENTIFIER_SYSTEM: &str = "https://medbrains.health/nhcx-bundle";
+pub const CLAIM_IDENTIFIER_SYSTEM: &str = "https://medbrains.health/insurance-claim";
+pub const ELIGIBILITY_IDENTIFIER_SYSTEM: &str = "https://medbrains.health/nhcx-eligibility";
+/// The hospital's own charge codes, for a bill line with no package code.
+pub const CHARGE_CODE_SYSTEM: &str = "https://medbrains.health/charge-code";
 /// ICD-11 MMS code system (the WHO release URI).
 pub const ICD11_SYSTEM: &str = "http://id.who.int/icd/release/11/mms";
 /// HL7 example benefit categories — the services an eligibility check asks about.

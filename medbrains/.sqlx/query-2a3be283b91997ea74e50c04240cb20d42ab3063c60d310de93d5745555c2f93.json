@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM dictation_content c USING dictation_sessions s WHERE s.id = c.session_id AND c.tenant_id = $1 AND s.status <> 'saved' AND c.session_id = ANY($2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a3be283b91997ea74e50c04240cb20d42ab3063c60d310de93d5745555c2f93"
+}

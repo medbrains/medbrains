@@ -1,5 +1,6 @@
 import { Box, Flex, Group, ScrollArea, Stack, Text, UnstyledButton } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { useAuthStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconDownload,
@@ -16,17 +17,26 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   AiChatPanel,
-  type ChatRole,
   type ChatSource,
   messageParts,
   SseTransport,
   useAiChat,
 } from "@/components/ai";
+import { fromStored } from "@/components/ai/transport/stored";
+import { widgetText } from "@/components/ai/widgets/format";
 import { Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import classes from "./assistant.module.scss";
 
 // ai-label-exempt: renders AiChatPanel, which carries the label; titles are the user's own question.
+
+/** "Good afternoon, Asha": the workspace greets its owner by first name. */
+function greetingFor(fullName: string | undefined, now: Date): string {
+  const hour = now.getHours();
+  const part = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const first = fullName?.trim().split(/\s+/)[0];
+  return first ? `Good ${part}, ${first}` : `Good ${part}`;
+}
 
 /** Download the current thread as a markdown transcript (programmatic, no UI markup). */
 function downloadTranscript(lines: string): void {
@@ -48,6 +58,8 @@ export function AssistantPage() {
   const controller = useAiChat({ transport });
   const [historyOpen, setHistoryOpen] = useState(true);
   const [detailOpen, setDetailOpen] = useState(true);
+  const fullName = useAuthStore((s) => s.user?.full_name);
+  const greeting = useMemo(() => greetingFor(fullName, new Date()), [fullName]);
 
   const { data: conversations = [] } = useQuery({
     queryKey: ["ai-conversations"],
@@ -56,15 +68,7 @@ export function AssistantPage() {
 
   const openConversation = async (id: string) => {
     const loaded = await api.getAiConversationMessages(id);
-    controller.hydrate(
-      loaded.map((m) => ({
-        id: m.id,
-        role: m.role as ChatRole,
-        content: m.content,
-        createdAt: m.created_at,
-        status: "complete" as const,
-      })),
-    );
+    controller.hydrate(loaded.map(fromStored));
     transport.setConversationId(id);
   };
 
@@ -79,8 +83,13 @@ export function AssistantPage() {
   );
 
   const onDownload = () => {
+    // A chart or table in an answer goes into the transcript as text.
     const md = controller.messages
-      .map((m) => `**${m.role === "user" ? "You" : "Assistant (AI-generated)"}:** ${m.content}`)
+      .map((m) => {
+        const said = `**${m.role === "user" ? "You" : "Assistant (AI-generated)"}:** ${m.content}`;
+        const shown = (m.widgets ?? []).map(widgetText);
+        return [said, ...shown].join("\n\n");
+      })
       .join("\n\n");
     downloadTranscript(md);
   };
@@ -172,7 +181,7 @@ export function AssistantPage() {
         )}
 
         <Box className={classes.center}>
-          <AiChatPanel controller={controller} title="MedBrains Assistant" />
+          <AiChatPanel controller={controller} title="MedBrains Assistant" greeting={greeting} />
         </Box>
 
         {detailOpen ? (

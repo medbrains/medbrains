@@ -60,14 +60,16 @@ pub struct UpdateInsuranceClaimRequest {
     pub notes: Option<String>,
 }
 
+/// `GET /api/billing/insurance-claims` — the hospital's claims, newest first;
+/// the TPA pipeline reads it.
 pub async fn list_insurance_claims(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<InsuranceClaim>>, AppError> {
     require_permission(&claims, permissions::billing::corporate::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let rows = sqlx::query_as::<_, InsuranceClaim>(
         "SELECT * FROM insurance_claims WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
@@ -80,6 +82,8 @@ pub async fn list_insurance_claims(
     Ok(Json(rows))
 }
 
+/// `GET /api/billing/insurance-claims/{id}` — one claim, for a caller with
+/// access to it through the claim's link.
 pub async fn get_insurance_claim(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -97,8 +101,8 @@ pub async fn get_insurance_claim(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
     let claim = sqlx::query_as::<_, InsuranceClaim>(
         "SELECT * FROM insurance_claims WHERE id = $1 AND tenant_id = $2",
@@ -322,22 +326,22 @@ pub async fn update_insurance_claim(
     let effective_settled = body.settled_amount.or(gate.settled_amount);
 
     // The insurer cannot approve more than the hospital billed.
-    if let Some(approved) = effective_approved {
-        if approved > gate.invoice_total {
-            return Err(AppError::BadRequest(format!(
-                "Approved amount {approved} exceeds the invoice total {}",
-                gate.invoice_total
-            )));
-        }
+    if let Some(approved) = effective_approved
+        && approved > gate.invoice_total
+    {
+        return Err(AppError::BadRequest(format!(
+            "Approved amount {approved} exceeds the invoice total {}",
+            gate.invoice_total
+        )));
     }
 
     // The insurer cannot settle (pay) more than it sanctioned (approved).
-    if let (Some(settled), Some(approved)) = (effective_settled, effective_approved) {
-        if settled > approved {
-            return Err(AppError::BadRequest(format!(
-                "Settled amount {settled} cannot exceed the approved amount {approved}"
-            )));
-        }
+    if let (Some(settled), Some(approved)) = (effective_settled, effective_approved)
+        && settled > approved
+    {
+        return Err(AppError::BadRequest(format!(
+            "Settled amount {settled} cannot exceed the approved amount {approved}"
+        )));
     }
 
     // Handle settled_at based on status
@@ -377,6 +381,24 @@ pub async fn update_insurance_claim(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // Settling the claim here files the rise as a pending posting; the bill
+    // waits for finance to approve it.
+    let rise = claim.settled_amount.unwrap_or_default() - gate.settled_amount.unwrap_or_default();
+    if rise > Decimal::ZERO {
+        sqlx::query(
+            "SELECT file_claim_settlement($1, $2, 'claim_update', $3, $4, 0, NULL, NULL, $5)",
+        )
+        .bind(claims.tenant_id)
+        .bind(claim.id)
+        .bind(format!(
+            "settled:{}",
+            claim.settled_amount.unwrap_or_default()
+        ))
+        .bind(rise)
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+    }
     // Doctors paid on insurer realisation earn their share when it settles,
     // cut down by what the insurer disallowed.
     medbrains_doctor_payouts::accrual::sync_after_money(
@@ -466,12 +488,12 @@ pub async fn create_tpa_rate_card(
             "insurance provider is required".to_owned(),
         ));
     }
-    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to) {
-        if valid_to < valid_from {
-            return Err(AppError::BadRequest(
-                "valid to date must be after valid from date".to_owned(),
-            ));
-        }
+    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to)
+        && valid_to < valid_from
+    {
+        return Err(AppError::BadRequest(
+            "valid to date must be after valid from date".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -525,12 +547,12 @@ pub async fn update_tpa_rate_card(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to) {
-        if valid_to < valid_from {
-            return Err(AppError::BadRequest(
-                "valid to date must be after valid from date".to_owned(),
-            ));
-        }
+    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to)
+        && valid_to < valid_from
+    {
+        return Err(AppError::BadRequest(
+            "valid to date must be after valid from date".to_owned(),
+        ));
     }
     if let Some(rate_plan_id) = body.rate_plan_id {
         let rate_plan_exists = sqlx::query_scalar::<_, bool>(
@@ -1052,6 +1074,17 @@ pub async fn auto_match_bank_transactions(
         .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
+        // The credit reaches the bill once finance approves the posting.
+        sqlx::query("SELECT file_claim_settlement($1, $2, 'bank', $3, $4, 0, $5, $6, $7)")
+            .bind(claims.tenant_id)
+            .bind(claim_id)
+            .bind(txn.id.to_string())
+            .bind(txn.credit_amount)
+            .bind(&txn.reference_number)
+            .bind(txn.transaction_date)
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
 
         matched += 1;
     }
@@ -1069,7 +1102,6 @@ pub async fn auto_match_bank_transactions(
 #[derive(Debug, sqlx::FromRow)]
 struct UnmatchedCredit {
     id: Uuid,
-    #[allow(dead_code)]
     transaction_date: NaiveDate,
     credit_amount: Decimal,
     reference_number: Option<String>,

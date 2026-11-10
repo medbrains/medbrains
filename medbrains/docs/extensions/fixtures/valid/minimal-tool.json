@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "kind": "mcp-tool",
+  "name": "Lab trend",
+  "purpose": "Explains a patient's recent lab results as a trend.",
+  "publisher": { "name": "Example Health Tech" },
+  "version": "0.1.0-beta.1",
+  "permissions": ["lab.orders.view"],
+  "reads": ["Observation"],
+  "dataClasses": ["routine"],
+  "sendsDataTo": [{ "name": "Runs inside the hospital", "url": "https://mcp.hospital.example", "purpose": "No data leaves the hospital" }],
+  "inputSchema": { "type": "object", "properties": { "patientId": { "type": "string" } } }
+}

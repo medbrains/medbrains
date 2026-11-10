@@ -2,77 +2,83 @@ use serde::Deserialize;
 use std::net::ToSocketAddrs;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ProxyConfig {
-    pub http_port: Option<u16>,
-    pub https_port: Option<u16>,
-    pub body_limit_bytes: Option<u64>,
-    pub block_source_maps: Option<bool>,
-    pub content_security_policy: Option<String>,
-    pub downstream_read_timeout_ms: Option<u64>,
-    pub downstream_write_timeout_ms: Option<u64>,
-    pub upstream_connect_timeout_ms: Option<u64>,
-    pub upstream_total_timeout_ms: Option<u64>,
-    pub upstream_read_timeout_ms: Option<u64>,
-    pub upstream_idle_timeout_ms: Option<u64>,
-    pub drain_timeout_ms: Option<u64>,
+pub(crate) struct ProxyConfig {
+    pub(crate) http_port: Option<u16>,
+    pub(crate) https_port: Option<u16>,
+    pub(crate) body_limit_bytes: Option<u64>,
+    pub(crate) block_source_maps: Option<bool>,
+    pub(crate) content_security_policy: Option<String>,
+    pub(crate) downstream_read_timeout_ms: Option<u64>,
+    pub(crate) downstream_write_timeout_ms: Option<u64>,
+    pub(crate) upstream_connect_timeout_ms: Option<u64>,
+    pub(crate) upstream_total_timeout_ms: Option<u64>,
+    pub(crate) upstream_read_timeout_ms: Option<u64>,
+    pub(crate) upstream_idle_timeout_ms: Option<u64>,
+    pub(crate) drain_timeout_ms: Option<u64>,
     #[serde(default)]
-    pub edge_policies: Vec<EdgePolicyConfig>,
-    pub routes: Vec<RouteConfig>,
+    pub(crate) edge_policies: Vec<EdgePolicyConfig>,
+    pub(crate) routes: Vec<RouteConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct EdgePolicyConfig {
-    pub prefix: String,
-    pub class: Option<String>,
-    pub upstream: Option<String>,
-    pub body_limit_bytes: Option<u64>,
-    pub upstream_total_timeout_ms: Option<u64>,
-    pub upstream_read_timeout_ms: Option<u64>,
-    pub require_idempotency_key: Option<bool>,
-    pub retry_after_seconds: Option<u64>,
-    pub cache_control: Option<String>,
-    pub block: Option<bool>,
-    pub allowed_methods: Option<Vec<String>>,
+pub(crate) struct EdgePolicyConfig {
+    pub(crate) prefix: String,
+    pub(crate) class: Option<String>,
+    pub(crate) upstream: Option<String>,
+    pub(crate) body_limit_bytes: Option<u64>,
+    pub(crate) upstream_total_timeout_ms: Option<u64>,
+    pub(crate) upstream_read_timeout_ms: Option<u64>,
+    pub(crate) require_idempotency_key: Option<bool>,
+    pub(crate) retry_after_seconds: Option<u64>,
+    pub(crate) cache_control: Option<String>,
+    pub(crate) block: Option<bool>,
+    pub(crate) allowed_methods: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct RouteConfig {
-    pub domain: String,
-    pub upstream: String,
+pub(crate) struct RouteConfig {
+    pub(crate) domain: String,
+    pub(crate) upstream: String,
     #[serde(default)]
-    pub cors_allowed_origins: Vec<String>,
+    pub(crate) cors_allowed_origins: Vec<String>,
     #[serde(rename = "gzip")]
-    pub _gzip: Option<bool>,
+    pub(crate) _gzip: Option<bool>,
     /// Per-domain TLS cert (for SNI)
-    pub cert_path: Option<String>,
-    pub key_path: Option<String>,
+    pub(crate) cert_path: Option<String>,
+    /// A self-contained application with its own login and its own security
+    /// headers (the Rustrak error tracker): none of the MedBrains edge policies,
+    /// the MedBrains CSP or the SPA fallback apply — only the global body
+    /// limit, the framing checks and the source-map block.
+    #[serde(default)]
+    pub(crate) passthrough: bool,
+    pub(crate) key_path: Option<String>,
 }
 
 impl ProxyConfig {
-    pub fn load(path: &str) -> anyhow::Result<Self> {
+    pub(crate) fn load(path: &str) -> anyhow::Result<Self> {
         let contents = std::fs::read_to_string(path)?;
         let config: ProxyConfig = toml::from_str(&contents)?;
         config.validate()?;
         Ok(config)
     }
 
-    pub fn http_port(&self) -> u16 {
+    pub(crate) fn http_port(&self) -> u16 {
         self.http_port.unwrap_or(80)
     }
 
-    pub fn https_port(&self) -> u16 {
+    pub(crate) fn https_port(&self) -> u16 {
         self.https_port.unwrap_or(443)
     }
 
-    pub fn body_limit_bytes(&self) -> u64 {
+    pub(crate) fn body_limit_bytes(&self) -> u64 {
         self.body_limit_bytes.unwrap_or(25 * 1024 * 1024)
     }
 
-    pub fn block_source_maps(&self) -> bool {
+    pub(crate) fn block_source_maps(&self) -> bool {
         self.block_source_maps.unwrap_or(true)
     }
 
-    pub fn content_security_policy(&self) -> String {
+    pub(crate) fn content_security_policy(&self) -> String {
         self.content_security_policy
             .as_deref()
             .unwrap_or(DEFAULT_CONTENT_SECURITY_POLICY)
@@ -81,31 +87,31 @@ impl ProxyConfig {
             .join(" ")
     }
 
-    pub fn downstream_read_timeout_ms(&self) -> u64 {
+    pub(crate) fn downstream_read_timeout_ms(&self) -> u64 {
         self.downstream_read_timeout_ms.unwrap_or(30_000)
     }
 
-    pub fn downstream_write_timeout_ms(&self) -> u64 {
+    pub(crate) fn downstream_write_timeout_ms(&self) -> u64 {
         self.downstream_write_timeout_ms.unwrap_or(30_000)
     }
 
-    pub fn upstream_connect_timeout_ms(&self) -> u64 {
+    pub(crate) fn upstream_connect_timeout_ms(&self) -> u64 {
         self.upstream_connect_timeout_ms.unwrap_or(5_000)
     }
 
-    pub fn upstream_total_timeout_ms(&self) -> u64 {
+    pub(crate) fn upstream_total_timeout_ms(&self) -> u64 {
         self.upstream_total_timeout_ms.unwrap_or(15_000)
     }
 
-    pub fn upstream_read_timeout_ms(&self) -> u64 {
+    pub(crate) fn upstream_read_timeout_ms(&self) -> u64 {
         self.upstream_read_timeout_ms.unwrap_or(60_000)
     }
 
-    pub fn upstream_idle_timeout_ms(&self) -> u64 {
+    pub(crate) fn upstream_idle_timeout_ms(&self) -> u64 {
         self.upstream_idle_timeout_ms.unwrap_or(60_000)
     }
 
-    pub fn drain_timeout_ms(&self) -> u64 {
+    pub(crate) fn drain_timeout_ms(&self) -> u64 {
         self.drain_timeout_ms.unwrap_or(1_000)
     }
 

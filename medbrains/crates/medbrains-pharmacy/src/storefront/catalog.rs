@@ -14,8 +14,9 @@ use axum::{
 use medbrains_core::permissions;
 use medbrains_core::pharmacy::PharmacyCatalog;
 use medbrains_core::pharmacy_storefront::{
-    COUNTER_ONLY, DEFAULT_MAX_QTY, SaleClass, max_units, online_price, stock_level,
+    COUNTER_ONLY, DEFAULT_MAX_QTY, SaleClass, max_units, online_price, price_cap, stock_level,
 };
+use medbrains_core::pharmacy_substitution::SubstituteFacts;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
@@ -38,23 +39,21 @@ const MIN_QUERY_CHARS: usize = 2;
 /// Shown on an item that must be collected.
 const PICKUP_NOTE: &str = "Collect it at the pharmacy: not delivered";
 
-/// Catalogue facts plus, from its batches, the units online may take and the
-/// price and MRP of the batch FEFO would issue to an online order. `$S` is
-/// the shelf-life floor in days.
+/// Catalogue facts plus the price and MRP of the batch FEFO would issue to
+/// an online order. `$S` is the shelf-life floor in days. What online may
+/// still sell is filled in from the stores' stock ([`fill_stock`]).
 const ITEM_SELECT: &str = "SELECT c.id, c.name, COALESCE(c.inn_name, c.generic_name) AS inn, \
      c.manufacturer, c.category, c.dosage_form, c.strength, c.pack_size, c.unit, \
      c.drug_schedule AS schedule, c.is_controlled, c.habit_forming, c.needs_cold_chain, \
      COALESCE(c.max_order_qty, $MAXQ) AS max_quantity, \
      (c.sold_online AND c.is_active AND c.deleted_at IS NULL) AS on_sale, \
      c.is_active AND c.deleted_at IS NULL AS active, \
-     COALESCE(s.on_hand, 0) - COALESCE(c.online_reserve_floor, c.reorder_level) AS available, \
+     GREATEST(COALESCE(c.online_reserve_floor, c.reorder_level, 0), 0) AS floor, \
+     0::int AS available, \
      COALESCE(f.selling_rate, NULLIF(c.base_price, 0), c.mrp) AS selling_price, \
-     COALESCE(f.mrp, c.mrp) AS mrp \
+     COALESCE(f.mrp, c.mrp) AS mrp, c.nppa_ceiling_price, c.release_type, \
+     c.narrow_therapeutic_index, c.is_biological \
    FROM pharmacy_catalog c \
-   LEFT JOIN LATERAL (SELECT SUM(b.quantity_on_hand)::int AS on_hand FROM pharmacy_batches b \
-        WHERE b.tenant_id = c.tenant_id AND b.catalog_item_id = c.id AND b.deleted_at IS NULL \
-          AND b.quarantine_status = 'cleared' AND b.quantity_on_hand > 0 \
-          AND b.expiry_date >= CURRENT_DATE + $S) s ON true \
    LEFT JOIN LATERAL (SELECT b.selling_rate, b.mrp FROM pharmacy_batches b \
         WHERE b.tenant_id = c.tenant_id AND b.catalog_item_id = c.id AND b.deleted_at IS NULL \
           AND b.quarantine_status = 'cleared' AND b.quantity_on_hand > 0 \
@@ -79,9 +78,16 @@ pub(crate) struct ItemRow {
     max_quantity: i32,
     pub on_sale: bool,
     pub active: bool,
+    /// Units the wards and the counter keep: online sells only above it.
+    pub floor: i32,
     pub available: i32,
     selling_price: Option<Decimal>,
     mrp: Option<Decimal>,
+    /// The NPPA ceiling price (DPCO 2013): never sold above it.
+    nppa_ceiling_price: Option<Decimal>,
+    release_type: String,
+    narrow_therapeutic_index: bool,
+    is_biological: bool,
 }
 
 impl ItemRow {
@@ -122,7 +128,19 @@ impl ItemRow {
             settings.discounts.otc
         };
         self.selling_price
-            .map(|p| online_price(p, discount, self.mrp))
+            .map(|p| online_price(p, discount, price_cap(self.mrp, self.nppa_ceiling_price)))
+    }
+
+    /// What substitution matches on.
+    pub(crate) fn substitute_facts(&self) -> SubstituteFacts {
+        SubstituteFacts {
+            inn: self.inn.clone(),
+            strength: self.strength.clone(),
+            dosage_form: self.dosage_form.clone(),
+            release_type: self.release_type.clone(),
+            narrow_therapeutic_index: self.narrow_therapeutic_index,
+            biological: self.is_biological,
+        }
     }
 }
 
@@ -203,14 +221,34 @@ fn select(settings: &StoreSettings) -> String {
         .replace("$S", &settings.min_shelf_life_days.max(0).to_string())
 }
 
-/// Items by id, on sale or not — for a cart or a prescription.
+/// Fill in what online may still sell of each item: the best any store
+/// can do, holds of `own_order` left out.
+pub(crate) async fn fill_stock(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    rows: &mut [ItemRow],
+    settings: &StoreSettings,
+    own_order: Option<Uuid>,
+) -> Result<(), AppError> {
+    let ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let stock =
+        super::stores::stock(tx, tenant_id, &ids, settings.min_shelf_life_days, own_order).await?;
+    for r in rows.iter_mut() {
+        r.available = super::stores::best_available(&stock, r.id, r.floor);
+    }
+    Ok(())
+}
+
+/// Items by id, on sale or not — for a cart or a prescription — with what
+/// online may still sell, holds of `own_order` left out.
 pub(crate) async fn rows_by_ids(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
     ids: &[Uuid],
     settings: &StoreSettings,
+    own_order: Option<Uuid>,
 ) -> Result<HashMap<Uuid, ItemRow>, AppError> {
-    let rows = sqlx::query_as::<_, ItemRow>(&format!(
+    let mut rows = sqlx::query_as::<_, ItemRow>(&format!(
         "{} WHERE c.tenant_id = $1 AND c.id = ANY($2)",
         select(settings)
     ))
@@ -218,6 +256,7 @@ pub(crate) async fn rows_by_ids(
     .bind(ids)
     .fetch_all(&mut **tx)
     .await?;
+    fill_stock(tx, tenant_id, &mut rows, settings, own_order).await?;
     Ok(rows.into_iter().map(|r| (r.id, r)).collect())
 }
 
@@ -255,7 +294,7 @@ pub async fn search(
         .as_deref()
         .map(str::trim)
         .filter(|c| !c.is_empty());
-    let rows = sqlx::query_as::<_, ItemRow>(&format!(
+    let mut rows = sqlx::query_as::<_, ItemRow>(&format!(
         "{} WHERE c.tenant_id = $1 AND c.sold_online AND c.is_active AND c.deleted_at IS NULL \
             AND ($2::text IS NULL OR lower(c.name) LIKE '%' || $2 || '%' \
                  OR lower(COALESCE(c.inn_name, c.generic_name, '')) LIKE '%' || $2 || '%') \
@@ -270,6 +309,7 @@ pub async fn search(
     .bind(SEARCH_LIMIT)
     .fetch_all(&mut **tx)
     .await?;
+    fill_stock(tx, tenant_id, &mut rows, &settings, None).await?;
     let categories: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT category FROM pharmacy_catalog \
           WHERE tenant_id = $1 AND sold_online AND is_active AND deleted_at IS NULL \
@@ -302,9 +342,9 @@ pub async fn item_page(
     id: Uuid,
 ) -> Result<ItemPage, AppError> {
     let settings = super::settings::require_open(tx, tenant_id).await?;
-    // ponytail: same INN only; strength/form/release matching and the
-    // no-substitute list come with substitution (research §4).
-    let rows = sqlx::query_as::<_, ItemRow>(&format!(
+    // Same INN for comparison; what may actually be substituted is
+    // `pharmacy_substitution::substitution_problem`, decided with the doctor.
+    let mut rows = sqlx::query_as::<_, ItemRow>(&format!(
         "{} WHERE c.tenant_id = $1 AND c.sold_online AND c.is_active AND c.deleted_at IS NULL \
             AND (c.id = $2 OR (lower(COALESCE(c.inn_name, c.generic_name, '')) <> '' \
                  AND lower(COALESCE(c.inn_name, c.generic_name, '')) = ( \
@@ -318,6 +358,7 @@ pub async fn item_page(
     .bind(SUBSTITUTE_LIMIT + 1)
     .fetch_all(&mut **tx)
     .await?;
+    fill_stock(tx, tenant_id, &mut rows, &settings, None).await?;
     let mut items = rows.iter().map(|r| present(r, &settings));
     let item = items
         .next()
@@ -332,6 +373,11 @@ pub async fn item_page(
 pub struct OnlineListing {
     pub sold_online: Option<bool>,
     pub habit_forming: Option<bool>,
+    /// Units kept back for the wards and the counter.
+    pub online_reserve_floor: Option<i32>,
+    /// Drop the set floor: the reorder level applies again.
+    #[serde(default)]
+    pub floor_from_reorder_level: bool,
 }
 
 /// `PUT /api/pharmacy/storefront/catalog/{id}` — put an item online or take
@@ -343,19 +389,29 @@ pub async fn set_listing(
     Json(body): Json<OnlineListing>,
 ) -> Result<Json<PharmacyCatalog>, AppError> {
     require_permission(&claims, permissions::pharmacy::storefront::MANAGE)?;
+    if body.online_reserve_floor.is_some_and(|f| f < 0) {
+        return Err(AppError::BadRequest(
+            "The online floor can't be negative".to_owned(),
+        ));
+    }
     let restricted = crate::resolve_pharmacy_restricted_fields(&state, &claims).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, PharmacyCatalog>(
         "UPDATE pharmacy_catalog \
             SET sold_online = COALESCE($3, sold_online), \
-                habit_forming = COALESCE($4, habit_forming), updated_at = now() \
+                habit_forming = COALESCE($4, habit_forming), \
+                online_reserve_floor = CASE WHEN $5 THEN NULL \
+                                            ELSE COALESCE($6, online_reserve_floor) END, \
+                updated_at = now() \
           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.sold_online)
     .bind(body.habit_forming)
+    .bind(body.floor_from_reorder_level)
+    .bind(body.online_reserve_floor)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

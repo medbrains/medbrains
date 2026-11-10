@@ -16,6 +16,7 @@ import {
   toCreateDrugInteractionRequest,
 } from "@/forms/clinical-settings.form";
 import { clinicalMastersService } from "@/services/clinicalMasters.service";
+import { ProposeButton, ProposeRowActions, useCanPropose } from "./ProposeChange";
 
 const SEVERITY_TONES: Record<string, BadgeTone> = {
   minor: "warning",
@@ -26,6 +27,7 @@ const SEVERITY_TONES: Record<string, BadgeTone> = {
 
 export function DrugInteractionsSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
+  const canPropose = useCanPropose("drug_interactions");
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const form = useForm<DrugInteractionFormInput>({
@@ -80,11 +82,14 @@ export function DrugInteractionsSettings() {
     <Stack gap="md">
       <Group justify="space-between">
         <Text fw={600}>Drug Interaction Rules ({interactions.length})</Text>
-        {canManage && (
-          <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
-            Add Interaction
-          </Button>
-        )}
+        <Group gap="xs">
+          {canPropose && <ProposeButton area="drug_interactions" />}
+          {canManage && (
+            <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
+              Add Interaction
+            </Button>
+          )}
+        </Group>
       </Group>
 
       <Table striped highlightOnHover>
@@ -96,6 +101,7 @@ export function DrugInteractionsSettings() {
             <Table.Th>Description</Table.Th>
             <Table.Th>Management</Table.Th>
             {canManage && <Table.Th w={40} />}
+            {canPropose && <Table.Th w={80}>Propose</Table.Th>}
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -138,11 +144,20 @@ export function DrugInteractionsSettings() {
                   </IconButton>
                 </Table.Td>
               )}
+              {canPropose && (
+                <Table.Td>
+                  <ProposeRowActions
+                    area="drug_interactions"
+                    id={row.id}
+                    title={`${row.drug_a_name} + ${row.drug_b_name}`}
+                  />
+                </Table.Td>
+              )}
             </Table.Tr>
           ))}
           {interactions.length === 0 && (
             <Table.Tr>
-              <Table.Td colSpan={canManage ? 6 : 5}>
+              <Table.Td colSpan={5 + Number(canManage) + Number(canPropose)}>
                 <Text size="sm" c="dimmed" ta="center">
                   No drug interaction rules configured
                 </Text>

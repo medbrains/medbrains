@@ -17,7 +17,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
         <div className={styles.iconContainer}>
           <div className={styles.glowCircle} />
           <div className={styles.iconFloat}>
-            <ThemeIcon variant="light" color="primary" size={80} radius="xl">
+            <ThemeIcon variant="light" color="primary" size={80}>
               {icon}
             </ThemeIcon>
           </div>

@@ -121,6 +121,11 @@ const SETTINGS_NAV_META: Record<
     description: "Prescription safety rules",
     kind: "rule",
   },
+  "early-warning": {
+    group: "Clinical Setup",
+    description: "NEWS2 / PEWS / MEOWS observation frequency and escalation",
+    kind: "rule",
+  },
   "critical-values": {
     group: "Clinical Setup",
     description: "Lab escalation thresholds",
@@ -191,6 +196,11 @@ const SETTINGS_NAV_META: Record<
     description: "NHCX claims exchange: participant code, gateway keys, certificates",
     kind: "configuration",
   },
+  "hl7-adt": {
+    group: "Interoperability",
+    description: "ADT messages (admit, transfer, discharge) to PACS, LIS and billing over MLLP",
+    kind: "configuration",
+  },
   "device-integrations": {
     group: "Interoperability",
     description: "PACS, lab analyzer, biometric, and print agents",
@@ -204,6 +214,11 @@ const SETTINGS_NAV_META: Record<
   "system-health": {
     group: "System",
     description: "Completeness, import, export, and health checks",
+    kind: "support",
+  },
+  "error-tracking": {
+    group: "System",
+    description: "New errors and crash-free sessions, from this server's error tracker",
     kind: "support",
   },
 };
@@ -410,7 +425,7 @@ export function SettingsPage() {
       <Card withBorder className={classes.settingsCommandBar}>
         <Group justify="space-between" align="flex-start" gap="md">
           <Stack gap={4}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            <Text size="xs" fw={700} c="dimmed">
               Configuration command center
             </Text>
             <Group gap="xs">
@@ -459,7 +474,7 @@ export function SettingsPage() {
 
       <Grid gap="lg" align="flex-start" className={classes.settingsGrid}>
         <Grid.Col span={{ base: 12, md: 3 }}>
-          <Card withBorder padding="sm" radius="md" className={classes.settingsNavCard}>
+          <Card withBorder padding="sm" className={classes.settingsNavCard}>
             <Stack gap="sm">
               <TextInput
                 aria-label="Find settings"
@@ -507,7 +522,7 @@ export function SettingsPage() {
                   ) : (
                     groupedTabs.map((entry) => (
                       <Stack key={entry.group} gap={4}>
-                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                        <Text size="xs" fw={700} c="dimmed">
                           {entry.group}
                         </Text>
                         {entry.tabs.map((cfg) => {
@@ -529,12 +544,7 @@ export function SettingsPage() {
                                 ) : undefined
                               }
                               rightSection={
-                                <Text
-                                  size="10px"
-                                  fw={700}
-                                  c={settingsKindColor(meta.kind)}
-                                  tt="uppercase"
-                                >
+                                <Text size="10px" fw={700} c={settingsKindColor(meta.kind)}>
                                   {settingsKindLabel(meta.kind)}
                                 </Text>
                               }

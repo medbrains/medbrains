@@ -169,13 +169,7 @@ export function ResuscitationTab({
       )}
 
       {selectedVisitId && canCreate && (
-        <Paper
-          component="form"
-          withBorder
-          radius="md"
-          p="md"
-          onSubmit={handleSubmit(submitResuscitationLog)}
-        >
+        <Paper component="form" withBorder p="md" onSubmit={handleSubmit(submitResuscitationLog)}>
           <Stack>
             <Controller
               name="log_type"

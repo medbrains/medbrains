@@ -84,6 +84,17 @@ pub fn minimal_data(payload: &Value) -> Value {
     Value::Object(data)
 }
 
+/// How a retryable failure is recorded: `retrying`, or `failed` on the last
+/// attempt, when the worker dead-letters the event — so the partner's screen
+/// shows the delivery was given up on instead of "retrying" forever.
+const fn transient_status(attempt: i32) -> &'static str {
+    if attempt >= crate::backoff::MAX_ATTEMPTS {
+        "failed"
+    } else {
+        "retrying"
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct WebhookDeliverHandler;
 
@@ -92,6 +103,9 @@ struct Subscription {
     url: String,
     signing_secret: String,
     is_active: bool,
+    /// Set up by a vendor account (flagged, or on a vendor domain now): such a
+    /// subscription never delivers, so it cannot outlive a support grant.
+    made_by_vendor: bool,
 }
 
 async fn record(
@@ -111,7 +125,8 @@ async fn record(
     .bind(subscription)
     .bind(ctx.event_id)
     .bind(event)
-    .bind(ctx.attempts + 1)
+    // Already counted: the worker claims a row by incrementing `attempts`.
+    .bind(ctx.attempts)
     .bind(status)
     .bind(code)
     .bind(error)
@@ -138,11 +153,14 @@ impl Handler for WebhookDeliverHandler {
             .unwrap_or_default()
             .to_owned();
         let sub = sqlx::query_as::<_, Subscription>(
-            "SELECT url, signing_secret, is_active FROM webhook_subscriptions \
+            "SELECT url, signing_secret, is_active, \
+                    public.app_user_is_vendor(created_by, $3) AS made_by_vendor \
+               FROM webhook_subscriptions \
               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
         )
         .bind(subscription_id)
         .bind(ctx.tenant_id)
+        .bind(medbrains_core::vendor::vendor_domains())
         .fetch_optional(&ctx.pool)
         .await
         .map_err(|e| HandlerError::Transient(e.to_string()))?;
@@ -150,6 +168,11 @@ impl Handler for WebhookDeliverHandler {
         let Some(sub) = sub.filter(|s| s.is_active) else {
             return Ok(json!({ "skipped": "subscription inactive" }));
         };
+        if sub.made_by_vendor {
+            tracing::warn!(%subscription_id, tenant = %ctx.tenant_id,
+                "webhook set up by a MedBrains account: not delivered");
+            return Ok(json!({ "skipped": "set up by a MedBrains account" }));
+        }
         if !is_allowed_target(&sub.url) {
             record(
                 ctx,
@@ -193,7 +216,7 @@ impl Handler for WebhookDeliverHandler {
                     ctx,
                     subscription_id,
                     &event,
-                    "retrying",
+                    transient_status(ctx.attempts),
                     None,
                     Some(&e.to_string()),
                 )
@@ -208,7 +231,15 @@ impl Handler for WebhookDeliverHandler {
             return Ok(json!({ "status": status.as_u16() }));
         }
         if status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            record(ctx, subscription_id, &event, "retrying", code, None).await;
+            record(
+                ctx,
+                subscription_id,
+                &event,
+                transient_status(ctx.attempts),
+                code,
+                None,
+            )
+            .await;
             return Err(HandlerError::Transient(format!(
                 "partner answered {status}"
             )));
@@ -224,7 +255,17 @@ impl Handler for WebhookDeliverHandler {
 mod tests {
     use serde_json::json;
 
-    use super::{is_allowed_target, minimal_data, signature};
+    use super::{is_allowed_target, minimal_data, signature, transient_status};
+
+    #[test]
+    fn the_last_retryable_failure_is_recorded_as_given_up() {
+        assert_eq!(transient_status(1), "retrying");
+        assert_eq!(
+            transient_status(crate::backoff::MAX_ATTEMPTS - 1),
+            "retrying"
+        );
+        assert_eq!(transient_status(crate::backoff::MAX_ATTEMPTS), "failed");
+    }
 
     #[test]
     fn the_signature_is_hmac_sha256_over_timestamp_and_body() {

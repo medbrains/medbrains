@@ -1,0 +1,2 @@
+# Debug images only: QEMU's serial port is ttyAMA0 (ttyS0 on x86), Apple Virtualization's is hvc0.
+ACTION=="add", SUBSYSTEM=="tty", KERNEL=="ttyAMA0|ttyS0|hvc0", TAG+="systemd", ENV{SYSTEMD_WANTS}+="medbrains-debug-shell@%k.service"

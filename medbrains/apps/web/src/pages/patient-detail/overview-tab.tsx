@@ -2,8 +2,8 @@
 
 import { Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
-import { P, type Patient, type PatientAllergy } from "@medbrains/types";
-import { fieldAccessText } from "@medbrains/utils";
+import { bloodGroupLabel, P, type Patient, type PatientAllergy } from "@medbrains/types";
+import { fieldAccessText, snakeToTitle } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { ContactConsentCard } from "@/components/Patient/ContactConsentCard";
 import { DpdpConsentCard } from "@/components/Patient/DpdpConsentCard";
@@ -49,14 +49,17 @@ export function OverviewTab({ patient }: { patient: Patient }) {
         <Stack gap="xs">
           <InfoRow label="UHID" value={fieldAccessText(uhidAccess, patient.uhid, "identifier")} />
           <InfoRow label="Name" value={displayName} />
-          <InfoRow label="Gender" value={patient.gender} />
+          <InfoRow label="Gender" value={snakeToTitle(patient.gender)} />
           <InfoRow label="Date of Birth" value={dateOfBirthValue} />
-          <InfoRow label="Blood Group" value={patient.blood_group ?? "-"} />
-          <InfoRow label="Marital Status" value={patient.marital_status ?? "-"} />
+          <InfoRow label="Blood Group" value={bloodGroupLabel(patient.blood_group)} />
+          <InfoRow
+            label="Marital Status"
+            value={patient.marital_status ? snakeToTitle(patient.marital_status) : "-"}
+          />
           <InfoRow label="Phone" value={fieldAccessText(phoneAccess, patient.phone, "phone")} />
           <InfoRow label="Email" value={fieldAccessText(emailAccess, patient.email, "email")} />
-          <InfoRow label="Category" value={patient.category} />
-          <InfoRow label="Financial Class" value={patient.financial_class} />
+          <InfoRow label="Category" value={snakeToTitle(patient.category)} />
+          <InfoRow label="Financial Class" value={snakeToTitle(patient.financial_class)} />
         </Stack>
       </Card>
 

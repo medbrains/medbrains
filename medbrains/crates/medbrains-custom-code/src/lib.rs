@@ -292,9 +292,16 @@ pub async fn ai_generate_code(
         req.context.as_deref().unwrap_or(""),
     );
 
-    let result =
-        medbrains_server_services::llm::extract::<AiGeneratedCode>(&state, &claims.tenant_id, &preamble, &req.prompt)
-            .await?;
+    // Fail closed: text that cannot be made safe is not sent at all.
+    let preamble = medbrains_server_services::llm::redact_standalone(&preamble)?;
+    let prompt = medbrains_server_services::llm::redact_standalone(&req.prompt)?;
+    let result = medbrains_server_services::llm::extract::<AiGeneratedCode>(
+        &state,
+        &claims.tenant_id,
+        &preamble,
+        &prompt,
+    )
+    .await?;
 
     Ok(Json(result))
 }

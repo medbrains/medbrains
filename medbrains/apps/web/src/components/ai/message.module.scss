@@ -10,6 +10,16 @@
   max-width: 84%;
 }
 
+// An answer with a widget takes the column's width (tables, charts).
+.wide {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  > [data-status] {
+    width: 100%;
+  }
+}
+
 .userStack {
   align-items: flex-end;
   max-width: 84%;

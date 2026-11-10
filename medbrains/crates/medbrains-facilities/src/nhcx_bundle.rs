@@ -14,27 +14,30 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use medbrains_core::nhcx::{
-    BENEFIT_CATEGORY_SYSTEM, CLAIM_BUNDLE_PROFILE, CLAIM_INFO_CATEGORY_SYSTEM,
-    COMMUNICATION_PROFILE, CONFIDENTIALITY_SYSTEM, COVERAGE_ELIGIBILITY_BUNDLE_PROFILE,
-    DIAGNOSIS_TYPE_SYSTEM, ICD11_SYSTEM, NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM,
+    BENEFIT_CATEGORY_SYSTEM, BUNDLE_IDENTIFIER_SYSTEM, CHARGE_CODE_SYSTEM, CLAIM_BUNDLE_PROFILE,
+    CLAIM_IDENTIFIER_SYSTEM, CLAIM_INFO_CATEGORY_SYSTEM, COMMUNICATION_PROFILE,
+    CONFIDENTIALITY_SYSTEM, COVERAGE_CLASS_SYSTEM, COVERAGE_ELIGIBILITY_BUNDLE_PROFILE,
+    DIAGNOSIS_TYPE_SYSTEM, ELIGIBILITY_IDENTIFIER_SYSTEM, ICD11_SYSTEM,
+    NDHM_IDENTIFIER_TYPE_SYSTEM, NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM,
     NDHM_SUPPORTING_INFO_CODE_SYSTEM, SNOMED_HEALTHCARE_PROFESSIONAL_CODE,
     SNOMED_INSTITUTIONAL_CLAIM_CODE,
 };
-use medbrains_fhir::mapper::{
-    ABHA_SYSTEM, HFR_SYSTEM, HPR_SYSTEM, ICD10_SYSTEM, POLICY_SYSTEM, PROCESS_PRIORITY_SYSTEM,
-    SNOMED_SYSTEM, UHID_SYSTEM,
-};
+use medbrains_fhir::mapper::{ICD10_SYSTEM, POLICY_SYSTEM, PROCESS_PRIORITY_SYSTEM, SNOMED_SYSTEM};
+use medbrains_fhir::nrces::{self, NRCES_PROFILE_BASE, Party};
 
 use crate::nhcx_claim_documents::DocKind;
 use crate::nhcx_common::{PatientParty, PolicyParty, ProviderParty};
+use crate::nhcx_parties::{
+    patient_entry, payer_resource, profiled, provider_resource, prune, relationship,
+};
 
 /// Who the message is about, from, and to.
 pub(crate) struct Parties<'a> {
     pub(crate) patient: &'a PatientParty,
     pub(crate) policy: &'a PolicyParty,
     pub(crate) provider: &'a ProviderParty,
-    /// The treating doctor's name and HPR id.
-    pub(crate) doctor: Option<&'a (String, Option<String>)>,
+    /// The treating doctor (an eligibility check's: the staff member asking).
+    pub(crate) doctor: Option<&'a Party>,
     /// The payer's HCX participant code.
     pub(crate) recipient: &'a str,
 }
@@ -124,32 +127,6 @@ impl Urns {
     }
 }
 
-fn patient_entry(p: &PatientParty, urn: &str) -> Value {
-    let mut identifier = vec![json!({ "system": UHID_SYSTEM, "value": p.uhid })];
-    if let Some(abha) = p.abha_number.as_deref().filter(|s| !s.is_empty()) {
-        identifier.push(json!({ "system": ABHA_SYSTEM, "value": abha }));
-    }
-    json!({ "fullUrl": urn, "resource": {
-        "resourceType": "Patient",
-        "id": p.id,
-        "identifier": identifier,
-        "name": [{ "text": format!("{} {}", p.first_name, p.last_name), "given": [p.first_name], "family": p.last_name }],
-        "gender": p.gender,
-        "birthDate": p.date_of_birth,
-    }})
-}
-
-fn provider_entry(p: &ProviderParty, (id, urn): &(Uuid, String)) -> Value {
-    let identifier: Vec<Value> = p
-        .hfr_facility_id
-        .iter()
-        .map(|hfr| json!({ "system": HFR_SYSTEM, "value": hfr }))
-        .collect();
-    json!({ "fullUrl": urn, "resource": {
-        "resourceType": "Organization", "id": id, "identifier": identifier, "name": p.name
-    }})
-}
-
 fn coverage_entry(parties: &Parties<'_>, urns: &Urns) -> Value {
     let policy = parties.policy;
     let identifier: Vec<Value> = policy
@@ -160,44 +137,40 @@ fn coverage_entry(parties: &Parties<'_>, urns: &Urns) -> Value {
     let class: Vec<Value> = policy
         .plan_name
         .iter()
-        .map(|plan| json!({ "type": { "coding": [{ "code": "plan" }] }, "value": plan, "name": plan }))
+        .map(|plan| json!({ "type": { "coding": [{ "system": COVERAGE_CLASS_SYSTEM, "code": "plan", "display": "Plan" }] }, "value": plan, "name": plan }))
         .collect();
-    json!({ "fullUrl": urns.coverage.1, "resource": {
+    let coverage = json!({
         "resourceType": "Coverage",
         "id": urns.coverage.0,
         "identifier": identifier,
         "status": "active",
         "subscriberId": policy.member_id,
         "beneficiary": { "reference": urns.patient },
-        "relationship": policy.policy_holder_relation.as_ref().map(|r| json!({ "text": r })),
+        "relationship": policy.policy_holder_relation.as_deref().map(relationship),
         "period": { "start": policy.valid_from, "end": policy.valid_until },
         "payor": [{ "reference": urns.insurer.1 }],
         "class": class,
-    }})
+    });
+    json!({ "fullUrl": urns.coverage.1, "resource": profiled(coverage, "Coverage") })
 }
 
 /// Patient, insurer, hospital, [doctor] and coverage — the entries every
 /// bundle carries after its focal resource.
 fn shared_entries(parties: &Parties<'_>, urns: &Urns) -> Vec<Value> {
+    let payer = payer_resource(
+        parties.recipient,
+        &parties.policy.insurance_provider,
+        urns.insurer.0,
+    );
     let mut entries = vec![
         patient_entry(parties.patient, &urns.patient),
-        json!({ "fullUrl": urns.insurer.1, "resource": {
-            "resourceType": "Organization",
-            "id": urns.insurer.0,
-            "identifier": [{ "value": parties.recipient }],
-            "name": parties.policy.insurance_provider
-        }}),
-        provider_entry(parties.provider, &urns.provider),
+        json!({ "fullUrl": urns.insurer.1, "resource": payer }),
+        json!({ "fullUrl": urns.provider.1, "resource": provider_resource(parties.provider, urns.provider.0) }),
     ];
-    if let Some((name, hpr)) = parties.doctor {
-        let identifier: Vec<Value> = hpr
-            .iter()
-            .map(|h| json!({ "system": HPR_SYSTEM, "value": h }))
-            .collect();
-        entries.push(json!({ "fullUrl": urns.practitioner.1, "resource": {
-            "resourceType": "Practitioner", "id": urns.practitioner.0,
-            "identifier": identifier, "name": [{ "text": name }]
-        }}));
+    if let Some(doctor) = parties.doctor {
+        let mut practitioner = nrces::practitioner(doctor);
+        practitioner["id"] = json!(urns.practitioner.0);
+        entries.push(json!({ "fullUrl": urns.practitioner.1, "resource": practitioner }));
     }
     entries.push(coverage_entry(parties, urns));
     entries
@@ -206,17 +179,20 @@ fn shared_entries(parties: &Parties<'_>, urns: &Urns) -> Vec<Value> {
 fn bundle(id: Uuid, profile: &str, focal: Value, rest: Vec<Value>, now: &str) -> Value {
     let mut entry = vec![focal];
     entry.extend(rest);
-    json!({
+    let mut b = json!({
         "resourceType": "Bundle",
         "id": id,
         "meta": {
             "profile": [profile],
             "security": [{ "system": CONFIDENTIALITY_SYSTEM, "code": "V", "display": "very restricted" }]
         },
+        "identifier": { "system": BUNDLE_IDENTIFIER_SYSTEM, "value": id },
         "type": "collection",
         "timestamp": now,
         "entry": entry
-    })
+    });
+    prune(&mut b);
+    b
 }
 
 fn diagnosis(seq: usize, d: &DiagnosisLine) -> Value {
@@ -235,15 +211,15 @@ fn diagnosis(seq: usize, d: &DiagnosisLine) -> Value {
     if let Some(code) = d.snomed_code.as_deref().filter(|c| !c.is_empty()) {
         coding.push(json!({ "system": SNOMED_SYSTEM, "code": code }));
     }
-    let kind = if d.is_primary {
-        "principal"
+    let (kind, kind_display) = if d.is_primary {
+        ("principal", "Principal Diagnosis")
     } else {
-        "clinical"
+        ("clinical", "Clinical Diagnosis")
     };
     json!({
         "sequence": seq,
         "diagnosisCodeableConcept": { "coding": coding, "text": d.description },
-        "type": [{ "coding": [{ "system": DIAGNOSIS_TYPE_SYSTEM, "code": kind }] }]
+        "type": [{ "coding": [{ "system": DIAGNOSIS_TYPE_SYSTEM, "code": kind, "display": kind_display }] }]
     })
 }
 
@@ -266,7 +242,7 @@ fn attachment(doc: &DocumentRef) -> Value {
 fn supporting_note(seq: usize, note: &str) -> Value {
     json!({
         "sequence": seq,
-        "category": { "coding": [{ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "info" }] },
+        "category": { "coding": [{ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "info", "display": "Information" }] },
         "code": { "text": "Bill split" },
         "valueString": note,
     })
@@ -277,14 +253,14 @@ fn supporting_note(seq: usize, note: &str) -> Value {
 fn supporting_info(seq: usize, doc: &DocumentRef) -> Value {
     let (category, code) = doc.kind.map_or(
         (
-            json!({ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "attachment" }),
+            json!({ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "attachment", "display": "Attachment" }),
             None,
         ),
         |k| {
-            let (cat, code) = k.nrces_codes();
+            let ((cat, cat_display), code) = k.nrces_codes();
             (
-                json!({ "system": NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM, "code": cat }),
-                code.map(|c| json!({ "system": NDHM_SUPPORTING_INFO_CODE_SYSTEM, "code": c })),
+                json!({ "system": NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM, "code": cat, "display": cat_display }),
+                code.map(|(c, d)| json!({ "system": NDHM_SUPPORTING_INFO_CODE_SYSTEM, "code": c, "display": d })),
             )
         },
     );
@@ -308,7 +284,7 @@ pub(crate) fn claim_bundle(parties: &Parties<'_>, c: &ClaimContent<'_>) -> Value
         .map(|(i, l)| {
             json!({
                 "sequence": i + 1,
-                "productOrService": { "coding": l.code.iter().map(|code| json!({ "code": code })).collect::<Vec<_>>(), "text": l.description },
+                "productOrService": { "coding": l.code.iter().map(|code| json!({ "system": CHARGE_CODE_SYSTEM, "code": code, "display": l.description })).collect::<Vec<_>>(), "text": l.description },
                 "quantity": l.quantity.map(|q| json!({ "value": q })),
                 "unitPrice": money(l.unit_price),
                 "net": money(l.net),
@@ -340,6 +316,11 @@ pub(crate) fn claim_bundle(parties: &Parties<'_>, c: &ClaimContent<'_>) -> Value
     let focal = json!({ "fullUrl": format!("urn:uuid:{}", c.id), "resource": {
         "resourceType": "Claim",
         "id": c.id,
+        "meta": { "profile": [format!("{NRCES_PROFILE_BASE}Claim")] },
+        "identifier": [{
+            "type": { "coding": [{ "system": NDHM_IDENTIFIER_TYPE_SYSTEM, "code": "CLN", "display": "Claim number" }] },
+            "system": CLAIM_IDENTIFIER_SYSTEM, "value": c.id,
+        }],
         "status": "active",
         "type": { "coding": [{ "system": SNOMED_SYSTEM, "code": SNOMED_INSTITUTIONAL_CLAIM_CODE, "display": "Inpatient care management (procedure)" }] },
         "use": c.use_,
@@ -381,26 +362,39 @@ pub(crate) fn eligibility_bundle(
     let urns = Urns::new(parties.patient.id);
     let now = medbrains_core::nhcx_wire::ist_timestamp(Utc::now());
     let request_id = Uuid::new_v4();
+    // NRCeS makes productOrService 1..1 with an example binding: the benefit
+    // category asked about is the service.
     let items: Vec<Value> = categories
         .iter()
         .map(|(code, display)| {
-            json!({ "category": { "coding": [{ "system": BENEFIT_CATEGORY_SYSTEM, "code": code, "display": display }] } })
+            let coding = json!({ "coding": [{ "system": BENEFIT_CATEGORY_SYSTEM, "code": code, "display": display }] });
+            json!({ "category": coding, "productOrService": coding })
         })
         .collect();
+    let location = fresh();
     let focal = json!({ "fullUrl": format!("urn:uuid:{request_id}"), "resource": {
         "resourceType": "CoverageEligibilityRequest",
         "id": request_id,
+        "meta": { "profile": [format!("{NRCES_PROFILE_BASE}CoverageEligibilityRequest")] },
+        "identifier": [{ "system": ELIGIBILITY_IDENTIFIER_SYSTEM, "value": record_id }],
         "status": "active",
+        "priority": { "coding": [{ "system": PROCESS_PRIORITY_SYSTEM, "code": "normal", "display": "Normal" }] },
         "purpose": ["benefits", "validation"],
         "patient": { "reference": urns.patient },
         "servicedDate": Utc::now().date_naive(),
         "created": now,
+        "enterer": parties.doctor.map(|_| json!({ "reference": urns.practitioner.1 })),
         "provider": { "reference": urns.provider.1 },
         "insurer": { "reference": urns.insurer.1 },
+        "facility": { "reference": location.1 },
         "insurance": [{ "focal": true, "coverage": { "reference": urns.coverage.1 } }],
         "item": items,
     }});
-    let rest = shared_entries(parties, &urns);
+    let mut rest = shared_entries(parties, &urns);
+    rest.push(json!({ "fullUrl": location.1, "resource": {
+        "resourceType": "Location", "id": location.0, "name": parties.provider.name,
+        "managingOrganization": { "reference": urns.provider.1 },
+    }}));
     bundle(
         record_id,
         COVERAGE_ELIGIBILITY_BUNDLE_PROFILE,
@@ -425,7 +419,7 @@ pub(crate) fn communication(
             .iter()
             .map(|d| json!({ "contentAttachment": attachment(d) })),
     );
-    json!({
+    let mut answer = json!({
         "resourceType": "Communication",
         "id": Uuid::new_v4(),
         "meta": { "profile": [COMMUNICATION_PROFILE] },
@@ -434,7 +428,9 @@ pub(crate) fn communication(
         "about": [{ "reference": format!("Claim/{about}") }],
         "sent": medbrains_core::nhcx_wire::ist_timestamp(Utc::now()),
         "payload": payload,
-    })
+    });
+    prune(&mut answer);
+    answer
 }
 
 #[cfg(test)]

@@ -12,7 +12,6 @@
 //! **What retires this:** a relation binding a crew to the dispatch it is
 //! running, which would scope the trip without blocking the dispatch.
 
-
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -26,7 +25,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use axum::routing::{get,put};
+use axum::routing::{get, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -768,41 +767,62 @@ pub async fn update_trip_status(
         .await?;
 
     // Release ambulance on completion or cancellation
-    if body.status == "completed" || body.status == "cancelled" {
-        if let Some(amb_id) = row.ambulance_id {
-            sqlx::query(
-                "UPDATE ambulances SET status = 'available', \
+    if (body.status == "completed" || body.status == "cancelled")
+        && let Some(amb_id) = row.ambulance_id
+    {
+        sqlx::query(
+            "UPDATE ambulances SET status = 'available', \
                  current_driver_id = NULL WHERE id = $1",
-            )
-            .bind(amb_id)
-            .execute(&mut *tx)
-            .await?;
-        }
+        )
+        .bind(amb_id)
+        .execute(&mut *tx)
+        .await?;
     }
 
     // Auto-bill ambulance transport on trip completion (if billable)
-    if body.status == "completed" && row.is_billable {
-        if let Some(patient_id) = row.patient_id {
-            if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ambulance")
-                .await
-                .unwrap_or(false)
-            {
-                let encounter_id = row.er_visit_id.unwrap_or(row.id);
-                let _ = medbrains_server_services::billing::create_service_charge(
-                    &mut tx,
-                    medbrains_server_services::billing::ServiceChargeInput {
-                        tenant_id: claims.tenant_id,
+    if body.status == "completed"
+        && row.is_billable
+        && let Some(patient_id) = row.patient_id
+    {
+        // Setting first: the encounter lookup runs only when billing is not off.
+        let setting = medbrains_server_services::billing::read_auto_billing(
+            &mut tx,
+            &claims.tenant_id,
+            "ambulance",
+        )
+        .await?;
+        if setting != medbrains_server_services::billing::AutoBilling::Off {
+            let encounter_id = match row.er_visit_id {
+                Some(visit) => sqlx::query_scalar::<_, Option<Uuid>>(
+                    "SELECT encounter_id FROM er_visits WHERE tenant_id = $1 AND id = $2",
+                )
+                .bind(claims.tenant_id)
+                .bind(visit)
+                .fetch_optional(&mut *tx)
+                .await?
+                .flatten(),
+                None => None,
+            };
+            medbrains_server_services::billing::settle_charges(
+                &mut tx,
+                setting,
+                &[medbrains_server_services::billing::ChargeRequest {
+                    tenant_id: claims.tenant_id,
+                    requested_by: claims.sub,
+                    setting_module: "ambulance",
+                    charge: medbrains_server_services::billing::AutoChargeInput {
                         patient_id,
                         encounter_id,
-                        charge_code: "AMBULANCE_TRANSPORT",
+                        charge_code: "AMBULANCE_TRANSPORT".to_owned(),
+                        source: "ambulance".to_owned(),
+                        source_id: row.id,
                         quantity: 1,
-                        source_module: "ambulance",
-                        source_entity_id: row.id,
-                        requested_by: claims.sub,
+                        ..Default::default()
                     },
-                )
-                .await;
-            }
+                    apply_concessions: true,
+                }],
+            )
+            .await?;
         }
     }
 
@@ -1001,22 +1021,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ambulance/drivers",
             get(list_drivers).post(create_driver),
         )
-        .route(
-            "/api/ambulance/drivers/{id}",
-            put(update_driver),
-        )
-        .route(
-            "/api/ambulance/trips",
-            get(list_trips).post(create_trip),
-        )
-        .route(
-            "/api/ambulance/trips/{id}",
-            get(get_trip).put(update_trip),
-        )
-        .route(
-            "/api/ambulance/trips/{id}/status",
-            put(update_trip_status),
-        )
+        .route("/api/ambulance/drivers/{id}", put(update_driver))
+        .route("/api/ambulance/trips", get(list_trips).post(create_trip))
+        .route("/api/ambulance/trips/{id}", get(get_trip).put(update_trip))
+        .route("/api/ambulance/trips/{id}/status", put(update_trip_status))
         .route(
             "/api/ambulance/trips/{trip_id}/logs",
             get(list_trip_logs).post(add_trip_log),
@@ -1025,8 +1033,5 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ambulance/maintenance",
             get(list_maintenance).post(create_maintenance),
         )
-        .route(
-            "/api/ambulance/maintenance/{id}",
-            put(update_maintenance),
-        )
+        .route("/api/ambulance/maintenance/{id}", put(update_maintenance))
 }

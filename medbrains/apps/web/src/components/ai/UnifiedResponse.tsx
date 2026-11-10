@@ -1,23 +1,13 @@
-import {
-  Anchor,
-  Box,
-  Group,
-  Image,
-  List,
-  Loader,
-  Stack,
-  Text,
-  UnstyledButton,
-} from "@mantine/core";
+import { Anchor, Box, Image, List, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconAlertTriangle, IconChevronRight, IconTool } from "@tabler/icons-react";
+import { IconChevronRight } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui";
 import { CodeBlock } from "./CodeBlock";
 import { Response } from "./Response";
+import { ToolSteps } from "./ToolSteps";
+import { ToolView, toolResultInfo } from "./ToolView";
 import { TOOL_WIDGETS } from "./tool-widgets";
-import { AI_TOOL_LABELS } from "./tools";
-import type { ChatContext, ChatMessage, ChatPart, ChatToolCall } from "./transport/types";
+import type { ChatContext, ChatMessage, ChatPart } from "./transport/types";
 import { messageParts } from "./transport/types";
 import styles from "./unified-response.module.scss";
 
@@ -59,9 +49,18 @@ export function UnifiedResponse({
   active,
 }: UnifiedResponseProps) {
   const parts = messageParts(message);
+  // Routine lookups fold into one collapsed "steps" row; a widget, a refusal
+  // or a check that did not run stays in the answer, never folded away.
+  const quiet = (part: ChatPart) =>
+    part.type === "tool" &&
+    !(TOOL_WIDGETS[part.toolCall.name] && onToolAction) &&
+    toolResultInfo(part.toolCall.result).outcome === "done";
+  const steps = parts.flatMap((p) => (p.type === "tool" && quiet(p) ? [p.toolCall] : []));
+  const shown = parts.filter((p) => !quiet(p));
   return (
     <Stack gap="xs">
-      {parts.map((part, index) => (
+      {steps.length > 0 && <ToolSteps calls={steps} />}
+      {shown.map((part, index) => (
         <PartView
           // biome-ignore lint/suspicious/noArrayIndexKey: parts are an ordered stream, index is stable per turn
           key={index}
@@ -141,52 +140,6 @@ function PartView({
     default:
       return null;
   }
-}
-
-/** Read the block decision out of a tool result (shape varies by tool). */
-function toolResultInfo(result: unknown): { blocked: boolean; message?: string } {
-  if (result && typeof result === "object") {
-    const r = result as Record<string, unknown>;
-    return {
-      blocked: r.decision === "blocked" || r.safe === false,
-      message: typeof r.message === "string" ? r.message : undefined,
-    };
-  }
-  return { blocked: false };
-}
-
-/** A tool-call chip — turns prominently red when the server BLOCKED the action. */
-function ToolView({ toolCall }: { toolCall: ChatToolCall }) {
-  const { blocked, message } = toolResultInfo(toolCall.result);
-  const label = AI_TOOL_LABELS[toolCall.name] ?? toolCall.name;
-  const running = toolCall.status === "running" || toolCall.status === "pending";
-
-  return (
-    <Box className={blocked ? styles.toolBlocked : styles.tool}>
-      <Group gap={8} wrap="nowrap">
-        {blocked ? (
-          <IconAlertTriangle size={15} />
-        ) : running ? (
-          <Loader size={14} />
-        ) : (
-          <IconTool size={14} />
-        )}
-        <Text size="xs" fw={blocked ? 700 : 500}>
-          {label}
-        </Text>
-        {!running && (
-          <Badge tone={blocked ? "danger" : "success"} size="sm">
-            {blocked ? "BLOCKED" : "done"}
-          </Badge>
-        )}
-      </Group>
-      {blocked && message && (
-        <Text size="xs" mt={4} className={styles.toolBlockedMsg}>
-          {message}
-        </Text>
-      )}
-    </Box>
-  );
 }
 
 function ReasoningView({ text }: { text: string }) {

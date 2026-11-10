@@ -1,0 +1,31 @@
+#!/bin/bash
+# The owner role and database, then the request and worker roles. The server
+# runs migrations and the seed as the owner (MIGRATION_DATABASE_URL) and serves
+# requests as medbrains_app, which row level security applies to.
+set -euo pipefail
+
+ENV=/var/lib/medbrains/config/env
+# shellcheck source=/dev/null
+. /usr/lib/medbrains/db-roles.sh
+
+owner_url="$(db_env_get "$(db_roles_owner_key "$ENV")" "$ENV")"
+owner_pw="$(db_url_password "$owner_url")"
+
+# The owner must create the BYPASSRLS worker role in migration 0984, which
+# Postgres allows only a superuser — the same owner the standalone compose
+# install uses. It is used for migrations only; requests never connect as it.
+runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -d postgres <<SQL
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'medbrains') THEN
+        CREATE ROLE medbrains LOGIN SUPERUSER;
+    END IF;
+END \$\$;
+ALTER ROLE medbrains PASSWORD '$owner_pw';
+SQL
+if [[ -z "$(runuser -u postgres -- psql -X -tAc "SELECT 1 FROM pg_database WHERE datname = 'medbrains'")" ]]; then
+    runuser -u postgres -- createdb -O medbrains medbrains
+fi
+
+db_roles_configure "$ENV"
+touch /var/lib/medbrains/config/.db-ready

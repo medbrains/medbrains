@@ -3,6 +3,7 @@ import type { AuditLogSummary } from "@medbrains/types";
 import { IconSearch, IconUserSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { AuditActor } from "@/components/ai/AuditActor";
 import { type Column, DataTable } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
@@ -50,6 +51,11 @@ export function UserActivityTab() {
       key: "created_at",
       label: "Time",
       render: (row) => <Text size="sm">{formatDateTime(row.created_at)}</Text>,
+    },
+    {
+      key: "user_name",
+      label: "By",
+      render: (row) => <AuditActor userName={row.user_name} actingAgent={row.acting_agent} />,
     },
     {
       key: "action",

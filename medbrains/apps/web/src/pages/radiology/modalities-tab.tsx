@@ -26,6 +26,7 @@ const modalityFormSchema = z.object({
   name: z.string().trim().min(1, "Enter a name, e.g. Computed tomography").max(200),
   description: z.string().trim(),
   is_ultrasound: z.boolean(),
+  is_ionising: z.boolean(),
 });
 type ModalityFormValues = z.infer<typeof modalityFormSchema>;
 const EMPTY_FORM: ModalityFormValues = {
@@ -33,6 +34,7 @@ const EMPTY_FORM: ModalityFormValues = {
   name: "",
   description: "",
   is_ultrasound: false,
+  is_ionising: false,
 };
 
 function showError(title: string) {
@@ -77,12 +79,16 @@ export function ModalitiesTab() {
             name: values.name,
             description: values.description,
             is_ultrasound: values.is_ultrasound,
+            is_ionising: values.is_ionising,
           })
         : radiologyService.createRadiologyModality({
             code: values.code.toUpperCase(),
             name: values.name,
             description: values.description || undefined,
             is_ultrasound: values.is_ultrasound,
+            // ponytail: off means "let the server decide from the code" (CT,
+            // DX, MG… are ionising); a new CT cannot be saved as non-ionising.
+            is_ionising: values.is_ionising || undefined,
           }),
     onSuccess: () => {
       refresh();
@@ -115,6 +121,7 @@ export function ModalitiesTab() {
       name: m.name,
       description: m.description ?? "",
       is_ultrasound: m.is_ultrasound,
+      is_ionising: m.is_ionising,
     });
   };
 
@@ -168,6 +175,18 @@ export function ModalitiesTab() {
                 <Switch
                   label="Ultrasound"
                   description="A scan of a pregnant woman on it needs a PC-PNDT Form F"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.currentTarget.checked)}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="is_ionising"
+              render={({ field }) => (
+                <Switch
+                  label="Uses ionising radiation"
+                  description="X-ray, CT, fluoroscopy, mammography, nuclear medicine: a woman of 12–50 is asked about pregnancy before the exposure"
                   checked={field.value}
                   onChange={(e) => field.onChange(e.currentTarget.checked)}
                 />

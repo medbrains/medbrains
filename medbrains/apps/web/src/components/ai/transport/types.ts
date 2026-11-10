@@ -52,6 +52,70 @@ export interface ChatMessage {
   reasoning?: string;
   toolCalls?: ChatToolCall[];
   sources?: ChatSource[];
+  /** The patient this turn was asked about — an answer is only ever offered
+   * into that patient's record. */
+  patientId?: string;
+  /** Why the turn failed, in words for the user (e.g. "couldn't run AI safely"). */
+  error?: string;
+  /** What the server's answer guard removed from this answer, and why. */
+  guardNotices?: string[];
+  /** Tokens the whole turn used (every model call), when the server says. */
+  usage?: TokenUsage;
+  /** How long the whole turn took, as the user waited for it. */
+  elapsedMs?: number;
+  /** Rich blocks the server built from tool results (never model-written). */
+  widgets?: AiWidget[];
+  /** Widgets of a reopened answer that are fetched again (never stored). */
+  replays?: { index: number; kind: string; title: string }[];
+}
+
+export interface AiColumn {
+  key: string;
+  label: string;
+  /** Rupees: ₹ with Indian grouping. */
+  money?: boolean;
+}
+
+export type AiRow = Record<string, unknown>;
+
+/** Which aggregate a table came from, to list the patients behind a row. */
+export interface AiDrill {
+  metric: string;
+  /** The row field holding the row's key (e.g. `allergen`). */
+  key: string;
+  from: string;
+  to: string;
+}
+
+/** One widget from the closed catalogue (`medbrains_core::ai_widgets`). */
+export type AiWidget =
+  | { kind: "kpis"; title: string; tiles: { label: string; value: unknown; money?: boolean }[] }
+  | {
+      kind: "table";
+      title: string;
+      columns: AiColumn[];
+      rows: AiRow[];
+      total_rows: number;
+      /** An aggregate the user may drill into: the screen fetches the patients. */
+      drill?: AiDrill;
+    }
+  | {
+      kind: "chart";
+      title: string;
+      x: AiColumn;
+      series: AiColumn[];
+      rows: AiRow[];
+      /** Each series' highest and lowest point, from the data (server-side). */
+      peaks?: { series: string; high_x: unknown; high: unknown; low_x: unknown; low: unknown }[];
+    }
+  | { kind: "list"; title: string; items: { label: string; status?: string }[] };
+
+/** Model tokens for one assistant turn. */
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 /** Ordered parts for a message: explicit `parts` win, else derived from content + convenience fields. */
@@ -82,7 +146,11 @@ export type ChatChunk =
   | { type: "tool"; toolCall: ChatToolCall }
   | { type: "tool_result"; id: string; result: unknown }
   | { type: "source"; source: ChatSource }
-  | { type: "done" }
+  | { type: "guard"; notices: string[] }
+  | { type: "done"; usage?: TokenUsage }
+  /** The server is retrying the answer: drop the text shown so far. */
+  | { type: "reset" }
+  | { type: "widget"; widget: AiWidget }
   | { type: "error"; error: string };
 
 /**
@@ -91,4 +159,6 @@ export type ChatChunk =
  */
 export interface ChatTransport {
   send(messages: ChatMessage[], opts: SendOptions): AsyncIterable<ChatChunk>;
+  /** Forget the server conversation so the next send starts a new one. */
+  setConversationId?(id?: string): void;
 }

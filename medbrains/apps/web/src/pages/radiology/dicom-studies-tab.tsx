@@ -2,13 +2,13 @@
 
 import { Group, Text } from "@mantine/core";
 import type { RadiologyDicomStudy } from "@medbrains/types";
-import { IconEye } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { StudyImageActions } from "@/components/Radiology/StudyImageActions";
+import { Badge } from "@/components/ui";
 import { radiologyService } from "@/services/radiology.service";
 
 export function DicomStudiesTab() {
@@ -64,41 +64,8 @@ export function DicomStudiesTab() {
     },
     {
       key: "viewer_url" as const,
-      label: "Links",
-      render: (study: RadiologyDicomStudy) =>
-        study.viewer_url || study.pacs_url ? (
-          <Group gap="xs" wrap="nowrap">
-            {study.viewer_url ? (
-              <Button
-                tone="secondary"
-                component="a"
-                href={study.viewer_url}
-                target="_blank"
-                rel="noreferrer"
-                size="xs"
-                leftSection={<IconEye size={14} />}
-              >
-                Viewer
-              </Button>
-            ) : null}
-            {study.pacs_url ? (
-              <Button
-                tone="ghost"
-                component="a"
-                href={study.pacs_url}
-                target="_blank"
-                rel="noreferrer"
-                size="xs"
-              >
-                DICOM
-              </Button>
-            ) : null}
-          </Group>
-        ) : (
-          <Text size="sm" c="dimmed">
-            Not linked
-          </Text>
-        ),
+      label: "Images",
+      render: (study: RadiologyDicomStudy) => <StudyImageActions studyId={study.id} size="xs" />,
     },
   ];
 

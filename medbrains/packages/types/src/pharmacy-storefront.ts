@@ -58,6 +58,8 @@ export interface StoreAbout {
   pharmacist_registration: string | null;
   grievance_officer: StoreGrievanceOfficer | null;
   return_window_days: number;
+  /** Shown before purchase. */
+  return_policy: string;
 }
 
 /** Somebody a shared mobile belongs to: enough to pick themselves. */
@@ -104,6 +106,10 @@ export interface StoreCart {
   prescription_needed: boolean;
   prescription_uploaded: boolean;
   max_lines: number;
+  /** While checkout holds the stock, until when. */
+  held_until: string | null;
+  /** The return and refund policy, shown before the order is placed. */
+  return_policy: string;
 }
 
 export type StorePrescriptionSource = "none" | "hospital" | "upload";
@@ -112,10 +118,17 @@ export interface StoreCheckoutRequest {
   prescription_source: StorePrescriptionSource;
   prescription_id?: string;
   delivery?: PortalDeliveryChoice;
+  /** For pickup: the pharmacy chosen. */
+  pickup_store_id?: string;
 }
 
-export type StoreOrderStatus = "awaiting_verification" | "released" | "rejected" | "cancelled";
-export type StoreLineStatus = "pending" | "approved" | "rejected";
+export type StoreOrderStatus =
+  | "awaiting_verification"
+  | "released"
+  | "rejected"
+  | "cancelled"
+  | "closed";
+export type StoreLineStatus = "pending" | "approved" | "rejected" | "outside_pharmacy";
 export type StoreRejectReason =
   | "expired"
   | "illegible"
@@ -125,6 +138,7 @@ export type StoreRejectReason =
   | "other";
 
 export interface StoreOrderLine {
+  line_id: string;
   catalog_item_id: string;
   drug_name: string;
   quantity: number;
@@ -132,6 +146,9 @@ export interface StoreOrderLine {
   status: StoreLineStatus;
   approved_quantity: number | null;
   reject_reason: StoreRejectReason | null;
+  /** What goes out instead, while a substitute stands agreed. */
+  substitute_name: string | null;
+  substitution: import("./pharmacy-storefront-p2").LineSubstitution | null;
 }
 
 export interface StoreOrder {
@@ -144,6 +161,10 @@ export interface StoreOrder {
   decision_note: string | null;
   /** Where the pharmacy is with it once released. */
   pharmacy_stage: string | null;
+  /** What the pharmacist should look at: `repeat_order`, `out_of_stock`. */
+  flags: string[];
+  /** The latest return asked for on it. */
+  return_status: string | null;
   lines: StoreOrderLine[];
   total: string;
 }
@@ -202,6 +223,10 @@ export interface StorefrontSettings {
 export interface StorefrontListing {
   sold_online?: boolean;
   habit_forming?: boolean;
+  /** Units kept back for the wards and the counter. */
+  online_reserve_floor?: number;
+  /** Drop the set floor: the reorder level applies again. */
+  floor_from_reorder_level?: boolean;
 }
 
 /** One line of the Schedule H1 register. */

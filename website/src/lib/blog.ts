@@ -38,7 +38,7 @@ export function readingTime(p: Post): number {
   return Math.max(1, Math.round(wordCount(p) / 200));
 }
 
-/** A post date is a calendar day in India: midnight IST, not 05:30 IST from UTC midnight. */
+/** A post date is a calendar day at midnight IST, not 05:30 IST from UTC midnight. */
 export function istDate(d: Date): string {
   return `${d.toISOString().slice(0, 10)}T00:00:00+05:30`;
 }
@@ -69,7 +69,7 @@ export function organization(site: URL | undefined) {
     url: home,
     logo: { "@type": "ImageObject", url: absolute("/apple-touch-icon.png", site), width: 180, height: 180 },
     email: SITE.email,
-    contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: SITE.email, areaServed: "IN", availableLanguage: ["en"] },
+    contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: SITE.email, availableLanguage: ["en"] },
     ...(SAME_AS.length ? { sameAs: SAME_AS } : {}),
   };
 }

@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id, a.client_id, a.secret_prefix, a.name, a.publisher, a.purpose,\n                      a.version, a.manifest, a.permissions, a.status,\n                      a.webhook_subscription_id IS NOT NULL AS \"has_webhook!\",\n                      a.approved_at, ap.full_name AS \"approved_by_name?\",\n                      a.revoked_at, a.revoke_reason, a.secret_rotated_at,\n                      (SELECT max(k.last_used_at) FROM api_keys k\n                        WHERE k.connected_app_id = a.id) AS last_used_at,\n                      a.created_at\n                 FROM connected_apps a LEFT JOIN users ap ON ap.id = a.approved_by\n                WHERE a.tenant_id = $1 AND a.deleted_at IS NULL\n                ORDER BY a.created_at DESC LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "client_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "secret_prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "publisher",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "purpose",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "manifest",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "permissions",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "has_webhook!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "approved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "approved_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "revoke_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "secret_rotated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "last_used_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      true,
+      true,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "5cd6b090233d3d1c34621b833a46ee37bc64b81c6428821ec59efe4cf1498bb9"
+}

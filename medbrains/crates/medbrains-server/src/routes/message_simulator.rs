@@ -1,7 +1,8 @@
 //! Message simulator — the phone view's API (dev and test only).
 //!
 //! Answers 404 unless `MEDBRAINS_NOTIFY_SIMULATOR=true`, so on a deployment
-//! that really sends messages the surface does not exist at all.
+//! that really sends messages the surface does not exist at all — to a caller
+//! who holds the permission. Everyone else gets the 403 first.
 
 use axum::{
     Extension, Json,
@@ -52,10 +53,13 @@ pub async fn list_messages(
     Extension(claims): Extension<Claims>,
     Query(query): Query<SimulatorQuery>,
 ) -> Result<Json<SimulatorInbox>, AppError> {
+    // Refuse first: a caller without the permission learns nothing either way,
+    // and a 404 here hid the refusal (RFC-AUTHZ §403 vs 404 — 404 is for
+    // confidential and sealed records, not an admin tool).
+    require_permission(&claims, permissions::admin::notifications::simulator::VIEW)?;
     if !medbrains_outbox::simulator::enabled() {
         return Err(AppError::NotFound);
     }
-    require_permission(&claims, permissions::admin::notifications::simulator::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -64,7 +68,8 @@ pub async fn list_messages(
     // ponytail: numbers match on their last ten digits (India), so a stored
     // "9876500000" finds a message sent to "+919876500000"; widen when a
     // deployment has other country codes.
-    let messages = sqlx::query_as!( // allow-raw-sql: filtered by tenant_id inside the RLS transaction
+    let messages = sqlx::query_as!(
+        // allow-raw-sql: filtered by tenant_id inside the RLS transaction
         SimulatedMessage,
         r#"SELECT id, channel, recipient, event_type, subject, body, attachments,
                   template_id, created_at
@@ -80,7 +85,10 @@ pub async fn list_messages(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(SimulatorInbox { recipients, messages }))
+    Ok(Json(SimulatorInbox {
+        recipients,
+        messages,
+    }))
 }
 
 /// A person's phone number and email, or what was typed.
@@ -90,7 +98,8 @@ async fn recipients_of(
     query: &SimulatorQuery,
 ) -> Result<Vec<String>, AppError> {
     let contacts = if let Some(patient_id) = query.patient_id {
-        sqlx::query!( // allow-raw-sql: filtered by tenant_id inside the RLS transaction
+        sqlx::query!(
+            // allow-raw-sql: filtered by tenant_id inside the RLS transaction
             "SELECT phone, email FROM patients WHERE id = $1 AND tenant_id = $2",
             patient_id,
             tenant_id,
@@ -99,21 +108,26 @@ async fn recipients_of(
         .await?
         .map(|row| vec![Some(row.phone), row.email])
     } else if let Some(user_id) = query.user_id {
-        sqlx::query!( // allow-raw-sql: filtered by tenant_id inside the RLS transaction
+        sqlx::query!(
+            // allow-raw-sql: filtered by tenant_id inside the RLS transaction
             "SELECT phone, email FROM users WHERE id = $1 AND tenant_id = $2",
             user_id,
             tenant_id,
         )
-            .fetch_optional(&mut **tx)
-            .await?
-            .map(|row| vec![row.phone, Some(row.email)])
+        .fetch_optional(&mut **tx)
+        .await?
+        .map(|row| vec![row.phone, Some(row.email)])
     } else {
         Some(vec![query.recipient.clone()])
     };
     let Some(contacts) = contacts else {
         return Err(AppError::NotFound);
     };
-    Ok(contacts.into_iter().flatten().filter(|c| !c.trim().is_empty()).collect())
+    Ok(contacts
+        .into_iter()
+        .flatten()
+        .filter(|c| !c.trim().is_empty())
+        .collect())
 }
 
 /// Emails compare case-insensitively; phone numbers by their last ten digits.
