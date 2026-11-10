@@ -2409,11 +2409,7 @@ export function FollowupComplianceTab() {
       key: "days_overdue",
       label: "Days Overdue",
       render: (row: FollowupComplianceRow) => (
-        <Badge
-          tone={row.days_overdue > 14 ? "danger" : row.days_overdue > 7 ? "warning" : "warning"}
-          variant="filled"
-          size="sm"
-        >
+        <Badge tone={row.days_overdue > 14 ? "danger" : "warning"} variant="filled" size="sm">
           {row.days_overdue} days
         </Badge>
       ),

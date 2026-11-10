@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Button } from "@/components/ui";
+import { Button, toast } from "@/components/ui";
 import { analyticsService } from "@/services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
@@ -60,8 +60,11 @@ export function RevenueTab() {
     [deptData],
   );
 
+  /** Asks the server for the revenue export, and says so when it fails. */
   const handleExport = () => {
-    analyticsService.exportAnalytics({ report: "revenue", from: toIso(from), to: toIso(to) });
+    analyticsService
+      .exportAnalytics({ report: "revenue", from: toIso(from), to: toIso(to) })
+      .catch((e: Error) => toast.error(e.message, { title: "Export failed" }));
   };
 
   // ── Columns ──────────────────────────────────────────

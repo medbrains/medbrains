@@ -15,7 +15,7 @@ export function overridePermissions(findings: readonly MedicationSafetyFinding[]
     const p = f.detail.override_permission;
     codes.add(typeof p === "string" ? p : DEFAULT_OVERRIDE_PERMISSION);
   }
-  return [...codes].sort();
+  return [...codes].sort((a, b) => a.localeCompare(b));
 }
 
 export interface SafetyGate {

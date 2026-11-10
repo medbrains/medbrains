@@ -104,7 +104,9 @@ export function AllergiesTab({ patient }: { patient: Patient }) {
     const fromCatalog = allergenCatalog
       .filter((e) => e.allergy_type === allergyType)
       .map((e) => e.name);
-    return Array.from(new Set([...allergenPresetsFor(allergyType), ...fromCatalog])).sort();
+    return Array.from(new Set([...allergenPresetsFor(allergyType), ...fromCatalog])).sort((a, b) =>
+      a.localeCompare(b),
+    );
   }, [allergenCatalog, allergyType]);
 
   const createMutation = useMutation({

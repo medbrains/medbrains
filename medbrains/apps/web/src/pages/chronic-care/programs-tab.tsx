@@ -178,11 +178,16 @@ export function ProgramsTab({ canCreate }: { canCreate: boolean }) {
         editing={editing}
         onSave={(data) => {
           if (editing) {
-            chronicCareService.updateChronicProgram(editing.id, data).then(() => {
-              void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
-              close();
-              setEditing(null);
-            });
+            chronicCareService
+              .updateChronicProgram(editing.id, data)
+              .then(() => {
+                void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
+                close();
+                setEditing(null);
+              })
+              .catch((e: Error) =>
+                notifications.show({ title: "Not saved", message: e.message, color: "red" }),
+              );
           } else {
             createMut.mutate(data);
           }

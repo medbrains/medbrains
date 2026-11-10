@@ -72,12 +72,12 @@ export function AnalyticsTab() {
       }
       antibiotics.add(r.antibiotic);
     });
-    return { orgMap, antibiotics: Array.from(antibiotics).sort() };
+    return { orgMap, antibiotics: Array.from(antibiotics).sort((a, b) => a.localeCompare(b)) };
   }, [cultureSens]);
 
   // Build MDRO line chart data: x = month, series per organism
   const mdroChartData = useMemo(() => {
-    const months = [...new Set(mdro.map((r) => r.month))].sort();
+    const months = [...new Set(mdro.map((r) => r.month))].sort((a, b) => a.localeCompare(b));
     const organisms = [...new Set(mdro.map((r) => r.organism))];
     return months.map((m) => {
       const point: Record<string, string | number> = { month: m };
