@@ -3,7 +3,7 @@
 // Honesty rule: every line is true on origin/main today or says it is not done. Sources:
 // medbrains/RFCs/RFC-HOSPITAL-OS.md (§8a, §8p hardware tiers, §8s roles and joining) and
 // medbrains/os/README.md ("Joining a machine", "Measured", "What is in D1, and what is not").
-// Hardware rows are recommendations from the RFC, not tested kits; nothing has run on a Pi yet.
+// Hardware rows are recommendations from VM measurements, not tested kits; nothing has run on a Pi yet.
 
 /** The four machine roles chosen on the first-boot screen; status marks the ones not built. */
 export const OS_ROLES = [
@@ -48,19 +48,46 @@ export const OS_WHY = [
   { title: "Work that stays local", body: "Built on common open parts, so a local IT firm can install it and look after it." },
 ];
 
-/** Suggested hardware per job. Recommendations from the RFC, not tested kits. */
+/**
+ * Hardware per machine. Recommendations worked out from virtual-machine measurements
+ * (medbrains/os/README.md "Measured"), not tested kits: nothing has run on a real Pi or PC yet.
+ */
 export const OS_HARDWARE = [
-  { job: "Server for a small clinic", kit: "Raspberry Pi 5 with 8 GB of memory and an NVMe SSD, with active cooling. Not an SD card: it wears out under a database." },
-  { job: "Server for a hospital", kit: "Any x86-64 or arm64 PC or small server. Keep a second one as a standby, because one server is a single point of failure." },
-  { job: "Workstations and displays", kit: "The smallest x86-64 or arm64 machine that drives the screen. They hold no records, so they can be cheap." },
-  { job: "Local AI (optional)", kit: "A mini PC with a built-in AI chip, or a graphics card. Never required: every feature also runs on the processor." },
+  { machine: "Server, small clinic", minimum: "4 cores, 8 GB RAM, 64 GB SSD", recommended: "Raspberry Pi 5 8 GB with an NVMe SSD", why: "The whole machine uses about 1.2 GB with a user signed in. The database, sign-in and server all run here." },
+  { machine: "Server, hospital", minimum: "8 cores, 16 GB RAM, 512 GB NVMe SSD", recommended: "16–32 GB RAM, mirrored SSDs, a TPM, a UPS, plus a standby server", why: "The database grows with patients. The server program itself is 88 MB." },
+  { machine: "Workstation", minimum: "2 cores, 4 GB RAM, 32 GB storage", recommended: "Any small PC or arm64 board that drives the screen", why: "The node desktop uses about 300 MB, plus about 320 MB for an open page." },
+  { machine: "Display or TV board", minimum: "2 cores, 2–4 GB RAM", recommended: "A Pi-class board", why: "It holds no patient data." },
+  { machine: "Optional", minimum: "A GPU or AI chip", recommended: "Used when present, never required", why: "On-box AI and imaging hints." },
 ];
+
+/** Measured sizes of the image and the app, one run each in a virtual machine. */
+export const OS_SIZES = [
+  { value: "478 MB", label: "the download, compressed with zstd" },
+  { value: "1,158 MB", label: "the installed system. The ≤ 1 GB target is not met yet" },
+  { value: "216 MB", label: "the data disk after first boot" },
+  { value: "308 KB", label: "the web app’s first page with zstd (328 KB with gzip)" },
+];
+
+/** What the hardware figures do not cover yet. */
+export const OS_HARDWARE_CAVEAT = "None of this has run on a real Raspberry Pi or PC yet. Sizing a hospital server for a large site waits on a load test.";
+
+/** Labels for the animated diagram on /os: one server, the nodes that join it, real numbers. */
+export const OS_DIAGRAM = {
+  server: { name: "Server", figure: "1.2 GB signed in" },
+  download: "one 478 MB download",
+  nodes: [
+    { name: "Workstation", figure: "300 MB node", planned: false },
+    { name: "Display", figure: "no patient data", planned: false },
+    { name: "Ward backup", figure: "planned", planned: true },
+  ],
+  alt: "Diagram: one server in the middle, about 1.2 GB of memory with a user signed in, installed from one 478 MB download. A workstation (a node of about 300 MB) and a display join it, each over an approval line. A ward backup machine is shown as planned.",
+};
 
 /** Figures measured so far, each with where it was measured. */
 export const OS_MEASURED = [
   { value: "300 MB", label: "memory used by a workstation node at its desktop, in a virtual machine" },
   { value: "≤ 2 s", label: "from removing a machine to its access ending, in a virtual machine" },
-  { value: "320 kB", label: "the web app’s first page, compressed" },
+  { value: "1.2 GB", label: "memory used by the whole server with a user signed in, in a virtual machine" },
 ];
 
 /** What is not done yet. Said plainly, and kept current. */

@@ -4,9 +4,10 @@
 import Demo from "../components/Demo.astro";
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
+import OsHardwareHero from "../components/OsHardwareHero.astro";
 import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
-import { OS_FAQ, OS_HARDWARE, OS_JOIN, OS_MEASURED, OS_NOT_DONE, OS_ROLES, OS_WHY } from "../data/os";
+import { OS_FAQ, OS_HARDWARE, OS_HARDWARE_CAVEAT, OS_JOIN, OS_MEASURED, OS_NOT_DONE, OS_ROLES, OS_WHY } from "../data/os";
 import Base from "../layouts/Base.astro";
 
 const title = "MedBrains OS: one OS for every hospital machine";
@@ -44,6 +45,8 @@ const schema = [
         </div>
       </div>
     </section>
+
+    <OsHardwareHero />
 
     <div class="paper">
       <section class="section" aria-labelledby="why-title">
@@ -85,10 +88,19 @@ const schema = [
         <div class="wrap">
           <p class="eyebrow tag">Hardware</p>
           <h2 id="hw-title" class="title">The smallest box that does the job</h2>
-          <p class="note">One image per processor type: x86-64 (Intel and AMD) and arm64. These are recommendations, not tested kits.</p>
-          <div class="split">
-            {OS_HARDWARE.map((h) => <article class="card"><h3>{h.job}</h3><p>{h.kit}</p></article>)}
+          <p class="note">One image per processor type: x86-64 (Intel and AMD) and arm64. These are recommendations worked out from virtual-machine measurements, not tested kits.</p>
+          <div class="table-wrap">
+            <table class="hw-table">
+              <caption class="sr-only">Recommended hardware per machine</caption>
+              <thead><tr><th scope="col">Machine</th><th scope="col">Minimum</th><th scope="col">Recommended</th><th scope="col">Why</th></tr></thead>
+              <tbody>
+                {OS_HARDWARE.map((h) => (
+                  <tr><th scope="row">{h.machine}</th><td data-label="Minimum">{h.minimum}</td><td data-label="Recommended">{h.recommended}</td><td data-label="Why">{h.why}</td></tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          <p class="small">{OS_HARDWARE_CAVEAT}</p>
         </div>
       </section>
 
@@ -161,12 +173,14 @@ const schema = [
   }
   .status { margin-top: 12px !important; font: 600 .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--purple) !important; }
 
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  .card {
-    padding: 30px 26px; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: var(--radius-lg);
-    background: var(--paper); box-shadow: var(--shadow-soft);
-    h3 { font: 800 1.3rem var(--display); letter-spacing: -.02em; margin: 0 0 14px; }
-    p { margin: 0; color: var(--ink-2); }
+  .table-wrap { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-soft); overflow: hidden; }
+  .hw-table {
+    width: 100%; border-collapse: collapse; font-size: .98rem;
+    th, td { padding: 16px 18px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    thead th { font: 600 .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--paper-2); }
+    tbody th { font: 800 1rem var(--display); letter-spacing: -.01em; color: var(--ink); }
+    td { color: var(--ink-2); }
+    tbody tr:last-child > * { border-bottom: 0; }
   }
 
   .commit {
@@ -186,10 +200,19 @@ const schema = [
   details p { margin: 0 0 20px; color: var(--ink-2); }
 
   @include below(lg) { .grid, .grid.four { grid-template-columns: 1fr 1fr; } }
-  @include below(md) { .split, .stats { grid-template-columns: 1fr; } }
+  @include below(md) {
+    .stats { grid-template-columns: 1fr; }
+    // Stack each row as a card on narrow screens; the column name comes from data-label.
+    .hw-table {
+      thead { display: none; }
+      tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
+      tbody tr:last-child { border-bottom: 0; }
+      th, td { display: block; border: 0; padding: 6px 18px; }
+      td::before { content: attr(data-label); display: block; font: 600 .7rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    }
+  }
   @include below(sm) {
     .grid, .grid.four { grid-template-columns: 1fr; }
     .paper .section { padding: 56px 0; }
-    .card { padding: 24px 20px; }
   }
 </style>
