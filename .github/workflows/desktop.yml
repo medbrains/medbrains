@@ -67,7 +67,9 @@ jobs:
       - name: Add the macOS targets to the pinned toolchain
         if: matrix.target.os == 'macOS'
         working-directory: medbrains
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - name: Install Linux deps
         if: matrix.target.runner == 'ubuntu-22.04'
         run: |
