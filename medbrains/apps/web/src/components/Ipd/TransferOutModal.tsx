@@ -18,6 +18,7 @@ import { ipdTransferOutFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { Controller, useForm } from "react-hook-form";
+import { escapeHtml } from "@/pages/patient-detail/shared";
 
 interface TransferOutModalProps {
   admissionId: string;
@@ -73,15 +74,15 @@ export function TransferOutModal({ admissionId, opened, onClose }: TransferOutMo
         <body onload="window.print();">
           <h1>Inter-Hospital Transfer Letter</h1>
           <div class="field"><span class="label">Date:</span> ${new Date().toLocaleString()}</div>
-          <div class="field"><span class="label">Admission reference:</span> ${admissionId.slice(0, 12)}…</div>
-          <div class="field"><span class="label">Receiving hospital:</span> ${values.receiving_hospital}</div>
-          <div class="field"><span class="label">Receiving physician:</span> ${values.receiving_doctor || "—"}</div>
-          <div class="field"><span class="label">Contact:</span> ${values.receiving_phone || "—"}</div>
-          <div class="field"><span class="label">Reason for transfer:</span> ${values.reason}</div>
-          <div class="field"><span class="label">Mode of transport:</span> ${values.transport_mode || "Ambulance"}</div>
-          <div class="field"><span class="label">Accompanying staff:</span> ${values.accompanying_staff || "—"}</div>
+          <div class="field"><span class="label">Admission reference:</span> ${escapeHtml(admissionId.slice(0, 12))}…</div>
+          <div class="field"><span class="label">Receiving hospital:</span> ${escapeHtml(values.receiving_hospital)}</div>
+          <div class="field"><span class="label">Receiving physician:</span> ${escapeHtml(values.receiving_doctor || "—")}</div>
+          <div class="field"><span class="label">Contact:</span> ${escapeHtml(values.receiving_phone || "—")}</div>
+          <div class="field"><span class="label">Reason for transfer:</span> ${escapeHtml(values.reason)}</div>
+          <div class="field"><span class="label">Mode of transport:</span> ${escapeHtml(values.transport_mode || "Ambulance")}</div>
+          <div class="field"><span class="label">Accompanying staff:</span> ${escapeHtml(values.accompanying_staff || "—")}</div>
           <div class="field"><span class="label">Clinical summary:</span></div>
-          <div class="summary">${values.clinical_summary.replace(/</g, "&lt;").replace(/\n/g, "<br>")}</div>
+          <div class="summary">${escapeHtml(values.clinical_summary).replace(/\n/g, "<br>")}</div>
           <div class="sig">
             <p>Authorised by attending physician</p>
             <p>__________________________________</p>
