@@ -1,8 +1,10 @@
+import { randomInt } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
 import { routeApiDirect, navigateTo } from "../helpers";
 
+/** A run-unique suffix for test records; it also seeds a test user's password, so it comes from a CSPRNG. */
 function uniqueSuffix(): string {
-  return `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  return `${Date.now()}${randomInt(1000)}`;
 }
 
 async function createDepartment(page: Page, code: string, name: string) {

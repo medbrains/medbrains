@@ -88,7 +88,8 @@ assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
 // and rewrites a description that is too short or too long, so both are held here.
 const htmlFiles = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) =>
   d.isDirectory() ? htmlFiles(join(dir, d.name)) : d.name === "index.html" ? [join(dir, d.name)] : []);
-const decode = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+// `&amp;` goes last, or "&amp;lt;" would decode twice into "<".
+const decode = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 let snippets = 0;
 for (const file of htmlFiles(dist)) {
   const html = readFileSync(file, "utf8");
