@@ -18,3 +18,19 @@ resource "godaddy-dns_record" "github_org_verify" {
   data   = var.github_org_verification
   ttl    = 600
 }
+
+# ── docs.medbrains.in: the GitHub Pages site of the "medbrains" org ──
+# This record already exists: it was created through the GoDaddy API on
+# 2026-11-10. Import it before the next apply, or the apply will try to create
+# a second one:
+#
+#   terraform import godaddy-dns_record.docs medbrains.in:CNAME:docs:medbrains.github.io
+#
+# (veksh/godaddy-dns import id: <domain>:<type>:<name>:<data>.)
+resource "godaddy-dns_record" "docs" {
+  domain = var.company_domain
+  type   = "CNAME"
+  name   = "docs"
+  data   = "medbrains.github.io"
+  ttl    = 3600
+}

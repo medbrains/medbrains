@@ -91,10 +91,10 @@ check-db-reset-guard:
 	fi
 
 check-destroy-guard:
-	@if [ "$${ALLOW_TERRAFORM_DESTROY:-}" != "destroy-alagappa-standalone" ]; then \
+	@if [ "$${ALLOW_TERRAFORM_DESTROY:-}" != "destroy-hospital-a-standalone" ]; then \
 		echo "ERROR: terraform destroy deletes the EC2 host and local Postgres volume."; \
 		echo "Refusing. Take/verify backup first, then run with:"; \
-		echo "  ALLOW_TERRAFORM_DESTROY=destroy-alagappa-standalone make destroy"; \
+		echo "  ALLOW_TERRAFORM_DESTROY=destroy-hospital-a-standalone make destroy"; \
 		exit 1; \
 	fi
 

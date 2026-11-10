@@ -873,11 +873,11 @@ ship: ## Full CI gate (no deploy). Includes full E2E before release build.
 	@$(MAKE) -s build
 	@echo "✅ ship clean — ready to deploy."
 
-ship-cold: ship ## Full ship + deploy to prod (Starter tier on hims.amh.org.in)
+ship-cold: ship ## Full ship + deploy to prod (Starter tier; host from TF_VAR_domain in infra/.env)
 	@echo "── deploy ──────────────────────────────"
-	@cd infra/terraform/envs/clients/alagappa && $(MAKE) apply
+	@cd infra/terraform/envs/standalone/hospital-a && $(MAKE) apply
 	@echo "── post-deploy smoke ───────────────────"
-	@curl -sS --fail --max-time 10 https://hims.amh.org.in/api/health > /dev/null \
+	@set -a; . infra/.env; set +a; curl -sS --fail --max-time 10 "https://$${TF_VAR_domain:?Set TF_VAR_domain in infra/.env}/api/health" > /dev/null \
 		&& echo "✅ /api/health 200" \
 		|| { echo "❌ /api/health failed"; exit 1; }
 	@echo "✅ ship-cold complete."
@@ -886,8 +886,8 @@ hotpush-ui: ## Build and deploy only the web SPA to the standalone host
 	@set -euo pipefail; \
 	if [ -f infra/.env ]; then set -a; . infra/.env; set +a; fi; \
 	: "$${TF_VAR_ssh_private_key_path:?Set TF_VAR_ssh_private_key_path in infra/.env}"; \
-	DOMAIN="$${TF_VAR_domain:-hims.amh.org.in}"; \
-	SSH_ENDPOINT="$$(cd infra/terraform/envs/clients/alagappa && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
+	DOMAIN="$${TF_VAR_domain:?Set TF_VAR_domain in infra/.env}"; \
+	SSH_ENDPOINT="$$(cd infra/terraform/envs/standalone/hospital-a && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
 	if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then SSH_ENDPOINT="ubuntu@$$DOMAIN"; fi; \
 	echo "── hotpush-ui: typecheck web ───────────"; \
 	pnpm --filter @medbrains/web typecheck; \

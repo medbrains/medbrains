@@ -16,7 +16,7 @@ variable "hostname" {
 }
 
 variable "domain" {
-  description = "Public domain to bind at the edge (e.g. hims.alagappahospital.com)."
+  description = "Public domain to bind at the edge (e.g. hims.example-hospital.org)."
   type        = string
 }
 
