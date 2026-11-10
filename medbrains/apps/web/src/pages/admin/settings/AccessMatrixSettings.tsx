@@ -459,13 +459,13 @@ function fieldCoverageMatches(
 
 function accessSurfaceKindOptions() {
   return [...new Set(ACCESS_MATRIX_SURFACES.map((surface) => surface.kind))]
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .map((kind) => ({ value: kind, label: kind }));
 }
 
 function accessSurfaceModuleOptions() {
   return [...new Set(ACCESS_MATRIX_SURFACES.map((surface) => surface.module))]
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .map((module) => ({ value: module, label: module }));
 }
 
@@ -534,7 +534,9 @@ function RoleMatrixEditor({
     const modules = new Set<string>();
     for (const permission of PERMISSIONS) modules.add(moduleFromPermission(permission.code));
     for (const field of FIELD_ACCESS_FIELDS) modules.add(fieldModule(field));
-    return [...modules].sort().map((module) => ({ value: module, label: module }));
+    return [...modules]
+      .sort((a, b) => a.localeCompare(b))
+      .map((module) => ({ value: module, label: module }));
   }, []);
 
   const visiblePermissions = useMemo(
@@ -952,7 +954,9 @@ function EffectiveUserAccessMatrix({
     const modules = new Set<string>();
     for (const permission of PERMISSIONS) modules.add(moduleFromPermission(permission.code));
     for (const field of FIELD_ACCESS_FIELDS) modules.add(fieldModule(field));
-    return [...modules].sort().map((module) => ({ value: module, label: module }));
+    return [...modules]
+      .sort((a, b) => a.localeCompare(b))
+      .map((module) => ({ value: module, label: module }));
   }, []);
 
   const visibleFields = useMemo(
@@ -3653,7 +3657,10 @@ export function AccessMatrixSettings() {
     queryFn: () => adminAccessService.getAccessManifest(),
   });
   const groupMemberBundlesQuery = useQuery({
-    queryKey: ["access-group-member-index", groups.map((group) => group.id).sort()],
+    queryKey: [
+      "access-group-member-index",
+      groups.map((group) => group.id).sort((a, b) => a.localeCompare(b)),
+    ],
     queryFn: async (): Promise<GroupMemberBundle[]> =>
       Promise.all(
         groups.map(async (group) => ({

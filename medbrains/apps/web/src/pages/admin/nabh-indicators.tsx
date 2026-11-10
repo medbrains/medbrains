@@ -146,10 +146,12 @@ export default function NabhIndicatorsPage() {
     const categories = new Set((data?.indicators ?? []).map((indicator) => indicator.category));
     return [
       { value: "all", label: "All categories" },
-      ...[...categories].sort().map((category) => ({
-        value: category,
-        label: CATEGORY_LABELS[category]?.label ?? category,
-      })),
+      ...[...categories]
+        .sort((a, b) => a.localeCompare(b))
+        .map((category) => ({
+          value: category,
+          label: CATEGORY_LABELS[category]?.label ?? category,
+        })),
     ];
   }, [data?.indicators]);
   const filteredIndicators = useMemo(() => {

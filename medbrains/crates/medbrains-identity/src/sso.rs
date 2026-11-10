@@ -137,15 +137,19 @@ async fn fetch_entra_org_name(
         .map(str::to_owned)
 }
 
-/// Provision the SSO provider + group mappings from a local JSON file at startup,
-/// so a turnkey deploy federates declaratively — no manual login + `/admin/sso`
+/// Provision the SSO provider + group mappings from a local JSON file at startup.
+///
+/// A turnkey deploy federates declaratively — no manual login + `/admin/sso`
 /// clicking. Reads `$SSO_CONFIG_FILE` (default `entra-sso.json`); absent → no-op.
 /// Idempotent (upsert). Encrypts with the same key runtime decrypts with
-/// (`secret_key`), so prod KMS stays consistent.
+/// (`secret_key`), so prod KMS stays consistent. Only a missing file means "not
+/// configured": a file that exists but cannot be read is an error, not silence.
 pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
     let path = std::env::var("SSO_CONFIG_FILE").unwrap_or_else(|_| "entra-sso.json".to_owned());
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return Ok(()); // no creds file → SSO not seeded (fine)
+    let raw = match tokio::fs::read_to_string(&path).await {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(AppError::Internal(format!("{path} read: {e}"))),
     };
     let cfg: SsoSeedConfig =
         serde_json::from_str(&raw).map_err(|e| AppError::Internal(format!("{path} parse: {e}")))?;

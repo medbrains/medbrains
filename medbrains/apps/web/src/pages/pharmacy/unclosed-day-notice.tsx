@@ -32,7 +32,7 @@ export function UnclosedDayNotice({ locationId }: { locationId: string }) {
         d.pharmacy_location_id === locationId && d.status !== "closed" && d.business_date < today,
     )
     .map((d) => d.business_date)
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
   if (unclosed.length === 0) return null;
   return (
     <Alert tone="warning" data-testid="unclosed-day">

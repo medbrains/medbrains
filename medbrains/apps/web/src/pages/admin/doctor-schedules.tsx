@@ -54,7 +54,7 @@ const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function formatTime(time: string): string {
   const [h, m] = time.split(":");
-  const hour = parseInt(h ?? "0", 10);
+  const hour = Number.parseInt(h ?? "0", 10);
   const ampm = hour >= 12 ? "PM" : "AM";
   const h12 = hour % 12 || 12;
   return `${h12}:${m} ${ampm}`;
@@ -107,7 +107,7 @@ function ScheduleFormModal({
         await schedulingService.createSchedule({
           doctor_id: doctorId,
           department_id: departmentId || undefined,
-          day_of_week: parseInt(day, 10),
+          day_of_week: Number.parseInt(day, 10),
           start_time: startTime,
           end_time: endTime,
           slot_duration_mins: slotDuration,

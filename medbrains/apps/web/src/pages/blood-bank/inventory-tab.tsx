@@ -509,11 +509,15 @@ export function InventoryTab() {
       <Modal opened={createOpen} onClose={closeCreate} title="Add Blood Component" fullScreen>
         <CreateComponentForm
           onSubmit={(d) => {
-            bloodBankService.createBloodComponent(d).then(() => {
-              void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
-              closeCreate();
-              toast.success("Blood component registered", { title: "Component added" });
-            });
+            bloodBankService
+              .createBloodComponent(d)
+              .then(() => {
+                void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
+                closeCreate();
+                toast.success("Blood component registered", { title: "Component added" });
+              })
+              // A refused registration used to vanish: the form stayed open, saying nothing.
+              .catch((e: Error) => toast.error(e.message, { title: "Component not added" }));
           }}
         />
       </Modal>

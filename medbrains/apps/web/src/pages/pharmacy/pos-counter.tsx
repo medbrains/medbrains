@@ -704,7 +704,7 @@ export function PosCounterTab({
                 clearOnSelect
                 inputRef={drugSearchRef}
                 onChange={(_id, drug) => {
-                  if (drug) addDrug(drug);
+                  if (drug) void addDrug(drug);
                 }}
               />
               <Controller
