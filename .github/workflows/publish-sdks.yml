@@ -55,7 +55,12 @@ jobs:
       - run: pnpm --filter @medbrains/sdk test
       - run: pnpm --filter @medbrains/sdk build
       # Trusted publishing needs npm >= 11.5.1; provenance links the package to this run.
-      - run: npm install -g npm@latest
+      # Node 24 bundles a new enough npm, so check it rather than install one outside a
+      # lockfile (zizmor adhoc-packages).
+      - name: Check the bundled npm supports trusted publishing
+        run: |
+          node -e 'const [a,b,c]=process.argv[1].split(".").map(Number);process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)' "$(npm --version)" \
+            || { echo "npm $(npm --version) is older than 11.5.1; raise medbrains/.nvmrc" >&2; exit 1; }
       - working-directory: medbrains/packages/sdk
         run: npm publish --provenance --access public
 

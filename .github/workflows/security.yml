@@ -240,8 +240,11 @@ jobs:
           install -m 755 osv-scanner_linux_amd64 /usr/local/bin/osv-scanner
       - name: Scan
         # Vendored crates are patched copies; their upstream advisories are tracked
-        # in the vendor README, not here.
-        run: osv-scanner scan source -r . --x-exclude=vendor --x-exclude=node_modules --format sarif --output osv.sarif || true
+        # in the vendor README, not here. Their own Cargo.lock files are never read by
+        # our build (the workspace Cargo.lock resolves them). A bare `vendor` name did
+        # not stop the scan reaching medbrains/vendor/pingora-core-0.9.1/Cargo.lock, so
+        # match any path segment by regex.
+        run: osv-scanner scan source -r . --x-exclude='r:(^|/)vendor(/|$)' --x-exclude=node_modules --format sarif --output osv.sarif || true
       - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: osv.sarif

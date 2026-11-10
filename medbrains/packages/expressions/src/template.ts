@@ -109,9 +109,20 @@ function createIsolatedEnvironment(options?: TemplateOptions): typeof Handlebars
  * This prevents XSS via unescaped output in user-created templates.
  * Only system templates (allowRawOutput=true) can use {{{raw}}}.
  */
-function stripRawExpressions(template: string): string {
-  // Replace {{{...}}} with {{...}} (forces escaping)
-  return template.replace(/\{\{\{([^}]+)\}\}\}/g, "{{$1}}");
+export function stripRawExpressions(template: string): string {
+  // {{{x}}} -> {{x}}, {{~{x}~}} -> {{~x~}} and {{&x}} -> {{x}} (both force escaping). The body excludes "{"
+  // so the scan stays linear; repeating until stable also unwraps {{{{raw}}}} blocks,
+  // which a single pass left as {{{raw}}}. Each pass that changes anything shortens
+  // the string, so the loop is bounded by its length.
+  let current = template;
+  let previous: string;
+  do {
+    previous = current;
+    current = current
+      .replace(/\{\{(~?)\{([^{}]+)\}(~?)\}\}/g, "{{$1$2$3}}")
+      .replace(/\{\{(~?)\s*&/g, "{{$1");
+  } while (current !== previous);
+  return current;
 }
 
 /**
