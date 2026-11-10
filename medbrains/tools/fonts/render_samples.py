@@ -78,8 +78,15 @@ def at_weight(font: TTFont, wght: int) -> bytes:
 
 
 def faces(fonts: dict[str, TTFont], weight: str) -> dict[str, bytes]:
-    """Font bytes for one weight: the Plex original, MedBrains Sans and the Noto pairing."""
-    return {name: at_weight(font, WEIGHTS[weight]) for name, font in fonts.items()}
+    """Font bytes for one weight: the Plex original, MedBrains Sans and the Noto pairing.
+
+    MedBrains Sans' Regular is drawn at its easy-read weight (440), as the apps set it.
+    """
+    regular = build.BASES["plex"].regular_wght
+    return {
+        name: at_weight(font, regular if (name == "MedBrains Sans" and weight == "Regular") else WEIGHTS[weight])
+        for name, font in fonts.items()
+    }
 
 
 def column_width(data: dict[str, bytes]) -> int:

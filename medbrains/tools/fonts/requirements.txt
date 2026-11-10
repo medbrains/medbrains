@@ -1,5 +1,8 @@
 # Pinned so the committed fonts rebuild byte for byte (make check-fonts).
 fonttools==4.68.0
 brotli==1.2.1
-# Only the review sheet (tools/fonts/render_samples.py) needs Pillow; its wheels bundle raqm.
+# Pillow (with raqm) draws the review sheets; uharfbuzz shapes pairs for check_glyph_collisions.py.
 pillow==13.0.0
+uharfbuzz==0.57.0
+# skia-pathops: boolean outline operations (aperture trial, collision check).
+skia-pathops==0.9.2

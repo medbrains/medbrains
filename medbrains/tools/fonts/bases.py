@@ -48,6 +48,13 @@ class Base:
     copy_alternates: dict[str, str] = field(default_factory=dict)
     tabular: bool = True
     gaps: str = ""
+    # MedBrains Sans' easy-read changes (accessible.py), applied in every weight.
+    hybrid: bool = False
+    tracking: int = 0
+    # The wght the "Regular" static files are cut at (web gets it from CSS font-weight).
+    regular_wght: int = 400
+    # Copyright lines of other fonts whose glyphs are mixed in, for OFL.txt.
+    credits: tuple[str, ...] = ()
 
 
 def fetch(source: Source, cache: Path) -> bytes:
@@ -67,6 +74,11 @@ def fetch(source: Source, cache: Path) -> bytes:
     return zipfile.ZipFile(io.BytesIO(data)).read(source.member)
 
 
+ATKINSON_COPYRIGHT = (
+    "Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors "
+    "(https://github.com/googlefonts/atkinson-hyperlegible-next)."
+)
+ATKINSON_DESIGNERS = "Elliott Scott, Megan Eiswerth, Linus Boman, Theodore Petrosky, Letters from Sweden (Atkinson Hyperlegible Next)"
 _PLEX_ZIP = "https://github.com/IBM/plex/releases/download/%40ibm/plex-sans-variable%400.2.0/plex-sans-variable.zip"
 _PLEX_SHA = "f83825d527be6cd39c8971c932b9bf22688a3ad3e5ac6305b6143d02f52b87b6"
 _ATKINSON = "https://raw.githubusercontent.com/googlefonts/atkinson-hyperlegible-next/7925f50f649b3813257faf2f4c0b381011f434f1/"
@@ -81,13 +93,20 @@ BASES = {
         licence=Source(_PLEX_ZIP, _PLEX_SHA, "fonts/complete/ttf/license.txt"),
         release="@ibm/plex-sans-variable@0.2.0",
         commit="348dbb6121c34d755a6d2725c89b2abc9ffaa142",
-        copyright="Copyright 2019 IBM Corp. All rights reserved.",
-        designers="Mike Abbink, Paul van der Laan, Pieter van Rosmalen (IBM Plex Sans)",
-        description="Derived from IBM Plex Sans: the slashed zero is the default figure, for clinical text.",
+        copyright=f"Copyright 2019 IBM Corp. All rights reserved. {ATKINSON_COPYRIGHT}",
+        designers=f"Mike Abbink, Paul van der Laan, Pieter van Rosmalen (IBM Plex Sans); {ATKINSON_DESIGNERS}: b d p q l 1",
+        description=(
+            "Derived from IBM Plex Sans with b d p q l 1 from Atkinson Hyperlegible Next: slashed zero, "
+            "wider spacing and a heavier Regular, for easy clinical reading."
+        ),
         axes={"wght": (300, 700), "wdth": 100},
         ps_names=("IBMPlexSansVarRoman", "IBMPlexSansVar"),
         reserved="Plex",
         copy_alternates={"zero": "zero.alt02", "zero.tosf": "zero.tosf.alt02"},
+        hybrid=True,
+        tracking=12,
+        regular_wght=440,
+        credits=(ATKINSON_COPYRIGHT,),
     ),
     "atkinson": Base(
         label="Atkinson Hyperlegible Next 2.001",
@@ -96,8 +115,8 @@ BASES = {
         licence=Source(_ATKINSON + "OFL.txt", "aca6a428580965d2297d1b718042dd427c2a9443ece3b0d02d758e161e0c4030"),
         release="googlefonts/atkinson-hyperlegible-next",
         commit="7925f50f649b3813257faf2f4c0b381011f434f1",
-        copyright="Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors (https://github.com/googlefonts/atkinson-hyperlegible-next).",
-        designers="Elliott Scott, Megan Eiswerth, Linus Boman, Theodore Petrosky, Letters from Sweden (Atkinson Hyperlegible Next)",
+        copyright=ATKINSON_COPYRIGHT,
+        designers=ATKINSON_DESIGNERS,
         description="Derived from Atkinson Hyperlegible Next: tabular figures by default, for clinical text.",
         axes={"wght": (300, 700)},
         ps_names=("AtkinsonHyperlegibleNext",),

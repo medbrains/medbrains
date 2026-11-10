@@ -1,16 +1,20 @@
 # Carbon Typography Rules (MedBrains)
 
 Actionable extraction of IBM Carbon typography
-(https://www.ibm.com/design/language/typography/). Type is **IBM Plex**, sized for
+(https://www.ibm.com/design/language/typography/). Type is **MedBrains Sans** (derived from
+IBM Plex Sans, OFL) with **IBM Plex Mono**, sized for
 clinical density. Use theme type tokens / Mantine sizes — **never literal px** for
 type.
 
 ## Typefaces
 
-- **IBM Plex Sans** — all UI (body, labels, inputs, tables, nav, buttons).
+- **MedBrains Sans** — all UI (body, labels, inputs, tables, nav, buttons). IBM Plex Sans made
+  easy to read: slashed zero, b d p q l 1 from Atkinson Hyperlegible Next, wider spacing, and
+  body text at weight 440 (`fontWeight.regular`). See `docs/design/fonts/MEDBRAINS-SANS.md`.
 - **IBM Plex Mono** — code, UHIDs, timestamps, eyebrow/metadata labels.
 - **IBM Plex Serif** — sparingly, editorial/display only (rare in MedBrains).
-- Don't introduce other fonts. Variable-font weights from the installed Plex.
+- Don't introduce other fonts. Weights come from the one variable MedBrains Sans file (400-700);
+  bigger text comes from the OS or browser text size, which relative sizes honour.
 
 ## Type scale (Carbon set → use tokens, not px)
 

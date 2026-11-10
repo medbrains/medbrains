@@ -11,7 +11,8 @@
 [data-bs-theme="dark"] { --mbk-page: var(--mb-surface); --mbk-card: var(--mb-surface-container-low); }
 
 :root, [data-bs-theme="light"], [data-bs-theme="dark"] {
-    --bs-font-sans-serif: "MedBrains Sans", -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+    --bs-body-font-weight: 440;
+    --bs-font-sans-serif: "MedBrains Sans", "MedBrains Sans Fallback", -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
     --bs-font-monospace: "IBM Plex Mono", ui-monospace, Menlo, monospace;
     --bs-body-font-size: 0.875rem;
     --bs-body-line-height: 1.43;

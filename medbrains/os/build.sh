@@ -85,7 +85,10 @@ if [[ "$DEBUG" == 1 ]]; then install -m 0644 /dev/null "$EXTRA/usr/lib/medbrains
 # The MedBrains design on the one stylesheet Kanidm leaves for this: the design system's tokens, refused
 # unless they meet WCAG 2.2 AA, then our rules, and the web app's fonts (MedBrains Sans, IBM Plex Mono).
 python3 -I "$HERE/kanidm-tokens.py" --check >/dev/null || { echo "Kanidm's colours fail WCAG 2.2 AA: run os/kanidm-tokens.py --check" >&2; exit 1; }
-{ python3 -I "$HERE/kanidm-tokens.py"; cat "$HERE/kanidm-override.css"; } > "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
+# The metric-matched fallback face comes from the generated stylesheet, so its numbers never drift.
+{ python3 -I "$HERE/kanidm-tokens.py"; cat "$HERE/kanidm-override.css"
+  grep -F 'font-family: "MedBrains Sans Fallback"' "$REPO/packages/design-system/src/styles/fonts.css"; } \
+    > "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
 install -d "$EXTRA/usr/share/kanidm/ui/hpkg/fonts"
 install -m 0644 "$REPO/packages/design-system/src/assets/fonts/MedBrainsSans-latin.woff2" "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/"
 install -m 0644 "$(ls "$WEB"/assets/ibm-plex-mono-latin-400-normal-*.woff2 | head -1)" "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/plex-mono-400.woff2"

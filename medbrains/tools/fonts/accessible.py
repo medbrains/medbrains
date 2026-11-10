@@ -12,11 +12,14 @@ import copy
 from pathlib import Path
 
 import pathops
+from fontTools.otlLib.builder import buildLookup, buildPairPosGlyphs, buildValue
 from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_l_y_f import GlyphCoordinates, flagOverlapSimple
+from fontTools.ttLib.tables.TupleVariation import TupleVariation
 from fontTools.varLib import instancer
+from fontTools.varLib.hvar import add_HVAR
 
 import build_medbrains_sans as build
 
@@ -102,7 +105,7 @@ def dotted_zero(variable: TTFont) -> TTFont:
 
 
 def _place(font: TTFont, name: str, donor: TTFont, source: str, scale: float) -> None:
-    """Copy one donor glyph (outline and weight variations) into the font, scaled to our metrics."""
+    """Copy one donor glyph (outline, advance and weight variations) in, scaled to our metrics."""
     glyph = copy.deepcopy(donor["glyf"][source])
     glyph.coordinates.scale((scale, scale))
     variations = copy.deepcopy(donor["gvar"].variations[source])
@@ -110,26 +113,116 @@ def _place(font: TTFont, name: str, donor: TTFont, source: str, scale: float) ->
         variation.coordinates = [None if d is None else (round(d[0] * scale), round(d[1] * scale)) for d in variation.coordinates]
     font["glyf"][name] = glyph
     font["gvar"].variations[name] = variations
-    advance = round(donor["hmtx"][source][0] * scale)
-    font["hmtx"][name] = (advance if name != "one" else font["hmtx"][name][0], 0)
-    if name == "one":  # keep the figure tabular: centre the borrowed 1 in our digit width
-        glyph.recalcBounds(font["glyf"])
-        glyph.coordinates.translate(((font["hmtx"][name][0] - (glyph.xMax - glyph.xMin)) // 2 - glyph.xMin, 0))
+    font["hmtx"][name] = (round(donor["hmtx"][source][0] * scale), 0)
     _refresh_lsb(font, name)
 
 
 HYBRID_GLYPHS = {"b": "b", "d": "d", "p": "p", "q": "q", "l": "l", "one": "one.tf"}
+# The weights the borrowed glyphs are fitted at: the axis ends and the default.
+FIT_WEIGHTS = {300: (-1.0, -1.0, 0.0), 400: None, 700: (0.0, 1.0, 1.0)}
+
+
+def _metrics_at(font: TTFont, wght: int) -> dict[str, tuple[int, int, int]]:
+    """(xMin, xMax, advance) of each borrowed glyph at one weight, read from an instance."""
+    instance = instancer.instantiateVariableFont(build.reload(font), {"wght": wght})
+    out = {}
+    for name in HYBRID_GLYPHS:
+        glyph = instance["glyf"][name]
+        glyph.recalcBounds(instance["glyf"])
+        out[name] = (glyph.xMin, glyph.xMax, instance["hmtx"][name][0])
+    return out
+
+
+# Which side keeps Plex's side bearing: the stem side, so stems sit where Plex's do. q follows d
+# (same bowl and stem, plus a tail that overhangs to the right as Atkinson drew it).
+STEM_SIDE = {"b": "left", "p": "left", "d": "right", "q": "d", "l": "split", "one": "centre"}
+
+
+def _targets(plex: dict, borrowed: dict) -> dict[str, tuple[float, int]]:
+    """Where each borrowed glyph's ink starts, and its advance, at one weight.
+
+    The advance is always Plex's, so the rhythm of a line is unchanged. The stem side keeps Plex's
+    side bearing and the bowl side absorbs the difference in width; l splits it; the tabular 1 is
+    centred by its ink.
+    """
+    out: dict[str, tuple[float, int]] = {}
+    for name in ("b", "p", "d", "l", "one", "q"):
+        x_min, x_max, advance = borrowed[name]
+        p_min, p_max, p_advance = plex[name]
+        side = STEM_SIDE[name]
+        if side == "left":
+            start = p_min
+        elif side == "right":
+            start = p_max - (x_max - x_min)
+        elif side == "d":
+            start = x_min + (out["d"][0] - borrowed["d"][0])
+        elif side == "centre":
+            start = (p_advance - (x_max - x_min)) / 2
+        else:
+            start = x_min + (p_advance - advance) / 2
+        out[name] = (start, p_advance)
+    return out
+
+
+def _fit(font: TTFont, plex_font: TTFont) -> None:
+    """Fit the borrowed glyphs to Plex's spacing at every weight, not only at the default."""
+    targets = {w: _targets(_metrics_at(plex_font, w), _metrics_at(font, w)) for w in FIT_WEIGHTS}
+    current = _metrics_at(font, 400)
+    for name, (x_min, advance) in targets[400].items():
+        font["glyf"][name].coordinates.translate((round(x_min - current[name][0]), 0))
+        font["hmtx"][name] = (advance, 0)
+        _refresh_lsb(font, name)
+    for wght, region in FIT_WEIGHTS.items():
+        if region is None:
+            continue
+        current = _metrics_at(font, wght)
+        for name, (x_min, advance) in targets[wght].items():
+            shift, widen = round(x_min - current[name][0]), advance - current[name][2]
+            points = len(font["glyf"][name].coordinates)
+            deltas = [(shift, 0)] * points + [(0, 0), (widen, 0), (0, 0), (0, 0)]
+            font["gvar"].variations[name].append(TupleVariation({"wght": region}, deltas))
+
+
+# Atkinson's q has a tail that overhangs to the right; these neighbours reach under it.
+# check_glyph_collisions.py measured the worst overlap at 45 units (q) at wght 700.
+Q_TAIL_CLEARANCE = 60
+Q_TAIL_NEIGHBOURS = ("parenright", "slash", "j", "underscore", "g")
+
+
+def _kern_apart(font: TTFont, left: str, rights: tuple[str, ...], value: int) -> None:
+    """Add a kern lookup that pushes `left` and each of `rights` apart by `value`, at every weight."""
+    pairs = {(left, right): (buildValue({"XAdvance": value}), None) for right in rights}
+    lookup = buildLookup(buildPairPosGlyphs(pairs, font.getReverseGlyphMap()))
+    gpos = font["GPOS"].table
+    gpos.LookupList.Lookup.append(lookup)
+    gpos.LookupList.LookupCount = len(gpos.LookupList.Lookup)
+    index = gpos.LookupList.LookupCount - 1
+    for record in gpos.FeatureList.FeatureRecord:
+        if record.FeatureTag == "kern":
+            record.Feature.LookupListIndex.append(index)
+            record.Feature.LookupCount = len(record.Feature.LookupListIndex)
 
 
 def atkinson_hybrid(variable: TTFont, cache: Path) -> TTFont:
-    """Borrow Atkinson Hyperlegible Next's b d p q l 1, cut to the same 300-700 axis, scaled to our x-height."""
+    """Borrow Atkinson Hyperlegible Next's b d p q l 1 into every weight, fitted to Plex's spacing.
+
+    Atkinson is cut to the same 300-700 axis so its weight deltas line up with ours, scaled to our
+    x-height (the 1 to our cap height), then fitted at 300, 400 and 700. Advance widths come from
+    gvar's phantom points while editing; HVAR is rebuilt from them at the end.
+    """
     donor = build.load(build.fetch(build.BASES["atkinson"].font, cache))
     donor = build.reload(instancer.instantiateVariableFont(donor, {"wght": (300, 700)}))
     font = _editable(variable)
+    del font["HVAR"]
     lower = font["OS/2"].sxHeight / donor["OS/2"].sxHeight
     caps = font["OS/2"].sCapHeight / donor["OS/2"].sCapHeight
     for name, source in HYBRID_GLYPHS.items():
         _place(font, name, donor, source, caps if name == "one" else lower)
+    plex_font = build.reload(variable)
+    del plex_font["HVAR"]
+    _fit(font, plex_font)
+    _kern_apart(font, "q", Q_TAIL_NEIGHBOURS, Q_TAIL_CLEARANCE)
+    add_HVAR(font)
     return build.reload(font)
 
 

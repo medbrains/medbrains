@@ -242,7 +242,8 @@ export const lineHeight = {
 export const fontWeight = {
   thin: "200",
   light: "300",
-  regular: "400",
+  /** MedBrains Sans' easy-read Regular: a little heavier than 400 for low contrast and cheap screens. */
+  regular: "440",
   medium: "500",
   semibold: "600",
   bold: "700",

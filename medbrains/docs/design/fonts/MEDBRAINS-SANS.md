@@ -1,101 +1,100 @@
 # MedBrains Sans
 
-MedBrains Sans is the interface font of every MedBrains surface: web, iOS, Android and the GTK
-desktop shell. It is IBM Plex Sans with its clinical alternate made the default, built by code from
-a pinned Plex release. IBM Plex Mono and Archivo stay as they are.
+**Status: shipped (owner, 2026-11-10).** MedBrains Sans is the interface font of every MedBrains
+surface: the web app, the docs site, the marketing website, the Kanidm sign-in page, iOS, Android
+and the GTK desktop shell. It is IBM Plex Sans made easy to read, built in code from pinned
+sources. IBM Plex Mono and Archivo stay as they are.
 
-Review sheet: [`medbrains-sans-v0-samples.png`](medbrains-sans-v0-samples.png) (and
-[`.pdf`](medbrains-sans-v0-samples.pdf), one page per weight): doses, IDs, lab values, the
-classic confusables, look-alike drug names and a Devanagari line, Plex and MedBrains Sans side
-by side, light and dark, at 12, 14, 16 and 24 px.
+Review sheets:
 
-## Licence
+- [`medbrains-sans-easy-read.png`](medbrains-sans-easy-read.png) (`.pdf`): v0, the round-2 mix and
+  the shipped easy-read mix side by side, light and dark: mirror letters, a low-vision blur test, a
+  patient instruction and clinical lines at 12/14/16/24 px.
+- [`medbrains-sans-v0-samples.png`](medbrains-sans-v0-samples.png) (`.pdf`, one page per weight):
+  IBM Plex Sans against MedBrains Sans for doses, IDs, lab values, confusables, look-alike drug
+  names and Hindi.
 
-IBM Plex is under the SIL Open Font License 1.1 with the Reserved Font Name "Plex". A modified
-version may ship under another name, so:
+## What it is
 
-- the font is named MedBrains Sans (PostScript `MedBrainsSans-*`); no name record says Plex, except
-  the designers, the version (the source it came from) and the description (its lineage). The build
-  fails if any other record does;
-- the copyright record keeps IBM's line and adds ours;
-- `OFL.txt` (our line, then IBM's licence text) sits next to every copy: the web assets, the iOS
-  `Fonts` folder, `apps/android/ui/src/main/assets/licenses` (Android's `res/font` takes only fonts)
-  and the GTK shell's `fonts`. The Noto faces carry `OFL-Noto.txt`.
-
-## Source
-
-| | |
+| Change from IBM Plex Sans | How |
 |---|---|
-| Plex release | `@ibm/plex-sans-variable@0.2.0`, IBM Plex Sans 3.000, upright variable TTF |
-| Plex commit | `348dbb6121c34d755a6d2725c89b2abc9ffaa142` |
-| Archive SHA-256 | `f83825d527be6cd39c8971c932b9bf22688a3ad3e5ac6305b6143d02f52b87b6` |
-| Noto Sans Devanagari | v2.007, slim variable, archive SHA-256 `820c7da45b1e63562cb41c0a8cac5d9a4202312043a3a040ed1325857ef469b1` |
-| Noto Sans Tamil | v2.004, slim variable, archive SHA-256 `f8284e0f200a7f29a439b4ec88280d864b2b31f8479111c5b658ba6da38b3005` |
+| Slashed zero by default | Plex's `zero.alt02` outline and weight variations copied over `zero` (and `zero.tosf`), so 0 and O differ even in apps that cannot turn features on |
+| b d p q l 1 from Atkinson Hyperlegible Next | The Braille Institute's low-vision designs: no mirror pairs (q has a tail), a tailed l, a flagged 1. Atkinson is cut to the same 300-700 axis so its weight deltas line up, scaled to Plex's x-height (the 1 to the cap height) and fitted to Plex's spacing at 300, 400 and 700: Plex's advance at each weight, the stem side keeps Plex's side bearing, the 1 is centred in the tabular width. HVAR is rebuilt from the fitted glyphs |
+| q kerned clear of ) / j _ g | Atkinson's q tail overhangs to the right; a kern lookup adds 60 units before those five glyphs. `check_glyph_collisions.py` shapes every borrowed glyph against all printable ASCII, both orders, at 400/440/550/700, and fails on any ink overlap |
+| Letter spacing +12 units | Every spacing glyph, half on each side, all weights |
+| Regular at weight 440 | Web: `fontWeight.regular` is 440 and body text uses it (also the docs site, the website and Kanidm). Native and GTK: the Regular file is cut at 440 (still registered as weight 400) |
+| Tabular figures | Already Plex's default (every digit 600 units, 612 with the spacing); the build fails if a digit width ever differs |
 
-The pins live in `medbrains/tools/fonts/build_medbrains_sans.py`; the build refuses an archive
-whose hash differs.
+Plex's GSUB was inspected: ss01 single-storey a, ss02 single-storey g, ss03/`zero` slashed zero
+(used), ss04 dotted zero (still available), ss05 alternate ß, ss06 Bulgarian Cyrillic. Opening the
+apertures of c e s a was tried in code but works only on static files (a boolean cut breaks
+interpolation), so it is left for a type designer. Bigger text for people who need it comes from
+the OS and browser text-size settings, which every surface honours through relative sizes; a
+per-person larger-text setting can come later.
 
-## What changed from Plex
+## Licence and credits
 
-Plex's GSUB was inspected for every stylistic set:
+Both sources are under the SIL Open Font License 1.1, so the mix is a Modified Version of both,
+released under the OFL:
 
-| Set | What it changes | Used |
-|---|---|---|
-| `ss01` | single-storey a | no: the two-storey a is further from o and d |
-| `ss02` | single-storey g | no |
-| `ss03` / `zero` | slashed zero | **yes, frozen as the default `0`** |
-| `ss04` | dotted zero | no (still available as `ss04`) |
-| `ss05` | alternate ß | no |
-| `ss06` | Bulgarian Cyrillic | no |
+- IBM Plex has the Reserved Font Name "Plex"; Atkinson Hyperlegible Next has none. No name record
+  says Plex except the copyright, the version, the designers and the description; the build fails
+  if any other record does. The family is MedBrains Sans (PostScript `MedBrainsSans-*`).
+- The copyright record holds IBM's line, the Atkinson Hyperlegible Next Project Authors' line and
+  ours; the designer record names both teams (Mike Abbink, Paul van der Laan, Pieter van Rosmalen
+  for Plex; Elliott Scott, Megan Eiswerth, Linus Boman, Theodore Petrosky, Letters from Sweden for
+  Atkinson Hyperlegible Next).
+- `OFL.txt` (our line, Atkinson's line, then IBM's licence text with its RFN line) sits next to every
+  copy: the web assets, the docs site and website `src/fonts`, the iOS `Fonts` folder,
+  `apps/android/ui/src/main/assets/licenses` and the GTK shell's `fonts`. The Noto faces carry
+  `OFL-Noto.txt`.
 
-- **Slashed zero by default.** The outline (and its weight variations) of `zero.alt02` replaces
-  `zero`, and `zero.tosf.alt02` replaces `zero.tosf`, so `0` and `O` differ in every app, including
-  ones that cannot turn features on. Advance widths are unchanged.
-- **Tabular figures are already Plex's default**: every digit is 600 units wide in every weight.
-  Plex has no `tnum`/`pnum` feature because nothing needs switching. The build fails if a digit's
-  width ever differs.
-- **No outline was redrawn.** Plex already gives capital I serifs, lowercase l a tail, and 1 a flag
-  and a foot; its 4 is closed. The sheet shows 5/S, 2Z, 8/B and 6/b clearly distinct at 12 px in
-  every weight, so they were left alone. A type designer's review is optional later.
+## Sources
+
+Pinned by commit and SHA-256 in `tools/fonts/bases.py`; the build refuses a download whose hash
+differs.
+
+| Source | Pin |
+|---|---|
+| IBM Plex Sans 3.000 | `@ibm/plex-sans-variable@0.2.0`, commit `348dbb6121c34d755a6d2725c89b2abc9ffaa142`, archive `f83825d527be6cd39c8971c932b9bf22688a3ad3e5ac6305b6143d02f52b87b6` |
+| Atkinson Hyperlegible Next 2.001 | `googlefonts/atkinson-hyperlegible-next` commit `7925f50f649b3813257faf2f4c0b381011f434f1`, variable TTF `5a455d1cfa099b601ab70751bb9673e8fe1854dc4500c80e1a220d0d75e31745` |
+| Noto Sans Devanagari v2.007 | archive `820c7da45b1e63562cb41c0a8cac5d9a4202312043a3a040ed1325857ef469b1` |
+| Noto Sans Tamil v2.004 | archive `f8284e0f200a7f29a439b4ec88280d864b2b31f8479111c5b658ba6da38b3005` |
 
 ## Speed (web)
 
 | File | Bytes | Loaded |
 |---|---|---|
-| `MedBrainsSans-latin.woff2` | 37,692 | every page; preloaded by `apps/web/index.html` |
-| `MedBrainsSans-extended.woff2` | 85,488 | only when a page draws Latin Extended, Greek, Cyrillic or Vietnamese |
-| `NotoSansDevanagari.woff2` | 80,896 | only when a page draws Devanagari |
-| `NotoSansTamil.woff2` | 26,504 | only when a page draws Tamil |
+| `MedBrainsSans-latin.woff2` (variable, 400-700, hinted) | 38,360 | every page; preloaded (web app, website) |
+| `MedBrainsSans-extended.woff2` | 85,392 | only when a page draws Latin Extended, Greek, Cyrillic or Vietnamese |
+| `NotoSansDevanagari.woff2` | 83,692 | only when a page draws Devanagari (web app) |
+| `NotoSansTamil.woff2` | 26,816 | only when a page draws Tamil (web app) |
 
 - **Latin** is ASCII, Latin-1 (µ ° ± × ÷ ² ³ ½) and ≤ ≥ → ₹ — and typographic punctuation.
-- **One variable file holds weights 400 to 700.** Measured against static files cut the same way:
-  one static weight is 22,804 bytes hinted (17,424 unhinted), so four are about 91 KB; the variable
-  file is 37,692 hinted (about 32,000 unhinted). Every screen uses at least body (400) and
-  headings or buttons (600/700), and two static weights already exceed the variable file.
-- **Hinted.** IBM's TrueType hinting is kept for the web files: at 14 px on a 1x screen the hinted
-  file keeps a steady baseline and even spacing, where unhinted text spaces unevenly. It costs about
-  5 KB (17%). Smart dropout control is added ahead of IBM's hints.
-- **Self-hosted**, `font-display: swap`, WOFF2 only. No Google Fonts or CDN.
+- **One variable file holds weights 400 to 700.** Four static weights cut the same way would be
+  about 91 KB; two already exceed the variable file.
+- **Hinted.** IBM's TrueType hints are kept for the web files (steady baseline and spacing at
+  14 px on 1x screens, about 5 KB). Smart dropout control is added ahead of them.
+- **Self-hosted**, `font-display: swap`, WOFF2 only; no Google Fonts or CDN.
 - **No layout shift.** `MedBrains Sans Fallback` is local Arial (Liberation Sans on Linux) with
-  `size-adjust`, `ascent-override`, `descent-override` and `line-gap-override` computed by the
-  build from MedBrains Sans' metrics. With the font delayed 1.5 s, the sign-in page recorded no
-  layout shift when it arrived.
-- First-load font bytes are 37.7 KB (WOFF2 is already compressed; gzip leaves it at 37.5 KB),
-  under the 40 KB budget. The JS first-load budget (`scripts/check_size_budgets.py`) is unaffected.
+  `size-adjust`, `ascent-override`, `descent-override` and `line-gap-override` computed by the build
+  from the font's metrics. The web app, docs site, website and Kanidm all use it.
+- First-load font bytes are 38.4 KB, under the 40 KB budget. The JS first-load budget
+  (`scripts/check_size_budgets.py`) is unaffected.
 
 ## Indian scripts
 
 MedBrains Sans draws Latin only. Noto Sans Devanagari and Noto Sans Tamil (OFL) are faces of the
-same CSS family, so they need no extra stack entry. They pair at the same font size: Noto's
-Devanagari headline sits at its Latin cap height (622 against 714 units), and Plex's cap height is
-698, 98% of Noto's, which is too close to need a size adjustment. Other Indian scripts fall back to
-Noto where the device has it (listed in the token stack). On the GTK shell the two Noto faces are
-installed beside the font and preferred by `os/mkosi.extra/etc/fonts/conf.d/60-medbrains-sans.conf`;
-iOS and Android use the system's Indic fonts.
+same CSS family in the web app, so they need no extra stack entry. They pair at the same font size:
+Noto's Devanagari headline sits at its Latin cap height (622 against 714 units), and Plex's cap
+height is 698, 98% of Noto's. Other Indian scripts fall back to Noto where the device has it. On the
+GTK shell the two Noto faces are installed beside the font and preferred by
+`os/mkosi.extra/etc/fonts/conf.d/60-medbrains-sans.conf`; iOS and Android use the system's Indic
+fonts.
 
 ## Native and GTK
 
-One unhinted Latin TTF per weight: Light, Regular, Medium, SemiBold for iOS
+One unhinted Latin TTF per weight: Light, Regular (cut at 440), Medium, SemiBold for iOS
 (`MedBrainsSans-*.ttf`, registered by `CarbonType.register()`) and Android
 (`res/font/medbrains_sans_*.ttf`, `MedBrainsSans` font family); Regular and SemiBold for the GTK
 shell (`FONT` in `crates/medbrains-shell/src/prefs.rs`).
@@ -104,22 +103,23 @@ shell (`FONT` in `crates/medbrains-shell/src/prefs.rs`).
 
 ```sh
 cd medbrains
-make fonts          # rebuild every file from the pinned sources, then the review sheet
-make check-fonts    # fail if a committed file differs from the build (CI runs this)
+make fonts          # rebuild every file from the pinned sources, then the v0 review sheet
+make check-fonts    # fail if a committed file differs from the build, or a kerned pair collides (CI)
 ```
 
-Both use `uv` with `tools/fonts/requirements.txt` (fontTools, brotli and Pillow pinned) on Python
-3.12, and cache the downloads in `~/.cache/medbrains-fonts`. Never edit a font file or
-`packages/design-system/src/styles/fonts.css` by hand.
+Both use `uv` with `tools/fonts/requirements.txt` (fontTools, brotli, Pillow, uharfbuzz pinned) on
+Python 3.12 and cache downloads in `~/.cache/medbrains-fonts`. `tools/fonts/render_easy_read.py`
+draws the easy-read sheet. Never edit a font file or a generated `medbrains-sans.css`/`fonts.css`
+by hand.
 
-## Round 2: candidate bases and accessibility changes (proposed, nothing shipped)
+## History: round 2 comparison (2026-11-10)
 
 The owner asked for a font that is more professional, modern, clean, easily readable and supports
 people with disabilities. Two review sheets compare the options; the shipped font stays the Plex
 build until the owner picks.
 
 - [`medbrains-sans-round2-candidates.png`](medbrains-sans-round2-candidates.png) (`.pdf`): MedBrains
-  Sans built from four bases with the same clinical defaults, plus the proposed Easy reading setting,
+  Sans built from four bases with the same clinical defaults, plus an "Easy reading" column (proposed, not adopted),
   side by side, light and dark: clinical lines at 12/14/16/24 px, mirror and confusable letters
   (b d p q, rn/m, cl/d, Il1, O0, 5S, 2Z, 6b, 8B), a low-vision row (1.5 px blur, just-AA grey on
   white and on dark), a patient instruction at 16 px with line height 1.5, apparent size at the same
@@ -162,31 +162,6 @@ under the OFL. It must not use either Reserved Font Name ("Plex"; Atkinson Next 
 it must carry both copyright notices: name ID 0 and `OFL.txt` would list IBM's line, the Atkinson
 Hyperlegible Next Project Authors' line and ours, and name ID 9 both design teams.
 
-### Recommendation
-
-- **Default: keep the Plex base and adopt the mix**: spacing +12 units, Regular at 440, tail on q,
-  slashed zero kept. It stays professional and recognisably ours. It is the only candidate with
-  TrueType hinting, which keeps 14 px text steady on cheap low-DPI screens. The Indic pairing is
-  already matched, and the mix is 80 B smaller than v0 (37,612 B), within compression noise.
-- **Easy reading: Atkinson Hyperlegible Next**, built as a second family and loaded only when a
-  person turns the setting on. It was designed for low vision: every confusable letter differs,
-  and it is the smallest file (19.3 KB). Its look is distinctive rather than neutral, and its small
-  x-height means it needs the larger size the setting gives it anyway.
-- **Inter** is the cleanest neutral alternative if the owner prefers a modern generic look to IBM's
-  character. It has the largest apparent size, but it is unhinted and over the 40 KB budget unless
-  its decorative sets are dropped.
-- **Lexend: no.** It has no tabular figures, so dose and lab columns would not align. It is also the
-  widest, which pushes tables wider.
-- Open apertures and the Atkinson hybrid are worth a designer's review, not shipping from code.
-
-### Proposal: a per-person "Easy reading" setting (not built)
-
-One switch, saved on the person's profile so it follows them to every device:
-
-| Surface | What it takes |
-|---|---|
-| Font build | Build a second family, "MedBrains Easy", from the Atkinson base in the same run: `MedBrainsEasy-latin.woff2` (about 19 KB) and `fonts-easy.css`, plus TTFs for native and GTK. `check-fonts` covers it. `fonts.css` never references it, so the default first load stays at 36.8 KB |
-| Web | A profile preference (and `localStorage` for the sign-in screen). `<html data-reading="easy">` loads `fonts-easy.css` with a dynamic import. The theme's easy variant sets the family, base size 14 → 16 px (18 px for patient screens), letter-spacing 0.04 em and line-height 1.7, and forces italic and condensed styles to normal. Sizes stay in rem, so browser and OS text size still scale |
-| iOS | A settings toggle. `CarbonType` switches to the MedBrains Easy faces, one Dynamic Type step larger, with `.tracking` and line spacing. It keeps `relativeTo:`, so the system text size still applies, and respects Bold Text. Adds about 150 KB to the app |
-| Android | A `MedBrainsEasy` FontFamily and a scaled copy of the Typography (sizes in sp, so the system font scale still applies), with letter spacing and line height. The setting lives in DataStore |
-| GTK shell | `reading=easy` in `/var/lib/kiosk/shell-prefs`; `FONT` becomes "MedBrains Easy 13"; CSS letter-spacing; honours the desktop text-scaling factor; a toggle next to theme and motion |
+The owner first approved the Plex mix with a tail on q, then asked for the easy-read traits in the
+font itself: the shipped mix above takes Atkinson's b d p q l 1 instead of the tail, and there is
+no separate "Easy reading" family.

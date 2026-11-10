@@ -420,8 +420,9 @@ fonts: ## Rebuild MedBrains Sans from the pinned IBM Plex release, then its revi
 	$(FONTS_PY) tools/fonts/build_medbrains_sans.py
 	$(FONTS_PY) tools/fonts/render_samples.py
 
-check-fonts: ## The committed MedBrains Sans files are exactly what the build makes
+check-fonts: ## The committed MedBrains Sans files are exactly what the build makes, and no kerned pair collides
 	$(FONTS_PY) tools/fonts/build_medbrains_sans.py --check
+	$(FONTS_PY) tools/fonts/check_glyph_collisions.py
 
 check-docs: ## Every function this branch adds or changes has a doc comment
 	cd .. && python3 medbrains/scripts/check_docs_on_new_functions.py
