@@ -276,6 +276,25 @@ ready, Last update failed or Updates need attention. It opens Settings.
 
 ## What is proved
 
-The unit tests in the crate run in CI. The QEMU scenarios in `crates/medbrains-os-test/src/update_steps.rs` ran on the branch
-before it was merged with the Pingora front, Kanidm, disk encryption and the node changes; they have not been run on the merged
-code. The next OS image trial runs them (`cargo run -p medbrains-os-test -- <image> updates <bundles>`), and its result goes here.
+The unit tests in the crate run in CI, including the install-order model with the hash tree (`plan.rs`). The QEMU scenarios
+(`update_steps.rs`, `update_power.rs`, `update_verity.rs`) were run on the merged code for the first time on 2026-11-10, on an arm64
+debug image with the sealed system partition (`OS-VERITY.md`), and found three bugs in the test harness itself, now fixed: setup's
+authenticator step was not answered; every background command was a shell syntax error, so the power-cut scenarios never
+installed anything; and scenarios shared one set of firmware variables.
+
+| Scenario | Result |
+|---|---|
+| refusals, including a changed hash tree | pass |
+| update, keep `/var`, go back, update twice | pass |
+| USB, failed health, not retried, mixed releases, catches up in order | pass |
+| a system its boot file's seal does not match is never named | pass |
+| a slot changed after it was installed does not start, and rolls back | pass |
+| network cable out, too little space | pass |
+| power cut at each install step: downloading, before emptying, half emptied, written and verified, tree named, named, while writing, waiting | **every cut boots the old version, healthy, `/var` unchanged** |
+| the same scenario's final step, applying the reinstalled update | **fails: the machine did not restart into the new version** |
+| power cut while applying and on trial | **fails: the first start after the cut ran the old version** |
+| a security fix waits for a quiet window | **fails: the window's apply did not restart into the new version** |
+| a new version that cannot even start | **fails: stays hung after the initrd; `medbrains-has-init` is the fix under test** |
+
+The three apply failures share one symptom and are not yet explained; the update cycle's own apply passes. Until they are, a
+release must not ship on this branch. x86-64 with swtpm (`update_sealed.rs`, the disk scenarios) was not run.
