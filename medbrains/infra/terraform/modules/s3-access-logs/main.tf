@@ -24,7 +24,7 @@ terraform {
 
 variable "bucket_name" {
   type        = string
-  description = "Name of the log bucket (globally unique, <= 63 chars)."
+  description = "Name of the log bucket (globally unique). Names over 63 characters are shortened with a hash suffix."
 }
 
 variable "retention_days" {
@@ -46,12 +46,19 @@ variable "tags" {
 
 data "aws_caller_identity" "current" {}
 
+locals {
+  # Callers build the name as "<source bucket>-logs", which can pass S3's 63-character limit
+  # for long hospital ids or hostnames. Over the limit, keep a readable prefix and add a short
+  # hash of the full name so it stays unique and stable.
+  bucket_name = length(var.bucket_name) <= 63 ? var.bucket_name : "${substr(var.bucket_name, 0, 54)}-${substr(md5(var.bucket_name), 0, 8)}"
+}
+
 resource "aws_s3_bucket" "this" { # NOSONAR(S6258): access-log target; logging it to itself would loop
   #checkov:skip=CKV_AWS_18: this is the access-log target; logging it to itself would loop
   #checkov:skip=CKV_AWS_144: access logs are an audit trail, not a dataset; a second-region copy doubles the cost for no recovery value
   #checkov:skip=CKV2_AWS_62: nothing consumes events from the log bucket
   #checkov:skip=CKV_AWS_145: S3 cannot deliver server access logs to an SSE-KMS bucket; SSE-S3 is the only supported default
-  bucket        = var.bucket_name
+  bucket        = local.bucket_name
   force_destroy = var.force_destroy
   tags          = var.tags
 }

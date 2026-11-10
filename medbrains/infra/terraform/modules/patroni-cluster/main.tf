@@ -25,6 +25,11 @@ variable "vpc_id" {
   type = string
 }
 
+# The VPC's own range, so replication and the DCS link keep working whatever CIDR the VPC uses.
+data "aws_vpc" "this" {
+  id = var.vpc_id
+}
+
 resource "aws_security_group" "patroni" {
   #checkov:skip=CKV_AWS_23: the group-level description is force-new; adding it would replace the group under running replicas. Every rule has one - schedule the group description with a migration
   name_prefix = "${var.environment}-patroni-"
@@ -45,7 +50,7 @@ resource "aws_security_group" "patroni" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["10.0.0.0/8"]
+    cidr_blocks = [data.aws_vpc.this.cidr_block]
   }
   egress {
     description = "HTTPS - packages and S3 backups"

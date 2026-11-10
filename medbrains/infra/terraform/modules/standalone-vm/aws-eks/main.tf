@@ -240,6 +240,8 @@ resource "aws_db_parameter_group" "this" {
   }
   # Already the Postgres 15+ default; pinned so a later family cannot
   # quietly accept plaintext connections (DATABASE_URL uses sslmode=require).
+  # Attaching this group to a running instance leaves it pending-reboot; reboot in a
+  # window, and make sure psql, pg_dump and backup jobs connect with sslmode=require.
   parameter {
     name  = "rds.force_ssl"
     value = "1"
