@@ -4,6 +4,11 @@
 // removes every animation, and the resting state below is the final frame.
 import { OS_DIAGRAM, OS_HARDWARE_CAVEAT, OS_SIZES } from "../data/os";
 
+interface Props {
+  /** Link to the full OS page; set on the home page, left off on /os itself. */
+  more?: boolean;
+}
+const { more = false } = Astro.props;
 const { server, download, nodes, alt } = OS_DIAGRAM;
 // Node card centres along the top row, and where each approval line meets the server.
 const xs = [100, 300, 500];
@@ -16,6 +21,7 @@ const ends = [250, 300, 350];
       <p class="eyebrow">The hardware</p>
       <h2 id="hw-hero-title">One server. Small machines that join it.</h2>
       <p class="lede">The server keeps the records. Every other machine is a small node: an administrator approves it on the server, and it can be replaced in minutes.</p>
+      {more && <p class="more"><a class="btn btn-ghost" href="/os">How MedBrains OS works <span aria-hidden="true">→</span></a></p>}
     </div>
 
     <div class="facts">
