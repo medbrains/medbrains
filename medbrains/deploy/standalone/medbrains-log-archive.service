@@ -1,0 +1,18 @@
+[Unit]
+Description=MedBrains daily host log archive → S3 (CERT-In 180-day retention)
+Documentation=https://github.com/DomnicAmalan/MedBrains
+After=network-online.target
+Wants=network-online.target
+# A log archive that stopped is discovered when CERT-In asks for the logs.
+OnFailure=medbrains-alert@%n.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/medbrains/env
+# Root: reads the whole journal, /var/log/auth.log and postgres logs.
+ExecStart=/usr/local/bin/medbrains-log-archive
+# IAM instance profile grants s3:PutObject on the log prefix — no static creds.
+Environment="AWS_DEFAULT_REGION=ap-south-1"
+PrivateTmp=true
+NoNewPrivileges=true
+Restart=no

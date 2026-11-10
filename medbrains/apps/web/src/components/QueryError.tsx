@@ -13,6 +13,9 @@ export function describeLoadError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403) return "You don't have access to this. Ask your administrator.";
     if (error.status === 404) return "It could not be found. It may have been removed.";
+    // A report the server stopped for running too long: its words say what
+    // to do (narrow the date range), "a problem" would not.
+    if (error.code === "report_timeout") return error.message;
     if (error.status >= 500) return "The server ran into a problem. Try again in a moment.";
     return error.message;
   }

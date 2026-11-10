@@ -2,6 +2,8 @@
 # not listed. Off: Debian's per-cluster WAL archiving and dump templates; backups
 # are ours to schedule (D2), and an unconfigured pg_receivewal fails at every boot.
 disable pg_*
+# Weekly TRIM, not the discard mount option, which sends one on every delete (D4.2).
+enable fstrim.timer
 # systemd-pcrlock writes its policy into /var, and cryptenroll then uses it by itself: a disk sealed
 # that way needs that file to open the place the file is on. Found by test: the disk would not open.
 disable systemd-pcrlock-*

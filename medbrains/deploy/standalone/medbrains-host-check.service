@@ -1,5 +1,5 @@
 [Unit]
-Description=MedBrains host check — disk headroom and certificate expiry
+Description=MedBrains host check — disk, certificate, backups, log archive, clock
 Documentation=https://github.com/DomnicAmalan/MedBrains
 OnFailure=medbrains-alert@%n.service
 
@@ -7,3 +7,6 @@ OnFailure=medbrains-alert@%n.service
 Type=oneshot
 EnvironmentFile=/etc/medbrains/env
 ExecStart=/usr/local/bin/medbrains-host-check
+# The S3 listings (backup, log archive) need a region; without one the AWS
+# CLI errors and the check reads it as "unknown" — silent forever.
+Environment="AWS_DEFAULT_REGION=ap-south-1"

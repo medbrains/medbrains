@@ -27,6 +27,7 @@ use medbrains_core::ai_widgets::{compact_for_model, summary};
 use medbrains_core::permissions;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::report_runner;
 use medbrains_server_core::state::AppState;
 use serde_json::{Value, json};
 
@@ -228,7 +229,17 @@ impl QueryTool {
             &self.claims.tenant_id,
             self.claims.department_ids.as_slice(),
         );
-        match run(&self.state.db, at, &sql).await {
+        // The report runner's reader pool and per-tenant slot: an AI question
+        // is a report, and must not take connections the wards need.
+        let ran = match self.state.reports.slot(self.claims.tenant_id).await {
+            Err(_) => Ran::Failed(report_runner::BUSY_MESSAGE.to_owned()),
+            Ok(_slot) => match report_runner::reader_pool(&self.state, self.claims.tenant_id).await
+            {
+                Ok(pool) => run(&pool, at, &sql).await,
+                Err(_) => Ran::Failed("the database could not be reached".to_owned()),
+            },
+        };
+        match ran {
             Ran::Rows(rows) => {
                 self.log(Attempt {
                     args,
