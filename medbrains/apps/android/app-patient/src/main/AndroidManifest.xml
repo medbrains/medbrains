@@ -11,7 +11,9 @@
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
     </queries>
+    <!-- No cloud backup: the app holds a signed-in session and patient data. -->
     <application
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="MedBrains"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"

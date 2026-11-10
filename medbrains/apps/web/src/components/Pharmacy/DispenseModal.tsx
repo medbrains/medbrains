@@ -71,7 +71,10 @@ export function DispenseModal({
   // This order's drugs, by id. The first hundred of the catalogue by name
   // did not always hold them, and a controlled drug then lost its witness.
   const catalogIds = useMemo(
-    () => [...new Set(items.map((it) => it.catalog_item_id).filter(Boolean))].sort().join(","),
+    () =>
+      [...new Set(items.map((it) => it.catalog_item_id).filter((id): id is string => !!id))]
+        .sort((a, b) => a.localeCompare(b))
+        .join(","),
     [items],
   );
   const catalogQuery = useQuery({
