@@ -50,6 +50,18 @@ systemctl disable chronyd-restricted chrony-wait 2>/dev/null || true
 # Debug images only: build.sh stages this unit nowhere else.
 if [[ -e /usr/lib/systemd/system/kanidm-debug-account.service ]]; then systemctl enable kanidm-debug-account; fi
 systemctl set-default graphical.target
+# No login prompt anywhere (X6, Talos-style): no getty on a screen, a serial port or a container
+# console, and no systemd.debug_shell, whatever the kernel command line says. The screen is the only way
+# in. A debug image's root shell is its own unit, which none of these masks touches.
+systemctl mask getty@.service serial-getty@.service autovt@.service console-getty.service \
+    container-getty@.service debug-shell.service
+# Root has no password that works, so neither a rescue prompt nor su can open a root shell.
+usermod -L root
+# Nor has the database's account a shell: services reach it with runuser and setpriv, never a login (CIS 5.4.2.7).
+usermod -s /usr/sbin/nologin postgres
+# What a login banner would show if one ever appeared: no OS name or version to aim an exploit at (CIS 1.6).
+printf 'MedBrains appliance. Authorised use only.\n' | tee /etc/issue /etc/issue.net > /etc/motd
+chmod 0644 /etc/issue /etc/issue.net /etc/motd
 
 # The screen's own fonts, installed by mkosi.build.chroot.
 fc-cache -f /usr/share/fonts

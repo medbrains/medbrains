@@ -3,11 +3,15 @@
 //!     cargo run -p medbrains-os-test -- <image.raw> [disk]
 //!     cargo run -p medbrains-os-test -- <image.raw> updates <bundles folder>
 //!
-//! `disk` runs only the data disk scenarios, `pin` only the PIN ones. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
+//! `disk` runs only the data disk scenarios, `pin` only the PIN ones, and `release` checks a release
+//! image from outside: no SSH, and nothing on its serial port. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
 mod disk;
 mod front;
+mod hardening;
+mod journey;
+mod setup;
 mod update_channel;
 mod update_sealed;
 mod update_steps;
@@ -22,19 +26,8 @@ use serde_json::Value;
 use vm::Vm;
 
 const BUDGETS: &str = include_str!("../budgets.json");
-const BLOCKED_MODULES: [&str; 3] = ["dccp", "sctp", "udf"];
-const SYSCTLS: [(&str, &str); 6] = [
-    ("kernel.io_uring_disabled", "1"),
-    ("kernel.io_uring_group", "977"),
-    ("kernel.kptr_restrict", "2"),
-    ("kernel.kexec_load_disabled", "1"),
-    ("kernel.yama.ptrace_scope", "2"),
-    ("net.ipv4.conf.all.accept_redirects", "0"),
-];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
-const SETUP_LIMIT: Duration = Duration::from_secs(150);
-const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const AGENT_API: &str = "http://127.0.0.1:3000/api/machine-agent";
 const AGENT_TOKEN: &str = "/var/lib/medbrains-agent/server-token";
 const TOKEN_HEADER: &str = "x-machine-agent-token";
@@ -148,30 +141,6 @@ fn outbound_http_blocked(vm: &mut Vm, _: &Value) -> Result<(), String> {
         log.contains("medbrains-drop-out"),
         "the drop was not logged",
     )
-}
-
-/// Unused kernel modules cannot load.
-fn blocked_modules_refuse(vm: &mut Vm, _: &Value) -> Result<(), String> {
-    for module in BLOCKED_MODULES {
-        let code = vm.run(&format!("modprobe {module} >/dev/null 2>&1; echo $?"))?;
-        ensure(code == "1", format!("{module} returned {code}"))?;
-    }
-    Ok(())
-}
-
-/// Kernel hardening settings are applied.
-fn kernel_hardening_applied(vm: &mut Vm, _: &Value) -> Result<(), String> {
-    for (name, want) in SYSCTLS {
-        let got = vm.run(&format!("sysctl -n {name}"))?;
-        ensure(got == want, format!("{name} is {got}"))?;
-    }
-    Ok(())
-}
-
-/// Kernel lockdown is on.
-fn lockdown_on(vm: &mut Vm, _: &Value) -> Result<(), String> {
-    let mode = vm.run("cat /sys/kernel/security/lockdown")?;
-    ensure(mode.contains("[integrity]"), mode)
 }
 
 /// Time is synced from an authenticated source.
@@ -362,6 +331,10 @@ fn checks() -> Vec<Check> {
     vec![
         ("no service has failed", no_failed_services),
         ("the app answers through the front proxy", app_answers),
+        (
+            "a person signs in and opens Patients",
+            journey::sign_in_and_open_patients,
+        ),
         ("plain HTTP only redirects", http_only_redirects),
         (
             "nothing else is reachable from outside",
@@ -383,9 +356,35 @@ fn checks() -> Vec<Check> {
             "outbound plain HTTP is blocked and logged",
             outbound_http_blocked,
         ),
-        ("unused kernel modules cannot load", blocked_modules_refuse),
-        ("kernel hardening is applied", kernel_hardening_applied),
-        ("kernel lockdown is on", lockdown_on),
+        (
+            "unused kernel modules cannot load",
+            hardening::blocked_modules_refuse,
+        ),
+        (
+            "kernel hardening is applied",
+            hardening::kernel_hardening_applied,
+        ),
+        (
+            "the kernel booted with every hardening flag",
+            hardening::kernel_flags_in_force,
+        ),
+        (
+            "root cannot read kernel memory",
+            hardening::kernel_memory_closed_to_root,
+        ),
+        (
+            "a module without its signature is refused",
+            hardening::unsigned_module_refused,
+        ),
+        (
+            "every unit's exposure is within budget",
+            hardening::units_exposure_within_budget,
+        ),
+        ("nothing offers a login", hardening::no_login_anywhere),
+        (
+            "sandboxed helpers still read their markers",
+            hardening::sandboxed_helpers_still_read,
+        ),
         (
             "join ports are open, and the agent's routes need its token",
             join_ports_and_token,
@@ -407,6 +406,7 @@ fn checks() -> Vec<Check> {
             "disk and priority settings hold",
             disk_and_priority_settings,
         ),
+        ("boot time is recorded", hardening::boot_time_recorded),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
         (
@@ -479,42 +479,14 @@ fn checks() -> Vec<Check> {
     ]
 }
 
-/// Makes this machine a main machine, as the screen's Review does: nothing runs before that. The
-/// password is made fresh, so none is written down, and the machine is thrown away. The username is
-/// not `admin`, which setup refuses because Kanidm keeps it, and the password is a phrase, because
-/// Kanidm's strength check is what setup applies.
-fn set_up_main(vm: &mut Vm) -> Result<(), String> {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-    let body = format!(
-        r#"{{"hospital":"Test Hospital","username":"os_test_admin","password":"Night porter {stamp} keeps blue lanterns"}}"#
-    );
-    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
-    while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
-        ensure(Instant::now() < deadline, "the setup service never started")?;
-        std::thread::sleep(Duration::from_secs(2));
-    }
-    let answer = vm.run_for(
-        // The shell can answer before the setup service has opened its socket.
-        &format!(
-            "for i in $(seq 60); do test -S {SETUP_SOCKET} && break; sleep 1; done; curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"
-        ),
-        SETUP_LIMIT,
-    )?;
-    ensure(
-        answer.contains("\"ok\":true"),
-        format!("setup answered {answer}"),
-    )
-}
-
 /// Boots the image and runs every check, then the data disk scenarios; returns how many failed.
 fn run_suite(image: &Path) -> Result<usize, String> {
     let budgets: Value = serde_json::from_str(BUDGETS).map_err(|e| e.to_string())?;
     let mut vm = Vm::start(image)?;
-    set_up_main(&mut vm)?;
-    vm.wait_for_server()?;
+    setup::set_up_main(&mut vm)?;
+    if let Err(why) = vm.wait_for_server() {
+        return Err(format!("{why}\n{}", setup::why_not_running(&mut vm)));
+    }
     let mut failed = 0;
     for (name, check) in checks() {
         let started = Instant::now();
@@ -538,7 +510,7 @@ fn run_suite(image: &Path) -> Result<usize, String> {
 /// Only the data disk scenarios, on a new machine.
 fn run_disk_only(image: &Path) -> Result<usize, String> {
     let mut vm = Vm::start(image)?;
-    set_up_main(&mut vm)?;
+    setup::set_up_main(&mut vm)?;
     let sealed = disk::run_sealed_disk(&mut vm, image)?;
     // One machine at a time: this one goes before the next starts.
     drop(vm);
@@ -557,6 +529,7 @@ fn main() -> ExitCode {
     let result = match std::env::args().nth(2).as_deref() {
         Some("disk") => run_disk_only(image),
         Some("pin") => Ok(disk::run_pin_only(image)),
+        Some("release") => hardening::run_release(image),
         Some("updates") => {
             let bundles = std::env::args().nth(3).unwrap_or_default();
             updates::run(image, Path::new(&bundles))

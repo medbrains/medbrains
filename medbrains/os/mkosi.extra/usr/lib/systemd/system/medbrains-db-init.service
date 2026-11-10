@@ -17,7 +17,6 @@ ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
 ProtectKernelTunables=yes
-ProtectKernelModules=yes
 ProtectKernelLogs=yes
 ProtectControlGroups=yes
 ProtectClock=yes
@@ -26,3 +25,17 @@ RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Sets the database roles through psql, as postgres, and records that in the config folder.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/medbrains/config
+PrivateDevices=yes
+# Root still needs to pass /var/lib/medbrains (0750, the server's own) to reach the env.
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+ProtectKernelModules=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+IPAddressDeny=any
+IPAddressAllow=localhost

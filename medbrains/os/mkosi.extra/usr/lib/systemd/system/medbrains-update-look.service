@@ -5,3 +5,27 @@ ConditionPathExists=/var/lib/medbrains-settings/update-url
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/systemctl start --wait medbrains-os-update@install.service
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Only asks systemd to start the install unit, which has its own limits.
+ProtectSystem=strict
+PrivateNetwork=yes
+PrivateDevices=yes
+PrivateTmp=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+ProtectKernelModules=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources

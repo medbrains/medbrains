@@ -57,6 +57,11 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 `make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
 
+`cargo run -p medbrains-os-test -- <release image> release` checks a release image from outside, since it has no
+shell to check from: SSH does not answer, and its serial port shows no login and runs no command. Set
+`MB_OS_TEST_BROWSER=1` to also sign in through a real browser and open Patients (`tests/patients-journey.mjs`;
+needs the web app's Playwright on the test computer).
+
 `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
 
 ## Boot in UTM
@@ -480,9 +485,46 @@ uses only those, with square corners, bottom-rule fields, IBM Plex from the web 
 
 ## Linux hardening
 
-Task T1.1, all with settings Linux already has: `/etc/sysctl.d/90-medbrains.conf`, unused kernel modules blocked
-in `/etc/modprobe.d/medbrains-blocklist.conf`, and `lockdown=integrity` with memory protections on the kernel
-command line. Unprivileged user namespaces stay on because WebKit's sandbox needs them.
+Task T1.1, all with settings Linux already has, adopted from Kicksecure's
+[security-misc](https://github.com/Kicksecure/security-misc) (Debian-based, read at commit `9535bf8`) and the CIS
+Debian benchmark where they fit an appliance. Every entry carries a one-line reason in its file:
+
+- **Kernel command line** (`mkosi.conf`, `mkosi.conf.d/x86-64.conf`): `lockdown=confidentiality` (not even root reads
+  kernel memory or loads unsigned kernel code), `module.sig_enforce=1`, `init_on_alloc=1 init_on_free=1`, `slab_nomerge`,
+  `page_alloc.shuffle=1`, `randomize_kstack_offset=on`, `kfence.sample_interval=100`, `debugfs=off`,
+  `efi_pstore.pstore_disable=1`, `proc_mem.force_override=ptrace`, `random.trust_cpu=off random.trust_bootloader=off`,
+  strict IOMMU, and `systemd.getty_auto=no`. On x86-64 also `vsyscall=none ia32_emulation=0 iommu=force erst_disable tsx=off`.
+- **sysctls** (`/etc/sysctl.d/90-medbrains.conf`): kernel pointers, dmesg, perf, BPF, kexec, ptrace, SysRq,
+  userfaultfd, TIOCSTI and core dumps closed; protected links, FIFOs and files; an end host's network settings
+  (no redirects, forwarding, source routes or kernel router advertisements; reverse-path filter; martians logged).
+- **Kernel modules** (`/etc/modprobe.d/medbrains-blocklist.conf`): rare protocols, CAN, unused and network file
+  systems, FireWire and Thunderbolt (DMA, X6), Bluetooth (OS-THREATS H16), RNDIS, GNSS, floppy and CD.
+- **systemd sandboxing** on every MedBrains unit, measured with `systemd-analyze security` (below) and held under
+  a per-unit ceiling in `crates/medbrains-os-test/budgets.json`.
+- **No login anywhere** (X6): no SSH server; every getty, serial getty, autovt, container getty and
+  `debug-shell.service` masked; root locked; plain banners. A debug image keeps its own root shell on the serial port.
+
+**What we did not take from Kicksecure, and why:**
+
+| Setting | Why not |
+|---|---|
+| `mitigations=auto,nosmt` and the per-flaw `=force` flags | `nosmt` halves the CPUs of a hospital's only server; it runs only our signed code, no tenants or guest VMs. Debian's `mitigations=auto` stays. `tsx=off` is taken: it costs nothing |
+| `slab_debug=FZ` | Debug checks on every allocation cost measurable speed; `init_on_free`, `slab_nomerge` and KFENCE cover most of it |
+| `kernel.unprivileged_userns_clone=0`, `user.max_user_namespaces=0` | WebKit's sandbox (bubblewrap) needs user namespaces; without them the web view runs unsandboxed, a bigger hole |
+| `kernel.yama.ptrace_scope=3` | Setup reads which program opened its socket, which needs `CAP_SYS_PTRACE`; 2 still refuses every other trace |
+| `kernel.io_uring_disabled=2` | We use 1 with a group (977) so a service can be allowed it where it measurably helps; none is today |
+| `net.ipv4.icmp_echo_ignore_all=1` | IT staff find the machine with ping; broadcast pings are still ignored |
+| `net.ipv4.tcp_timestamps=0` | Hurts throughput and PAWS on busy links; the uptime it leaks is not secret on a LAN appliance |
+| `net.ipv4.conf.*.arp_ignore=2` | Ignores conflict probes sent from 0.0.0.0, so another device could take this machine's address unseen; 1 is used |
+| `kernel.panic=-1`, `oops=panic` | `panic=10` restarts a dead kernel so a bad update uses up its boot tries (U1) |
+| `usb-storage` off | USB sticks carry signed updates (OS-UPDATES.md); they mount read-only, `noexec,nosuid,nodev` |
+
+**Units whose score stays high, and why.** The disk units (`medbrains-disk-*`) run before `/var` exists, create
+the data partition, load `dm-crypt` and talk to the TPM; the updater (`medbrains-os-update@`, `medbrains-update-*`)
+writes a whole system partition and the boot partition and mounts the other slot or a USB stick. A read-only
+system, a device list or a capability limit would break the job, and a broken updater cannot be fixed by an
+update. They get every setting that cannot get in the way. `cage-console` keeps the gaps WebKit's own sandbox needs
+(see its unit). All are still below their ceiling, which a test enforces.
 
 ## Apps on the desktop
 
@@ -843,6 +885,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
+- `tests/patients-journey.mjs`: sign in and open Patients in a real browser.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
 - `build-kanidm.sh`: compiles the identity provider from its pinned release. `kanidm-override.css`: its colours.

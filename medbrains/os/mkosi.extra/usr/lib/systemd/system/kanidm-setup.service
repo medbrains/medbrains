@@ -28,5 +28,19 @@ RestrictRealtime=yes
 LockPersonality=yes
 SystemCallArchitectures=native
 
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Root, for runuser and writing a token owned by the server's user; speaks only to this machine.
+PrivateDevices=yes
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+IPAddressDeny=any
+IPAddressAllow=localhost
+
 [Install]
 WantedBy=multi-user.target

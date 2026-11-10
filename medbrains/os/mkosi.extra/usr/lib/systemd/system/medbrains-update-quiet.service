@@ -5,3 +5,22 @@ ConditionPathExists=/var/lib/medbrains-settings/update-window
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/medbrains-os-update tick
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Root, because it writes a system partition, the boot partition and mounts the other slot or a USB
+# stick. Not ProtectSystem, ProtectKernelModules or a capability limit: the slot write, a USB stick's file
+# system driver and the boot counter need them, and a broken updater cannot be fixed by an update.
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+PrivateTmp=yes
+MemoryDenyWriteExecute=yes
+UMask=0077
