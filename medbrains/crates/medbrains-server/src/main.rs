@@ -652,6 +652,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(permissions_policy)
         .layer(coop)
         .layer(cors)
+        // A failed request's query and JSON body, identity masked, so a refused
+        // save can be traced to its field. Off unless
+        // MEDBRAINS_LOG_FAILED_PAYLOADS=1. Inside the trace span for the path.
+        .layer(axum::middleware::from_fn(
+            medbrains_server_core::payload_log::log_failed_payload,
+        ))
         // Negotiated response compression (brotli / zstd / gzip / deflate).
         // JSON API payloads are highly repetitive → typically 70–90% smaller
         // on the wire. Picks the best algorithm from the request's
