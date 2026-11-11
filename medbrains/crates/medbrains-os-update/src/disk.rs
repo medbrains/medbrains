@@ -399,6 +399,14 @@ pub fn free_bytes(path: &str) -> Result<u64, String> {
         .ok_or_else(|| format!("df gave no free space for {path}."))
 }
 
+/// Makes every change to the boot partition survive a power cut. FAT has no journal, and an fsync of the
+/// directory did not keep a rename there: after a cut on QEMU the staged boot file was back under its
+/// temporary name, and an applied one under its staged name, so the update never started. Flushing the whole
+/// partition, which is small, does keep it.
+pub fn flush_boot_partition() -> Result<(), String> {
+    run_text("sync", &["--file-system", ESP], PARTITION_LIMIT).map(|_| ())
+}
+
 /// Copies a verified file to `to` in one step, flushed, so a power cut leaves it whole or absent.
 pub fn copy_flushed(from: &Path, to: &Path) -> Result<(), String> {
     let temporary = to.with_extension("tmp");

@@ -219,6 +219,7 @@ pub fn apply() -> Result<(), String> {
     let published = Path::new(disk::BOOT_DIR).join(name);
     fs::rename(&staged, &published).map_err(|e| format!("{}: {e}", staged.display()))?;
     crate::state::sync_parent(&published).map_err(|e| e.to_string())?;
+    disk::flush_boot_partition()?;
     state.stage = Stage::Applied;
     state.save(path)?;
     disk::run_text("systemctl", &["reboot"], USUAL_LIMIT).map(|_| ())
@@ -253,6 +254,7 @@ pub fn go_back_to(previous: &str, words: &str) -> Result<(), String> {
     let renamed = running.path.with_file_name(name);
     fs::rename(&running.path, &renamed).map_err(|e| e.to_string())?;
     crate::state::sync_parent(&renamed).map_err(|e| e.to_string())?;
+    disk::flush_boot_partition()?;
     // A broken seal can make os-release unreadable; the record then names no version.
     let current = current_version().unwrap_or_default();
     if let Ok(mut state) = State::load(path) {

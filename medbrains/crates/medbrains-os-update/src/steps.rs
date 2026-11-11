@@ -109,7 +109,8 @@ impl<'a> Job<'a> {
                     fs::remove_file(&entry.path).map_err(|e| e.to_string())?;
                     crate::state::sync_parent(&entry.path).map_err(|e| e.to_string())?;
                 }
-                remove_staged_boot()
+                remove_staged_boot()?;
+                disk::flush_boot_partition()
             }
             Step::EmptySlot => self.empty(),
             Step::WriteSlot => disk::write_slot(
@@ -149,7 +150,8 @@ impl<'a> Job<'a> {
                 disk::copy_flushed(
                     &staging.join(manifest::BOOT_FILE),
                     &staged_boot_path(version),
-                )
+                )?;
+                disk::flush_boot_partition()
             }
         }
     }
