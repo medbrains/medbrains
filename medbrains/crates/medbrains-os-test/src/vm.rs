@@ -558,9 +558,15 @@ impl Vm {
             format!("BEGIN{}X", self.marker),
             format!("END{}X", self.marker),
         );
-        // The bare `echo` ends a last line with no newline, which would hide the marker. A newline, not
-        // `;`, ends the command: `cmd &;` is a syntax error, so a backgrounded command answered nothing.
-        let line = format!("echo {begin}; {command}\necho; echo {end}\n");
+        // The bare `echo` ends a last line with no newline, which would hide the marker. One line only: a
+        // second would echo a prompt inside the markers. `cmd &;` is a syntax error, so a command that
+        // backgrounds itself gets a no-op after it.
+        let command = if command.trim_end().ends_with('&') {
+            format!("{command} :")
+        } else {
+            command.to_owned()
+        };
+        let line = format!("echo {begin}; {command}; echo; echo {end}\n");
         self.serial
             .write_all(line.as_bytes())
             .map_err(|e| e.to_string())?;
