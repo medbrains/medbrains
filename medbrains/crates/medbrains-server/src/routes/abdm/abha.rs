@@ -175,6 +175,7 @@ pub(crate) async fn session(
 ///
 /// # Errors
 /// 503 when credentials are missing or ABDM is unreachable.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError> {
     let Session {
         client,

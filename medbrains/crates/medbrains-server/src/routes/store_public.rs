@@ -32,13 +32,14 @@ async fn tenant(state: &AppState, code: &str) -> Result<Uuid, AppError> {
 }
 
 /// `GET /api/store/{tenant_code}/items?q=&category=`
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn store_items(
     State(state): State<AppState>,
     Path(code): Path<String>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<SearchResult>, AppError> {
     let tenant_id = tenant(&state, &code).await?;
+    tracing::Span::current().record("tenant_id", tracing::field::display(tenant_id));
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let result = search(&mut tx, tenant_id, &query).await?;
@@ -68,7 +69,7 @@ pub struct CodeRequest {
 /// `POST /api/store/{tenant_code}/otp` — a sign-in code for any mobile: the
 /// storefront serves people who are not patients yet. Answers the same
 /// whatever happens.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn store_request_code(
     State(state): State<AppState>,
     Path(code): Path<String>,
@@ -85,6 +86,7 @@ pub async fn store_request_code(
     let Ok(tenant_id) = tenant(&state, &code).await else {
         return Ok(ack);
     };
+    tracing::Span::current().record("tenant_id", tracing::field::display(tenant_id));
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     require_open(&mut tx, tenant_id).await?;
@@ -115,7 +117,7 @@ pub struct StoreSignIn {
 
 /// `POST /api/store/{tenant_code}/sign-in` — the code stays good across the
 /// follow-up steps (who it is, or their details) and is spent on sign-in.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn store_sign_in(
     State(state): State<AppState>,
     Path(code): Path<String>,
@@ -125,6 +127,7 @@ pub async fn store_sign_in(
     let tenant_id = tenant(&state, &code)
         .await
         .map_err(|_| AppError::Unauthorized)?;
+    tracing::Span::current().record("tenant_id", tracing::field::display(tenant_id));
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     require_open(&mut tx, tenant_id).await?;
@@ -169,12 +172,13 @@ pub async fn store_sign_in(
 /// `GET /api/store/{tenant_code}/about` — the legal footer: the pharmacy,
 /// its licences, the pharmacist in charge, the grievance officer, and
 /// whether it takes orders online.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn store_about(
     State(state): State<AppState>,
     Path(code): Path<String>,
 ) -> Result<Json<About>, AppError> {
     let tenant_id = tenant(&state, &code).await?;
+    tracing::Span::current().record("tenant_id", tracing::field::display(tenant_id));
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let about = about(&mut tx, tenant_id).await?;

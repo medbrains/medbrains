@@ -90,6 +90,7 @@ impl Subscription {
     ///
     /// # Errors
     /// 503 when there is none or it cannot be opened (the secret key changed).
+    #[tracing::instrument(skip_all, fields(tenant_id = %self.tenant_id))]
     pub async fn private_key(&self, secrets: &dyn SecretResolver) -> Result<String, AppError> {
         let sealed = self.signing_private_key_sealed.as_deref().ok_or_else(|| {
             AppError::ServiceUnavailable("generate the UHI signing key first".to_owned())
@@ -105,6 +106,7 @@ impl Subscription {
 }
 
 /// This hospital's subscription, if it has one.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn load(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -122,6 +124,7 @@ pub async fn load(
 
 /// `{public base}/api/uhi/hspa/{hospital code}`, or `None` before the
 /// public address is set.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn provider_uri(secrets: &dyn SecretResolver, hospital_code: &str) -> Option<String> {
     let base = secrets.get(PUBLIC_BASE_URL).await.ok()?;
     base.starts_with("http")
@@ -129,6 +132,7 @@ pub async fn provider_uri(secrets: &dyn SecretResolver, hospital_code: &str) -> 
 }
 
 /// Whether services UHI does not support from a provider yet may be offered.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn preview_enabled(secrets: &dyn SecretResolver) -> bool {
     secrets
         .get(PREVIEW_SERVICES)

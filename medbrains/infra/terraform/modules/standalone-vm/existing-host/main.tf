@@ -178,11 +178,14 @@ resource "null_resource" "bootstrap" {
       "chmod 600 /tmp/medbrains-attach.env",
       "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/standalone/install.sh",
       "[ -f /tmp/medbrains-edge ] && chmod +x /tmp/medbrains-edge || true",
-      "sudo bash -c 'set -a; . /tmp/medbrains-attach.env; set +a; bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} \"\" ${var.edge_proxy}'",
-      # sudo, because install.sh runs as root and may have replaced this file
-      # with a root-owned copy. An unprivileged rm fails silently enough to
-      # leave a database connection string in /tmp indefinitely.
-      "sudo rm -f /tmp/medbrains-attach.env",
+      # One line, so install.sh's exit status is the script's. As separate
+      # inline entries the last command (the rm) set the status: on
+      # 2026-11-11 install.sh refused to restart (pre-deploy backup failed)
+      # and terraform still printed "Apply complete" and recorded the build
+      # as live. The rm runs either way, with sudo because install.sh may
+      # have replaced the file with a root-owned copy holding a database
+      # connection string.
+      "sudo bash -c 'set -a; . /tmp/medbrains-attach.env; set +a; bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} \"\" ${var.edge_proxy}'; rc=$?; sudo rm -f /tmp/medbrains-attach.env; exit $rc",
     ]
   }
 }

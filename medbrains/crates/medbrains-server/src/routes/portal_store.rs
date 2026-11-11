@@ -27,7 +27,7 @@ use uuid::Uuid;
 use super::portal::PatientClaims;
 
 /// `GET /api/portal/store/cart`
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn store_cart(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -157,7 +157,7 @@ pub struct HoldBody {
 
 /// `POST /api/portal/store/cart/hold` — the patient opened checkout: the
 /// cart is held at the pharmacy that will fill it.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn store_hold_cart(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -181,7 +181,7 @@ pub struct PincodeQuery {
 
 /// `GET /api/portal/store/serviceability?pincode=` — whether it is
 /// delivered there, and where it can be collected.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn store_serviceability(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -231,7 +231,7 @@ pub struct ConsentBody {
 
 /// `POST /api/portal/store/orders/{id}/substitutions/{sid}/consent` — the
 /// patient accepts or declines a substitute.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn store_substitution_consent(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,

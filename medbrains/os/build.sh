@@ -83,16 +83,17 @@ cp -R "$KANIDM/hpkg" "$EXTRA/usr/share/kanidm/ui/hpkg"
 # Only a debug image may run the identity provider on an unencrypted disk.
 if [[ "$DEBUG" == 1 ]]; then install -m 0644 /dev/null "$EXTRA/usr/lib/medbrains/debug-image"; fi
 # The MedBrains design on the one stylesheet Kanidm leaves for this: the design system's tokens, refused
-# unless they meet WCAG 2.2 AA, then our rules, and the web app's IBM Plex fonts.
+# unless they meet WCAG 2.2 AA, then our rules, and the web app's fonts (MedBrains Sans, IBM Plex Mono).
 # The screen's colours and mascot are generated from the same tokens; a drifted or failing copy stops the build.
 python3 -I "$HERE/shell-tokens.py" --check >/dev/null || { echo "The shell's colours drifted or fail WCAG 2.2 AA: run os/shell-tokens.py --check" >&2; exit 1; }
 python3 -I "$HERE/kanidm-tokens.py" --check >/dev/null || { echo "Kanidm's colours fail WCAG 2.2 AA: run os/kanidm-tokens.py --check" >&2; exit 1; }
-{ python3 -I "$HERE/kanidm-tokens.py"; cat "$HERE/kanidm-override.css"; } > "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
+# The metric-matched fallback face comes from the generated stylesheet, so its numbers never drift.
+{ python3 -I "$HERE/kanidm-tokens.py"; cat "$HERE/kanidm-override.css"
+  grep -F 'font-family: "MedBrains Sans Fallback"' "$REPO/packages/design-system/src/styles/fonts.css"; } \
+    > "$EXTRA/usr/share/kanidm/ui/hpkg/override.css"
 install -d "$EXTRA/usr/share/kanidm/ui/hpkg/fonts"
-for font in sans-400 sans-500 sans-600 mono-400; do
-    install -m 0644 "$(ls "$WEB"/assets/ibm-plex-"${font%-*}"-latin-"${font#*-}"-normal-*.woff2 | head -1)" \
-        "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/plex-$font.woff2"
-done
+install -m 0644 "$REPO/packages/design-system/src/assets/fonts/MedBrainsSans-latin.woff2" "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/"
+install -m 0644 "$(ls "$WEB"/assets/ibm-plex-mono-latin-400-normal-*.woff2 | head -1)" "$EXTRA/usr/share/kanidm/ui/hpkg/fonts/plex-mono-400.woff2"
 install -m 0755 "$OS_SETUP" "$EXTRA/usr/bin/medbrains-os-setup"
 install -m 0755 "$OS_UPDATE" "$EXTRA/usr/bin/medbrains-os-update"
 # Public keys that may sign updates. Release keys live in the repository; none exists yet, and an image with

@@ -7,12 +7,16 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-/** IBM Plex, the Carbon face, bundled as res/font (SIL OFL 1.1). */
-val PlexSans = FontFamily(
-    Font(R.font.ibm_plex_sans_light, FontWeight.Light),
-    Font(R.font.ibm_plex_sans_regular, FontWeight.Normal),
-    Font(R.font.ibm_plex_sans_medium, FontWeight.Medium),
-    Font(R.font.ibm_plex_sans_semibold, FontWeight.SemiBold),
+/**
+ * MedBrains Sans (IBM Plex Sans with Atkinson Hyperlegible Next's b d p q l 1, slashed zero,
+ * spacing +12, Regular cut at weight 440), bundled as res/font
+ * (SIL OFL 1.1, assets/licenses/OFL.txt). Built by tools/fonts/build_medbrains_sans.py.
+ */
+val MedBrainsSans = FontFamily(
+    Font(R.font.medbrains_sans_light, FontWeight.Light),
+    Font(R.font.medbrains_sans_regular, FontWeight.Normal),
+    Font(R.font.medbrains_sans_medium, FontWeight.Medium),
+    Font(R.font.medbrains_sans_semibold, FontWeight.SemiBold)
 )
 val PlexMono = FontFamily(Font(R.font.ibm_plex_mono_regular, FontWeight.Normal))
 
@@ -22,19 +26,86 @@ val PlexMono = FontFamily(Font(R.font.ibm_plex_mono_regular, FontWeight.Normal))
  * so font scaling still applies.
  */
 val CarbonTypography = Typography(
-    displaySmall = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Light, fontSize = 42.sp, lineHeight = 50.sp),
-    headlineLarge = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Light, fontSize = 32.sp, lineHeight = 40.sp),
-    headlineMedium = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 28.sp, lineHeight = 36.sp),
-    headlineSmall = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 20.sp, lineHeight = 28.sp),
-    titleLarge = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 20.sp, lineHeight = 28.sp),
-    titleMedium = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp),
-    titleSmall = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 18.sp),
-    bodyLarge = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
-    bodyMedium = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp),
-    bodySmall = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp),
-    labelLarge = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
-    labelMedium = TextStyle(fontFamily = PlexSans, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.32.sp),
-    labelSmall = TextStyle(fontFamily = PlexMono, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 1.6.sp),
+    displaySmall = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Light,
+        fontSize = 42.sp,
+        lineHeight = 50.sp
+    ),
+    headlineLarge = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Light,
+        fontSize = 32.sp,
+        lineHeight = 40.sp
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 28.sp,
+        lineHeight = 36.sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 20.sp,
+        lineHeight = 28.sp
+    ),
+    titleLarge = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 20.sp,
+        lineHeight = 28.sp
+    ),
+    titleMedium = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp
+    ),
+    titleSmall = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 18.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    ),
+    bodySmall = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = MedBrainsSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.32.sp
+    ),
+    labelSmall = TextStyle(
+        fontFamily = PlexMono,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 1.6.sp
+    )
 )
 
 /** Carbon code / metadata text (UHIDs, permission codes, timestamps). */

@@ -101,7 +101,15 @@ live there. The app (user `medbrains`) cannot read the sealed copy; nobody can w
 
 Every run (and every failure) writes a `backup_history` row (`tenant_id` NULL = the installation); Admin →
 Settings → System health shows the newest good one and turns red at 26 h. `install.sh` runs the same unit before
-every re-deploy and stops if it fails (`SKIP_PREDEPLOY_BACKUP=1` only after a manual dump).
+every re-deploy and stops if it fails, and the deploy then fails too. The new binaries are already installed by
+then, so finish the same day: fix the backup and re-deploy, or take a dump by hand and restart (the commands are in
+the error). `SKIP_PREDEPLOY_BACKUP=1` works only when `install.sh` is run by hand on the host; terraform does not pass it.
+
+A bucket whose policy allows only some prefixes (a write-only vault owned by another account) refuses the defaults
+`pg-backups-monthly/`, `secrets-backups/` and `file-backups/` with `AccessDenied ... no resource-based policy allows`.
+Set all four in `/etc/medbrains/env` under an allowed prefix, for example `BACKUP_PREFIX=pg`,
+`BACKUP_MONTHLY_PREFIX=pg/monthly`, `BACKUP_SECRETS_PREFIX=pg/secrets`, `BACKUP_FILES_PREFIX=pg/files`, then
+`sudo systemctl start medbrains-pg-backup.service` to prove it. The vault's retention then applies to those keys.
 
 ## RPO / RTO
 

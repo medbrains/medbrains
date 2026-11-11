@@ -14,8 +14,9 @@
  * SCSS:
  *   • `@medbrains/design-system/styles/global.scss` — global app SCSS layer
  *
- * Font registration is the consumer's responsibility — call
- *   `import "@fontsource/ibm-plex-sans/400.css"` etc. in your app entry.
+ * Font registration is the consumer's responsibility — import
+ *   `@medbrains/design-system/styles/fonts.css` (MedBrains Sans) and
+ *   `@fontsource/ibm-plex-mono/400.css` etc. in your app entry.
  *
  * Colours: `colors.generated.ts` (M3 roles, from `figma-varspec.json`, regenerate
  *   with `pnpm --filter @medbrains/design-system gen:colors`).

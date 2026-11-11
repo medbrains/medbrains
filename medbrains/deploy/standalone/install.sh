@@ -714,7 +714,11 @@ if systemctl is-active --quiet medbrains-server.service \
     if ! systemctl start medbrains-pg-backup.service; then
         echo "ERROR: pre-deploy backup failed — not restarting onto new migrations." >&2
         journalctl -u medbrains-pg-backup -n 20 --no-pager >&2 || true
-        echo "       Fix it, or re-run with SKIP_PREDEPLOY_BACKUP=1 after a manual dump." >&2
+        echo "       The new binaries are already in /usr/local/bin: any restart now runs their migrations." >&2
+        echo "       Fix the backup and re-deploy, or take a dump by hand and restart:" >&2
+        echo "         sudo -u postgres bash -c 'umask 077; pg_dump -Fc medbrains > /var/lib/postgresql/medbrains-predeploy-\$(date +%F).dump'" >&2
+        echo "         sudo systemctl restart medbrains-server" >&2
+        echo "       (SKIP_PREDEPLOY_BACKUP=1 skips this check when install.sh is run by hand on the host.)" >&2
         exit 1
     fi
 fi
