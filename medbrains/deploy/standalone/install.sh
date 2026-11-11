@@ -2,7 +2,7 @@
 # MedBrains standalone deploy — bootstrap a single Ubuntu/Debian
 # server to run the HMS behind the MedBrains Pingora edge proxy.
 #
-#   sudo bash install.sh hims.amh.org.in admin@example.com [backup-bucket]
+#   sudo bash install.sh hims.example-hospital.org admin@example.com [backup-bucket]
 #
 # Idempotent: re-running advances state without breaking anything.
 
@@ -59,7 +59,7 @@ if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" ]]; then
 Usage:  sudo bash install.sh <domain> <admin-email> [backup-bucket]
 
 Examples:
-  sudo bash install.sh hims.amh.org.in ops@amh.org.in
+  sudo bash install.sh hims.example-hospital.org ops@example-hospital.org
 
 Attach tier (host already runs other applications):
   ATTACH_MODE=1 \
@@ -786,7 +786,7 @@ fi
 # to point it at, which is the same condition the rest of this script uses
 # to decide whether a database is available at all.
 #
-# It ran on the Alagappa host for months as a hand-installed service with no
+# It ran on the first client's host for months as a hand-installed service with no
 # way to rebuild it: a fetched binary, a hand-written unit, a hand-created
 # database, a hand-loaded schema. It worked, and losing the host would have
 # lost it. Managing it here is the whole point.

@@ -40,7 +40,7 @@ pub(crate) struct SignInOptions {
     pub(crate) providers: Vec<IdentityProvider>,
 }
 
-/// `GET /api/auth/sign-in-options?code=AMH` — public. Without a code, the
+/// `GET /api/auth/sign-in-options?code=HOSPA` — public. Without a code, the
 /// hospital whose own domain the request came to, or `null` when the domain is
 /// no hospital's, so the page asks for the code. A code naming no active
 /// hospital is 404.

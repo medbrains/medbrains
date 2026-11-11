@@ -631,7 +631,7 @@ const ER_DISCHARGE_SAMPLE: &str = r#"{
     "medications_on_discharge": "Amoxicillin-clavulanate 625mg TID x 5 days; Paracetamol 500mg PRN.",
     "follow_up_instructions": "Suture removal in OPD after 7 days", "follow_up_date": "02-Jul-2026",
     "warning_signs": "increasing pain, redness, swelling, pus, or fever",
-    "hospital_name": "Alagappa Hospital"
+    "hospital_name": "Example Hospital"
   },
   "watermark": "",
   "document_number": "ER-DSC-20260625-0001"
@@ -759,7 +759,7 @@ const NO_DUES_SAMPLE: &str = r#"{
     "ward_name": "General Ward A", "bed_number": "GW-12",
     "total_billed": "7350.00", "total_paid": "7350.00", "balance": "0.00",
     "issued_by": "Anita Kumar (Billing)", "issued_at": "12-Jun-2026 14:30",
-    "notes": null, "hospital_name": "Alagappa Hospital"
+    "notes": null, "hospital_name": "Example Hospital"
   },
   "watermark": "",
   "document_number": "IPD-NOC-20260612-0001"
@@ -786,7 +786,7 @@ const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
     "subtotal": "7350.00", "discount_amount": "0.00", "tax_amount": "0.00",
     "total_amount": "7350.00", "advance_paid": "5000.00", "insurance_approved": "0.00",
     "patient_payable": "7350.00", "amount_paid": "5000.00", "balance_due": "2350.00",
-    "los_days": 4, "hospital_name": "Alagappa Hospital", "hospital_gstin": "33ABCDE1234F1Z5"
+    "los_days": 4, "hospital_name": "Example Hospital", "hospital_gstin": "33ABCDE1234F1Z5"
   },
   "watermark": "",
   "document_number": "IPD-BILL-20260612-0001"
@@ -1206,7 +1206,7 @@ mod tests {
     fn sample_with_branding(template: &SystemTemplate) -> serde_json::Value {
         let mut context: serde_json::Value = serde_json::from_str(template.sample_context)
             .unwrap_or_else(|e| panic!("{}: sample context is not valid JSON: {e}", template.code));
-        context["branding"] = serde_json::json!({ "hospital_name": "Alagappa Hospital" });
+        context["branding"] = serde_json::json!({ "hospital_name": "Example Hospital" });
         context
     }
 
@@ -1262,7 +1262,7 @@ mod tests {
     fn an_unknown_wait_is_omitted_rather_than_printed_as_zero() {
         let template = find_template("queue_token_slip").expect("queue token slip is registered");
         let context = serde_json::json!({
-            "branding": { "hospital_name": "Alagappa Hospital" },
+            "branding": { "hospital_name": "Example Hospital" },
             "token": {
                 "token_number": "CARD-001", "department_name": "Cardiology",
                 "patient_name": "R. Lakshmi",

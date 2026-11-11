@@ -1,5 +1,5 @@
 """
-Build a text-led Alagappa HMS board deck.
+Build a text-led Example Hospital HMS board deck.
 
 This variant intentionally avoids architecture diagrams and dramatic visuals.
 It keeps the board story focused on cost savings, internal capability building,
@@ -29,7 +29,7 @@ UI_FONT = "Aptos"
 MONO_FONT = "Aptos Mono"
 
 ROOT = Path("/Users/apple/Projects/MedBrains/medbrains")
-OUTPUT = ROOT / "docs" / "Alagappa_HMS_Board_text_points_cost_muscle_resources.pptx"
+OUTPUT = ROOT / "docs" / "Hospital_A_HMS_Board_text_points_cost_muscle_resources.pptx"
 
 prs = Presentation()
 prs.slide_width = Inches(13.333)
@@ -137,7 +137,7 @@ def add_footer(slide, num):
         Inches(7.18),
         Inches(7.8),
         Inches(0.25),
-        "Alagappa Hospital - In-house HMS board decision - May 2026",
+        "Example Hospital - In-house HMS board decision - May 2026",
         font=MONO_FONT,
         size=8,
         color=DIMMED,
@@ -215,7 +215,7 @@ add_bullets(
     Inches(11.1),
     [
         "Save money by avoiding large upfront licence, AMC, change-request and duplicate-work costs.",
-        "Build internal technology muscle so Alagappa can adapt workflows without waiting on vendor roadmaps.",
+        "Build internal technology muscle so Example Hospital can adapt workflows without waiting on vendor roadmaps.",
         "Start safely with OPD + pharmacy pilot, daily defect review and clear go / no-go gates.",
         "Ask for a small focused team, basic infrastructure, doctor/operations champions and board governance.",
     ],
@@ -257,7 +257,7 @@ columns = [
         [
             "New departments and branches reuse the same platform.",
             "Compliance changes are in our backlog, not vendor backlog.",
-            "Integrations like ABDM, NHCX, DICOM and devices stay owned by Alagappa.",
+            "Integrations like ABDM, NHCX, DICOM and devices stay owned by Example Hospital.",
             "Resale or sister-hospital deployment becomes possible later.",
         ],
     ),
@@ -279,14 +279,14 @@ title_slide(
 )
 muscle_rows = [
     ("Capability we build", "Why it matters to the hospital"),
-    ("Workflow ownership", "Doctors, nurses, pharmacy and billing get changes from an internal team that understands Alagappa."),
+    ("Workflow ownership", "Doctors, nurses, pharmacy and billing get changes from an internal team that understands Example Hospital."),
     ("Regulatory response", "NABH, ABDM, NHCX, DPDPA and pharmacy safety changes can be handled without vendor delay."),
     ("Integration confidence", "Lab machines, payment, insurance, WhatsApp, DICOM/PACS and future devices become repeatable work."),
     ("Data advantage", "Management dashboards, audit evidence, clinical quality indicators and branch comparison become possible."),
     ("Future readiness", "AI assistants, clinical decision support, analytics and sister-hospital rollout become internal muscle, not outsourced magic."),
 ]
 add_table(s, Inches(0.6), Inches(2.65), Inches(12.1), Inches(3.85), muscle_rows, widths=[Inches(3.2), Inches(8.9)], font_size=12)
-add_text(s, Inches(0.6), Inches(6.7), Inches(12), Inches(0.3), "Board line: this is how Alagappa stops being only a buyer and becomes a builder.", size=12, color=COPPER, bold=True)
+add_text(s, Inches(0.6), Inches(6.7), Inches(12), Inches(0.3), "Board line: this is how Example Hospital stops being only a buyer and becomes a builder.", size=12, color=COPPER, bold=True)
 add_footer(s, 3)
 
 # Slide 4
