@@ -9,7 +9,9 @@ use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const BOOT_TIMEOUT: Duration = Duration::from_secs(180);
+/// Long enough for a first start on a host shared with other machines: one at 180 s ran out while an
+/// emulated x86-64 machine shared the CPU, with the guest healthy.
+const BOOT_TIMEOUT: Duration = Duration::from_secs(300);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const BOOT_ID: &str = "cat /proc/sys/kernel/random/boot_id";
 const POLL: Duration = Duration::from_secs(2);
