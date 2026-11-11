@@ -19,6 +19,8 @@ OUT, WORK, TOOL, FIRST, NEXT = sys.argv[1:6]
 OTHER_ARCH = "x86-64" if ARCH == "arm64" else "arm64"
 IMAGES = os.path.join(WORK, f"out-{ARCH}")
 KEY = os.path.join(WORK, "update-test.key")
+# The keys the image was built to trust, where build.sh put them: the signing tool checks KEY against them.
+TRUSTED = os.path.join(WORK, f"extra-{ARCH}", "usr", "share", "medbrains", "update-keys")
 BUILDER = "medbrains-os-builder:arm64"
 ROOT_FILE, VERITY_FILE, BOOT_FILE = "root.img.zst", "verity.img.zst", "boot.efi"
 MANIFEST, SIGNATURES = "manifest.json", "manifest.sig"
@@ -33,7 +35,7 @@ def make(name, version, min_version, root, verity, boot, upgrades_from="0.0", *e
     """Makes and signs one bundle."""
     folder = os.path.join(OUT, name)
     run(TOOL, "make", folder, version, ARCH, min_version, root, verity, boot, "--upgrades-from", upgrades_from, *extra)
-    run(TOOL, "sign", folder, "test-1", KEY)
+    run(TOOL, "sign", folder, "test-1", KEY, TRUSTED)
     return folder
 
 
@@ -47,10 +49,10 @@ def clone(source, name):
     return folder
 
 
-def resign(folder, key=KEY, key_id="test-1"):
+def resign(folder, key=KEY, key_id="test-1", trusted=TRUSTED):
     """Replaces the signature, as whoever made the change would have to."""
     os.remove(os.path.join(folder, SIGNATURES))
-    run(TOOL, "sign", folder, key_id, key)
+    run(TOOL, "sign", folder, key_id, key, trusted)
 
 
 def edit_manifest(folder, old, new, sign=True):
@@ -89,7 +91,8 @@ def refused_bundles(next_bundle):
         if os.path.exists(other + suffix):
             os.remove(other + suffix)
     run(TOOL, "keygen", other)
-    resign(bad_key, other + ".key")
+    # Signed by a key the image does not trust: the tool signs only with a key it can name.
+    resign(bad_key, other + ".key", "other-key", OUT)
     tampered = clone(next_bundle, "tampered-manifest")
     edit_manifest(tampered, f'"version": "{NEXT}"', '"version": "9.9.9"', sign=False)
     flip_byte(clone(next_bundle, "tampered-root"), ROOT_FILE)
@@ -102,7 +105,7 @@ def refused_bundles(next_bundle):
     edit_manifest(clone(next_bundle, "below-floor"), f'"version": "{NEXT}"', '"version": "1.0.2.1"')
     expired = clone(next_bundle, "expired")
     run(TOOL, "refresh", expired, "0")
-    run(TOOL, "sign", expired, "test-1", KEY)
+    run(TOOL, "sign", expired, "test-1", KEY, TRUSTED)
     security = clone(next_bundle, "next-security")
     edit_manifest(security, '"security": false', '"security": true')
     edit_manifest(security, '"summary": ""', '"summary": "Fixes a flaw in the kernel."')

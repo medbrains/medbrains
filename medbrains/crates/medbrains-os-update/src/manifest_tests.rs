@@ -242,3 +242,39 @@ fn the_threshold_is_at_least_one() {
     }
     assert!(std::fs::remove_dir_all(&dir).is_ok());
 }
+
+/// The identity point: a public key of small order, for which a signature can be forged without any
+/// private key. Its encoding is y = 1.
+fn identity_point() -> [u8; 32] {
+    let mut bytes = [0_u8; 32];
+    bytes[0] = 1;
+    bytes
+}
+
+/// A weak public key is never trusted, whatever file holds it.
+#[test]
+fn a_weak_key_is_not_trusted() {
+    assert!(TrustedKey::parse("weak", &STANDARD.encode(identity_point())).is_none());
+    assert!(!trusted("good", &signing(3)).is_empty());
+}
+
+/// A signature forged for a small-order key (R the identity, s zero) passes the lax check and must fail
+/// the strict one, so trusting such a key by mistake still accepts nothing.
+#[test]
+fn a_forged_signature_fails_the_strict_check() {
+    let parsed = ed25519_dalek::VerifyingKey::from_bytes(&identity_point());
+    assert!(parsed.is_ok(), "the identity point is a valid encoding");
+    let Ok(key) = parsed else {
+        return;
+    };
+    let weak = TrustedKey {
+        id: "weak".to_owned(),
+        key,
+    };
+    let mut forged = [0_u8; 64];
+    forged[..32].copy_from_slice(&identity_point());
+    let forged = ed25519_dalek::Signature::from_bytes(&forged);
+    let message = b"any manifest at all";
+    assert!(ed25519_dalek::Verifier::verify(&key, message, &forged).is_ok());
+    assert!(!weak.verifies(message, &forged));
+}

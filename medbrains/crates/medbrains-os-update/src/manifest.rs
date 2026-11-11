@@ -6,7 +6,7 @@ use std::path::Path;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 use crate::version::Version;
@@ -101,14 +101,32 @@ pub struct TrustedKey {
 }
 
 impl TrustedKey {
-    /// Reads a key from its base64 text, or `None` if it is not a valid public key.
+    /// Reads a key from its base64 text, or `None` if it is not a valid public key. A weak key, one of
+    /// small order, is refused: a signature under it can be made without any private key.
     pub fn parse(id: &str, base64_text: &str) -> Option<Self> {
         let raw = STANDARD.decode(base64_text.trim()).ok()?;
         let bytes: [u8; ED25519_PUBLIC_LEN] = raw.try_into().ok()?;
-        Some(Self {
+        let key = VerifyingKey::from_bytes(&bytes).ok()?;
+        (!key.is_weak()).then(|| Self {
             id: id.to_owned(),
-            key: VerifyingKey::from_bytes(&bytes).ok()?,
+            key,
         })
+    }
+
+    /// The key's id, as its file names it.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// The key's 32 bytes, so a signing tool can compare it with the key it derives.
+    pub fn bytes(&self) -> [u8; ED25519_PUBLIC_LEN] {
+        self.key.to_bytes()
+    }
+
+    /// True if `signature` is this key's over `message`, under the strict rules: no malleable
+    /// signature and no small-order component.
+    pub fn verifies(&self, message: &[u8], signature: &Signature) -> bool {
+        self.key.verify_strict(message, signature).is_ok()
     }
 }
 
@@ -181,7 +199,7 @@ pub fn verify_signature(
             .decode(text.trim())
             .ok()
             .and_then(|raw| Signature::from_slice(&raw).ok());
-        let valid = signature.is_some_and(|s| key.key.verify(manifest, &s).is_ok());
+        let valid = signature.is_some_and(|s| key.verifies(manifest, &s));
         if valid && !signed_by.contains(&key.id) {
             signed_by.push(key.id.clone());
         }

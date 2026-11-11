@@ -99,7 +99,7 @@ cable, so this key protects nothing and only lets the tests run.
 |---|---|
 | Algorithm | Ed25519. One small signature, and the manifest is the only thing signed, so signing never touches the image |
 | Where it lives | Never on a build machine. An air-gapped computer that stays off and locked, with the seed on two encrypted USB sticks kept apart, or a hardware token doing Ed25519. A CI runner must not be able to sign |
-| How a release is signed | The build makes the bundle and `manifest.json`. Only that small file crosses to the signing machine; a person reads its version and hashes, runs `medbrains-os-bundle sign`, and carries back `manifest.sig` |
+| How a release is signed | The build makes the bundle and `manifest.json`. Only that small file crosses to the signing machine; a person reads its version and hashes, runs `medbrains-os-bundle sign <bundle> <key id> <key file> os/update-keys`, which refuses a key that is not the one images trust under that id (or an all-zero one) and checks the line it wrote, and carries back `manifest.sig`. `medbrains-os-bundle verify <bundle> os/update-keys` checks a finished bundle as a machine would |
 | Two people | Holding the key is the owner's; two named people should witness each signing. Not enforced by anything yet |
 | Public half | `os/update-keys/release-<n>.pub`, in every image |
 

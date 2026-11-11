@@ -125,7 +125,7 @@ const RECOVERY_KEY_GROUPS: usize = 8;
 /// The question can reach the screen before the USB keyboard works, and keys sent then are lost.
 pub(crate) const KEYBOARD_READY: Duration = Duration::from_secs(10);
 const RECOVERY_KEY_PROMPT: &str = "write down this disk's recovery key";
-const GROUP_QUESTION: &str = "type group ";
+const WHOLE_KEY_QUESTION: &str = "type the whole recovery key";
 /// The rest of the bare kernel's command line; `root=` names the image's own slot, as its boot file does.
 const BARE_KERNEL_LINE: &str = "rw luks.crypttab=no quiet loglevel=1 audit=0 console=tty1 console=ttyS0 systemd.mask=serial-getty@ttyS0.service";
 const START_QUESTION: &str = "how should this machine start";
@@ -155,20 +155,6 @@ pub(crate) fn find_recovery_key(screen: &str) -> Option<String> {
                 .all(|g| !g.is_empty() && g.chars().all(|c| c.is_ascii_lowercase()));
         shaped.then(|| word.to_owned())
     })
-}
-
-/// The answer to the screen's question: the group of `key` it asks for, counting from one.
-fn asked_group(screen: &str, key: &str) -> Option<String> {
-    let (_, rest) = screen.split_once(GROUP_QUESTION)?;
-    let number: usize = rest
-        .split_whitespace()
-        .next()?
-        .trim_end_matches(',')
-        .parse()
-        .ok()?;
-    key.split('-')
-        .nth(number.checked_sub(1)?)
-        .map(str::to_owned)
 }
 
 /// QEMU's name for the key that types `c`, if it has one.
@@ -423,17 +409,15 @@ impl Vm {
         find_recovery_key(&shown).ok_or_else(|| "no recovery key on the screen".to_owned())
     }
 
-    /// Reads the recovery key off the screen and types back its last group, as a person does.
+    /// Reads the recovery key off the screen and types the whole of it back, as a person does.
     pub(crate) fn confirm_recovery_key(&mut self) -> Result<(), String> {
         let key = self.read_recovery_key()?;
         self.type_text("\n")?;
-        let shown = self.wait_for_screen(GROUP_QUESTION, scaled(COMMAND_TIMEOUT))?;
+        let shown = self.wait_for_screen(WHOLE_KEY_QUESTION, scaled(COMMAND_TIMEOUT))?;
         if shown.contains(&key) {
             return Err("the key stayed on the screen while being checked".to_owned());
         }
-        let answer =
-            asked_group(&shown, &key).ok_or_else(|| "no group was asked for".to_owned())?;
-        self.type_text(&format!("{answer}\n"))?;
+        self.type_text(&format!("{key}\n"))?;
         self.recovery_key = key;
         self.wait_for_screen(START_QUESTION, scaled(COMMAND_TIMEOUT))?;
         Ok(())
@@ -850,7 +834,7 @@ fn connect_socket(path: &Path) -> Result<UnixStream, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{asked_group, between_markers, find_recovery_key, qemu_key, strip_terminal_codes};
+    use super::{between_markers, find_recovery_key, qemu_key, strip_terminal_codes};
 
     #[test]
     fn a_recovery_key_is_found_only_in_its_exact_shape() {
@@ -861,12 +845,6 @@ mod tests {
         );
         assert_eq!(find_recovery_key("a first-boot well-known aa-bb-cc"), None);
         assert_eq!(find_recovery_key("AA-bb-cc-dd-ee-ff-gg-hh"), None);
-        assert_eq!(
-            asked_group("type group 3, counting", key).as_deref(),
-            Some("cc")
-        );
-        assert_eq!(asked_group("type group 9, counting", key), None);
-        assert_eq!(asked_group("type group 0, counting", key), None);
     }
 
     #[test]
