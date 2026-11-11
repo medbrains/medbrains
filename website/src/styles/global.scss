@@ -37,16 +37,17 @@
   // Archivo Expanded is Archivo's width axis (self-hosted via @fontsource-variable,
   // which names the family "Archivo Variable"), not a family of its own.
   --display: "Archivo Variable", system-ui, sans-serif;
-  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  // MedBrains Sans, self-hosted from src/fonts (built by medbrains/tools/fonts).
+  --sans: "MedBrains Sans", "MedBrains Sans Fallback", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
-// Selects Archivo's expanded width wherever --display is used; Plex has no
+// Selects Archivo's expanded width wherever --display is used; MedBrains Sans has no
 // width axis, so body text is unaffected.
 html { scroll-behavior: smooth; scroll-padding-top: 80px; font-stretch: 125%; }
 body {
   margin: 0; background: var(--night); color: #fff;
-  font-family: var(--sans); font-size: 17px; line-height: 1.55;
+  font-family: var(--sans); font-size: 17px; line-height: 1.55; font-weight: 440;
   -webkit-font-smoothing: antialiased; overflow-x: hidden;
 }
 body.light { background: var(--paper); color: var(--ink); }
