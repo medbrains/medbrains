@@ -212,13 +212,19 @@ pub(crate) fn wait_version(
     let started = Instant::now();
     let limit = vm::scaled(limit);
     loop {
-        // A short wait: reading for longer could swallow the firmware line that `wait_for_restart` needs.
         let asked = vm.run_for(READ_VERSION, vm::scaled(Duration::from_secs(4)));
-        if asked.is_ok_and(|text| text == version) {
+        if asked.as_ref().is_ok_and(|text| text == version) {
             return Ok(started.elapsed());
         }
         let left = limit.saturating_sub(started.elapsed());
         ensure(!left.is_zero(), format!("never running {version}"))?;
+        // No answer: the machine is restarting, and a fast restart (a failed seal check takes under four
+        // seconds) can put its firmware line inside the read above, where a wait for the next one would
+        // never end. Ask again instead. A shell that answers another version waits for the next restart.
+        if asked.is_err() {
+            sleep(POLL);
+            continue;
+        }
         vm.wait_for_restart(left)
             .map_err(|e| format!("never running {version}: {e}"))?;
     }
