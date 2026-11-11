@@ -520,9 +520,7 @@ Debian benchmark where they fit an appliance. Every entry carries a one-line rea
 | `usb-storage` off | USB sticks carry signed updates (OS-UPDATES.md); they mount read-only, `noexec,nosuid,nodev` |
 
 **Units whose score stays high, and why.** The disk units (`medbrains-disk-*`) run before `/var` exists, create
-the data partition, load `dm-crypt`, talk to the TPM and ask a person for keys on tty1. They keep systemd's
-defaults: with a sandbox, the recovery message after a power cut during PIN setup never appeared (TPM test on
-x86-64), so it was reverted. The updater (`medbrains-os-update@`, `medbrains-update-*`)
+the data partition, load `dm-crypt`, talk to the TPM and ask a person for keys on tty1; the updater (`medbrains-os-update@`, `medbrains-update-*`)
 writes a whole system partition and the boot partition and mounts the other slot or a USB stick. A read-only
 system, a device list or a capability limit would break the job, and a broken updater cannot be fixed by an
 update. They get every setting that cannot get in the way. `cage-console` keeps the gaps WebKit's own sandbox needs
