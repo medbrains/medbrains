@@ -2883,6 +2883,7 @@ let lastPersonInputAt: number | null = null;
  */
 export function trackPersonInput(target: Pick<Window, "addEventListener">): void {
   lastPersonInputAt = Date.now();
+  /** Notes that a person touched the page just now. */
   const note = (): void => {
     lastPersonInputAt = Date.now();
   };
