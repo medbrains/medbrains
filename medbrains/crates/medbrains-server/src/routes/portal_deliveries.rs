@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::portal::PatientClaims;
 
 /// `GET /api/portal/prescriptions/{id}/delivery-options`
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_delivery_options(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,

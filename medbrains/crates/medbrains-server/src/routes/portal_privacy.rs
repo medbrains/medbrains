@@ -24,7 +24,7 @@ pub struct PortalPrivacy {
 }
 
 /// `GET /api/portal/privacy`
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_privacy(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -48,7 +48,7 @@ pub async fn portal_privacy(
 
 /// `PUT /api/portal/dpdp-consent` — the patient changes what they agreed to.
 /// Withdrawing here is as easy as agreeing was at the desk.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_set_consent(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -75,7 +75,7 @@ pub struct PortalPrivacyRequest {
 
 /// `GET /api/portal/privacy/export` — the patient's own record as a FHIR R4
 /// bundle, to keep or to take to another hospital.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_export(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -97,7 +97,7 @@ pub async fn portal_export(
 }
 
 /// `POST /api/portal/privacy-requests` — the patient makes a request.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_create_request(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
