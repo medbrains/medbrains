@@ -141,10 +141,10 @@ pub(crate) fn power_cuts_applying(vm: &mut Vm, bench: &Bench) -> Result<(), Stri
         vm.cut_power()?;
         vm.boot(&disk, own_tpm())?;
         let version = running_version(vm)?;
-        ensure(
-            version == NEXT.1,
-            format!("start {attempt}: booted {version}"),
-        )?;
+        if version != NEXT.1 {
+            let entries = vm.run("ls -la /boot/EFI/Linux /boot/EFI/MedBrains 2>&1 | tr '\\n' '|'; bootctl list --no-pager 2>&1 | grep -E 'title|id|version|tries' | tr '\\n' '|'")?;
+            return Err(format!("start {attempt}: booted {version}; {entries}"));
+        }
         say(&format!("      cut on trial start {attempt}"));
     }
     vm.cut_power()?;

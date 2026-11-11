@@ -38,8 +38,11 @@ const MAIN_UNITS: [&str; 3] = [
 /// Exists only when the loader started this boot from a counted entry.
 const BOOT_COUNT_VARIABLE: &str =
     "/sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f";
-/// Ports a person or another machine reaches the app on. Anything connected here means in use.
-const IN_USE_FILTER: &str = "( sport = :443 or sport = :8443 or sport = :3000 )";
+/// Ports a person or another machine reaches the app on. A connection from elsewhere means in use. Loopback
+/// does not count: this machine's own screen and front keep connections to 8443 and 3000 open all the time,
+/// so counting them meant a quiet window never came, measured on QEMU.
+const IN_USE_FILTER: &str =
+    "( sport = :443 or sport = :8443 or sport = :3000 ) and not dst 127.0.0.0/8 and not dst [::1]";
 
 /// Asks a unit's state; the text is the answer, whatever the exit status.
 fn unit_answer(verb: &str, unit: &str) -> String {

@@ -103,10 +103,11 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
 }
 
 /// Asks for a restart through the same door the screen uses. Sent in the background: the machine may stop
-/// before the shell can answer, and a restart then proves the request was taken.
+/// before the shell can answer, and a restart then proves the request was taken. The answer is kept in
+/// `/run`, for a failure report.
 pub(crate) fn ask_restart(vm: &mut Vm, action: &str) -> Result<(), String> {
     vm.run(&format!(
-        "(curl -s -m 15 --unix-socket /run/medbrains-console/setup.sock -d '{{\"action\":\"{action}\"}}' http://machine/update/action > /dev/null 2>&1 &)"
+        "(curl -s -m 15 --unix-socket /run/medbrains-console/setup.sock -d '{{\"action\":\"{action}\"}}' http://machine/update/action > /run/ask-{action}.json 2>&1 &)"
     ))
     .map(|_| ())
 }
@@ -187,11 +188,17 @@ pub(crate) fn apply_and_prove(
 /// What the running machine says about an update that should have started: its record, its boot
 /// entries and the last action's log, for a failure report.
 fn why_not_started(vm: &mut Vm) -> String {
-    vm.run(
-        "medbrains-os-update status | head -c 600; ls /boot/EFI/Linux /boot/EFI/MedBrains 2>&1 | tr '\\n' ' '; \
-         journalctl -b -u 'medbrains-os-update@*' -u medbrains-update-quiet --no-pager -o cat | tail -8",
-    )
-    .unwrap_or_else(|e| format!("(could not ask: {e})"))
+    let asks = [
+        "cat /run/ask-*.json 2>&1",
+        "medbrains-os-update status | head -c 400",
+        "ls -la /boot/EFI/Linux /boot/EFI/MedBrains 2>&1 | tr '\\n' '|'",
+        "systemctl list-jobs --no-pager --no-legend | head -5",
+        "systemctl status --no-pager -n 6 'medbrains-os-update@apply.service' 2>&1 | tail -8",
+    ];
+    asks.iter()
+        .map(|ask| vm.run(ask).unwrap_or_else(|e| format!("(no answer: {e})")))
+        .collect::<Vec<_>>()
+        .join(" // ")
 }
 
 /// Requirement 2: nothing bad is written. Each row is refused with its reason, and the slot, the boot
@@ -451,13 +458,16 @@ fn waits_for_quiet(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
         "echo {now_start}-{now_end} > /var/lib/medbrains-settings/update-window"
     ))?;
     wait_for(vm, "chronyc -c tracking | grep -q Normal", RESTART_LIMIT)?;
-    vm.run("exec 9<>/dev/tcp/127.0.0.1/3000")?;
+    // Someone on the network, through the forwarded port: the machine's own loopback connections never count.
+    let someone = std::net::TcpStream::connect(("127.0.0.1", vm.port("web")?))
+        .map_err(|e| format!("could not connect as a user: {e}"))?;
     vm.run("medbrains-os-update tick")?;
     sleep(Duration::from_secs(10));
     ensure(vm.run(boot_id)? == id, "a tick restarted a machine in use")?;
     let value = status(vm)?;
     ensure(value["stage"] == "waiting", format!("{value}"))?;
-    vm.run("exec 9<&-; sleep 2")?;
+    drop(someone);
+    vm.run("sleep 2")?;
     vm.run("(nohup medbrains-os-update tick > /dev/null 2>&1 &)")?;
     wait_version(vm, NEXT.1, RESTART_LIMIT).map_err(|e| format!("{e}; {}", why_not_started(vm)))?;
     wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;
