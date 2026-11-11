@@ -34,11 +34,7 @@ pub(crate) struct Place {
 
 impl Drop for Place {
     fn drop(&mut self) {
-        let mut seen = self
-            .limits
-            .seen
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut seen = self.limits.seen.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(entry) = seen.get_mut(&self.address) {
             entry.live = entry.live.saturating_sub(1);
         }
@@ -48,11 +44,7 @@ impl Drop for Place {
 impl AddressLimits {
     /// Limits for one kind of conversation.
     pub(crate) fn new(max_live: u32, max_started: u32) -> Arc<Self> {
-        Arc::new(Self {
-            max_live,
-            max_started,
-            seen: Mutex::default(),
-        })
+        Arc::new(Self { max_live, max_started, seen: Mutex::default() })
     }
 
     /// A place for a new conversation from `address`, or `None` if it has had its share.
@@ -64,11 +56,7 @@ impl AddressLimits {
                 return None;
             }
         }
-        let entry = seen.entry(address).or_insert(Seen {
-            live: 0,
-            started: 0,
-            window_began: now,
-        });
+        let entry = seen.entry(address).or_insert(Seen { live: 0, started: 0, window_began: now });
         if now - entry.window_began >= WINDOW {
             entry.started = 0;
             entry.window_began = now;
@@ -78,10 +66,7 @@ impl AddressLimits {
         }
         entry.live += 1;
         entry.started += 1;
-        Some(Place {
-            limits: Arc::clone(self),
-            address,
-        })
+        Some(Place { limits: Arc::clone(self), address })
     }
 }
 
@@ -103,18 +88,10 @@ mod tests {
     fn one_address_cannot_take_the_places_of_others() {
         let limits = AddressLimits::new(MAX_LIVE, MAX_STARTED);
         let now = Instant::now();
-        let held: Vec<_> = (0..MAX_LIVE)
-            .filter_map(|_| limits.enter(STRANGER, now))
-            .collect();
+        let held: Vec<_> = (0..MAX_LIVE).filter_map(|_| limits.enter(STRANGER, now)).collect();
         assert_eq!(held.len(), MAX_LIVE as usize);
-        assert!(
-            limits.enter(STRANGER, now).is_none(),
-            "the stranger has had its share"
-        );
-        assert!(
-            limits.enter(REAL_MACHINE, now).is_some(),
-            "a real machine still gets in"
-        );
+        assert!(limits.enter(STRANGER, now).is_none(), "the stranger has had its share");
+        assert!(limits.enter(REAL_MACHINE, now).is_some(), "a real machine still gets in");
     }
 
     #[test]
@@ -122,10 +99,7 @@ mod tests {
         let limits = AddressLimits::new(MAX_LIVE, MAX_STARTED);
         let now = Instant::now();
         for _ in 0..MAX_LIVE {
-            assert!(
-                limits.enter(STRANGER, now).is_some(),
-                "each is dropped straight away"
-            );
+            assert!(limits.enter(STRANGER, now).is_some(), "each is dropped straight away");
         }
     }
 
@@ -138,11 +112,7 @@ mod tests {
             assert!(limits.enter(STRANGER, now).is_some());
         }
         assert!(limits.enter(STRANGER, now).is_none());
-        assert!(
-            limits
-                .enter(STRANGER, now + WINDOW + Duration::from_secs(1))
-                .is_some()
-        );
+        assert!(limits.enter(STRANGER, now + WINDOW + Duration::from_secs(1)).is_some());
     }
 
     /// The table has a ceiling, and old entries make way when it is reached.
@@ -155,16 +125,7 @@ mod tests {
             assert!(limits.enter(IpAddr::from(octets), now).is_some());
         }
         let later = now + WINDOW + Duration::from_secs(1);
-        assert!(
-            limits.enter(REAL_MACHINE, later).is_some(),
-            "aged entries made way"
-        );
-        assert!(
-            limits
-                .seen
-                .lock()
-                .map(|seen| seen.len() <= MAX_TRACKED)
-                .unwrap_or(false)
-        );
+        assert!(limits.enter(REAL_MACHINE, later).is_some(), "aged entries made way");
+        assert!(limits.seen.lock().map(|seen| seen.len() <= MAX_TRACKED).unwrap_or(false));
     }
 }

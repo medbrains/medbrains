@@ -74,9 +74,7 @@ pub(crate) struct Server {
 impl Server {
     /// A client that never leaves this machine.
     pub(crate) fn new(token: String) -> anyhow::Result<Self> {
-        let client = reqwest::Client::builder()
-            .timeout(REQUEST_TIMEOUT)
-            .build()?;
+        let client = reqwest::Client::builder().timeout(REQUEST_TIMEOUT).build()?;
         Ok(Self { client, token })
     }
 

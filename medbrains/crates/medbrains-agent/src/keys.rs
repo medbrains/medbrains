@@ -20,10 +20,7 @@ pub(crate) fn load_or_create(path: &Path) -> anyhow::Result<SecretKey> {
     match std::fs::metadata(path) {
         Ok(found) => {
             if found.permissions().mode() & 0o077 != 0 {
-                bail!(
-                    "{} can be read by others; refusing to use it",
-                    path.display()
-                );
+                bail!("{} can be read by others; refusing to use it", path.display());
             }
             let bytes: [u8; KEY_LENGTH] = std::fs::read(path)?
                 .try_into()
@@ -63,10 +60,7 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let path = dir.path().join("machine.key");
         let first = load_or_create(&path)?;
-        assert_eq!(
-            std::fs::metadata(&path)?.permissions().mode() & 0o777,
-            0o600
-        );
+        assert_eq!(std::fs::metadata(&path)?.permissions().mode() & 0o777, 0o600);
         assert_eq!(load_or_create(&path)?.public(), first.public());
         Ok(())
     }

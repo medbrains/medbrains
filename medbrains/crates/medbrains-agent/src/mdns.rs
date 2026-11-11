@@ -23,11 +23,7 @@ fn addresses(endpoint: &Endpoint) -> BTreeSet<SocketAddr> {
 }
 
 /// Runs mDNS for as long as the agent runs, handing each event to `heard`.
-pub(crate) async fn follow(
-    endpoint: Endpoint,
-    advertise: bool,
-    heard: impl Fn(DiscoveryEvent) + Send + Sync,
-) {
+pub(crate) async fn follow(endpoint: Endpoint, advertise: bool, heard: impl Fn(DiscoveryEvent) + Send + Sync) {
     let mut check = tokio::time::interval(CHECK_EVERY);
     loop {
         let seen = addresses(&endpoint);

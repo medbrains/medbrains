@@ -50,16 +50,8 @@ impl Gateway {
 /// the sign-in limit and the audit log each see one address per machine, not one for them all. The
 /// server records it against the machine, which is how an address in the log names one.
 pub(crate) fn machine_source(key: &[u8; 32]) -> Ipv4Addr {
-    let hash = Sha256::new()
-        .chain_update(b"medbrains/machine-source/1")
-        .chain_update(key)
-        .finalize();
-    Ipv4Addr::new(
-        127,
-        1 + hash[0] % LOOPBACK_FIRST_OCTET_SPAN,
-        hash[1],
-        hash[2],
-    )
+    let hash = Sha256::new().chain_update(b"medbrains/machine-source/1").chain_update(key).finalize();
+    Ipv4Addr::new(127, 1 + hash[0] % LOOPBACK_FIRST_OCTET_SPAN, hash[1], hash[2])
 }
 
 /// Connects to the front end from a machine's own loopback address.

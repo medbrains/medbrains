@@ -21,12 +21,7 @@ pub(super) struct GivenUp {
 impl GivenUp {
     /// None yet.
     pub(super) const fn new(now: Instant) -> Self {
-        Self {
-            window_began: now,
-            in_window: 0,
-            unreported: 0,
-            last_report: now,
-        }
+        Self { window_began: now, in_window: 0, unreported: 0, last_report: now }
     }
 
     /// Starts a new window if the last has passed.
@@ -96,9 +91,6 @@ impl Gateway {
     pub(super) fn arrival(&self, address: IpAddr) -> Option<Arrival> {
         let place = self.arrivals.enter(address, Instant::now())?;
         let permit = Arc::clone(&self.arriving).try_acquire_owned().ok()?;
-        Some(Arrival {
-            _place: place,
-            _permit: permit,
-        })
+        Some(Arrival { _place: place, _permit: permit })
     }
 }

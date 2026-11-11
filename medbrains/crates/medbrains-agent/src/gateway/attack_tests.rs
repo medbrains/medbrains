@@ -11,15 +11,13 @@ use tokio::net::UdpSocket;
 use uuid::Uuid;
 
 use super::tests::{
-    CERTIFICATE, FakeServer, echo_front, echo_through, endpoint, free_port, free_udp_port, gateway,
-    node_with_main, tunnel_answer, wait_for,
+    CERTIFICATE, FakeServer, echo_front, echo_through, endpoint, free_port, gateway, node_with_main,
+    tunnel_answer, wait_for,
 };
 use super::{Gateway, Verdict, WHOAMI_SIZE, whoami_reply};
 use crate::hospital::Hospital;
 use crate::node::{Joined, Node};
-use crate::wire::{
-    Hello, JOIN_ALPN, JoinState, Kind, NonceFrame, TIME_ALPN, TUNNEL_ALPN, read_frame, write_frame,
-};
+use crate::wire::{Hello, JOIN_ALPN, JoinState, Kind, NonceFrame, TIME_ALPN, TUNNEL_ALPN, read_frame, write_frame};
 
 /// The review's attack. A fake main machine answers "approved" at once, with its own certificate.
 /// The node must save nothing, trust nothing and open nothing until a person types the digits from
@@ -29,25 +27,15 @@ async fn a_fake_main_machine_gets_nothing_without_the_second_code() -> anyhow::R
     let attacker = FakeServer::new(Uuid::new_v4(), JoinState::Approved);
     let (_fake, addr) = gateway(attacker).await?;
     let (node, _dir) = node_with_main(&addr, "City Hospital").await?;
-    node.start_join(
-        &addr.id.to_string(),
-        "Reception PC".to_owned(),
-        Kind::Workstation,
-    )?;
+    node.start_join(&addr.id.to_string(), "Reception PC".to_owned(), Kind::Workstation)?;
     wait_for(&node, "confirm").await?;
-    assert!(
-        node.joined()?.is_none(),
-        "the attacker's certificate must not be saved"
-    );
+    assert!(node.joined()?.is_none(), "the attacker's certificate must not be saved");
     for wrong in ["000000", "111111", "222222"] {
         assert!(node.confirm(wrong).await.is_err());
         assert!(node.joined()?.is_none(), "a wrong code must save nothing");
     }
     assert_eq!(node.standing().state, "mismatch");
-    assert!(
-        node.confirm("000000").await.is_err(),
-        "and nothing is left to confirm"
-    );
+    assert!(node.confirm("000000").await.is_err(), "and nothing is left to confirm");
     Ok(())
 }
 
@@ -75,21 +63,9 @@ async fn a_claimed_key_is_not_enough_to_move_the_saved_address() -> anyhow::Resu
         certificate: CERTIFICATE.to_owned(),
     };
     std::fs::write(dir.path().join("joined.json"), serde_json::to_vec(&saved)?)?;
-    let node = Node::start(
-        endpoint(Vec::new()).await?,
-        dir.path(),
-        free_port().await?,
-        free_udp_port().await?,
-    )
-    .await?;
-    assert!(
-        node.readdress_at([127, 0, 0, 1].into(), port, 9)
-            .await
-            .is_err()
-    );
-    let kept = node
-        .joined()?
-        .ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
+    assert!(node.readdress_at([127, 0, 0, 1].into(), port, 9).await.is_err());
+    let kept = node.joined()?.ok_or_else(|| anyhow::anyhow!("nothing saved"))?;
     assert_eq!(kept.addresses, saved.addresses);
     Ok(())
 }
@@ -111,10 +87,7 @@ async fn strangers_cause_at_most_one_sync_a_second() -> anyhow::Result<()> {
     }
     tokio::time::sleep(Duration::from_millis(300)).await;
     let caused = server.syncs.load(Ordering::SeqCst) - before;
-    assert!(
-        caused <= 2,
-        "20 strangers in under two seconds caused {caused} syncs"
-    );
+    assert!(caused <= 2, "20 strangers in under two seconds caused {caused} syncs");
     Ok(())
 }
 
@@ -125,13 +98,7 @@ async fn a_silent_server_ends_every_session_and_admits_nobody() -> anyhow::Resul
     let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
     let main = endpoint(vec![TUNNEL_ALPN.to_vec()]).await?;
     let addr = main.addr();
-    let gateway = Gateway::with_silence(
-        main,
-        Arc::clone(&server) as Arc<dyn Hospital>,
-        CERTIFICATE.to_owned(),
-        echo_front().await?,
-        Duration::ZERO,
-    );
+    let gateway = Gateway::with_silence(main, Arc::clone(&server) as Arc<dyn Hospital>, CERTIFICATE.to_owned(), echo_front().await?, Duration::ZERO);
     let node = endpoint(Vec::new()).await?;
     server.set_admitted(&[node.id().to_string()]);
     gateway.sync().await?;
@@ -146,14 +113,8 @@ async fn a_silent_server_ends_every_session_and_admits_nobody() -> anyhow::Resul
     gateway.sync_round().await;
     tokio::time::timeout(Duration::from_secs(5), conn.closed()).await?;
     assert_eq!(gateway.verdict(&node.id().to_string()), Verdict::Unknown);
-    assert_eq!(
-        gateway.tunnel_admission(&node.id().to_string()).await,
-        Verdict::Unknown
-    );
-    assert!(
-        tunnel_answer(&node, addr).await.is_err(),
-        "and a new dial is not admitted"
-    );
+    assert_eq!(gateway.tunnel_admission(&node.id().to_string()).await, Verdict::Unknown);
+    assert!(tunnel_answer(&node, addr).await.is_err(), "and a new dial is not admitted");
     Ok(())
 }
 
@@ -165,16 +126,10 @@ async fn a_machines_stream_limit_covers_all_its_connections() -> anyhow::Result<
     let node = endpoint(Vec::new()).await?;
     server.set_admitted(&[node.id().to_string()]);
     gateway.sync().await?;
-    let (one, two) = (
-        node.connect(addr.clone(), TUNNEL_ALPN).await?,
-        node.connect(addr, TUNNEL_ALPN).await?,
-    );
+    let (one, two) = (node.connect(addr.clone(), TUNNEL_ALPN).await?, node.connect(addr, TUNNEL_ALPN).await?);
     echo_through(&one).await?;
     echo_through(&two).await?;
-    let remote = gateway
-        .streams
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+    let remote = gateway.streams.lock().unwrap_or_else(PoisonError::into_inner);
     assert_eq!(remote.len(), 1, "two connections, one machine, one limit");
     Ok(())
 }
@@ -184,13 +139,7 @@ async fn a_machines_stream_limit_covers_all_its_connections() -> anyhow::Result<
 async fn an_unreadable_record_is_a_fault_and_not_a_fresh_machine() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
     std::fs::write(dir.path().join("joined.json"), b"not json")?;
-    let started = Node::start(
-        endpoint(Vec::new()).await?,
-        dir.path(),
-        free_port().await?,
-        free_udp_port().await?,
-    )
-    .await;
+    let started = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await;
     assert!(started.is_err());
     Ok(())
 }
@@ -209,13 +158,7 @@ async fn a_held_time_port_stops_the_agent_rather_than_being_ignored() -> anyhow:
     std::fs::write(dir.path().join("joined.json"), serde_json::to_vec(&saved)?)?;
     let squatter = UdpSocket::bind("127.0.0.1:0").await?;
     let held = squatter.local_addr()?;
-    let started = Node::start(
-        endpoint(Vec::new()).await?,
-        dir.path(),
-        free_port().await?,
-        held,
-    )
-    .await;
+    let started = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, held).await;
     assert!(started.is_err());
     Ok(())
 }
@@ -229,13 +172,7 @@ async fn a_full_list_still_takes_a_typed_address() -> anyhow::Result<()> {
     let port = socket.local_addr()?.port();
     tokio::spawn(Arc::clone(&real).whoami_forever(socket));
     let dir = tempfile::tempdir()?;
-    let node = Node::start(
-        endpoint(Vec::new()).await?,
-        dir.path(),
-        free_port().await?,
-        free_udp_port().await?,
-    )
-    .await?;
+    let node = Node::start(endpoint(Vec::new()).await?, dir.path(), free_port().await?, free_port().await?).await?;
     for i in 0..40 {
         node.test_remember(format!("noise-{i}"), "Fake", Vec::new());
     }
@@ -275,13 +212,7 @@ async fn every_connection_of_a_machine_closes_with_the_right_reason() -> anyhow:
     let server = FakeServer::new(Uuid::new_v4(), JoinState::Pending);
     let main = endpoint(vec![TUNNEL_ALPN.to_vec(), TIME_ALPN.to_vec()]).await?;
     let addr = main.addr();
-    let gateway = Gateway::with_silence(
-        main,
-        Arc::clone(&server) as Arc<dyn Hospital>,
-        CERTIFICATE.to_owned(),
-        echo_front().await?,
-        Duration::ZERO,
-    );
+    let gateway = Gateway::with_silence(main, Arc::clone(&server) as Arc<dyn Hospital>, CERTIFICATE.to_owned(), echo_front().await?, Duration::ZERO);
     let node = endpoint(Vec::new()).await?;
     server.set_admitted(&[node.id().to_string()]);
     gateway.sync().await?;
@@ -292,26 +223,15 @@ async fn every_connection_of_a_machine_closes_with_the_right_reason() -> anyhow:
     drop(clock.open_bi().await?);
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(
-        gateway
-            .live
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .values()
-            .flatten()
-            .count(),
+        gateway.live.lock().unwrap_or_else(PoisonError::into_inner).values().flatten().count(),
         2,
         "the second must not overwrite the first"
     );
     server.broken.store(true, Ordering::SeqCst);
     gateway.sync_round().await;
     for conn in [&screen, &clock] {
-        let reason = tokio::time::timeout(Duration::from_secs(5), conn.closed())
-            .await?
-            .to_string();
-        assert!(
-            reason.contains("cannot check"),
-            "a fault, not a refusal: {reason}"
-        );
+        let reason = tokio::time::timeout(Duration::from_secs(5), conn.closed()).await?.to_string();
+        assert!(reason.contains("cannot check"), "a fault, not a refusal: {reason}");
     }
     Ok(())
 }
@@ -319,21 +239,12 @@ async fn every_connection_of_a_machine_closes_with_the_right_reason() -> anyhow:
 /// A stranger's connections stop at the door before any handshake work, and others are not affected.
 #[test]
 fn a_flood_from_one_address_is_stopped_at_the_door() {
-    let limits = crate::limits::AddressLimits::new(
-        super::MAX_ARRIVING_PER_ADDRESS,
-        super::MAX_ARRIVALS_PER_MINUTE,
-    );
+    let limits = crate::limits::AddressLimits::new(super::MAX_ARRIVING_PER_ADDRESS, super::MAX_ARRIVALS_PER_MINUTE);
     let now = std::time::Instant::now();
     let stranger = std::net::IpAddr::from([10, 0, 0, 66]);
-    let held: Vec<_> = (0..1000)
-        .filter_map(|_| limits.enter(stranger, now))
-        .collect();
+    let held: Vec<_> = (0..1000).filter_map(|_| limits.enter(stranger, now)).collect();
     assert_eq!(held.len(), super::MAX_ARRIVING_PER_ADDRESS as usize);
-    assert!(
-        limits
-            .enter(std::net::IpAddr::from([10, 0, 0, 7]), now)
-            .is_some()
-    );
+    assert!(limits.enter(std::net::IpAddr::from([10, 0, 0, 7]), now).is_some());
 }
 
 /// However many addresses a flood has, the door holds a fixed number at once.
@@ -362,18 +273,11 @@ fn handshakes_given_up_on_pause_joining_and_are_reported() {
     assert!(!given_up.paused(start));
     given_up.count(start);
     assert!(given_up.paused(start), "the guesses must stop here");
-    assert_eq!(
-        given_up.due(start),
-        0,
-        "not reported more often than the limit"
-    );
+    assert_eq!(given_up.due(start), 0, "not reported more often than the limit");
     let later = start + super::GIVEN_UP_REPORT_EVERY;
     assert_eq!(given_up.due(later), super::MAX_GIVEN_UP);
     assert_eq!(given_up.due(later), 0, "and each only once");
-    assert!(
-        !given_up.paused(start + super::GIVEN_UP_WINDOW),
-        "the pause ends with its window"
-    );
+    assert!(!given_up.paused(start + super::GIVEN_UP_WINDOW), "the pause ends with its window");
 }
 
 /// A stranger that sees our nonce and goes silent is the guess itself, and must be counted.
@@ -386,27 +290,13 @@ async fn seeing_our_nonce_and_leaving_is_counted() -> anyhow::Result<()> {
     let (mut send, recv) = conn.open_bi().await?;
     let mut reader = tokio::io::BufReader::new(recv);
     let commitment = hex::encode(crate::code::commitment(&[7; 32]));
-    let hello = Hello {
-        name: "Guess".to_owned(),
-        kind: Kind::Display,
-        commitment,
-    };
+    let hello = Hello { name: "Guess".to_owned(), kind: Kind::Display, commitment };
     write_frame(&mut send, &hello).await?;
     let _nonce: NonceFrame = read_frame(&mut reader).await?;
     conn.close(0_u32.into(), b"a miss");
     tokio::time::sleep(Duration::from_millis(500)).await;
-    let counted = gateway
-        .given_up
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .in_window;
+    let counted = gateway.given_up.lock().unwrap_or_else(PoisonError::into_inner).in_window;
     assert_eq!(counted, 1);
-    assert!(
-        server
-            .filings
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_empty()
-    );
+    assert!(server.filings.lock().unwrap_or_else(PoisonError::into_inner).is_empty());
     Ok(())
 }
