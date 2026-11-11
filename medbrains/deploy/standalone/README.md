@@ -12,7 +12,7 @@ For multi-server / cloud / RustFS layouts see `STORAGE.md`.
 
 - A clean Ubuntu 22.04 / 24.04 or Debian 12 host with root access.
 - DNS `A` (and ideally `AAAA`) record for the deploy hostname (e.g.
-  `hims.amh.org.in`) pointed at the server's public IP.
+  `hims.example-hospital.org`) pointed at the server's public IP.
   Let's Encrypt verifies HTTP-01 over port 80 — both 80 and 443
   must be reachable from the public internet.
 - Pre-built binaries dropped into `/tmp` on the host:
@@ -35,7 +35,7 @@ For multi-server / cloud / RustFS layouts see `STORAGE.md`.
 ## Run
 
 ```sh
-sudo bash /tmp/standalone/install.sh hims.amh.org.in admin@amh.org.in
+sudo bash /tmp/standalone/install.sh hims.example-hospital.org admin@example-hospital.org
 ```
 
 Idempotent — re-running advances state without re-bootstrapping
@@ -73,7 +73,7 @@ systemctl is-active medbrains-server.service           # active
 systemctl list-timers medbrains-archive.timer          # next run scheduled
 curl -fsS http://127.0.0.1:3000/api/health             # {"status":"ok",...}
 journalctl -u medbrains-proxy -f                       # edge proxy logs
-curl -I https://hims.amh.org.in                        # 200 once ACME completes
+curl -I https://hims.example-hospital.org                        # 200 once ACME completes
 ```
 
 ## Day-2 ops
@@ -242,7 +242,7 @@ ICD_API_ACCEPT_LICENSE=true
 ICD_API_INCLUDE=2026-01_en
 ICD_API_SAVE_ANALYTICS=false
 WHO_ICD_RELEASE_ID=2026-01
-WHO_ICD_API_BASE_URL=https://hims.amh.org.in
+WHO_ICD_API_BASE_URL=https://hims.example-hospital.org
 WHO_ICD_AUTH_MODE=none
 ```
 

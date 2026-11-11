@@ -37,7 +37,7 @@ directly. See that module's README for the tier matrix.
 ## Usage (DigitalOcean default)
 
 ```hcl
-module "alagappa_vm" {
+module "hospital_a_vm" {
   source = "../../modules/standalone-vm"
   providers = {
     digitalocean = digitalocean.tenant
@@ -45,9 +45,9 @@ module "alagappa_vm" {
 
   provider_kind = "digitalocean"
 
-  hostname           = "hims-alagappahospital"
-  domain             = "hims.alagappahospital.com"
-  admin_email        = "ops@alagappahospital.com"
+  hostname           = "hims-example-hospital"
+  domain             = "hims.example-hospital.org"
+  admin_email        = "ops@example-hospital.org"
   region             = "blr1"
   size               = "s-2vcpu-4gb"
   ssh_public_keys    = [data.digitalocean_ssh_key.ops.fingerprint]
@@ -58,33 +58,33 @@ module "alagappa_vm" {
   deploy_kit_dir     = "../../../../deploy/standalone"
 }
 
-module "alagappa_dns" {
+module "hospital_a_dns" {
   source = "../../modules/dns"
   providers = { godaddy-dns = godaddy-dns.tenant }
 
   provider_kind = "godaddy"
-  zone_name     = "alagappahospital.com"
+  zone_name     = "example-hospital.org"
   records = [
-    { name = "hims", type = "A", value = module.alagappa_vm.public_ip, ttl = 600 },
+    { name = "hims", type = "A", value = module.hospital_a_vm.public_ip, ttl = 600 },
   ]
 }
 ```
 
 `terraform apply` and 5-7 minutes later
-`https://hims.alagappahospital.com` is live with a Let's Encrypt
+`https://hims.example-hospital.org` is live with a Let's Encrypt
 cert.
 
 ## Using an existing host
 
 ```hcl
-module "alagappa_vm" {
+module "hospital_a_vm" {
   source = "../../modules/standalone-vm"
 
   provider_kind = "existing-host"
 
-  hostname        = "hims-alagappahospital"
-  domain          = "hims.alagappahospital.com"
-  admin_email     = "ops@alagappahospital.com"
+  hostname        = "hims-example-hospital"
+  domain          = "hims.example-hospital.org"
+  admin_email     = "ops@example-hospital.org"
   existing_ipv4   = "203.0.113.42"
   ssh_user        = "ubuntu"
   ssh_private_key = file("~/.ssh/medbrains-deploy")

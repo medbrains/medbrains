@@ -113,8 +113,11 @@ fn send_action(action: &'static str, problem: &gtk::Label) {
     );
 }
 
+/// Opens the restart question for one action, with the words it asks.
+type Ask = std::rc::Rc<dyn Fn(&'static str, &str)>;
+
 /// A question that asks before a restart. Returns its box and a way to open it for one action.
-fn confirmation(problem: &gtk::Label) -> (gtk::Box, std::rc::Rc<dyn Fn(&'static str, &str)>) {
+fn confirmation(problem: &gtk::Label) -> (gtk::Box, Ask) {
     let ask = ui::column(ui::GAP / 2);
     ask.set_visible(false);
     let question = ui::label("", "heading");

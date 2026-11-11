@@ -49,7 +49,7 @@ module.exports = {
     image: "img/social-card.png",
     metadata: [
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "keywords", content: "hospital management software, HMS, EMR, ABDM, NABH, India" },
+      { name: "keywords", content: "hospital operating system, hospital management software, HMS, EMR, open source, FHIR, regulatory compliance" },
     ],
     colorMode: { defaultMode: "dark", respectPrefersColorScheme: true },
     navbar: {

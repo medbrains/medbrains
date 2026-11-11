@@ -1,8 +1,8 @@
 ---
-title: Compliance with Indian health regulations
+title: Compliance and country regulatory packs
 sidebar_label: Compliance
 sidebar_position: 5
-description: "Coming soon: how MedBrains supports ABDM, NABH quality indicators, the DPDP Act, NDPS and Schedule H drug rules, and CERT-In logging for Indian hospitals."
+description: "Coming soon: how MedBrains builds each country's health rules into the system, starting with India (ABDM, NABH, DPDP, NDPS, CERT-In), with more to follow."
 ---
 
 # Compliance

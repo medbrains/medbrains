@@ -40,6 +40,7 @@ export const OS_JOIN = [
 
 /** Why the OS is built the way it is: the pitch, each line backed by the design above. */
 export const OS_WHY = [
+  { title: "Batteries included", body: "Hospital software, its own operating system, built-in security, control of every machine and each country's health rules, in one install. Nothing else to buy or bolt on." },
   { title: "Cheap by design", body: "Free and open source. Only the server needs real hardware; every other machine runs on the smallest box that does its job." },
   { title: "Simple out of the box", body: "Plug in, answer a few plain questions on the machine’s own screen, and it starts. No command line." },
   { title: "Safe by default", body: "The firewall is on before the first boot, the data disk is encrypted where the machine has a TPM chip, and services run directly on Linux with no Docker." },

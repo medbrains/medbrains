@@ -1,5 +1,5 @@
 # ── Mailboxes: medbrains.in in the hospital's Microsoft 365 tenant ──
-# Same records amh.org.in runs on (MX to Outlook, SPF, autodiscover). The
+# Same records example-hospital.org runs on (MX to Outlook, SPF, autodiscover). The
 # domain is added in M365 admin (Settings → Domains → Add domain → "add a TXT
 # record"); paste the MS=ms… value it shows into m365_verification and apply.
 # SES keeps sending noreply@ — its SPF sits on mail.<domain>, so the bare
