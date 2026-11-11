@@ -257,6 +257,24 @@ pub(crate) fn wait_status(
     ))
 }
 
+/// Powers on a set-up machine from `disk` and waits for its shell and its server, printing how long each
+/// took and systemd's own count. Every scenario starts this way, so each run also measures a cold start
+/// with the seal on. On x86-64 the shell time includes the fixed wait that keeps keys out of the firmware.
+fn cold_start(vm: &mut Vm, disk: &Path) -> Result<(), String> {
+    let started = Instant::now();
+    vm.boot(disk, own_tpm())?;
+    let shell = started.elapsed();
+    vm.wait_for_server()?;
+    let server = started.elapsed();
+    let systemd = vm.run("systemd-analyze 2>&1 | head -1").unwrap_or_default();
+    say(&format!(
+        "      cold start: shell {:.1}s, server {:.1}s; {systemd}",
+        shell.as_secs_f32(),
+        server.as_secs_f32()
+    ));
+    Ok(())
+}
+
 /// Plays one scenario on a copy of the set-up machine, and removes the copy.
 fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
     let started = Instant::now();
@@ -268,8 +286,7 @@ fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
         .map_err(|e| format!("firmware variables: {e}"));
     let result = firmware
         .and_then(|()| make_overlay(base, &overlay))
-        .and_then(|()| vm.boot(&overlay, own_tpm()))
-        .and_then(|()| vm.wait_for_server())
+        .and_then(|()| cold_start(vm, &overlay))
         .and_then(|()| open_mirror(vm, bench))
         .and_then(|()| (scenario.1)(vm, bench));
     // Already off is the only way this fails.
