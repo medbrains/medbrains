@@ -505,7 +505,9 @@ impl Vm {
         let firmware = platform().firmware_line.unwrap_or_default();
         while Instant::now() < deadline {
             if let Ok(count) = self.serial.read(&mut buffer) {
-                raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+                let got = buffer.get(..count).unwrap_or_default();
+                self.keep_serial(got);
+                raw.extend_from_slice(got);
             }
             let text = String::from_utf8_lossy(&raw);
             let shown = if restarting {
@@ -546,6 +548,18 @@ impl Vm {
         Err("the machine did not restart".to_owned())
     }
 
+    /// Appends what the serial port said to `serial.log` beside the machine's disk, so a start that hangs
+    /// can be read afterwards even where a wait consumed it. Best effort: a test must not fail on its log.
+    fn keep_serial(&self, bytes: &[u8]) {
+        if let Ok(mut log) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.dir.join("serial.log"))
+        {
+            drop(log.write_all(bytes));
+        }
+    }
+
     /// Runs a command inside the machine with the usual time limit.
     pub(crate) fn run(&mut self, command: &str) -> Result<String, String> {
         self.run_for(command, scaled(COMMAND_TIMEOUT))
@@ -566,7 +580,9 @@ impl Vm {
         let (mut raw, mut buffer, deadline) = (Vec::new(), [0_u8; 16_384], Instant::now() + limit);
         while Instant::now() < deadline {
             if let Ok(count) = self.serial.read(&mut buffer) {
-                raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+                let got = buffer.get(..count).unwrap_or_default();
+                self.keep_serial(got);
+                raw.extend_from_slice(got);
             }
             let text = strip_terminal_codes(&String::from_utf8_lossy(&raw));
             if let Some(found) = between_markers(&text, &begin, &end) {

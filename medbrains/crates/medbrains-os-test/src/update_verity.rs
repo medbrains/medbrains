@@ -57,7 +57,19 @@ pub(crate) fn changed_slot_rolls_back(vm: &mut Vm, bench: &Bench) -> Result<(), 
     ask_restart(vm, "apply")?;
     let started = Instant::now();
     sleep(Duration::from_secs(20));
-    let took = wait_version(vm, &bench.first, ROLLBACK_LIMIT)?;
+    let took = wait_version(vm, &bench.first, ROLLBACK_LIMIT).map_err(|e| {
+        let log = std::fs::read(vm.scratch_path("serial.log")).unwrap_or_default();
+        let text = String::from_utf8_lossy(&log);
+        let tail: String = text
+            .chars()
+            .rev()
+            .take(1500)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        format!("{e}; the serial log ended: {tail}")
+    })?;
     say(&format!(
         "      back by itself after {:.0}s",
         started.elapsed().max(took).as_secs_f32()
