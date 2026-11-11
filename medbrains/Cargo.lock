@@ -7986,6 +7986,7 @@ name = "medbrains-print"
 version = "0.1.0"
 dependencies = [
  "barcoders",
+ "base64 0.22.1",
  "qrcode",
  "reqwest",
  "serde",

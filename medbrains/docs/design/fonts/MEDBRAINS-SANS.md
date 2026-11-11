@@ -99,6 +99,32 @@ One unhinted Latin TTF per weight: Light, Regular (cut at 440), Medium, SemiBold
 (`res/font/medbrains_sans_*.ttf`, `MedBrainsSans` font family); Regular and SemiBold for the GTK
 shell (`FONT` in `crates/medbrains-shell/src/prefs.rs`).
 
+## Printed documents
+
+Prescriptions, discharge summaries, bills, lab reports, labels and wristbands are rendered from
+HTML to PDF by Chromium (rustenberg on the OS, Gotenberg in development). The shared base template
+in `crates/medbrains-print/src/engine.rs` now prints in MedBrains Sans and `.mono` text (UHIDs,
+codes) in IBM Plex Mono instead of Arial and Courier New:
+
+- **Offline:** the fonts are inlined in the HTML as base64 data URIs (`include_bytes!`), so the
+  renderer needs no network and no installed font. Every document, including
+  `medbrains-documents-render`'s, goes through this template.
+- **Static files, not the variable font:** Chromium writes a variable font into a PDF as Type 3
+  glyphs; static TrueType embeds as subset CID TrueType, holding only the glyphs a page uses. The
+  build makes Latin Regular (cut at 440), SemiBold and Bold into `crates/medbrains-print/fonts`.
+  Plex Mono is IBM's own Latin-1 file, unmodified, so it keeps its name under the OFL.
+- **Same layout:** the print faces take Arial's line box (`ascent-override` 90.5%,
+  `descent-override` 21.2%, `line-gap-override` 3.3%), so pages, labels and wristbands keep the
+  height they were laid out for. Sizes, letterheads, signatures, QR codes and DRAFT marks are
+  unchanged. Glyphs are about 4% wider than Arial's, so a long line on a small label can wrap one
+  word earlier.
+- **A hospital's font wins:** when `branding.font_family` is set, it is used and the MedBrains Sans
+  faces are not sent to the renderer.
+- **Size:** each render sends about 220 KB more HTML to the local renderer. The PDFs themselves got
+  smaller on the reference Mac (the subset is smaller than Arial's): prescription 111.9 → 35.1 KB,
+  discharge summary 142.4 → 25.9 KB, pharmacy label 18.2 → 20.7 KB, wristband 25.4 → 28.4 KB.
+- Before and after samples: `print-samples/` (`before-*.pdf`, `after-*.pdf`, `before-after.png`).
+
 ## Rebuild
 
 ```sh

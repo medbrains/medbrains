@@ -34,7 +34,7 @@ from fontTools.ttLib.tables import ttProgram
 from fontTools.varLib import instancer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bases import BASES, NOTO, Base, fetch  # noqa: E402
+from bases import BASES, NOTO, PLEX_MONO_LICENCE, PLEX_MONO_PRINT, Base, fetch  # noqa: E402
 
 
 FAMILY = "MedBrains Sans"
@@ -50,9 +50,18 @@ OFL_NOTICE = (
 BASE_MENTION_OK = {0, 5, 9, 10}
 
 # Static instances for native and GTK: weight name -> (wght, one of the four RIBBI styles?).
-STATICS = {"Light": (300, False), "Regular": (400, True), "Medium": (500, False), "SemiBold": (600, False)}
+STATICS = {
+    "Light": (300, False),
+    "Regular": (400, True),
+    "Medium": (500, False),
+    "SemiBold": (600, False),
+    "Bold": (700, True),
+}
 NATIVE_WEIGHTS = ("Light", "Regular", "Medium", "SemiBold")
 GTK_WEIGHTS = ("Regular", "SemiBold")
+# Printed documents use normal, 600 and bold. Static files, because Chromium embeds a variable font
+# in a PDF as Type 3 glyphs; static TrueType embeds as subset CID TrueType (only the glyphs used).
+PRINT_WEIGHTS = ("Regular", "SemiBold", "Bold")
 WEB_WGHT = (400, 700)
 
 
@@ -87,6 +96,7 @@ IOS_DIR = REPO / "medbrains/apps/ios/Packages/MedBrainsUI/Sources/MedBrainsUI/Fo
 ANDROID_DIR = REPO / "medbrains/apps/android/ui/src/main/res/font"
 ANDROID_LICENSE_DIR = REPO / "medbrains/apps/android/ui/src/main/assets/licenses"
 GTK_DIR = REPO / "medbrains/crates/medbrains-shell/fonts"
+PRINT_DIR = REPO / "medbrains/crates/medbrains-print/fonts"
 # The docs site and the marketing website bundle their own copy of the Latin faces (they are
 # separate builds); each gets the WOFF2 files, the licence and a stylesheet next to its fonts.
 SITES = {
@@ -355,16 +365,21 @@ def outputs(cache: Path, base: Base) -> dict[Path, bytes]:
     variable = medbrains_variable(base, cache)
     noto, noto_licence = noto_faces(cache)
     files = web_outputs(variable, base, noto)
-    for weight in NATIVE_WEIGHTS:
+    for weight in STATICS:
         data = to_bytes(smart_dropout(cut(static_instance(variable, base, weight), LATIN, hinting=False)))
-        files[IOS_DIR / f"{PS_FAMILY}-{weight}.ttf"] = data
-        files[ANDROID_DIR / f"medbrains_sans_{weight.lower()}.ttf"] = data
+        if weight in NATIVE_WEIGHTS:
+            files[IOS_DIR / f"{PS_FAMILY}-{weight}.ttf"] = data
+            files[ANDROID_DIR / f"medbrains_sans_{weight.lower()}.ttf"] = data
         if weight in GTK_WEIGHTS:
             files[GTK_DIR / f"{PS_FAMILY}-{weight}.ttf"] = data
+        if weight in PRINT_WEIGHTS:
+            files[PRINT_DIR / f"{PS_FAMILY}-{weight}.ttf"] = data
+    files[PRINT_DIR / "IBMPlexMono-Regular-Latin1.woff2"] = fetch(PLEX_MONO_PRINT, cache)
+    files[PRINT_DIR / "OFL-IBM-Plex-Mono.txt"] = fetch(PLEX_MONO_LICENCE, cache).replace(b"\r", b"")
     for script, font in noto.items():
         files[GTK_DIR / f"NotoSans{script}.ttf"] = to_bytes(smart_dropout(reload(font)))
     upstream = fetch(base.licence, cache).decode("utf-8").replace("\r", "")
-    for directory in (WEB_DIR, IOS_DIR, ANDROID_LICENSE_DIR, GTK_DIR, *SITES):
+    for directory in (WEB_DIR, IOS_DIR, ANDROID_LICENSE_DIR, GTK_DIR, PRINT_DIR, *SITES):
         files[directory / "OFL.txt"] = "\n".join([OUR_COPYRIGHT, *base.credits, upstream]).encode()
     for directory in (WEB_DIR, GTK_DIR):
         files[directory / "OFL-Noto.txt"] = noto_licence
