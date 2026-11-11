@@ -77,6 +77,7 @@ const TEST_COLUMNS: &str = "id, code, name, price, sample_type, fasting_required
 
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn answer(
     tx: &mut Tx<'_>,
     sub: &Subscription,
@@ -323,6 +324,7 @@ pub struct Request<'a> {
 /// 403 without `lab.orders.direct` (and `lab.samples.manage` for a home
 /// collection); 409 for a patient recorded as deceased; 400 when a test is
 /// no longer in the catalogue.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn accept(
     tx: &mut Tx<'_>,
     claims: &Claims,

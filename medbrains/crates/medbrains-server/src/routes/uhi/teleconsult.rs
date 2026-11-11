@@ -56,6 +56,7 @@ fn slot_id(body: &Value) -> Option<&str> {
 
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn answer(
     tx: &mut Tx<'_>,
     secrets: &dyn SecretResolver,

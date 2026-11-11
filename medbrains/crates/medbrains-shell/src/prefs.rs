@@ -11,7 +11,7 @@ const STYLE: &str = include_str!("style.css");
 const DARK: &str = include_str!("theme-dark.css");
 const LIGHT: &str = include_str!("theme-light.css");
 /// The face and size for everything GTK draws, popovers included.
-const FONT: &str = "IBM Plex Sans 11";
+const FONT: &str = "MedBrains Sans 11";
 
 /// The screen's settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

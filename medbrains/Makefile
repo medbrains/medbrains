@@ -296,7 +296,7 @@ prepare-sqlx: guard-sqlx-nonprod ## Refresh SQLx offline metadata from local/CI 
 safe-prepare-sqlx: guard-sqlx-nonprod ## prepare-sqlx that refuses unless the workspace compiles, and restores .sqlx if prepare fails
 	bash scripts/safe_prepare_sqlx.sh "$(SQLX_DATABASE_URL)" $(SQLX_PREPARE_CARGO_ARGS)
 
-.PHONY: doctor gate safe-prepare-sqlx
+.PHONY: doctor gate safe-prepare-sqlx fonts check-fonts
 doctor: ## Find dev traps (root-owned caches, disk, stale master, busy cargo, .env, DB); prints fixes, changes nothing
 	@bash scripts/doctor.sh
 
@@ -413,6 +413,16 @@ check-ui-permission-match-update-baseline: ## Record the current under-gated set
 
 check-authz-collapse: ## Ban collapsing an authz check's error into a denial
 	python3 scripts/check_authz_collapse.py
+
+FONTS_PY = uv run --no-project --python 3.12 --with-requirements tools/fonts/requirements.txt python -I
+
+fonts: ## Rebuild MedBrains Sans from the pinned IBM Plex release, then its review sheet
+	$(FONTS_PY) tools/fonts/build_medbrains_sans.py
+	$(FONTS_PY) tools/fonts/render_samples.py
+
+check-fonts: ## The committed MedBrains Sans files are exactly what the build makes, and no kerned pair collides
+	$(FONTS_PY) tools/fonts/build_medbrains_sans.py --check
+	$(FONTS_PY) tools/fonts/check_glyph_collisions.py
 
 check-shell-theme: ## The OS shell's GTK colours match the design tokens and meet WCAG 2.2 AA
 	python3 -I os/shell-tokens.py --check
