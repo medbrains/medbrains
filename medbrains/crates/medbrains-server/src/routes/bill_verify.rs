@@ -34,6 +34,7 @@ pub struct VerifiedBill {
 
 /// `GET /api/public/bills/verify?n=INV-…&c=…` — 404 for any mismatch, so a
 /// wrong code and an unknown number answer the same.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn verify_bill(
     State(state): State<AppState>,
     Query(q): Query<VerifyBillQuery>,

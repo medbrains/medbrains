@@ -1,7 +1,6 @@
 /* MedBrains docs theme: the website colours (docs/DECISIONS, design system
-   "Website theme"), IBM Plex self-hosted, light and dark at WCAG 2.2 AA. */
-@import "@fontsource/ibm-plex-sans/latin-400.css";
-@import "@fontsource/ibm-plex-sans/latin-600.css";
+   "Website theme"), MedBrains Sans and IBM Plex Mono self-hosted, light and dark at WCAG 2.2 AA. */
+@import "./medbrains-sans.css";
 @import "@fontsource/ibm-plex-mono/latin-400.css";
 
 :root {
@@ -15,7 +14,8 @@
   --mb-link: #0043ce;
   --mb-accent-text: #851b7f;
 
-  --ifm-font-family-base: "IBM Plex Sans", system-ui, sans-serif;
+  --ifm-font-family-base: "MedBrains Sans", "MedBrains Sans Fallback", system-ui, sans-serif;
+  --ifm-font-weight-base: 440;
   --ifm-font-family-monospace: "IBM Plex Mono", ui-monospace, monospace;
   --ifm-font-size-base: 100%;
   --ifm-line-height-base: 1.6;

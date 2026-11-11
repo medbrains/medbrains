@@ -68,6 +68,7 @@ pub(crate) async fn counts(
 }
 
 /// `GET /api/abdm/hpr/coverage` — how many active doctors carry an HPR ID.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn coverage(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -98,6 +99,7 @@ pub async fn coverage(
 }
 
 /// `PUT /api/abdm/hpr/doctors/{id}` — record or clear a doctor's HPR ID.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn set_hpr_id(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -129,6 +131,7 @@ pub async fn set_hpr_id(
 }
 
 /// `POST /api/abdm/hpr/doctors/{id}/verify` — confirm the ID against HPR.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn verify_hpr_id(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

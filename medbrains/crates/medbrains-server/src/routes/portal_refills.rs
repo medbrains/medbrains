@@ -19,7 +19,7 @@ use super::portal::PatientClaims;
 
 /// `GET /api/portal/refills` — the patient's recent prescriptions, and what
 /// asking for a refill of each would do.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_refills(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -39,7 +39,7 @@ pub struct RefillRequestBody {
 }
 
 /// `POST /api/portal/prescriptions/{id}/refill-request`
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_request_refill(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -72,7 +72,13 @@ pub async fn portal_request_refill(
     )
     .await?;
     if let Some(choice) = &delivery {
-        record_choice(&mut tx, claims.tenant_id, Source::Refill(request.id), choice).await?;
+        record_choice(
+            &mut tx,
+            claims.tenant_id,
+            Source::Refill(request.id),
+            choice,
+        )
+        .await?;
     }
     tx.commit().await?;
     Ok(Json(request))

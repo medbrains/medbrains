@@ -113,6 +113,7 @@ pub fn pick(doctor_fee: Option<Decimal>, charge: Option<&Fee>) -> Option<Fee> {
 
 /// Charge-master rates for `codes`, the default rate plan applied — one query
 /// for every code a search needs.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn charge_rates(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,

@@ -61,6 +61,7 @@ fn label<'a>(table: &[(&'a str, &'a str)], code: &str) -> Option<&'a str> {
 
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn answer(
     tx: &mut Tx<'_>,
     sub: &Subscription,

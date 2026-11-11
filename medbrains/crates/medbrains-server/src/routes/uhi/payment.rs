@@ -56,6 +56,7 @@ pub(super) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn pays_online(
     tx: &mut Tx<'_>,
     secrets: &dyn SecretResolver,
@@ -84,6 +85,7 @@ pub struct Hold<'a> {
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn hold(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
@@ -140,6 +142,7 @@ pub async fn hold(
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn release(tx: &mut Tx<'_>, paying: Uuid) -> Result<(), AppError> {
     sqlx::query(
         "UPDATE payment_gateway_transactions SET status = 'expired', updated_at = now() \
@@ -204,6 +207,7 @@ pub(super) async fn let_go(tx: &mut Tx<'_>, held: &Held, reason: &str) -> Result
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn expire_holds(
     tx: &mut Tx<'_>,
     secrets: &dyn SecretResolver,

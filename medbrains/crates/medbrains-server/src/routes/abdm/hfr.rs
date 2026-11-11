@@ -121,6 +121,7 @@ pub async fn list_registrations(
 }
 
 /// `GET /api/abdm/hfr/facilities` — every live campus with its HFR state.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn list_facilities(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -153,6 +154,7 @@ pub(crate) async fn facilities(
 }
 
 /// `PUT /api/abdm/hfr/facilities/{id}` — link (or unlink) an existing HFR ID.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn link_facility(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -213,6 +215,7 @@ async fn verify_hfr_id(
 }
 
 /// `POST /api/abdm/hfr/facilities/{id}/register` — submit a new registration.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn register_facility(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
