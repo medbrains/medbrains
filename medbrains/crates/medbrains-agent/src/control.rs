@@ -31,7 +31,11 @@ enum Request {
     /// Ask a typed address who it is.
     Find { address: String },
     /// Ask to join a main machine on the list.
-    Join { id: String, name: String, kind: Kind },
+    Join {
+        id: String,
+        name: String,
+        kind: Kind,
+    },
     /// How the join stands.
     Status,
     /// The digits a person read off the main machine's screen.
@@ -63,7 +67,9 @@ async fn answer(node: &Arc<Node>, request: Request) -> Value {
             Err(error) => json!({ "error": error.to_string() }),
         },
         Request::Main => match node.joined() {
-            Ok(Some(joined)) => json!({ "hospital": joined.hospital, "addresses": joined.addresses }),
+            Ok(Some(joined)) => {
+                json!({ "hospital": joined.hospital, "addresses": joined.addresses })
+            }
             Ok(None) => json!({ "error": "This machine has not joined." }),
             Err(error) => json!({ "error": error.to_string() }),
         },
