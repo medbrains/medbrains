@@ -28,6 +28,7 @@ pub struct PortalPayRequest {
     pub amount: Option<Decimal>,
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_pay_bill(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,

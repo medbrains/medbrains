@@ -44,6 +44,7 @@ pub struct HealthDataSharing {
 }
 
 /// `GET /api/portal/health-data`
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn get_sharing(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -80,6 +81,7 @@ pub struct ConsentRequest {
 }
 
 /// `PUT /api/portal/health-data/consent`
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn set_consent(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -200,6 +202,7 @@ pub fn to_row(
 }
 
 /// `POST /api/portal/health-data/readings`
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn post_readings(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,

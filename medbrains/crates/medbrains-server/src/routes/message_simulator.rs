@@ -48,6 +48,7 @@ pub struct SimulatorInbox {
 }
 
 /// `GET /api/admin/message-simulator/messages` — everything sent to one person.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn list_messages(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

@@ -24,6 +24,7 @@ pub struct MentalHealthSharing {
 ///
 /// # Errors
 /// 403 without `abdm.settings.manage`.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn get_sharing(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -47,6 +48,7 @@ pub async fn get_sharing(
 ///
 /// # Errors
 /// 403 without `abdm.settings.manage`.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn save_sharing(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

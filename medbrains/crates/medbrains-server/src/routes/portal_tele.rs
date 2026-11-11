@@ -30,7 +30,7 @@ pub struct PortalTeleconsult {
 }
 
 /// `GET /api/portal/teleconsults`
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn portal_teleconsults(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,

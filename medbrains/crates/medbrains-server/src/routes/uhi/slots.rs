@@ -163,6 +163,7 @@ struct ScheduleRow {
 
 /// Open slots matching `filter`, earliest first. Only doctors with an HPR
 /// ID are offered: UHI names a doctor by it.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn open_slots(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -308,6 +309,7 @@ pub async fn open_slots(
 }
 
 /// The open slot `id` names, if it is still open.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn find_slot(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,

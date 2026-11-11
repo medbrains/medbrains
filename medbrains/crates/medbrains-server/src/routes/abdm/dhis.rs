@@ -127,6 +127,7 @@ const MONTHS_SQL: &str = "WITH months AS ( \
 ///
 /// # Errors
 /// Any database error.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn months(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
