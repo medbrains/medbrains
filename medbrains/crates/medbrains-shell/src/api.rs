@@ -124,6 +124,9 @@ pub(crate) struct UpdateStatus {
     #[serde(deserialize_with = "text_or_nothing")]
     pub(crate) summary: String,
     pub(crate) headline: String,
+    /// What must be said loudly: a damaged running system, or a security fix waiting too long.
+    #[serde(deserialize_with = "text_or_nothing")]
+    pub(crate) alarm: String,
     pub(crate) last: Option<UpdateLast>,
     /// When a signed release list was last read, in seconds since 1970.
     pub(crate) checked: Option<i64>,

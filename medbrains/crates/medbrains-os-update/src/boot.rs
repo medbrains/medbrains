@@ -38,11 +38,11 @@ const MAIN_UNITS: [&str; 3] = [
 /// Exists only when the loader started this boot from a counted entry.
 const BOOT_COUNT_VARIABLE: &str =
     "/sys/firmware/efi/efivars/LoaderBootCountPath-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f";
-/// Ports a person or another machine reaches the app on. A connection from elsewhere means in use. Loopback
-/// does not count: this machine's own screen and front keep connections to 8443 and 3000 open all the time,
-/// so counting them meant a quiet window never came, measured on QEMU.
-const IN_USE_FILTER: &str =
-    "( sport = :443 or sport = :8443 or sport = :3000 ) and not dst 127.0.0.0/8 and not dst [::1]";
+/// How long nobody must have used the app before a quiet window restarts the machine, unless set.
+const IDLE_MINUTES: u64 = 30;
+const SECONDS_PER_MINUTE: u64 = 60;
+/// The most a boot file is read when it is hashed: the boot partition is 512 MiB.
+const MAX_BOOT_FILE: u64 = 512 * 1024 * 1024;
 
 /// Asks a unit's state; the text is the answer, whatever the exit status.
 fn unit_answer(verb: &str, unit: &str) -> String {
@@ -59,7 +59,9 @@ fn health_problem() -> Option<String> {
             "The system partition failed its seal check, or it could not be read.".to_owned(),
         );
     }
-    let root = disk::run_text("findmnt", &["-no", "SOURCE", "/"], USUAL_LIMIT).ok()?;
+    let Ok(root) = disk::run_text("findmnt", &["-no", "SOURCE", "/"], USUAL_LIMIT) else {
+        return Some("findmnt did not answer.".to_owned());
+    };
     let var =
         disk::run_text("findmnt", &["-no", "SOURCE", "/var"], USUAL_LIMIT).unwrap_or_default();
     if var.is_empty() || var == root {
@@ -149,7 +151,12 @@ pub fn health() -> Result<(), String> {
     }
     let Some(reason) = problem else {
         let mut state = State::load(path)?;
-        state.mark_good(&current_version()?, now());
+        let current = current_version()?;
+        // Proved good with its server up, so its migrations have run: this is the schema it leaves.
+        if let Some(schema) = db_schema() {
+            state.record_schema(&current, &schema);
+        }
+        state.mark_good(&current, now());
         return state.save(path);
     };
     fail_trial(&reason)
@@ -172,19 +179,86 @@ pub fn fail_trial(reason: &str) -> Result<(), String> {
     Err(reason.to_owned())
 }
 
-/// Run at each start: puts the record right and notes what a person could go back to.
+/// The database schema this machine's database is at: its highest applied migration, or `none` on a
+/// machine with no database. `None` if it could not be asked, which never counts as compatible.
+pub fn db_schema() -> Option<String> {
+    if !Path::new(ROLE_MAIN).exists() {
+        return Some("none".to_owned());
+    }
+    disk::run_text(
+        "runuser",
+        &[
+            "-u",
+            "postgres",
+            "--",
+            "psql",
+            "-d",
+            "medbrains",
+            "-Atc",
+            "SELECT coalesce(max(version), 0) FROM _sqlx_migrations",
+        ],
+        Duration::from_secs(20),
+    )
+    .ok()
+    .filter(|schema| !schema.is_empty())
+}
+
+/// This start's id, so a record made in an earlier start can be told apart.
+pub fn boot_id() -> String {
+    fs::read_to_string("/proc/sys/kernel/random/boot_id")
+        .map(|id| id.trim().to_owned())
+        .unwrap_or_default()
+}
+
+/// Remembers the hash of the running boot file, the first time this version runs here, so a change to
+/// it on the boot partition is noticed before an install deletes anything there.
+fn remember_running_boot_file(state: &mut State, current: &str) {
+    if state.boot_file_hash(current).is_some() {
+        return;
+    }
+    let running = disk::boot_entries()
+        .ok()
+        .and_then(|entries| entries.into_iter().find(|entry| entry.selected));
+    if let Some(entry) = running
+        && let Ok((sha256, _)) = disk::hash_file(&entry.path, MAX_BOOT_FILE)
+    {
+        state.record_boot_file(current, &sha256);
+    }
+}
+
+/// Run at each start: puts the record right, turns a seal check's note from the boot partition into the
+/// record, notes what a person could go back to, and acts on a slot found damaged in an earlier start.
 pub fn reconcile() -> Result<(), String> {
     let _lock = install::lock()?;
     let path = Path::new(paths::STATE_FILE);
     let mut state = State::load(path)?;
     let before = state.clone();
-    state.reconcile(&current_version()?, on_trial(), now());
+    let current = current_version()?;
+    let marker = crate::seal::read_marker();
+    // Before the record is put right, so a trial's seal failure is the reason its rollback reports.
+    let damaged_now = marker
+        .as_ref()
+        .is_some_and(|marker| crate::seal::record_marker(&mut state, marker, &current));
+    state.reconcile(&current, on_trial(), now());
     if state.stage == Stage::Idle {
         install::clear_staging()?;
     }
+    remember_running_boot_file(&mut state, &current);
     state.previous = previous_version().ok().flatten();
     if state != before {
         state.save(path)?;
+    }
+    if marker.is_some() {
+        crate::seal::remove_marker()?;
+    }
+    // This start is the next one: a slot found damaged earlier, or by the check at this start, is acted
+    // on now, before anyone has started using the machine.
+    let earlier = state
+        .damaged
+        .as_ref()
+        .is_some_and(|damaged| damaged.boot_id != boot_id());
+    if crate::seal::running_slot_damaged(&state) && (damaged_now || earlier) {
+        return crate::seal::act_on_damage(&current);
     }
     Ok(())
 }
@@ -215,11 +289,21 @@ pub fn apply() -> Result<(), String> {
         return Err("No update is waiting.".to_owned());
     };
     let staged = crate::steps::staged_boot_path(&target.version);
+    // The boot partition has no seal of its own: what waited there since the install is hashed again.
+    let (sha256, _) = disk::hash_file(&staged, MAX_BOOT_FILE)?;
+    if target.boot_sha256.is_empty() || sha256 != target.boot_sha256 {
+        let words = "The waiting update's boot file no longer matches its signed hash, so it was not \
+                     applied. It can be installed again.";
+        state.finish(&target.version, Ending::Failed, words, now());
+        state.save(path)?;
+        return Err(words.to_owned());
+    }
     let name = format!("medbrains-os_{}+{TRIES}-0.efi", target.version);
     let published = Path::new(disk::BOOT_DIR).join(name);
     fs::rename(&staged, &published).map_err(|e| format!("{}: {e}", staged.display()))?;
     crate::state::sync_parent(&published).map_err(|e| e.to_string())?;
     disk::flush_boot_partition()?;
+    state.record_boot_file(&target.version, &sha256);
     state.stage = Stage::Applied;
     state.save(path)?;
     disk::run_text("systemctl", &["reboot"], USUAL_LIMIT).map(|_| ())
@@ -237,12 +321,14 @@ pub fn go_back() -> Result<(), String> {
     go_back_to(
         &previous,
         "A person went back from version CURRENT to PREVIOUS.",
+        true,
     )
 }
 
 /// Marks the running entry as having no starts left and restarts into `previous`, recording `words`, in
-/// which CURRENT and PREVIOUS stand for the versions.
-pub fn go_back_to(previous: &str, words: &str) -> Result<(), String> {
+/// which CURRENT and PREVIOUS stand for the versions. `version_failed` records the running version as
+/// failed, so no quiet window installs it again; a damaged slot is not a failed version, and passes false.
+pub fn go_back_to(previous: &str, words: &str, version_failed: bool) -> Result<(), String> {
     let path = Path::new(paths::STATE_FILE);
     let entries = disk::boot_entries()?;
     let running = entries
@@ -258,7 +344,9 @@ pub fn go_back_to(previous: &str, words: &str) -> Result<(), String> {
     // A broken seal can make os-release unreadable; the record then names no version.
     let current = current_version().unwrap_or_default();
     if let Ok(mut state) = State::load(path) {
-        state.add_failed(&current);
+        if version_failed {
+            state.add_failed(&current);
+        }
         let words = words
             .replace("CURRENT", &current)
             .replace("PREVIOUS", previous);
@@ -319,14 +407,24 @@ fn in_window(window: &str, now: &str) -> bool {
     }
 }
 
-/// True if someone is connected to the app. Not being able to tell counts as in use.
+/// True only if the server's record of the last request a person made, `signal`, can be read and is at
+/// least `idle_seconds` old at `now`. Unreadable, or in the future, is in use: a restart must never be
+/// the guess.
+fn is_idle(signal: Option<&str>, now: u64, idle_seconds: u64) -> bool {
+    signal
+        .and_then(|text| text.trim().parse::<u64>().ok())
+        .is_some_and(|last| last <= now && now - last >= idle_seconds)
+}
+
+/// True if a person may be using the app. A TCP connection says nothing here: this machine's own screen
+/// and every node's users, carried through the tunnel, reach the app over loopback, and an idle screen
+/// polls as much as a busy one. So the server records each request a person makes (`ACTIVITY_FILE`), and
+/// the machine is idle only when that is old enough. A machine with no server, a node, never reads as idle.
 fn machine_in_use() -> bool {
-    let done = child::run(
-        "ss",
-        &["-Htn", "state", "established", IN_USE_FILTER],
-        USUAL_LIMIT,
-    );
-    done.is_none_or(|done| !done.success || !done.stdout.iter().all(u8::is_ascii_whitespace))
+    let idle_seconds =
+        seconds_setting(paths::IDLE_MINUTES_FILE, IDLE_MINUTES).saturating_mul(SECONDS_PER_MINUTE);
+    let signal = fs::read_to_string(paths::ACTIVITY_FILE).ok();
+    !is_idle(signal.as_deref(), now(), idle_seconds)
 }
 
 /// True if chrony trusts the time. Unknown is not trusted: the window is only meaningful with a true clock.
@@ -335,26 +433,31 @@ fn clock_is_true() -> bool {
         .is_ok_and(|csv| csv.contains("Normal"))
 }
 
-/// Run every few minutes by a timer: applies a waiting update only in the quiet window, with a true
-/// clock and nobody connected. A security fix waits like any other, and the screen urges a person.
+/// Run every few minutes by a timer: in the quiet window, with a true clock and nobody using the app, acts
+/// on a running slot found damaged, or applies a waiting update. A security fix waits like any other; the
+/// screen urges a person, and says so loudly once it has waited too long.
 pub fn tick() -> Result<(), String> {
     let state = State::load(Path::new(paths::STATE_FILE))?;
-    if state.stage != Stage::Waiting {
+    let damaged = crate::seal::running_slot_damaged(&state);
+    if state.stage != Stage::Waiting && !damaged {
         return Ok(());
     }
     let Ok(window) = fs::read_to_string(paths::WINDOW_FILE) else {
         return Ok(());
     };
     let time = disk::run_text("date", &["+%H:%M"], USUAL_LIMIT)?;
-    if in_window(&window, &time) && clock_is_true() && !machine_in_use() {
-        return apply();
+    if !(in_window(&window, &time) && clock_is_true() && !machine_in_use()) {
+        return Ok(());
     }
-    Ok(())
+    if damaged {
+        return crate::seal::act_on_damage(&current_version().unwrap_or_default());
+    }
+    apply()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{health_says_ok, in_window};
+    use super::{health_says_ok, in_window, is_idle};
 
     /// The window is what decides a restart with nobody asking, so a bad setting must mean no.
     #[test]
@@ -370,6 +473,18 @@ mod tests {
             assert!(!in_window(bad, "02:30"), "{bad}");
         }
         assert!(!in_window("02:00-04:00", "garbage"));
+    }
+
+    /// Idle only on a readable record old enough; anything else is someone using the machine.
+    #[test]
+    fn only_an_old_readable_record_is_idle() {
+        assert!(is_idle(Some("1000\n"), 2800, 1800));
+        assert!(!is_idle(Some("1000"), 2799, 1800));
+        assert!(is_idle(Some("0"), 1800, 1800));
+        assert!(!is_idle(Some("3000"), 2800, 1800));
+        assert!(!is_idle(Some("soon"), 2800, 1800));
+        assert!(!is_idle(Some(""), 2800, 1800));
+        assert!(!is_idle(None, 2800, 1800));
     }
 
     /// The health answer is 200 even with the database down, so its status field is what counts.

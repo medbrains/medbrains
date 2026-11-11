@@ -29,10 +29,10 @@ def run(*args):
     subprocess.run(args, check=True)
 
 
-def make(name, version, min_version, root, verity, boot, upgrades_from="0.0"):
+def make(name, version, min_version, root, verity, boot, upgrades_from="0.0", *extra):
     """Makes and signs one bundle."""
     folder = os.path.join(OUT, name)
-    run(TOOL, "make", folder, version, ARCH, min_version, root, verity, boot, "--upgrades-from", upgrades_from)
+    run(TOOL, "make", folder, version, ARCH, min_version, root, verity, boot, "--upgrades-from", upgrades_from, *extra)
     run(TOOL, "sign", folder, "test-1", KEY)
     return folder
 
@@ -220,7 +220,7 @@ def unsealed(next_bundle, after):
     for name in (ROOT_FILE, VERITY_FILE):
         run("zstd", "-q", "-d", os.path.join(next_bundle, name), "-o", os.path.join(work, name[:-4]))
     make("unsealed", "1.0.6", "1.0.0", os.path.join(work, "root.img"), os.path.join(work, "verity.img"),
-         os.path.join(after, BOOT_FILE))
+         os.path.join(after, BOOT_FILE), "0.0", "--unchecked-seal")
     shutil.rmtree(work)
 
 

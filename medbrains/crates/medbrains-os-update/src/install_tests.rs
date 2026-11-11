@@ -27,6 +27,7 @@ fn target() -> Target {
         min_version: "1.0.0".to_owned(),
         security: false,
         summary: String::new(),
+        ..Target::default()
     }
 }
 

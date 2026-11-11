@@ -20,3 +20,11 @@ pub const CA_FILE: &str = "/var/lib/medbrains-settings/update-ca.pem";
 pub const WINDOW_FILE: &str = "/var/lib/medbrains-settings/update-window";
 /// How long a new version gets to pass its checks, in seconds, for slower hardware.
 pub const HEALTH_SECONDS_FILE: &str = "/var/lib/medbrains-settings/update-health-seconds";
+/// How long nobody must have used the app before a quiet window may restart the machine, in minutes.
+pub const IDLE_MINUTES_FILE: &str = "/var/lib/medbrains-settings/update-idle-minutes";
+/// When a person last used the app, in seconds since 1970, written by the server on this machine. Every
+/// person's request reaches it, from this screen or from a node through the tunnel.
+pub const ACTIVITY_FILE: &str = "/run/medbrains-server/last-person-request";
+/// Left on the boot partition by a seal check at start, before the data disk is open, for the next step
+/// that can write the record. Small, and flushed.
+pub const SEAL_MARKER: &str = "/boot/medbrains-seal-failed.json";

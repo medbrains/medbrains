@@ -6,9 +6,18 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
-use crate::manifest;
-use crate::paths;
+use crate::install::now;
 use crate::state::{Stage, State};
+use crate::{manifest, paths, verity};
+
+/// How long a security fix may wait before the screen says so loudly: the target for a critical fix
+/// (`SECURITY-RELEASE-PROCESS.md`) is 72 hours, so waiting that long again is already late.
+const SECURITY_OVERDUE_SECONDS: u64 = 72 * 60 * 60;
+
+/// Said when the running system failed its seal check and keeps running.
+const DAMAGED_WORDS: &str = "This machine's system partition failed its seal check. It keeps running \
+    for now; at the next restart or quiet window it goes back to the earlier version, or stops if that \
+    is not safe. Call your system administrator.";
 
 /// The running version's line in os-release text.
 fn image_version(text: &str) -> Option<&str> {
@@ -35,6 +44,27 @@ fn headline(state: &State) -> String {
     }
 }
 
+/// What the screen must say loudly, if anything: the running system failed its seal check, or a
+/// security fix has waited past its deadline. `running` is the running slot's UUID.
+fn alarm(state: &State, running: Option<&str>, now: u64) -> Option<String> {
+    if state
+        .damaged
+        .as_ref()
+        .is_some_and(|damaged| Some(damaged.uuid.as_str()) == running)
+    {
+        return Some(DAMAGED_WORDS.to_owned());
+    }
+    let target = state.target.as_ref().filter(|t| t.security)?;
+    let ready = target.ready_at.filter(|_| state.stage == Stage::Waiting)?;
+    (now.saturating_sub(ready) >= SECURITY_OVERDUE_SECONDS).then(|| {
+        format!(
+            "A security fix, version {}, has waited more than three days. Restart this machine as soon \
+             as you can: nothing restarts it while it is in use.",
+            target.version
+        )
+    })
+}
+
 /// The whole answer, from the record and the facts beside it.
 fn build_view(
     state: &State,
@@ -43,13 +73,15 @@ fn build_view(
     url: Option<&str>,
     window: Option<&str>,
 ) -> Value {
+    let alarm = alarm(state, verity::running_slot_uuid().as_deref(), now());
     json!({
         "current": current,
         "stage": state.stage,
         "target": state.target.as_ref().map(|t| &t.version),
         "security": state.target.as_ref().is_some_and(|t| t.security && state.stage == Stage::Waiting),
         "summary": state.target.as_ref().map(|t| &t.summary),
-        "headline": headline(state),
+        "headline": alarm.clone().unwrap_or_else(|| headline(state)),
+        "alarm": alarm,
         "last": state.last,
         "checked": state.checked,
         "previous": state.previous,
@@ -92,8 +124,8 @@ pub fn view() -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_view, headline};
-    use crate::state::{Stage, State, Target};
+    use super::{SECURITY_OVERDUE_SECONDS, alarm, build_view, headline};
+    use crate::state::{Damaged, Stage, State, Target};
 
     /// A state waiting on version 2.
     fn waiting(security: bool) -> State {
@@ -104,6 +136,7 @@ mod tests {
                 min_version: "1.0.0".to_owned(),
                 security,
                 summary: "Fixes a kernel flaw.".to_owned(),
+                ..Target::default()
             }),
             ..State::default()
         }
@@ -117,6 +150,35 @@ mod tests {
             headline(&waiting(true)).contains("nothing restarts this machine while it is in use")
         );
         assert!(!headline(&waiting(false)).contains("security"));
+    }
+
+    /// A security fix left waiting past its deadline, and a damaged running system, are said loudly;
+    /// nothing else is, and a damaged slot that is not running is not.
+    #[test]
+    fn only_an_overdue_fix_or_a_damaged_running_system_is_loud() {
+        let mut state = waiting(true);
+        if let Some(target) = state.target.as_mut() {
+            target.ready_at = Some(1_000);
+        }
+        assert_eq!(
+            alarm(&state, None, 1_000 + SECURITY_OVERDUE_SECONDS - 1),
+            None
+        );
+        assert!(alarm(&state, None, 1_000 + SECURITY_OVERDUE_SECONDS).is_some());
+        let mut ordinary = waiting(false);
+        if let Some(target) = ordinary.target.as_mut() {
+            target.ready_at = Some(0);
+        }
+        assert_eq!(alarm(&ordinary, None, u64::MAX), None);
+        let damaged = State {
+            damaged: Some(Damaged {
+                uuid: "a-b".to_owned(),
+                ..Damaged::default()
+            }),
+            ..State::default()
+        };
+        assert!(alarm(&damaged, Some("a-b"), 0).is_some());
+        assert_eq!(alarm(&damaged, Some("c-d"), 0), None);
     }
 
     /// Controls appear only for what can actually be done now.

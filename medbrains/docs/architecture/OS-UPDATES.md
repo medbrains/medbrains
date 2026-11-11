@@ -267,7 +267,8 @@ Compressed bundle size: not yet measured. Deltas only if measured download sizes
 Settings has an Updates section, read through the setup service: the version running, what waits in one sentence, the last result, and only the
 buttons that would work now: **Restart to update…**, **Look for updates**, **Install from a USB stick**, **Try that version again**, **Go back to version X…**.
 Restarts ask first. The address and quiet window are set there too. The top bar shows a chip only with something to say: Update ready, Security fix
-ready, Last update failed or Updates need attention. It opens Settings.
+ready, Security fix overdue (waiting more than 72 hours), System damaged (the running system failed its seal check),
+Last update failed or Updates need attention. It opens Settings.
 
 ## Failure table (OS-PRINCIPLES section 7)
 
@@ -290,7 +291,9 @@ ready, Last update failed or Updates need attention. It opens Settings.
 | Slot changed after it was installed | Would run changed code | dm-verity at start | Stops in the initrd, counted starts run out, old version | `changed_slot_rolls_back` |
 | Power cut around each rename | One name or UUID or the other (GPT has two checksummed copies) | | Boots old | `power_cuts_installing`, at sfdisk 1, 3, 5, 7 and after 8 |
 | Power cut with update waiting | None | Record says waiting | Boots old, still waiting | `power_cuts_installing` |
-| Power cut publishing the boot file | Old or new name. FAT has no journal: a torn rename could leave a damaged directory entry | | Boots one of them; fsck not automated on the boot partition | Before and after tested; mid-rename **reasoned**, not reachable from a VM |
+| Power cut publishing the boot file | Old or new name. FAT has no journal: a torn rename could leave a damaged directory entry | `fsck.vfat -a` at every start, before the boot partition is mounted (`medbrains-boot-fsck.service`) | Boots one of them; the next start repairs what fsck safely can | Before and after tested; mid-rename **reasoned**, not reachable from a VM |
+| A boot file on the boot partition changed or damaged | An install would delete beside a damaged file | The SHA-256 of every boot file this machine put there is in the record, and checked before anything there is deleted | Install refused; nothing deleted | reasoned |
+| The staged boot file changed while waiting | Would start something unsigned | Hashed again against the signed manifest at apply | Not applied; the update ends as failed and can be installed again | reasoned |
 | Power cut just after a change to the boot partition | **Found 2026-11-11:** fsync of a FAT directory did not keep the rename; the staged file came back as `<v>.tmp`, an applied one under its staged name | QEMU power-cut scenarios | Every change to the boot partition now ends with `sync --file-system /boot` | `power_cuts_installing`, `power_cuts_applying` |
 | Power cut after publishing | New version on trial | Loader counts | Starts new version on trial | `power_cuts_applying` |
 | Power cut on each trial start | Starts used up | Loader's count | After 3, old version; "rolled back" | `power_cuts_applying` |
@@ -302,10 +305,13 @@ ready, Last update failed or Updates need attention. It opens Settings.
 | Health passes, power cut before blessing | Next start counted again | Count still there | Health passes again | reasoned: idempotent |
 | Update record damaged | Would forget the floor | Parse fails | Screen says so; no action offered; a person must act | unit |
 | Boot partition full or read-only at apply | Apply fails | rename fails | Stays waiting; says failed | reasoned |
+| The running system fails its seal check | See `OS-VERITY.md` | dm-verity | Never restarted while in use; at the next start or quiet window, back to a version that left today's database schema, or a plain stop | unit |
 | Quiet window typo | Would restart at random | Parse | Refused on save; never open if read | unit |
 | Clock wrong or unknown | Window at the wrong hour | chrony | Doesn't apply | `waits_for_quiet`, partly |
-| Someone connected in the window | Would drop them | `ss`, connections from elsewhere only | Doesn't apply | `waits_for_quiet` |
-| The machine's own screen and front connected over loopback | **Found 2026-11-11:** counted as in use, so a window never applied | `waits_for_quiet` | Loopback peers do not count | `waits_for_quiet`, with a real outside connection |
+| Someone using the app in the window, here or at a node | Would drop them | The server's note of the last request a person made (`/run/medbrains-server/last-person-request`): idle only when older than `update-idle-minutes` (30 by default) | Doesn't apply | `waits_for_quiet`: a person signed in over the loopback front, as a node's users arrive through the tunnel, blocks it |
+| Counting connections instead | **Found 2026-11-11, twice.** Counting loopback meant a window never came; ignoring it meant the screen and every node's users counted as nobody, so a quiet window would restart a main machine mid-use | Review | Connections are not used. Polling by an idle page is marked background by the web app and does not count; API keys and display screens do not count; unmarked clients do | `waits_for_quiet`: an idle page still polling, screen on, applies |
+| The activity note can't be read (no server, a node, a fault) | Not known | Read fails | In use: the window never applies; a person restarts | unit (`is_idle`) |
+| A security fix left waiting | Machine stays exposed | Record says when it became ready | After 72 hours the screen says so loudly and the top bar shows "Security fix overdue"; still never restarts a machine in use | unit (`view::alarm`) |
 | New version loses its seal | Prompt nobody answers | Deadline | Old version opens the disk | `seal_prompt_rolls_back` |
 | Migration then failure | **Old server may not start on newer database** | Health, on the old slot too | **Not handled. U1.3** | Not tested |
 | Release key stolen | Anyone can sign | Outside this machine | Rotation and floor, above | Design |

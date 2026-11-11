@@ -20,5 +20,6 @@ pub mod source;
 pub mod state;
 pub mod steps;
 pub mod verity;
+pub mod verity_tree;
 pub mod version;
 pub mod view;

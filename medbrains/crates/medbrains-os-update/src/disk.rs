@@ -55,6 +55,8 @@ pub struct Slots {
     pub disk: String,
     /// What is running.
     pub active: Part,
+    /// The hash tree that seals `active`.
+    pub active_hash: Part,
     /// What an update may overwrite.
     pub inactive: Part,
     /// The hash tree that seals `inactive`.
@@ -138,10 +140,11 @@ pub fn parse_slots(
         Ok((part(running), part(found)))
     };
     let (active, inactive) = other(root_uuid, "system partition")?;
-    let (_, inactive_hash) = other(hash_uuid, "hash partition")?;
+    let (active_hash, inactive_hash) = other(hash_uuid, "hash partition")?;
     Ok(Slots {
         disk: disk.to_owned(),
         active,
+        active_hash,
         inactive,
         inactive_hash,
     })
@@ -405,6 +408,45 @@ pub fn free_bytes(path: &str) -> Result<u64, String> {
 /// partition, which is small, does keep it.
 pub fn flush_boot_partition() -> Result<(), String> {
     run_text("sync", &["--file-system", ESP], PARTITION_LIMIT).map(|_| ())
+}
+
+/// The GPT type of an EFI system partition.
+const ESP_TYPE: &str = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b";
+const FSCK_LIMIT: Duration = Duration::from_mins(2);
+
+/// Repairs the boot partition's file system at start, before anything writes to it. FAT has no journal,
+/// so a power cut mid-rename can leave a damaged entry that a later write would make worse; `fsck.vfat -a`
+/// fixes what it safely can. Skipped, and said, if something already mounted it. Exit 1 is "repaired".
+pub fn repair_boot_partition() -> Result<(), String> {
+    let mounted = run_text("findmnt", &["-no", "SOURCE", ESP], USUAL_LIMIT).unwrap_or_default();
+    if !mounted.is_empty() {
+        return Err(format!("{ESP} is already mounted, so it was not checked."));
+    }
+    let slots = read_slots()?;
+    let listing = run_text(
+        "lsblk",
+        &["-nrpo", "PATH,PARTTYPE", &slots.disk],
+        USUAL_LIMIT,
+    )?;
+    let esp = listing
+        .lines()
+        .find_map(|line| line.split_once(' ').filter(|(_, kind)| *kind == ESP_TYPE))
+        .map(|(path, _)| path.to_owned())
+        .ok_or_else(|| "The boot partition was not found.".to_owned())?;
+    let done = child::run(
+        "sh",
+        &["-c", "fsck.vfat -a \"$1\"; test $? -le 1", "fsck", &esp],
+        FSCK_LIMIT,
+    )
+    .ok_or_else(|| "fsck.vfat did not answer in time.".to_owned())?;
+    if done.success {
+        Ok(())
+    } else {
+        Err(format!(
+            "The boot partition has damage fsck.vfat could not repair: {}",
+            String::from_utf8_lossy(&done.stdout).trim()
+        ))
+    }
 }
 
 /// Copies a verified file to `to` in one step, flushed, so a power cut leaves it whole or absent.

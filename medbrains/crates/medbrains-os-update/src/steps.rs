@@ -8,9 +8,12 @@ use crate::disk::{self, Part, Slots};
 use crate::install::Stopped;
 use crate::manifest::{self, Manifest};
 use crate::plan::Step;
+use crate::state::BootFile;
 use crate::{owners, paths, pe, verity};
 
 const CMDLINE_SECTION: &str = ".cmdline";
+/// The most of a boot file that is read when it is hashed: the boot partition is 512 MiB.
+const MAX_BOOT_FILE: u64 = 512 * 1024 * 1024;
 
 /// Boot entries for what is in the inactive slot, and any with no starts left. Never the running one.
 pub fn old_boot_entries(slots: &Slots) -> Result<Vec<disk::BootEntry>, String> {
@@ -36,18 +39,50 @@ fn remove_staged_boot() -> Result<(), String> {
     }
 }
 
-/// The root hash the new boot file will start its system with. A boot file without one would start
-/// an unsealed system, or none, so it is refused before anything is written.
-fn sealed_roothash(staging: &Path) -> Result<String, Stopped> {
+/// The root hash the new boot file will start its system with. A boot file without one, or whose
+/// command line would undo the seal, would start an unsealed system, or none, so it is refused before
+/// anything is written. So is one whose slot UUIDs are the running system's: naming the other slot with
+/// them would leave two partitions a boot file could start.
+fn sealed_roothash(staging: &Path, slots: &Slots) -> Result<String, Stopped> {
+    let refused = |why: String| {
+        Stopped::Refused(format!(
+            "This update's boot file does not seal its system, so it was refused. {why}"
+        ))
+    };
     let boot =
         fs::read(staging.join(manifest::BOOT_FILE)).map_err(|e| Stopped::Fault(e.to_string()))?;
-    pe::section(&boot, CMDLINE_SECTION)
-        .and_then(|line| verity::roothash(&String::from_utf8_lossy(line)).map(str::to_owned))
-        .ok_or_else(|| {
-            Stopped::Refused(
-                "This update's boot file does not seal its system, so it was refused.".to_owned(),
-            )
-        })
+    let line = pe::section(&boot, CMDLINE_SECTION)
+        .ok_or_else(|| refused("It has no command line.".to_owned()))?;
+    let line = String::from_utf8_lossy(line);
+    let hash = verity::sealed_cmdline(&line).map_err(refused)?;
+    let (data, tree) = verity::partition_uuids(hash)
+        .ok_or_else(|| refused("Its root hash can't name a slot.".to_owned()))?;
+    let running = [slots.active.uuid.as_str(), slots.active_hash.uuid.as_str()];
+    if running.contains(&data.as_str()) || running.contains(&tree.as_str()) {
+        return Err(refused(
+            "It names the running system's own partitions.".to_owned(),
+        ));
+    }
+    Ok(hash.to_owned())
+}
+
+/// Checks every boot file on the boot partition that this machine recorded still has the hash it was
+/// put there with, before anything there is deleted: a boot partition that changed is not cleaned up.
+fn check_boot_files(known: &[BootFile]) -> Result<(), String> {
+    for entry in disk::boot_entries()? {
+        let Some(want) = known.iter().find(|k| k.version == entry.version) else {
+            continue;
+        };
+        let (have, _) = disk::hash_file(&entry.path, MAX_BOOT_FILE)?;
+        if have != want.sha256 {
+            return Err(format!(
+                "The boot file for version {} is not the one this machine put there, so nothing on \
+                 the boot partition was deleted. Call your system administrator.",
+                entry.version
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Gives a partition a UUID and then a name: the name says what it holds, so it goes last.
@@ -63,20 +98,24 @@ pub struct Job<'a> {
     manifest: &'a Manifest,
     staging: &'a Path,
     roothash: String,
+    known: &'a [BootFile],
 }
 
 impl<'a> Job<'a> {
-    /// Prepares the writes for a bundle staged and verified in `staging`.
+    /// Prepares the writes for a bundle staged and verified in `staging`, with `known` the boot files
+    /// this machine recorded.
     pub fn new(
         slots: &'a Slots,
         manifest: &'a Manifest,
         staging: &'a Path,
+        known: &'a [BootFile],
     ) -> Result<Self, Stopped> {
         Ok(Self {
             slots,
             manifest,
             staging,
-            roothash: sealed_roothash(staging)?,
+            roothash: sealed_roothash(staging, slots)?,
+            known,
         })
     }
 
@@ -105,6 +144,7 @@ impl<'a> Job<'a> {
         let version = &manifest.version;
         match step {
             Step::RemoveOldBoot => {
+                check_boot_files(self.known)?;
                 for entry in old_boot_entries(slots)? {
                     fs::remove_file(&entry.path).map_err(|e| e.to_string())?;
                     crate::state::sync_parent(&entry.path).map_err(|e| e.to_string())?;

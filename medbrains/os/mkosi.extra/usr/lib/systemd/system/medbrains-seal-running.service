@@ -1,0 +1,11 @@
+# A block of the running system failed its seal check (05-medbrains-seal.rules, OS-VERITY.md). On a
+# trial start the trial fails; on a proven version in use it is said on every console and the top bar and
+# recorded, and acted on at the next start or quiet window. Nothing restarts here.
+[Unit]
+Description=Record a seal failure of the running system
+RequiresMountsFor=/var
+After=medbrains-update-reconcile.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/medbrains-os-update seal --running

@@ -97,7 +97,8 @@ pub enum AuthMethod {
 pub struct ApiKeyId(pub Uuid);
 
 /// Auth middleware — tries cookie-based auth first, falls back to Bearer token.
-/// Injects `Claims` and `AuthMethod` into request extensions.
+/// Injects `Claims` and `AuthMethod` into request extensions, and notes a
+/// person's request for the OS updater's quiet window (`activity`).
 pub async fn auth_middleware(
     State(state): State<AppState>,
     mut request: Request,
@@ -116,6 +117,7 @@ pub async fn auth_middleware(
         let account = verify_perm_version(&state.db, &claims).await?;
         refuse_until_password_changed(account.must_change_password, request.uri().path())?;
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
+        super::activity::note(request.headers(), device_variant.as_deref());
         request.extensions_mut().insert(AuthMethod::Cookie);
         if account.is_vendor {
             return Ok(super::vendor_access::serve(&state, claims, request, next).await);
@@ -178,6 +180,7 @@ pub async fn auth_middleware(
         let account = verify_perm_version(&state.db, &claims).await?;
         refuse_until_password_changed(account.must_change_password, request.uri().path())?;
         let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
+        super::activity::note(request.headers(), device_variant.as_deref());
         request.extensions_mut().insert(AuthMethod::Bearer);
         if account.is_vendor {
             return Ok(super::vendor_access::serve(&state, claims, request, next).await);

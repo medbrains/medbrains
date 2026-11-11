@@ -213,8 +213,13 @@ fn install_checked(source: &Source, retry: bool, state: &mut State) -> Result<St
     clear_staging().map_err(Stopped::Fault)?;
     fs::create_dir_all(staging).map_err(|e| Stopped::Fault(e.to_string()))?;
     let slots = disk::read_slots().map_err(Stopped::Fault)?;
-    let running = Version::parse(&current_version().map_err(Stopped::Fault)?)
+    let running_text = current_version().map_err(Stopped::Fault)?;
+    let running = Version::parse(&running_text)
         .ok_or_else(|| Stopped::Fault("This system's version can't be compared.".to_owned()))?;
+    // What it runs on today's database: going back to it later is allowed only on the same schema.
+    if let Some(schema) = crate::boot::db_schema() {
+        state.record_schema(&running_text, &schema);
+    }
     let (source, manifest) = find_installable(source, &running, staging)?;
     let source = &source;
     state.checked = Some(now());
@@ -242,13 +247,23 @@ fn install_checked(source: &Source, retry: bool, state: &mut State) -> Result<St
     begin(state, &manifest, Stage::Fetching)?;
     stage_payload(source, &manifest, staging)?;
     check_seal(staging)?;
-    let job = Job::new(&slots, &manifest, staging)?;
+    let known = state.boot_files.clone();
+    let job = Job::new(&slots, &manifest, staging, &known)?;
     begin(state, &manifest, Stage::Writing)?;
     state.previous = None;
     for step in INSTALL_STEPS {
         job.run(step).map_err(Stopped::Fault)?;
     }
     state.stage = Stage::Waiting;
+    if let Some(target) = state.target.as_mut() {
+        target.ready_at = Some(now());
+    }
+    state.record_boot_file(&manifest.version, &manifest.boot.sha256);
+    // The damaged slot, if this was it, now holds a whole, checked system.
+    state.damaged = state
+        .damaged
+        .take()
+        .filter(|damaged| damaged.uuid != slots.inactive.uuid);
     save(state)?;
     clear_staging().map_err(Stopped::Fault)?;
     Ok(manifest.version)
@@ -262,6 +277,8 @@ fn begin(state: &mut State, manifest: &Manifest, stage: Stage) -> Result<(), Sto
         min_version: manifest.min_version.clone(),
         security: manifest.security,
         summary: manifest.summary.clone(),
+        ready_at: None,
+        boot_sha256: manifest.boot.sha256.clone(),
     });
     save(state)
 }

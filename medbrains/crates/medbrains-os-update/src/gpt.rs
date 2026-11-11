@@ -7,6 +7,9 @@ use std::path::Path;
 
 const SECTOR: u64 = 512;
 const ENTRY_LABEL_AT: usize = 56;
+/// The most a partition table's entries may take: the specification's usual 128 entries of 128 bytes is
+/// 16 KiB, so a header asking for more is damaged or hostile, and is not read into memory.
+const MAX_ENTRIES_BYTES: u64 = 1024 * 1024;
 
 /// A partition's byte range, from a GPT in `header` and its `entries`, by the partition's name.
 pub fn find_partition(header: &[u8], entries: &[u8], wanted: &str) -> Option<(u64, u64)> {
@@ -29,7 +32,12 @@ pub fn find_partition(header: &[u8], entries: &[u8], wanted: &str) -> Option<(u6
         }
         let first = u64::from_le_bytes(entry.get(32..40)?.try_into().ok()?);
         let last = u64::from_le_bytes(entry.get(40..48)?.try_into().ok()?);
-        Some((first * SECTOR, (last.checked_sub(first)? + 1) * SECTOR))
+        let start = first.checked_mul(SECTOR)?;
+        let size = last
+            .checked_sub(first)?
+            .checked_add(1)?
+            .checked_mul(SECTOR)?;
+        Some((start, size))
     })
 }
 
@@ -47,11 +55,11 @@ pub fn partition_range(image: &Path, wanted: &str) -> Result<(u64, u64), String>
             .ok_or_else(|| "A short GPT header.".to_owned())
     };
     let table = u64::from(field(72)?) * SECTOR;
-    let mut entries = vec![
-        0_u8;
-        usize::try_from(u64::from(field(80)?) * u64::from(field(84)?))
-            .map_err(|e| e.to_string())?
-    ];
+    let bytes = u64::from(field(80)?)
+        .checked_mul(u64::from(field(84)?))
+        .filter(|bytes| *bytes <= MAX_ENTRIES_BYTES)
+        .ok_or_else(|| format!("{shown}: the partition table is larger than any real one."))?;
+    let mut entries = vec![0_u8; usize::try_from(bytes).map_err(|e| e.to_string())?];
     file.seek(SeekFrom::Start(table))
         .map_err(|e| e.to_string())?;
     file.read_exact(&mut entries).map_err(|e| e.to_string())?;
@@ -92,5 +100,14 @@ mod tests {
             None
         );
         assert_eq!(find_partition(&[0; 512], &entries, "medbrains_1.0.0"), None);
+    }
+
+    /// A partition whose sector numbers would overflow a byte offset is not found, never wrapped round.
+    #[test]
+    fn an_overflowing_partition_is_not_found() {
+        let (header, mut entries) = gpt("medbrains_1.0.0");
+        entries[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
+        entries[40..48].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert_eq!(find_partition(&header, &entries, "medbrains_1.0.0"), None);
     }
 }

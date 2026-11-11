@@ -29,6 +29,35 @@ pub fn roothash(cmdline: &str) -> Option<&str> {
     (well_formed && found.next().is_none()).then_some(hash)
 }
 
+/// Words that would start a sealed system without its seal holding: verity options of systemd's own, a
+/// second `root=`, or dm-verity told to read past a changed block. A boot file carrying any is refused.
+const UNSAFE_WORDS: [&str; 3] = ["systemd.verity", "ignore-corruption", "ignore_corruption"];
+
+/// The root hash of a boot file's command line, if the line seals its system and nothing on it undoes
+/// that: exactly one `roothash=`, exactly one `root=`, and none of `UNSAFE_WORDS`.
+pub fn sealed_cmdline(cmdline: &str) -> Result<&str, String> {
+    let words: Vec<&str> = cmdline.split_whitespace().collect();
+    if let Some(word) = words.iter().find(|word| {
+        UNSAFE_WORDS
+            .iter()
+            .any(|unsafe_word| word.contains(unsafe_word))
+    }) {
+        return Err(format!(
+            "Its command line carries {word}, which would undo the seal."
+        ));
+    }
+    let roots = words
+        .iter()
+        .filter(|word| word.starts_with("root="))
+        .count();
+    if roots != 1 {
+        return Err(format!(
+            "Its command line names {roots} systems to start, not one."
+        ));
+    }
+    roothash(cmdline).ok_or_else(|| "Its command line carries no single root hash.".to_owned())
+}
+
 /// Formats 32 hex digits as a UUID, the way `lsblk` prints a partition's.
 fn as_uuid(hex: &str) -> Option<String> {
     if hex.len() != UUID_HEX_LEN {
@@ -51,6 +80,12 @@ pub fn partition_uuids(roothash: &str) -> Option<(String, String)> {
         as_uuid(roothash.get(..UUID_HEX_LEN)?)?,
         as_uuid(roothash.get(UUID_HEX_LEN..)?)?,
     ))
+}
+
+/// The UUID of the system partition running now, from the root hash it was started with.
+pub fn running_slot_uuid() -> Option<String> {
+    let cmdline = std::fs::read_to_string("/proc/cmdline").ok()?;
+    partition_uuids(roothash(&cmdline)?).map(|(data, _)| data)
 }
 
 /// A fresh random UUID, for a slot that is being emptied: no boot file can find it any more.
@@ -120,7 +155,7 @@ fn seal_status(text: &str) -> Option<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::{partition_uuids, roothash, seal_status};
+    use super::{partition_uuids, roothash, seal_status, sealed_cmdline};
 
     /// Only the kernel's two words count; anything else is not known, never "fine".
     #[test]
@@ -146,6 +181,23 @@ mod tests {
         assert_eq!(roothash(&format!("roothash={}", &HASH[..63])), None);
         assert_eq!(roothash(&format!("roothash={}", HASH.to_uppercase())), None);
         assert_eq!(roothash(&format!("xroothash={HASH}")), None);
+    }
+
+    /// A line that seals its system passes; one that names a second system or switches the seal off is
+    /// refused, whatever else it carries.
+    #[test]
+    fn a_command_line_that_undoes_the_seal_is_refused() {
+        let good = format!("root=/dev/mapper/root ro roothash={HASH} quiet");
+        assert_eq!(sealed_cmdline(&good), Ok(HASH));
+        for bad in [
+            format!("{good} systemd.verity=no"),
+            format!("{good} systemd.verity_root_options=ignore-corruption"),
+            format!("{good} root=/dev/vda3"),
+            format!("roothash={HASH} quiet"),
+            "root=/dev/mapper/root ro".to_owned(),
+        ] {
+            assert!(sealed_cmdline(&bad).is_err(), "{bad}");
+        }
     }
 
     /// systemd's rule: the data partition takes the first half of the hash, the tree the second.

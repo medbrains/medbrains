@@ -39,6 +39,8 @@ pub(crate) struct Bench {
     pub(crate) bundles: PathBuf,
     /// The version the image was built as.
     pub(crate) first: String,
+    /// The first administrator's password, for signing in as a person.
+    pub(crate) password: String,
     server: Child,
 }
 
@@ -312,13 +314,14 @@ pub(crate) fn run(image: &Path, bundles: &Path) -> Result<usize, String> {
     let only = std::env::var("MB_OS_TEST_ONLY").unwrap_or_default();
     let mut vm = Vm::start(image)?;
     let (port, server, pem) = start_server(bundles, &vm.scratch_path(""))?;
-    let bench = Bench {
+    let mut bench = Bench {
         port,
         bundles: bundles.to_owned(),
         first,
+        password: String::new(),
         server,
     };
-    setup::set_up_main(&mut vm)?;
+    bench.password = setup::set_up_main(&mut vm)?;
     vm.wait_for_server()?;
     write_canaries(&mut vm, &pem)?;
     vm.shut_down()?;

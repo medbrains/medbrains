@@ -49,15 +49,19 @@ fn code_now(secret: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&made.stdout).trim().to_owned())
 }
 
-/// Sets the machine up as a main machine.
-pub(crate) fn set_up_main(vm: &mut Vm) -> Result<(), String> {
+/// The first administrator's username on every test machine.
+pub(crate) const ADMIN: &str = "os_test_admin";
+
+/// Sets the machine up as a main machine, and returns the first administrator's password, for a
+/// scenario that signs in as a person would.
+pub(crate) fn set_up_main(vm: &mut Vm) -> Result<String, String> {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_millis();
-    let form = format!(
-        r#""hospital":"Test Hospital","username":"os_test_admin","password":"Night porter {stamp} keeps blue lanterns""#
-    );
+    let password = format!("Night porter {stamp} keeps blue lanterns");
+    let form =
+        format!(r#""hospital":"Test Hospital","username":"{ADMIN}","password":"{password}""#);
     let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
     while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
         ensure(Instant::now() < deadline, "the setup service never started")?;
@@ -73,7 +77,8 @@ pub(crate) fn set_up_main(vm: &mut Vm) -> Result<(), String> {
     ensure(
         answer.contains("\"ok\":true"),
         format!("setup answered {answer}"),
-    )
+    )?;
+    Ok(password)
 }
 
 #[cfg(test)]

@@ -5,7 +5,11 @@
 //!     medbrains-os-bundle keygen <out prefix>
 //!     medbrains-os-bundle extract <image.raw> <partition name> <out file>
 //!     medbrains-os-bundle make <out dir> <version> <arch> <min version> <root image> <verity image> <boot file>
-//!         [--upgrades-from V] [--expires-days N] [--security] [--summary TEXT]
+//!         [--upgrades-from V] [--expires-days N] [--security] [--summary TEXT] [--unchecked-seal]
+//!
+//! `make` refuses a boot file whose command line does not seal its system, and a system or tree that does
+//! not match the boot file's root hash, so a release built wrong is stopped here and not on every machine.
+//! `--unchecked-seal` skips that, for the test bundle that proves machines refuse such a release.
 //!     medbrains-os-bundle refresh <bundle dir> <days>    new expiry; the old signatures are removed
 //!     medbrains-os-bundle sign <bundle dir> <key id> <private key file>
 
@@ -21,7 +25,7 @@ use medbrains_os_update::manifest::{
     BOOT_FILE, BootImage, MANIFEST_FILE, Manifest, ROOT_FILE, RootImage, SIGNATURE_FILE,
     VERITY_FILE,
 };
-use medbrains_os_update::{disk, gpt};
+use medbrains_os_update::{disk, gpt, pe, verity, verity_tree};
 
 const NO_LIMIT: u64 = u64::MAX;
 const FORMAT: u32 = 2;
@@ -74,6 +78,7 @@ struct MakeArgs<'a> {
     expires_days: u64,
     security: bool,
     summary: &'a str,
+    unchecked_seal: bool,
 }
 
 /// How long a signature counts unless `--expires-days` says otherwise.
@@ -139,9 +144,23 @@ fn pack(image: &str, dir: &Path, name: &str) -> Result<RootImage, String> {
     })
 }
 
-/// Compresses the root image and its tree, hashes everything and writes the manifest. The signature
-/// comes after.
+/// Refuses a boot file that does not seal its system, and a system or tree that is not the one its root
+/// hash names: the same checks a machine makes before naming a slot, made once, before anything is signed.
+fn check_seal(args: &MakeArgs<'_>) -> Result<(), String> {
+    let boot = fs::read(args.boot).map_err(|e| format!("{}: {e}", args.boot))?;
+    let line = pe::section(&boot, ".cmdline")
+        .ok_or_else(|| format!("{} has no command line.", args.boot))?;
+    let line = String::from_utf8_lossy(line);
+    let roothash = verity::sealed_cmdline(&line).map_err(|why| format!("{}: {why}", args.boot))?;
+    verity_tree::verify_tree(Path::new(args.root), Path::new(args.verity), roothash)
+}
+
+/// Checks the seal, then compresses the root image and its tree, hashes everything and writes the
+/// manifest. The signature comes after.
 fn make(args: &MakeArgs<'_>) -> Result<(), String> {
+    if !args.unchecked_seal {
+        check_seal(args)?;
+    }
     let dir = Path::new(args.out);
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let root = pack(args.root, dir, ROOT_FILE)?;
@@ -216,6 +235,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 .map_err(|_| "--expires-days takes a number.".to_owned())?,
             security: rest.contains(&"--security"),
             summary: flag(rest, "--summary").unwrap_or(""),
+            unchecked_seal: rest.contains(&"--unchecked-seal"),
         }),
         ["refresh", bundle, days] => refresh(bundle, days),
         ["sign", bundle, key_id, key_file] => sign(bundle, key_id, key_file),

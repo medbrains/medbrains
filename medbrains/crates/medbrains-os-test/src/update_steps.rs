@@ -429,8 +429,50 @@ fn low_space(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     )
 }
 
+/// Where a node's users reach the main machine: the tunnel ends at the loopback front, so to the main
+/// machine they are requests on 127.0.0.1:8443, exactly as below.
+const FRONT: &str = "https://127.0.0.1:8443";
+/// How long nobody must use the app before the window applies, set short for the test.
+const TEST_IDLE_MINUTES: u64 = 1;
+
+/// Signs in as the first administrator through the loopback front, as a node's user arrives through the
+/// tunnel, and returns the session token.
+fn sign_in_over_loopback(vm: &mut Vm, bench: &Bench) -> Result<String, String> {
+    let body = format!(
+        r#"{{"username":"{}","password":"{}"}}"#,
+        crate::setup::ADMIN,
+        bench.password
+    );
+    let answer = vm.run(&format!(
+        "curl -sk -m 20 -H 'Content-Type: application/json' -H 'X-MedBrains-Client: mobile-staff' -d '{body}' {FRONT}/api/auth/login"
+    ))?;
+    let token = answer
+        .split_once("\"token\":\"")
+        .and_then(|(_, rest)| rest.split_once('"'))
+        .map(|(token, _)| token.to_owned());
+    token.ok_or_else(|| format!("could not sign in over the loopback front: {answer}"))
+}
+
+/// One request as that person; `background` marks it as an idle page's polling.
+fn request_as(vm: &mut Vm, token: &str, background: bool) -> Result<(), String> {
+    let mark = if background {
+        "-H 'X-MedBrains-Background: 1'"
+    } else {
+        ""
+    };
+    let code = vm.run(&format!(
+        "curl -sk -m 20 -o /dev/null -w '%{{http_code}}' {mark} -H 'Authorization: Bearer {token}' {FRONT}/api/auth/me"
+    ))?;
+    ensure(
+        code == "200",
+        format!("the request as a person answered {code}"),
+    )
+}
+
 /// Requirement 5: a security fix can't silently restart a machine in use. It waits through a tick with no
-/// window, a tick outside the window, and a tick inside it with someone connected, then applies.
+/// window, a tick outside the window, and a tick inside it while a person, arriving over loopback as a
+/// node's users do, is using the app. Once nobody has for the idle time, with the screen on and an idle
+/// page still polling, it applies.
 fn waits_for_quiet(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     install_ok(vm, bench, "next-security", false)?;
     let value = status(vm)?;
@@ -455,19 +497,29 @@ fn waits_for_quiet(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     let now_start = vm.run("date -d '-1 minute' +%H:%M")?;
     let now_end = vm.run("date -d '+20 minutes' +%H:%M")?;
     vm.run(&format!(
-        "echo {now_start}-{now_end} > /var/lib/medbrains-settings/update-window"
+        "echo {now_start}-{now_end} > /var/lib/medbrains-settings/update-window; echo {TEST_IDLE_MINUTES} > /var/lib/medbrains-settings/update-idle-minutes"
     ))?;
     wait_for(vm, "chronyc -c tracking | grep -q Normal", RESTART_LIMIT)?;
-    // Someone on the network, through the forwarded port: the machine's own loopback connections never count.
-    let someone = std::net::TcpStream::connect(("127.0.0.1", vm.port("web")?))
-        .map_err(|e| format!("could not connect as a user: {e}"))?;
+    let token = sign_in_over_loopback(vm, bench)?;
+    request_as(vm, &token, false)?;
+    let noted = vm.run("cat /run/medbrains-server/last-person-request")?;
+    ensure(
+        noted.parse::<u64>().is_ok_and(|seconds| seconds > 0),
+        format!("the server did not note the person's request: {noted}"),
+    )?;
     vm.run("medbrains-os-update tick")?;
     sleep(Duration::from_secs(10));
     ensure(vm.run(boot_id)? == id, "a tick restarted a machine in use")?;
     let value = status(vm)?;
     ensure(value["stage"] == "waiting", format!("{value}"))?;
-    drop(someone);
-    vm.run("sleep 2")?;
+    // Nobody for the idle time; an idle page keeps polling, marked as background, and must not count.
+    sleep(Duration::from_secs(TEST_IDLE_MINUTES * 60 + 5));
+    request_as(vm, &token, true)?;
+    let screen = vm.run("systemctl is-active cage-console.service")?;
+    ensure(
+        screen == "active",
+        format!("the screen is {screen}, not on"),
+    )?;
     vm.run("(nohup medbrains-os-update tick > /dev/null 2>&1 &)")?;
     wait_version(vm, NEXT.1, RESTART_LIMIT).map_err(|e| format!("{e}; {}", why_not_started(vm)))?;
     wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;

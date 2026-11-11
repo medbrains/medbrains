@@ -3,6 +3,7 @@ import "./i18n";
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
+import { trackPersonInput } from "@medbrains/api";
 import { createMedBrainsTheme, cssVariableResolver } from "@medbrains/design-system";
 import { createQueryClient } from "@medbrains/stores";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -131,6 +132,7 @@ function installConsoleErrorReporter() {
 
 installConsoleErrorReporter();
 void startErrorTracking();
+trackPersonInput(window);
 
 const queryClient = createQueryClient({
   // Safety net: any mutation without its own onError surfaces here
