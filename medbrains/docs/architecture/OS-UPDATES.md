@@ -291,6 +291,7 @@ ready, Last update failed or Updates need attention. It opens Settings.
 | Power cut around each rename | One name or UUID or the other (GPT has two checksummed copies) | | Boots old | `power_cuts_installing`, at sfdisk 1, 3, 5, 7 and after 8 |
 | Power cut with update waiting | None | Record says waiting | Boots old, still waiting | `power_cuts_installing` |
 | Power cut publishing the boot file | Old or new name. FAT has no journal: a torn rename could leave a damaged directory entry | | Boots one of them; fsck not automated on the boot partition | Before and after tested; mid-rename **reasoned**, not reachable from a VM |
+| Power cut just after a change to the boot partition | **Found 2026-11-11:** fsync of a FAT directory did not keep the rename; the staged file came back as `<v>.tmp`, an applied one under its staged name | QEMU power-cut scenarios | Every change to the boot partition now ends with `sync --file-system /boot` | `power_cuts_installing`, `power_cuts_applying` |
 | Power cut after publishing | New version on trial | Loader counts | Starts new version on trial | `power_cuts_applying` |
 | Power cut on each trial start | Starts used up | Loader's count | After 3, old version; "rolled back" | `power_cuts_applying` |
 | New version fails health | Would be unusable | Health check | Marks bad, restarts, old version says why, not retried by itself | `failed_health` |
@@ -303,7 +304,8 @@ ready, Last update failed or Updates need attention. It opens Settings.
 | Boot partition full or read-only at apply | Apply fails | rename fails | Stays waiting; says failed | reasoned |
 | Quiet window typo | Would restart at random | Parse | Refused on save; never open if read | unit |
 | Clock wrong or unknown | Window at the wrong hour | chrony | Doesn't apply | `waits_for_quiet`, partly |
-| Someone connected in the window | Would drop them | `ss` | Doesn't apply | `waits_for_quiet` |
+| Someone connected in the window | Would drop them | `ss`, connections from elsewhere only | Doesn't apply | `waits_for_quiet` |
+| The machine's own screen and front connected over loopback | **Found 2026-11-11:** counted as in use, so a window never applied | `waits_for_quiet` | Loopback peers do not count | `waits_for_quiet`, with a real outside connection |
 | New version loses its seal | Prompt nobody answers | Deadline | Old version opens the disk | `seal_prompt_rolls_back` |
 | Migration then failure | **Old server may not start on newer database** | Health, on the old slot too | **Not handled. U1.3** | Not tested |
 | Release key stolen | Anyone can sign | Outside this machine | Rotation and floor, above | Design |
