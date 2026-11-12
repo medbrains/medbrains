@@ -283,6 +283,8 @@ fn failure_notes(vm: &mut Vm) -> String {
     vm.run_for(
         "systemctl --failed --no-legend --plain; echo RUNNING; systemctl list-jobs --no-legend | grep -v waiting | head -10; \
          systemctl status --no-pager -n 5 medbrains-seal medbrains-disk-setup 2>&1 | cut -c1-200 | head -40; \
+         echo ENTRIES; bootctl list --no-pager 2>&1 | grep -E 'title|source|tries' | head -12; \
+         echo BEFORE; journalctl -b -1 --no-pager -p warning -n 20 -o short-monotonic 2>&1 | cut -c1-220; \
          echo LOG; journalctl -b --no-pager -p warning -n 40 -o short-monotonic | cut -c1-220",
         Duration::from_secs(60),
     )
