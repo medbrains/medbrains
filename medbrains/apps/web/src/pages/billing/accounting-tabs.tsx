@@ -81,10 +81,10 @@ import {
   billingGstrReturnTypeOptions,
   billingNumberOrFallback,
   billingOptionalText,
-  billingTdsQuarterOptions,
   billingTdsSectionOptions,
   tdsPeriodOf,
 } from "@/forms/billing.form";
+import { todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { billingService } from "@/services/billing.service";
 
@@ -330,7 +330,8 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [opened, { open, close }] = useDisclosure(false);
-  const today = new Date().toISOString().slice(0, 10);
+  // Local date: at 00:30 IST the UTC date is still yesterday.
+  const today = todayDateString();
   const tdsDefaults: BillingTdsFormInput = {
     invoice_id: "",
     deductee_name: "",
@@ -339,7 +340,6 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     tds_rate: 10,
     base_amount: 0,
     deducted_date: today,
-    ...tdsPeriodOf(today),
   };
   const {
     control,
@@ -353,6 +353,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     defaultValues: tdsDefaults,
   });
   const watchedTds = watch();
+  const reportedIn = watchedTds.deducted_date ? tdsPeriodOf(watchedTds.deducted_date) : null;
   const estimatedTds = Math.round(
     (billingNumberOrFallback(watchedTds.base_amount, 0) *
       billingNumberOrFallback(watchedTds.tds_rate, 0)) /
@@ -508,8 +509,8 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       tds_rate: billingNumberOrFallback(values.tds_rate, 0),
       base_amount: billingNumberOrFallback(values.base_amount, 0),
       deducted_date: values.deducted_date.trim(),
-      financial_year: values.financial_year.trim(),
-      quarter: values.quarter,
+      // The return a deduction is reported in follows its date; nobody types it.
+      ...tdsPeriodOf(values.deducted_date.trim()),
     };
     createMut.mutate(payload);
   };
@@ -620,23 +621,10 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
             required
           />
           <TextInput
-            label="Financial Year"
-            placeholder="2025-26"
-            error={errors.financial_year?.message}
-            {...register("financial_year")}
-          />
-          <Controller
-            control={control}
-            name="quarter"
-            render={({ field }) => (
-              <Select
-                label="Quarter"
-                data={billingTdsQuarterOptions}
-                value={field.value}
-                onChange={(value) => field.onChange(value ?? "Q4")}
-                error={errors.quarter?.message}
-              />
-            )}
+            label="Reported in"
+            description="Financial year and quarter follow the deducted date"
+            value={reportedIn ? `${reportedIn.financial_year} ${reportedIn.quarter}` : ""}
+            readOnly
           />
           <Button tone="primary" type="submit" loading={createMut.isPending}>
             Record

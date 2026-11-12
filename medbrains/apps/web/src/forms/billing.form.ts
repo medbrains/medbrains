@@ -27,7 +27,6 @@ import {
   billingInsuranceSchemeTypeValues,
   billingPaymentModeValues,
   billingServiceCategoryValues,
-  billingTdsQuarterValues,
   billingTdsSectionValues,
   integerFromFormValue,
   numberFromFormValue,
@@ -136,13 +135,6 @@ const tdsSectionLabels: Record<BillingTdsSectionFormValue, string> = {
   "194Q": "194Q",
 };
 
-const tdsQuarterLabels: Record<BillingTdsQuarterFormValue, string> = {
-  Q1: "Q1",
-  Q2: "Q2",
-  Q3: "Q3",
-  Q4: "Q4",
-};
-
 const gstrReturnTypeLabels: Record<BillingGstrReturnTypeFormValue, string> = {
   "GSTR-1": "GSTR-1",
   "GSTR-2B": "GSTR-2B",
@@ -211,11 +203,6 @@ export const billingCreditPatientStatusOptions = billingCreditPatientStatusValue
 export const billingTdsSectionOptions = billingTdsSectionValues.map((value) => ({
   value,
   label: tdsSectionLabels[value],
-}));
-
-export const billingTdsQuarterOptions = billingTdsQuarterValues.map((value) => ({
-  value,
-  label: tdsQuarterLabels[value],
 }));
 
 export const billingGstrReturnTypeOptions = billingGstrReturnTypeValues.map((value) => ({
