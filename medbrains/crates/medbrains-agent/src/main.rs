@@ -36,13 +36,14 @@ const FRONT_CERTIFICATE_FILE: &str = "local-front.pem";
 const CONTROL_SOCKET: &str = "/run/medbrains-agent/control.sock";
 /// The local front end, on the main machine; and on a node, the same address, reached through
 /// this agent. So the screen and its certificate check do not change between the two.
-const FRONT: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 8443);
+const FRONT: SocketAddr =
+    SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 8443);
 
 /// Runs the main machine's side.
 async fn run_main(state: &Path) -> anyhow::Result<()> {
     let secret = keys::load_or_create(&state.join(KEY_FILE))?;
-    let token = std::fs::read_to_string(state.join(SERVER_TOKEN_FILE))?;
-    let certificate = std::fs::read_to_string(state.join(FRONT_CERTIFICATE_FILE))?;
+    let token = tokio::fs::read_to_string(state.join(SERVER_TOKEN_FILE)).await?;
+    let certificate = tokio::fs::read_to_string(state.join(FRONT_CERTIFICATE_FILE)).await?;
     let alpns = vec![JOIN_ALPN.to_vec(), TUNNEL_ALPN.to_vec(), TIME_ALPN.to_vec()];
     let endpoint = build_lan_endpoint(secret, alpns, Some(IROH_PORT)).await?;
     tokio::spawn(mdns::follow(endpoint.clone(), true, |_| {}));
@@ -62,14 +63,19 @@ async fn run_node(state: &Path) -> anyhow::Result<()> {
     let clock = SocketAddr::new(FRONT.ip(), time::NODE_TIME_PORT);
     let node = Node::start(endpoint.clone(), state, FRONT, clock).await?;
     let listener = Arc::clone(&node);
-    tokio::spawn(mdns::follow(endpoint, false, move |event| listener.heard(event)));
+    tokio::spawn(mdns::follow(endpoint, false, move |event| {
+        listener.heard(event)
+    }));
     control::serve_forever(node, Path::new(CONTROL_SOCKET)).await
 }
 
 /// Starts the agent, in the mode its unit asked for.
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_ansi(false).without_time().init();
+    tracing_subscriber::fmt()
+        .with_ansi(false)
+        .without_time()
+        .init();
     let state = Path::new(STATE_DIR);
     if std::env::args().any(|argument| argument == "--main") {
         run_main(state).await
