@@ -120,7 +120,8 @@ impl Ward {
 /// Given a high-alert dose, When it is marked given with no witness, or with a
 /// nurse but no scan (even with the client claiming the scan), Then it is
 /// refused; When it has been scanned, Then the giver as witness, an unknown
-/// user and a receptionist are each refused and the dose stays scheduled; When
+/// user, a receptionist, and a nurse with `nurse.mar.witness` denied are each
+/// refused and the dose stays scheduled; When
 /// a nurse witnesses, Then it is given by the admin and witnessed by the nurse,
 /// and cannot be given or held afterwards.
 #[tokio::test]
@@ -132,6 +133,7 @@ async fn a_high_alert_dose_needs_a_qualified_witness_and_a_scan() -> R<()> {
         .await?;
     let nurse = common::provision_staff(&w.app, &w.csrf, "nurse", &[]).await;
     let clerk = common::provision_staff(&w.app, &w.csrf, "receptionist", &[]).await;
+    let barred = common::provision_staff(&w.app, &w.csrf, "nurse", &["nurse.mar.witness"]).await;
 
     let refused = [
         json!({ "status": "given" }),
@@ -153,7 +155,7 @@ async fn a_high_alert_dose_needs_a_qualified_witness_and_a_scan() -> R<()> {
         .execute(&w.app.db)
         .await?;
     // Scanned, so only the witness can be what refuses these.
-    let unqualified = [admin, Uuid::new_v4(), clerk.user_id];
+    let unqualified = [admin, Uuid::new_v4(), clerk.user_id, barred.user_id];
     for witness in unqualified {
         let body = json!({ "status": "given", "witnessed_by": witness });
         assert_eq!(
@@ -295,5 +297,41 @@ async fn holding_needs_its_own_permission_and_the_right_admission() -> R<()> {
         StatusCode::NOT_FOUND
     );
     assert_eq!(w.dose_row(dose).await?.0, "scheduled");
+    Ok(())
+}
+
+/// Given a member of an "ICU nurse" access group that grants `nurse.mar.witness`,
+/// whose own role does not, When she witnesses a scanned high-alert dose, Then
+/// it is given: the witness's resolved grant decides, not her role's name.
+#[tokio::test]
+async fn an_access_group_grant_makes_a_witness() -> R<()> {
+    let w = admit().await?;
+    let dose = w.new_dose("Potassium chloride", true).await?;
+    let member = common::provision_staff(&w.app, &w.csrf, "staff", &[]).await;
+    let tag = &Uuid::new_v4().simple().to_string()[..8];
+    let group: Uuid = sqlx::query_scalar(
+        "INSERT INTO access_groups (tenant_id, code, name, permissions) \
+         VALUES ($1, $2, 'ICU nurse', '[\"nurse.mar.witness\"]'::jsonb) RETURNING id",
+    )
+    .bind(w.tenant)
+    .bind(format!("icu_nurse_{tag}"))
+    .fetch_one(&w.app.db)
+    .await?;
+    sqlx::query(
+        "INSERT INTO access_group_members (group_id, user_id, tenant_id) VALUES ($1, $2, $3)",
+    )
+    .bind(group)
+    .bind(member.user_id)
+    .bind(w.tenant)
+    .execute(&w.app.db)
+    .await?;
+    sqlx::query("UPDATE ipd_medication_administration SET barcode_verified = true WHERE id = $1")
+        .bind(dose)
+        .execute(&w.app.db)
+        .await?;
+
+    let given = json!({ "status": "given", "witnessed_by": member.user_id });
+    assert_eq!(w.mark(dose, &given).await?, StatusCode::OK);
+    assert_eq!(w.dose_row(dose).await?.2, Some(member.user_id));
     Ok(())
 }
