@@ -72,7 +72,7 @@ export function SubstituteModal({ opened, onClose, item, catalog }: Props) {
       }),
     onSuccess: () => {
       toast.success("Substitution recorded", { title: "Substituted" });
-      queryClient.invalidateQueries({ queryKey: ["substitutions", item.id] });
+      void queryClient.invalidateQueries({ queryKey: ["substitutions", item.id] });
       onClose();
     },
     onError: (e: Error) => toast.error(e.message, { title: "Substitution failed" }),

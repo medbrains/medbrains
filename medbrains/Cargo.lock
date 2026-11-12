@@ -6324,6 +6324,7 @@ dependencies = [
  "ed25519-dalek",
  "hkdf 0.13.0",
  "josekit",
+ "jsonwebtoken",
  "openssl",
  "rand 0.10.3",
  "serde",

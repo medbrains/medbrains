@@ -25,6 +25,7 @@ pub mod beckn;
 pub mod fidelius;
 pub mod jwe;
 pub mod jws;
+pub mod keys;
 
 #[derive(Debug, Error)]
 pub enum CryptoError {

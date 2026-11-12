@@ -22,6 +22,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { OperationalSignal, PatientSearchSelect, useProtectedFieldAccess } from "@/components";
+import { loadFailedTitle, QueryError } from "@/components/QueryError";
 import { Alert, Button, Input, Modal } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import { ipdAdmissionWorkspaceTabRoute } from "../ipd-workspace";
@@ -95,7 +96,11 @@ export function BedDashboardTab() {
     setHoldPurpose("");
   };
 
-  const { data: summaryData } = useQuery({
+  const {
+    data: summaryData,
+    error: summaryError,
+    refetch: refetchSummary,
+  } = useQuery({
     queryKey: ["ipd-bed-dashboard-summary"],
     queryFn: () => ipdService.bedDashboardSummary(),
   });
@@ -104,7 +109,12 @@ export function BedDashboardTab() {
   if (filterWard) bedParams.ward_id = filterWard;
   if (filterStatus) bedParams.status = filterStatus;
 
-  const { data: bedsData, isLoading } = useQuery({
+  const {
+    data: bedsData,
+    isLoading,
+    error: bedsError,
+    refetch: refetchBeds,
+  } = useQuery({
     queryKey: ["ipd-bed-dashboard-beds", bedParams],
     queryFn: () =>
       ipdService.bedDashboardBeds(Object.keys(bedParams).length > 0 ? bedParams : undefined),
@@ -220,77 +230,88 @@ export function BedDashboardTab() {
 
   return (
     <Stack>
-      <SimpleGrid cols={{ base: 2, sm: 4, md: 7 }}>
-        <Card withBorder p="xs">
-          <OperationalSignal
-            label={t("bedDashboard.summary.total")}
-            shape="pill"
-            size="xs"
-            tone="neutral"
-            value={totals.total}
-          />
-        </Card>
-        <Card withBorder p="xs">
-          <OperationalSignal
-            icon={bedDashboardStatusIcon("vacant_clean")}
-            label={bedDashboardSignalLabel(t, "vacant_clean")}
-            shape={bedDashboardStatusShape("vacant_clean")}
-            size="xs"
-            tone={bedDashboardStatusTone("vacant_clean")}
-            value={totals.vacant_clean}
-          />
-        </Card>
-        <Card withBorder p="xs">
-          <OperationalSignal
-            icon={bedDashboardStatusIcon("vacant_dirty")}
-            label={bedDashboardSignalLabel(t, "vacant_dirty")}
-            shape={bedDashboardStatusShape("vacant_dirty")}
-            size="xs"
-            tone={bedDashboardStatusTone("vacant_dirty")}
-            value={totals.vacant_dirty}
-          />
-        </Card>
-        <Card withBorder p="xs">
-          <OperationalSignal
-            icon={bedDashboardStatusIcon("occupied")}
-            label={bedDashboardSignalLabel(t, "occupied")}
-            shape={bedDashboardStatusShape("occupied")}
-            size="xs"
-            tone={bedDashboardStatusTone("occupied")}
-            value={totals.occupied}
-          />
-        </Card>
-        <Card withBorder p="xs">
-          <OperationalSignal
-            icon={bedDashboardStatusIcon("reserved")}
-            label={bedDashboardSignalLabel(t, "reserved")}
-            shape={bedDashboardStatusShape("reserved")}
-            size="xs"
-            tone={bedDashboardStatusTone("reserved")}
-            value={totals.reserved}
-          />
-        </Card>
-        <Card withBorder p="xs">
-          <OperationalSignal
-            icon={bedDashboardStatusIcon("maintenance")}
-            label={bedDashboardSignalLabel(t, "maintenance")}
-            shape={bedDashboardStatusShape("maintenance")}
-            size="xs"
-            tone={bedDashboardStatusTone("maintenance")}
-            value={totals.maintenance}
-          />
-        </Card>
-        <Card withBorder p="xs">
-          <OperationalSignal
-            icon={bedDashboardStatusIcon("blocked")}
-            label={bedDashboardSignalLabel(t, "blocked")}
-            shape={bedDashboardStatusShape("blocked")}
-            size="xs"
-            tone={bedDashboardStatusTone("blocked")}
-            value={totals.blocked}
-          />
-        </Card>
-      </SimpleGrid>
+      {/* Zero vacant beds is a fact a bed manager acts on; a failed read
+          must say so instead of drawing seven zeros. */}
+      {summaryError && (
+        <QueryError
+          error={summaryError}
+          onRetry={() => void refetchSummary()}
+          title={loadFailedTitle("Bed counts", summaryData !== undefined)}
+        />
+      )}
+      {(!summaryError || summaryData !== undefined) && (
+        <SimpleGrid cols={{ base: 2, sm: 4, md: 7 }}>
+          <Card withBorder p="xs">
+            <OperationalSignal
+              label={t("bedDashboard.summary.total")}
+              shape="pill"
+              size="xs"
+              tone="neutral"
+              value={totals.total}
+            />
+          </Card>
+          <Card withBorder p="xs">
+            <OperationalSignal
+              icon={bedDashboardStatusIcon("vacant_clean")}
+              label={bedDashboardSignalLabel(t, "vacant_clean")}
+              shape={bedDashboardStatusShape("vacant_clean")}
+              size="xs"
+              tone={bedDashboardStatusTone("vacant_clean")}
+              value={totals.vacant_clean}
+            />
+          </Card>
+          <Card withBorder p="xs">
+            <OperationalSignal
+              icon={bedDashboardStatusIcon("vacant_dirty")}
+              label={bedDashboardSignalLabel(t, "vacant_dirty")}
+              shape={bedDashboardStatusShape("vacant_dirty")}
+              size="xs"
+              tone={bedDashboardStatusTone("vacant_dirty")}
+              value={totals.vacant_dirty}
+            />
+          </Card>
+          <Card withBorder p="xs">
+            <OperationalSignal
+              icon={bedDashboardStatusIcon("occupied")}
+              label={bedDashboardSignalLabel(t, "occupied")}
+              shape={bedDashboardStatusShape("occupied")}
+              size="xs"
+              tone={bedDashboardStatusTone("occupied")}
+              value={totals.occupied}
+            />
+          </Card>
+          <Card withBorder p="xs">
+            <OperationalSignal
+              icon={bedDashboardStatusIcon("reserved")}
+              label={bedDashboardSignalLabel(t, "reserved")}
+              shape={bedDashboardStatusShape("reserved")}
+              size="xs"
+              tone={bedDashboardStatusTone("reserved")}
+              value={totals.reserved}
+            />
+          </Card>
+          <Card withBorder p="xs">
+            <OperationalSignal
+              icon={bedDashboardStatusIcon("maintenance")}
+              label={bedDashboardSignalLabel(t, "maintenance")}
+              shape={bedDashboardStatusShape("maintenance")}
+              size="xs"
+              tone={bedDashboardStatusTone("maintenance")}
+              value={totals.maintenance}
+            />
+          </Card>
+          <Card withBorder p="xs">
+            <OperationalSignal
+              icon={bedDashboardStatusIcon("blocked")}
+              label={bedDashboardSignalLabel(t, "blocked")}
+              shape={bedDashboardStatusShape("blocked")}
+              size="xs"
+              tone={bedDashboardStatusTone("blocked")}
+              value={totals.blocked}
+            />
+          </Card>
+        </SimpleGrid>
+      )}
 
       <Group>
         <Select
@@ -330,9 +351,16 @@ export function BedDashboardTab() {
         </Alert>
       )}
 
+      {bedsError && (
+        <QueryError
+          error={bedsError}
+          onRetry={() => void refetchBeds()}
+          title={loadFailedTitle("Beds", bedsData !== undefined)}
+        />
+      )}
       {isLoading ? (
         <Text c="dimmed">{t("bedDashboard.loadingBeds")}</Text>
-      ) : (
+      ) : bedsError && bedsData === undefined ? null : (
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }}>
           {beds.map((bed) => {
             const bedStatus = bed.bed_status;
@@ -510,7 +538,7 @@ export function BedDashboardTab() {
           })}
         </SimpleGrid>
       )}
-      {beds.length === 0 && !isLoading && (
+      {beds.length === 0 && !isLoading && !bedsError && (
         <Text c="dimmed" size="sm">
           {t("bedDashboard.noBedsFound")}
         </Text>

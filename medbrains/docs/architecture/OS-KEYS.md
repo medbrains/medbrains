@@ -21,6 +21,7 @@ has left the machine. Without a PIN it does not protect a stolen machine from so
 | Kernel command line edited | **Menu and editor off**, tested by file only; **not sealed:** PCR 12 changed between normal cold boots, so a machine stopped opening itself. Starting a firmware shell first changes PCR 4 | `boot_editor_off`, anomaly in DECISIONS |
 | Passive sniffing of the TPM bus | **Stopped.** Unseal runs in a salted HMAC session with response encryption, on by default | Below |
 | Active interposer on the TPM bus, no PIN | **Not stopped.** systemd says so in its source. A PIN closes it | Below |
+| Interposer on the TPM bus while the lockout password is used | **Not stopped, accepted.** The lockout password crosses the bus in clear at setup, an interrupted setup, `reseal` and `clear-lockout`; whoever reads it then can reset the failure count and guess PINs without limit on that machine | Below, "TPM lockout" |
 | System partition edited, then booted in this machine | **Not stopped without a PIN, tested.** Same loader and boot file, so PCR 4 matches and the TPM opens the disk for whatever runs. The same goes for those files copied to a USB stick with another system partition (reasoned, not run). **Only verity and Secure Boot close this. A PIN does, today** | `known_gap_system_partition_edit_opens` |
 | Cold boot, or DMA while running | Volume key is in kernel memory. IOMMU settings help against DMA; nothing here stops cold boot | Below |
 
@@ -64,11 +65,24 @@ and whether a run passed depended on timing.
 | Wrong lockout password | that path shut for 10 minutes | Stops guessing the lockout password itself |
 | Lockout password | SHA-256 of a fixed label and the recovery key | Whoever holds the recovery key can lift a lockout; no second secret exists |
 
-`disk-setup` sets these at first boot, after an interrupted setup and on `reseal`. A TPM that already has a lockout
-password that is not ours (a previous owner, the firmware) keeps its own limits, said in the journal; setup goes on.
+`disk-setup` sets these at first boot (once the recovery-key marker is on disk, so a password is never derived from
+a key a power cut then replaces), after an interrupted setup and on `reseal`. It reads `lockoutAuthSet` first and
+tries one password at most, because a wrong one shuts the lockout path for 10 minutes: none set, the limits and
+then ours; one set, ours, once. If ours is not in place afterwards (a previous owner's or the firmware's password,
+or a step failed), the chip keeps limits nothing here can check, so setup offers no PIN and says so on the screen;
+the machine starts without typing.
 When the disk does not open and the TPM is locked out, the screen says "too many failed starts" instead of looking
 like a wrong PIN, and points to the recovery key, which opens the disk whatever the TPM says. IT lifts the lockout
-with `disk-setup clear-lockout <file with the recovery key>` (below); there is no screen for it yet, **gap**.
+with `disk-setup clear-lockout <file with the recovery key>` (below); there is no screen for it yet, **gap**. The key
+is checked against the recovery slot alone before the TPM is asked, so a wrong key never costs the 10 minutes.
+
+**Accepted, with reasons:**
+
+| Risk | Why it is accepted | What would close it |
+|---|---|---|
+| The lockout password crosses the TPM bus in clear | `tpm2_dictionarylockout` has no session option, so every use goes in a plain password session; encrypting only the change (`tpm2_changeauth -S`) would leave each use exposed. A reader must be on the bus at setup, an interrupted setup, a reseal or an IT visit, and the same interposer already defeats the default no-PIN machine | The lockout commands in Rust (`tss-esapi`) under a salted session with parameter encryption, as systemd does for unseal |
+| Up to about 300 PIN guesses a day (one failure forgiven every 5 minutes) | Each guess is typed at the machine's own screen and needs a restart after two; a 6-digit PIN has a million values, so half of them takes years | A longer PIN, or a longer interval at the cost of power-cut room |
+| `tpm2-tools` on every image | Root on the machine can lock the TPM out in one line, but root can already wipe the disk; the recovery key still opens it and the lockout heals with uptime. The tools are what lets setup set the limits at all | The same Rust lockout code, then the tools leave the image |
 
 ### Binding to the signed boot image
 
@@ -136,6 +150,32 @@ disposal. No screen for this yet.
 | **First admin password** | First sign-in | Chosen by a person at setup; only its Argon2 hash goes into the env as `MEDBRAINS_SEED_*`, removed once the server has read it | env, briefly | 0640 | Until changed | Password change | **No recovery path yet** (§8k) | Offline guessing while the line exists |
 | **User passwords** | Sign-in | Argon2 with crate defaults, source | Database | RLS | User set | Password change | Reset | Offline guessing |
 | **API keys** | Machine access | 256-bit random, unsalted SHA-256 at rest, source | Database | RLS | Until revoked | Revoke and create | Create new | Hash only; high entropy, so guessing is not practical |
+
+### Checked when loaded
+
+A key is checked before it is used, and a bad one is refused, never warned about
+(`crates/medbrains-crypto/src/keys.rs`; the eMudhra CA incident is why):
+
+- **JWT pair**: parsed with OpenSSL (PKCS#8 private; SPKI or raw 32-byte public),
+  the seed must derive the public key, and a probe token is signed and verified
+  with `jsonwebtoken`. Any failure stops the server with
+  `refusing to start: JWT_PRIVATE_KEY does not belong to its public key ...`.
+  The fingerprint (`SHA256:` + 16 hex) is logged at start-up, never the key.
+  `install.sh` makes the same check with OpenSSL (`deploy/standalone/jwt-keys.sh`).
+- **Sealing keys**: `secrets::sealing::sealing_key` only. The development value in
+  the source is used only when the key is unset and `MEDBRAINS_ENV=development`.
+- **Doctor signing keys**: the unsealed seed must derive the credential's stored
+  public key; each signature is verified before it is written. A plaintext key
+  from before May 2026 is used only under the same proof and is sealed in place
+  the first time it signs. A sealed key that will not open means
+  `MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY` changed: restore it from the backup.
+- **Fidelius**: peer keys are a raw point or SPKI on exactly this curve (explicit
+  parameters, or BouncyCastle's curve25519 OID, which OpenSSL cannot name and a
+  strict DER walk accepts), never at
+  infinity, off the curve or outside the prime-order subgroup; a reopened private
+  scalar must be `1 ≤ d < n` and derive its stored public point.
+
+New raw-key handling outside `keys*` fails `make check-raw-key-bytes`.
 
 ## Certificates
 
@@ -214,7 +254,7 @@ disk to a file on that disk. A test found this: the disk would not open.
 | Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it; the top bar says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
 | Boot file changed | PCR 4 and 11 differ | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
 | PIN wrong or forgotten | | Unseal fails | Two wrong tries, then it asks for the recovery key, which opens it; a key typed before that counts as a wrong PIN. A restart asks for the PIN again | `recovery_key_opens_a_pin_machine` |
-| TPM lockout: power cuts and wrong PINs reach the limit | Right PIN refused | `inLockout` set | Screen says "too many failed starts"; the recovery key opens the disk; IT runs `clear-lockout`, or it heals with uptime | `power_cuts_and_a_wrong_pin_leave_the_pin_working`, `it_lifts_a_lockout`, `limits_are_ours` |
+| TPM lockout: power cuts and wrong PINs reach the limit | Right PIN refused | `inLockout` set | Screen says "too many failed starts"; the recovery key opens the disk; IT runs `clear-lockout`, or it heals with uptime | `it_lifts_a_lockout`, `limits_are_ours`, both also after an interrupted setup |
 | Power cut after the key is saved and before the record | The seal may need a PIN nobody can vouch for | Marker with no record | Disk asks; the saved recovery key opens it; setup asks for it again, re-seals, records what the seal is | `power_cut_during_pin_setup_recovers` |
 | Disk copied to another machine | TPM refuses | Unseal fails | Prompt on the screen, with a notice after 20 s. `/var` not mounted; no service starts | `copy_stays_locked` |
 | Recovery key lost **and** TPM gone | **Data lost** | Nothing opens | Stays at the prompt. Restore from backup; no backup exists until D2 | none: by design |

@@ -19,7 +19,7 @@
 set -uo pipefail
 
 APP="${APP_BASE_URL:-http://localhost:3000}"
-DB_URL="${DATABASE_URL:-postgres://medbrains:medbrains_dev@localhost:5435/medbrains}"
+DB_URL="${DATABASE_URL:?set DATABASE_URL (see .env.example); no password lives in this script}"
 ADMIN_USER="${DEV_ADMIN_USER:-admin}"
 ADMIN_PASS="${DEV_ADMIN_PASSWORD:-admin123}"
 PASSWORD="${DEV_MAILBOX_PASSWORD:-medbrains_dev_pw}"

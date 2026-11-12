@@ -270,8 +270,8 @@ export function IoTab({
         <CreateIoPanel
           encounterId={encounterId}
           onCreated={() => {
-            qc.invalidateQueries({ queryKey: ["io-entries"] });
-            qc.invalidateQueries({ queryKey: ["io-balance"] });
+            void qc.invalidateQueries({ queryKey: ["io-entries"] });
+            void qc.invalidateQueries({ queryKey: ["io-balance"] });
           }}
         />
       )}

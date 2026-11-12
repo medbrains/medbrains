@@ -167,10 +167,10 @@ export function RxQueueTab({
         safety_override_reason: data.safety_override_reason,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
-      queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["billing-report-daily"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing-report-daily"] });
       closeReview();
       setActiveRxQueueId(null);
       resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);

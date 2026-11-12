@@ -428,6 +428,10 @@ fn power_cut_during_pin_setup_recovers(image: &Path) -> Result<(), String> {
     wait_disk_step_done(&mut vm)?;
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "encrypted-tpm2", record)?;
+    // Setup set the lockout password before the cut and again after: the second run must use it, not guess,
+    // or the lockout path stays shut for ten minutes and IT cannot lift a lockout.
+    crate::tpm_lockout::limits_are_ours(&mut vm, image)?;
+    crate::tpm_lockout::it_lifts_a_lockout(&mut vm, image)?;
     vm.reboot()?;
     wait_open(&mut vm)
 }
