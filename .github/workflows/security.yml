@@ -278,7 +278,8 @@ jobs:
       - name: Drop findings already answered in source
         run: |
           # A skip is an answer only with its reason; one without would hide a finding silently.
-          if grep -rnE '#checkov:skip=[A-Z0-9_]+[[:space:]]*(:[[:space:]]*)?$' medbrains/infra; then
+          # Catches `#checkov:skip=ID`, `# checkov:skip=ID:` and `#checkov:skip=ID reason` (no colon).
+          if grep -rnE '#[[:space:]]*checkov:skip=[A-Z0-9_]+([[:space:]]*:?[[:space:]]*$|[[:space:]]+[^:])' medbrains/infra; then
             echo "::error::every #checkov:skip needs ':<reason>'"; exit 1
           fi
           jq '.runs |= map(.results |= map(select((.suppressions // []) | length == 0)))' \
