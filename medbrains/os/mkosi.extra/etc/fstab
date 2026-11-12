@@ -1,3 +1,7 @@
 # The data partition (§8k): all writable state, opened through /etc/crypttab. noatime spares flash.
 # No device timeout: boot waits for the recovery key on a disk that will not open by itself.
-/dev/mapper/medbrains-data  /var  ext4  defaults,noatime,x-systemd.device-timeout=0  0  2
+# nodev, nosuid (CIS 1.1.2.4): nothing on the data partition is a device or may raise privilege.
+/dev/mapper/medbrains-data  /var  ext4  defaults,noatime,nodev,nosuid,x-systemd.device-timeout=0  0  2
+# Scratch space and shared memory run no programs, and hold no devices or set-user-ID files (CIS 1.1.2.1, 1.1.2.2).
+tmpfs  /tmp      tmpfs  mode=1777,strictatime,nosuid,nodev,noexec,size=50%,nr_inodes=1m  0  0
+tmpfs  /dev/shm  tmpfs  nosuid,nodev,noexec  0  0

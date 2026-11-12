@@ -245,6 +245,13 @@ impl Vm {
 
     /// Boots `image` on a new overlay and waits for a shell; nothing is typed on its screen.
     pub(crate) fn start_waiting(image: &Path, tpm: Option<&str>) -> Result<Self, String> {
+        let mut vm = Self::spawn(image, tpm)?;
+        vm.wait_for_shell()?;
+        Ok(vm)
+    }
+
+    /// Boots `image` on a new overlay and returns at once: for a release image, which has no shell.
+    pub(crate) fn spawn(image: &Path, tpm: Option<&str>) -> Result<Self, String> {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| e.to_string())?
@@ -266,7 +273,7 @@ impl Vm {
         monitor
             .set_read_timeout(Some(Duration::from_millis(5)))
             .map_err(|e| e.to_string())?;
-        let mut vm = Self {
+        Ok(Self {
             dir,
             disk,
             ports,
@@ -275,9 +282,12 @@ impl Vm {
             monitor,
             marker: 0,
             recovery_key: String::new(),
-        };
-        vm.wait_for_shell()?;
-        Ok(vm)
+        })
+    }
+
+    /// The machine's serial port, raw: for checking what it offers someone with a cable.
+    pub(crate) const fn serial_port(&mut self) -> &mut UnixStream {
+        &mut self.serial
     }
 
     /// The overlay this machine was created with.
@@ -513,7 +523,22 @@ impl Vm {
                 return Ok(());
             }
         }
-        Err("the machine showed no prompt in time".to_owned())
+        // DIAG: keep watching up to 10 more minutes, to tell a hang from a slow boot.
+        let started = Instant::now();
+        let extra = Instant::now() + Duration::from_secs(600);
+        while Instant::now() < extra {
+            if let Ok(count) = self.serial.read(&mut buffer) {
+                raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+            }
+            let text = String::from_utf8_lossy(&raw);
+            let shown = if restarting { text.rfind(firmware).map(|at| &text[at..]) } else { Some(&*text) };
+            if shown.is_some_and(|tail| tail.contains(PROMPT)) { break; }
+        }
+        let text = strip_terminal_codes(&String::from_utf8_lossy(&raw));
+        let tail: String = text.chars().rev().take(2500).collect::<Vec<_>>().into_iter().rev().collect();
+        let late = if Instant::now() < extra { format!("prompt came {:.0}s after the {:.0}s limit", started.elapsed().as_secs_f32(), limit.as_secs_f32()) } else { format!("no prompt even {:.0}s after the {:.0}s limit", started.elapsed().as_secs_f32(), limit.as_secs_f32()) };
+        let _ = std::fs::write(self.dir.with_extension("serial.txt"), text.as_bytes());
+        Err(format!("the machine showed no prompt in time; DIAG {late}; serial tail:\n{tail}"))
     }
 
     /// Waits for the machine to restart by itself and show a shell, sending nothing where the
@@ -548,7 +573,14 @@ impl Vm {
             format!("BEGIN{}X", self.marker),
             format!("END{}X", self.marker),
         );
-        // The bare `echo` ends a last line with no newline, which would hide the marker.
+        // The bare `echo` ends a last line with no newline, which would hide the marker. One line only: a
+        // second would echo a prompt inside the markers. `cmd &;` is a syntax error, so a command that
+        // backgrounds itself gets a no-op after it.
+        let command = if command.trim_end().ends_with('&') {
+            format!("{command} :")
+        } else {
+            command.to_owned()
+        };
         let line = format!("echo {begin}; {command}; echo; echo {end}\n");
         self.serial
             .write_all(line.as_bytes())

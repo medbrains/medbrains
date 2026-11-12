@@ -462,10 +462,16 @@ fn power_cuts_applying(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     hook(vm, "systemctl", "/usr/bin/systemctl", 1, false)?;
     vm.run("PATH=/run/hook:$PATH nohup medbrains-os-update apply > /run/apply.out 2>&1 &")?;
     wait_for(vm, "test -e /run/hook/hit", RESTART_LIMIT)?;
+    let before_cut = vm.run("ls -la --time-style=full-iso /boot/EFI/Linux; cat /run/apply.out; findmnt /boot; bootctl list --no-pager 2>&1 | grep -E 'title|version|id:|tries|source'")?;
+    say(&format!("      DIAG before the cut:\n{before_cut}"));
     for attempt in 1..=3 {
         vm.cut_power()?;
         vm.boot(&disk, own_tpm())?;
         let version = running_version(vm)?;
+        if version != NEXT.1 {
+            let after = vm.run("ls -la --time-style=full-iso /boot/EFI/Linux; bootctl status --no-pager 2>&1 | grep -iE 'current|default|selected|entry'; bootctl list --no-pager 2>&1 | grep -E 'title|version|id:|tries|source'")?;
+            say(&format!("      DIAG after start {attempt}:\n{after}"));
+        }
         ensure(
             version == NEXT.1,
             format!("start {attempt}: booted {version}"),

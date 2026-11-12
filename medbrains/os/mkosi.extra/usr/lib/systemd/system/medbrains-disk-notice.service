@@ -14,5 +14,22 @@ StandardInput=null
 StandardOutput=tty
 StandardError=journal
 
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Early boot, root, writing the partition table, LUKS and the TPM. Not ProtectSystem or a device or
+# module limit: it creates a partition, loads dm-crypt and talks to the TPM. Nor RestrictNamespaces or
+# RestrictSUIDSGID: systemd-repart forks its copy step into a new namespace and copies /var's setgid
+# folders, and first boot failed with both (found by medbrains-os-test). These cannot get in the way.
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+LockPersonality=yes
+NoNewPrivileges=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
 [Install]
 WantedBy=sysinit.target

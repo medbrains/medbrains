@@ -12,5 +12,32 @@ RemainAfterExit=yes
 TimeoutStartSec=30
 ExecStart=/usr/lib/medbrains/time-role
 
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Reads the role marker and writes chrony's source list; no network, no devices. Root needs to pass
+# /var/lib/medbrains (0750, the server's own) to see the marker: without it a node took internet time.
+ProtectSystem=strict
+ReadWritePaths=/run/medbrains-role
+PrivateNetwork=yes
+PrivateDevices=yes
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+RestrictAddressFamilies=AF_UNIX
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+ProtectKernelModules=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0022
+
 [Install]
 WantedBy=chrony.service

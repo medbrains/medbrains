@@ -421,7 +421,10 @@ fn power_cut_during_pin_setup_recovers(image: &Path) -> Result<(), String> {
     vm.boot(&disk, Some(OWN_TPM))?;
     open_past_the_pin_with_recovery_key(&mut vm)?;
     let key = vm.recovery_key.clone();
-    vm.wait_for_screen("setup was interrupted", scaled(SCREEN_LIMIT))?;
+    if let Err(why) = vm.wait_for_screen("setup was interrupted", scaled(SCREEN_LIMIT)) {
+        let diag = vm.run_for("cat /proc/uptime; systemctl list-jobs --no-pager | head -20; systemctl status medbrains-disk-finish --no-pager -n 0 | head -6; journalctl -b -o short-monotonic --no-pager -u medbrains-disk-finish -u medbrains-disk-notice -u 'systemd-cryptsetup@*' | tail -40; ls -la /var/lib/medbrains/config/", Duration::from_secs(120)).unwrap_or_default();
+        return Err(format!("{why}\nDIAG:\n{diag}"));
+    }
     vm.type_text(&format!("{key}\n"))?;
     vm.wait_for_screen("how should this machine start", scaled(SCREEN_LIMIT))?;
     vm.type_text("\n")?;

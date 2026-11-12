@@ -1,0 +1,87 @@
+#!/bin/bash
+# The support console's boot-health view (issue #5383), on tty2 (Ctrl+Alt+F2): what is still starting,
+# the slowest steps of this boot, and for each failed service a reason in hospital words, its unit name
+# for support staff, and its last log lines. With no login anywhere on a release image (X6), this is how a
+# technician at the machine sees why it did not finish starting. It reads only, takes no input, and every
+# read is bounded.
+#
+#   boot-health          redraw every few seconds (the service)
+#   boot-health --once   print one view and exit (tests)
+set -uo pipefail
+export LC_ALL=C SYSTEMD_COLORS=0 SYSTEMD_PAGER=
+
+MAX_STARTING=12
+MAX_SLOWEST=8
+MAX_FAILED=6
+LOG_LINES=10
+LINE_WIDTH=160
+REDRAW_S=5
+
+# The reason a person at the hospital can repeat on the phone, for a failed unit.
+reason() {
+    case "$1" in
+        postgresql@*) echo "Database did not start" ;;
+        medbrains-db-init.*) echo "Database setup did not finish" ;;
+        medbrains-server.*) echo "MedBrains did not start" ;;
+        medbrains-front.* | medbrains-front-certs.*) echo "The secure web address did not start" ;;
+        kanidmd.*) echo "Staff sign-in did not start" ;;
+        kanidm-setup.*) echo "Staff sign-in rules were not applied" ;;
+        medbrains-disk-* | systemd-cryptsetup@* | var.mount) echo "The data disk did not open" ;;
+        medbrains-firstboot.*) echo "First start-up setup did not finish" ;;
+        medbrains-os-setup.*) echo "Setup and machine controls did not start" ;;
+        cage-console.*) echo "The screen did not start" ;;
+        medbrains-agent*) echo "The link to other MedBrains machines did not start" ;;
+        chrony.* | medbrains-time-role.*) echo "The clock could not be checked" ;;
+        nftables.*) echo "The firewall did not load, so the network is closed" ;;
+        systemd-networkd.* | medbrains-network-settings.* | medbrains-role-network.*) echo "The network did not start" ;;
+        systemd-resolved.*) echo "Name lookup did not start" ;;
+        medbrains-update-* | medbrains-os-update@*) echo "An update step failed; the machine keeps its running version" ;;
+        apparmor.*) echo "App protection did not load" ;;
+        *.mount) echo "A storage area did not mount" ;;
+        *) echo "A system service did not start" ;;
+    esac
+}
+
+# Prints at most `max` lines of stdin, each cut to the screen's width.
+bounded() { head -n "$1" | cut -c1-"$LINE_WIDTH"; }
+
+# One full view of the machine's start-up.
+view() {
+    local state failed unit slowest
+    state="$(systemctl is-system-running 2>/dev/null)"
+    printf 'MedBrains: how this machine started    %s    state: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${state:-unknown}"
+    printf 'This screen only shows; it takes no typing. Ctrl+Alt+F1 goes back to the main screen.\n\n'
+
+    printf 'Still starting\n'
+    systemctl list-jobs --no-legend --plain 2>/dev/null | awk '{print "  " $2 "  (" $4 ")"}' | bounded "$MAX_STARTING"
+    systemctl list-jobs --no-legend --plain 2>/dev/null | grep -q . || printf '  nothing\n'
+
+    printf '\nSlowest steps of this start\n'
+    if slowest="$(systemd-analyze blame --no-pager 2>/dev/null)"; then
+        sed 's/^ */  /' <<<"$slowest" | bounded "$MAX_SLOWEST"
+    else
+        printf '  shown once start-up has finished\n'
+    fi
+
+    printf '\nWhat failed\n'
+    failed="$(systemctl list-units --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | head -n "$MAX_FAILED")"
+    if [[ -z "$failed" ]]; then
+        printf '  nothing\n'
+        return
+    fi
+    for unit in $failed; do
+        printf '\n  %s\n    %s\n' "$(reason "$unit")" "$unit"
+        journalctl -b -u "$unit" -n "$LOG_LINES" --no-pager -o short-monotonic -q 2>/dev/null |
+            sed 's/^/      /' | bounded "$LOG_LINES"
+    done
+}
+
+if [[ "${1:-}" == --once ]]; then
+    view
+    exit 0
+fi
+while :; do
+    # Clear and redraw in one write, so the screen never shows half a view.
+    printf '\033[H\033[2J%s\n' "$(view)"
+    sleep "$REDRAW_S"
+done

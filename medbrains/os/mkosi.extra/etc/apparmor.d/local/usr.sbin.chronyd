@@ -1,0 +1,4 @@
+# MedBrains: chrony reads this machine's time sources from the folder medbrains-time-role writes
+# (chrony.conf `confdir`). Debian's own chronyd profile does not know it.
+/run/medbrains-role/ r,
+/run/medbrains-role/*.conf r,

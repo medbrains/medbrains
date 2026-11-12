@@ -50,7 +50,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | Task | What | Done when | State |
 |---|---|---|---|
 | T1 | Encrypted disk, Secure Boot, boot editor locked | Copied disk will not open | **disk done** (LUKS2 sealed to TPM with signed boot policy, recovery key, optional PIN, editor off, `OS-KEYS.md`), proven on x86-64 swtpm only; real TPM untested. Secure Boot, verity and a release signing key **open**: until then, without a PIN, someone who steals the machine and changes its system partition gets the data |
-| T1.1 | Harden Linux with what it has: block unused kernel modules, kernel lockdown, safer sysctls, no kexec, AppArmor profiles, smaller package set, each tested against the app | Known-bad module refuses to load; checked by a scan on each build | next |
+| T1.1 | Harden Linux with what it has: block unused kernel modules, kernel lockdown, safer sysctls, no kexec, AppArmor profiles, smaller package set, each tested against the app | Known-bad module refuses to load; checked by a scan on each build | **done** (2026-11-10): Kicksecure-derived kernel flags (`lockdown=confidentiality`, `module.sig_enforce=1`, `init_on_free`, ...), sysctls and module blocklist, each with its reason; systemd sandboxing on every MedBrains unit under a per-unit `systemd-analyze security` ceiling; AppArmor profiles in enforce for server, front, agent, setup, Kanidm and PostgreSQL; SUID bits stripped. Each asserted by `medbrains-os-test` on a booted image (blocked module and an unsigned module refused, kernel memory unreadable by root, sysctls read back, exposure within budget, profiles in enforce with no denials). What was not taken and why: `os/README.md` "Linux hardening". Package-set trimming still open |
 | T1.2 | Daily flaw check of the image's own parts list; rebuild on a Debian security fix | A new Debian advisory opens a tracked item within a day | next, with U1.1 |
 | T2 | Machine keys, hospital root key, key rotation, a screen to replace the recovery key | Node certificate traces to the root | later; the disk recovery key itself landed with T1. Gaps listed in `OS-KEYS.md` |
 | T3 | Kanidm as identity provider, chosen on security over FerrisKey (`feature/os-kanidm`) | Physical FIDO2 key passes attestation; advisories confirmed fixed in the shipped version; staff sign in on the OS screen; Entra and directory path decided | doing: passed the key allow-list with software keys only; physical key blocked on hardware |
@@ -215,7 +215,7 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X3 | AI prompt injection tests | Hidden instructions change nothing | next |
 | X4 | Recovery cannot be rushed or done alone | One person's attempt refused | next, with T2 |
 | X5 | No shared secret across machines | Two fresh machines compared, nothing shared | next |
-| X6 | Hardware hardening: TPM encrypted sessions, PIN or card option, IOMMU, Thunderbolt off, memory wiped at shutdown, no serial login in release | Each checked by `medbrains-os-test` where a VM can show it | next; hardware rows blocked |
+| X6 | Hardware hardening: TPM encrypted sessions, PIN or card option, IOMMU, Thunderbolt off, memory wiped at shutdown, no serial login in release | Each checked by `medbrains-os-test` where a VM can show it | shell and serial **done** (2026-11-10): no SSH, every getty and `debug-shell` masked, `systemd.getty_auto=no`, root locked; a release image tested from outside (`medbrains-os-test <image> release`: SSH silent, serial shows no login and runs nothing); the support console only shows (#5383). Thunderbolt and FireWire modules blocked. TPM sessions, PIN or card, memory wipe: next; hardware rows blocked |
 | X7 | Pi 5: secure boot and OTP key design, and what it does not protect | Written, then tested on a Pi | blocked: needs hardware |
 | X8 | Attack test per row of `OS-THREATS.md` | Every row has a test or a stated reason | next |
 | X10 | Medical-grade connectors: HL7 v2, FHIR R4, DICOM and ASTM over mutually authenticated TLS, standard codes, a per-connector firewall path, audit of what leaves, one Connections app | Each connector states its data, destination and lawful basis; a false result from outside is rejected or marked | next: owner 2026-11-04 |
@@ -224,12 +224,28 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | X13 | Review the route files that hold raw SQL unlisted by `check_tenant_leak.py`: each query is tenant-scoped or moved to `medbrains-db`, starting with the routes reached without sign-in | `Schema + tenancy` passes, and no route reads another hospital's rows | database wall proved by `tenant_walls.rs` (34 tables, request role, 0 reads, 0 writes); files baselined so new raw SQL fails; moving the SQL to `medbrains-db` still open |
 | X14 | Type-safe IDs in new code with `newtype-uuid`, so a patient ID cannot be passed as a tenant ID; existing code stays until touched | The compiler refuses the mix-up in one module | parked, after first stable |
 | X15 | Generate the OpenAPI description and clients from server code, so the API and screens cannot drift; replaces parsing in `check_api_contract.py` | One module generated end to end, `make check-api` agrees | parked, after first stable |
-| X16 | Hardening report against a public benchmark (CIS Debian, checked with OpenSCAP), as evidence for auditors, on every image | Report in CI; each failure fixed or a written, accepted limit | next |
+| X16 | Hardening report against a public benchmark (CIS Debian, checked with OpenSCAP), as evidence for auditors, on every image | Report in CI; each failure fixed or a written, accepted limit | **done** for the debug image of each build (2026-11-10): `os/tests/cis-check.sh`, CIS Debian Level 2 style, run by `medbrains-os-test`, report saved; every FAIL fixed or an accepted limit in `os/README.md` "Hardening report". OpenSCAP rejected: Debian's SSG has no CIS profile and no trixie content. Not in CI yet: `medbrains-os-test` does not run there |
 | X17 | Disk unlocks only on the hospital network (Clevis and Tang), as an option for sites with a second machine: a stolen server alone stays locked. Needs a recovery key, so a network fault can never block care | Test: stolen disk and TPM without the network stays locked; network down at boot has a documented recovery | later, after T1 |
 | X18 | Remote attestation of nodes with Keylime: the main machine checks that a node booted what it should | Tampered node refused | parked, needs real TPM hardware |
 | X19 | Allow only known programs to run on writable paths (`noexec` on `/var`, or `fapolicyd`) | A dropped binary refuses to run | later |
 | L1 | Web first load: index.html preloads 45 modules, 4.0 MB raw, before any page opens. Trim to what the sign-in page needs, and one language | First-load budget in CI, measured on the OS screen | doing: echarts and the rich-text editor now load on demand; one language next |
 | X9 | Outside penetration test before a hospital goes live | Report received and findings closed | blocked: owner, cost |
+
+## Mac-like posture
+
+The owner's bar (2026-11-10): as locked down as the best secure Linux variants, and as consistent as a Mac, on our
+Debian base. Each macOS protection and what stands for it here:
+
+| macOS | MedBrains OS | Where | State |
+|---|---|---|---|
+| Signed System Volume (sealed, read-only system) | dm-verity sealed root: the system partition becomes erofs with a hash tree the boot file signs | T1 (verity, separate work); `mkosi.repart/10-root-a.conf` | open, in progress elsewhere |
+| Gatekeeper and notarisation (only signed code runs) | Signed images and signed bricks; kernel modules must carry Debian's signature (`module.sig_enforce=1`) and kernel lockdown refuses unsigned kernel code | T1, U1, O14; T1.1 | modules and lockdown done; bricks next |
+| App Sandbox and hardened runtime | AppArmor profiles in enforce mode plus systemd sandboxing on every MedBrains unit, each unit's exposure held under a budget | T1.1; `budgets.json` `unit_exposure` | done |
+| System Integrity Protection (even root cannot change the system) | `lockdown=confidentiality`, a read-only `/usr` for every service, no kexec, no `/dev/mem`, no debugfs | T1.1 | done; root partition read-only with verity |
+| FileVault with the Secure Enclave | LUKS2 data partition sealed to the TPM with a signed boot policy, recovery key, optional PIN | T1 (disk) | done on swtpm; real TPM untested |
+| One consistent update, with rollback | A/B system partitions, signed bundles, boot counting and automatic return | U1 | done in VM |
+| No root login, no remote shell by default | No SSH, no getty on any console or serial port, root locked; the support console only shows (`boot-health` on tty2) | X6, #5383 | done |
+| Aqua and the Dock (one consistent desktop) | The native shell: launcher, dock, lock and status screens | G | next |
 
 ## First stable version: scope is frozen (owner 2026-11-04)
 
