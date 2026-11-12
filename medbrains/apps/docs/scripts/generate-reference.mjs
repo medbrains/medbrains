@@ -56,7 +56,7 @@ function apiReference() {
 function envExample() {
   const vars = new Map();
   let comment = [];
-  for (const line of readFileSync(join(ROOT, ".env.example"), "utf8").split("\n")) {
+  for (const line of readFileSync(join(ROOT, ".env.example"), "utf8").split(/\r?\n/)) {
     const m = line.match(/^#?\s*([A-Z][A-Z0-9_]{2,})=(.*)$/);
     if (m) {
       vars.set(m[1], { example: m[2].trim(), note: comment.join(" ").trim() });

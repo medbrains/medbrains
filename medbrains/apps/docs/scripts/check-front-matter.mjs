@@ -27,7 +27,8 @@ const errors = [];
 const titles = new Map();
 for (const file of pages(DOCS)) {
   const rel = relative(DOCS, file);
-  const src = readFileSync(file, "utf8");
+  // Windows checkouts may turn line endings into CRLF; the front matter is read as LF.
+  const src = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   const title = field(src, "title");
   const description = field(src, "description");
   if (!title) errors.push(`${rel}: no title`);
