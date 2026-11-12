@@ -6,6 +6,7 @@
     etcd_version: "{{ etcd_version }}"
     cluster_id: "{{ cluster_id }}"
     etcd_hosts_csv: "{{ etcd_hosts_csv }}"
+    etcd_pki_dir: "{{ etcd_pki_dir }}"
 
   tasks:
     - name: Install prerequisites
@@ -45,13 +46,26 @@
           loop:
             - /var/lib/etcd
             - /etc/etcd
+            - /etc/etcd/pki
+
+    - name: Install this member's TLS certificate, key and the cluster CA
+      copy:
+        src: "{{ etcd_pki_dir }}/{{ item.src }}"
+        dest: "/etc/etcd/pki/{{ item.dest }}"
+        owner: etcd
+        group: etcd
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: ca.crt, dest: ca.crt, mode: '0644' } # NOSONAR(S2612): public CA certificate
+        - { src: "etcd-{{ etcd_node_index }}.crt", dest: member.crt, mode: '0644' } # NOSONAR(S2612): public certificate
+        - { src: "etcd-{{ etcd_node_index }}.key", dest: member.key, mode: '0600' }
 
     - name: Build initial-cluster string
       set_fact:
         etcd_initial_cluster: >-
           {%- set hosts = etcd_hosts_csv.split(',') -%}
           {%- for h in hosts -%}
-          etcd-{{ loop.index }}=http://{{ h }}:2380{% if not loop.last %},{% endif %}
+          etcd-{{ loop.index }}=https://{{ h }}:2380{% if not loop.last %},{% endif %}
           {%- endfor -%}
 
     - name: Render /etc/etcd/etcd.conf
@@ -59,14 +73,23 @@
         dest: /etc/etcd/etcd.conf
         owner: etcd
         group: etcd
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): etcd settings and file paths, no secret
         content: |
           ETCD_NAME="{{ etcd_node_id }}"
           ETCD_DATA_DIR=/var/lib/etcd
-          ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
-          ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
-          ETCD_ADVERTISE_CLIENT_URLS=http://{{ ansible_default_ipv4.address }}:2379
-          ETCD_INITIAL_ADVERTISE_PEER_URLS=http://{{ ansible_default_ipv4.address }}:2380
+          ETCD_LISTEN_CLIENT_URLS=https://0.0.0.0:2379
+          ETCD_LISTEN_PEER_URLS=https://0.0.0.0:2380
+          ETCD_ADVERTISE_CLIENT_URLS=https://{{ ansible_default_ipv4.address }}:2379
+          ETCD_INITIAL_ADVERTISE_PEER_URLS=https://{{ ansible_default_ipv4.address }}:2380
+          # Clients (Patroni) and peers must present a certificate from the cluster CA.
+          ETCD_CERT_FILE=/etc/etcd/pki/member.crt
+          ETCD_KEY_FILE=/etc/etcd/pki/member.key
+          ETCD_TRUSTED_CA_FILE=/etc/etcd/pki/ca.crt
+          ETCD_CLIENT_CERT_AUTH=true
+          ETCD_PEER_CERT_FILE=/etc/etcd/pki/member.crt
+          ETCD_PEER_KEY_FILE=/etc/etcd/pki/member.key
+          ETCD_PEER_TRUSTED_CA_FILE=/etc/etcd/pki/ca.crt
+          ETCD_PEER_CLIENT_CERT_AUTH=true
           ETCD_INITIAL_CLUSTER_TOKEN={{ cluster_id }}-etcd
           ETCD_INITIAL_CLUSTER_STATE=new
           ETCD_INITIAL_CLUSTER={{ etcd_initial_cluster }}
@@ -74,7 +97,7 @@
     - name: Install etcd systemd unit
       copy:
         dest: /etc/systemd/system/etcd.service
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): systemd unit, no secret
         content: |
           [Unit]
           Description=etcd (medbrains Patroni DCS)
