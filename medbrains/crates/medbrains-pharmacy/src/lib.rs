@@ -40,8 +40,8 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
-mod credit_notes;
 pub mod buy_outside;
+mod credit_notes;
 pub mod discharge_rx;
 pub mod dispense_context;
 mod expired;
@@ -7104,19 +7104,26 @@ pub async fn review_prescription(
             let reviewed = reviewed_items
                 .iter()
                 .find(|review_item| review_item.prescription_item_id == item.id);
-            let catalog = match buy_outside::settle_review_line(&mut tx, &claims, item, reviewed).await? {
-                buy_outside::ReviewedLine::Catalogue(catalog) => catalog,
-                buy_outside::ReviewedLine::BuyOutside(by) => {
-                    if !item.buy_outside {
-                        confirmed_outside.push(item.drug_name.trim());
-                    }
-                    order_items.push(
-                        buy_outside::insert_buy_outside_line(&mut tx, claims.tenant_id, order.id, item, by)
+            let catalog =
+                match buy_outside::settle_review_line(&mut tx, &claims, item, reviewed).await? {
+                    buy_outside::ReviewedLine::Catalogue(catalog) => catalog,
+                    buy_outside::ReviewedLine::BuyOutside(by) => {
+                        if !item.buy_outside {
+                            confirmed_outside.push(item.drug_name.trim());
+                        }
+                        order_items.push(
+                            buy_outside::insert_buy_outside_line(
+                                &mut tx,
+                                claims.tenant_id,
+                                order.id,
+                                item,
+                                by,
+                            )
                             .await?,
-                    );
-                    continue;
-                }
-            };
+                        );
+                        continue;
+                    }
+                };
             let quantity = reviewed.map_or_else(
                 || {
                     rx_quantity::estimate_rx_dispense_quantity(

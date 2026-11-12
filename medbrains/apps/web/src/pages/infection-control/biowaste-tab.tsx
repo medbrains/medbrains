@@ -68,7 +68,7 @@ export function BiowasteTab() {
       months.add(ym);
     });
     return Array.from(months)
-      .sort()
+      .sort((a, b) => a.localeCompare(b))
       .reverse()
       .map((m) => ({
         value: m,

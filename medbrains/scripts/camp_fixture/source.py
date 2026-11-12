@@ -1,7 +1,7 @@
 """Reading the camp extract.
 
 The source is `forms.db`, the SQLite database behind the camp review site at
-camp1.amh.org.in, where clinicians are still correcting the OCR by hand. It is
+camp1.example-hospital.org, where clinicians are still correcting the OCR by hand. It is
 the only artefact that is actually live:
 
     live/forms.db        1,542 forms   4,374 human corrections   645 reviewed

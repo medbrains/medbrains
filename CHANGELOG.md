@@ -10,17 +10,41 @@ GitHub release notes, so write each section for a hospital IT team.
 
 ## [Unreleased]
 
-## [3.33.0] - TBD
+## [3.33.0] - 2026-11-13
 
-The first versioned release. Everything before it was built on `main`
-without version numbers; this section summarises what 3.33.0 contains.
-Why 3.33.0: the first versioned release.
+The first versioned release of MedBrains, an open-source hospital OS built for hospitals anywhere.
+
+Everything before it was built on `main` without version numbers; this
+section summarises what 3.33.0 contains.
 
 ### Since the summary below was written
 
 PRs still open when this release was cut are not included.
 
+#### Licence
+
+- MedBrains is now dual-licensed: GNU AGPL-3.0-only, free for everyone, or a
+  commercial licence for vendors who sell, host or embed it without sharing
+  their changes. Versions released before 2026-11-12 stay under Apache 2.0.
+  The client SDKs (TypeScript and Python) stay under Apache 2.0 (#5480).
+
 #### Security
+
+- A damaged, cut or mismatched key is refused when it is loaded instead of
+  being used, and the development sealing key is never used outside
+  development (#5479).
+- Dependency updates for seven open security alerts (#5461), and every other
+  dependency and code-scanning alert that had a fix (#5288, #5296, #5408, #5409).
+- A hospital decides when MedBrains staff may reach its data: access is
+  explicit, scoped, time-limited and audited (#5260).
+- A manager cannot grant a permission they do not hold (#5302), and
+  administrator roles and row actions are hidden from non-administrators (#5314).
+- The clinical-trial sponsor export is pseudonymised and has its own
+  permission (#5298).
+- Hospitals choose who may edit payment settings, management is told of every
+  change, and payment-provider credentials are kept out of generic settings
+  (#5286, #5267).
+- The first administrator enrols an authenticator app at setup (#5316).
 
 - Signing a clinical document needs a fresh step-up, and anyone holding a
   signed print can check it by its QR code (#5241).
@@ -39,12 +63,27 @@ PRs still open when this release was cut are not included.
 - The lab receives its order, not the patient's whole visit (#5252).
 - A code-blue page is delivered, or the screen says plainly that it was not (#5245).
 - The next shift can find a returning patient and reprint the card (#5237).
+- The pharmacy journey checks Schedule X records, allergies, look-alike
+  sound-alike drugs and doses end to end (#5244).
+- The doctor can dictate the consultation; it is transcribed and drafted on
+  the hospital's own machine, and the doctor accepts, edits or rejects each
+  section before anything is saved (#5258).
+- Creating an OPD visit asks for the paper file, and the doctor can start
+  without it (#5255).
+- Prescriptions and other printed documents use MedBrains Sans, an easy-read
+  typeface, as does every screen (#5423, #5448, #5455).
 
 #### Billing and revenue
 
 - Orders done but never billed are found daily and queued for the billing desk (#5251).
 - Automatic charges a clinical action cannot post are queued for attention
   instead of being lost (#5246).
+- Stock used on a patient is charged, and implants used on no one are queued
+  for review (#5265).
+- Staff are warned before a pre-authorisation is used up or a room charge
+  takes the whole bill (#5270).
+- Billing, ward stock and TPA screens show a fault when loading fails, not an
+  empty list (#5307).
 
 #### Operations
 
@@ -53,7 +92,18 @@ PRs still open when this release was cut are not included.
 - The OS data disk is encrypted, with every key accounted for (#5230), and
   extra machines join the main one by approval (#5226).
 - Faster web loading: charts, the rich-text editor and language packs load
-  only when needed (#5229, #5231).
+  only when needed (#5229, #5231), and half as much JavaScript at startup (#5311).
+- Every report read is bounded, so a heavy report cannot slow the wards (#5271).
+- A paperless meter shows how paperless the hospital is, by department and
+  day, inside the reports module (#5269, #5321).
+- The desktop app is the MedBrains client for any hospital, with signed
+  updates (#5305).
+- The OS: Kanidm is its identity provider (#5242, #5317), updates are signed
+  A/B images with trial boots and rollback (#5279), host logs can be archived
+  and NIC/NPL time sources are used (#5280), io_uring is limited to one group
+  (#5281), and its shell uses the MedBrains design system (#5422).
+- The retired r8r automation engine and its tables are removed (#5415, #5417).
+- The attach deploy fails if install.sh fails, and says how to finish (#5454).
 
 ### Upgrade notes
 
@@ -63,6 +113,10 @@ PRs still open when this release was cut are not included.
   name a secret in an old format is asked to re-enter it (#5264).
 - Hospitals that bill a module at the counter can leave its automatic charges
   off; the unbilled-orders check skips those modules (#5251).
+- Migration 1455 drops the seven `automation_*` tables of the retired r8r
+  engine. Nothing reads them; export them first if you want a copy (#5417).
+- Production must set its own sealing key; the server no longer falls back
+  to the development key outside development (#5479).
 
 ### The hospital system
 
@@ -119,4 +173,6 @@ PRs still open when this release was cut are not included.
 
 ### Licence
 
-- Apache License 2.0.
+- GNU AGPL-3.0-only, or a commercial licence (see `COMMERCIAL-LICENSE.md`).
+  Versions released before 2026-11-12 were Apache 2.0. The client SDKs are
+  Apache 2.0.

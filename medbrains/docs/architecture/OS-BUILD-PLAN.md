@@ -83,8 +83,11 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 
 | Task | What | Done when | State |
 |---|---|---|---|
-| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | next |
-| U1.1 | Release channel and signed bundles, online and USB | Unsigned bundle refused | next |
+| U1 | A/B OS updates, automatic rollback (`OS-UPDATES.md`) | Failed update rolls back; settings byte-identical | doing: built and passes `make os-test-updates` on QEMU; real hardware blocked (F4), and a release with a migration needs U1.3 first |
+| U1.1 | Release channel and signed bundles, online and USB | Unsigned bundle refused | doing: built and tested with a test key; the release key is designed and not made (X2), and no channel is published |
+| U1.5 | Compare with TUF's attacks: old update served again, updates held back, mixed releases, stolen key; adopt TUF or close each gap and say how (owner 2026-11-07) | Each attack refused by a test, or a written limit (`OS-UPDATES.md`) | doing: closed without TUF metadata (expiry, one manifest per release, threshold); fast-forward with one stolen key is a written limit until threshold 2 |
+| U1.6 | A rolled-back version stays refused by automatic updates until a newer one (owner 2026-11-07) | A failed update rolls back and the timer does not reinstall it | doing: built, test `not_retried` |
+| U1.8 | Deliver a Kanidm minor upgrade each quarter; a machine that missed one catches up in order (owner 2026-11-07) | A machine two releases behind installs the one between first | doing: `upgrades_from` steps built, test `catches_up_in_order`; Kanidm rollback restore needs U1.3 |
 | U1.2 | App updates separate from the OS | App fix ships without an OS image | next |
 | U1.3 | Backup before migration; CI check that migrations stay compatible one release back | Failed migration restores by itself | next |
 | U1.4 | Main machine serves nodes; rings and windows in Control | One ward updates first; failure stops the rollout | later, needs J1, C1 |
@@ -133,6 +136,10 @@ N1 to N6 come from RFC-HOSPITAL-OS §8q. Every task ends on a check or a screen.
 | H7 | Shrink the image: keep the empty update slot sparse; strip the server binary; drop Perl, unused locales and kernel modules; compare `libLLVM` need on real GPUs | System under 1 GB; each cut proven by booting | next |
 | H4 | Memory below target | Whole machine ≤ 512 MB | next: per-connection growth fixed; WebKit, PostgreSQL pool and zram tests next |
 | H8 | Hardware list: each machine tested, what works, known firmware problems, published | A hospital can check its PC before buying | next, needs H2 |
+| H9 | MedBrains Box (`docs/hardware/MEDBRAINS-BOX.md`): Pi image for the Compute Module 5 with Raspberry Pi signed boot pinning the verity root hash, and the disk key sealed to signed boot image + root hash | MedBrains OS boots on a CM5 dev kit; tamper test refuses a changed system | next, needs the D2 Pi image and a CM5 + IO board (owner buys) |
+| H10 | Board controller service: RP2040 as a standard hardware watchdog, power-cut shutdown, case-open events into the audit log, temperature on the health screen | Bench test: pulled power shuts PostgreSQL down cleanly within the measured hold-up time | later, after H9 |
+| H11 | ASTM analyser protocol over isolated serial on the bridge build | A real analyser's results land in the lab module | later |
+| H12 | Price refurbished x86 thin clients locally as the baseline a custom node must beat | Prices recorded beside the Box cost table | next |
 
 ## D. Devices and performance
 
@@ -246,6 +253,8 @@ New ideas go to the parked list, not into this. Stable means every line below pa
 7. **Unbox to first patient:** a person with no IT background, using only what comes in the box, plugs it in, finishes setup and registers a first test patient, in a time we measure. Every question they ask is a defect to fix.
 
 ## G. Native OS GUI (owner 2026-11-07)
+
+**Parked (owner 2026-11-10): "we don't need Slint, don't deviate for now."** The OS screens stay on the existing GTK shell (`medbrains-shell`) and the web app. Nothing in this section is built until the owner reopens it; the Slint licence question is moot until then. Draft PR #5282 (React-to-Slint converter) stays parked.
 
 The OS screen moves to a native GUI in Rust that is safe for memory and security and needs no GPU. The web app is kept for every other customer and every browser, built in parallel; neither replaces the other. Toolkit: Slint (software renderer; LinuxKMS backend draws straight to the screen with no window system), with iced (MIT, `tiny_skia` software renderer) as the fallback if Slint's licence is refused. GPUI is out: it needs a GPU. Slint's licence (GPLv3 or commercial) is the owner's decision before the first release that ships it.
 

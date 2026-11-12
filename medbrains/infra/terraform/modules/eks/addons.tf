@@ -90,6 +90,7 @@ resource "aws_iam_role" "external_dns" {
 }
 
 data "aws_iam_policy_document" "external_dns" {
+  #checkov:skip=CKV_AWS_356: route53:ListHostedZones / ListResourceRecordSets / ListTagsForResource do not support resource-level permissions; record changes stay limited to hosted zones
   statement {
     actions   = ["route53:ChangeResourceRecordSets"]
     resources = ["arn:${data.aws_partition.current.partition}:route53:::hostedzone/*"]
@@ -228,16 +229,24 @@ resource "aws_iam_role" "eso" {
   tags               = local.tags
 }
 
+# ESO reads only this platform's secrets (medbrains/<env>/... by
+# convention, as modules/aurora names its master secret), never the whole
+# account's.
 data "aws_iam_policy_document" "eso" {
   statement {
     actions = [
       "secretsmanager:GetSecretValue",
       "secretsmanager:DescribeSecret",
+    ]
+    resources = ["arn:${data.aws_partition.current.partition}:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:${var.eso_secret_prefix}*"]
+  }
+  statement {
+    actions = [
       "ssm:GetParameter",
       "ssm:GetParameters",
       "ssm:GetParametersByPath",
     ]
-    resources = ["*"]
+    resources = ["arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.eso_secret_prefix}*"]
   }
   statement {
     actions   = ["kms:Decrypt"]

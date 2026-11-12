@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all("/tmp/medbrains-docs")?;
 
     let branding = serde_json::json!({
-        "hospital_name": "Alagappa Medical College & Hospital",
+        "hospital_name": "Example Medical College & Hospital",
         "address": "College Road, Karaikudi, Tamil Nadu 630003",
         "phone": "+91 4565 223344",
         "registration_no": "TN/MC/2026/0042",

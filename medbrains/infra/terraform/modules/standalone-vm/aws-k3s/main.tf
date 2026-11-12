@@ -16,6 +16,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.50"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.4"
+    }
   }
 }
 
@@ -58,6 +62,12 @@ variable "ghcr_pull_token" {
   default     = ""
 }
 
+variable "ssh_allowed_cidrs" {
+  description = "CIDRs allowed to reach SSH. Empty = auto-detect the operator's current egress IP at plan time (never 0.0.0.0/0), as aws-ec2 does."
+  type        = list(string)
+  default     = []
+}
+
 variable "github_username" {
   type        = string
   description = "GitHub username for GHCR pull (only used if ghcr_pull_token set)."
@@ -81,6 +91,16 @@ locals {
   # CPUUtilization looks alarming. Gates the credit alarm in alarms.tf.
   is_burstable = can(regex("^t[0-9]", var.instance_type))
   arch         = local.is_arm ? "arm64" : "amd64"
+  ssh_cidrs = length(var.ssh_allowed_cidrs) > 0 ? var.ssh_allowed_cidrs : [
+    "${trimspace(data.http.operator_ip[0].response_body)}/32"
+  ]
+}
+
+# Operator egress IP: the provisioners below SSH in from wherever
+# `terraform apply` runs, so that address - and only it - gets port 22.
+data "http" "operator_ip" {
+  count = length(var.ssh_allowed_cidrs) == 0 ? 1 : 0
+  url   = "https://checkip.amazonaws.com"
 }
 
 data "aws_ami" "ubuntu" {
@@ -105,16 +125,18 @@ data "aws_ami" "ubuntu" {
 # ── Networking ────────────────────────────────────────────────────────
 
 resource "aws_security_group" "node" {
+  #checkov:skip=CKV_AWS_260: port 80 is public on purpose - ACME HTTP-01 for cert-manager and the HTTP->HTTPS redirect
+  #checkov:skip=CKV_AWS_382: the node pulls images, charts and packages and the app reaches hospital-configured integrations (SMTP on any port, HL7/DICOM, ABDM/NHCX, LDAP) set at runtime in the admin UI; outbound control for those belongs to the hospital's firewall
   name        = "${var.hostname}-k3s-sg"
   description = "k3s node - 22/80/443 + 6443 internal"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    description = "SSH"
+    description = "SSH - operator CIDRs only"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = local.ssh_cidrs
   }
   ingress {
     description = "HTTP - ACME + redirect"
@@ -138,6 +160,7 @@ resource "aws_security_group" "node" {
     cidr_blocks = [data.aws_vpc.default.cidr_block]
   }
   egress {
+    description = "Outbound: images, packages, Postgres, hospital integrations"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -159,12 +182,8 @@ resource "aws_security_group" "db" {
     protocol        = "tcp"
     security_groups = [aws_security_group.node.id]
   }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # RDS never opens connections; replies to the node are stateful.
+  egress = []
 
   tags = local.tags
 }
@@ -200,13 +219,16 @@ locals {
   EOT
 }
 
-resource "aws_instance" "node" {
+resource "aws_instance" "node" { # NOSONAR(S6329): single public host by design (EIP + ingress on 80/443); the attribute is force-new, so setting it would replace the node
+  #checkov:skip=CKV_AWS_135: current-generation types are EBS-optimised by default; setting the flag on a running node would stop and start it
+  #checkov:skip=CKV2_AWS_41: nothing on the node calls an AWS API today; attach a scoped role when something does, not an empty one that only adds a credential on IMDS
   ami                    = var.ami != "" ? var.ami : data.aws_ami.ubuntu[0].id
   instance_type          = var.instance_type
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [aws_security_group.node.id]
   subnet_id              = data.aws_subnets.default.ids[0]
   user_data              = local.user_data
+  monitoring             = true
 
   root_block_device {
     volume_size = 60
@@ -254,7 +276,44 @@ variable "deletion_protection" {
   description = "true also forces a final snapshot on destroy. Set false in non-prod so teardown succeeds."
 }
 
+
+# Slow statements (>1 s) and every DDL go to the instance log, exported to
+# CloudWatch below. Both parameters are dynamic: no reboot to change them,
+# though attaching the group to an existing instance shows pending-reboot
+# until its next maintenance reboot.
+resource "aws_db_parameter_group" "this" {
+  name   = "${var.hostname}-pg17"
+  family = "postgres17"
+
+  parameter {
+    name  = "log_statement"
+    value = "ddl"
+  }
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+  # Already the Postgres 15+ default; pinned so a later family cannot
+  # quietly accept plaintext connections (DATABASE_URL uses sslmode=require).
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
+
+  tags = local.tags
+}
+
+# Created ahead of the export so RDS does not make a never-expiring group.
+resource "aws_cloudwatch_log_group" "postgresql" {
+  name              = "/aws/rds/instance/${var.hostname}-pg/postgresql"
+  retention_in_days = 365
+  kms_key_id        = local.audit_kms_key_arn
+  tags              = local.tags
+}
+
 resource "aws_db_instance" "this" {
+  #checkov:skip=CKV_AWS_118: enhanced monitoring needs its own IAM role and bills per-second OS metrics; basic RDS metrics plus the alarms in alarms.tf cover this single-instance tier
+  #checkov:skip=CKV_AWS_353: Performance Insights is not offered on the micro/small burstable classes this tier defaults to; turn it on with a class that supports it
   identifier        = "${var.hostname}-pg"
   engine            = "postgres"
   engine_version    = "17.2"
@@ -263,30 +322,76 @@ resource "aws_db_instance" "this" {
   # Storage-full puts Postgres read-only: writes fail, reads succeed, so
   # the screen stays alive while nothing is being recorded. Autoscaling
   # removes the failure mode; the alarm below only reports the ceiling.
-  max_allocated_storage     = 80
-  storage_type              = "gp3"
-  storage_encrypted         = true
-  kms_key_id                = local.db_kms_key_arn
-  db_name                   = "medbrains"
-  username                  = "medbrains_admin"
-  password                  = random_password.db.result
-  multi_az                  = var.multi_az
-  publicly_accessible       = false
-  db_subnet_group_name      = aws_db_subnet_group.this.name
-  vpc_security_group_ids    = [aws_security_group.db.id]
-  backup_retention_period   = 7
-  final_snapshot_identifier = "${var.hostname}-pg-final-snapshot"
-  skip_final_snapshot       = !var.deletion_protection
-  deletion_protection       = var.deletion_protection
+  max_allocated_storage               = 80
+  storage_type                        = "gp3"
+  storage_encrypted                   = true
+  kms_key_id                          = local.db_kms_key_arn
+  db_name                             = "medbrains"
+  username                            = "medbrains_admin"
+  password                            = random_password.db.result
+  multi_az                            = var.multi_az
+  publicly_accessible                 = false
+  db_subnet_group_name                = aws_db_subnet_group.this.name
+  vpc_security_group_ids              = [aws_security_group.db.id]
+  backup_retention_period             = 7
+  final_snapshot_identifier           = "${var.hostname}-pg-final-snapshot"
+  skip_final_snapshot                 = !var.deletion_protection
+  deletion_protection                 = var.deletion_protection
+  parameter_group_name                = aws_db_parameter_group.this.name
+  enabled_cloudwatch_logs_exports     = ["postgresql"]
+  iam_database_authentication_enabled = true
+  copy_tags_to_snapshot               = true
+  auto_minor_version_upgrade          = true
 
-  tags = local.tags
+  depends_on = [aws_cloudwatch_log_group.postgresql]
+  tags       = local.tags
 }
 
 # ── S3 bucket with lifecycle to STANDARD_IA + Glacier ────────────────
 
 resource "aws_s3_bucket" "this" {
+  #checkov:skip=CKV_AWS_144: medical records live in one region; cross-region replication doubles storage and needs a second-region key and role; recovery is covered by versioning plus the RDS backups
+  #checkov:skip=CKV2_AWS_62: nothing consumes object events from this bucket
   bucket = "${var.hostname}-mrd"
   tags   = local.tags
+}
+
+# Versioned: an overwrite or delete of a medical record is recoverable.
+# Old versions expire with the lifecycle rule below.
+resource "aws_s3_bucket_versioning" "this" {
+  bucket = aws_s3_bucket.this.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_logging" "this" {
+  bucket        = aws_s3_bucket.this.id
+  target_bucket = module.access_logs.bucket_id
+  target_prefix = "mrd/"
+}
+
+# Refuse plain HTTP: every client (SDK, CLI, presigned URL) already uses TLS.
+resource "aws_s3_bucket_policy" "this" {
+  bucket = aws_s3_bucket.this.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.this.arn, "${aws_s3_bucket.this.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.this]
+}
+
+module "access_logs" {
+  source      = "../../s3-access-logs"
+  bucket_name = "${var.hostname}-mrd-logs"
+  tags        = local.tags
 }
 
 resource "aws_s3_bucket_public_access_block" "this" {
@@ -325,6 +430,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
     transition {
       days          = var.hot_to_cold_days * 4
       storage_class = "GLACIER"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 365
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }
@@ -461,8 +574,9 @@ resource "null_resource" "bootstrap_cluster" {
 # ── Tags ──────────────────────────────────────────────────────────────
 
 locals {
-  app_kms_key_arn = lookup(var.kms_key_arns, "app", null)
-  db_kms_key_arn  = lookup(var.kms_key_arns, "db", null)
+  app_kms_key_arn   = lookup(var.kms_key_arns, "app", null)
+  db_kms_key_arn    = lookup(var.kms_key_arns, "db", null)
+  audit_kms_key_arn = lookup(var.kms_key_arns, "audit", null)
 
   tags = {
     Name      = var.hostname

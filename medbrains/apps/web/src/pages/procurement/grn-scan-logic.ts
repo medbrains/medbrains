@@ -125,7 +125,7 @@ export function toForm(draft: GrnScanDraft): GrnScanDraftFormInput {
     invoice_date: text(h.invoice_date),
     invoice_amount: text(h.invoice_amount),
     remember_matches: true,
-    lines: draft.lines.map(lineToForm),
+    lines: draft.lines.map((line, index) => lineToForm(line, index)),
   };
 }
 

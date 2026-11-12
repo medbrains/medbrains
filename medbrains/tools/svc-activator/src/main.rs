@@ -6,7 +6,7 @@
 //!
 //! This exists because `systemd-socket-proxyd` can start a unit but cannot
 //! stop one that has gone quiet — and stopping it is the entire point. On the
-//! shared Alagappa box, Superset holds ~870 MB to serve about fifteen requests
+//! shared client box, Superset holds ~870 MB to serve about fifteen requests
 //! a day.
 //!
 //! NOT for anything clinical. The first request after an idle period pays the
@@ -105,11 +105,7 @@ impl State {
 ///
 /// The `starting` lock matters: a cold service hit by ten simultaneous
 /// requests must run `systemctl start` once, not ten times.
-async fn connect_or_start<U: Unit>(
-    cfg: &Config,
-    state: &State,
-    unit: &U,
-) -> io::Result<TcpStream> {
+async fn connect_or_start<U: Unit>(cfg: &Config, state: &State, unit: &U) -> io::Result<TcpStream> {
     if let Ok(Ok(s)) = timeout(Duration::from_millis(250), TcpStream::connect(cfg.backend)).await {
         return Ok(s);
     }
@@ -163,7 +159,10 @@ async fn reaper<U: Unit>(cfg: Arc<Config>, state: Arc<State>, unit: Arc<U>) {
         {
             continue;
         }
-        eprintln!("activator: idle for {}s, stopping backend", idle_for.as_secs());
+        eprintln!(
+            "activator: idle for {}s, stopping backend",
+            idle_for.as_secs()
+        );
         if let Err(e) = unit.stop().await {
             eprintln!("activator: stop failed: {e}");
         }
@@ -232,7 +231,9 @@ async fn main() -> io::Result<()> {
             .map_err(|_| io::Error::other(format!("{flag} must be host:port")))
     };
     let secs = |flag: &str, default: u64| -> u64 {
-        arg(&args, flag).and_then(|v| v.parse().ok()).unwrap_or(default)
+        arg(&args, flag)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
     };
 
     let cfg = Arc::new(Config {
@@ -241,13 +242,15 @@ async fn main() -> io::Result<()> {
         idle: Duration::from_secs(secs("--idle-secs", 900)),
         start_timeout: Duration::from_secs(secs("--start-timeout-secs", 90)),
     });
-    let unit = Arc::new(match (arg(&args, "--start-cmd"), arg(&args, "--stop-cmd")) {
-        (Some(s), Some(t)) => Exec {
-            start: s.split_whitespace().map(str::to_owned).collect(),
-            stop: t.split_whitespace().map(str::to_owned).collect(),
+    let unit = Arc::new(
+        match (arg(&args, "--start-cmd"), arg(&args, "--stop-cmd")) {
+            (Some(s), Some(t)) => Exec {
+                start: s.split_whitespace().map(str::to_owned).collect(),
+                stop: t.split_whitespace().map(str::to_owned).collect(),
+            },
+            _ => Exec::systemd(&arg(&args, "--unit").ok_or_else(|| io::Error::other(usage()))?),
         },
-        _ => Exec::systemd(&arg(&args, "--unit").ok_or_else(|| io::Error::other(usage()))?),
-    });
+    );
 
     serve(cfg, unit).await
 }

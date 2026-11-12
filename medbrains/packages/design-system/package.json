@@ -17,6 +17,7 @@
       "import": "./src/theme/tokens.ts"
     },
     "./styles/global.scss": "./src/styles/global.scss",
+    "./styles/fonts.css": "./src/styles/fonts.css",
     "./assets/*": "./src/assets/*"
   },
   "scripts": {

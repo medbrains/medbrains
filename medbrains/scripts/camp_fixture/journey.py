@@ -254,7 +254,7 @@ def referral_event(row: dict, registration_id: str | None) -> dict | None:
         # doctor, but never the facility, because the referral is into the
         # hospital that ran the camp — so that is what is recorded, rather
         # than leaving the event to fail or inventing a hospital name.
-        "referred_to_facility": f"Dr {doctor}" if doctor else "Alagappa Medical College & Hospital",
+        "referred_to_facility": f"Dr {doctor}" if doctor else "Example Medical College & Hospital",
     }
     if registration_id:
         payload["registration_id"] = registration_id

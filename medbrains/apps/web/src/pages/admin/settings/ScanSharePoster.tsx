@@ -31,7 +31,7 @@ const STEPS_HI = [
 const POSTER_CSS = `
 @page { size: A5 portrait; margin: 12mm; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'IBM Plex Sans', 'Noto Sans Devanagari', system-ui, sans-serif; color: black; background: white; }
+body { font-family: 'MedBrains Sans', 'Noto Sans Devanagari', system-ui, sans-serif; color: black; background: white; }
 .poster { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .poster-hospital { font-size: 20px; font-weight: 700; }
 .poster-counter { font-size: 16px; }

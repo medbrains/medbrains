@@ -16,6 +16,7 @@ const ERASE_BATCH: i64 = 500;
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn erase_artefacts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -48,6 +49,7 @@ pub async fn erase_artefacts(
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn erase_due(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,

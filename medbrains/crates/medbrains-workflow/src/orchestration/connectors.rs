@@ -33,7 +33,11 @@ pub async fn list_connectors(
 }
 
 /// Get a single connector by ID.
-pub async fn get_connector(pool: &PgPool, tenant_id: Uuid, id: Uuid) -> Result<ConnectorRow, AppError> {
+pub async fn get_connector(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    id: Uuid,
+) -> Result<ConnectorRow, AppError> {
     sqlx::query_as::<_, ConnectorRow>(
         "SELECT id, tenant_id, connector_type, name, description, config, status, \
                 health_check_url, last_health_check, is_healthy, retry_config, \
@@ -131,7 +135,11 @@ pub async fn execute_connector_action(
 /// Health-check a connector by calling its `health_check_url`.
 ///
 /// Updates `is_healthy` and `last_health_check` in the database.
-pub async fn health_check(pool: &PgPool, tenant_id: Uuid, connector_id: Uuid) -> Result<bool, AppError> {
+pub async fn health_check(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    connector_id: Uuid,
+) -> Result<bool, AppError> {
     let connector = get_connector(pool, tenant_id, connector_id).await?;
 
     let url = connector.health_check_url.as_deref().unwrap_or("");

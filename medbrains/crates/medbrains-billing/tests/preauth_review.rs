@@ -222,7 +222,9 @@ async fn the_desk_dismisses_a_no_usable_preauth_row_with_a_reason() {
             permissions::insurance::enhancement::REQUEST,
         ],
     );
-    let err = dismiss(&requester, row, "self_pay", None).await.unwrap_err();
+    let err = dismiss(&requester, row, "self_pay", None)
+        .await
+        .unwrap_err();
     assert!(matches!(err, AppError::Forbidden), "{err:?}");
     let err = dismiss(&claims, row, "other", None).await.unwrap_err();
     assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");

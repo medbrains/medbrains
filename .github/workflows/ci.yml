@@ -26,11 +26,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main]
-    # Words alone cannot break the product, so they do not spend a build.
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.png"
-      - "**/*.excalidraw"
+    # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
+    # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -117,11 +114,17 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
 
   contracts:
-    # A draft PR spends no build; marking it ready for review runs everything.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    # Runs on drafts too, and fails there: the other jobs skip on a draft, and a skipped
+    # required check counts as passing, so without this a draft's skipped run could satisfy
+    # branch protection. Marking the PR ready for review reruns everything.
     name: API + UI contracts
     runs-on: ubuntu-latest
     steps:
+      - name: A draft is not ready to merge
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+        run: |
+          echo "::error::Draft PR: mark it ready for review to run the checks."
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -165,6 +168,13 @@ jobs:
         run: |
           python3 medbrains/scripts/check_size_budgets.py --self-test
           python3 medbrains/scripts/check_size_budgets.py
+      # The committed MedBrains Sans files must be exactly what the pinned build makes, so nobody
+      # edits a font by hand and the IBM Plex source stays recorded.
+      - name: Committed fonts match their build
+        run: |
+          python3 -m pip install --quiet -r medbrains/tools/fonts/requirements.txt
+          python3 -I medbrains/tools/fonts/build_medbrains_sans.py --check
+          python3 -I medbrains/tools/fonts/check_glyph_collisions.py
       # The TypeScript SDK and its conformance suite run under `pnpm run test`
       # (web job); the Python SDK has no other runner.
       - name: Python SDK speaks the extension protocol
@@ -355,25 +365,9 @@ jobs:
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
 
       # Non-blocking until it has been seen to pass on a runner.
-      # medbrains-printing links against CUPS.
-      # The integration suite needs PostgreSQL. It runs directly on the runner, because
-      # the OS rule is no Docker. These credentials exist only on this throwaway machine.
+      # CUPS headers and PostgreSQL 17 for the integration suite (no Docker, per the OS rule).
       - name: System packages and PostgreSQL
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcups2-dev postgresql-common
-          # The migrations need 17 (`transaction_timeout`), and the runner's default is older.
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo systemctl stop postgresql
-          for cluster in $(pg_lsclusters -h | awk '{print $1"/"$2}'); do
-            sudo pg_dropcluster --stop "${cluster%/*}" "${cluster#*/}"
-          done
-          sudo apt-get install -y postgresql-17
-          pg_lsclusters -h | grep -q '^17 ' || sudo pg_createcluster 17 main
-          sudo pg_ctlcluster 17 main start
-          pg_lsclusters
-          sudo -u postgres psql -c "CREATE ROLE medbrains SUPERUSER LOGIN PASSWORD 'ci_only'"
-          sudo -u postgres createdb -O medbrains medbrains
+        run: bash scripts/ci_postgres.sh
       # Report every failing test, not just the first binary's.
       - run: cargo test --workspace --exclude medbrains-desktop --no-fail-fast
         env:

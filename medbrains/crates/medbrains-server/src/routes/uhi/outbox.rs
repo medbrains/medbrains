@@ -50,6 +50,7 @@ pub struct Callback {
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn queue(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -91,6 +92,7 @@ pub struct Tell<'a> {
 ///
 /// # Errors
 /// A database fault, or a stored request with no context.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn tell(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     secrets: &dyn SecretResolver,

@@ -4,12 +4,12 @@ import { IconButton, Tooltip } from "@/components/ui";
 
 /** Screens with their own page in the guide; the rest open its front page. */
 const GUIDE_PAGES: ReadonlyArray<[prefix: string, page: string]> = [
-  ["/patients/register", "front-desk/register-a-patient/"],
-  ["/opd/new", "front-desk/start-an-opd-visit/"],
-  ["/opd/encounters", "clinical/consultation/"],
-  ["/lab", "lab/from-order-to-report/"],
-  ["/home-visits", "clinical/home-visit-case-sheet/"],
-  ["/home-healthcare", "clinical/home-visit-case-sheet/"],
+  ["/patients/register", "user-guides/front-office/register-a-patient/"],
+  ["/opd/new", "user-guides/front-office/start-an-opd-visit/"],
+  ["/opd/encounters", "user-guides/doctor/consultation/"],
+  ["/lab", "user-guides/lab/from-order-to-report/"],
+  ["/home-visits", "user-guides/nurse/home-visit-case-sheet/"],
+  ["/home-healthcare", "user-guides/nurse/home-visit-case-sheet/"],
 ];
 
 /** The user guide (apps/docs, served at /help), opened at this screen's page. */

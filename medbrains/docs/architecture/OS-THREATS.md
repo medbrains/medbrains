@@ -18,7 +18,7 @@ goes live (X9).
 | 5 | Local account takes over after a service bug | Setup service on a protected socket and sandboxed (#5223) | Local user cannot bind or reach the service | doing |
 | 6 | USB boot, boot editor, keystroke injection | H5, T1, D1 USB policy | Unknown keyboard and storage refused | open |
 | 7 | Fake main machine, rogue DHCP, DNS or mDNS | Keys and matching code (J1), limits on flooding | Fake main machine refused; user must retype the code | doing |
-| 8 | Poisoned update or dependency | Signed A/B updates, key offline on hardware (U1, X2), parts list check (T1.2) | Tampered and rolled-back updates refused | open |
+| 8 | Poisoned update or dependency | Signed A/B updates, key offline on hardware (U1, X2), parts list check (T1.2) | Tampered and rolled-back updates refused | doing: refusals pass on QEMU (`refusals`, `update_cycle`); release key offline (X2) and parts list check (T1.2) open |
 | 9 | Stolen backup or export | Backups encrypted with keys held apart (U2), export audit | Backup unreadable without its key | open |
 | 10 | Web attacks on the app | CI checks, X9 penetration test | Outside test report | open |
 | 11 | Malicious third-party app | Own view, storage and limits (O8), review before install | App cannot read another's data or leave its grants | open |

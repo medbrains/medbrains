@@ -37,7 +37,9 @@ async fn an_sso_email_never_adopts_an_administrator() {
     for (who, adopted) in [(boss.user_id, None), (clerk.user_id, Some(clerk.user_id))] {
         let (tenant, email) = email_of(who).await.expect("email");
         let mut tx = app.db.begin().await.expect("tx");
-        medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await.expect("tenant");
+        medbrains_db::pool::set_tenant_context(&mut tx, &tenant)
+            .await
+            .expect("tenant");
         let found = medbrains_sso_login::email_link_candidate(&mut tx, tenant, &email)
             .await
             .expect("lookup");
@@ -56,7 +58,13 @@ async fn a_manager_cannot_delete_an_administrator_or_themselves() {
     let boss = common::provision_staff(&app, &admin.csrf, "hospital_admin", &[]).await;
     let clerk = common::provision_staff(&app, &admin.csrf, "receptionist", &[]).await;
     let delete = |id: Uuid| {
-        send(&manager, manager.client.delete(app.url(&format!("/api/setup/users/{id}"))), json!({}))
+        send(
+            &manager,
+            manager
+                .client
+                .delete(app.url(&format!("/api/setup/users/{id}"))),
+            json!({}),
+        )
     };
     let live = |id: Uuid| {
         sqlx::query_scalar::<_, bool>("SELECT deleted_at IS NULL FROM users WHERE id = $1")
@@ -97,17 +105,35 @@ async fn hr_cannot_offboard_an_administrator_or_relink_to_themselves() {
     let boss = common::provision_staff(&app, &admin.csrf, "hospital_admin", &[]).await;
     let other = common::provision_staff(&app, &admin.csrf, "receptionist", &[]).await;
     let edit = |id: String, body: Value| {
-        send(&clerk, clerk.client.put(app.url(&format!("/api/hr/employees/{id}"))), body)
+        send(
+            &clerk,
+            clerk
+                .client
+                .put(app.url(&format!("/api/hr/employees/{id}"))),
+            body,
+        )
     };
 
     let unlinked = employee(&app, &admin, None).await;
     let (status, body) = edit(unlinked.clone(), json!({ "user_id": clerk.user_id })).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "linking to themselves: {body}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "linking to themselves: {body}"
+    );
     let (status, body) = edit(unlinked, json!({ "user_id": boss.user_id })).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "linking to an administrator: {body}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "linking to an administrator: {body}"
+    );
     let bosses = employee(&app, &admin, Some(boss.user_id)).await;
     let (status, body) = edit(bosses, json!({ "status": "terminated" })).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "terminating an administrator: {body}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "terminating an administrator: {body}"
+    );
     let active: bool = sqlx::query_scalar("SELECT is_active FROM users WHERE id = $1")
         .bind(boss.user_id)
         .fetch_one(&app.db)
@@ -156,10 +182,19 @@ async fn an_invitation_is_checked_against_its_sender_on_acceptance() {
 
     let wider = invitation(&app, manager.user_id, "lab_technician").await;
     let resp = accept(wider).await.expect("accept");
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "a role beyond the sender");
+    assert_eq!(
+        resp.status(),
+        StatusCode::BAD_REQUEST,
+        "a role beyond the sender"
+    );
     let within = invitation(&app, manager.user_id, "receptionist").await;
     let resp = accept(within).await.expect("accept");
-    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
 }
 
 /// Given a deactivated receptionist, When the Staff sheet is exported and
@@ -170,10 +205,20 @@ async fn an_exported_deactivated_row_imports_again() {
     let admin = admin(&app).await;
     let person = common::provision_staff(&app, &admin.csrf, "receptionist", &[]).await;
     let user = app.url(&format!("/api/setup/users/{}", person.user_id));
-    let (status, body) = send(&admin, admin.client.put(&user), json!({ "is_active": false })).await;
+    let (status, body) = send(
+        &admin,
+        admin.client.put(&user),
+        json!({ "is_active": false }),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
 
-    let book: Value = app.get(&app.client, "/api/setup/workbook").await.json().await.expect("export");
+    let book: Value = app
+        .get(&app.client, "/api/setup/workbook")
+        .await
+        .json()
+        .await
+        .expect("export");
     let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
         .bind(person.user_id)
         .fetch_one(&app.db)

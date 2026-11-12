@@ -1948,9 +1948,13 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
 ];
 
 export function accessMatrixModules() {
-  return [...new Set(ACCESS_MATRIX_SURFACES.map((surfaceEntry) => surfaceEntry.module))].sort();
+  return [...new Set(ACCESS_MATRIX_SURFACES.map((surfaceEntry) => surfaceEntry.module))].sort(
+    (a, b) => a.localeCompare(b),
+  );
 }
 
 export function accessMatrixSurfaceKinds() {
-  return [...new Set(ACCESS_MATRIX_SURFACES.map((surfaceEntry) => surfaceEntry.kind))].sort();
+  return [...new Set(ACCESS_MATRIX_SURFACES.map((surfaceEntry) => surfaceEntry.kind))].sort(
+    (a, b) => a.localeCompare(b),
+  );
 }

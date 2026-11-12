@@ -100,7 +100,13 @@ async fn a_discharged_stay_is_checked_until_its_bill_is_settled() {
     let inp = admit(&db, &claims, patient).await;
     policy(&db, t, patient, (Some(5_000), None)).await;
     allocate(&db, &claims, &inp, bed(&db, t, 8_000, "Deluxe").await).await;
-    assert_eq!(sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap().missing, 1);
+    assert_eq!(
+        sweep_for(&db, t, (None, VISITS_PER_PASS))
+            .await
+            .unwrap()
+            .missing,
+        1
+    );
     let missing = rows(&db, t, PREAUTH).await[0].0;
     let room = rows(&db, t, ROOM).await[0].0;
 
@@ -119,7 +125,10 @@ async fn a_discharged_stay_is_checked_until_its_bill_is_settled() {
     assert_eq!((report.checked, report.closed_stale), (0, 2));
     for row in [missing, room] {
         let how = closed_how(&db, row).await;
-        assert_eq!((how.0.as_str(), how.1.as_deref()), ("actioned", Some("settled")));
+        assert_eq!(
+            (how.0.as_str(), how.1.as_deref()),
+            ("actioned", Some("settled"))
+        );
     }
 
     // A stay discharged and settled before any check is never raised.
@@ -133,7 +142,11 @@ async fn a_discharged_stay_is_checked_until_its_bill_is_settled() {
     discharge(&db, &gone).await;
     raise_bill(&db, t, invoice, 10_000).await;
     sweep_for(&db, t, (None, VISITS_PER_PASS)).await.unwrap();
-    assert_eq!(rows(&db, t, PREAUTH).await.len(), 1, "only the first patient's row");
+    assert_eq!(
+        rows(&db, t, PREAUTH).await.len(),
+        1,
+        "only the first patient's row"
+    );
 }
 
 #[tokio::test]
@@ -166,7 +179,10 @@ async fn a_room_charge_at_discharge_past_the_approval_raises_the_full_band() {
     raise_bill(&db, t, invoice, 104_000).await;
     let found = rows(&db, t, PREAUTH).await;
     assert_eq!(found.len(), 2);
-    assert_eq!((found[1].1.as_str(), found[1].2.as_str()), ("preauth_used_up", "open"));
+    assert_eq!(
+        (found[1].1.as_str(), found[1].2.as_str()),
+        ("preauth_used_up", "open")
+    );
     let band: Option<String> =
         sqlx::query_scalar("SELECT evidence->>'band' FROM charge_attention_items WHERE id = $1")
             .bind(found[1].0)

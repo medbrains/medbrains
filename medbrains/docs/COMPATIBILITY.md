@@ -69,7 +69,7 @@ fixes on the timelines in [`SECURITY-RELEASE-PROCESS.md`](SECURITY-RELEASE-PROCE
 
 | Major | Released | Security fixes until | Status |
 |---|---|---|---|
-| **3.x** | on the v3.33.0 tag (the first versioned release; there was no 1.x or 2.x) | **proposed:** 12 months after 4.0.0 ships, and never before **2029-12-31** | proposed — the owner confirms before v3.33.0 |
+| **3.x** | on the v3.33.0 tag, 2026-11-13 (the first versioned release; there was no 1.x or 2.x) | 12 months after 4.0.0 ships, and never before **2029-12-31** | confirmed by the owner, 2026-11-12 |
 | **Protocol v1** | with MedBrains 3.33.0 | **proposed:** 12 months after protocol v2 ships, and never before **2029-12-31** | proposed — the owner confirms before v3.33.0 |
 
 Only the latest minor of a supported major gets fixes: 3.34 is fixed by shipping 3.34.1 or 3.35.0,

@@ -72,7 +72,7 @@ fn fault(e: impl std::fmt::Display) -> Nack {
     Nack::unavailable("this hospital could not take the request right now")
 }
 
-#[tracing::instrument(skip_all, fields(action = %action))]
+#[tracing::instrument(skip_all, fields(action = %action, tenant_id = tracing::field::Empty))]
 pub async fn receive(
     State(state): State<AppState>,
     Path((hospital, action)): Path<(String, String)>,
@@ -245,6 +245,7 @@ async fn process(
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn answer_body(
     secrets: &dyn SecretResolver,
     sub: &settings::Subscription,
@@ -307,6 +308,7 @@ async fn record(
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn set_state(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     txn_id: Uuid,

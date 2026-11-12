@@ -285,7 +285,7 @@ mod render_tests {
             .find(|t| t.code == code)
             .ok_or_else(|| format!("{code} is not registered"))?;
         let mut context = serde_json::json!({
-            "branding": { "hospital_name": "Alagappa Hospital" },
+            "branding": { "hospital_name": "Example Hospital" },
         });
         context[key] = entity;
         medbrains_print::engine::render_html(template.html, &context)
@@ -342,7 +342,7 @@ mod render_tests {
             nabl_certificate_number: None,
             nabl_logo_url: None,
             barcode_data: String::new(),
-            hospital_name: "Alagappa Hospital".to_owned(),
+            hospital_name: "Example Hospital".to_owned(),
             hospital_logo_url: None,
             signatures: Vec::new(),
             amendments: Vec::new(),

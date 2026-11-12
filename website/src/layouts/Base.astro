@@ -1,12 +1,10 @@
 ---
 import "@fontsource-variable/archivo/wdth.css";
-import "@fontsource/ibm-plex-sans/400.css";
-import "@fontsource/ibm-plex-sans/500.css";
-import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "@fontsource/ibm-plex-mono/600.css";
 import archivoLatin from "@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2?url";
-import plexLatin from "@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2?url";
+import medbrainsSansLatin from "../fonts/MedBrainsSans-latin.woff2?url";
+import "../styles/medbrains-sans.css";
 import "../styles/global.scss";
 import { SITE, SOCIAL } from "../consts";
 import { istDate } from "../lib/blog";
@@ -84,7 +82,7 @@ const jsonLd = schema.length ? JSON.stringify({ "@context": "https://schema.org"
     {jsonLd && <script type="application/ld+json" set:html={jsonLd} />}
     <!-- Self-hosted fonts (no third-party request); preload the two every page paints first. -->
     <link rel="preload" href={archivoLatin} as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href={plexLatin} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={medbrainsSansLatin} as="font" type="font/woff2" crossorigin />
   </head>
   <body class:list={[{ light }]}>
     <a class="sr-only" href="#main">Skip to content</a>

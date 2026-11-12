@@ -20,7 +20,7 @@ host them or they run it on **their own bare metal**; and **we** see and update 
 | Device trust | `medbrains-device-pairing` (5-min token → keypair → 30-day JWT, admin revoke) | QR is unsigned and carries no server; native apps never call pairing |
 | Editions / modules | `tenants.hospital_type` (8 types, no lab-only); `module_config` presets via `/api/setup/edition` | Fail-open; tenant admin can switch their own edition; no plans, prices or subscriptions |
 | Licence (bare metal) | none | Nothing signed, no expiry, no limits |
-| Provisioning | Hand-run per client (`envs/clients/alagappa`, `make ship-cold`), public sign-up (closed in #4671) | No pipeline, no vetted sign-up |
+| Provisioning | Hand-run per client (`envs/standalone/hospital-a`, `make ship-cold`), public sign-up (closed in #4671) | No pipeline, no vetted sign-up |
 | Updates on customer boxes | Operator `make apply`; `.prev` binary + `medbrains-rollback`; backup timer | No OS patching, no release channel, no version report |
 | Vendor view | none (`/api/health` = up/down, no version) | No fleet, no telemetry, no operator role (tenant `super_admin` is treated as operator in `multi_hospital.rs`) |
 | Store apps | Bundle ids `com.medbrains.staff/.patient`; fastlane targets the **old RN** apps | Native lanes, privacy manifest, Data Safety, reviewer demo hospital |

@@ -340,11 +340,11 @@ EPICS = [
             story(
                 "Move standalone terraform state to S3 with locking",
                 "devops engineer",
-                "S3 backend + DynamoDB lock for standalone/alagappa state",
+                "S3 backend + DynamoDB lock for standalone/hospital-a state",
                 "state is encrypted, shared, and protected from concurrent applies",
                 ["Backend block + migration of existing state", "Documented in infra README"],
                 "P0 #15",
-                ["infra/terraform/envs/standalone/alagappa/main.tf:25-27"],
+                ["infra/terraform/envs/standalone/hospital-a/main.tf:25-27"],
                 "S", "P0-critical", "area:infra", M1,
             ),
             story(

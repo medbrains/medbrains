@@ -296,7 +296,7 @@ prepare-sqlx: guard-sqlx-nonprod ## Refresh SQLx offline metadata from local/CI 
 safe-prepare-sqlx: guard-sqlx-nonprod ## prepare-sqlx that refuses unless the workspace compiles, and restores .sqlx if prepare fails
 	bash scripts/safe_prepare_sqlx.sh "$(SQLX_DATABASE_URL)" $(SQLX_PREPARE_CARGO_ARGS)
 
-.PHONY: doctor gate safe-prepare-sqlx
+.PHONY: doctor gate safe-prepare-sqlx fonts check-fonts
 doctor: ## Find dev traps (root-owned caches, disk, stale master, busy cargo, .env, DB); prints fixes, changes nothing
 	@bash scripts/doctor.sh
 
@@ -357,7 +357,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-shell-theme check-raw-key-bytes ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -413,6 +413,23 @@ check-ui-permission-match-update-baseline: ## Record the current under-gated set
 
 check-authz-collapse: ## Ban collapsing an authz check's error into a denial
 	python3 scripts/check_authz_collapse.py
+
+check-raw-key-bytes: ## Ban building keys from raw bytes, new in-repo dev keys and MEDBRAINS_ENV literals outside medbrains-crypto/src/keys*
+	python3 scripts/check_raw_key_bytes.py
+	bash deploy/standalone/test-jwt-keys.sh
+
+FONTS_PY = uv run --no-project --python 3.12 --with-requirements tools/fonts/requirements.txt python -I
+
+fonts: ## Rebuild MedBrains Sans from the pinned IBM Plex release, then its review sheet
+	$(FONTS_PY) tools/fonts/build_medbrains_sans.py
+	$(FONTS_PY) tools/fonts/render_samples.py
+
+check-fonts: ## The committed MedBrains Sans files are exactly what the build makes, and no kerned pair collides
+	$(FONTS_PY) tools/fonts/build_medbrains_sans.py --check
+	$(FONTS_PY) tools/fonts/check_glyph_collisions.py
+
+check-shell-theme: ## The OS shell's GTK colours match the design tokens and meet WCAG 2.2 AA
+	python3 -I os/shell-tokens.py --check
 
 check-docs: ## Every function this branch adds or changes has a doc comment
 	cd .. && python3 medbrains/scripts/check_docs_on_new_functions.py
@@ -873,11 +890,11 @@ ship: ## Full CI gate (no deploy). Includes full E2E before release build.
 	@$(MAKE) -s build
 	@echo "✅ ship clean — ready to deploy."
 
-ship-cold: ship ## Full ship + deploy to prod (Starter tier on hims.amh.org.in)
+ship-cold: ship ## Full ship + deploy to prod (Starter tier; host from TF_VAR_domain in infra/.env)
 	@echo "── deploy ──────────────────────────────"
-	@cd infra/terraform/envs/clients/alagappa && $(MAKE) apply
+	@cd infra/terraform/envs/standalone/hospital-a && $(MAKE) apply
 	@echo "── post-deploy smoke ───────────────────"
-	@curl -sS --fail --max-time 10 https://hims.amh.org.in/api/health > /dev/null \
+	@set -a; . infra/.env; set +a; curl -sS --fail --max-time 10 "https://$${TF_VAR_domain:?Set TF_VAR_domain in infra/.env}/api/health" > /dev/null \
 		&& echo "✅ /api/health 200" \
 		|| { echo "❌ /api/health failed"; exit 1; }
 	@echo "✅ ship-cold complete."
@@ -886,8 +903,8 @@ hotpush-ui: ## Build and deploy only the web SPA to the standalone host
 	@set -euo pipefail; \
 	if [ -f infra/.env ]; then set -a; . infra/.env; set +a; fi; \
 	: "$${TF_VAR_ssh_private_key_path:?Set TF_VAR_ssh_private_key_path in infra/.env}"; \
-	DOMAIN="$${TF_VAR_domain:-hims.amh.org.in}"; \
-	SSH_ENDPOINT="$$(cd infra/terraform/envs/clients/alagappa && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
+	DOMAIN="$${TF_VAR_domain:?Set TF_VAR_domain in infra/.env}"; \
+	SSH_ENDPOINT="$$(cd infra/terraform/envs/standalone/hospital-a && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
 	if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then SSH_ENDPOINT="ubuntu@$$DOMAIN"; fi; \
 	echo "── hotpush-ui: typecheck web ───────────"; \
 	pnpm --filter @medbrains/web typecheck; \
@@ -1008,7 +1025,7 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 	bash scripts/build_guard.sh --wait
 	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target. It also
 	# takes macOS ar and ranlib unless told, which index Linux objects as Mach-O and break the link.
-	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
+	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-os-update --bin medbrains-os-update -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
 	OS_TARGET_DIR=$(OS_TARGET_DIR)-kanidm os/build-kanidm.sh --arch $(or $(ARCH),arm64)
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
@@ -1016,6 +1033,10 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 os-test: ## Boot a debug image and check security, boot and memory (IMAGE=path/to/image.raw)
 	bash scripts/build_guard.sh --wait
 	cargo run -q -p medbrains-os-test -- $(IMAGE)
+
+os-test-updates: ## Prove A/B updates on real QEMU machines (IMAGE=path/to/image.raw BUNDLES=path)
+	bash scripts/build_guard.sh --wait
+	cargo run -q -p medbrains-os-test -- $(IMAGE) updates $(BUNDLES)
 
 os-boot: ## Boot the built arm64 image in QEMU (FRESH=1 for a brand-new box)
 	os/qemu-run.sh $(if $(FRESH),--fresh)

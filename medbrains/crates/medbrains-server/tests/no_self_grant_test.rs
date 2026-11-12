@@ -24,7 +24,11 @@ pub(crate) const MANAGER: &[&str] = &[
 ];
 
 /// Send `body` with `staff`'s session; the status and the JSON answer.
-pub(crate) async fn send(staff: &Staff, req: reqwest::RequestBuilder, body: Value) -> (StatusCode, Value) {
+pub(crate) async fn send(
+    staff: &Staff,
+    req: reqwest::RequestBuilder,
+    body: Value,
+) -> (StatusCode, Value) {
     let resp = req
         .header("x-csrf-token", &staff.csrf)
         .json(&body)

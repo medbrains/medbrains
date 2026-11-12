@@ -1,9 +1,10 @@
 # Release artefacts on a version tag. Moved from medbrains/.github/workflows/
 # (never read there).
 #
-# Tags and manual runs only. At the old location the docker job had no tag
-# guard and would have pushed an image to GHCR on every push to master once
-# this went live. Production is built with cargo-zigbuild on the operator's
+# A v* tag builds everything and drafts the GitHub release; a manual run is a
+# dry run that publishes nothing. The Docker image is pushed to GHCR only when
+# the owner presses Publish on that draft (the `release: published` event), so
+# nothing public exists before the owner says go (docs/DECISIONS.md). Production is built with cargo-zigbuild on the operator's
 # machine (ENGINEERING.md) — this workflow is a GitHub release, not the deploy.
 #
 # Supply chain (RFC-HOSPITAL-OS §8j, SEC1): the image is signed with cosign
@@ -19,6 +20,8 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+  release:
+    types: [published]
 
 env:
   CARGO_TERM_COLOR: always
@@ -36,6 +39,7 @@ jobs:
     # glibc 2.36 so they run on Debian 12 and later. Dev-only tools (loadtest,
     # ai-eval, os-test, probes, codegen) are not shipped.
     name: Build binaries (${{ matrix.arch }})
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -79,6 +83,7 @@ jobs:
 
   build-frontend:
     name: Build frontend
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -108,6 +113,7 @@ jobs:
     # Staff and patient apps. Release-signed only when the keystore secrets are
     # set; without them the APKs are marked -unsigned and will not install.
     name: Android apps
+    if: github.event_name != 'release'
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
     # trial run joins no environment and builds unsigned.
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
@@ -177,6 +183,7 @@ jobs:
     # The identity provider the image carries, cross-compiled per arch by os/build-kanidm.sh
     # (pinned source, lock and vendored crates; no Docker).
     name: Build Kanidm (${{ matrix.arch }})
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -272,12 +279,13 @@ jobs:
 
   docker:
     name: Build & push image
-    # Pushing to GHCR is public, so only a v* tag does it. A manual run is a dry
-    # run of everything else and publishes nothing.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Pushing to GHCR is public, so only the owner pressing Publish on a v*
+    # release does it. Never on a tag push or a manual run: a manual run has no
+    # version tag and would push an image named only by its commit.
+    if: github.event_name == 'release' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write       # the image SBOM goes onto the published release
       packages: write
       id-token: write       # keyless signing + provenance
       attestations: write
@@ -301,7 +309,6 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
       - id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -323,6 +330,8 @@ jobs:
           push-to-registry: true
       # The image is distroless, so this lists its few OS packages; the
       # crates and npm packages are in the source SBOM the release job makes.
+      # The release's SHA256SUMS was signed at tag time, before this image
+      # existed, so the SBOM carries its own signature bundle.
       - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
@@ -330,22 +339,25 @@ jobs:
           output-file: medbrains-image.cdx.json
           upload-artifact: false
           upload-release-assets: false
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: sbom-image
-          path: medbrains-image.cdx.json
-          retention-days: 30
+      - name: Sign the image SBOM and add it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cosign sign-blob --yes --bundle medbrains-image.cdx.json.sigstore.json medbrains-image.cdx.json
+          gh release upload "$TAG" medbrains-image.cdx.json medbrains-image.cdx.json.sigstore.json \
+            --repo "$GITHUB_REPOSITORY" --clobber
 
   release:
     name: GitHub release
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend, docker, android, os-image]
-    # The server, web app and Docker image must succeed. A failed Android or OS-image job
+    needs: [build-backend, build-frontend, android, os-image]
+    # The server and web app must succeed. A failed Android or OS-image job
     # leaves its files out of this release rather than stopping it; its job shows red.
+    # The Docker image is not built yet: it follows on Publish (the docker job).
     if: >-
-      always() && startsWith(github.ref, 'refs/tags/v')
+      always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
       && needs.build-backend.result == 'success' && needs.build-frontend.result == 'success'
-      && needs.docker.result == 'success'
     permissions:
       contents: write
       id-token: write
@@ -398,7 +410,6 @@ jobs:
           done
           tar -czf dist/medbrains-web-dist.tar.gz -C artifacts web-dist
           find artifacts/android artifacts/os-* -type f -exec cp {} dist/ \;
-          cp artifacts/sbom-image/medbrains-image.cdx.json dist/
           cd dist && sha256sum -- * > SHA256SUMS
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign the checksums (keyless)
@@ -407,9 +418,9 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*
-      # Draft: the owner presses Publish. The image push and signing above are
-      # public at tag time regardless. The desktop job adds its own installers
-      # and SHA256SUMS-desktop-<os> to this draft afterwards.
+      # Draft: the owner presses Publish, which starts the docker job (image push,
+      # signing, image SBOM). Nothing is public before that. The desktop job adds
+      # its own installers and SHA256SUMS-desktop-<os> to this draft afterwards.
       - name: Draft the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

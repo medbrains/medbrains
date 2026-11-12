@@ -142,6 +142,7 @@ async fn secret(secrets: &dyn SecretResolver, key: &str) -> Option<String> {
 }
 
 /// The gateway host for `environment`, or the stand-in a test names.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn gateway_base(secrets: &dyn SecretResolver, environment: &str) -> String {
     secret(secrets, UHI_GATEWAY_BASE_URL_OVERRIDE)
         .await
@@ -158,6 +159,7 @@ pub async fn gateway_base(secrets: &dyn SecretResolver, environment: &str) -> St
 }
 
 /// Where a gateway search is answered, under this subscription's contract.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn gateway_on_search(secrets: &dyn SecretResolver, sub: &Subscription) -> String {
     format!(
         "{}{}",
@@ -182,6 +184,7 @@ fn check(header: &SignatureHeader, body: &[u8], key: &str) -> Result<(), Nack> {
 ///
 /// # Errors
 /// 401 when it does not verify; 503 when its key cannot be found out.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn verify_gateway(
     secrets: &dyn SecretResolver,
     sub: &Subscription,
@@ -223,6 +226,7 @@ pub async fn verify_gateway(
 /// # Errors
 /// 401 when unsigned, forged, unregistered or pointing elsewhere; 503 when
 /// the registry cannot be asked.
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn verify_app(
     secrets: &dyn SecretResolver,
     sub: &Subscription,
@@ -252,6 +256,7 @@ pub async fn verify_app(
 ///
 /// # Errors
 /// As [`verify_app`].
+#[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
 pub async fn app_record(
     secrets: &dyn SecretResolver,
     sub: &Subscription,

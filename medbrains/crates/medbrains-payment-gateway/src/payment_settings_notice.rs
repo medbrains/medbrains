@@ -44,7 +44,8 @@ fn upi_words(upi: Option<&str>) -> &str {
 /// An amount for a sentence: the stored f64 with no ".0" on a whole number
 /// ("250", "99.5"), or "not set".
 fn rupees(v: &Value) -> String {
-    v.as_f64().map_or_else(|| "not set".to_owned(), |n| n.to_string())
+    v.as_f64()
+        .map_or_else(|| "not set".to_owned(), |n| n.to_string())
 }
 
 /// Link terms for a sentence, from the stored JSON (or the defaults).

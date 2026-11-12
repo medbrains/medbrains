@@ -90,6 +90,7 @@ fn allowed(ip: IpAddr, allow_loopback: bool) -> bool {
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn loopback_allowed(
     state: &AppState,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -179,6 +180,7 @@ async fn fetch(link: &str, allow_loopback: bool) -> Result<String, &'static str>
 
 /// Each entry with its content inline: a linked entry fetched, an inline
 /// one as it is. An entry that cannot be fetched is refused with why.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn inline_all(
     entries: &[Value],
     allow_loopback: bool,

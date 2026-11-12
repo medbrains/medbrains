@@ -57,6 +57,8 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 `make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
 
+`make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
+
 ## Boot in UTM
 
 ```sh
@@ -474,7 +476,7 @@ in software, and everything else moves by under 20. Cairo stays.
 **Kanidm's look.** Every page Kanidm draws (sign-in, password change, people, groups, both themes) is dressed through the one
 stylesheet it loads after its own, so its templates are not patched. `kanidm-tokens.py` prints the design system's `--mb-*` tokens
 for its light and dark themes from `packages/design-system`, and the build refuses tokens that miss WCAG 2.2 AA; `kanidm-override.css`
-uses only those, with square corners, bottom-rule fields, IBM Plex from the web app and a 2px focus outline.
+uses only those, with square corners, bottom-rule fields, MedBrains Sans and IBM Plex Mono from the web app and a 2px focus outline.
 
 ## Linux hardening
 
@@ -638,6 +640,16 @@ and `one_address_cannot_take_the_places_of_others`; duties separate, `each_duty_
   screen, pings the gateway and makes one request to the internet.
 - WebKitGTK is loaded only when MedBrains is first opened, so the desktop does not pay for it.
 
+**Its look comes from the design system.** `src/style.css` holds layout, shape and motion only: Carbon's sharp
+corners, the 8px grid, 48px controls, a 2px focus ring and transitions of at most 240 ms, all off when Settings
+asks for reduced motion. Every colour is a `@mb_*` name from `src/theme-light.css` and `src/theme-dark.css`,
+which `os/shell-tokens.py` writes from the web app's generated colours (`colors.generated.ts`), along with the
+crab mascot in `assets/crab.svg`. Change a colour in the design system, run `os/shell-tokens.py`, commit both.
+`os/shell-tokens.py --check` (`make check-shell-theme`, and the image build) fails if the files have drifted or if
+any text pair the stylesheet draws falls below WCAG 2.2 AA in either scheme. Fonts are IBM Plex Sans and Mono and
+Archivo Expanded SemiBold, a static instance (width 125, weight 600) of the web app's Archivo variable font, all
+under the SIL Open Font License (`fonts/OFL.txt`, `fonts/OFL-Archivo.txt`).
+
 **Staying on this machine.** MedBrains loads from `https://127.0.0.1:8443`, a loopback-only front end with a
 self-signed certificate, the only certificate the kiosk trusts, so there is no warning. There is no address
 bar. Each app's content filter blocks everything except its origin, `blob:` and `data:`; if it cannot be
@@ -776,8 +788,8 @@ The failure table the flight rules ask for (`docs/OS-PRINCIPLES.md` section 7). 
 | Partition | Size | Holds |
 |---|---|---|
 | EFI | 512 MB | systemd-boot, the boot file (kernel, initrd, logo) |
-| root A | 2 GB | the system (`/`), ext4 |
-| root B | 2 GB | reserved, labelled `_empty`, for A/B updates |
+| root A | 2 GB | the system (`/`), ext4, named `medbrains_<version>` |
+| root B | 2 GB | named `_empty` until the first update writes it (`docs/architecture/OS-UPDATES.md`) |
 | data | not in the image; made at first boot, fills the disk | `/var`, encrypted: PostgreSQL, files, logs, backups, secrets |
 
 The PostgreSQL configuration and `/etc/medbrains` are symlinks into `/var`, so reinstalling the system
@@ -811,7 +823,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 | amd64 image | config present, not built or booted |
 | dm-verity read-only root | **not in D1**, SEC3. Root is writable ext4, so a changed system file is not detected. Blockers: `/etc/machine-id` on a read-only root, and mkosi's verity partitions |
 | LUKS data partition | **in**, sealed to the TPM with a recovery key; see [Data disk](#data-disk). Secure Boot and the boot editor lock are not |
-| A/B updates and rollback | D4. Slot B is reserved; nothing writes to it yet |
+| A/B updates and rollback | in: `docs/architecture/OS-UPDATES.md`, including its failure table. No release key exists, so a release image refuses every bundle |
 | Recovery partition and boot menu | D4. A failed boot shows systemd's own messages and that the root account is locked |
 | Trusted TLS for other computers | D2. The machine's own CA means a browser warning on first visit, until a hospital trusts it or brings its own root (T2) |
 | Backups and TLS in setup | D2 (§8s). Hospital name, first administrator and network are in |
@@ -825,6 +837,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 
 - `mkosi.conf`, `mkosi.conf.d/`: packages and image settings.
 - `mkosi.repart/`: build-time partitions. `mkosi.extra/usr/lib/medbrains/repart/`: the data partition, made at first boot by `disk-setup`.
+- `update-keys/`: public keys that may sign updates. None yet.
 - `mkosi.extra/`: units, first-boot scripts, journald, watchdog, network and the TLS front (`medbrains-front`).
 - `mkosi.postinst.chroot`: removes the baked PostgreSQL cluster, enables units.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.

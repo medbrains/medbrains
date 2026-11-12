@@ -24,5 +24,5 @@ export function toggleKind(kinds: string[], key: string, on: boolean): string[] 
   const next = new Set(kinds);
   if (on) next.add(key);
   else next.delete(key);
-  return [...next].sort();
+  return [...next].sort((a, b) => a.localeCompare(b));
 }

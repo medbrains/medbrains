@@ -4,8 +4,8 @@
     "type": "individual",
     "role": "owner",
     "name": "Domnic Amalan S",
-    "email": "hello@medbrains.in",
-    "description": "Creator and maintainer of MedBrains, a free, open-source hospital management system built so that every hospital, big or small, has the tools to give safe care.",
+    "email": "ceo@medbrains.in",
+    "description": "Creator and maintainer of MedBrains, a free, open-source hospital operating system: cheap by design, top quality, simple out of the box, so that every hospital, big or small, can give safe care and create local jobs supporting it.",
     "webpageUrl": {
       "url": "https://www.medbrains.in",
       "wellKnown": "https://www.medbrains.in/.well-known/funding-manifest-urls"
@@ -15,7 +15,7 @@
     {
       "guid": "medbrains",
       "name": "MedBrains",
-      "description": "Free, open-source hospital management system: registration, OPD, wards, nursing, pharmacy, lab, radiology and billing on one patient record, with patient-safety checks built in (drug interactions, narcotics rules, barcode-verified medicine administration, critical lab alerts). Rust and PostgreSQL, with web and native iOS/Android apps. Supports ABDM, interoperable through HL7 FHIR R4, HL7 v2 and DICOM, and self-hostable so small, rural and charitable hospitals can run it at no licence cost.",
+      "description": "Free, open-source hospital operating system: registration, OPD, wards, nursing, pharmacy, lab, radiology and billing on one patient record, with patient-safety checks built in (drug interactions, narcotics rules, barcode-verified medicine administration, critical lab alerts) and regulatory compliance built into the core. Rust and PostgreSQL, with web, desktop and native iOS/Android apps, and an installable OS image that runs on modest hardware. ABDM M1-M4 supported, interoperable through HL7 FHIR R4, HL7 v2 and DICOM, and self-hostable so small, rural and charitable hospitals can run it at no licence cost.",
       "webpageUrl": {
         "url": "https://www.medbrains.in",
         "wellKnown": "https://www.medbrains.in/.well-known/funding-manifest-urls"
@@ -24,7 +24,7 @@
         "url": "https://github.com/medbrains/medbrains"
       },
       "licenses": [
-        "spdx:Apache-2.0"
+        "spdx:AGPL-3.0-only"
       ],
       "tags": [
         "healthcare",
@@ -45,7 +45,7 @@
         "guid": "bank-transfer",
         "type": "bank",
         "address": "",
-        "description": "Bank transfer to the maintainer. Write to hello@medbrains.in for account details and an invoice."
+        "description": "Bank transfer to the maintainer. Write to ceo@medbrains.in for account details and an invoice."
       }
     ],
     "plans": [
@@ -53,7 +53,7 @@
         "guid": "core-development",
         "status": "active",
         "name": "Core development and maintenance",
-        "description": "One year of full-time maintenance and development: security fixes and dependency updates, completing ABDM M2/M3 and HL7 FHIR write and search, LOINC mapping, a one-command install for hospitals, documentation, and reviewing community contributions.",
+        "description": "One year of full-time maintenance and development: security fixes and CVE tracking for every release, dependency updates, regulatory packs (India first: NDPS, Schedule H, DPDP, CERT-In), on-box AI that works under the same access rules as staff, ABDM certification, the hospital OS installer and fleet updates, documentation, and reviewing community contributions.",
         "amount": 50000,
         "currency": "USD",
         "frequency": "yearly",
