@@ -83,6 +83,7 @@ import {
   billingOptionalText,
   billingTdsQuarterOptions,
   billingTdsSectionOptions,
+  tdsPeriodOf,
 } from "@/forms/billing.form";
 import { statusColor } from "@/lib/status-colors";
 import { billingService } from "@/services/billing.service";
@@ -329,6 +330,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [opened, { open, close }] = useDisclosure(false);
+  const today = new Date().toISOString().slice(0, 10);
   const tdsDefaults: BillingTdsFormInput = {
     invoice_id: "",
     deductee_name: "",
@@ -336,9 +338,8 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     tds_section: "194J",
     tds_rate: 10,
     base_amount: 0,
-    deducted_date: new Date().toISOString().slice(0, 10),
-    financial_year: "2025-26",
-    quarter: "Q4",
+    deducted_date: today,
+    ...tdsPeriodOf(today),
   };
   const {
     control,
@@ -371,7 +372,8 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       reset(tdsDefaults);
       toast.success("TDS deduction recorded", { title: "Created" });
     },
-    onError: () => toast.error("Failed", { title: "Error" }),
+    // The server names the rule (PAN, quarter of the date); a bare "failed" hides it.
+    onError: (e: Error) => toast.error(e.message, { title: "TDS not recorded" }),
   });
 
   const depositMut = useMutation({
@@ -384,6 +386,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       toast.success("TDS challan recorded", { title: "Deposited" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Challan not recorded" }),
   });
 
   const certMut = useMutation({
@@ -396,6 +399,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       toast.success("Certificate recorded", { title: "Issued" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Certificate not recorded" }),
   });
 
   const columns = [

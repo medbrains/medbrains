@@ -233,6 +233,21 @@ export const billingErpExportTypeOptions = billingErpExportTypeValues.map((value
   label: erpExportTypeLabels[value],
 }));
 
+/**
+ * The Indian financial year ("2026-27") and TDS quarter (Q1 April–June … Q4 January–March) a
+ * deduction dated `isoDate` (YYYY-MM-DD) is reported in. The server refuses any other pair.
+ */
+export function tdsPeriodOf(isoDate: string): {
+  financial_year: string;
+  quarter: BillingTdsQuarterFormValue;
+} {
+  const [year = 0, month = 1] = isoDate.split("-").map(Number);
+  const start = month >= 4 ? year : year - 1;
+  const quarter: BillingTdsQuarterFormValue =
+    month <= 3 ? "Q4" : month <= 6 ? "Q1" : month <= 9 ? "Q2" : "Q3";
+  return { financial_year: `${start}-${String((start + 1) % 100).padStart(2, "0")}`, quarter };
+}
+
 export function billingNumberOrFallback(value: number | string, fallback: number): number {
   return numberFromFormValue(value, fallback);
 }
