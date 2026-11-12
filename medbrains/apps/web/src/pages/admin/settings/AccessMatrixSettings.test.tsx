@@ -5,7 +5,7 @@ import { render, screen, userEvent, waitFor, within } from "@/test/test-utils";
 import { AccessMatrixSettings } from "./AccessMatrixSettings";
 
 const held = vi.hoisted(() => ({ permissions: new Set<string>() }));
-const api = vi.hoisted(() => ({
+const access = vi.hoisted(() => ({
   listRoles: vi.fn(),
   listUsers: vi.fn(),
   listAccessGroups: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useHasPermission: (code: string) => held.permissions.has(code),
 }));
-vi.mock("@/services/adminAccess.service", () => ({ adminAccessService: api }));
+vi.mock("@/services/adminAccess.service", () => ({ adminAccessService: access }));
 // The editors render one row per catalogue code; a handful keeps jsdom fast
 // without changing what the page does with them.
 vi.mock("@medbrains/types", async (importOriginal) => {
