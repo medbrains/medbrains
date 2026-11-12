@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: write # commit signatures to the cla-signatures branch
-  pull-requests: write # comment on the pull request and lock it after merge
+  pull-requests: write # comment on the pull request
   statuses: write # set the CLA status on the pull request
   actions: write # re-run the check after a contributor signs
 
@@ -34,3 +34,5 @@ jobs:
           path-to-document: https://github.com/medbrains/medbrains/blob/main/CLA.md
           branch: cla-signatures
           allowlist: DomnicAmalan,Domnic-Alagappa,dependabot[bot]
+          # Keep merged pull requests open for follow-up discussion.
+          lock-pullrequest-aftermerge: false

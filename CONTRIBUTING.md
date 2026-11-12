@@ -89,4 +89,4 @@ Do not report vulnerabilities in public issues. Follow [SECURITY.md](./SECURITY.
 
 ## Licence
 
-MedBrains is dual-licensed (AGPL-3.0 and commercial). Pull requests are merged only after you sign the [contributor licence agreement](./CLA.md): your contribution is licensed under the AGPL-3.0-only, and you grant the maintainer the right to also license it commercially. You keep your copyright. The name and logo are covered by the [trademark policy](./TRADEMARKS.md).
+MedBrains is dual-licensed (AGPL-3.0-only and commercial). Pull requests are merged only after you sign the [contributor licence agreement](./CLA.md): your contribution is licensed under the AGPL-3.0-only, and you grant the maintainer the right to also license it commercially. You keep your copyright. The name and logo are covered by the [trademark policy](./TRADEMARKS.md).
