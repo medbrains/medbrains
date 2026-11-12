@@ -11,22 +11,20 @@ networked computer, and the key a networked computer holds expires within weeks 
 
 ## 1. Every key that signs something we ship
 
-| Key | Signs | Trusted by | Today | Target |
-|---|---|---|---|---|
-| **OS update root** | Intermediate certificates, revocation lists, new trust anchors | Every OS image (`os/update-keys/root-*.pub`) | Not made; release images refuse every bundle (OS-UPDATES.md) | 3 hardware tokens, offline, 2-of-3 for anchor changes (§2) |
-| **OS update intermediate** | Update manifests (`manifest.sig`), weekly `refresh` re-signs | Machines, through the root's certificate | Not made | Ed25519, 30-day certificate, held by the release job only (§3) |
-| **Boot signing key** (`OS_PCR_KEY`) | Expected PCR 11 values of the boot file | The disk seal on every machine | Debug throwaways in builds (OS-KEYS.md). **But `OS_PCR_KEY` and `OS_PCR_CERT` have been secrets in the GitHub `release` environment since 2026-11-09**, unused by any workflow on `main`: the key every disk will seal to sits on a networked service | Same custody as the root (§2): a disk is sealed to one public key, so it cannot be short-lived until re-seal is built |
-| **Release checksums, container image** | `SHA256SUMS`, the GHCR image | Anyone verifying a release | Sigstore keyless: a certificate valid for minutes, bound to the release workflow's identity, logged in Rekor (`release.yml`) | Keep. Already the "short-lived, CI-held" pattern |
-| **npm and PyPI SDKs** | Published packages | Package users | Trusted publishing (OIDC), no stored token (`publish-sdks.yml`) | Keep |
-| **Desktop updater** (`TAURI_SIGNING_PRIVATE_KEY`) | Desktop app updates | Every installed desktop app (`tauri.conf.json` `pubkey`) | **A long-lived minisign key in a GitHub secret** (`release` environment). A leak lets anyone sign a desktop update | Add required reviewers to the `release` environment now (it has only a branch rule); Tauri's updater has no chain, so rotation ships a new `pubkey` in a signed update, as for the OS root (§5.3) |
-| **Android upload key, Apple distribution** | Store builds | The stores | The Android keystore is in the `release` environment (2026-11-09); Apple not set up | Play App Signing (Google holds the app key; the upload key can be reset); Apple keys in the owner's account only |
-| **Licence and subscription issuer** | Licence files, subscription tokens | The updater's feed check, the admin screen | Designed: "Ed25519 in KMS" (RFC-PLATFORM-COMMERCIAL §3) | A key that cannot be exported (KMS), never the update root. A leak forges entitlement, not code |
+| Key | Signs | Trusted by | Target custody |
+|---|---|---|---|
+| **OS update root** | Intermediate certificates, revocation lists, new trust anchors | Every OS image (`os/update-keys/root-*.pub`) | 3 hardware tokens, offline, 2-of-3 for anchor changes (§2) |
+| **OS update intermediate** | Update manifests (`manifest.sig`), weekly `refresh` re-signs | Machines, through the root's certificate | Ed25519, 30-day certificate, readable only by the approved release job (§3) |
+| **Boot signing key** (`OS_PCR_KEY`) | Expected PCR 11 values of the boot file | The disk seal on every machine | Offline, held like the root (§4, written limits): a disk is sealed to one public key, so it cannot be short-lived until re-seal is built |
+| **Release checksums, container image** | `SHA256SUMS`, the GHCR image | Anyone verifying a release | Sigstore keyless: a certificate valid for minutes, bound to the release workflow's identity, logged in Rekor (`release.yml`). Already the short-lived pattern |
+| **npm and PyPI SDKs** | Published packages | Package users | Trusted publishing (OIDC), no stored token (`publish-sdks.yml`) |
+| **Desktop updater** | Desktop app updates | Every installed desktop app (`tauri.conf.json` `pubkey`) | Tauri's updater has no chain: one long-lived key, readable only by the approved release job; rotation ships a new `pubkey` in a signed update (§5.1) |
+| **Store signing** (Android, Apple) | Store builds | The stores | Play App Signing (Google holds the app key; the upload key can be reset); Apple keys in the owner's account |
+| **Licence and subscription issuer** | Licence files, subscription tokens | The updater's feed check, the admin screen | A key that cannot be exported (KMS, RFC-PLATFORM-COMMERCIAL §3), never the update root. A leak forges entitlement, not code |
 
-**Before the first release image:** treat the `OS_PCR_KEY` now in GitHub as a test key. Delete it
-from the `release` environment, make the release boot key offline at the first ceremony, and never
-let a workflow read it. A boot key on GitHub would let anyone who reads that secret make boot files
-that open sealed disks on stolen machines. Add required reviewers to the `release` environment
-either way: today any run on an allowed branch can read its secrets.
+**Rule for CI:** no long-lived key that can take over a machine (the update root, the boot key) is
+ever readable by a workflow. Any such secret found in CI is moved out and treated as a test key.
+Keys CI must hold sit in a protected environment that needs the owner's approval for each run.
 
 The update root and the boot key are the two that can take over a machine. The rest of this
 document is about them; the desktop key gets the same runbook in §5.
@@ -52,9 +50,9 @@ every machine on the last trust anchor.
 
 | | |
 |---|---|
-| Key | Ed25519, made on the signing laptop at a ceremony, put into the GitHub environment `release` as a secret, then the stick is wiped. The `release` environment needs the owner's approval for each run and is limited to tags |
+| Key | Ed25519, made on the signing laptop at a ceremony, put into a protected GitHub environment as a secret, then the stick is wiped. **Planned:** that environment needs the owner's approval for each run and accepts only release tags |
 | Certificate | `intermediate.json`: `format`, `serial` (increasing integer), `key_id`, `public_key`, `not_before`, `not_after` (30 days later), `purposes` (`os-update`). Signed by one root into `intermediate.sig`, one line per signature (`<root id> <base64>`), the same form as `manifest.sig` |
-| Lifetime | 30 days. A new one is issued every 3 weeks, so there is always one week of overlap. A leaked intermediate signs nothing after its `not_after`, even on a machine that never sees a revocation list |
+| Lifetime | 30 days. A new one is issued every 3 weeks, so there is always one week of overlap. **The bound needs a trusted clock:** the manifest's `issued` time is written by whoever signs, so a thief can backdate it into the window. With a confirmed clock (NTS), a leaked intermediate is accepted at most until `not_after` plus the manifest's 30-day expiry. Without one it is not time-bounded, and only the revocation list stops it |
 | Signs | Release manifests and the weekly `refresh`. Nothing else: never another certificate |
 
 The bundle gains two pairs of files beside `manifest.json` and `manifest.sig`:
@@ -76,8 +74,9 @@ The bundle gains two pairs of files beside `manifest.json` and `manifest.sig`:
 A refusal says which step failed, on Settings, as refusals do today. The revocation list travels
 **in every bundle and every weekly refresh**, so a machine that updates or looks for updates learns
 of a revocation without any new channel. This answers OS-UPDATES.md's "no trusted time or channel":
-the channel is the signed bundle, freshness is the sequence number, and time is bounded by the
-30-day certificate rather than trusted.
+the channel is the signed bundle and freshness is the sequence number. Time is bounded by the
+30-day certificate only on a machine with a confirmed clock (NTS); the signed `issued` time can be
+backdated by whoever holds the key, so it bounds nothing on its own.
 
 **A new trust anchor** (`anchors.json`: the full list of root public keys, a `sequence`) is signed by
 two current roots and carried in a bundle. The machine replaces its stored anchors with it only if
@@ -86,7 +85,8 @@ set from the start.
 
 **Written limits.**
 - A machine that never updates, and is never offline-updated by USB, never learns of a revocation.
-  A leaked intermediate still expires in 30 days; a leaked root does not. That is why roots are on
+  On a machine with a confirmed clock a leaked intermediate stops at `not_after` plus 30 days; on
+  one without, it does not stop. A leaked root never stops. That is why roots are on
   tokens and a root revocation needs two of them.
 - The boot signing key cannot move to an intermediate until `disk-setup reseal` to a new key is built
   (OS-UPDATES.md "Rotating `OS_PCR_KEY`"). Until then it is held like a root and never on a networked
@@ -104,9 +104,9 @@ clock starts when the first person suspects it, not when it is confirmed.
 
 | By | Step |
 |---|---|
-| **T+15 min** | Delete the secret from the `release` environment (`gh secret delete … --env release`). Disable `release.yml` and `desktop.yml` (`gh workflow disable`). Nothing more can be signed by CI |
+| **T+15 min** | Delete the secret from the protected environment (`gh secret delete … --env <name>`). Disable `release.yml` and `desktop.yml` (`gh workflow disable`). Nothing more can be signed by CI |
 | **T+1 h** | Find what it signed: every `manifest.sig` with its key id since `not_before`, from the release channel's history and GitHub's audit log. Any bundle we did not make is the incident's evidence: keep it |
-| **T+2 h** | Ceremony on the signing laptop, one root token, two people present: (1) `revoked.json` with `sequence` + 1, the leaked serial in `revoked_serials`, `min_serial` raised past it; (2) a new intermediate key and certificate; (3) the new key into the `release` environment; the stick wiped |
+| **T+2 h** | Ceremony on the signing laptop, one root token, two people present: (1) `revoked.json` with `sequence` + 1, the leaked serial in `revoked_serials`, `min_serial` raised past it; (2) a new intermediate key and certificate; (3) the new key into the protected environment; the stick wiped |
 | **T+4 h** | An emergency release: version up, floor up past any version the attacker could have signed, carrying the new revocation list. Published to the channel and as a USB bundle. The weekly refresh carries the list from now on |
 | **T+24 h at the latest** | Every customer told (§5.4). A public advisory (GitHub security advisory) with the revoked key id and the version that carries the revocation |
 | **T+7 days** | Written review: how it leaked, what it signed, what changed. A row in `docs/DECISIONS.md` under "What went wrong" |
@@ -149,7 +149,7 @@ sites with no internet, by phone to the named contact.
 > [time], carries the revocation; once a machine has it, nothing signed with the old key installs.
 >
 > What you need to do: apply [version] (Settings → Updates), or for an offline site, the USB bundle
-> at [link]. On Settings → Updates, "Last signed list" should show [date] or later.
+> at [link]. On Settings → Updates, "Last signed list" should show [date] or later. [*Planned with #5510: until that field exists, give the version to check instead.*]
 >
 > What we know so far: [what the key signed in the window, whether any bundle we did not make was
 > found]. We will write again by [time] with the full review.
@@ -194,12 +194,12 @@ in CI; the human part (the people, the ceremony, the notice) is the drill.
 **Do, in this order:**
 
 1. Name the second key holder (`root-c`) and the witnesses. Two people at every ceremony.
-2. Now, with no purchase: add the owner as required reviewer on the `release` environment, and
-   delete `OS_PCR_KEY` and `OS_PCR_CERT` from it (the release boot key is made offline in step 3).
+2. Now, with no purchase: check that no long-lived signing key sits in CI, move any that does out,
+   and require the owner's approval on the environment that holds release secrets.
 3. When the tokens arrive: the first ceremony. Generate `root-a`, `root-b`, `root-c` on the tokens,
    set PINs and PUKs, export only the public keys. A pull request adds them to `os/update-keys/` with
    the anchor threshold; nobody else can do this step.
-4. Issue intermediate serial 1 and put it in the `release` environment.
+4. Issue intermediate serial 1 and put it in the protected release environment.
 5. Merge #5510 (chain and revocation in the updater) and run the drill (§5.5) before the first paid
    release.
 6. Confirm the legal notice deadlines with counsel and add them to §5.4.
