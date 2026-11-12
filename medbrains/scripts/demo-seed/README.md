@@ -19,7 +19,7 @@ python3 scripts/demo-seed/run_all.py s06_lab s99_verify   # just some steps
 | Variable | Default | Meaning |
 |---|---|---|
 | `MB_DEMO_API` | `http://127.0.0.1:3071/api` | backend serving the demo database |
-| `MB_DEMO_LOGIN_FILE` | `/tmp/mb-demo-login.txt` | `hospital code:`, `username:`, `password:` lines |
+| `MB_DEMO_LOGIN_FILE` | `~/.mb-demo-login.txt` (your home, not world-writable `/tmp`; `chmod 600` it, the client refuses a file others can read) | `hospital code:`, `username:`, `password:` lines |
 | `MB_DEMO_HOSPITAL` / `MB_DEMO_USER` / `MB_DEMO_PASSWORD` | — | use these instead of the file |
 | `MB_DEMO_STATE` | `scripts/demo-seed/state.json` | id map that makes re-runs resume (gitignored) |
 | `MB_DEMO_DB`, `MB_DEMO_PGPORT` | `medbrains_wt_g2shots`, `5435` | used by `q.sh` / `facts.sh` (read-only) |

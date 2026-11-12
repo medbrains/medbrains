@@ -57,7 +57,7 @@ function useVitalsRest(encounterId: string, enabled: boolean): VitalsSourceResul
   const mutation = useMutation({
     mutationFn: (data: CreateVitalRequest) => opdService.createVital(encounterId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vitals", encounterId] });
+      void qc.invalidateQueries({ queryKey: ["vitals", encounterId] });
     },
   });
   const append = useCallback((data: CreateVitalRequest) => mutation.mutate(data), [mutation]);

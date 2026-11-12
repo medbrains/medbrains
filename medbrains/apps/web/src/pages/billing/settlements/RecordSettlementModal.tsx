@@ -95,7 +95,7 @@ export function RecordSettlementModal({
     mutationFn: (v: FormValues) =>
       billingService.recordClaimSettlement({ ...v, notes: v.notes.trim() || undefined }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "claim-settlements"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "claim-settlements"] });
       toast.success("Settlement recorded — waiting for approval");
       close();
     },
