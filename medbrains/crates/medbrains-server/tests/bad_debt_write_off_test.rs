@@ -252,5 +252,21 @@ async fn write_offs_need_a_reason_an_open_bill_and_a_decider_who_can_reach_the_p
         "a decider who cannot reach the patient is refused"
     );
     assert_eq!(state(&app, b.invoice).await?.0, "0.00");
+
+    // The list shows only write-offs on bills of patients the caller can reach.
+    let mine = wo["id"].clone();
+    for (staff, expected) in [(&clerk, true), (&outsider, false)] {
+        let page: Value = staff
+            .client
+            .get(app.url("/api/billing/write-offs?per_page=100"))
+            .send()
+            .await?
+            .json()
+            .await?;
+        let seen = page["data"]
+            .as_array()
+            .is_some_and(|rows| rows.iter().any(|r| r["id"] == mine));
+        assert_eq!(seen, expected, "listed for an assigned clerk only: {page}");
+    }
     Ok(())
 }
