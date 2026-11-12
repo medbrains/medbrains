@@ -987,15 +987,16 @@ export function currentRoomToken<T extends RoomToken>(
     if (room == null || room.trim() === "") return true;
     return sameRoom(token.counter_label, room);
   });
-  if (inRoom.length === 0) return null;
-  return inRoom.reduce((latest, token) => {
+  const [first, ...rest] = inRoom;
+  if (!first) return null;
+  return rest.reduce((latest, token) => {
     // Undated calls sort oldest: a token with no time cannot be shown to be
     // newer than one that has a time, and guessing in the other direction
     // would let a stale row take over the door.
     const a = latest.called_at ? Date.parse(latest.called_at) : Number.NEGATIVE_INFINITY;
     const b = token.called_at ? Date.parse(token.called_at) : Number.NEGATIVE_INFINITY;
     return b > a ? token : latest;
-  });
+  }, first);
 }
 
 /**
