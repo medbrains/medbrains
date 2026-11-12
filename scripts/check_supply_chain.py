@@ -19,6 +19,7 @@ A registry that cannot be reached fails the check: unverified is not verified.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 import subprocess
@@ -71,9 +72,20 @@ PNPM_KEY = re.compile(r"^  '?((?:@[^@/'\s]+/)?[^@'\s]+)@(\d[^('\s:]*)'?:\s*$")
 
 
 def parse_pnpm(text: str) -> list[Package]:
-    """Registry packages from the `packages:` section of a pnpm v9 lockfile."""
-    section = text.split("\npackages:\n", 1)[1].split("\nsnapshots:\n", 1)[0] if "\npackages:\n" in text else ""
-    return [("npm", m[1], m[2], None) for m in map(PNPM_KEY.match, section.splitlines()) if m]
+    """Registry packages from the `packages:` section of a pnpm v9 lockfile.
+
+    Raises ValueError on a missing section or on any key that is not `name@version`: a git,
+    tarball or file dependency must never slip past the review and the cooldown unparsed."""
+    if "\npackages:\n" not in text:
+        if "\nimporters:\n" in text or "\ndependencies:\n" in text:
+            raise ValueError("pnpm lockfile has dependencies but no `packages:` section")
+        return []
+    section = text.split("\npackages:\n", 1)[1].split("\nsnapshots:\n", 1)[0]
+    keys = [line for line in section.splitlines() if line.startswith("  ") and not line.startswith("   ")]
+    bad = [k.strip() for k in keys if not PNPM_KEY.match(k)]
+    if bad:
+        raise ValueError(f"pnpm keys this check cannot read (git, tarball or file sources?): {', '.join(bad[:5])}")
+    return [("npm", m[1], m[2], None) for m in map(PNPM_KEY.match, keys) if m]
 
 
 def parse_gradle(text: str) -> list[Package]:
@@ -104,24 +116,38 @@ def packages_at(ref: str | None) -> list[Package]:
         if "/vendor/" in path or "node_modules/" in path:
             continue
         text = git("show", f"{ref}:{path}") if ref else (REPO / path).read_text(encoding="utf-8")
-        out += PARSERS[Path(path).name](text)
+        try:
+            out += PARSERS[Path(path).name](text)
+        except ValueError as err:
+            raise ValueError(f"{path} at {ref or 'working tree'}: {err}") from err
     return out
 
 
+# A cooldown exception must name the advisory it is for; free text is not a reason.
+ADVISORY = re.compile(
+    r"\b(RUSTSEC-\d{4}-\d{4}|GHSA(-[23456789cfghjmpqrvwx]{4}){3}|CVE-\d{4}-\d{4,}|PYSEC-\d{4}-\d+|GO-\d{4}-\d+)\b"
+)
+
+
 def load_reviews(text: str) -> tuple[set[tuple[str, str]], dict[tuple[str, str, str], str]]:
-    """Reads the reviewed names and the cooldown exceptions, each of which must give a reason."""
+    """Reads the reviewed names and the cooldown exceptions; an exception counts only with an advisory id.
+
+    The file is code-owned (.github/CODEOWNERS), so the owner's review of each entry is the gate."""
     data = tomllib.loads(text)
     reviews = {(r["ecosystem"], r["name"]) for r in data.get("review", []) if r.get("why") and r.get("reviewed-by")}
     exceptions = {
         (e["ecosystem"], e["name"], e["version"]): e["reason"]
         for e in data.get("cooldown-exception", [])
-        if e.get("reason")
+        if ADVISORY.search(e.get("reason", ""))
     }
     return reviews, exceptions
 
 
+@functools.lru_cache(maxsize=4096)
 def fetch(url: str, method: str = "GET") -> tuple[bytes, dict[str, str]]:
-    """Fetches a URL with three tries and a 20 s timeout; raises after the last one."""
+    """Fetches a URL with three tries and a 20 s timeout; raises after the last one.
+
+    Cached per URL, so an npm packument is read once per name however many versions are new."""
     for attempt in range(3):
         try:
             req = urllib.request.Request(url, method=method, headers={"User-Agent": USER_AGENT})
@@ -256,14 +282,22 @@ def self_test() -> None:
     assert parse_pnpm(pnpm) == [("npm", "@a/b", "1.2.3", None), ("npm", "c", "4.0.0-rc.1", None)]
     uv = '[[package]]\nname = "Foo_Bar"\nversion = "2.0"\nsource = { registry = "x" }\nsdist = { upload-time = "2026-01-02T00:00:00Z" }\n'
     assert parse_uv(uv) == [("pypi", "foo-bar", "2.0", "2026-01-02T00:00:00Z")]
+    for broken in ("lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
+                   "x\n\npackages:\n\n  foo@github.com/a/b#c:\n    r\n\nsnapshots:\n"):
+        try:
+            parse_pnpm(broken)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted: {broken!r}")
     assert parse_gradle("# c\na.b:c:1.0=x\nempty=\n") == [("maven", "a.b:c", "1.0", None)]
     now = datetime(2026, 11, 12, tzinfo=UTC)
     base = [("pypi", "old", "1.0", "2020-01-01T00:00:00Z")]
     fresh, aged = ("pypi", "old", "1.1", "2026-11-10T00:00:00Z"), ("pypi", "old", "1.2", "2026-11-01T00:00:00Z")
     assert problems(base, base + [aged], "", now) == []
     assert len(problems(base, [fresh], "", now)) == 1
-    exc = '[[cooldown-exception]]\necosystem = "pypi"\nname = "old"\nversion = "1.1"\nreason = "CVE fix"\n'
+    exc = '[[cooldown-exception]]\necosystem = "pypi"\nname = "old"\nversion = "1.1"\nreason = "fixes CVE-2026-12345"\n'
     assert problems(base, [fresh], exc, now) == []
+    assert len(problems(base, [fresh], exc.replace("CVE-2026-12345", "a security fix"), now)) == 1
     new = ("pypi", "new", "1.0", "2020-01-01T00:00:00Z")
     assert problems(base, [new], "", now) == [f"pypi new: new package, add a [[review]] to {REVIEWS}"]
     rev = '[[review]]\necosystem = "pypi"\nname = "new"\nreviewed-by = "x"\nwhy = "y"\n'
@@ -291,7 +325,10 @@ def main() -> int:
         bad = check_workflows()
     elif mode == "deps" and len(sys.argv) == 3:
         reviews = (REPO / REVIEWS).read_text(encoding="utf-8") if (REPO / REVIEWS).exists() else ""
-        bad = problems(packages_at(sys.argv[2]), packages_at(None), reviews, datetime.now(UTC))
+        try:
+            bad = problems(packages_at(sys.argv[2]), packages_at(None), reviews, datetime.now(UTC))
+        except ValueError as err:
+            bad = [str(err)]
     else:
         print(__doc__, file=sys.stderr)
         return 2

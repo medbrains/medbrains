@@ -5,7 +5,7 @@
 # ── Stage 1: Cargo Chef plan ─────────────────────────────────────────────
 FROM rust:1.85-bookworm AS chef
 WORKDIR /app
-RUN cargo install cargo-chef --locked --version ^0.1
+RUN cargo install cargo-chef --locked --version 0.1.78
 
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml ./

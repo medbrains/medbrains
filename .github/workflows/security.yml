@@ -189,6 +189,7 @@ jobs:
     # version is 7 days old on its registry or names the advisory that cannot wait (#5500, xz).
     name: Supply chain (locked builds, new-dependency review, 7-day cooldown)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
