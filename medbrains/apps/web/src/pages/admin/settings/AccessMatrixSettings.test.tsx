@@ -1,4 +1,5 @@
 import type { CustomRole, SetupUser } from "@medbrains/types";
+import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor, within } from "@/test/test-utils";
@@ -95,8 +96,31 @@ describe("AccessMatrixSettings", () => {
   it("shows a fault, not an empty tenant, when roles fail to load", async () => {
     access.listRoles.mockRejectedValue(new Error("502"));
     render(<AccessMatrixSettings />);
-    expect(await screen.findByText("Could not load the access matrix")).toBeInTheDocument();
+    expect(await screen.findByText("The access matrix didn't load")).toBeInTheDocument();
     expect(screen.queryByText(/No roles or users are available/)).toBeNull();
+  });
+
+  it("retries only the read that failed, and then shows the matrix", async () => {
+    access.listRoles.mockRejectedValueOnce(new Error("502"));
+    render(<AccessMatrixSettings />);
+    await userEvent.click(await screen.findByRole("button", { name: /Retry/ }));
+    expect(await screen.findByText("Permission Matrix")).toBeInTheDocument();
+    expect(access.listRoles).toHaveBeenCalledTimes(2);
+    expect(access.listUsers).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the matrix on screen under a banner when a background refetch fails", async () => {
+    const client = new QueryClient({
+      queryCache: new QueryCache({ onError: () => {} }),
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(<AccessMatrixSettings />, { queryClient: client });
+    await screen.findByText("Permission Matrix");
+    access.listUsers.mockRejectedValue(new Error("502"));
+    await client.refetchQueries({ queryKey: ["setup-users"] });
+    expect(await screen.findByText("The access matrix may be out of date")).toBeInTheDocument();
+    expect(screen.getByText("Permission Matrix")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save Matrix/ })).toBeInTheDocument();
   });
 
   it("says so when the tenant really has no roles or users", async () => {
