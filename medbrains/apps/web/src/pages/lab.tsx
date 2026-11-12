@@ -105,7 +105,11 @@ function LabPageInner() {
   if (filterPriority) params.priority = filterPriority;
   if (debouncedSearch.trim()) params.q = debouncedSearch.trim();
 
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError: ordersFailed,
+  } = useQuery({
     queryKey: ["lab-orders", params],
     queryFn: () => labService.listLabOrders(params),
   });
@@ -317,11 +321,15 @@ function LabPageInner() {
         </Tabs.List>
 
         <Tabs.Panel value="orders">
-          <OrderStatusPipeline
-            orders={data?.orders ?? []}
-            activeStatus={filterStatus}
-            onStatusClick={(status) => setFilterStatus(filterStatus === status ? null : status)}
-          />
+          {/* Per-status counts of a list that did not load would all read 0;
+              the table below says it failed. */}
+          {!ordersFailed && (
+            <OrderStatusPipeline
+              orders={data?.orders ?? []}
+              activeStatus={filterStatus}
+              onStatusClick={(status) => setFilterStatus(filterStatus === status ? null : status)}
+            />
+          )}
           <Group mb="md">
             <TextInput
               placeholder="Patient, UHID, phone, test or barcode"
