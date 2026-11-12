@@ -26,7 +26,7 @@ export function RoomLimitModal({ policyId, insurer, onClose }: RoomLimitModalPro
         room_rent_limit_percent: percent === "" ? null : percent,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ipd", "room-eligibility"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd", "room-eligibility"] });
       toast.success("Room rent limit saved");
       onClose();
     },

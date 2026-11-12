@@ -53,7 +53,7 @@ export function ResearchExportsPage() {
     onSuccess: () => {
       toast.success("Requested. A second approver must approve it.");
       close();
-      refresh();
+      void refresh();
     },
   });
   const decide = useMutation({
@@ -67,7 +67,7 @@ export function ResearchExportsPage() {
           ? "Approved — the files are ready for 24 hours."
           : "Decision recorded.",
       );
-      refresh();
+      void refresh();
     },
   });
   const download = useMutation({

@@ -78,7 +78,7 @@ export function AiAssistantMount({ suggestions }: AiAssistantMountProps) {
         aria-label="Open full-screen assistant"
         onClick={() => {
           close();
-          navigate("/assistant");
+          void navigate("/assistant");
         }}
       >
         <IconMaximize size={16} />

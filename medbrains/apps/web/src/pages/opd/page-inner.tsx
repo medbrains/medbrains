@@ -321,7 +321,7 @@ export function OpdPageInner() {
               tone="primary"
               disabled={disabled}
               onClick={() => {
-                if (action.enabled) navigate(`/opd/queue/${row.id}/vitals`);
+                if (action.enabled) void navigate(`/opd/queue/${row.id}/vitals`);
               }}
               aria-label={actionLabel}
               data-testid={`btn-${action.id}`}
@@ -335,7 +335,7 @@ export function OpdPageInner() {
               disabled={disabled}
               onClick={() => {
                 if (action.enabled) {
-                  navigate(`/opd/encounters/${row.encounter_id}#consultation`);
+                  void navigate(`/opd/encounters/${row.encounter_id}#consultation`);
                 }
               }}
               aria-label={actionLabel}

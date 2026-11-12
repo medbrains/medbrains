@@ -81,7 +81,7 @@ export function ChargeAttentionTab() {
   const post = useMutation({
     mutationFn: (id: string) => billingService.postChargeAttention(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing"] });
       toast.success("Charge posted to the bill");
     },
     onError: (err: Error) => toast.error(err.message),
