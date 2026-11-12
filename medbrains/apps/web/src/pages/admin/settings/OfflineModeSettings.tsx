@@ -188,7 +188,7 @@ export function OfflineModeSettings() {
               <TextInput
                 label="Edge appliance URL"
                 description="Browsers connect here for LAN sync. WebSocket scheme (ws:// or wss://). Required when offline mode is enabled."
-                placeholder="ws://medbrains-edge.local:7811"
+                placeholder="wss://medbrains-edge.local:7811"
                 value={field.value}
                 onChange={(event) => field.onChange(event.currentTarget.value)}
                 error={errors.edgeUrl?.message}
