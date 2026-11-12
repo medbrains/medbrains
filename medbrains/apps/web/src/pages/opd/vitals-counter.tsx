@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Column } from "@/components";
 import { DataTable, EmptyState, OperationalSignal, VitalsRecorder } from "@/components";
+import { loadFailedTitle, QueryError } from "@/components/QueryError";
 import { Button, Modal, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import { formatQueueToken } from "./shared";
@@ -44,12 +45,15 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
     return next;
   }, [departmentId, date]);
 
-  const { data: queue = [], isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["opd-queue", params],
     queryFn: () => opdService.listQueue(params),
   });
 
-  const waiting = useMemo(() => queue.filter(isAwaitingVitals), [queue]);
+  const waiting = useMemo(() => (data ?? []).filter(isAwaitingVitals), [data]);
+  // Nothing ever loaded: the error replaces the list. A failed refetch keeps
+  // the last good list on screen under the banner.
+  const neverLoaded = error !== null && data === undefined;
 
   const record = useMutation({
     mutationFn: ({ encounterId, vitals }: { encounterId: string; vitals: CreateVitalRequest }) =>
@@ -133,13 +137,23 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="center">
-        <Text size="sm" c="dimmed">
-          {t("vitalsCounter.waitingCount", { count: waiting.length })}
-        </Text>
-      </Group>
+      {/* An outage is not "nobody waiting": the nurse would close the counter. */}
+      {error && (
+        <QueryError
+          error={error}
+          onRetry={() => void refetch()}
+          title={loadFailedTitle("The queue", !neverLoaded)}
+        />
+      )}
+      {!neverLoaded && (
+        <Group justify="space-between" align="center">
+          <Text size="sm" c="dimmed">
+            {t("vitalsCounter.waitingCount", { count: waiting.length })}
+          </Text>
+        </Group>
+      )}
 
-      {!isLoading && waiting.length === 0 ? (
+      {neverLoaded ? null : !isLoading && waiting.length === 0 ? (
         <EmptyState
           icon={<IconDeviceHeartMonitor size={32} />}
           title={t("vitalsCounter.emptyTitle")}
