@@ -241,7 +241,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 
 | Item | Waiting on |
 |---|---|
-| AI in clinical flows, voice first (`RFCs/RFC-AI-CLINICAL-FLOWS.md`): kernel AI interface, OS AI service, safer OPD dictation, native, IPD, handover, discharge, ambient | Owner: the 11 questions in its §13 |
+| AI in clinical flows, voice first (`RFCs/RFC-AI-CLINICAL-FLOWS.md`): kernel AI interface, OS AI service, safer OPD dictation, native, IPD, handover, discharge, ambient | Owner: the 13 questions in its §13 |
 | First OS image (D1) | In progress |
 | Snapshot test (FS1) | A Raspberry Pi 5 with NVMe, and an x86 SSD machine |
 | Five platform-study changes and ledger-grade audit integrity | Owner approval |
