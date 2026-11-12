@@ -210,7 +210,18 @@ product. This supersedes decision 1 below for self-hosted installs (see DECISION
 breeds hostile forks. Locking features after expiry: contradicts the free licence for hospitals and
 risks patient care. Per-user seats: hospital headcount churns; beds and servers are stable.
 
-**Build, in order.** (1) Subscription token in the licence file, a feed check in `medbrains-os-update`
+**Priority before the feed opens: protect the signing keys** (owner, 2026-11-12). Red Hat's 2008
+breach is the warning: attackers signed tampered packages with Red Hat's own key. Before any paid
+update feed goes live:
+- The OS update and release signing keys live offline (hardware key or an air-gapped machine); CI
+  signs only with a short-lived, separately revocable key, never the root (OS-THREATS X2).
+- A written key-compromise plan: revoke, re-key, ship the new trust anchor in a signed update, and
+  tell customers within 24 hours.
+- Support dates only ever lengthen (COMPATIBILITY.md), source stays public, dependencies stay locked
+  and scanned (the CentOS 2020, RHEL 2023 and xz 2024 lessons), and partner documents about hospital
+  networks stay out of shared tools, need-to-know and encrypted (Red Hat consulting, 2025).
+
+**Build, in order.** (0) Offline signing keys and the compromise plan above. (1) Subscription token in the licence file, a feed check in `medbrains-os-update`
 and the app updater, and an admin screen showing entitlement and expiry. (2) Support portal and
 severity SLAs. (3) Certification programme: test suite, listing page, badge rules. (4) Training.
 
