@@ -433,3 +433,105 @@ async fn an_access_group_grant_makes_a_witness() -> R<()> {
     assert_eq!(w.dose_row(dose).await?.2, Some(member.user_id));
     Ok(())
 }
+
+/// Given a custom role row holding `nurse.mar.administer`, an access group holding
+/// `ipd.mar.update`, and a staff user whose `access_matrix.extra` holds `nurse.mar.administer`,
+/// all from before #5529, When migration 1456 runs (twice: it is idempotent), Then each holds
+/// `nurse.mar.administer_high_alert` exactly once, a role holding neither code does not, and the
+/// staff user, signed in again, gives a scanned, witnessed insulin dose.
+#[tokio::test]
+async fn the_deploy_migration_keeps_custom_givers_giving() -> R<()> {
+    const MIGRATION: &str = include_str!(
+        "../../medbrains-db-migrations/src/migrations/1456_grant_high_alert_giving.sql"
+    );
+    const CODE: &str = "nurse.mar.administer_high_alert";
+    let w = admit().await?;
+    let tag = &Uuid::new_v4().simple().to_string()[..8];
+    let icu_role = format!("icu_rn_{tag}");
+    let clerk_role = format!("ward_clerk_{tag}");
+    for (code, perms) in [
+        (
+            &icu_role,
+            json!([
+                "nurse.mar.administer",
+                "ipd.mar.list",
+                "ipd.admissions.view"
+            ]),
+        ),
+        (&clerk_role, json!(["ipd.mar.list"])),
+    ] {
+        sqlx::query(
+            "INSERT INTO roles (tenant_id, code, name, permissions, is_system) \
+             VALUES ($1, $2, $2, $3, false)",
+        )
+        .bind(w.tenant)
+        .bind(code)
+        .bind(perms)
+        .execute(&w.app.db)
+        .await?;
+    }
+    let group: Uuid = sqlx::query_scalar(
+        "INSERT INTO access_groups (tenant_id, code, name, permissions) \
+         VALUES ($1, $2, 'Float pool', '[\"ipd.mar.update\"]'::jsonb) RETURNING id",
+    )
+    .bind(w.tenant)
+    .bind(format!("float_{tag}"))
+    .fetch_one(&w.app.db)
+    .await?;
+    let extra =
+        common::provision_staff_with(&w.app, &w.csrf, "staff", &["nurse.mar.administer"], &[])
+            .await;
+
+    for _ in 0..2 {
+        sqlx::raw_sql(MIGRATION).execute(&w.app.db).await?;
+    }
+    let held = |sql: &'static str, id: String| {
+        let db = w.app.db.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(sql)
+                .bind(id)
+                .bind(CODE)
+                .fetch_one(&db)
+                .await
+        }
+    };
+    let role_sql = "SELECT COUNT(*) FROM roles, jsonb_array_elements_text(permissions) p \
+                    WHERE code = $1 AND p = $2";
+    assert_eq!(held(role_sql, icu_role.clone()).await?, 1);
+    assert_eq!(held(role_sql, clerk_role).await?, 0);
+    let group_sql = "SELECT COUNT(*) FROM access_groups, jsonb_array_elements_text(permissions) p \
+                     WHERE id = $1::uuid AND p = $2";
+    assert_eq!(held(group_sql, group.to_string()).await?, 1);
+    let user_sql = "SELECT COUNT(*) FROM users, \
+                    jsonb_array_elements_text(access_matrix -> 'extra') p \
+                    WHERE id = $1::uuid AND p = $2";
+    assert_eq!(held(user_sql, extra.user_id.to_string()).await?, 1);
+
+    // The grant bumped her perm_version, so her session is refused until she signs in again,
+    // which is how a deploy hands her the new code.
+    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(extra.user_id)
+        .fetch_one(&w.app.db)
+        .await?;
+    let login: Value = extra
+        .client
+        .post(w.app.url("/api/auth/login"))
+        .json(&json!({ "username": username, "password": extra.password }))
+        .send()
+        .await?
+        .json()
+        .await?;
+    let extra = common::Staff {
+        csrf: login["csrf_token"].as_str().ok_or("csrf")?.to_owned(),
+        ..extra
+    };
+    let dose = w.new_dose("Insulin glargine", true).await?;
+    w.scanned(dose).await?;
+    w.join_care_team(&extra).await?;
+    let witness = common::provision_staff(&w.app, &w.csrf, "nurse", &[]).await;
+    let [_, path] = w.mar_paths(dose);
+    let given = json!({ "status": "given", "witnessed_by": witness.user_id });
+    assert_eq!(w.mark_as(&extra, &path, &given).await?, StatusCode::OK);
+    assert_eq!(w.dose_row(dose).await?.1, Some(extra.user_id));
+    Ok(())
+}

@@ -122,7 +122,7 @@ export function MedicationRound({ patientId }: Props) {
                 </Text>
               ) : row.is_high_alert && !canGiveHighAlert ? (
                 <Text size="xs" c="dimmed">
-                  Needs a clinician allowed to give high-alert doses
+                  Hand to a nurse allowed to give high-alert doses
                 </Text>
               ) : (
                 <Button size="xs" tone="primary" onClick={() => setActive(row)}>

@@ -2967,8 +2967,9 @@ async fn administer_mar_dose_in_tx(
                 .await?
                 {
                     return Err(AppError::ForbiddenReason(
-                        "Only a clinician allowed to give high-alert doses \
-                         (nurse.mar.administer_high_alert) can give this dose."
+                        "You are not allowed to give high-alert doses. Ask an administrator to grant \
+                         'Give a high-alert dose' (nurse.mar.administer_high_alert), or hand this \
+                         dose to a nurse who holds it."
                             .to_owned(),
                     ));
                 }

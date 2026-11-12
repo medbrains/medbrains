@@ -45,7 +45,7 @@ function renderRound() {
   );
 }
 
-const NOT_ALLOWED = "Needs a clinician allowed to give high-alert doses";
+const NOT_ALLOWED = "Hand to a nurse allowed to give high-alert doses";
 
 describe("MedicationRound high-alert giver gate", () => {
   beforeEach(() => {
