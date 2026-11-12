@@ -512,6 +512,9 @@ pub struct CreateHandoverRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct InitDischargeChecklistRequest {
+    /// Empty or left out: the default items. `{}` asked for the defaults and
+    /// got a 422.
+    #[serde(default)]
     pub items: Vec<DischargeChecklistItem>,
 }
 
@@ -4303,13 +4306,17 @@ fn default_discharge_checklist_items() -> Vec<DischargeChecklistItem> {
     .collect()
 }
 
+/// `POST /api/ipd/admissions/{id}/discharge-checklist` — start the admission's
+/// discharge checklist (the default items, or the ones sent). It writes rows,
+/// so it needs `ipd.discharge_checklist.update`, the code the screen's "Start
+/// checklist" button is gated on, not the list code.
 pub async fn init_discharge_checklist(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     body: Option<Json<InitDischargeChecklistRequest>>,
 ) -> Result<Json<Vec<IpdDischargeChecklist>>, AppError> {
-    require_permission(&claims, permissions::ipd::discharge_checklist::LIST)?;
+    require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
 
     // The route names an admission; holding the module permission is not the
     // same as being on this patient's care team. Without this, any holder of
@@ -4361,6 +4368,9 @@ pub async fn init_discharge_checklist(
 //  PUT /api/ipd/admissions/{id}/discharge-checklist/{cid}
 // ══════════════════════════════════════════════════════════
 
+/// `PUT /api/ipd/admissions/{id}/discharge-checklist/{cid}` — tick or untick
+/// one discharge item. Status is `pending` or `completed`; ticking a done item
+/// again keeps its first completer, and unticking clears who and when.
 pub async fn update_discharge_checklist_item(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4374,26 +4384,30 @@ pub async fn update_discharge_checklist_item(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let (completed_by, completed_at) = if body.status == "completed" {
-        (Some(claims.sub), Some(Utc::now()))
-    } else {
-        (None, None)
-    };
+    if !matches!(body.status.as_str(), "pending" | "completed") {
+        return Err(AppError::BadRequest(format!(
+            "Invalid checklist status '{}'.",
+            body.status
+        )));
+    }
 
+    // Ticked again: who ticked it first stands. Unticked: nobody did it.
     let row = sqlx::query_as::<_, IpdDischargeChecklist>(
         "UPDATE ipd_discharge_checklists SET \
-           status = $4, \
-           completed_by = COALESCE($5, completed_by), \
-           completed_at = COALESCE($6, completed_at) \
-         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
+           completed_by = CASE WHEN $4 = 'pending' THEN NULL \
+                               WHEN status = 'completed' THEN completed_by ELSE $5 END, \
+           completed_at = CASE WHEN $4 = 'pending' THEN NULL \
+                               WHEN status = 'completed' THEN completed_at ELSE $6 END, \
+           status = $4 \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 AND deleted_at IS NULL \
          RETURNING *",
     )
     .bind(cid)
     .bind(id)
     .bind(claims.tenant_id)
     .bind(&body.status)
-    .bind(completed_by)
-    .bind(completed_at)
+    .bind(claims.sub)
+    .bind(Utc::now())
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
@@ -5610,6 +5624,9 @@ pub struct IssueNoDuesRequest {
     pub notes: Option<String>,
 }
 
+/// `GET /api/ipd/admissions/{id}/no-dues` — the admission's No-Dues certificate,
+/// if issued. A financial read: the care team or billing (through the patient)
+/// may see it.
 pub async fn get_no_dues_certificate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5621,7 +5638,7 @@ pub async fn get_no_dues_certificate(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_billing_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5643,6 +5660,10 @@ pub async fn get_no_dues_certificate(
 /// admission. Blocked while a balance remains — the certificate IS the
 /// proof that billing reconciled and settled the stay. Idempotent per
 /// admission so re-issuing after a late payment refreshes the snapshot.
+/// `POST /api/ipd/admissions/{id}/no-dues` — issue the No-Dues certificate once
+/// the admission's live invoices are paid in full (409 otherwise). Billing staff
+/// issue it, so they reach the admission through the patient's billing access,
+/// not the care team.
 pub async fn issue_no_dues_certificate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5655,7 +5676,7 @@ pub async fn issue_no_dues_certificate(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_billing_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
