@@ -4,6 +4,25 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+/**
+ * The server a release build talks to. Empty or HTTPS; required for a release build, because the patient app has no other way to find its hospital.
+ */
+val releaseServerUrl: String = providers.gradleProperty("medbrains.serverUrl").orNull.orEmpty()
+require(releaseServerUrl.isEmpty() || releaseServerUrl.startsWith("https://")) {
+    "medbrains.serverUrl must be an https:// URL, not $releaseServerUrl"
+}
+// Checked when a release variant actually builds (`assemble`, `build`, `bundleRelease`, ...),
+// not by guessing from the task names on the command line.
+val requireReleaseServerUrl = tasks.register("requireReleaseServerUrl") {
+    val url = releaseServerUrl
+    doLast {
+        require(url.isNotEmpty()) {
+            "A patient release build needs -Pmedbrains.serverUrl=https://<hospital server>"
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(requireReleaseServerUrl) }
+
 android {
     sourceSets.getByName("androidTest").kotlin.srcDir("../testkit/src")
     // Shared with the web: one DPDP privacy notice for every surface.
@@ -23,6 +42,8 @@ android {
         // and UI tests only; see AppConfig.
         debug {
             manifestPlaceholders["usesCleartext"] = "true"
+            // The emulator's view of the developer's machine.
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"http://10.0.2.2:3000\"")
             // `-Pminified` runs the journeys against R8-processed code: the only
             // way a keep rule missing from release shows up before a user does.
             if (providers.gradleProperty("minified").isPresent) {
@@ -37,6 +58,9 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             manifestPlaceholders["usesCleartext"] = "false"
+            // No cleartext default in a shipped app: the server is the one this build is for
+            // (`-Pmedbrains.serverUrl=https://…`), HTTPS only.
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"$releaseServerUrl\"")
         }
     }
     compileOptions {
