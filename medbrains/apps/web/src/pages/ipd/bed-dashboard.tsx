@@ -22,7 +22,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { OperationalSignal, PatientSearchSelect, useProtectedFieldAccess } from "@/components";
-import { QueryError } from "@/components/QueryError";
+import { loadFailedTitle, QueryError } from "@/components/QueryError";
 import { Alert, Button, Input, Modal } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import { ipdAdmissionWorkspaceTabRoute } from "../ipd-workspace";
@@ -232,13 +232,14 @@ export function BedDashboardTab() {
     <Stack>
       {/* Zero vacant beds is a fact a bed manager acts on; a failed read
           must say so instead of drawing seven zeros. */}
-      {summaryError ? (
+      {summaryError && (
         <QueryError
           error={summaryError}
           onRetry={() => void refetchSummary()}
-          title="Bed counts didn't load"
+          title={loadFailedTitle("Bed counts", summaryData !== undefined)}
         />
-      ) : (
+      )}
+      {(!summaryError || summaryData !== undefined) && (
         <SimpleGrid cols={{ base: 2, sm: 4, md: 7 }}>
           <Card withBorder p="xs">
             <OperationalSignal
@@ -350,11 +351,16 @@ export function BedDashboardTab() {
         </Alert>
       )}
 
+      {bedsError && (
+        <QueryError
+          error={bedsError}
+          onRetry={() => void refetchBeds()}
+          title={loadFailedTitle("Beds", bedsData !== undefined)}
+        />
+      )}
       {isLoading ? (
         <Text c="dimmed">{t("bedDashboard.loadingBeds")}</Text>
-      ) : bedsError ? (
-        <QueryError error={bedsError} onRetry={() => void refetchBeds()} title="Beds didn't load" />
-      ) : (
+      ) : bedsError && bedsData === undefined ? null : (
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }}>
           {beds.map((bed) => {
             const bedStatus = bed.bed_status;

@@ -6,7 +6,7 @@
     python3 scripts/check_query_fallbacks.py --report   # per-file triage list
     python3 scripts/check_query_fallbacks.py --self-test
 
-`data ?? []` turns a failed or loading query into an empty list, and
+`data ?? []` (or `data || []`) turns a failed or loading query into an empty list, and
 `data ?? false` turns it into a refusal. Rendered, both make a claim the
 system cannot back: a blank ward reads as a fact about the ward (authz law,
 rule 6). The default is sometimes harmless — a table that also gets `error`,
@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "apps/web/src"
 BASELINE = ROOT / "scripts/query_fallbacks.baseline.json"
 
-FALLBACK = r"\?\?\s*(?:\[\]|false\b)"
+FALLBACK = r"(?:\?\?|\|\|)\s*(?:\[\]|false\b)"
 PATTERNS = [
     # data?.patients ?? []   data ?? false   roster.data ?? []   bedsData ?? []
     re.compile(r"\b(?:\w*[dD]ata|\w+\.data)(?:\??\.\w+)*\s*" + FALLBACK),
@@ -59,6 +59,7 @@ def self_test() -> None:
     assert count("data={roster.data ?? []}") == 1
     assert count("const ok = perms.data?.allowed ?? false;") == 1
     assert count("const { data = [] } = useQuery({") == 1
+    assert count("const rows = data?.rows || [];") == 1
     assert count("const { data: queue = [], isLoading } = useQuery({") == 1
     assert count("const tags = props.tags ?? [];") == 0
     assert count("const { value = [] } = useForm({") == 0

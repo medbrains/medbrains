@@ -55,4 +55,13 @@ test.describe("clinical lists during an outage", () => {
     await expect(page.getByText("Nobody is waiting")).toHaveCount(0);
     await expect(page.getByText(/waiting for vitals/)).toHaveCount(0);
   });
+
+  test("the lab worklist says it did not load, not that there are no orders", async ({
+    page,
+  }) => {
+    await failReads(page, ["/api/lab/orders"]);
+    await page.goto("/lab");
+    await expect(page.getByText("This didn't load").first()).toBeVisible();
+    await expect(page.getByText("No data found")).toHaveCount(0);
+  });
 });

@@ -109,6 +109,8 @@ function LabPageInner() {
     data,
     isLoading,
     isError: ordersFailed,
+    error: ordersError,
+    refetch: refetchOrders,
   } = useQuery({
     queryKey: ["lab-orders", params],
     queryFn: () => labService.listLabOrders(params),
@@ -376,6 +378,8 @@ function LabPageInner() {
             columns={columns}
             data={data?.orders ?? []}
             loading={isLoading}
+            error={ordersError}
+            onRetry={() => void refetchOrders()}
             page={page}
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
             onPageChange={setPage}
