@@ -9,7 +9,7 @@
 //!   32 bytes big-endian.
 //! - Public keys are the uncompressed point `04‖X‖Y` (65 bytes, base64). A
 //!   peer key may also arrive as X.509 `SubjectPublicKeyInfo` (`id-ecPublicKey`
-//!   with this curve's explicit parameters, or BouncyCastle's named-curve OID);
+//!   with this curve's explicit parameters, or Bouncy Castle's named-curve OID);
 //!   see `fidelius_spki.rs`. Its curve must be this one.
 //! - A peer point is refused at infinity, off the curve, or outside the
 //!   prime-order subgroup (`n·Q ≠ O`; the cofactor is 8, so small-order points

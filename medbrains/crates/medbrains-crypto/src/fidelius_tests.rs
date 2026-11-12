@@ -158,10 +158,10 @@ fn a_private_scalar_at_or_above_the_order_is_refused() {
     assert!(encrypt(PLAINTEXT, &sender, REQUESTER_PUBLIC, REQUESTER_NONCE).is_err());
 }
 
-/// The requester key as BouncyCastle 1.85 writes it with
+/// The requester key as Bouncy Castle 1.85 writes it with
 /// `ECGenParameterSpec("curve25519")`: the cryptlib named-curve OID.
 const BC_NAMED: &str = "MFswFQYHKoZIzj0CAQYKKwYBBAGXVQEFAQNCAAQIXg+a1Kk8uFecUeP+h1pmKaKbuQjvijvARAktLnTalE0jaPdUyKiCMtQOFYfhfeHPp/bwHMF1NmxnH7COX+vW";
-/// The same key with BouncyCastle's explicit X9.62 parameters.
+/// The same key with Bouncy Castle's explicit X9.62 parameters.
 const BC_EXPLICIT: &str = "MIIBMTCB6gYHKoZIzj0CATCB3gIBATArBgcqhkjOPQEBAiB/////////////////////////////////////////7TBEBCAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqYSRShRAQge0Je0Je0Je0Je0Je0Je0Je0Je0Je0Je0JgtenHcQyGQEQQQqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0kWiCuGaG4oIa04B7dLHdI0UySPU1+bXxhsinpxaJ+ztPZAiAQAAAAAAAAAAAAAAAAAAAAFN753qL3nNZYEmMaXPXT7QIBCANCAAQIXg+a1Kk8uFecUeP+h1pmKaKbuQjvijvARAktLnTalE0jaPdUyKiCMtQOFYfhfeHPp/bwHMF1NmxnH7COX+vW";
 
 #[test]

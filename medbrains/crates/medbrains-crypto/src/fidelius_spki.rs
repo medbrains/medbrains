@@ -1,6 +1,6 @@
 //! A Fidelius peer key sent as X.509 `SubjectPublicKeyInfo`.
 //!
-//! Java HIPs and HIUs build keys with BouncyCastle, which writes the curve
+//! Java HIPs and HIUs build keys with Bouncy Castle, which writes the curve
 //! either as explicit X9.62 parameters or as its own named-curve OID
 //! (cryptlib `1.3.6.1.4.1.3029.1.5.1`, from `ECGenParameterSpec("curve25519")`).
 //! OpenSSL knows no such name, so when OpenSSL cannot parse the key a strict
@@ -23,7 +23,7 @@ const OID: u8 = 0x06;
 const ID_EC_PUBLIC_KEY: &[u8] = &[0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01];
 /// `prime-field`, 1.2.840.10045.1.1.
 const PRIME_FIELD: &[u8] = &[0x2a, 0x86, 0x48, 0xce, 0x3d, 0x01, 0x01];
-/// BouncyCastle's (cryptlib) curve25519, 1.3.6.1.4.1.3029.1.5.1.
+/// Bouncy Castle's (cryptlib) curve25519, 1.3.6.1.4.1.3029.1.5.1.
 const CRYPTLIB_CURVE25519: &[u8] = &[0x2b, 0x06, 0x01, 0x04, 0x01, 0x97, 0x55, 0x01, 0x05, 0x01];
 /// The Fidelius curve's cofactor.
 const COFACTOR: &[u8] = &[0x08];
