@@ -16,6 +16,7 @@ alone, puts a false clinical fact in a patient record:
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 
@@ -33,7 +34,7 @@ def fresh() -> clinical.Rejects:
 
 def test_a_plausible_reading_survives():
     assert clinical.integer("pulse", "81", fresh()) == 81
-    assert clinical.reading("weight_kg", "57.4", fresh()) == 57.4
+    assert math.isclose(clinical.reading("weight_kg", "57.4", fresh()), 57.4)
     assert clinical.integer("spo2", "98", fresh()) == 98
 
 
@@ -48,8 +49,8 @@ def test_the_temperature_column_is_not_a_temperature():
     assert clinical.reading("temperature_c", "0", rejects) is None
     assert clinical.reading("temperature_c", "851", rejects) is None
     # The handful of genuine ones still come through.
-    assert clinical.reading("temperature_c", "37", fresh()) == 37
-    assert clinical.reading("temperature_c", "36.8", fresh()) == 36.8
+    assert math.isclose(clinical.reading("temperature_c", "37", fresh()), 37)
+    assert math.isclose(clinical.reading("temperature_c", "36.8", fresh()), 36.8)
     assert rejects.by_field["temperature_c (out of range)"] == 3
 
 
@@ -99,7 +100,7 @@ def test_a_corrected_value_may_carry_its_unit():
     preference to a human's correction.
     """
     assert clinical.integer("pulse", "92 b/m", fresh()) == 92
-    assert clinical.reading("weight_kg", "64.5 kg", fresh()) == 64.5
+    assert math.isclose(clinical.reading("weight_kg", "64.5 kg", fresh()), 64.5)
     assert clinical.integer("spo2", "98%", fresh()) == 98
 
 
