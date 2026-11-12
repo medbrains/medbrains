@@ -19,9 +19,9 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 ed25519-dalek = { workspace = true }
 
-# Persistent embedded KV + in-memory LRU. Same versions the edge
-# crate has been using since PR #9 — bump together when needed.
-sled = "0.34"
+# Persistent embedded KV (redb: maintained, pure Rust, one file, durable commits) + in-memory
+# LRU. Replaced sled 0.34, unmaintained since 2021 and pulling fxhash and instant (#5471).
+redb = "4.5"
 lru = "0.18"
 
 [dev-dependencies]

@@ -7,17 +7,17 @@
 //! - any future device class (kiosks, ambulance tablets, vendor apps)
 //!
 //! Phase A of the mobile/TV/edge expansion roadmap. Pure logic — no
-//! tokio, no transport, no platform-specific I/O. Storage uses sled
-//! (embedded KV); the host picks the path.
+//! tokio, no transport, no platform-specific I/O. Storage is a redb
+//! file ([`store`]) in a directory the host picks.
 //!
 //! # What lives here
 //!
-//! - [`AuthzCache`] — two-tier `ReBAC` decision cache (LRU + sled).
+//! - [`AuthzCache`] — two-tier `ReBAC` decision cache (LRU + redb).
 //!   Originally in `medbrains-edge::authz_cache` (PR #9).
 //! - [`ONLINE_REQUIRED_ACTIONS`] — fixed list of high-risk actions
 //!   that always deny offline regardless of cached state.
 //! - [`verify_jwt`] — Ed25519 JWT signature + expiry check (Phase A.1).
-//! - [`RevocationCache`] — sled-backed user-id → revoked-at, used by
+//! - [`RevocationCache`] — redb-backed user-id → revoked-at, used by
 //!   devices that pull `/api/auth/revocations` periodically (Phase A.1).
 //!
 //! # What does NOT live here
@@ -29,6 +29,7 @@
 pub mod authz_cache;
 pub mod jwt_verify;
 pub mod revocation_cache;
+pub mod store;
 
 pub use authz_cache::{
     AuthzCache, AuthzCacheError, CacheEntry, CacheKey, CacheMetrics, CacheSource, CheckOutcome,

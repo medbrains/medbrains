@@ -15,7 +15,7 @@
 //! # Two-tier store
 //!
 //! Same shape as [`crate::authz_cache::AuthzCache`]:
-//! - sled-persisted `user_id → revoked_at_unix` so a reboot doesn't
+//! - redb-persisted `user_id → revoked_at_unix` so a reboot doesn't
 //!   clear it.
 //! - In-memory LRU front for hot-path checks.
 //!
@@ -35,10 +35,12 @@ use std::sync::{Arc, RwLock};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::store::{Store, StoreError};
+
 #[derive(Debug, Error)]
 pub enum RevocationCacheError {
-    #[error("sled: {0}")]
-    Sled(#[from] sled::Error),
+    #[error("store: {0}")]
+    Store(#[from] StoreError),
 
     #[error("serde_json: {0}")]
     Serde(#[from] serde_json::Error),
@@ -57,7 +59,7 @@ pub struct RevocationEntry {
 #[derive(Clone)]
 pub struct RevocationCache {
     inner: Arc<RwLock<LruCache<Uuid, i64>>>,
-    persist: sled::Db,
+    persist: Store,
     /// Largest `revoked_at_unix` we've seen so far. Used as the
     /// `since` cursor on the next pull.
     pull_max: Arc<RwLock<i64>>,
@@ -72,11 +74,10 @@ impl std::fmt::Debug for RevocationCache {
 impl RevocationCache {
     pub fn new(persist_path: &Path, capacity: usize) -> Result<Self, RevocationCacheError> {
         let cap = NonZeroUsize::new(capacity).ok_or(RevocationCacheError::InvalidCapacity)?;
-        let persist = sled::open(persist_path)?;
+        let persist = Store::open(persist_path)?;
         let mut lru = LruCache::new(cap);
         let mut max_seen: i64 = 0;
-        for kv in persist.iter() {
-            let (k, v) = kv?;
+        for (k, v) in persist.entries()? {
             let Ok(uid) = Uuid::from_slice(&k) else {
                 continue;
             };
@@ -117,7 +118,7 @@ impl RevocationCache {
         }
 
         let bytes = serde_json::to_vec(&revoked_at_unix)?;
-        self.persist.insert(user_id.as_bytes(), bytes)?;
+        self.persist.insert(user_id.as_bytes(), &bytes)?;
         if let Ok(mut guard) = self.inner.write() {
             guard.put(user_id, revoked_at_unix);
         }
@@ -155,7 +156,7 @@ impl RevocationCache {
     /// the user mints will be valid; we keep the in-memory record
     /// only briefly as the "denied past" window collapses.
     pub fn forget(&self, user_id: Uuid) -> Result<(), RevocationCacheError> {
-        self.persist.remove(user_id.as_bytes())?;
+        self.persist.remove_all(&[user_id.as_bytes()])?;
         if let Ok(mut guard) = self.inner.write() {
             guard.pop(&user_id);
         }
@@ -259,7 +260,7 @@ mod tests {
             let cache = RevocationCache::new(dir.path(), 1024).unwrap();
             cache.record_revocation(user, 1_700_000_000).unwrap();
         }
-        // Drop the first cache (sled releases lock); reopen.
+        // Drop the first cache (the store releases its lock); reopen.
         let cache = RevocationCache::new(dir.path(), 1024).unwrap();
         assert!(cache.is_revoked(user, 1_699_000_000));
         assert_eq!(cache.pull_window_max(), 1_700_000_000);
