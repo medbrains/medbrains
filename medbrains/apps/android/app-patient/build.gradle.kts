@@ -11,11 +11,17 @@ val releaseServerUrl: String = providers.gradleProperty("medbrains.serverUrl").o
 require(releaseServerUrl.isEmpty() || releaseServerUrl.startsWith("https://")) {
     "medbrains.serverUrl must be an https:// URL, not $releaseServerUrl"
 }
-if (gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
-    require(releaseServerUrl.isNotEmpty()) {
-        "A patient release build needs -Pmedbrains.serverUrl=https://<hospital server>"
+// Checked when a release variant actually builds (`assemble`, `build`, `bundleRelease`, ...),
+// not by guessing from the task names on the command line.
+val requireReleaseServerUrl = tasks.register("requireReleaseServerUrl") {
+    val url = releaseServerUrl
+    doLast {
+        require(url.isNotEmpty()) {
+            "A patient release build needs -Pmedbrains.serverUrl=https://<hospital server>"
+        }
     }
 }
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(requireReleaseServerUrl) }
 
 android {
     sourceSets.getByName("androidTest").kotlin.srcDir("../testkit/src")

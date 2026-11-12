@@ -9,6 +9,7 @@
         android:label="MedBrains Staff"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="${usesCleartext}"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true">
         <activity
             android:name=".MainActivity"

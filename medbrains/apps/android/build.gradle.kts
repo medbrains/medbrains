@@ -16,5 +16,8 @@ plugins {
 allprojects {
     dependencyLocking {
         lockAllConfigurations()
+        // Default lock mode, not STRICT: STRICT also demands lock state for every internal AGP
+        // configuration any task resolves (androidApis, lint, R8), which would break each task
+        // nobody has run with --write-locks yet. Every configuration that has a lock is enforced.
     }
 }
