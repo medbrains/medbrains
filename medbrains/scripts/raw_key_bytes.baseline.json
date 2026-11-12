@@ -1,0 +1,83 @@
+{
+  "crates/medbrains-core/src/jwt_signer/local_ed25519.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-crypto/src/abha.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-crypto/src/aead.rs": {
+    "raw-key-constructor": 2
+  },
+  "crates/medbrains-crypto/src/beckn.rs": {
+    "raw-key-constructor": 3
+  },
+  "crates/medbrains-crypto/src/fidelius.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-crypto/src/fidelius_spki.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-device-pairing/src/binding_token.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-documents/src/signatures.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-edge-rn/src/lib.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-identity/src/sso.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-oauth/src/oauth.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-offline-core/src/jwt_verify.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-os-update/src/bin/medbrains-os-bundle.rs": {
+    "raw-key-constructor": 2
+  },
+  "crates/medbrains-os-update/src/manifest.rs": {
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-outbox/src/handlers/nhcx/config.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-outbox/src/handlers/pacs_target/mod.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-patients/src/identifier_key.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-research/src/trial_export.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-server-core/src/config.rs": {
+    "raw-key-constructor": 2
+  },
+  "crates/medbrains-server/src/event_tokens.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-server/src/routes/abdm/abha.rs": {
+    "dev-key-const": 1
+  },
+  "crates/medbrains-signing/src/signing.rs": {
+    "raw-key-constructor": 3
+  },
+  "crates/medbrains-sso-login/src/lib.rs": {
+    "dev-key-const": 1
+  },
+  "deploy/standalone/install-spicedb.sh": {
+    "shell-key-truncation": 1
+  },
+  "os/build.sh": {
+    "shell-key-truncation": 2
+  },
+  "os/mkosi.extra/usr/lib/medbrains/kanidm-lib.sh": {
+    "shell-key-truncation": 1
+  },
+  "scripts/verify_api_key_e2e.sh": {
+    "shell-key-truncation": 1
+  }
+}

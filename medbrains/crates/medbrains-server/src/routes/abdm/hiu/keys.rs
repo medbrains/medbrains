@@ -47,10 +47,12 @@ pub async fn seal(secrets: &dyn SecretResolver, km: &KeyMaterial) -> Result<Stri
     .map_err(|_| AppError::Internal("could not seal the ABDM transfer key".to_owned()))
 }
 
-/// Open sealed key material.
+/// Open sealed key material, and prove the private half still derives the
+/// public half the HIP encrypted to.
 ///
 /// # Errors
-/// 503 when it cannot be opened (the ABDM secret key changed).
+/// 503 when it cannot be opened (the ABDM secret key changed) or the pair is
+/// damaged.
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn open(secrets: &dyn SecretResolver, sealed: &str) -> Result<KeyMaterial, AppError> {
     let key = secret_key(secrets).await?;
@@ -58,11 +60,17 @@ pub async fn open(secrets: &dyn SecretResolver, sealed: &str) -> Result<KeyMater
         medbrains_crypto::aead::decrypt_token(&key, KEY_CONTEXT, sealed).map_err(|_| {
             AppError::ServiceUnavailable("the ABDM transfer key cannot be opened".to_owned())
         })?;
-    Ok(KeyMaterial {
+    let km = KeyMaterial {
         private_key,
         public_key,
         nonce,
-    })
+    };
+    fidelius::check_pair(&km).map_err(|_| {
+        AppError::ServiceUnavailable(
+            "the ABDM transfer key is damaged: its private half no longer matches".to_owned(),
+        )
+    })?;
+    Ok(km)
 }
 
 /// Where HIPs push for this artefact. The artefact id in the URL is how the
