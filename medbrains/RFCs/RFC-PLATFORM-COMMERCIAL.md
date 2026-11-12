@@ -182,6 +182,38 @@ by a tenant.
   template. These become the silo and on-prem paths of the pipeline.
 - This is a shared institutional account: never touch non-MedBrains resources.
 
+## Business model: subscriptions, the Red Hat way (decided 2026-11-12)
+
+The code is public under AGPL-3.0-only and every hospital, clinic and pharmacy may run it without
+paying. What we sell is what an open licence cannot give: an accountable, maintained, certified
+product. This supersedes decision 1 below for self-hosted installs (see DECISIONS.md, 2026-11-12).
+
+| We sell | What the customer gets | Without it |
+|---|---|---|
+| **Subscription** (per server or per bed, yearly) | The official signed update feed: OS and app releases, security fixes within 72 hours of a critical advisory, USB bundles for air-gapped sites | The software keeps running with every feature; the box stops receiving our signed updates, and the admin screen says so |
+| **Support and SLAs** (inside the subscription, or an AMC) | Named contacts, response times by severity, upgrade help | Community help only |
+| **Warranty and indemnity** (commercial licence) | Contractual liability cover | AGPL's "no warranty" |
+| **MedBrains Certified** | Hardware, lab machines, partner apps and implementers listed as tested; vendors pay for certification | Anything may still run, but not under the name |
+| **Training** | Certified administrator and implementer courses | Public docs |
+
+**What locks it, and what does not.**
+- The update feed checks a subscription token signed by the control plane (the licence file in §3,
+  with `entitles: ["updates", "support"]`). The OS updater already refuses unsigned bundles; it now
+  also asks the feed with that token. No token, no download; nothing already installed changes.
+- The trademark (`TRADEMARKS.md`) keeps "MedBrains" and "MedBrains Certified" on official builds only.
+  Rebuilds from source are lawful and must carry their own name.
+- **Never locked:** the source code (public, never behind a login, no contract term against sharing
+  it), clinical features, data export, or a running hospital. An expired subscription never stops
+  care, settings or users.
+
+**Rejected.** Gating the source to subscribers (Red Hat, 2023): it costs the community's trust and
+breeds hostile forks. Locking features after expiry: contradicts the free licence for hospitals and
+risks patient care. Per-user seats: hospital headcount churns; beds and servers are stable.
+
+**Build, in order.** (1) Subscription token in the licence file, a feed check in `medbrains-os-update`
+and the app updater, and an admin screen showing entitlement and expiry. (2) Support portal and
+severity SLAs. (3) Certification programme: test suite, listing page, badge rules. (4) Training.
+
 ## Phases (each a PR through the full gate; each ends on a screen)
 
 | Phase | Delivers | Surface |
