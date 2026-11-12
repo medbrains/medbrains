@@ -94,7 +94,7 @@ export function CampLabSampleCreatePage() {
         message: t("notify.labSampleRecorded"),
         color: "success",
       });
-      backToList();
+      void backToList();
     },
   });
 

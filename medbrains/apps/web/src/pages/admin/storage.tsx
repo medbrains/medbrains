@@ -214,7 +214,7 @@ function PoliciesTab() {
           <PolicyEditForm
             policy={editing}
             onSaved={() => {
-              qc.invalidateQueries({ queryKey: ["storage-policies"] });
+              void qc.invalidateQueries({ queryKey: ["storage-policies"] });
               close();
               setEditing(null);
             }}

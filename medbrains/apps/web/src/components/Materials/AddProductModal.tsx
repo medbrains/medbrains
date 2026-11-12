@@ -91,8 +91,8 @@ export function AddProductModal() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["materials"] });
-      qc.invalidateQueries({
+      void qc.invalidateQueries({ queryKey: ["materials"] });
+      void qc.invalidateQueries({
         queryKey: [effectiveType === "drug" ? "pharmacy-catalog" : "store-catalog"],
       });
       notifications.show({

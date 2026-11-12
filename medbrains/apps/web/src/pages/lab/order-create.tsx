@@ -116,7 +116,7 @@ function LabOrderCreatePageInner() {
         });
       }
       notifications.show({ title: "Order placed", message: "", color: "success" });
-      navigate(orders.length === 1 ? `/lab/orders/${orders[0]?.id}` : "/lab");
+      void navigate(orders.length === 1 ? `/lab/orders/${orders[0]?.id}` : "/lab");
     },
     onError,
   });

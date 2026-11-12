@@ -40,7 +40,7 @@ export function EmergencyVisitModal({ patientId, control }: EmergencyVisitModalP
       }),
     onSuccess: () => {
       close();
-      navigate("/emergency");
+      void navigate("/emergency");
     },
   });
 

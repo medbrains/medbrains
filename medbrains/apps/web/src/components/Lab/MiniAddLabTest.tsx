@@ -63,7 +63,7 @@ export function MiniAddLabTest({ searchText, onCreated, onCancel }: MiniAddLabTe
     mutationFn: (payload: CreateLabCatalogInput) =>
       labCatalogService.createLabCatalogEntry(payload),
     onSuccess: (test) => {
-      queryClient.invalidateQueries({ queryKey: ["lab-test-search"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-test-search"] });
       notifications.show({
         title: "Lab test added",
         message: `${test.name} is now selected`,

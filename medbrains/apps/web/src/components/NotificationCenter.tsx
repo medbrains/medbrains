@@ -81,7 +81,7 @@ export function NotificationCenter() {
     });
     notification.onclick = () => {
       window.focus();
-      if (event.action_url) navigate(event.action_url);
+      if (event.action_url) void navigate(event.action_url);
       notification.close();
     };
   };
@@ -130,7 +130,7 @@ export function NotificationCenter() {
     if (!notification.is_read) markRead.mutate(notification.id);
     if (notification.action_url) {
       setOpened(false);
-      navigate(notification.action_url);
+      void navigate(notification.action_url);
     }
   };
 

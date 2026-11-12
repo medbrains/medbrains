@@ -111,7 +111,7 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
   const mutation = useMutation({
     mutationFn: (payload: CreatePatientInput) => patientsService.createPatient(payload),
     onSuccess: (patient) => {
-      queryClient.invalidateQueries({ queryKey: ["patient-search"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-search"] });
       const registeredName =
         fieldAccessText(
           patientNameAccess,

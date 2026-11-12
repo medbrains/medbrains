@@ -21,7 +21,7 @@ POST /api/hr/leave-requests                  routes/mod.rs:812
 
 ## Checklist
 
-- [ ] Commits are signed off (`git commit -s`) — required (DCO)
+- [ ] I have signed the [contributor licence agreement](../CLA.md), or I am a maintainer — required
 - [ ] No real patient data (PHI) anywhere — synthetic/de-identified only
 - [ ] `cargo clippy` + `cargo fmt --check` clean (backend changes)
 - [ ] `pnpm typecheck` + `pnpm build` pass (frontend changes)
