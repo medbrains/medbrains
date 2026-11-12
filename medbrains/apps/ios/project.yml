@@ -61,6 +61,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.medbrains.staff
+        # Empty for local builds; the release job sets it for this target alone (release.yml ios).
+        PROVISIONING_PROFILE_SPECIFIER: "$(MB_APP_PROFILE)"
         SWIFT_VERSION: "5.10"
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
@@ -103,6 +105,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.medbrains.patient
+        # Empty for local builds; the release job sets it for this target alone (release.yml ios).
+        PROVISIONING_PROFILE_SPECIFIER: "$(MB_APP_PROFILE)"
         SWIFT_VERSION: "5.10"
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"

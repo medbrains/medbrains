@@ -9,6 +9,10 @@ name: Desktop Build
 #
 # Updates are signed with TAURI_SIGNING_PRIVATE_KEY. Without that secret the
 # installers are still built, with no updater artifacts and no latest.json.
+# Operating-system code signing is separate: the macOS build is signed (and notarized)
+# only with the Apple secrets, the Windows build only with WINDOWS_CERTIFICATE; a release
+# without them uploads that platform's installers named -unsigned. Linux packages carry
+# no code signature; SHA256SUMS (release.yml, release-files) covers them.
 # The signing secrets live only in the `release` environment, whose
 # deployment rule admits `v*` tags; a job joins it only when it has a release
 # to upload to, so a manual run never signs and never sees the secrets.
@@ -133,7 +137,11 @@ jobs:
 
       # An empty signing variable makes tauri try to import an empty certificate and fail, so
       # export each one only when its secret is set. Without them the build is unsigned.
-      - name: Code-signing variables, only when set
+      # Notarization takes either an App Store Connect API key (the one the iOS job's secrets
+      # name, mapped to tauri's APPLE_API_* variables) or an Apple ID app password.
+      - name: macOS code-signing variables, only when set
+        if: matrix.target.os == 'macOS'
+        id: macsign
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -141,17 +149,43 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         shell: bash
         run: |
+          if [ -n "$APPLE_API_KEY_P8" ]; then
+            APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+            printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY_PATH"
+          fi
           for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID \
-                   APPLE_PASSWORD APPLE_TEAM_ID WINDOWS_CERTIFICATE WINDOWS_CERTIFICATE_PASSWORD; do
+                   APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH; do
             if [ -n "${!v}" ]; then
               d="EOF_$RANDOM$RANDOM"
               { echo "$v<<$d"; printf '%s\n' "${!v}"; echo "$d"; } >> "$GITHUB_ENV"
             fi
           done
+          [ -n "$APPLE_CERTIFICATE" ] && echo "signed=true" >> "$GITHUB_OUTPUT" || true
+      # Tauri signs Windows bundles with a certificate in the store, named by thumbprint: import
+      # the PFX and hand tauri the thumbprint through one more config file.
+      - name: Windows code-signing certificate, only when set
+        if: matrix.target.os == 'Windows'
+        id: winsign
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) { exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'cert.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $pw = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+          Remove-Item $pfx
+          $conf = @{ bundle = @{ windows = @{ certificateThumbprint = $cert.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } }
+          $conf | ConvertTo-Json -Depth 4 | Set-Content medbrains/apps/desktop/src-tauri/tauri.windows-sign.conf.json
+          "args=--config src-tauri/tauri.windows-sign.conf.json" >> $env:GITHUB_OUTPUT
+          "signed=true" >> $env:GITHUB_OUTPUT
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
@@ -162,33 +196,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: medbrains/apps/desktop
-          args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }}
+          args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }} ${{ steps.winsign.outputs.args }}
           releaseId: ${{ inputs.release-id }}
-          includeUpdaterJson: ${{ steps.updater.outputs.signed == 'true' }}
-
-      # Checksums for the installers tauri-action uploaded, by the names it
-      # uploads them under. One file per platform so the three jobs never
-      # overwrite each other.
-      - name: Installer checksums
-        if: inputs.release-id != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-          OS: ${{ matrix.target.os }}
-        run: |
-          sums="$RUNNER_TEMP/SHA256SUMS-desktop-$OS"
-          shopt -s globstar nullglob
-          files=(medbrains/target/**/release/bundle/**/*.{dmg,msi,exe,deb,AppImage,rpm})
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "::error::No installers found to checksum"
-            exit 1
-          fi
-          for file in "${files[@]}"; do
-            (cd "$(dirname "$file")" && sha256sum -- "$(basename "$file")")
-          done > "$sums"
-          cat "$sums"
-          gh release upload "$TAG" "$sums" --repo "$GITHUB_REPOSITORY" --clobber
+          uploadUpdaterJson: ${{ steps.updater.outputs.signed == 'true' }}
+          # Not code-signed on macOS or Windows: say so in the uploaded names (latest.json uses them too).
+          releaseAssetNamePattern: >-
+            ${{ matrix.target.os != 'Linux' && steps.macsign.outputs.signed != 'true' && steps.winsign.outputs.signed != 'true'
+            && '[name]_[version]_[arch][setup]-unsigned[ext]' || '' }}
 
       - name: Keep the installers (manual runs)
         if: inputs.release-id == ''
