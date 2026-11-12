@@ -116,6 +116,8 @@
             - { name: ca.crt, mode: '0644' } # NOSONAR(S2612): public CA certificate
             - { name: patroni.crt, mode: '0644' } # NOSONAR(S2612): public certificate
             - { name: patroni.key, mode: '0600' }
+          no_log: true
+          notify: restart patroni
 
     - name: Render patroni.yml
       template:
@@ -124,6 +126,7 @@
         owner: postgres
         group: postgres
         mode: '0600'
+      notify: restart patroni
 
     - name: Load softdog
       block:
@@ -173,3 +176,10 @@
         daemon_reload: yes
         enabled: yes
         state: started
+
+  handlers:
+    - name: restart patroni
+      systemd:
+        name: patroni
+        daemon_reload: yes
+        state: restarted

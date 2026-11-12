@@ -102,7 +102,11 @@ resource "local_file" "inventory" {
 # etcd is Patroni's source of truth for who is primary. On plain HTTP anyone on the hospital
 # LAN could read it or write a new leader key and split the cluster. Every member and Patroni
 # get a certificate from a CA made here; etcd requires client certificates on both ports.
-# The keys live in Terraform state, which already holds this cluster's secrets.
+# The private keys live in Terraform state: keep this stack's state in an encrypted backend
+# with restricted access (it already holds this cluster's passwords).
+#
+# Fresh installs only: etcd.yml refuses to run over a member that is still on plain HTTP,
+# because switching a live cluster's URLs needs a rolling `etcdctl member update` (README.md).
 
 locals {
   etcd_pki_dir = "${abspath(path.module)}/ansible/pki-${var.tenant_id}"
@@ -174,35 +178,40 @@ resource "tls_locally_signed_cert" "patroni_etcd" {
 # Handed to Ansible as files on the operator's machine, readable by the operator only;
 # ansible/pki-*/ is git-ignored.
 resource "local_file" "etcd_ca_cert" {
-  filename        = "${local.etcd_pki_dir}/ca.crt"
-  content         = tls_self_signed_cert.etcd_ca.cert_pem
-  file_permission = "0644"
+  filename             = "${local.etcd_pki_dir}/ca.crt"
+  content              = tls_self_signed_cert.etcd_ca.cert_pem
+  file_permission      = "0644"
+  directory_permission = "0700"
 }
 
 resource "local_file" "etcd_member_cert" {
-  count           = length(var.etcd_hosts)
-  filename        = "${local.etcd_pki_dir}/etcd-${count.index + 1}.crt"
-  content         = tls_locally_signed_cert.etcd_member[count.index].cert_pem
-  file_permission = "0644"
+  count                = length(var.etcd_hosts)
+  filename             = "${local.etcd_pki_dir}/etcd-${count.index + 1}.crt"
+  content              = tls_locally_signed_cert.etcd_member[count.index].cert_pem
+  file_permission      = "0644"
+  directory_permission = "0700"
 }
 
 resource "local_sensitive_file" "etcd_member_key" {
-  count           = length(var.etcd_hosts)
-  filename        = "${local.etcd_pki_dir}/etcd-${count.index + 1}.key"
-  content         = tls_private_key.etcd_member[count.index].private_key_pem
-  file_permission = "0600"
+  count                = length(var.etcd_hosts)
+  filename             = "${local.etcd_pki_dir}/etcd-${count.index + 1}.key"
+  content              = tls_private_key.etcd_member[count.index].private_key_pem
+  file_permission      = "0600"
+  directory_permission = "0700"
 }
 
 resource "local_file" "patroni_etcd_cert" {
-  filename        = "${local.etcd_pki_dir}/patroni.crt"
-  content         = tls_locally_signed_cert.patroni_etcd.cert_pem
-  file_permission = "0644"
+  filename             = "${local.etcd_pki_dir}/patroni.crt"
+  content              = tls_locally_signed_cert.patroni_etcd.cert_pem
+  file_permission      = "0644"
+  directory_permission = "0700"
 }
 
 resource "local_sensitive_file" "patroni_etcd_key" {
-  filename        = "${local.etcd_pki_dir}/patroni.key"
-  content         = tls_private_key.patroni_etcd.private_key_pem
-  file_permission = "0600"
+  filename             = "${local.etcd_pki_dir}/patroni.key"
+  content              = tls_private_key.patroni_etcd.private_key_pem
+  file_permission      = "0600"
+  directory_permission = "0700"
 }
 
 resource "null_resource" "etcd" {
@@ -227,6 +236,7 @@ resource "null_resource" "etcd" {
 
 resource "null_resource" "patroni" {
   triggers = {
+    etcd_ca         = sha256(tls_self_signed_cert.etcd_ca.cert_pem)
     pg_hosts        = join(",", var.pg_hosts)
     pg_version      = var.pg_version
     patroni_version = var.patroni_version
