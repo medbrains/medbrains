@@ -18,17 +18,17 @@ Good first tasks are listed in the README under [Contributing](./README.md#contr
 2. For anything bigger than a small fix, **open an issue first** and agree on the approach. This matters most for new screens and for anything touching clinical or regulatory rules.
 3. Read [`ENGINEERING.md`](./ENGINEERING.md). It holds the architecture, coding standards and module workflow.
 
-## Sign your commits (DCO)
+## Sign the contributor licence agreement
 
-We use the [Developer Certificate of Origin](https://developercertificate.org/). By signing off you confirm that you wrote the change, or have the right to submit it, under the terms in [CLA.md](./CLA.md).
+Outside pull requests are merged only after the contributor has signed the [contributor licence agreement](./CLA.md). It lets the project license your work under both the AGPL-3.0-only and the commercial licence. You keep your copyright.
 
-Add `-s` to every commit:
+When you open your first pull request, the CLA bot comments with a link. Read [CLA.md](./CLA.md), then reply on the pull request with exactly:
 
-```bash
-git commit -s -m "Explain why the change is needed"
-```
+> I have read the CLA Document and I hereby sign the CLA
 
-This adds `Signed-off-by: Your Name <you@example.com>`. Use your real name. Pull requests with unsigned commits cannot be merged. To fix the last commit, run `git commit --amend -s`.
+You sign once. Contributing for a company, hospital or university? Your organisation signs the entity agreement first; see [CLA.md](./CLA.md#how-to-sign).
+
+**Not signed yet?** Open an issue instead. Describe the bug or the change you want; a maintainer may pick it up.
 
 ## Never commit real patient data
 
@@ -79,6 +79,7 @@ The full rules are in [`ENGINEERING.md`](./ENGINEERING.md). The essentials:
 3. Make the checks pass: `cargo fmt --check`, `cargo clippy`, `pnpm typecheck`, `pnpm build` and `make check-all`.
 4. In the description, say what changed, why, and how you checked it. Link the issue (`Closes #123`).
 5. Add tests for new endpoints and screens. A test should fail if the behaviour breaks.
+6. Sign the CLA when the bot asks. The pull request cannot be merged before you do.
 
 A maintainer will review. Please be kind; see the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
@@ -88,4 +89,4 @@ Do not report vulnerabilities in public issues. Follow [SECURITY.md](./SECURITY.
 
 ## Licence
 
-MedBrains is dual-licensed (AGPL-3.0 and commercial). By contributing, you accept the [Contributor License Agreement](./CLA.md): your contribution is licensed under the AGPL-3.0, and you grant the maintainer the right to also license it commercially. You keep your copyright.
+MedBrains is dual-licensed (AGPL-3.0-only and commercial). Pull requests are merged only after you sign the [contributor licence agreement](./CLA.md): your contribution is licensed under the AGPL-3.0-only, and you grant the maintainer the right to also license it commercially. You keep your copyright. The name and logo are covered by the [trademark policy](./TRADEMARKS.md).
