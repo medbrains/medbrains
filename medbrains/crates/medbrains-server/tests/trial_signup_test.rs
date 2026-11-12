@@ -54,25 +54,15 @@ async fn a_second_hospital_signs_up_only_on_the_trial_server() {
         .await
         .expect("init");
     if !open {
-        assert_eq!(
-            resp.status(),
-            StatusCode::FORBIDDEN,
-            "a hospital's server takes no sign-ups"
-        );
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "a hospital's server takes no sign-ups");
         return;
     }
     assert_eq!(resp.status(), StatusCode::OK);
     let created: Value = resp.json().await.expect("init json");
-    assert_eq!(
-        created["role"], "hospital_admin",
-        "never a platform administrator"
-    );
+    assert_eq!(created["role"], "hospital_admin", "never a platform administrator");
     assert!(created["trial_ends_at"].is_string());
 
-    let tenant: Uuid = created["tenant_id"]
-        .as_str()
-        .and_then(|s| s.parse().ok())
-        .expect("tenant");
+    let tenant: Uuid = created["tenant_id"].as_str().and_then(|s| s.parse().ok()).expect("tenant");
     let (status, beds, quoted, days): (String, i32, Value, f64) = sqlx::query_as(
         "SELECT status, beds, sizing, \
                 (EXTRACT(EPOCH FROM trial_ends_at - created_at) / 86400)::float8 \
@@ -85,11 +75,7 @@ async fn a_second_hospital_signs_up_only_on_the_trial_server() {
     assert_eq!(status, "trial");
     assert_eq!(beds, 120);
     assert_eq!(quoted["tier"], "medium", "{quoted}");
-    assert!(
-        quoted["infra_monthly_inr"]
-            .as_u64()
-            .is_some_and(|inr| inr > 0)
-    );
+    assert!(quoted["infra_monthly_inr"].as_u64().is_some_and(|inr| inr > 0));
     assert!((days - 30.0).abs() < 0.01, "a 30-day trial: {days}");
     let role: String = sqlx::query_scalar("SELECT role::text FROM users WHERE tenant_id = $1")
         .bind(tenant)
@@ -109,10 +95,7 @@ async fn a_second_hospital_signs_up_only_on_the_trial_server() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
     // A fourth trial from one address in a day is refused.
-    let ip = format!(
-        "203.0.113.{}",
-        u8::from_str_radix(&tag[..2], 16).unwrap_or(7)
-    );
+    let ip = format!("203.0.113.{}", u8::from_str_radix(&tag[..2], 16).unwrap_or(7));
     let mut last = StatusCode::OK;
     for n in 0..4 {
         let small = json!({ "beds": 0, "staff_users": 5, "placement": "shared_cloud" });
@@ -126,9 +109,5 @@ async fn a_second_hospital_signs_up_only_on_the_trial_server() {
             .expect("repeat")
             .status();
     }
-    assert_eq!(
-        last,
-        StatusCode::CONFLICT,
-        "the fourth trial from one address"
-    );
+    assert_eq!(last, StatusCode::CONFLICT, "the fourth trial from one address");
 }

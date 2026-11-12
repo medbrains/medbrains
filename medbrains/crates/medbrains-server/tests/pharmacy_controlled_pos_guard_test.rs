@@ -91,9 +91,7 @@ async fn controlled_drug_cannot_be_sold_over_the_counter() {
         "a controlled/scheduled drug must not be sold over the counter"
     );
     let body: serde_json::Value = blocked.json().await.expect("conflict json");
-    let msg = serde_json::to_string(&body)
-        .unwrap_or_default()
-        .to_lowercase();
+    let msg = serde_json::to_string(&body).unwrap_or_default().to_lowercase();
     assert!(
         msg.contains("over the counter") || msg.contains("controlled"),
         "the block should name the controlled-drug reason: {body}"
@@ -106,9 +104,7 @@ async fn controlled_drug_cannot_be_sold_over_the_counter() {
     let otc = pos_sale(&app, &csrf, otc_id, &otc_name).await;
     let otc_status = otc.status();
     let otc_body: serde_json::Value = otc.json().await.unwrap_or_default();
-    let otc_msg = serde_json::to_string(&otc_body)
-        .unwrap_or_default()
-        .to_lowercase();
+    let otc_msg = serde_json::to_string(&otc_body).unwrap_or_default().to_lowercase();
     assert!(
         !otc_msg.contains("over the counter"),
         "an OTC drug must not hit the controlled-drug block (status {otc_status}): {otc_body}"

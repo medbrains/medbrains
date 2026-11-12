@@ -101,14 +101,7 @@ async fn an_unchanged_record_verifies_and_names_no_patient() {
     );
     // The patient the helper registers is "Qrtestpatient Verifyonly", phone 9990003003.
     // The name is deliberately unlike any seeded staff name: CI seeds a "Dr. Asha Rao".
-    for leaked in [
-        "Qrtestpatient",
-        "Verifyonly",
-        "9990003003",
-        "uhid",
-        "patient",
-        "diagnos",
-    ] {
+    for leaked in ["Qrtestpatient", "Verifyonly", "9990003003", "uhid", "patient", "diagnos"] {
         assert!(!text.contains(leaked), "{leaked} must not appear: {text}");
     }
 }
@@ -234,10 +227,7 @@ async fn a_signature_from_before_online_checks_is_never_called_changed() {
         body["unchanged"].is_null(),
         "neither changed nor unchanged: {body}"
     );
-    assert_eq!(
-        body["signature_intact"], true,
-        "the stored hash still verifies: {body}"
-    );
+    assert_eq!(body["signature_intact"], true, "the stored hash still verifies: {body}");
     assert_eq!(body["key_status"], "active");
     assert!(body["signer_name"].as_str().is_some_and(|n| !n.is_empty()));
     assert_eq!(keys(&body), CHECKED_KEYS.iter().copied().collect());
