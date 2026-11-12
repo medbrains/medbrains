@@ -184,6 +184,28 @@ jobs:
           fail-on-severity: high
           deny-licenses: GPL-3.0, AGPL-3.0
 
+  supply-chain:
+    # Every build uses its lockfile; every package new to the repo has a recorded review; every new
+    # version is 7 days old on its registry or names the advisory that cannot wait (#5500, xz).
+    name: Supply chain (locked builds, new-dependency review, 7-day cooldown)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/check_supply_chain.py --self-test
+      - run: python3 scripts/check_supply_chain.py workflows
+      - if: github.event_name == 'pull_request'
+        run: python3 scripts/check_supply_chain.py deps "origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
   codeql:
     # A draft PR spends no build; marking it ready for review runs everything.
     needs: changes

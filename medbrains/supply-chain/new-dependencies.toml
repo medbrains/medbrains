@@ -1,0 +1,28 @@
+# New-dependency reviews and cooldown exceptions (#5500). Read by scripts/check_supply_chain.py.
+#
+# A pull request whose lockfiles (Cargo.lock, pnpm-lock.yaml, uv.lock, gradle.lockfile) bring in a
+# package name the repo has never had, direct or transitive, adds a [[review]] here. Version bumps
+# of packages we already use need no review, but every new version must be 7 days old on its
+# registry, or carry a [[cooldown-exception]].
+#
+# What to check before writing a review: who maintains it and for how long; whether it has install
+# or build scripts (build.rs, postinstall) and what they do; that the published package matches
+# its repository; recent ownership changes; whether a few lines of our own would do instead.
+#
+# [[review]]
+# ecosystem = "cargo"            # cargo | npm | pypi | maven
+# name = "example-crate"         # maven: "group:artifact"
+# reviewed-by = "github-login"
+# date = "2026-11-12"
+# why = "what it does for us, and why our own code or an existing dependency would not do"
+# checked = "maintainers, build script, repo matches the published crate"
+#
+# [[cooldown-exception]]
+# ecosystem = "cargo"
+# name = "example-crate"
+# version = "1.2.3"
+# reason = "RUSTSEC-2026-0000: the fix for an advisory against the version we ship"
+#
+# A reason must name the advisory (RUSTSEC-, GHSA-, CVE-, PYSEC- or GO- id), or the exception is
+# ignored. This file is code-owned (.github/CODEOWNERS): the owner's review of each entry is the
+# gate, the script only checks that an entry exists and is well formed.

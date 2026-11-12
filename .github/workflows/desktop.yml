@@ -162,7 +162,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: medbrains/apps/desktop
-          args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }}
+          args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }} -- --locked
           releaseId: ${{ inputs.release-id }}
           includeUpdaterJson: ${{ steps.updater.outputs.signed == 'true' }}
 
