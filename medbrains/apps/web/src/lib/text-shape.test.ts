@@ -1,0 +1,49 @@
+import { describe, expect, it } from "vitest";
+import {
+  htmlToPlainText,
+  joinRuns,
+  trimTrailing,
+  withoutParenthesised,
+  withoutTrailingParenthesised,
+} from "./text-shape";
+
+describe("text shaping without backtracking", () => {
+  it("joins kept runs with one separator and none at the ends", () => {
+    expect(joinRuns("  blood  pressure!! ", "_", /[a-z0-9]/)).toBe("blood_pressure");
+    expect(joinRuns("ICU bay 2", "-", /[A-Z0-9]/)).toBe("ICU-2");
+    expect(joinRuns("___", "_", /[a-z]/)).toBe("");
+  });
+
+  it("stays linear on a long run of separators", () => {
+    const hostile = `${"_".repeat(50_000)}x`;
+    expect(joinRuns(hostile, "_", /[a-z]/)).toBe("x");
+    expect(trimTrailing(`a${"/".repeat(50_000)}`, "/")).toBe("a");
+  });
+
+  it("trims only the trailing character", () => {
+    expect(trimTrailing("https://pacs.example///", "/")).toBe("https://pacs.example");
+    expect(trimTrailing("/", "/")).toBe("");
+    expect(trimTrailing("/api/x", "/")).toBe("/api/x");
+  });
+
+  it("drops parenthesised spans, nested or unclosed", () => {
+    expect(withoutParenthesised("Paracetamol (500 mg) tab").trim()).toBe(
+      "Paracetamol   tab".trim(),
+    );
+    expect(withoutParenthesised("CBC (full (auto)) panel")).toBe("CBC   panel");
+    expect(withoutParenthesised("Urea (unclosed").trim()).toBe("Urea");
+    expect(withoutParenthesised("a)b")).toBe("a)b");
+  });
+
+  it("drops one trailing parenthesised suffix only", () => {
+    expect(withoutTrailingParenthesised("Cardiology (OPD)")).toBe("Cardiology");
+    expect(withoutTrailingParenthesised("Cardiology")).toBe("Cardiology");
+    expect(withoutTrailingParenthesised("(OPD)")).toBe("(OPD)");
+    expect(withoutTrailingParenthesised("Ward(B)")).toBe("Ward(B)");
+  });
+
+  it("turns rich text into a one-line preview", () => {
+    expect(htmlToPlainText("<p>Fever&nbsp;3 days</p><p>  cough </p>")).toBe("Fever 3 days cough");
+    expect(htmlToPlainText("")).toBe("");
+  });
+});

@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useProtectedFieldAccess } from "@/components/PermissionedFieldValue";
+import { withoutParenthesised } from "@/lib/text-shape";
 import { type CreatePatientInput, patientsService } from "@/services/patients.service";
 
 interface MiniRegisterPatientProps {
@@ -28,8 +29,7 @@ const genderField = registrationCatalogue.fields.find((f) => f.id === "gender");
 const genderOptions = genderField?.options.source === "fixed" ? genderField.options.options : [];
 
 function splitSearchText(searchText: string): { firstName: string; lastName: string } {
-  const tokens = searchText
-    .replace(/\([^)]*\)/g, " ")
+  const tokens = withoutParenthesised(searchText)
     .replace(/\b\d{4,}\b/g, " ")
     .trim()
     .split(/\s+/)
