@@ -293,9 +293,23 @@ jobs:
       - run: pip install checkov==3.3.30
       - name: Scan
         run: checkov -d medbrains/infra --framework terraform dockerfile --skip-path medbrains/vendor -o sarif --output-file-path . --soft-fail
+      # Every finding we decided does not apply is an in-source `#checkov:skip=ID:reason` in the
+      # .tf, reviewed in git. Checkov still writes those into the SARIF (as `suppressions`), and
+      # code scanning opened each one as an alert: all 355 open Checkov alerts were such skips.
+      # Upload only the findings nobody has answered, so a real one is not buried (#5471).
+      - name: Drop findings already answered in source
+        run: |
+          # A skip is an answer only with its reason; one without would hide a finding silently.
+          # Catches `#checkov:skip=ID`, `# checkov:skip=ID:` and `#checkov:skip=ID reason` (no colon).
+          if grep -rnE '#[[:space:]]*checkov:skip=[A-Z0-9_]+([[:space:]]*:?[[:space:]]*$|[[:space:]]+[^:])' medbrains/infra; then
+            echo "::error::every #checkov:skip needs ':<reason>'"; exit 1
+          fi
+          jq '.runs |= map(.results |= map(select((.suppressions // []) | length == 0)))' \
+            results_sarif.sarif > unanswered.sarif
+          jq '[.runs[].results[]] | length' unanswered.sarif
       - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          sarif_file: results_sarif.sarif
+          sarif_file: unanswered.sarif
           category: checkov
 
   workflow-audit:
