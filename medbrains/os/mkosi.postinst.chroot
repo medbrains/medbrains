@@ -38,7 +38,7 @@ rm /tmp/whole-firewall.nft
 systemctl enable nftables chrony systemd-networkd systemd-resolved \
     medbrains-disk-setup medbrains-disk-notice medbrains-disk-finish medbrains-network-settings medbrains-os-setup medbrains-main.target medbrains-node.target \
     medbrains-agent medbrains-time-role cage-console medbrains-update-reconcile medbrains-update-health \
-    medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer medbrains-seal medbrains-boot-fsck
+    medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer medbrains-seal
 systemctl mask systemd-boot-update.service
 # Nothing here may wait for the network: with a cable out this fails after two minutes, which reads as a
 # failed service and would roll back a good update. Masked, because enabling networkd brings it back.

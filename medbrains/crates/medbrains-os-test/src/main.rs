@@ -107,11 +107,17 @@ fn machine_id_is_kept(vm: &mut Vm, _: &Value) -> Result<(), String> {
     )
 }
 
-/// The boot partition's file system was checked at this start, before anything wrote to it.
+/// The boot partition's file system was checked at this start, before it was mounted: systemd's own
+/// `systemd-fsck@` for the automounted boot partition, which runs `fsck.vfat -a` now that the image has it.
 fn boot_partition_checked(vm: &mut Vm, _: &Value) -> Result<(), String> {
-    let log =
-        vm.run("journalctl -b -u medbrains-boot-fsck --no-pager -o cat | grep -ci fsck; true")?;
-    ensure(log != "0", "the boot partition was not checked at start")
+    vm.run("ls /boot >/dev/null")?;
+    let log = vm.run(
+        "journalctl -b --no-pager -o cat -u 'systemd-fsck@*' | grep -cE 'fsck.fat|files, '; true",
+    )?;
+    ensure(
+        log != "0",
+        "the boot partition was not checked before it was mounted",
+    )
 }
 
 /// The app answers through the front proxy.

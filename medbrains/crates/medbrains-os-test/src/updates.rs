@@ -277,6 +277,18 @@ fn cold_start(vm: &mut Vm, disk: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// What a failed scenario's machine says about itself, if its shell still answers: failed units, waiting
+/// jobs and this start's warnings, so a failure can be explained without running it again.
+fn failure_notes(vm: &mut Vm) -> String {
+    vm.run_for(
+        "systemctl --failed --no-legend --plain; echo RUNNING; systemctl list-jobs --no-legend | grep -v waiting | head -10; \
+         systemctl status --no-pager -n 5 medbrains-seal medbrains-disk-setup 2>&1 | cut -c1-200 | head -40; \
+         echo LOG; journalctl -b --no-pager -p warning -n 40 -o short-monotonic | cut -c1-220",
+        Duration::from_secs(60),
+    )
+    .unwrap_or_else(|why| format!("no shell: {why}"))
+}
+
 /// Plays one scenario on a copy of the set-up machine, and removes the copy.
 fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
     let started = Instant::now();
@@ -291,6 +303,7 @@ fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
         .and_then(|()| cold_start(vm, &overlay))
         .and_then(|()| open_mirror(vm, bench))
         .and_then(|()| (scenario.1)(vm, bench));
+    let notes = result.as_ref().err().map(|_| failure_notes(vm));
     // Already off is the only way this fails.
     drop(vm.cut_power());
     drop(std::fs::remove_file(&overlay));
@@ -300,7 +313,11 @@ fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
             scenario.0,
             started.elapsed().as_secs_f32()
         )),
-        Err(why) => say(&format!("FAIL  {}: {why}", scenario.0)),
+        Err(why) => say(&format!(
+            "FAIL  {}: {why}\n      the machine said: {}",
+            scenario.0,
+            notes.unwrap_or_default()
+        )),
     }
     result.is_ok()
 }

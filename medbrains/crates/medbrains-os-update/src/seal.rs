@@ -268,7 +268,10 @@ pub fn check(at_start: bool) -> Result<(), String> {
     if intact.is_none() {
         announce("MedBrains: the system partition's seal could not be read.");
     }
-    let has_previous = intact == Some(false) && boot::previous_version().ok().flatten().is_some();
+    // At start, only whether the other slot holds a version, from its partition name: the boot partition
+    // is not read here, because its mount is ordered after this check. `reconcile` checks the boot entry.
+    let has_previous = intact == Some(false)
+        && disk::read_slots().is_ok_and(|slots| slots.inactive.version().is_some());
     let on_trial = boot::on_trial();
     let response = respond(intact, on_trial, at_start, has_previous);
     // A broken seal can make os-release unreadable; the version is then unknown.

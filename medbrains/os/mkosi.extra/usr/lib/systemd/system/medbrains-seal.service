@@ -7,7 +7,7 @@
 Description=Check the system partition's seal
 DefaultDependencies=no
 Conflicts=shutdown.target
-After=systemd-udevd.service boot.automount medbrains-boot-fsck.service
+After=systemd-udevd.service boot.automount
 Wants=cryptsetup-pre.target
 Before=cryptsetup-pre.target medbrains-disk-setup.service sysinit.target shutdown.target
 

@@ -125,10 +125,10 @@ pub(crate) fn damage_at_start_is_recorded(vm: &mut Vm, bench: &Bench) -> Result<
 /// stops an install before anything is deleted, and a staged boot file changed while waiting is not
 /// applied.
 pub(crate) fn boot_files_are_checked(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
-    let running = vm.run(&format!(
-        "ls /boot/EFI/Linux/medbrains-os_{}*.efi",
-        bench.first
-    ))?;
+    // The selected entry's boot file, as bootctl names it: the file name is the image's, not the version's.
+    let running = vm.run(
+        "bootctl list --no-pager | awk '/\\(selected\\)/ {s=1} s && /source:/ {print $2; exit}'",
+    )?;
     ensure(
         running.ends_with(".efi"),
         format!("no running boot file: {running}"),
