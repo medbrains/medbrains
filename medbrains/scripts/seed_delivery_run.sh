@@ -30,7 +30,7 @@ DELIVERY=$(curl "${H[@]}" "$BASE/api/pharmacy/deliveries" -d "{\"order_id\":\"$O
 
 # Prepaid: the counter takes payment before it leaves.
 INVOICE=$(curl "${H[@]}" "$BASE/api/pharmacy/orders/$ORDER" | json "d.get('billing_invoice_id') or ''")
-if [ -n "$INVOICE" ]; then
+if [[ -n "$INVOICE" ]]; then
   curl "${H[@]}" -o /dev/null -X POST "$BASE/api/billing/invoices/$INVOICE/issue" -d '{}'
   OWED=$(curl "${H[@]}" "$BASE/api/billing/invoices/$INVOICE" | json "float(d['invoice']['total_amount'])-float(d['invoice']['paid_amount'])")
   curl "${H[@]}" -o /dev/null "$BASE/api/billing/invoices/$INVOICE/payments" -d "{\"amount\":$OWED,\"mode\":\"cash\",\"notes\":\"native delivery run\"}"
