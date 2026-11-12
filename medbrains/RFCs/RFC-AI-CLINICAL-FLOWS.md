@@ -32,7 +32,7 @@ flows and on the kernel AI interface; that RFC's six rules (§1) still hold.
 **Non-goals**
 
 - No AI-placed order, prescription, dose, diagnosis, triage level or discharge. Ever.
-- No auto-sign, no pre-ticked accept, no "accept all" for clinical sections.
+- No auto-sign, no pre-ticked accept; "accept all" only over items with no flags, as one explicit action (§10.0).
 - No diagnostic suggestions the clinician did not say (that would make this a medical device under
   the Medical Devices Rules 2017; see the dictation RFC §4).
 - No AI on TV boards or kiosks (nobody there can accept a draft).
@@ -259,7 +259,7 @@ scripts in real OPD noise.
 
 | # | Rule | Mechanism |
 |---|---|---|
-| S1 | AI drafts, a clinician approves every part | `Draft<T>` / `decide()` (§5.2); section-by-section accept; nothing pre-ticked; no accept-all on clinical sections |
+| S1 | AI drafts, a clinician approves every part | `Draft<T>` / `decide()` (§5.2); item-by-item accept; nothing pre-ticked; accept-all only over unflagged items, one explicit action (§10.0) |
 | S2 | Every AI field is labelled, on every surface, before and after acceptance | `ai` provenance block → `AiLabel` on web, the native kits' label; `check-ai-label` (web, then native) |
 | S3 | A dictated medicine meets every check a typed one meets | Medicines are only ever offered to the prescription pad, which runs allergy, DDI, dose, duplication, schedule (H/H1/X, NDPS) and stewardship checks (`evaluate_medication_safety_in_tx`); dictation never writes a prescription (slice 1 already) |
 | S4 | Drug names, doses and numbers must be in what was said | Deterministic guard after drafting: each medicine name, dose and number in the draft must fuzzy-match a span of the transcript; if not, the line is marked **"not in what you said"** and cannot be accepted without an edit |
@@ -464,6 +464,114 @@ with an icon (`tone="warning"`), never colour alone; the transcript beside the d
 spans underlined and named for screen readers; reduced motion replaces the pulsing dot with a
 static one.
 
+### 10.0 Regulation by design: the strict AI component seam (binding, owner decided 2026-11-12)
+
+Owner: "UI AI components should be very strict." The compliance guardrails, transparency
+disclosures and human-in-the-loop controls are **built into the components**, so a screen cannot
+show AI output without them. This is a binding rule, not guidance. (It maps to the requirements in
+§9A; no certification is claimed.)
+
+**One seam.** AI output renders **only** through these components: on web in `@/components/ui`,
+on native in the shared kits (`apps/ios/Packages/MedBrainsUI`, `apps/android/ui`), same names,
+same behaviour. A screen never draws AI text with `Text`, `TextArea` or a raw string.
+
+| Component | Satisfies | Always shows | Human-in-the-loop control | Logged for audit |
+|---|---|---|---|---|
+| `AiPanel` (the container for one AI run) | EU AI Act Art. 13 (transparency), Art. 50 (disclosure); ICMR transparency; FDA CDS criterion that the clinician can review the basis | "Drafted by AI from your dictation. Not for diagnosis: you check and decide." The intended use of this capability; model name and version; a link to the model card (limitations, languages, eval scores); counts of unclear and flagged items | Accept-all only over items with no flags, as one explicit action, never pre-selected; Discard | `ai.suggested` (capability, model + version, prompt version, input hash, timings) when shown |
+| `AiLabel` (exists; tightened) | Art. 50; S2 | The AI mark in the **accent role** (purple, `tone="accent"`) **plus** the words "AI draft" or "AI, accepted by <name>" (never colour or icon alone) | — | — |
+| `AiDraftCard` (a section) and `AiField` (one value: a medicine line, a code, a date) | Art. 14 (human oversight); ICMR autonomy and accountability; MDR / ISO 14971 risk controls | The drafted text as plain text; the item's state (§ states below); its flags; its source | **Accept**, **Edit**, **Reject** per item. Editing an item records it as edited. An item with a fired safety flag (S4–S7, or the pad's checks) cannot be accepted as written: the clinician edits it, or **overrides with a reason** chosen from a list plus free text | `ai.decided`: who, when, model + version, outcome (accepted / edited / rejected / overridden), the override reason, word edit distance and ratio, before and after text kept in `ai_suggestion_outcomes` (append-only) |
+| `AiUnclearMark` | Art. 15 (accuracy); WHO LMM guidance on uncertainty; S7 | An underline **and** the word "unclear" (screen readers read "unclear: <words>"), on the transcript span and on any draft item that came from it | Tap to hear the audio span (while audio exists) or jump to the transcript | — |
+| `AiFlag` | Art. 14 and 15; S4–S6, S8 | The flag in words ("Not in what you said", "Check: negation", "Code not found", "Not found in what you said") with a warning icon | Blocks accept as written; edit or override with reason | The flag kind on the `ai.decided` row |
+| `AiSourceQuote` | Art. 13; FDA CDS (basis reviewable); provenance rule (copilot RFC §2) | A "Source" reveal on each item: the transcript quote, or the record it came from (for discharge drafts) | Reveal, jump to the transcript, play the audio span | — |
+| `AiOffState` | AI-NATIVE kill switch; Art. 14 (ability to stop) | When AI is off for the hospital or the capability: one line "AI drafting is turned off for this hospital. Type as usual." in place of the panel, so users know why it is gone | — | none (nothing is called) |
+
+**Rules (all binding).**
+
+1. Never auto-accept. Nothing is pre-ticked, pre-selected or accepted on a timeout.
+2. Accept-all exists only for items with **no flags and no unclear marks**, is one explicit action
+   per run, and records one `ai.decided` row per item. Flagged items are left for item-by-item
+   decisions. (This supersedes the earlier "no accept-all" line in §1 and S1.)
+3. Never auto-sign. Accepting puts text into a draft record; signing stays the clinician's own
+   step on the record's normal screen.
+4. Every edit is tracked (edit distance, ratio) for the edit-rate metric (§11).
+5. AI accent = the design system's purple accent role (`tone="accent"`, `--mb-*` tokens), never a
+   raw hex, never colour alone: text and icon always carry the meaning.
+6. Keyboard and screen-reader operable: every control is a real button; Accept / Edit / Reject
+   reachable by Tab and labelled with the item name ("Accept medicine 2: amoxicillin"); state
+   changes announced in a live region; visible 2 px focus; reduced motion respected.
+7. Targets: ≥ 24 px web, ≥ 44 pt iOS / 48 dp Android.
+8. Every state is specified and tested:
+
+| State | Shows | Controls |
+|---|---|---|
+| Drafting | "Drafting…" with the ECG loader; the user can keep working | Cancel |
+| Unclear | `AiUnclearMark` on spans and items | Hear / jump; then accept, edit, reject |
+| Flagged | `AiFlag` text | Edit, or override with reason, or reject |
+| Accepted | "AI, accepted by <name> at <time>"; label stays on the record | Undo (before save) |
+| Edited | "AI, edited by <name>" | Undo (before save) |
+| Rejected | Struck through with "Rejected", collapsed | Undo (before save) |
+| Error | The step that failed in words, and the manual path | Try again, Type instead |
+| Offline / queued | "Not sent yet" (native: "Saved on this phone, will send when connected") | Retry, Discard |
+| AI off | `AiOffState` | — |
+| No permission | Nothing rendered, no query issued | — |
+
+**CI check: `make check-ai-seam`** (extends `check-ai-label` and works like `check-ui-seam`). It
+fails when:
+
+- a web or native file reads an AI source (an AI endpoint, a service wrapping one, a `Draft`-typed
+  value) and renders it outside the seam components;
+- a file calls a save or mutation with AI-sourced data that does not come from the seam's
+  decision output (the accepted-items list carrying decision ids);
+- a seam component is used without its required props (model, version, intended use, model-card
+  link, decision callback).
+
+A ratchet baseline holds today's files (the existing dictation panel moves onto the seam in V1).
+
+**Server enforces the same.** An AI-origin field (`ai_accepted: true`, or any value carrying a
+draft id) can be persisted only with a matching `ai.decided` record for that item, by the saving
+user, in the same transaction; otherwise the save is refused (409, "This AI draft was not
+reviewed"). In the kernel this is the `Draft<T>` → `decide()` → `Accepted<T>` rule (§5.2); at the
+database, a trigger on note sections checks that an `ai_accepted` section has its outcome row.
+
+**Acceptance criterion for this RFC (every phase).** A phase is done only when: requirements R1–R16 that apply to it are met; all AI output on
+its screens renders through the seam on every surface it touches; `make check-ai-seam` passes with
+no new baseline entries; a test proves the server refuses an AI-origin save with no accept record;
+and each state in the table above is shown in a component test and seen on screen as the role
+that uses it.
+
+**Numbered component requirements (regulator-ready checklist, owner 2026-11-12).** "Exists" means
+on `main` today (mostly in the web dictation panel); "New" is work this RFC adds. Regulation
+references are to §9A and are to verify; none implies certification.
+
+| # | Requirement | Meets | Status |
+|---|---|---|---|
+| **Human in the loop** | | | |
+| R1 | Explicit Accept / Edit (modify) / Reject per item before anything enters a record or reaches an order screen; nothing pre-selected | EU AI Act Art. 14; ICMR autonomy; FDA CDS (clinician decides) | Exists for dictation sections and medicines; New for orders, follow-up, IPD, handover, discharge and native |
+| R2 | Role gating: AI clinical output, and any future score, renders only for users holding the capability's permission (verified clinicians: doctor, nurse roles with a registration number on their profile); no query is issued otherwise | Art. 14 (competent oversight); NMC (registered practitioner) | Exists as `opd.dictation.use` + `clinical_notes.write`; New: registration-number check and the §7 codes |
+| R3 | Patient-facing AI is a separate pathway, out of scope until classified | MDR 2017 / EU MDR Rule 11 | Out of scope (non-goal) |
+| R4 | Friction prompt: accepting or overriding a high-risk flag (dose, allergy, interaction, schedule, negation) needs a short rationale (reason list + free text), to counter automation bias | Art. 14(4)(b) (awareness of automation bias); ISO 14971 risk control | New |
+| **Explainability and uncertainty** | | | |
+| R5 | Never present output as certain: unclear / low-confidence marks from the speech engine's segment confidence; any future score shows a calibrated range, never a bare yes/no label | Art. 13, 15; WHO LMM guidance | New (S7); scores are not in scope |
+| R6 | "Why this?" on every item shows the exact transcript quote or the source record fields. Shown inline in the card (`AiSourceQuote`), or in the seam `Modal` on narrow screens: the design rules allow no drawers | Art. 13; FDA CDS basis review | New (dictation shows the whole transcript beside the draft today) |
+| R7 | Known-limitations banner when the input is outside what the model was validated on: language not supported, poor audio (low mean confidence, clipping), very short (< 10 s) or very long recordings, paediatric or pregnancy context if the model card does not list it as validated | Art. 13(3)(b) (limitations); ICMR validation | New |
+| **Labelling and localisation** | | | |
+| R8 | Persistent "AI-generated" badge on the item and on the record after acceptance | Art. 50 | Exists on web (`AiLabel`, `check-ai-label`); New on native and on the saved record view |
+| R9 | About footer in `AiPanel`: model name, version, last validation date, model-card link; SaMD class and UDI shown **only** if a capability is ever classified as a device. Today it says "Documentation aid, not a medical device" | Art. 13; MDR / CDSCO labelling | New |
+| R10 | Deterministic localisation: every clinical UI string, warning and instruction in AI components comes from human-reviewed i18n files; never live model translation. A CI check fails AI components that render string literals instead of i18n keys | Art. 13 (instructions); ICMR; CARBON content rules | New (`check-ai-seam` includes it) |
+| **Privacy, consent and audit** | | | |
+| R11 | Plain-language consent and use statement: "Used only to draft this note. Nothing is kept to train AI." Ambient (V5) adds the patient's consent toggle; any hospital retention window (owner question 6) is stated in the same words | DPDP notice; ICMR privacy | Partly exists (panel says transcribed on the hospital's server, review before save); New wording and ambient consent |
+| R12 | Read-only **AI activity log per record**: generated when, model version, who viewed, who accepted / edited / rejected / overrode, with reasons | Art. 12 (logs); ICMR accountability; CERT-In logs | Data partly exists (`dictation_sessions`, `ai_suggestion_outcomes`, `audit_log`); New: view events and the screen (gated by `ai.governance.view` or the record's own read permission for its own entries) |
+| R13 | "Patient details masked" indicator whenever redaction ran before a model call, and "Not sent: could not be made safe" when it failed closed | DPDP security; HIPAA minimum necessary | Redaction exists (`ai_redact`); indicator New |
+| R14 | Inactivity lock: AI panels sit inside the app session, which locks on inactivity | DPDP security; HIPAA automatic logoff | **To confirm**: no idle-lock code was found in the web app on 2026-11-12; if absent it is New and applies to the whole app, not just AI |
+| **Audit events and locking** | | | |
+| R15 | Every AI component action emits an audit event: `ai.generated`, `ai.viewed`, `ai.accepted`, `ai.edited`, `ai.rejected`, `ai.overridden`, each with event id, timestamp, user, model + version, capability and item id (no words). No AI state change without an event; the component cannot change state if the event call fails (it shows the error and keeps the previous state) | Art. 12; ISO/IEC 42001 records | Partly exists (`dictation_used`, outcomes rows on save); New per-action events through `kernel::ai` |
+| R16 | Once a note holding AI-origin content is signed, the components render **locked read-only**: accepted text, who accepted and when, model version, and the edit diff. Any later change is an amendment (an addendum through the existing `amends_note_id` path), never an in-place edit | Medical-record integrity (NMC / IMC); Art. 12 | Addenda exist in clinical notes; locked AI view New |
+
+**Stack.** Built on our stack only: the `@/components/ui` seam over Mantine 9, SCSS for layout,
+colour only from `--mb-*` tokens, Biome a11y rules at `error`, WCAG 2.2 AA in light and dark
+(`theme-contrast.spec.ts`). No Tailwind, MUI, Ant or other kits, and no raw HTML elements. Native
+uses SwiftUI and Compose (Material 3 Expressive) in the shared kits, same names and behaviour.
+
 ### 10.1 Web (OPD consult, IPD round, handover, discharge)
 
 | Item | Plan |
@@ -561,5 +669,7 @@ the cost of one extra move. Owner question 1.
 
 ## 14. Decisions
 
-None yet: everything above is a proposal until the owner answers §13. Rows go into
-`docs/DECISIONS.md` as each is agreed.
+- 2026-11-12, owner: the strict AI component seam (§10.0), regulation by design, with server-side
+  enforcement and `check-ai-seam`. Recorded in `docs/DECISIONS.md` (Clinical safety).
+
+Everything else is a proposal until the owner answers §13.
