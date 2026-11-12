@@ -176,11 +176,11 @@ Logo → OS sign-in → Home screen → tap an app → app is already signed in
 **Not proven:** memory with several WebKit views open is unmeasured and may be the limit on cheap nodes,
 so open apps may have to be closed in the background. The compositor is not chosen yet.
 
-## 6. Licence and activation (owner decision open)
+## 6. Licence and activation
 
-The design below assumes the model recommended to the owner: the OS is free under Apache-2.0, and
-hospitals pay for hardware, support and the setup and fleet service. Apache-2.0 code can have any
-check removed, so a licence can only ever unlock services, not enforce the right to run.
+The OS is free under AGPL-3.0-only (decided 2026-11-12, see DECISIONS.md); vendors who will not
+share their changes buy a commercial licence, and hospitals pay for hardware, support and the setup
+and fleet service. Open code can have any check removed, so a licence can only ever unlock services, not enforce the right to run.
 
 ```json
 { "hospital": "…", "machine_key_hash": "…", "services": ["support", "fleet-service"],

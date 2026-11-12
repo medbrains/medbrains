@@ -87,6 +87,9 @@ jobs:
           cargo llvm-cov report --lcov --output-path lcov.info \
             --ignore-filename-regex '(^|/)(tests|benches|examples|vendor|target|\.sqlx)/|_test\.rs$'
           sed -i "s#^SF:$(cd .. && pwd -P)/#SF:#" lcov.info
+          # A `#[path = "../../.."]` module is reported through its `..` path, which SonarQube cannot
+          # match to an indexed file ("problems in LCOV report"); normalise every path.
+          python3 -c 'import os,sys; p="lcov.info"; t=open(p).read().splitlines(); open(p,"w").write("\n".join("SF:"+os.path.normpath(l[3:]) if l.startswith("SF:") else l for l in t)+"\n")'
           if grep '^SF:' lcov.info | grep -qv '^SF:medbrains/'; then
             echo "::error::lcov.info has paths outside the repo"; exit 1
           fi
