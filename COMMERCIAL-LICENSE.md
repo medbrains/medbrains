@@ -30,6 +30,10 @@ A hospital, clinic or pharmacy on the free AGPL version can buy support, an annu
 
 Commercial licences fund the free, open development of MedBrains.
 
+## Our pledge: the source stays public
+
+The source code of every MedBrains release stays public, in this repository, under the AGPL, including every release that subscribers and commercial licensees receive. It is never moved behind a login, a paywall or a customer portal. No agreement we offer, whether a commercial licence, a subscription or a support contract, contains a term that stops you sharing that source or punishes you for doing so. What a commercial licence or subscription sells is rights, warranty, updates and support, never access to the code.
+
 ## How to get one
 
 Contact the maintainer through the address in [SECURITY.md](./SECURITY.md). Tell us how you plan to use it (hosted or embedded, how many sites, what support you need), and we will propose terms.

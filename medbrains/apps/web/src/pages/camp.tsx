@@ -62,7 +62,7 @@ function CampPageInner() {
   const contextPatientId = searchParams.get("patient_id") ?? "";
   const [activeTab, setActiveTab] = useHashTabs("camps", CAMP_LANDING_TAB_VALUES);
   const openCampWorkspace = (campId: string) => {
-    navigate(campWorkPath(campId, contextPatientId));
+    void navigate(campWorkPath(campId, contextPatientId));
   };
 
   return (
@@ -184,7 +184,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
   // journey rail reads it.
   const openRegistrationClinicalFlow = (registrationId: string) => {
     setFocusedRegistrationId(registrationId);
-    navigate(campScreeningCreatePath(campId ?? "", registrationId, contextPatientId));
+    void navigate(campScreeningCreatePath(campId ?? "", registrationId, contextPatientId));
   };
 
   return (
@@ -311,7 +311,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                   onChange={(nextCampId) => {
                     setFocusedRegistrationId(null);
                     if (nextCampId) {
-                      navigate(campWorkPath(nextCampId, contextPatientId));
+                      void navigate(campWorkPath(nextCampId, contextPatientId));
                     }
                   }}
                   searchable

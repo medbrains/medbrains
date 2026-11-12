@@ -50,7 +50,7 @@ export function DismissChargeModal({ item, onClose }: DismissChargeModalProps) {
         duplicate_usage: returnsStock && duplicateUsage,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
       toast.success("Charge dismissed");
       onClose();
     },

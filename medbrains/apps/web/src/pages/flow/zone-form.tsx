@@ -97,7 +97,7 @@ export function ZoneForm({ zone, setup, onSaved }: ZoneFormProps) {
       return api.replaceFlowZoneSources(zone.location_id, toSources(values));
     },
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["flow"] });
+      void client.invalidateQueries({ queryKey: ["flow"] });
       onSaved();
     },
   });

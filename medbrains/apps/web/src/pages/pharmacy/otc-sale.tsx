@@ -38,7 +38,7 @@ export function PharmacyOtcSalePage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       toast.success("Walk-in sale recorded", { title: "OTC Sale" });
-      backToOrders();
+      void backToOrders();
     },
     onError: (error: Error) => toast.error(error.message, { title: "Could not record the sale" }),
   });

@@ -318,7 +318,7 @@ export function OpdVitalsPage() {
         source_record_id: vital.id,
         vital_id: vital.id,
       });
-      toast.success(
+      void toast.success(
         t("vitals.notify.saved", {
           patient: entryIdentity?.name ?? t("queueFallback.patient"),
         }),

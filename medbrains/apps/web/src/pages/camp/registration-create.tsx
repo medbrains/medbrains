@@ -140,7 +140,7 @@ function CampRegistrationCreatePageInner() {
           : t("notify.participantRegistered"),
         color: "success",
       });
-      backToList();
+      void backToList();
     },
   });
 
