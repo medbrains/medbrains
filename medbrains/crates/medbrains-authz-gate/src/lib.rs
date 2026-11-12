@@ -452,6 +452,13 @@ pub mod links {
         column: "invoice_id",
         parent: ParentKind::Via(&INVOICE),
     };
+    /// A bad-debt write-off: deciding it settles the patient's bill, so the decider must reach
+    /// that patient, not only hold the approve permission.
+    pub const WRITE_OFF: ParentLink = ParentLink {
+        table: "bad_debt_write_offs",
+        column: "invoice_id",
+        parent: ParentKind::Via(&INVOICE),
+    };
     /// `insurance_claims.patient_id` is NOT NULL, so this needs no hop — but it
     /// is `PatientDirect` for the same reason the rest of this group is.
     pub const INSURANCE_CLAIM: ParentLink = ParentLink {

@@ -362,11 +362,12 @@ pub async fn list_write_offs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1 AND deleted_at IS NULL")
-            .bind(claims.tenant_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     let rows = sqlx::query_as::<_, BadDebtWriteOff>(
         "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 AND deleted_at IS NULL \
@@ -510,6 +511,8 @@ pub async fn create_write_off(
     Ok(Json(row))
 }
 
+/// Decide a pending write-off (someone other than its requester); approving settles that much
+/// of the bill as written off.
 pub async fn approve_write_off(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -517,6 +520,15 @@ pub async fn approve_write_off(
     Json(body): Json<ApproveWriteOffRequest>,
 ) -> Result<Json<BadDebtWriteOff>, AppError> {
     require_permission(&claims, permissions::billing::write_off::APPROVE)?;
+    // Approving settles a named patient's bill. The permission says the caller may decide
+    // write-offs, not this patient's; the request side already checked its invoice.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::WRITE_OFF,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

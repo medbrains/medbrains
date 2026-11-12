@@ -74,6 +74,7 @@ mod audit_partitioning_test;
 mod auth_me_restrict_copy_test;
 mod auth_test;
 mod auto_charge_savepoint_test;
+mod bad_debt_write_off_test;
 mod billing_payment_settings_test;
 mod blood_bank_safety_test;
 mod board_topic_tenant_test;
