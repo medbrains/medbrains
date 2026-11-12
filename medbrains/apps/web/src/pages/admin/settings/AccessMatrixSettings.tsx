@@ -3637,17 +3637,29 @@ export function AccessMatrixSettings() {
   const [activeMatrixTab, setActiveMatrixTab] = useState<string | null>(initialMatrixTab);
   const [selectedRoleId, setSelectedRoleId] = useState(searchParams.get("role"));
   const [selectedUserId, setSelectedUserId] = useState(searchParams.get("user"));
-  const { data: roles = [], isLoading: rolesLoading } = useQuery({
+  const {
+    data: roles = [],
+    isLoading: rolesLoading,
+    isError: rolesFailed,
+  } = useQuery({
     queryKey: ["roles"],
     queryFn: () => adminAccessService.listRoles(),
     enabled: canViewRoles,
   });
-  const { data: users = [], isLoading: usersLoading } = useQuery({
+  const {
+    data: users = [],
+    isLoading: usersLoading,
+    isError: usersFailed,
+  } = useQuery({
     queryKey: ["setup-users"],
     queryFn: () => adminAccessService.listUsers(),
     enabled: canViewUsers,
   });
-  const { data: groups = [], isLoading: groupsLoading } = useQuery({
+  const {
+    data: groups = [],
+    isLoading: groupsLoading,
+    isError: groupsFailed,
+  } = useQuery({
     queryKey: ["access-groups"],
     queryFn: () => adminAccessService.listAccessGroups(),
     enabled: canViewUsers,
@@ -3689,6 +3701,19 @@ export function AccessMatrixSettings() {
       <Group justify="center" py="xl">
         <Loader />
       </Group>
+    );
+  }
+
+  // A failed read is a fault, not an empty tenant: "no roles or users" would
+  // tell an administrator to go and create what already exists.
+  if (rolesFailed || usersFailed || groupsFailed) {
+    return (
+      <Alert tone="danger" title="Could not load the access matrix">
+        <Text size="sm">
+          Roles, users or access groups did not load. Nothing has changed; reload the page, and tell
+          IT if it keeps happening.
+        </Text>
+      </Alert>
     );
   }
 
