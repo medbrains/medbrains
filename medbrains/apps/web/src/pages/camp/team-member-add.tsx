@@ -52,7 +52,7 @@ export function CampTeamMemberAddPage() {
         message: "They are on this camp's team.",
         color: "success",
       });
-      backToCamp();
+      void backToCamp();
     },
   });
 

@@ -598,7 +598,7 @@ export function TokenBoardsTab({
   const tokenLimit = isKioskDisplay ? TOKEN_BOARD_KIOSK_LIMIT : TOKEN_BOARD_LIMIT;
 
   function handleBoardFilterChange(filter: TokenBoardFilter) {
-    routeNavigate(
+    void routeNavigate(
       tokenBoardFilterRoute(location.pathname, new URLSearchParams(location.search), filter),
       { replace: true },
     );

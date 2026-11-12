@@ -200,7 +200,7 @@ export function SpotlightProvider() {
       openAddProduct();
       return;
     }
-    navigate(path);
+    void navigate(path);
   };
 
   return (

@@ -97,8 +97,8 @@ export function SystemHealthSettings() {
         icon: <IconCheck size={16} />,
       });
       setImportFile(null);
-      refetchCompleteness();
-      refetchHealth();
+      void refetchCompleteness();
+      void refetchHealth();
     },
     onError: (err: Error) => {
       notifications.show({

@@ -1781,7 +1781,7 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
   const approveMut = useMutation({
     mutationFn: (id: string) => billingService.approveConcession(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
       toast.success("Concession approved", { title: "Approved" });
     },
   });
@@ -1789,7 +1789,7 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
   const rejectMut = useMutation({
     mutationFn: (id: string) => billingService.rejectConcession(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
       toast.error("Concession rejected", { title: "Rejected" });
     },
   });
@@ -1801,7 +1801,7 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
       return billingService.updateAutoConcessionRules({ rules: parsed });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "concessions", "auto-rules"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "concessions", "auto-rules"] });
       toast.success("Auto-concession rules updated", { title: "Saved" });
     },
     onError: () => toast.error("Invalid JSON or save failed", { title: "Error" }),

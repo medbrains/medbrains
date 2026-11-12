@@ -73,7 +73,7 @@ export function InstallmentsTab() {
   const createMutation = useMutation({
     mutationFn: (data: CreateInstallmentRequest) => billingService.createInstallment(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
       setShowCreate(false);
       createForm.reset();
       toast.success("Installment plan created");
@@ -87,15 +87,16 @@ export function InstallmentsTab() {
     amount: number;
   } | null>(null);
   const refreshPlans = () => {
-    queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
+    void queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
   };
 
   const waiveMutation = useMutation({
     mutationFn: ({ installmentId, itemId }: { installmentId: string; itemId: string }) =>
       billingService.waiveInstallmentItem(installmentId, itemId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
-      if (viewId) queryClient.invalidateQueries({ queryKey: ["billing", "installments", viewId] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
+      if (viewId)
+        void queryClient.invalidateQueries({ queryKey: ["billing", "installments", viewId] });
       toast.success("Installment waived");
     },
     onError: (e: Error) => toast.error(e.message),
