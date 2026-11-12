@@ -14,7 +14,15 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/test/**", "src/vite-env.d.ts"],
+      // Generated files are excluded from SonarCloud too; leaving them in the report made it
+      // name paths SonarCloud does not index. Stories and fixtures are not shipped code.
+      exclude: [
+        "src/test/**",
+        "src/vite-env.d.ts",
+        "src/**/*.generated.*",
+        "src/**/*.stories.tsx",
+        "src/__fixtures__/**",
+      ],
     },
   },
   resolve: {
