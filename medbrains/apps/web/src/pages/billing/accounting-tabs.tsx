@@ -808,7 +808,8 @@ export function JournalEntriesTab() {
       reset(journalDefaults);
       toast.success("Journal entry created", { title: "Created" });
     },
-    onError: () => toast.error("Failed — ensure debits equal credits", { title: "Error" }),
+    // The server names the line and the rule it broke; show that, not a guess.
+    onError: (error: Error) => toast.error(error.message, { title: "Journal entry not saved" }),
   });
 
   const postMut = useMutation({
