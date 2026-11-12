@@ -183,11 +183,11 @@ pub fn record_marker(state: &mut State, marker: &Marker, current: &str) -> bool 
     };
     let words = format!("Version {shown} failed its seal check when it started.");
     state.note(&marker.version, Ending::SealFailed, &words, now());
-    let here = marker.version == current
-        && verity::running_slot_uuid().is_some_and(|uuid| uuid == marker.uuid);
+    // The slot is what was damaged: its UUID says which, even when os-release could not be read.
+    let here = verity::running_slot_uuid().is_some_and(|uuid| uuid == marker.uuid);
     if here {
         state.damaged = Some(Damaged {
-            version: marker.version.clone(),
+            version: current.to_owned(),
             uuid: marker.uuid.clone(),
             at: marker.at,
             boot_id: marker.boot_id.clone(),

@@ -226,6 +226,18 @@ fn remember_running_boot_file(state: &mut State, current: &str) {
     }
 }
 
+/// The running version from os-release, or, when a seal failure may have made that file unreadable
+/// (`damaged`), from the running slot's partition name, which the updater gave it when it was installed.
+fn running_version(damaged: bool) -> Result<String, String> {
+    current_version().or_else(|why| {
+        let named = damaged
+            .then(|| disk::read_slots().ok())
+            .flatten()
+            .and_then(|slots| slots.active.version().map(str::to_owned));
+        named.ok_or(why)
+    })
+}
+
 /// Run at each start: puts the record right, turns a seal check's note from the boot partition into the
 /// record, notes what a person could go back to, and acts on a slot found damaged in an earlier start.
 pub fn reconcile() -> Result<(), String> {
@@ -233,8 +245,8 @@ pub fn reconcile() -> Result<(), String> {
     let path = Path::new(paths::STATE_FILE);
     let mut state = State::load(path)?;
     let before = state.clone();
-    let current = current_version()?;
     let marker = crate::seal::read_marker();
+    let current = running_version(marker.is_some())?;
     // Before the record is put right, so a trial's seal failure is the reason its rollback reports.
     let damaged_now = marker
         .as_ref()
@@ -450,7 +462,7 @@ pub fn tick() -> Result<(), String> {
         return Ok(());
     }
     if damaged {
-        return crate::seal::act_on_damage(&current_version().unwrap_or_default());
+        return crate::seal::act_on_damage(&running_version(true).unwrap_or_default());
     }
     apply()
 }

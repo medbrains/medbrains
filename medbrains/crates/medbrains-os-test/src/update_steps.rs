@@ -9,7 +9,7 @@ use crate::updates::{
     wait_version,
 };
 use crate::vm::{self, Vm};
-use crate::{update_channel, update_power, update_sealed, update_verity};
+use crate::{update_channel, update_power, update_seal, update_sealed, update_verity};
 
 /// Bundle folders, as `make-update-bundles.py` names them. `NEXT` is a real second image build.
 pub(crate) const NEXT: (&str, &str) = ("next", "1.0.2");
@@ -98,6 +98,18 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
         (
             "a security fix waits for a person or a quiet window",
             waits_for_quiet,
+        ),
+        (
+            "a seal failure in use is said and waits for the next start",
+            update_seal::damage_in_use_waits_for_a_restart,
+        ),
+        (
+            "a seal failure at start is recorded and the machine goes back",
+            update_seal::damage_at_start_is_recorded,
+        ),
+        (
+            "a changed boot file stops an install and an apply",
+            update_seal::boot_files_are_checked,
         ),
     ]
 }

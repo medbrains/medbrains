@@ -12,6 +12,7 @@ mod setup;
 mod tamper;
 mod update_channel;
 mod update_power;
+mod update_seal;
 mod update_sealed;
 mod update_steps;
 mod update_verity;
@@ -104,6 +105,13 @@ fn machine_id_is_kept(vm: &mut Vm, _: &Value) -> Result<(), String> {
         id.len() == 32 && id == kept,
         format!("machine id {id}, kept {kept}"),
     )
+}
+
+/// The boot partition's file system was checked at this start, before anything wrote to it.
+fn boot_partition_checked(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let log =
+        vm.run("journalctl -b -u medbrains-boot-fsck --no-pager -o cat | grep -ci fsck; true")?;
+    ensure(log != "0", "the boot partition was not checked at start")
 }
 
 /// The app answers through the front proxy.
@@ -440,6 +448,10 @@ fn checks() -> Vec<Check> {
         (
             "disk and priority settings hold",
             disk_and_priority_settings,
+        ),
+        (
+            "the boot partition is checked at start",
+            boot_partition_checked,
         ),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
