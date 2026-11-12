@@ -122,7 +122,7 @@
     - name: Patroni systemd unit
       copy:
         dest: /etc/systemd/system/patroni.service
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): systemd unit, no secret
         content: |
           [Unit]
           Description=Patroni PostgreSQL HA orchestrator (medbrains)
