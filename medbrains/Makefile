@@ -101,7 +101,7 @@ dev-backend-watch: db ## Backend auto-rebuild+restart on save (incremental — o
 	cargo watch --why --watch crates --exec 'run -p medbrains-server --bin medbrains-server'
 
 dev-mail-mailboxes: ## Create a local Stalwart mailbox for every seeded user (via the app API)
-	scripts/dev_mail_mailboxes.sh
+	DATABASE_URL="$(SQLX_DATABASE_URL)" scripts/dev_mail_mailboxes.sh
 
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
@@ -137,13 +137,13 @@ dev-split: ## Start backend + web without local HTTPS proxy
 		wait
 
 sim-hospital: ## Stream synthetic OPD/lab/radiology/pharmacy traffic into local dev DB
-	node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --stream
+	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --stream
 
 sim-hospital-batch: ## Bulk-generate synthetic hospital traffic quickly
-	node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --batch
+	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --batch
 
 sim-hospital-clean: ## Remove only simulator records for SIM_RUN_ID
-	node scripts/simulators/hospital_stream.mjs cleanup --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID)
+	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs cleanup --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID)
 
 # ── Mobile / Camp Mode ───────────────────────────────────────
 
