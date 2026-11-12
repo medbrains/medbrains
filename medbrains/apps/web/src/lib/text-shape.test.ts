@@ -53,6 +53,21 @@ describe("text shaping without backtracking", () => {
     );
   });
 
+  it("leaves out what the page never shows", () => {
+    expect(htmlToPlainText("<p>a</p><style>p{}</style><script>x()</script>")).toBe("a");
+    expect(htmlToPlainText("<p>b</p><noscript>no js</noscript><template><p>t</p></template>")).toBe(
+      "b",
+    );
+  });
+
+  it("separates table cells", () => {
+    expect(
+      htmlToPlainText(
+        "<table><tr><td>Hb</td><td>11.2</td></tr><tr><td>WBC</td><td>9</td></tr></table>",
+      ),
+    ).toBe("Hb 11.2 WBC 9");
+  });
+
   it("decodes entities rather than dropping them", () => {
     expect(htmlToPlainText("<p>BP &lt; 90 &amp; HR &gt; 120</p>")).toBe("BP < 90 & HR > 120");
   });

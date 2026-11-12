@@ -56,6 +56,9 @@ export function withoutTrailingParenthesised(value: string): string {
   return trimmed.slice(0, open).trimEnd();
 }
 
+/** Elements whose content is never shown on the page: their text is not part of a preview. */
+const HIDDEN_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
+
 /** Elements whose start and end separate words, as a browser lays them out. */
 const BLOCK_TAGS = new Set([
   "ADDRESS",
@@ -100,16 +103,27 @@ const BLOCK_TAGS = new Set([
 export function htmlToPlainText(html: string): string {
   const body = new DOMParser().parseFromString(html, "text/html").body;
   const parts: string[] = [];
-  const walk = (node: Node): void => {
+  // Iterative, so a deeply nested paste cannot overflow the stack. A block's end is queued as a
+  // marker after its children, so it lands after their text.
+  const stack: Array<Node | " "> = [body];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (node === undefined) break;
+    if (node === " ") {
+      parts.push(" ");
+      continue;
+    }
     if (node.nodeType === Node.TEXT_NODE) {
       parts.push(node.nodeValue ?? "");
-      return;
+      continue;
     }
+    if (node instanceof Element && HIDDEN_TAGS.has(node.tagName)) continue;
     const block = node instanceof Element && BLOCK_TAGS.has(node.tagName);
-    if (block) parts.push(" ");
-    for (const child of Array.from(node.childNodes)) walk(child);
-    if (block) parts.push(" ");
-  };
-  walk(body);
+    if (block) {
+      parts.push(" ");
+      stack.push(" ");
+    }
+    for (const child of Array.from(node.childNodes).reverse()) stack.push(child);
+  }
   return parts.join("").split(/\s/).filter(Boolean).join(" ");
 }
