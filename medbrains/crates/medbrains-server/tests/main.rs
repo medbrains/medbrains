@@ -235,6 +235,7 @@ mod pacs_viewer_test;
 mod paperless_meter_test;
 mod partition_maintenance_role_test;
 mod patient_acquisition_test;
+mod patient_advance_test;
 mod patient_contact_consent_test;
 mod patient_match_scoring_test;
 mod patient_portal_isolation_test;
