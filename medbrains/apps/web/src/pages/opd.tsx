@@ -21,6 +21,7 @@ import {
   VitalsRecorder,
 } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { QueryError } from "@/components/QueryError";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { safeReturnPath } from "@/lib/return-path";
@@ -273,7 +274,12 @@ export function OpdVitalsPage() {
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const requestedQueueEntryId = queueEntryId ?? "";
 
-  const { data: queue = [], isLoading } = useQuery({
+  const {
+    data: queue = [],
+    isLoading,
+    error: queueError,
+    refetch: refetchQueue,
+  } = useQuery({
     queryKey: ["opd-queue", "vitals-route"],
     queryFn: () => opdService.listQueue(),
     enabled: requestedQueueEntryId.length > 0,
@@ -335,6 +341,9 @@ export function OpdVitalsPage() {
       </Stack>
     );
   }
+
+  // A failed read is not "not found": the patient is still in the queue.
+  if (!entry && queueError) return <QueryError error={queueError} onRetry={refetchQueue} />;
 
   if (!entry) {
     return (
