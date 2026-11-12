@@ -74,6 +74,8 @@ mod audit_no_credentials_test;
 mod audit_partitioning_test;
 mod auth_me_restrict_copy_test;
 mod auth_test;
+mod authz_admission_care_team_test;
+mod authz_pharmacy_dispense_view_test;
 mod auto_charge_savepoint_test;
 mod bad_debt_write_off_test;
 mod billing_concession_test;
