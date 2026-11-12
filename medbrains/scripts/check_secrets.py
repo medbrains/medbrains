@@ -71,13 +71,15 @@ def network_identifiers(text: str) -> set[str]:
 
 
 def customer_hits(text: str, names: list[str]) -> list[int]:
-    """Returns the 1-based index of each customer name found, matched case-insensitively."""
+    """Returns the 1-based index of each customer name found, case-insensitively, with spaces,
+    hyphens, underscores and dots between its words treated alike (so `acme-general/` matches)."""
     lower = text.lower()
-    return [
-        n
-        for n, name in enumerate(names, 1)
-        if re.search(rf"(?<![a-z0-9]){re.escape(name.lower())}(?![a-z0-9])", lower)
-    ]
+    found = []
+    for n, name in enumerate(names, 1):
+        words = [re.escape(w) for w in re.split(r"[\s_.-]+", name.lower()) if w]
+        if words and re.search(rf"(?<![a-z0-9]){'[\\s_.-]+'.join(words)}(?![a-z0-9])", lower):
+            found.append(n)
+    return found
 
 
 def new_identifiers(found: dict[str, set[str]], baseline: dict[str, list[str]]) -> list[str]:
@@ -89,21 +91,41 @@ def new_identifiers(found: dict[str, set[str]], baseline: dict[str, list[str]]) 
     ]
 
 
+def name_findings(rel: str, text: str, names: list[str]) -> list[str]:
+    """Reports customer names in a file's path or text; a path that matched a name is never printed."""
+    in_path = customer_hits(rel, names)
+    where = "  a file whose path matched a customer name" if in_path else f"  {rel}"
+    out = [f"  a file path matched entry {n} of MEDBRAINS_CUSTOMER_NAMES" for n in in_path]
+    return out + [f"{where}: customer name, entry {n} of MEDBRAINS_CUSTOMER_NAMES" for n in customer_hits(text, names)]
+
+
+def customer_names() -> tuple[list[str], list[str]]:
+    """Reads the customer list from the environment; a required list that is missing is a finding."""
+    names = [n.strip() for n in os.environ.get("MEDBRAINS_CUSTOMER_NAMES", "").splitlines() if n.strip()]
+    if names:
+        return names, []
+    print("check-secrets: customer list not set, name check skipped")
+    required = os.environ.get("MEDBRAINS_REQUIRE_CUSTOMER_NAMES") == "1"
+    return [], ["  MEDBRAINS_CUSTOMER_NAMES is not set; it is required on main"] if required else []
+
+
 def scan_network(update: bool) -> list[str]:
     """Scans every tracked file in the repository for network identifiers and customer names."""
-    names = [n.strip() for n in os.environ.get("MEDBRAINS_CUSTOMER_NAMES", "").splitlines() if n.strip()]
+    names, findings = customer_names()
     found: dict[str, set[str]] = {}
-    findings: list[str] = []
+    unreadable = 0
     for rel in tracked_files(REPO):
-        if is_skipped(rel):
-            continue
         try:
             text = (REPO / rel).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
+            unreadable += 1
+            findings += name_findings(rel, "", names)
             continue
-        if values := network_identifiers(text):
+        findings += name_findings(rel, text, names)
+        if not is_skipped(rel) and (values := network_identifiers(text)):
             found[rel] = values
-        findings += [f"  {rel}: customer name, entry {n} of MEDBRAINS_CUSTOMER_NAMES" for n in customer_hits(text, names)]
+    if unreadable:
+        print(f"check-secrets: {unreadable} binary or non-UTF-8 files: only their paths were name-checked")
     if update:
         BASELINE.write_text(json.dumps({k: sorted(v) for k, v in sorted(found.items())}, indent=1) + "\n")
         return findings
@@ -120,6 +142,11 @@ def self_test() -> None:
     assert network_identifiers("pacs.local, idm.medbrains.local.") == {"pacs.local", "idm.medbrains.local"}
     assert customer_hits("Deployed at Acme General.", ["acme general", "zeta"]) == [1]
     assert customer_hits("acmegeneral", ["acme general"]) == []
+    assert customer_hits("x/acme_general.md", ["Acme General"]) == [1]
+    assert customer_hits("ACME   General", ["acme-general"]) == [1]
+    leak = name_findings("docs/acme-general/notes.md", "Acme General network", ["acme general"])
+    assert leak and not any("docs/acme-general" in line for line in leak), leak
+    assert name_findings("a.md", "no names", ["acme general"]) == []
     assert new_identifiers({"a": {"10.0.0.1", "10.0.0.2"}}, {"a": ["10.0.0.1"]}) == ["  a: 10.0.0.2"]
     assert new_identifiers({"a": {"10.0.0.1"}}, {"a": ["10.0.0.1"]}) == []
 

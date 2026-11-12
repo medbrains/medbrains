@@ -46,7 +46,10 @@ This repository is public, so anything committed is published for good.
   suffix (`.local`, `.lan`, `.internal`, `.corp`, `.intranet`, `.home.arpa`) that is not already in
   the baseline `medbrains/scripts/.network_identifiers_baseline.json`;
 - a customer name listed in the `MEDBRAINS_CUSTOMER_NAMES` CI secret (one per line). The list
-  itself is never committed, and the log names only the file and the list entry number.
+  itself is never committed, and the log names only the file and the list entry number. Paths are
+  checked as well as contents (spaces, hyphens, underscores and dots between words count alike), and
+  a path that matched is never printed. Without the secret the check says "customer list not set,
+  name check skipped"; on a push to `main` a missing list fails.
 
 The baseline holds today's legitimate examples: placeholder addresses in setup screens and tests
 (`192.168.1.20`), QEMU's user network (`10.0.2.2`, `10.0.2.15`), VPC ranges in Terraform,

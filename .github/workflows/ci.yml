@@ -103,6 +103,8 @@ jobs:
       - run: python3 medbrains/scripts/check_secrets.py --self-test && python3 medbrains/scripts/check_secrets.py
         env:
           MEDBRAINS_CUSTOMER_NAMES: ${{ secrets.MEDBRAINS_CUSTOMER_NAMES }}
+          # Required on main, where the secret is always available; PRs from forks never see it.
+          MEDBRAINS_REQUIRE_CUSTOMER_NAMES: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '' }}
 
   docs:
     name: Every new function is documented
