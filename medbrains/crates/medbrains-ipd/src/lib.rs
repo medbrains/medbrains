@@ -3470,7 +3470,8 @@ pub async fn list_intake_output(
 // ══════════════════════════════════════════════════════════
 
 /// `POST /api/ipd/admissions/{id}/io` — record one intake or output entry for
-/// the fluid balance; the volume must be positive, the direction is `is_intake`.
+/// the fluid balance. Intake must be above zero; output may be zero ("urine 0 ml
+/// this shift"); nothing may be negative.
 pub async fn create_intake_output(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3491,10 +3492,11 @@ pub async fn create_intake_output(
 
     let shift: NursingShift = serde_json::from_value(serde_json::Value::String(body.shift.clone()))
         .map_err(|_| AppError::BadRequest(format!("Invalid shift '{}'", body.shift)))?;
-    // A negative intake would count as output and flip the fluid balance.
-    if body.volume_ml <= Decimal::ZERO {
+    // A negative entry would flip the fluid balance. Zero output is a real
+    // finding (an anuric patient, a blocked catheter); zero intake is not.
+    if body.volume_ml < Decimal::ZERO || (body.is_intake && body.volume_ml.is_zero()) {
         return Err(AppError::BadRequest(
-            "Volume must be greater than zero.".to_owned(),
+            "Volume cannot be negative, and intake must be more than zero.".to_owned(),
         ));
     }
 

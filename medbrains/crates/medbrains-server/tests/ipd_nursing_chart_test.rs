@@ -171,28 +171,51 @@ fn ml(value: &Value) -> Option<f64> {
         .or_else(|| value.as_str().and_then(|v| v.parse().ok()))
 }
 
-/// Given an empty chart, When intake of 0 ml or -500 ml is recorded, Then each
-/// is refused and the balance stays 0; When 500 ml in and 200 ml out are
-/// recorded, Then the balance is +300 ml.
+/// How many I/O entries the admission has.
+async fn io_rows(w: &Ward) -> R<i64> {
+    Ok(
+        sqlx::query_scalar("SELECT count(*) FROM ipd_intake_output WHERE admission_id = $1")
+            .bind(w.admission)
+            .fetch_one(&w.app.db)
+            .await?,
+    )
+}
+
+/// Given an empty chart, When intake of 0 ml, intake of -500 ml or output of
+/// -50 ml is recorded, Then each is refused and nothing is stored; When urine
+/// output of 0 ml is recorded (an anuric patient), Then it is kept; When 500 ml
+/// in and 200 ml out are recorded, Then the balance is +300 ml.
 #[tokio::test]
-async fn the_fluid_balance_takes_only_positive_volumes() -> R<()> {
+async fn the_fluid_balance_refuses_negatives_and_keeps_a_zero_output() -> R<()> {
     let w = admit().await?;
-    for volume in [0, -500] {
-        let entry = json!({ "is_intake": true, "category": "oral", "volume_ml": volume,
-                            "shift": "morning" });
+    let entry = |is_intake: bool, volume: i32| {
+        json!({ "is_intake": is_intake, "category": if is_intake { "oral" } else { "urine" },
+                "volume_ml": volume, "shift": "night" })
+    };
+    for (is_intake, volume) in [(true, 0), (true, -500), (false, -50)] {
+        let body = entry(is_intake, volume);
         assert_eq!(
-            w.send(Method::POST, "io", &entry).await?.0,
-            StatusCode::BAD_REQUEST
+            w.send(Method::POST, "io", &body).await?.0,
+            StatusCode::BAD_REQUEST,
+            "{body}"
         );
     }
-    let (_, balance) = w.send(Method::GET, "io/balance", &Value::Null).await?;
-    assert_eq!(ml(&balance["balance_ml"]), Some(0.0), "{balance}");
+    assert_eq!(io_rows(&w).await?, 0, "a refused entry must not be stored");
 
-    let intake = json!({ "is_intake": true, "category": "iv", "volume_ml": 500, "shift": "night" });
-    let output =
-        json!({ "is_intake": false, "category": "urine", "volume_ml": 200, "shift": "night" });
-    assert_eq!(w.send(Method::POST, "io", &intake).await?.0, StatusCode::OK);
-    assert_eq!(w.send(Method::POST, "io", &output).await?.0, StatusCode::OK);
+    assert_eq!(
+        w.send(Method::POST, "io", &entry(false, 0)).await?.0,
+        StatusCode::OK
+    );
+    assert_eq!(io_rows(&w).await?, 1, "urine 0 ml is a finding, not a typo");
+
+    assert_eq!(
+        w.send(Method::POST, "io", &entry(true, 500)).await?.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        w.send(Method::POST, "io", &entry(false, 200)).await?.0,
+        StatusCode::OK
+    );
     let (_, balance) = w.send(Method::GET, "io/balance", &Value::Null).await?;
     let keys = ["total_intake_ml", "total_output_ml", "balance_ml"];
     assert_eq!(
