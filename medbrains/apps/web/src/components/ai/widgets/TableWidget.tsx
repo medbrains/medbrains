@@ -81,7 +81,7 @@ export function TableWidget({ widget, full = false }: { widget: TableData; full?
         exportable={full}
         exportFileName={full ? widget.title : undefined}
         onRowClick={(row) => {
-          if (typeof row.patient_id === "string") navigate(`/patients/${row.patient_id}`);
+          if (typeof row.patient_id === "string") void navigate(`/patients/${row.patient_id}`);
         }}
       />
     </>

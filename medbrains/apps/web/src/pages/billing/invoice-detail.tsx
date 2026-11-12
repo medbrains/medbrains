@@ -240,7 +240,7 @@ export function InvoiceDetail({
       // Cashier flow: issuing is almost always followed by collecting —
       // land straight on the payment panel via the ?action=payment link.
       if (canPay && invoiceBalance(result) > 0) {
-        navigate(billingInvoicePaymentRoute(invoiceId), { replace: true });
+        void navigate(billingInvoicePaymentRoute(invoiceId), { replace: true });
       }
     },
   });

@@ -226,7 +226,7 @@ export function PharmacyOrdersTab({
               aria-label="View pharmacy order"
               onClick={() => {
                 if (!canViewOrderDetail) return;
-                navigate(`/pharmacy/orders/${row.id}`);
+                void navigate(`/pharmacy/orders/${row.id}`);
               }}
             >
               <IconEye size={16} />

@@ -67,7 +67,7 @@ export function BlogSection() {
     mutationFn: (input: UpsertBlogInput) =>
       editId ? api.updateBlogPost(editId, input) : api.createBlogPost(input),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       editor.close();
     },
   });

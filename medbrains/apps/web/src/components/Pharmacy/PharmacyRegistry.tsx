@@ -127,8 +127,8 @@ export function PharmacyRegistry() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pharmacy-store-assignments"] });
-      qc.invalidateQueries({ queryKey: ["store-locations"] });
+      void qc.invalidateQueries({ queryKey: ["pharmacy-store-assignments"] });
+      void qc.invalidateQueries({ queryKey: ["store-locations"] });
       notifications.show({
         title: "Pharmacy created",
         message: "Ready to stock and staff",

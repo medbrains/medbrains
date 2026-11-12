@@ -43,7 +43,7 @@ export function PatientBillingModal({ patientId, encounterId, control }: Patient
     onSuccess: (invoice: Invoice) => {
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", patientId] });
       close();
-      navigate(`/billing?tab=invoices&invoice_id=${invoice.id}`);
+      void navigate(`/billing?tab=invoices&invoice_id=${invoice.id}`);
     },
   });
 
@@ -84,7 +84,7 @@ export function PatientBillingModal({ patientId, encounterId, control }: Patient
               style={{ cursor: "pointer" }}
               onClick={() => {
                 close();
-                navigate(`/billing?tab=invoices&invoice_id=${invoice.id}`);
+                void navigate(`/billing?tab=invoices&invoice_id=${invoice.id}`);
               }}
             >
               <Group justify="space-between" wrap="nowrap">

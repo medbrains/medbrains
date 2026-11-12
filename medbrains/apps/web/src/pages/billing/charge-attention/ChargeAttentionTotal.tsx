@@ -33,7 +33,7 @@ export function ChargeAttentionTotal(props: ChargeAttentionTotalProps) {
   const scan = useMutation({
     mutationFn: () => billingService.scanUnbilledOrders(),
     onSuccess: ({ queued }) => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
       toast.success(
         queued === 0 ? "No new unbilled orders" : `${queued} unbilled order(s) added to the queue`,
       );

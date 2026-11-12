@@ -53,7 +53,7 @@ export function StationHandoffPanel({ module, stationType, stationKey, stationLa
     onSuccess: () => {
       setTitle("");
       setSummary("");
-      invalidate();
+      void invalidate();
       toast.success("Handoff posted for this location", { title: "Handover" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not post handoff" }),
@@ -62,7 +62,7 @@ export function StationHandoffPanel({ module, stationType, stationKey, stationLa
   const ack = useMutation({
     mutationFn: (id: string) => stationHandoffService.acknowledge(id),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       toast.success("Handoff acknowledged", { title: "Handover" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not acknowledge" }),

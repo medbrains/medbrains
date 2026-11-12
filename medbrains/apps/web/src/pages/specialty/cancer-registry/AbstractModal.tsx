@@ -86,7 +86,7 @@ function AbstractForm({ c, codes }: { c: RegistryCase; codes: RegistryCodeLists 
     mutationFn: (v: RegistryFormValues) => specialtyService.saveRegistryAbstract(id, toCoding(v)),
     onSuccess: (saved) => {
       qc.setQueryData(["registry-case", id], saved);
-      qc.invalidateQueries({ queryKey: ["cancer-registry"] });
+      void qc.invalidateQueries({ queryKey: ["cancer-registry"] });
       toast.success(saved.status === "complete" ? "Abstract complete" : "Draft saved");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -184,7 +184,7 @@ function SubmitSection({ c }: { c: RegistryCase }) {
     mutationFn: () => specialtyService.markRegistrySubmitted(id, reference),
     onSuccess: (saved) => {
       qc.setQueryData(["registry-case", id], saved);
-      qc.invalidateQueries({ queryKey: ["cancer-registry"] });
+      void qc.invalidateQueries({ queryKey: ["cancer-registry"] });
       toast.success("Marked submitted to NCDIR");
     },
     onError: (e: Error) => toast.error(e.message),
