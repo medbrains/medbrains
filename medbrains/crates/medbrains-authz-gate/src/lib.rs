@@ -1045,8 +1045,9 @@ pub async fn grant_admission_care_team(
                 AppError::Internal(format!("{object_type} attending authz grant failed: {e}"))
             })?;
     }
-    // Best-effort lookup of the ward's department; the grant itself is fatal
-    // like the others.
+    // The ward's department, if it has one. A failed read fails the grant like
+    // the others: swallowing it left ward staff unable to open the admission,
+    // with nothing to say why and nothing to retry.
     let Some(ward_id) = team.ward_id else {
         return hand_visit_to_billing(state, claims, team.encounter_id).await;
     };
@@ -1056,9 +1057,7 @@ pub async fn grant_admission_care_team(
         claims.tenant_id,
     )
     .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
-    .await
-    .ok()
-    .flatten()
+    .await?
     .flatten();
     if let Some(dept) = ward_dept {
         state

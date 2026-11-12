@@ -2265,11 +2265,13 @@ export const P = {
       HOLD: "nurse.mar.hold",
       REFUSE: "nurse.mar.refuse",
       VIEW: "nurse.mar.view",
+      WITNESS: "nurse.mar.witness",
     },
     MAR_ADMINISTER: "nurse.mar.administer",
     MAR_HOLD: "nurse.mar.hold",
     MAR_REFUSE: "nurse.mar.refuse",
     MAR_VIEW: "nurse.mar.view",
+    MAR_WITNESS: "nurse.mar.witness",
     PAIN: {
       RECORD: "nurse.pain.record",
       VIEW: "nurse.pain.view",

@@ -155,6 +155,12 @@ jobs:
       # same 404 / empty list it answers a real refusal with.
       - name: No authorization check collapses its error
         run: python3 medbrains/scripts/check_authz_collapse.py
+      # A query inside a loop is one round trip per row; existing sites are
+      # baselined per function, never grown (#5462).
+      - name: No new database query inside a loop
+        run: |
+          python3 medbrains/scripts/check_query_in_loop.py --self-test
+          python3 medbrains/scripts/check_query_in_loop.py --check
       # Apps reach tenancy, authz, audit, sequences, storage and config only
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
@@ -304,7 +310,7 @@ jobs:
       # Every crate except the desktop GUI tree, which needs GTK on the runner.
       # Denied lints fail on their own; pedantic and nursery are warnings by
       # project policy (ENGINEERING.md), so -D warnings would overrule it.
-      - run: cargo clippy --workspace --exclude medbrains-desktop
+      - run: cargo clippy --locked --workspace --exclude medbrains-desktop
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -374,6 +380,6 @@ jobs:
       - name: System packages and PostgreSQL
         run: bash scripts/ci_postgres.sh
       # Report every failing test, not just the first binary's.
-      - run: cargo test --workspace --exclude medbrains-desktop --no-fail-fast
+      - run: cargo test --locked --workspace --exclude medbrains-desktop --no-fail-fast
         env:
           DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains

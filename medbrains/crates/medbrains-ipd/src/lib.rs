@@ -91,6 +91,7 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod birth_rules;
 mod discharge_medicines;
 mod nursing_safety;
 pub mod room_eligibility;
@@ -2888,10 +2889,45 @@ pub async fn create_mar(
 //  PUT /api/ipd/admissions/{id}/mar/{mar_id}
 // ══════════════════════════════════════════════════════════
 
+/// Whether `witness` may be the second checker on a high-alert dose: an active
+/// user of this tenant whose resolved grant (role, access groups, `access_matrix`
+/// extra and temporary grants, less denied) holds `nurse.mar.witness`.
+///
+/// Read inside the caller's transaction. A bypass role's row carries no codes,
+/// so an admin witnesses only when granted the code by name.
+///
+/// # Errors
+/// The grant could not be read. That is neither a yes nor a no: the caller
+/// fails the request rather than refusing or allowing the dose.
+async fn witness_may_check(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    witness: Uuid,
+) -> Result<bool, AppError> {
+    let role = sqlx::query_scalar::<_, String>(
+        "SELECT role::text FROM users \
+         WHERE id = $1 AND tenant_id = $2 AND is_active = true AND deleted_at IS NULL",
+    )
+    .bind(witness)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(role) = role else {
+        return Ok(false);
+    };
+    let granted = medbrains_server_core::permissions::resolve_granted_permissions_on(
+        tx, tenant_id, witness, &role,
+    )
+    .await?;
+    Ok(granted
+        .iter()
+        .any(|code| code == permissions::nurse::mar::WITNESS))
+}
+
 /// Apply a MAR dose status transition with the full IPSG.3 medication-safety gate, shared by
 /// BOTH MAR update endpoints so neither can bypass the checks: an already-administered dose is
-/// immutable; a high-alert `given` requires an independent second-nurse witness (different, real,
-/// active) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
+/// immutable; a high-alert `given` requires an independent witness (a different, active user
+/// holding `nurse.mar.witness`) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
 /// `barcode_verified` is server-authoritative (never client-set). `admission_id` optionally scopes
 /// the dose to a specific admission (the admission-nested endpoint) — `None` matches by id alone.
 async fn administer_mar_dose_in_tx(
@@ -2944,19 +2980,11 @@ async fn administer_mar_dose_in_tx(
                             .to_owned(),
                     ));
                 }
-                let witness_is_active = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS( \
-                         SELECT 1 FROM users \
-                         WHERE id = $1 AND tenant_id = $2 AND is_active = true \
-                     )",
-                )
-                .bind(witness)
-                .bind(tenant_id)
-                .fetch_one(&mut **tx)
-                .await?;
-                if !witness_is_active {
+                if !witness_may_check(tx, tenant_id, witness).await? {
                     return Err(AppError::BadRequest(
-                        "The witness must be an active staff user for this tenant.".to_owned(),
+                        "The witness must be an active colleague allowed to witness high-alert \
+                         doses (nurse.mar.witness)."
+                            .to_owned(),
                     ));
                 }
                 if !existing.barcode_verified {
@@ -6539,6 +6567,10 @@ pub async fn list_bed_reservations(
     Ok(Json(rows))
 }
 
+/// `POST /api/ipd/bed-reservations` — hold a vacant bed for a patient until a
+/// future time. One live hold per bed: a second is refused 409, as is a bed
+/// that is occupied or out of service. A bed with no state row yet is given its
+/// vacant one first, so beds set up before state rows existed can still be held.
 pub async fn create_bed_reservation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6558,6 +6590,52 @@ pub async fn create_bed_reservation(
         .reserved_until
         .parse::<chrono::DateTime<Utc>>()
         .map_err(|_| AppError::BadRequest("Invalid reserved_until datetime".to_owned()))?;
+    if reserved_until <= Utc::now() {
+        return Err(AppError::BadRequest(
+            "Hold the bed until a time that has not passed yet.".to_owned(),
+        ));
+    }
+    // A bed mapped before state rows existed has none; give it its vacant row
+    // rather than refuse a bed that could always be held.
+    sqlx::query(
+        "INSERT INTO bed_states (tenant_id, location_id) \
+         SELECT tenant_id, id FROM locations \
+          WHERE id = $1 AND tenant_id = $2 AND level = 'bed' AND deleted_at IS NULL \
+         ON CONFLICT (tenant_id, location_id) DO NOTHING",
+    )
+    .bind(body.bed_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    // Locking the bed's state row serialises two people holding the same bed.
+    let bed_status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM bed_states WHERE location_id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(body.bed_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("This bed is not configured.".to_owned()))?;
+    if !matches!(bed_status.as_str(), "vacant_clean" | "vacant_dirty") {
+        return Err(AppError::Conflict(format!(
+            "This bed is {} and cannot be held.",
+            bed_status.replace('_', " ")
+        )));
+    }
+    let held = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM bed_reservations \
+           WHERE tenant_id = $1 AND bed_id = $2 AND deleted_at IS NULL \
+             AND status IN ('active', 'confirmed') AND reserved_until > NOW())",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.bed_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if held {
+        return Err(AppError::Conflict(
+            "This bed is already held. Release that hold first.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, BedReservation>(
         "INSERT INTO bed_reservations \
@@ -6578,6 +6656,8 @@ pub async fn create_bed_reservation(
     Ok(Json(row))
 }
 
+/// `PUT /api/ipd/bed-reservations/{id}/status` — confirm, release or expire a
+/// live bed hold. A hold that is cancelled, expired or fulfilled is final (409).
 pub async fn update_reservation_status(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6589,6 +6669,32 @@ pub async fn update_reservation_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // Only a live hold changes, and "fulfilled" is set by the admission that
+    // takes the bed, never by hand.
+    if !matches!(
+        body.status.as_str(),
+        "active" | "confirmed" | "cancelled" | "expired"
+    ) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid reservation status '{}'.",
+            body.status
+        )));
+    }
+    let current = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM bed_reservations \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if !matches!(current.as_str(), "active" | "confirmed") {
+        return Err(AppError::Conflict(format!(
+            "This hold is already {current} and cannot be changed."
+        )));
+    }
 
     let cancelled_by = if body.status == "cancelled" {
         Some(claims.sub)
@@ -6996,6 +7102,9 @@ pub async fn list_restraint_checks(
     Ok(Json(rows))
 }
 
+/// `POST /api/ipd/admissions/{id}/restraint-checks` — a nurse's periodic check
+/// on a restrained patient. It must name an open restraint order on this same
+/// admission (404 otherwise, 409 once the order is closed).
 pub async fn create_restraint_check(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -7013,6 +7122,25 @@ pub async fn create_restraint_check(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // The check belongs to a live restraint order on this admission, not to
+    // another patient's order or to a wound-care note.
+    let order = sqlx::query_scalar::<_, bool>(
+        "SELECT is_resolved FROM ipd_clinical_documentations \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
+           AND doc_type = 'restraint' AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(body.clinical_doc_id)
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if order {
+        return Err(AppError::Conflict(
+            "This restraint order is closed. Open a new order to restrain again.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, RestraintMonitoringLog>(
         "INSERT INTO restraint_monitoring_logs \
@@ -7366,6 +7494,16 @@ pub async fn list_birth_records(
     Ok(Json(rows))
 }
 
+/// Today's date in the timezone furthest ahead (UTC+14), so a birth keyed just
+/// after local midnight anywhere is never "in the future".
+fn latest_local_date() -> NaiveDate {
+    // ponytail: widest offset, not the tenant's own zone; read tenants.timezone if a day matters.
+    (Utc::now() + chrono::Duration::hours(14)).date_naive()
+}
+
+/// `POST /api/ipd/admissions/{id}/birth-records` — record a birth on the
+/// mother's admission. Measurements and identity are checked by
+/// [`birth_rules`] before anything is stored.
 pub async fn create_birth_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -7392,6 +7530,22 @@ pub async fn create_birth_record(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
+    birth_rules::check_measures(&birth_rules::BirthMeasures {
+        apgar_1min: body.apgar_1min,
+        apgar_5min: body.apgar_5min,
+        weight_grams: body.weight_grams,
+        length_cm: body.length_cm,
+        head_circumference_cm: body.head_circumference_cm,
+    })
+    .and_then(|()| {
+        birth_rules::check_identity(
+            Some(body.date_of_birth),
+            latest_local_date(),
+            body.baby_patient_id,
+            mother_patient_id,
+        )
+    })
+    .map_err(AppError::BadRequest)?;
 
     let row = sqlx::query_as::<_, IpdBirthRecord>(
         "INSERT INTO ipd_birth_records \
@@ -7426,6 +7580,9 @@ pub async fn create_birth_record(
     Ok(Json(row))
 }
 
+/// `PUT /api/ipd/admissions/{id}/birth-records/{rec_id}` — correct a birth
+/// record's measurements or link the baby's own patient record, under the same
+/// rules as creating one.
 pub async fn update_birth_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -7440,6 +7597,31 @@ pub async fn update_birth_record(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    birth_rules::check_measures(&birth_rules::BirthMeasures {
+        apgar_1min: body.apgar_1min,
+        apgar_5min: body.apgar_5min,
+        weight_grams: body.weight_grams,
+        length_cm: body.length_cm,
+        head_circumference_cm: body.head_circumference_cm,
+    })
+    .map_err(AppError::BadRequest)?;
+    if let Some(baby) = body.baby_patient_id {
+        let is_mother = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM ipd_birth_records \
+               WHERE id = $1 AND tenant_id = $2 AND mother_patient_id = $3)",
+        )
+        .bind(rec_id)
+        .bind(claims.tenant_id)
+        .bind(baby)
+        .fetch_one(&mut *tx)
+        .await?;
+        if is_mother {
+            return Err(AppError::BadRequest(
+                "The baby's record cannot be the mother's.".to_owned(),
+            ));
+        }
+    }
 
     let row = sqlx::query_as::<_, IpdBirthRecord>(
         "UPDATE ipd_birth_records SET \
@@ -8791,36 +8973,6 @@ pub async fn expected_discharges(
     tx.commit().await?;
     Ok(Json(rows))
 }
-
-#[cfg(test)]
-mod discharge_summary_tests {
-    use super::missing_discharge_summary_fields;
-
-    #[test]
-    fn complete_summary_has_no_missing() {
-        let missing = missing_discharge_summary_fields(
-            Some("Community-acquired pneumonia"),
-            Some("Stable, afebrile"),
-            Some("IV antibiotics, improved"),
-            Some("Review in 1 week"),
-        );
-        assert!(missing.is_empty());
-    }
-
-    #[test]
-    fn blank_and_missing_fields_are_reported() {
-        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
-        assert_eq!(
-            missing,
-            vec![
-                "condition at discharge",
-                "course in hospital",
-                "follow-up instructions"
-            ]
-        );
-    }
-}
-
 /// Inpatient department (admissions, wards, MAR, rounds, discharge, nursing) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -9079,4 +9231,33 @@ pub fn router() -> axum::Router<AppState> {
             get(get_admission_consents),
         )
         .route("/api/ipd/discharges/expected", get(expected_discharges))
+}
+
+#[cfg(test)]
+mod discharge_summary_tests {
+    use super::missing_discharge_summary_fields;
+
+    #[test]
+    fn complete_summary_has_no_missing() {
+        let missing = missing_discharge_summary_fields(
+            Some("Community-acquired pneumonia"),
+            Some("Stable, afebrile"),
+            Some("IV antibiotics, improved"),
+            Some("Review in 1 week"),
+        );
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn blank_and_missing_fields_are_reported() {
+        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
+        assert_eq!(
+            missing,
+            vec![
+                "condition at discharge",
+                "course in hospital",
+                "follow-up instructions"
+            ]
+        );
+    }
 }
