@@ -1,0 +1,168 @@
+#!/bin/bash
+# The MedBrains OS installer, on the screen and on each serial console (one copy per console; a lock lets
+# only one write). Class A: it erases a disk. The rules it keeps:
+#   - nothing is written until the operator has typed the disk's name and then ERASE <name>;
+#   - the disk it started from, and any other installer stick, is never offered and is refused if typed;
+#   - the disk must read back with the image's SHA-256 before it says the install worked.
+# The medium carries medbrains/medbrains-os.raw.zst and medbrains/image.info ("<bytes> <sha256>"),
+# written by os/build-iso.sh.
+set -uo pipefail
+
+LABEL=MEDBRAINS_INSTALL
+MEDIUM=/run/medbrains-installer/medium
+PAYLOAD="$MEDIUM/medbrains/medbrains-os.raw.zst"
+INFO="$MEDIUM/medbrains/image.info"
+LOCK=/run/medbrains-installer/lock
+MEDIUM_WAIT_S=90
+RESTART_AFTER_S=15
+
+# Prints a line on this console. On stderr, so a function's own answer can go on stdout.
+say() { printf '%s\n' "$*" >&2; }
+
+# Waits for the installer medium and mounts it read-only, once for every console.
+mount_medium() {
+    mkdir -p "$MEDIUM"
+    exec 8>"$LOCK.mount"
+    flock 8
+    if ! mountpoint -q "$MEDIUM"; then
+        udevadm settle --timeout=30 || true
+        local i
+        for ((i = 0; i < MEDIUM_WAIT_S; i++)); do
+            [[ -e "/dev/disk/by-label/$LABEL" ]] && break
+            sleep 1
+        done
+        mount -o ro -t iso9660 "/dev/disk/by-label/$LABEL" "$MEDIUM" || { exec 8>&-; return 1; }
+    fi
+    exec 8>&-
+    [[ -f "$PAYLOAD" && -f "$INFO" ]]
+}
+
+# Prints the whole disks that hold an installer medium, this one included: these are never written.
+installer_disks() {
+    lsblk -lnpo NAME,PKNAME,LABEL | awk -v l="$LABEL" '$NF == l { print ($2 != "" && $2 != l) ? $2 : $1 }' | sort -u
+}
+
+# Prints "NAME SIZE MODEL" for every disk the image fits on, never an installer disk or a read-only one.
+candidate_disks() {
+    local size="$1" refused
+    refused="$(installer_disks)"
+    lsblk -dnbpo NAME,SIZE,RO,TYPE,MODEL | while read -r name bytes ro type model; do
+        [[ "$type" == disk && "$ro" == 0 && "$bytes" -ge "$size" && "$name" != /dev/zram* ]] || continue
+        grep -qxF "$name" <<<"$refused" && continue
+        printf '%s %s %s\n' "$name" "$bytes" "${model:-unknown}"
+    done
+}
+
+# Shows the disks and returns the one the operator named, or nothing.
+choose_disk() {
+    local size="$1" disks answer
+    disks="$(candidate_disks "$size")"
+    say ""
+    say "MedBrains OS installer"
+    say ""
+    if [[ -z "$disks" ]]; then
+        say "No disk here can take the system (it needs $((size / 1000000000 + 1)) GB or more)."
+        say "Connect one, then press Enter to look again."
+        read -r answer || exit 0
+        return 0
+    fi
+    say "Disks on this machine:"
+    while read -r name bytes model; do
+        printf '  %-14s %6s GB  %s  (%s partitions)\n' "${name#/dev/}" "$((bytes / 1000000000))" "$model" \
+            "$(lsblk -lnpo TYPE "$name" | grep -c part)" >&2
+    done <<<"$disks"
+    say ""
+    say "The installer stick or DVD is not listed: it is never written."
+    say "Type the name of the disk to install on (for example ${disks%% *}), or press Enter to look again:"
+    read -r answer || exit 0
+    answer="${answer#/dev/}"
+    [[ -z "$answer" ]] && return 0
+    if grep -qxF "/dev/$answer" <<<"$(installer_disks)"; then
+        say "That is the installer itself. It is never written."
+        return 0
+    fi
+    if ! cut -d' ' -f1 <<<"$disks" | grep -qxF "/dev/$answer"; then
+        say "There is no disk called $answer in the list. Nothing was written."
+        return 0
+    fi
+    printf '/dev/%s\n' "$answer"
+}
+
+# Asks for the typed confirmation. Returns 0 only for exactly "ERASE <name>".
+confirm_erase() {
+    local disk="$1" answer
+    say ""
+    say "EVERYTHING on $disk ($(lsblk -dno SIZE,MODEL "$disk" | xargs)) will be erased."
+    say "To go ahead, type ERASE ${disk#/dev/} and press Enter. Anything else goes back."
+    read -r answer || exit 0
+    if [[ "$answer" != "ERASE ${disk#/dev/}" ]]; then
+        say "Not erased. Nothing was written."
+        return 1
+    fi
+}
+
+# Writes the image to the disk, then reads it back past the cache and compares its SHA-256.
+write_and_verify() {
+    local disk="$1" size="$2" sha="$3" got
+    say "Writing the system to $disk. Do not turn the machine off."
+    wipefs --all --force "$disk" >/dev/null || { say "Could not clear $disk. Nothing else was written."; return 1; }
+    if ! zstd -dc --no-progress "$PAYLOAD" | dd of="$disk" bs=4M iflag=fullblock oflag=direct conv=fsync status=progress; then
+        say "Writing failed: the installer medium or $disk is damaged. $disk cannot start the system."
+        return 1
+    fi
+    blockdev --flushbufs "$disk"
+    echo 3 > /proc/sys/vm/drop_caches
+    say "Checking what was written."
+    got="$(dd if="$disk" bs=4M iflag=direct,count_bytes count="$size" status=none | sha256sum | cut -d' ' -f1)"
+    if [[ "$got" != "$sha" ]]; then
+        say "CHECK FAILED: $disk did not read back what was written. Do not use this disk."
+        return 1
+    fi
+    blockdev --rereadpt "$disk" 2>/dev/null || true
+    say "Installed and checked: SHA-256 $sha."
+}
+
+# Ejects a DVD, then restarts into the installed system.
+finish() {
+    local medium_disk
+    medium_disk="$(installer_disks | head -1)"
+    umount "$MEDIUM" 2>/dev/null || true
+    [[ "$medium_disk" == /dev/sr* ]] && eject "$medium_disk" 2>/dev/null
+    say "Remove the installer USB stick or DVD now. Restarting in $RESTART_AFTER_S seconds."
+    sleep "$RESTART_AFTER_S"
+    systemctl reboot
+    sleep infinity
+}
+
+# One pass: choose, confirm, then write under the lock, so two consoles can never write at once.
+install_once() {
+    local size="$1" sha="$2" disk
+    disk="$(choose_disk "$size")"
+    [[ -n "$disk" ]] || return 0
+    confirm_erase "$disk" || return 0
+    exec 9>"$LOCK"
+    if ! flock -n 9; then
+        say "An install is already running on another console. Nothing was written here."
+        exec 9>&-
+        return 0
+    fi
+    if write_and_verify "$disk" "$size" "$sha"; then finish; fi
+    exec 9>&-
+    say "Press Enter to go back to the list."
+    read -r _ || exit 0
+}
+
+# Entry point: mount the medium, then offer the install until one succeeds.
+main() {
+    local size sha
+    if ! mount_medium; then
+        say "The installer cannot find its own files (USB stick or DVD labelled $LABEL)."
+        say "The medium may be damaged. Nothing was written. Press Enter to try again."
+        read -r _
+        exit 1
+    fi
+    read -r size sha <"$INFO"
+    while true; do install_once "$size" "$sha"; done
+}
+
+main "$@"

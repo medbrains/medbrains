@@ -85,6 +85,109 @@ sudo dd if=medbrains-os_<commit>.raw of=/dev/sdX bs=4M conv=fsync status=progres
 card corrupts clinical records. Active cooling is required too. The Debian kernel's Pi 5 support is
 partial, so expect gaps; that is what D2 is for.
 
+## Install and run
+
+A release carries the one system image in every format below (`os/release-files.md`, which also goes into
+the release notes). All are UEFI only. **Every one needs a TPM 2.0, real or virtual, for the sealed data
+disk**; without one, setup stops and asks before it stores anything unencrypted ([Data disk](#data-disk)).
+The image is not Secure Boot signed yet (T1): turn Secure Boot off, or build with `OS_SB_KEY` /
+`OS_SB_CERT` and enrol that certificate in the firmware. Secure Boot changes PCR 7, so turn it on or off
+before first boot, not after: the disk is sealed to PCRs 4+7 at first boot.
+
+```sh
+os/build-iso.sh --arch x86-64 --image <name>.raw.zst --out <name>.iso   # the installer
+os/formats.sh <image.raw> <name> x86-64 <out-dir>                       # qcow2, vmdk, ova, vhdx, Azure vhd
+```
+
+### Installer (.iso), on a physical machine
+
+Write the `.iso` to a USB stick (`dd if=<name>.iso of=/dev/sdX bs=4M conv=fsync` on Linux, or an image
+writer in disk-image mode, such as Rufus's DD mode), or burn it to a DVD, and start the machine from it (UEFI boot menu). The installer runs from
+memory: it lists the machine's disks, with size, model and how many partitions each holds. To install:
+
+1. type the disk's name (for example `nvme0n1`);
+2. type `ERASE nvme0n1` exactly. Any other answer writes nothing and goes back to the list;
+3. it writes the image, reads the whole of it back past the cache, and compares the SHA-256 with the one on
+   the medium. On a match it ejects a DVD and restarts in 15 seconds. Take the stick out.
+
+The stick or DVD it started from, and any other MedBrains installer, is never listed, and typing its name is
+refused. A read-only disk and one smaller than the image (4.5 GB) are not listed. The same installer runs on the
+screen and on the serial console (`ttyS0`, `ttyAMA0` on arm64); only one of them can write at a time. The disk
+then holds the release `.raw` byte for byte, so its signed boot file and PCR 11 signature are the ones released;
+first boot grows the data partition into the rest of the disk. Built by `os/installer/` (mkosi, `Format=uki`)
+and wrapped by xorriso as a hybrid ISO: El Torito for a DVD, a GPT with an EFI partition for a stick.
+`os/tests/installer-test.py <iso> <raw>` proves it in QEMU.
+
+### Proxmox, KVM, libvirt (.qcow2)
+
+Proxmox: create a VM with **BIOS OVMF (UEFI)**, machine q35, an EFI disk **without pre-enrolled keys** (or with
+yours, if the image was built with `OS_SB_KEY`), **TPM state v2.0**, 4 cores, 4 GB, and no disk. Then
+`qm disk import <vmid> <name>.qcow2 <storage>`, attach it as `virtio0` or `scsi0`, make it the boot disk,
+and grow it (`qm disk resize <vmid> virtio0 +60G`): first boot puts the data partition in the free space.
+libvirt: `virt-install --boot uefi --tpm emulator,model=tpm-crb,version=2.0 --disk <name>.qcow2,bus=virtio ...`.
+
+### VMware (.ova)
+
+The OVA asks for UEFI firmware, 4 vCPU, 4 GB, a SATA disk and a VMXNET3 card. Deploy it (vSphere: *Deploy
+OVF Template*; Workstation / Fusion: *File > Open*), then grow the disk before first boot. **A virtual TPM**
+needs, on vSphere, a key provider (the Native Key Provider is enough) and VM encryption; on Workstation and
+Fusion, the VM's *Encryption* setting first. Turn **Secure Boot** off in *VM Options > Boot Options* unless the
+image was signed with your key. The `.vmdk` inside is stream-optimised; to attach it on its own, convert it
+first (`vmkfstools -i <name>.vmdk -d thin new.vmdk` on ESXi).
+
+### Hyper-V (.vhdx)
+
+**Generation 2** only (UEFI). Turn Secure Boot off, or pick the *Microsoft UEFI Certificate Authority*
+template only if the image is signed with a key that chains to it (it is not today). Add the **trusted platform
+module** under *Security*. Then:
+
+```powershell
+New-VM -Name MedBrains -Generation 2 -MemoryStartupBytes 4GB -VHDPath .\<name>.vhdx -SwitchName <switch>
+Set-VMProcessor MedBrains -Count 4
+Set-VMFirmware MedBrains -EnableSecureBoot Off
+Set-VMKeyProtector MedBrains -NewLocalKeyProtector; Enable-VMTPM MedBrains
+Resize-VHD .\<name>.vhdx -SizeBytes 64GB
+```
+
+### Amazon Web Services (.vmdk, or .raw for arm64)
+
+The files are built, never uploaded by the release. Import the disk as a snapshot, then register it as a UEFI
+image with NitroTPM, which the sealed disk needs: use a Nitro instance type that offers NitroTPM (for
+example `m6i` on x86-64, `m7g` on arm64). x86-64 uses the `.vmdk`; arm64 uses the `.raw` (`zstd -d` the
+`.raw.zst`), with `Format=RAW` and `--architecture arm64`.
+
+```sh
+aws s3 cp <name>.vmdk s3://<bucket>/<name>.vmdk
+aws ec2 import-snapshot --description <name> \
+  --disk-container "Format=VMDK,UserBucket={S3Bucket=<bucket>,S3Key=<name>.vmdk}"
+aws ec2 describe-import-snapshot-tasks --import-task-ids <task>        # wait for "completed", note SnapshotId
+aws ec2 register-image --name <name> --architecture x86_64 --boot-mode uefi --tpm-support v2.0 \
+  --ena-support --virtualization-type hvm --root-device-name /dev/xvda \
+  --block-device-mappings "DeviceName=/dev/xvda,Ebs={SnapshotId=<snap>,VolumeSize=64,VolumeType=gp3}"
+```
+
+Do not use `aws ec2 import-image`: it inspects and rewrites the system inside, rejects a custom Linux it does
+not recognise, and does not set UEFI or NitroTPM. If the image was built with your own Secure Boot key
+(`OS_SB_KEY`), add `--uefi-data <file>` to `register-image` to enrol it. AWS's `uefivars.py` tool makes
+that file from your PK, KEK and db certificates. Finish setup through the instance's serial console or the web
+address: the appliance has no SSH.
+
+### Microsoft Azure (-azure.vhd.zst)
+
+Unpack it (`zstd -d <name>-azure.vhd.zst`): Azure takes only an uncompressed, fixed-size VHD whose size is a
+whole number of MiB, which this is. Upload it as a page blob and make a **generation 2** image; use
+**Trusted Launch** for the vTPM, with Secure Boot off until the image is signed:
+
+```sh
+azcopy copy <name>-azure.vhd "https://<account>.blob.core.windows.net/<container>/<name>.vhd?<sas>" --blob-type PageBlob
+az disk create -g <rg> -n <name> --hyper-v-generation V2 --security-type TrustedLaunch \
+  --source "https://<account>.blob.core.windows.net/<container>/<name>.vhd"
+az vm create -g <rg> -n medbrains --attach-os-disk <name> --os-type linux --size Standard_D4s_v5 \
+  --security-type TrustedLaunch --enable-vtpm true --enable-secure-boot false
+```
+
+Grow the disk (`az disk update --size-gb 64`) before first boot.
+
 ## What a person sees
 
 1. **Firmware.** The logo of the machine's firmware (TianoCore under QEMU; we don't replace it).
@@ -845,6 +948,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
+- `build-iso.sh`, `installer/`: the installer `.iso`. `formats.sh`, `medbrains-os.ovf`: the VM and cloud disks. `release-files.md`: which file is for what, in the release notes. `tests/installer-test.py`: the installer in QEMU.
 - `build-kanidm.sh`: compiles the identity provider from its pinned release. `kanidm-override.css`: its colours.
 - `tests/kanidm-acceptance.py`, `tests/kanidm-softkey`: the owner's acceptance test and the hardware key test, against a booted debug image.
 - `tests/kanidm-one-login-test.py`, `tests/kanidm-limit-test.py`: one login from setup, and the limit by address.

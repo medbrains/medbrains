@@ -210,7 +210,8 @@ jobs:
   os-image:
     # The appliance disk image (os/README.md), built by mkosi in a Debian
     # container on a native runner per architecture. PCR-signed only with the
-    # owner's key; never a DEBUG image. Write it to a USB stick or disk.
+    # owner's key; never a DEBUG image. From the same .raw: the installer .iso,
+    # and the VM and cloud disks (os/formats.sh). os/release-files.md says which is which.
     name: OS image (${{ matrix.arch }})
     needs: [build-backend, build-frontend, build-kanidm]
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
@@ -234,7 +235,7 @@ jobs:
           apt-get update -q
           apt-get install -yq --no-install-recommends git mkosi systemd-ukify systemd-repart systemd-boot-efi \
             systemd-container apt dpkg debian-archive-keyring dosfstools mtools e2fsprogs erofs-utils cpio \
-            kmod zstd xz-utils ca-certificates python3 bubblewrap uidmap openssl
+            kmod zstd xz-utils ca-certificates python3 bubblewrap uidmap openssl xorriso qemu-utils
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -254,6 +255,8 @@ jobs:
         env:
           PCR_KEY: ${{ secrets.OS_PCR_KEY }}
           PCR_CERT: ${{ secrets.OS_PCR_CERT }}
+          SB_KEY: ${{ secrets.OS_SB_KEY }}
+          SB_CERT: ${{ secrets.OS_SB_CERT }}
         run: |
           # A trial run's ref is the branch, release/v3.33.0; a slash cannot go in a file name.
           version=$(printf '%s' "$GITHUB_REF_NAME" | tr / -)
@@ -265,12 +268,22 @@ jobs:
             printf '%s' "$PCR_KEY" > "$RUNNER_TEMP/pcr.key"; printf '%s' "$PCR_CERT" > "$RUNNER_TEMP/pcr.crt"
             export OS_PCR_KEY="$RUNNER_TEMP/pcr.key" OS_PCR_CERT="$RUNNER_TEMP/pcr.crt"; suffix=
           fi
+          # Secure Boot signing, for the image and the installer alike, only with the owner's key.
+          if [ -n "$SB_KEY" ]; then
+            printf '%s' "$SB_KEY" > "$RUNNER_TEMP/sb.key"; printf '%s' "$SB_CERT" > "$RUNNER_TEMP/sb.crt"
+            export OS_SB_KEY="$RUNNER_TEMP/sb.key" OS_SB_CERT="$RUNNER_TEMP/sb.crt"
+          fi
           MEDBRAINS_SERVER_BIN="$PWD/bins/medbrains-server" MEDBRAINS_WEB_DIST="$PWD/web-dist" \
             KANIDM_DIR="$PWD/kanidm" OS_WORK="$RUNNER_TEMP/os" medbrains/os/build.sh --arch ${{ matrix.arch }}
           rm -f "$RUNNER_TEMP/pcr.key"
           mkdir -p img
           raw=$(ls "$RUNNER_TEMP"/os/out-${{ matrix.arch }}/*.raw | head -1)
-          zstd -T0 -19 "$raw" -o "img/medbrains-os-$version-${{ matrix.arch }}$suffix.raw.zst"
+          name="medbrains-os-$version-${{ matrix.arch }}$suffix"
+          zstd -T0 -19 "$raw" -o "img/$name.raw.zst"
+          # The installer carries that same .raw.zst, so it writes exactly the image above.
+          OS_WORK="$RUNNER_TEMP/os" medbrains/os/build-iso.sh --arch ${{ matrix.arch }} --image "img/$name.raw.zst" --out "img/$name.iso"
+          rm -f "$RUNNER_TEMP/sb.key"
+          medbrains/os/formats.sh "$raw" "$name" ${{ matrix.arch }} img
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: os-${{ matrix.arch }}
@@ -392,6 +405,8 @@ jobs:
               echo "## Initial release" > NOTES.md
             fi
           fi
+          # Which OS file fits which machine, after the changelog's own words.
+          { echo; cat medbrains/os/release-files.md; } >> NOTES.md
       # One tool for both lockfiles: syft reads Cargo.lock and pnpm-lock.yaml
       # (every crate and npm package that can reach the server and web app),
       # in CycloneDX, the format hospital procurement and scanners ask for.

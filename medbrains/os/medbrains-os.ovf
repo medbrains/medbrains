@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MedBrains OS for VMware, filled in by os/formats.sh: UEFI firmware, 4 vCPU, 4 GB, one SATA disk, one
+     VMXNET3 network card. Add a virtual TPM after import for the sealed data disk (os/README.md). -->
+<Envelope xmlns="http://schemas.dmtf.org/ovf/envelope/1"
+          xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1"
+          xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData"
+          xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData"
+          xmlns:vmw="http://www.vmware.com/schema/ovf">
+  <References>
+    <File ovf:id="disk1" ovf:href="@NAME@.vmdk" ovf:size="@DISK_BYTES@"/>
+  </References>
+  <DiskSection>
+    <Info>The system disk</Info>
+    <Disk ovf:diskId="vmdisk1" ovf:fileRef="disk1" ovf:capacity="@CAPACITY@" ovf:capacityAllocationUnits="byte"
+          ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
+  </DiskSection>
+  <NetworkSection>
+    <Info>The hospital network</Info>
+    <Network ovf:name="VM Network"><Description>The hospital network</Description></Network>
+  </NetworkSection>
+  <VirtualSystem ovf:id="@NAME@">
+    <Info>MedBrains OS</Info>
+    <Name>MedBrains OS</Name>
+    <OperatingSystemSection ovf:id="96" vmw:osType="debian12_64Guest">
+      <Info>Debian-based Linux</Info>
+    </OperatingSystemSection>
+    <VirtualHardwareSection>
+      <Info>4 vCPU, 4 GB, UEFI</Info>
+      <System>
+        <vssd:ElementName>Virtual Hardware Family</vssd:ElementName>
+        <vssd:InstanceID>0</vssd:InstanceID>
+        <vssd:VirtualSystemIdentifier>MedBrains OS</vssd:VirtualSystemIdentifier>
+        <vssd:VirtualSystemType>vmx-19</vssd:VirtualSystemType>
+      </System>
+      <Item>
+        <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
+        <rasd:ElementName>4 virtual CPUs</rasd:ElementName>
+        <rasd:InstanceID>1</rasd:InstanceID>
+        <rasd:ResourceType>3</rasd:ResourceType>
+        <rasd:VirtualQuantity>4</rasd:VirtualQuantity>
+      </Item>
+      <Item>
+        <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
+        <rasd:ElementName>4096 MB of memory</rasd:ElementName>
+        <rasd:InstanceID>2</rasd:InstanceID>
+        <rasd:ResourceType>4</rasd:ResourceType>
+        <rasd:VirtualQuantity>4096</rasd:VirtualQuantity>
+      </Item>
+      <Item>
+        <rasd:ElementName>SATA controller</rasd:ElementName>
+        <rasd:InstanceID>3</rasd:InstanceID>
+        <rasd:ResourceSubType>vmware.sata.ahci</rasd:ResourceSubType>
+        <rasd:ResourceType>20</rasd:ResourceType>
+      </Item>
+      <Item>
+        <rasd:AddressOnParent>0</rasd:AddressOnParent>
+        <rasd:ElementName>System disk</rasd:ElementName>
+        <rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource>
+        <rasd:InstanceID>4</rasd:InstanceID>
+        <rasd:Parent>3</rasd:Parent>
+        <rasd:ResourceType>17</rasd:ResourceType>
+      </Item>
+      <Item>
+        <rasd:AddressOnParent>7</rasd:AddressOnParent>
+        <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
+        <rasd:Connection>VM Network</rasd:Connection>
+        <rasd:ElementName>Network</rasd:ElementName>
+        <rasd:InstanceID>5</rasd:InstanceID>
+        <rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>
+        <rasd:ResourceType>10</rasd:ResourceType>
+      </Item>
+      <vmw:Config ovf:required="false" vmw:key="firmware" vmw:value="efi"/>
+    </VirtualHardwareSection>
+  </VirtualSystem>
+</Envelope>
