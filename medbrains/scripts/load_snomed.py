@@ -209,13 +209,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--database-url",
-        default=os.environ.get(
-            # 5435, not 5432: the compose file maps the container that way, and a
-            # host Postgres on the default port will happily accept the
-            # connection and then report that the database does not exist.
-            "DATABASE_URL",
-            "postgres://medbrains:medbrains@localhost:5435/medbrains",
-        ),
+        # No built-in URL: a password in the source is a password for everyone.
+        # For the compose database use port 5435, not 5432: a host Postgres on the
+        # default port accepts the connection, then says the database is missing.
+        default=os.environ.get("DATABASE_URL"),
+        required="DATABASE_URL" not in os.environ,
+        help="Postgres URL (default: $DATABASE_URL; see .env.example)",
     )
     parser.add_argument("--batch", type=int, default=BATCH)
     parser.add_argument("--dry-run", action="store_true", help="report, load nothing")

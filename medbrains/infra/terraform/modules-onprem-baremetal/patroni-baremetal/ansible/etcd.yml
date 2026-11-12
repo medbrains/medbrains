@@ -59,7 +59,7 @@
         dest: /etc/etcd/etcd.conf
         owner: etcd
         group: etcd
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): etcd settings, no secret
         content: |
           ETCD_NAME="{{ etcd_node_id }}"
           ETCD_DATA_DIR=/var/lib/etcd
@@ -74,7 +74,7 @@
     - name: Install etcd systemd unit
       copy:
         dest: /etc/systemd/system/etcd.service
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): systemd unit, no secret
         content: |
           [Unit]
           Description=etcd (medbrains Patroni DCS)

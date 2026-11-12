@@ -4,6 +4,14 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+/**
+ * The server a release build talks to. Empty or HTTPS; empty means the app reaches only the hospital its QR binding names.
+ */
+val releaseServerUrl: String = providers.gradleProperty("medbrains.serverUrl").orNull.orEmpty()
+require(releaseServerUrl.isEmpty() || releaseServerUrl.startsWith("https://")) {
+    "medbrains.serverUrl must be an https:// URL, not $releaseServerUrl"
+}
+
 android {
     sourceSets.getByName("androidTest").kotlin.srcDir("../testkit/src")
     // Shared with the web picker and iOS: one list of body regions for every surface.
@@ -23,11 +31,16 @@ android {
         // and UI tests only; see AppConfig.
         debug {
             manifestPlaceholders["usesCleartext"] = "true"
+            // The emulator's view of the developer's machine.
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"http://10.0.2.2:3000\"")
             // `-Pminified` runs the journeys against R8-processed code: the only
             // way a keep rule missing from release shows up before a user does.
             if (providers.gradleProperty("minified").isPresent) {
                 isMinifyEnabled = true
-                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "minified-test-rules.pro")
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "minified-test-rules.pro"
+                )
                 testProguardFiles("test-rules.pro")
             }
         }
@@ -38,6 +51,9 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             manifestPlaceholders["usesCleartext"] = "false"
+            // No cleartext default in a shipped app: the server is the one this build is for
+            // (`-Pmedbrains.serverUrl=https://…`), HTTPS only.
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"$releaseServerUrl\"")
         }
     }
     compileOptions {

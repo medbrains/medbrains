@@ -16,14 +16,17 @@ The AGPL version is always available to everyone at no cost. The commercial lice
 
 - sell, host or resell MedBrains to other organisations and do not want to publish your changes under the AGPL;
 - build MedBrains, or part of it, into a closed-source product;
-- combine it with code under terms the AGPL does not allow;
-- want a warranty, indemnity, service-level agreement or support contract.
+- combine it with code under terms the AGPL does not allow.
+
+## Support does not need a licence change
+
+A hospital, clinic or pharmacy on the free AGPL version can buy support, an annual maintenance contract (AMC), service levels or setup help without changing licence. A support contract adds services; it does not change your rights to the code.
 
 ## What it gives you
 
 - The right to use MedBrains without the AGPL's source-sharing terms.
-- Optional support, security-update guarantees and service levels.
-- Optional indemnity.
+- Optional warranty and indemnity, which the AGPL excludes.
+- Optional support, security-update guarantees and service levels, on the same terms free users can buy.
 
 Commercial licences fund the free, open development of MedBrains.
 

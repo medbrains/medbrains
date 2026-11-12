@@ -12,7 +12,7 @@ record follows each patient through every department.
 
 ## What it is built to be
 
-- **Cheap by design.** The software is free under the Apache 2.0 licence: no
+- **Cheap by design.** The software is free under the GNU AGPL-3.0 licence: no
   licence fee and no per-user fee. It runs a full hospital on one small
   server.
 - **Top quality.** Safety rules such as drug interaction checks, allergy

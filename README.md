@@ -380,7 +380,7 @@ Read [CONTRIBUTING.md](./CONTRIBUTING.md) to get started. Every commit needs a D
 
 ## License
 
-MedBrains is dual-licensed: the [GNU Affero General Public License v3.0](./LICENSE), free for everyone, or a [commercial licence](./COMMERCIAL-LICENSE.md) for those who cannot meet the AGPL's terms. See [NOTICE](./NOTICE). Versions released before 2026-11-12 were licensed under Apache 2.0. The client SDKs (`packages/sdk`, `sdks/python`) stay under Apache 2.0, so integrating with MedBrains never forces a licence on your code.
+MedBrains is dual-licensed: the [GNU Affero General Public License, version 3 only](./LICENSE) (`AGPL-3.0-only`), free for everyone, or a [commercial licence](./COMMERCIAL-LICENSE.md) for those who cannot meet the AGPL's terms. See [NOTICE](./NOTICE). Versions released before 2026-11-12 were licensed under Apache 2.0. The client SDKs (`packages/sdk`, `sdks/python`) stay under Apache 2.0, so integrating with MedBrains never forces a licence on your code.
 
 **Trademarks:** the name "MedBrains" and the MedBrains logo are trademarks of Domnic Amalan S. Neither licence covers them. You may say your software is "based on MedBrains", but please don't call a modified version "MedBrains" or use the logo in a way that suggests we endorse it.
 
