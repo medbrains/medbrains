@@ -1,8 +1,8 @@
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -505,6 +505,8 @@ pub async fn close_settlement(
     Ok(Json(row))
 }
 
+/// Sign off a closed pharmacy day settlement. Someone other than the person who closed it
+/// (counting and checking are two people), once: the row is locked while it is decided.
 pub async fn verify_settlement(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -515,6 +517,21 @@ pub async fn verify_settlement(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let closed_by: Option<Uuid> = sqlx::query_scalar(
+        "SELECT closed_by FROM pharmacy_day_settlements \
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if closed_by == Some(claims.sub) {
+        return Err(AppError::Conflict(
+            "the person who closed the day cannot verify it".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, PharmacyDaySettlement>(
         "UPDATE pharmacy_day_settlements SET \
@@ -529,7 +546,9 @@ pub async fn verify_settlement(
     .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or(AppError::NotFound)?;
+    .ok_or_else(|| {
+        AppError::Conflict("only a closed, unverified settlement can be verified".to_owned())
+    })?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -554,10 +573,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/pharmacy/payments/day-reconciliation",
             get(day_reconciliation),
         )
-        .route(
-            "/api/pharmacy/settlements",
-            get(get_settlement),
-        )
+        .route("/api/pharmacy/settlements", get(get_settlement))
         .route(
             "/api/pharmacy/settlements/{id}/close",
             put(close_settlement),
