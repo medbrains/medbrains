@@ -3,6 +3,7 @@
 use super::*;
 use tempfile::TempDir;
 
+/// A cache in its own temporary directory; the directory lives as long as the handle returned.
 fn make() -> (RevocationCache, TempDir) {
     let dir = TempDir::new().unwrap();
     let cache = RevocationCache::new(dir.path(), 1024).unwrap();
