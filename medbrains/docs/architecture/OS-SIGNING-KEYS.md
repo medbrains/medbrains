@@ -15,12 +15,18 @@ networked computer, and the key a networked computer holds expires within weeks 
 |---|---|---|---|---|
 | **OS update root** | Intermediate certificates, revocation lists, new trust anchors | Every OS image (`os/update-keys/root-*.pub`) | Not made; release images refuse every bundle (OS-UPDATES.md) | 3 hardware tokens, offline, 2-of-3 for anchor changes (§2) |
 | **OS update intermediate** | Update manifests (`manifest.sig`), weekly `refresh` re-signs | Machines, through the root's certificate | Not made | Ed25519, 30-day certificate, held by the release job only (§3) |
-| **Boot signing key** (`OS_PCR_KEY`) | Expected PCR 11 values of the boot file | The disk seal on every machine | Debug throwaways only (OS-KEYS.md) | Same custody as the root (§2): a disk is sealed to one public key, so it cannot be short-lived until re-seal is built |
+| **Boot signing key** (`OS_PCR_KEY`) | Expected PCR 11 values of the boot file | The disk seal on every machine | Debug throwaways in builds (OS-KEYS.md). **But `OS_PCR_KEY` and `OS_PCR_CERT` have been secrets in the GitHub `release` environment since 2026-11-09**, unused by any workflow on `main`: the key every disk will seal to sits on a networked service | Same custody as the root (§2): a disk is sealed to one public key, so it cannot be short-lived until re-seal is built |
 | **Release checksums, container image** | `SHA256SUMS`, the GHCR image | Anyone verifying a release | Sigstore keyless: a certificate valid for minutes, bound to the release workflow's identity, logged in Rekor (`release.yml`) | Keep. Already the "short-lived, CI-held" pattern |
 | **npm and PyPI SDKs** | Published packages | Package users | Trusted publishing (OIDC), no stored token (`publish-sdks.yml`) | Keep |
-| **Desktop updater** (`TAURI_SIGNING_PRIVATE_KEY`) | Desktop app updates | Every installed desktop app (`tauri.conf.json` `pubkey`) | **A long-lived minisign key in a GitHub secret.** A leak lets anyone sign a desktop update | Move to the `release` environment with required reviewers now; Tauri's updater has no chain, so rotation ships a new `pubkey` in a signed update, as for the OS root (§5.3) |
-| **Android upload key, Apple distribution** | Store builds | The stores | Not set up for release yet | Play App Signing (Google holds the app key; the upload key can be reset); Apple keys in the owner's account only |
+| **Desktop updater** (`TAURI_SIGNING_PRIVATE_KEY`) | Desktop app updates | Every installed desktop app (`tauri.conf.json` `pubkey`) | **A long-lived minisign key in a GitHub secret** (`release` environment). A leak lets anyone sign a desktop update | Add required reviewers to the `release` environment now (it has only a branch rule); Tauri's updater has no chain, so rotation ships a new `pubkey` in a signed update, as for the OS root (§5.3) |
+| **Android upload key, Apple distribution** | Store builds | The stores | The Android keystore is in the `release` environment (2026-11-09); Apple not set up | Play App Signing (Google holds the app key; the upload key can be reset); Apple keys in the owner's account only |
 | **Licence and subscription issuer** | Licence files, subscription tokens | The updater's feed check, the admin screen | Designed: "Ed25519 in KMS" (RFC-PLATFORM-COMMERCIAL §3) | A key that cannot be exported (KMS), never the update root. A leak forges entitlement, not code |
+
+**Before the first release image:** treat the `OS_PCR_KEY` now in GitHub as a test key. Delete it
+from the `release` environment, make the release boot key offline at the first ceremony, and never
+let a workflow read it. A boot key on GitHub would let anyone who reads that secret make boot files
+that open sealed disks on stolen machines. Add required reviewers to the `release` environment
+either way: today any run on an allowed branch can read its secrets.
 
 The update root and the boot key are the two that can take over a machine. The rest of this
 document is about them; the desktop key gets the same runbook in §5.
@@ -188,8 +194,8 @@ in CI; the human part (the people, the ceremony, the notice) is the drill.
 **Do, in this order:**
 
 1. Name the second key holder (`root-c`) and the witnesses. Two people at every ceremony.
-2. Move the desktop updater secret into a `release` environment with required reviewers (this
-   needs no purchase; do it now).
+2. Now, with no purchase: add the owner as required reviewer on the `release` environment, and
+   delete `OS_PCR_KEY` and `OS_PCR_CERT` from it (the release boot key is made offline in step 3).
 3. When the tokens arrive: the first ceremony. Generate `root-a`, `root-b`, `root-c` on the tokens,
    set PINs and PUKs, export only the public keys. A pull request adds them to `os/update-keys/` with
    the anchor threshold; nobody else can do this step.
