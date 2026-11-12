@@ -76,7 +76,7 @@ pub(crate) fn damage_in_use_waits_for_a_restart(vm: &mut Vm, bench: &Bench) -> R
     )?;
     vm.reboot()?;
     wait_version(vm, &bench.first, RESTART_LIMIT)?;
-    let value = wait_status(vm, &["stage"], "idle", RESTART_LIMIT)?;
+    let value = went_back(vm)?;
     let words = value["last"]["words"].as_str().unwrap_or("");
     ensure(
         words.contains("seal check"),
@@ -87,6 +87,13 @@ pub(crate) fn damage_in_use_waits_for_a_restart(vm: &mut Vm, bench: &Bench) -> R
         !failed_list(&record).contains(NEXT.1),
         format!("the damaged version was recorded as failed: {record}"),
     )
+}
+
+/// Waits until the record, on the data disk, says the machine went back. The shell answers before the data
+/// disk is open, and a record read then is the empty one under it.
+fn went_back(vm: &mut Vm) -> Result<serde_json::Value, String> {
+    vm.wait_for_server()?;
+    wait_status(vm, &["last", "result"], "went_back", RESTART_LIMIT)
 }
 
 /// The `failed` list of a record, as text.
@@ -104,7 +111,7 @@ pub(crate) fn damage_at_start_is_recorded(vm: &mut Vm, bench: &Bench) -> Result<
     damage(vm, START_FILE)?;
     vm.reboot()?;
     wait_version(vm, &bench.first, RESTART_LIMIT)?;
-    let value = wait_status(vm, &["stage"], "idle", RESTART_LIMIT)?;
+    let value = went_back(vm)?;
     let words = value["last"]["words"].as_str().unwrap_or("");
     ensure(
         words.contains("seal check"),

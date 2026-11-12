@@ -187,7 +187,12 @@ pub(crate) fn apply_and_prove(
         value["stage"] == "idle",
         format!("stage after good: {value}"),
     )?;
-    let entries = vm.run("ls /boot/EFI/Linux")?;
+    // The record says good when the health check passes; systemd-bless-boot renames the entry just after,
+    // once boot-complete.target is reached. Read straight after, the old name can still be there.
+    let blessed = format!(
+        "for i in $(seq 30); do ls /boot/EFI/Linux | grep -q '{version}+' || break; sleep 1; done; ls /boot/EFI/Linux"
+    );
+    let entries = vm.run_for(&blessed, Duration::from_secs(45))?;
     ensure(
         !entries.contains(&format!("{version}+")),
         format!("the boot entry was not marked good: {entries}"),
