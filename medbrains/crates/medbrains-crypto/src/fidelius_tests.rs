@@ -139,7 +139,7 @@ fn a_reopened_private_key_must_derive_its_public_key() {
         B64.encode(&d[..31]),
         B64.encode(&padded),
         B64.encode([0_u8; 32]),
-        other.private_key.clone(),
+        other.private_key,
         ours.public_key.clone(),
     ];
     for private_key in bad {

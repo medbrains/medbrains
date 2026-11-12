@@ -115,13 +115,15 @@ pub fn verify_strict(
 /// first 8 bytes of its digest, hex.
 #[must_use]
 pub fn fingerprint(public: &[u8]) -> String {
+    use std::fmt::Write;
     let digest = Sha256::digest(public);
-    let hex: String = digest
+    digest
         .iter()
         .take(FINGERPRINT_BYTES)
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    format!("SHA256:{hex}")
+        .fold(String::from("SHA256:"), |mut out, b| {
+            let _ = write!(out, "{b:02x}");
+            out
+        })
 }
 
 /// The server's JWT signing pair, proven to work together.
@@ -130,6 +132,16 @@ pub struct JwtKeys {
     pub decoding: DecodingKey,
     /// [`fingerprint`] of the public key, for the start-up log.
     pub fingerprint: String,
+}
+
+// Hand-written so key material never reaches a log line: only the fingerprint.
+impl std::fmt::Debug for JwtKeys {
+    /// Shows the fingerprint and nothing else.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JwtKeys")
+            .field("fingerprint", &self.fingerprint)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Parse `JWT_PRIVATE_KEY` and `JWT_PUBLIC_KEY` and prove they are one pair.

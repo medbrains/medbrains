@@ -8,7 +8,7 @@
 //!   multiplication, no clamping. The shared secret is the affine X of `d·Q`,
 //!   32 bytes big-endian.
 //! - Public keys are the uncompressed point `04‖X‖Y` (65 bytes, base64). A
-//!   peer key may also arrive as X.509 SubjectPublicKeyInfo (`id-ecPublicKey`
+//!   peer key may also arrive as X.509 `SubjectPublicKeyInfo` (`id-ecPublicKey`
 //!   with this curve's explicit parameters); it is parsed as SPKI and its
 //!   curve must be this one.
 //! - A peer point is refused at infinity, off the curve, or outside the
@@ -108,7 +108,7 @@ fn peer_point(group: &EcGroup, b64: &str, ctx: &mut BigNumContext) -> Result<EcP
     Ok(q)
 }
 
-/// The uncompressed point inside an X.509 SubjectPublicKeyInfo, after proving
+/// The uncompressed point inside an X.509 `SubjectPublicKeyInfo`, after proving
 /// its algorithm is `id-ecPublicKey` and its explicit curve is ours.
 fn spki_point(
     group: &EcGroup,
@@ -134,21 +134,28 @@ fn curve_identity(
     ctx: &mut BigNumContext,
 ) -> Result<Vec<Vec<u8>>, CryptoError> {
     let fail = |_| CryptoError::InvalidKey;
-    let (mut p, mut a, mut b, mut n) = (
+    let (mut field, mut coef_a, mut coef_b, mut order) = (
         BigNum::new().map_err(fail)?,
         BigNum::new().map_err(fail)?,
         BigNum::new().map_err(fail)?,
         BigNum::new().map_err(fail)?,
     );
     group
-        .components_gfp(&mut p, &mut a, &mut b, ctx)
+        .components_gfp(&mut field, &mut coef_a, &mut coef_b, ctx)
         .map_err(fail)?;
-    group.order(&mut n, ctx).map_err(fail)?;
-    let g = group
-        .generator()
+    group.order(&mut order, ctx).map_err(fail)?;
+    let generator = group
+        .generator_opt()
+        .ok_or(CryptoError::InvalidKey)?
         .to_bytes(group, PointConversionForm::UNCOMPRESSED, ctx)
         .map_err(fail)?;
-    Ok(vec![p.to_vec(), a.to_vec(), b.to_vec(), n.to_vec(), g])
+    Ok(vec![
+        field.to_vec(),
+        coef_a.to_vec(),
+        coef_b.to_vec(),
+        order.to_vec(),
+        generator,
+    ])
 }
 
 /// Whether `theirs` is the Fidelius curve, parameter for parameter.
@@ -175,7 +182,8 @@ fn in_subgroup(
         return Err(CryptoError::InvalidKey);
     }
     let mut nq = EcPoint::new(group).map_err(|_| CryptoError::InvalidKey)?;
-    nq.mul2(group, q, &bn(N)?, ctx)
+    let order = bn(N)?;
+    nq.mul2(group, q, &order, ctx)
         .map_err(|_| CryptoError::InvalidKey)?;
     if nq.is_infinity(group) {
         Ok(())
@@ -239,14 +247,16 @@ fn shared_secret(private_b64: &str, peer_public_b64: &str) -> Result<[u8; 32], C
     let (group, mut ctx) = curve()?;
     let d = private_scalar(private_b64)?;
     let q = peer_point(&group, peer_public_b64, &mut ctx)?;
-    let mut s = EcPoint::new(&group).map_err(|_| CryptoError::InvalidKey)?;
-    s.mul2(&group, &q, &d, &mut ctx)
+    let mut shared = EcPoint::new(&group).map_err(|_| CryptoError::InvalidKey)?;
+    shared
+        .mul2(&group, &q, &d, &mut ctx)
         .map_err(|_| CryptoError::InvalidKey)?;
-    let mut x = BigNum::new().map_err(|_| CryptoError::InvalidKey)?;
-    let mut y = BigNum::new().map_err(|_| CryptoError::InvalidKey)?;
-    s.affine_coordinates_gfp(&group, &mut x, &mut y, &mut ctx)
+    let mut affine_x = BigNum::new().map_err(|_| CryptoError::InvalidKey)?;
+    let mut affine_y = BigNum::new().map_err(|_| CryptoError::InvalidKey)?;
+    shared
+        .affine_coordinates_gfp(&group, &mut affine_x, &mut affine_y, &mut ctx)
         .map_err(|_| CryptoError::InvalidKey)?;
-    let padded = x
+    let padded = affine_x
         .to_vec_padded(SCALAR_LEN)
         .map_err(|_| CryptoError::InvalidKey)?;
     let mut out = [0_u8; 32];
