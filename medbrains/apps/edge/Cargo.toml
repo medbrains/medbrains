@@ -5,7 +5,7 @@ description = "Edge appliance binary — runs medbrains-edge sync server + mDNS 
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license = "Apache-2.0"
+license = "AGPL-3.0-only"
 
 [[bin]]
 name = "medbrains-edge"

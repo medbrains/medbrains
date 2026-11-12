@@ -19,7 +19,7 @@
 
 *Every patient deserves safe care, and every hospital, big or small, rich or poor, deserves the tools to give it. Built with love for patients, for hospitals, and for well-made software, so cost never stands between them.*
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-0F62FE.svg)](./LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-0F62FE.svg)](./LICENSE)
 [![CI](https://github.com/medbrains/medbrains/actions/workflows/ci.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/ci.yml)
 [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=medbrains_medbrains&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=medbrains_medbrains)
 [![Security scans](https://github.com/medbrains/medbrains/actions/workflows/security.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/security.yml)
@@ -60,7 +60,8 @@ and tell us what breaks.
 
 People reasonably ask what the catch is. Here is the whole answer:
 
-- **The software is free forever** under the [Apache 2.0 licence](./LICENSE). You can use it, change it, and run it for any hospital, without asking us.
+- **The software is free forever** under the [GNU AGPL-3.0](./LICENSE). Any hospital, clinic or pharmacy can use it, change it and run it, without asking us. If you change it and let people use it over a network, you share your changes under the same licence.
+- **Selling it or building a closed product on it?** Take a [commercial licence](./COMMERCIAL-LICENSE.md) instead.
 - **The code is public.** Anyone can read how it checks a drug interaction or who can see a record.
 - **No licence fees, no per-user fees, no selling your data.** We never see your data unless you ask us to host it.
 - **How the team earns:** only from *optional* setup, training, hosting and support for hospitals that want help ([pricing](https://www.medbrains.in/pricing)). If you can run it yourself, you owe us nothing.
@@ -339,7 +340,7 @@ The test suite has about 1,500 Rust tests, 206 Playwright browser specs and 177 
 
 ## Digital Public Good
 
-We are building MedBrains to meet the [Digital Public Goods Standard](https://digitalpublicgoods.net/standard/) and plan to apply for registration. It serves **SDG 3: Good Health and Well-being**, uses an open licence (Apache 2.0), runs on an open stack, and documents how it handles privacy. See [GRANTS.md](./GRANTS.md) for how it maps to each criterion.
+We are building MedBrains to meet the [Digital Public Goods Standard](https://digitalpublicgoods.net/standard/) and plan to apply for registration. It serves **SDG 3: Good Health and Well-being**, uses an open licence (AGPL-3.0), runs on an open stack, and documents how it handles privacy. See [GRANTS.md](./GRANTS.md) for how it maps to each criterion.
 
 ## Get help
 
@@ -379,9 +380,9 @@ Read [CONTRIBUTING.md](./CONTRIBUTING.md) to get started. Every commit needs a D
 
 ## License
 
-MedBrains is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOTICE).
+MedBrains is dual-licensed: the [GNU Affero General Public License v3.0](./LICENSE), free for everyone, or a [commercial licence](./COMMERCIAL-LICENSE.md) for those who cannot meet the AGPL's terms. See [NOTICE](./NOTICE). Versions released before 2026-11-12 were licensed under Apache 2.0. The client SDKs (`packages/sdk`, `sdks/python`) stay under Apache 2.0, so integrating with MedBrains never forces a licence on your code.
 
-**Trademarks:** the name "MedBrains" and the MedBrains logo are trademarks of Domnic Amalan S. The Apache licence does not cover them. You may say your software is "based on MedBrains", but please don't call a modified version "MedBrains" or use the logo in a way that suggests we endorse it.
+**Trademarks:** the name "MedBrains" and the MedBrains logo are trademarks of Domnic Amalan S. Neither licence covers them. You may say your software is "based on MedBrains", but please don't call a modified version "MedBrains" or use the logo in a way that suggests we endorse it.
 
 ## Credits and contact
 
