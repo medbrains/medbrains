@@ -406,9 +406,13 @@ jobs:
           PCR_KEY: ${{ secrets.OS_PCR_KEY }}
           PCR_CERT: ${{ secrets.OS_PCR_CERT }}
         run: |
-          # A trial run's ref is the branch, release/v3.33.0; a slash cannot go in a file name.
+          # The OS version must be plain dotted numbers (os/build.sh): a v3.33.0 tag gives 3.33.0.
+          # A trial run's ref is a branch, so build.sh numbers it from the commit time, and the
+          # file name carries the branch (a slash cannot go in a file name).
           version=$(printf '%s' "$GITHUB_REF_NAME" | tr / -)
-          export OS_VERSION="$version"
+          case "$GITHUB_REF" in
+            refs/tags/v*) export OS_VERSION="${GITHUB_REF_NAME#v}" ;;
+          esac
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           chmod +x bins/* kanidm/kanidmd
           suffix=-unsigned
