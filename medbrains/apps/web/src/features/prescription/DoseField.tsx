@@ -30,9 +30,11 @@ interface ParsedDose {
 
 /** Split "500 mg" → { amount: "500", unit: "mg" }; "1 tablet" → { "1", "tablet" }. */
 function parseDose(value: string): ParsedDose {
-  const m = value.trim().match(/^([\d.]+)\s*(.*)$/);
-  if (m) return { amount: m[1] ?? "", unit: (m[2] ?? "").trim() };
-  return { amount: "", unit: value.trim() };
+  const text = value.trim();
+  let end = 0;
+  while (end < text.length && "0123456789.".includes(text[end] ?? "")) end += 1;
+  if (end > 0) return { amount: text.slice(0, end), unit: text.slice(end).trim() };
+  return { amount: "", unit: text };
 }
 
 function composeDose(amount: string, unit: string): string {
