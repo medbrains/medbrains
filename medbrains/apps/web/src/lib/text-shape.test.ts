@@ -42,6 +42,21 @@ describe("text shaping without backtracking", () => {
     expect(withoutTrailingParenthesised("Ward(B)")).toBe("Ward(B)");
   });
 
+  it("keeps list items, line breaks and nested blocks apart", () => {
+    expect(htmlToPlainText("<ul><li>Fever</li><li>Cough</li></ul>")).toBe("Fever Cough");
+    expect(htmlToPlainText("<p>a<br>b</p>")).toBe("a b");
+    expect(htmlToPlainText("<div><p>BP 120/80</p><div><p>Pulse 82</p></div></div>")).toBe(
+      "BP 120/80 Pulse 82",
+    );
+    expect(htmlToPlainText("<p>no <strong>split</strong>ting inside a word</p>")).toBe(
+      "no splitting inside a word",
+    );
+  });
+
+  it("decodes entities rather than dropping them", () => {
+    expect(htmlToPlainText("<p>BP &lt; 90 &amp; HR &gt; 120</p>")).toBe("BP < 90 & HR > 120");
+  });
+
   it("turns rich text into a one-line preview", () => {
     expect(htmlToPlainText("<p>Fever&nbsp;3 days</p><p>  cough </p>")).toBe("Fever 3 days cough");
     expect(htmlToPlainText("")).toBe("");

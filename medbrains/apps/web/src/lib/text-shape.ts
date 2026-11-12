@@ -56,9 +56,60 @@ export function withoutTrailingParenthesised(value: string): string {
   return trimmed.slice(0, open).trimEnd();
 }
 
-/** The visible text of rich-text HTML, whitespace collapsed: what a preview should show. */
+/** Elements whose start and end separate words, as a browser lays them out. */
+const BLOCK_TAGS = new Set([
+  "ADDRESS",
+  "ARTICLE",
+  "ASIDE",
+  "BLOCKQUOTE",
+  "BR",
+  "DD",
+  "DIV",
+  "DL",
+  "DT",
+  "FIGCAPTION",
+  "FIGURE",
+  "FOOTER",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "HEADER",
+  "HR",
+  "LI",
+  "MAIN",
+  "NAV",
+  "OL",
+  "P",
+  "PRE",
+  "SECTION",
+  "TABLE",
+  "TD",
+  "TH",
+  "TR",
+  "UL",
+]);
+
+/**
+ * The visible text of rich-text HTML, whitespace collapsed: what a preview should show. Every
+ * text node is read, and a line break or block boundary (a list item, a paragraph) becomes a
+ * space, so "<li>Fever</li><li>Cough</li>" previews as "Fever Cough", not "FeverCough".
+ */
 export function htmlToPlainText(html: string): string {
   const body = new DOMParser().parseFromString(html, "text/html").body;
-  const text = Array.from(body.childNodes, (node) => node.textContent).join(" ");
-  return text.split(/\s/).filter(Boolean).join(" ");
+  const parts: string[] = [];
+  const walk = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.nodeValue ?? "");
+      return;
+    }
+    const block = node instanceof Element && BLOCK_TAGS.has(node.tagName);
+    if (block) parts.push(" ");
+    for (const child of Array.from(node.childNodes)) walk(child);
+    if (block) parts.push(" ");
+  };
+  walk(body);
+  return parts.join("").split(/\s/).filter(Boolean).join(" ");
 }
