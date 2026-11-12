@@ -1,5 +1,5 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor } from "@/test/test-utils";
 import { BankReconTab, ConcessionsTab, GstTdsTab, JournalEntriesTab } from "./accounting-tabs";
 
@@ -67,8 +67,12 @@ const entry = (id: string, status: string) => ({
   description: `Entry ${id}`,
 });
 
+afterEach(() => {
+  // No rejecting implementation outlives its test.
+  vi.resetAllMocks();
+});
+
 beforeEach(() => {
-  vi.clearAllMocks();
   held.permissions = new Set();
   billing.listInsuranceReceivablesAging.mockResolvedValue([]);
 });
