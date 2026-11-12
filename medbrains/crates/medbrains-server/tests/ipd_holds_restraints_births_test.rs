@@ -150,6 +150,38 @@ async fn a_bed_is_held_once_and_a_released_hold_stays_released() -> R<()> {
     Ok(())
 }
 
+/// Given a bed set up before beds had state rows (it has none), When it is
+/// held, Then the hold is kept and the bed now has its vacant state row.
+#[tokio::test]
+async fn a_bed_with_no_state_row_can_still_be_held() -> R<()> {
+    let c = ctx().await?;
+    let (_, bed) = common::vacant_ward_bed(&c.app, c.tenant).await;
+    let mut tx = c.app.db.begin().await?;
+    sqlx::query("SET LOCAL app.allow_physical_delete = 'true'")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM bed_states WHERE location_id = $1")
+        .bind(bed)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+
+    let until = (chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339();
+    let hold = json!({ "bed_id": bed, "patient_id": c.patient().await?, "reserved_until": until });
+    let (status, body) = c
+        .send(Method::POST, "/api/ipd/bed-reservations", &hold)
+        .await?;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let state: String =
+        sqlx::query_scalar("SELECT status::text FROM bed_states WHERE location_id = $1")
+            .bind(bed)
+            .fetch_one(&c.app.db)
+            .await?;
+    assert_eq!(state, "vacant_clean");
+    assert_eq!(c.live_holds(bed).await?, 1);
+    Ok(())
+}
+
 /// Given two admitted patients, one with an open restraint order, When a check
 /// is logged on her order, Then it is kept; When the other admission logs a
 /// check against her order, or against a wound-care note, Then 404; When her

@@ -6488,7 +6488,8 @@ pub async fn list_bed_reservations(
 
 /// `POST /api/ipd/bed-reservations` — hold a vacant bed for a patient until a
 /// future time. One live hold per bed: a second is refused 409, as is a bed
-/// that is occupied or out of service.
+/// that is occupied or out of service. A bed with no state row yet is given its
+/// vacant one first, so beds set up before state rows existed can still be held.
 pub async fn create_bed_reservation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6513,6 +6514,18 @@ pub async fn create_bed_reservation(
             "Hold the bed until a time that has not passed yet.".to_owned(),
         ));
     }
+    // A bed mapped before state rows existed has none; give it its vacant row
+    // rather than refuse a bed that could always be held.
+    sqlx::query(
+        "INSERT INTO bed_states (tenant_id, location_id) \
+         SELECT tenant_id, id FROM locations \
+          WHERE id = $1 AND tenant_id = $2 AND level = 'bed' AND deleted_at IS NULL \
+         ON CONFLICT (tenant_id, location_id) DO NOTHING",
+    )
+    .bind(body.bed_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
     // Locking the bed's state row serialises two people holding the same bed.
     let bed_status = sqlx::query_scalar::<_, String>(
         "SELECT status::text FROM bed_states WHERE location_id = $1 AND tenant_id = $2 FOR UPDATE",
