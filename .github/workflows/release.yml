@@ -54,6 +54,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # A tag that names another version than the workspace stops the whole release here:
+      # the release, the OS image and every app depend on this job.
+      - name: The tag matches the workspace version
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: .
+        run: bash medbrains/scripts/app_version.sh "$GITHUB_REF_NAME"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.triple }}
@@ -118,7 +124,7 @@ jobs:
     if: github.event_name != 'release'
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
     # trial run joins no environment and builds unsigned.
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    environment: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -170,13 +176,14 @@ jobs:
         run: |
           out="$GITHUB_WORKSPACE/apk"; mkdir -p "$out"
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          trap 'rm -f "$RUNNER_TEMP/release.jks"' EXIT
           [ -n "$KEYSTORE_B64" ] && echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
           for d in app-*/; do
             app=${d#app-}; app=${app%/}
             apk=$(find "${d}build/outputs/apk/release" -name '*.apk' | head -1)
             aab=$(find "${d}build/outputs/bundle/release" -name '*.aab' | head -1)
             if [ -n "$KEYSTORE_B64" ]; then
-              "$bt/zipalign" -f 4 "$apk" "$RUNNER_TEMP/aligned.apk"
+              "$bt/zipalign" -P 16 -f 4 "$apk" "$RUNNER_TEMP/aligned.apk"
               "$bt/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KEYSTORE_PASSWORD \
                 --ks-key-alias "$KEY_ALIAS" --out "$out/medbrains-$app-android.apk" "$RUNNER_TEMP/aligned.apk"
               # An AAB is signed with jarsigner (apksigner does not take bundles).
@@ -204,7 +211,7 @@ jobs:
     if: github.event_name != 'release'
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
     # trial run joins no environment and builds unsigned.
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    environment: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     runs-on: macos-26
     timeout-minutes: 120
     defaults:
@@ -366,7 +373,7 @@ jobs:
     needs: [build-backend, build-frontend, build-kanidm]
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
     # trial run joins no environment and builds unsigned.
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    environment: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     runs-on: ${{ matrix.runner }}
     container:
       image: debian:trixie
@@ -416,6 +423,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           chmod +x bins/* kanidm/kanidmd
           suffix=-unsigned
+          trap 'rm -f "$RUNNER_TEMP/pcr.key" "$RUNNER_TEMP/pcr.crt"' EXIT
           if [ -n "$PCR_KEY" ]; then
             printf '%s' "$PCR_KEY" > "$RUNNER_TEMP/pcr.key"; printf '%s' "$PCR_CERT" > "$RUNNER_TEMP/pcr.crt"
             export OS_PCR_KEY="$RUNNER_TEMP/pcr.key" OS_PCR_CERT="$RUNNER_TEMP/pcr.crt"; suffix=
