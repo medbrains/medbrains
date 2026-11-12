@@ -14,13 +14,16 @@ const FAILING: &str = "medbrains-time-role.service";
 const REASON: &str = "The clock could not be checked";
 const DROP_IN: &str = "/run/systemd/system/medbrains-time-role.service.d";
 const LAST_WORDS: &str = "os-test: the time sources could not be written";
+/// Logged too, and must never reach the screen, which needs no login: a row quoted in a DETAIL line, a secret.
+const HIDDEN: [&str; 2] = ["os-test-row-value", "os-test-secret-value"];
 /// Longer than the view's redraw interval.
 const REDRAW: Duration = Duration::from_secs(8);
 
 /// A failed service appears on the console with its reason, its name and its last log line.
 pub(crate) fn failure_shows_on_the_console(vm: &mut Vm, _: &Value) -> Result<(), String> {
     vm.run(&format!(
-        "mkdir -p {DROP_IN}; printf '[Service]\\nExecStart=\\nExecStart=/bin/sh -c \"echo {LAST_WORDS}; exit 3\"\\n' > {DROP_IN}/fail.conf; systemctl daemon-reload; systemctl restart {FAILING}; sleep 2"
+        "mkdir -p {DROP_IN}; printf '[Service]\\nExecStart=\\nExecStart=/bin/sh -c \"echo DETAIL: {}; echo token={}; echo {LAST_WORDS}; exit 3\"\\n' > {DROP_IN}/fail.conf; systemctl daemon-reload; systemctl restart {FAILING}; sleep 2",
+        HIDDEN[0], HIDDEN[1]
     ))?;
     std::thread::sleep(REDRAW);
     let once = vm.run("/usr/lib/medbrains/boot-health --once")?;
@@ -33,6 +36,12 @@ pub(crate) fn failure_shows_on_the_console(vm: &mut Vm, _: &Value) -> Result<(),
             ensure(
                 text.contains(want),
                 format!("{where_} lacks {want:?}: {text}"),
+            )?;
+        }
+        for secret in HIDDEN {
+            ensure(
+                !text.contains(secret),
+                format!("{where_} shows {secret:?}: {text}"),
             )?;
         }
     }

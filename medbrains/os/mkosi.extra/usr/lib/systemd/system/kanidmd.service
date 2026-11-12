@@ -19,6 +19,8 @@ RuntimeDirectory=kanidmd
 RuntimeDirectoryMode=0755
 WorkingDirectory=/var/lib/kanidm
 # Its keys are unsealed on disk, so a release image will not run it on an unencrypted one.
+# Refuses to start unconfined: AppArmor off or this profile not enforcing (L6).
+ExecStartPre=+/usr/lib/medbrains/require-apparmor kanidmd
 ExecStartPre=+/usr/lib/medbrains/require-encrypted-data
 # As kanidm, not root: it writes in Kanidm's own folder.
 ExecStartPre=/usr/lib/medbrains/kanidm-tls

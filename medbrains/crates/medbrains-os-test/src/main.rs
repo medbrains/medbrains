@@ -484,6 +484,10 @@ fn checks() -> Vec<Check> {
             confinement::services_confined,
         ),
         (
+            "a service whose profile is gone refuses to start",
+            confinement::unconfined_start_refused,
+        ),
+        (
             "AppArmor refused nothing the suite did",
             confinement::nothing_refused,
         ),

@@ -42,6 +42,16 @@ reason() {
     esac
 }
 
+# Drops log lines that carry data rather than an error (PostgreSQL's DETAIL, STATEMENT, CONTEXT, QUERY and HINT
+# lines quote rows and SQL), and hides addresses, secret=value pairs and anything token-shaped. tty2 needs no
+# login, so whoever stands at the machine reads this.
+redact() {
+    grep -vE '(DETAIL|STATEMENT|CONTEXT|QUERY|HINT): ' |
+        sed -E 's#[A-Za-z][A-Za-z0-9+.-]*://[^[:space:]]*#<address hidden>#g;
+            s#((pass(word)?|secret|token|key|auth[a-z]*)[=:] *)[^[:space:]]+#\1<hidden>#Ig;
+            s#[A-Za-z0-9+/_=-]{24,}#<hidden>#g'
+}
+
 # Prints at most `max` lines of stdin, each cut to the screen's width.
 bounded() { head -n "$1" | cut -c1-"$LINE_WIDTH"; }
 
@@ -72,7 +82,7 @@ view() {
     for unit in $failed; do
         printf '\n  %s\n    %s\n' "$(reason "$unit")" "$unit"
         journalctl -b -u "$unit" -n "$LOG_LINES" --no-pager -o short-monotonic -q 2>/dev/null |
-            sed 's/^/      /' | bounded "$LOG_LINES"
+            redact | sed 's/^/      /' | bounded "$LOG_LINES"
     done
 }
 

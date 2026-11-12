@@ -42,6 +42,28 @@ pub(crate) fn services_confined(vm: &mut Vm, _: &Value) -> Result<(), String> {
     Ok(())
 }
 
+/// The agent's profile, and the unit that runs it on a main machine.
+const AGENT_PROFILE: &str = "/etc/apparmor.d/medbrains-agent";
+const AGENT_UNIT: &str = "medbrains-agent-main";
+
+/// With its profile unloaded a service will not start, rather than run unconfined; loaded again, it starts.
+pub(crate) fn unconfined_start_refused(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let without = vm.run(&format!(
+        "apparmor_parser -R {AGENT_PROFILE}; systemctl restart {AGENT_UNIT} 2>/dev/null; systemctl is-active {AGENT_UNIT}; true"
+    ))?;
+    let back = vm.run(&format!(
+        "apparmor_parser -r {AGENT_PROFILE}; systemctl reset-failed {AGENT_UNIT}; systemctl restart {AGENT_UNIT}; sleep 2; systemctl is-active {AGENT_UNIT}; true"
+    ))?;
+    ensure(
+        without.trim() != "active",
+        format!("{AGENT_UNIT} started with its profile unloaded"),
+    )?;
+    ensure(
+        back.trim() == "active",
+        format!("{AGENT_UNIT} did not start again with its profile: {back}"),
+    )
+}
+
 /// Nothing a service did during the suite was refused, or would have been: the profiles fit the app.
 pub(crate) fn nothing_refused(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let seen = vm.run(DECISIONS)?;

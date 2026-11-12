@@ -15,6 +15,8 @@ User=medbrains
 Group=medbrains
 EnvironmentFile=/etc/medbrains/env
 WorkingDirectory=/var/lib/medbrains
+# Refuses to start unconfined: AppArmor off or this profile not enforcing (L6).
+ExecStartPre=+/usr/lib/medbrains/require-apparmor medbrains-server
 ExecStart=/usr/bin/medbrains-server
 Restart=on-failure
 RestartSec=5s
