@@ -18,7 +18,7 @@ The [DPG Standard](https://digitalpublicgoods.net/standard/) has nine criteria. 
 |---|---|
 | 1. Relevance to SDGs | SDG 3 (good health and well-being). |
 | 2. Open licence | AGPL-3.0 (OSI-approved). See [LICENSE](./LICENSE). A commercial licence is also offered ([COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md)); the AGPL version is always free. |
-| 3. Clear ownership | Copyright Domnic Amalan S and contributors ([NOTICE](./NOTICE)). Contributions are signed off under the DCO. |
+| 3. Clear ownership | Copyright Domnic Amalan S and contributors ([NOTICE](./NOTICE)). Contributions are accepted under a signed contributor licence agreement ([CLA.md](./CLA.md)); the name is covered by [TRADEMARKS.md](./TRADEMARKS.md). |
 | 4. Platform independence | Self-hostable on an open stack (Rust, PostgreSQL, React). No proprietary runtime. |
 | 5. Documentation | Architecture, module RFCs and contribution docs are in the repository. |
 | 6. Data extraction and no lock-in | Open PostgreSQL schema, per-patient FHIR R4 Bundle download, CSV exports and documented backups. Whole-hospital FHIR bulk export is on the roadmap. |
