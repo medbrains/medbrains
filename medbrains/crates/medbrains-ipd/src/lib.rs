@@ -2881,10 +2881,45 @@ pub async fn create_mar(
 //  PUT /api/ipd/admissions/{id}/mar/{mar_id}
 // ══════════════════════════════════════════════════════════
 
+/// Whether `witness` may be the second checker on a high-alert dose: an active
+/// user of this tenant whose resolved grant (role, access groups, `access_matrix`
+/// extra and temporary grants, less denied) holds `nurse.mar.witness`.
+///
+/// Read inside the caller's transaction. A bypass role's row carries no codes,
+/// so an admin witnesses only when granted the code by name.
+///
+/// # Errors
+/// The grant could not be read. That is neither a yes nor a no: the caller
+/// fails the request rather than refusing or allowing the dose.
+async fn witness_may_check(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    witness: Uuid,
+) -> Result<bool, AppError> {
+    let role = sqlx::query_scalar::<_, String>(
+        "SELECT role::text FROM users \
+         WHERE id = $1 AND tenant_id = $2 AND is_active = true AND deleted_at IS NULL",
+    )
+    .bind(witness)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(role) = role else {
+        return Ok(false);
+    };
+    let granted = medbrains_server_core::permissions::resolve_granted_permissions_on(
+        tx, tenant_id, witness, &role,
+    )
+    .await?;
+    Ok(granted
+        .iter()
+        .any(|code| code == permissions::nurse::mar::WITNESS))
+}
+
 /// Apply a MAR dose status transition with the full IPSG.3 medication-safety gate, shared by
 /// BOTH MAR update endpoints so neither can bypass the checks: an already-administered dose is
-/// immutable; a high-alert `given` requires an independent second-nurse witness (different, real,
-/// active) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
+/// immutable; a high-alert `given` requires an independent witness (a different, active user
+/// holding `nurse.mar.witness`) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
 /// `barcode_verified` is server-authoritative (never client-set). `admission_id` optionally scopes
 /// the dose to a specific admission (the admission-nested endpoint) — `None` matches by id alone.
 async fn administer_mar_dose_in_tx(
@@ -2937,19 +2972,11 @@ async fn administer_mar_dose_in_tx(
                             .to_owned(),
                     ));
                 }
-                let witness_is_active = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS( \
-                         SELECT 1 FROM users \
-                         WHERE id = $1 AND tenant_id = $2 AND is_active = true \
-                     )",
-                )
-                .bind(witness)
-                .bind(tenant_id)
-                .fetch_one(&mut **tx)
-                .await?;
-                if !witness_is_active {
+                if !witness_may_check(tx, tenant_id, witness).await? {
                     return Err(AppError::BadRequest(
-                        "The witness must be an active staff user for this tenant.".to_owned(),
+                        "The witness must be an active colleague allowed to witness high-alert \
+                         doses (nurse.mar.witness)."
+                            .to_owned(),
                     ));
                 }
                 if !existing.barcode_verified {
@@ -8852,36 +8879,6 @@ pub async fn expected_discharges(
     tx.commit().await?;
     Ok(Json(rows))
 }
-
-#[cfg(test)]
-mod discharge_summary_tests {
-    use super::missing_discharge_summary_fields;
-
-    #[test]
-    fn complete_summary_has_no_missing() {
-        let missing = missing_discharge_summary_fields(
-            Some("Community-acquired pneumonia"),
-            Some("Stable, afebrile"),
-            Some("IV antibiotics, improved"),
-            Some("Review in 1 week"),
-        );
-        assert!(missing.is_empty());
-    }
-
-    #[test]
-    fn blank_and_missing_fields_are_reported() {
-        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
-        assert_eq!(
-            missing,
-            vec![
-                "condition at discharge",
-                "course in hospital",
-                "follow-up instructions"
-            ]
-        );
-    }
-}
-
 /// Inpatient department (admissions, wards, MAR, rounds, discharge, nursing) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -9140,4 +9137,33 @@ pub fn router() -> axum::Router<AppState> {
             get(get_admission_consents),
         )
         .route("/api/ipd/discharges/expected", get(expected_discharges))
+}
+
+#[cfg(test)]
+mod discharge_summary_tests {
+    use super::missing_discharge_summary_fields;
+
+    #[test]
+    fn complete_summary_has_no_missing() {
+        let missing = missing_discharge_summary_fields(
+            Some("Community-acquired pneumonia"),
+            Some("Stable, afebrile"),
+            Some("IV antibiotics, improved"),
+            Some("Review in 1 week"),
+        );
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn blank_and_missing_fields_are_reported() {
+        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
+        assert_eq!(
+            missing,
+            vec![
+                "condition at discharge",
+                "course in hospital",
+                "follow-up instructions"
+            ]
+        );
+    }
 }
