@@ -19,10 +19,11 @@ async fn credential_report_counts_expiry_by_date_not_by_status() {
     let app = common::spawn_app().await;
     let _csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let employee_id: Uuid = sqlx::query_scalar(
         "INSERT INTO employees (tenant_id, employee_code, first_name) \
