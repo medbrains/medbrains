@@ -6,7 +6,7 @@ need their own go · Owner: Domnic Amalan S
 ## 0. North star
 
 **A world-class, AI-native hospital operating system that costs almost nothing to run.** Free and open
-(Apache-2.0), runs on any chip down to a Raspberry Pi, needs no paid licence, built on standards,
+(AGPL-3.0-only, with a commercial licence for vendors), runs on any chip down to a Raspberry Pi, needs no paid licence, built on standards,
 safe by construction. The way macOS builds on an open foundation and adds what people love, MedBrains
 builds on Debian and adds the hospital layer: the kernel, signature features and flagship apps.
 
@@ -260,7 +260,7 @@ profiles (`clinic` first) with the Pi image; **SM3** dependency diet ratchet.
 A library of flows, forms, blocks and adapters from MedBrains and certified partners: each with
 what it does, who built it, its review status and the hospitals using it. Installing anything goes
 through a change set (preview impact, approval, rollback). Free items and paid partner items can
-both exist; the core stays free (Apache-2.0).
+both exist; the core stays free (AGPL-3.0-only).
 
 ## 6. Phases (each ends on a screen or a check, per project law)
 
@@ -790,8 +790,7 @@ clearly lowers risk. Linux itself has not moved to Rust: it is permanent there, 
 share of the kernel. Do not describe MedBrains as "100% Rust".
 
 **pgrust: watch, do not adopt.** pgrust is a Rust rewrite of PostgreSQL 18 that matches PostgreSQL's
-regression output. Its own README says it is not production-ready. It is also AGPL-3.0, which is
-stricter than the Apache-2.0 terms partners build on here, and regression tests do not prove crash
+regression output. Its own README says it is not production-ready. Its AGPL-3.0 licence matches ours, so licence is not the obstacle; regression tests do not prove crash
 recovery or correctness under concurrency, which is what patient records depend on. Review it again
 only when it has real production use, independent crash and corruption testing, and a licence
 compatible with §8. The SQL and migrations stay plain PostgreSQL, so a later move stays possible.
