@@ -135,17 +135,17 @@ jobs:
           cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
             --library target/debug/libmedbrains_edge_rn.so --language kotlin \
             --out-dir apps/android/core/src/main/kotlin
-      # Tests are non-blocking here, as for Rust: a failing test still leaves coverage for the rest.
+      # A failing Android unit test fails this job: no other workflow runs the kit's tests, so a
+      # warning here would be the only signal and nobody reads it. The analysis still runs
+      # (it needs this job only to have finished) and carries the other coverage reports.
       - name: Kit unit tests with coverage
         working-directory: medbrains/apps/android
-        run: |
-          ./gradlew :kit:createDebugUnitTestCoverageReport --no-daemon \
-            || echo "::warning::Some Android unit tests failed; coverage is reported for the rest."
+        run: ./gradlew :kit:createDebugUnitTestCoverageReport --no-daemon
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-jacoco
           path: medbrains/apps/android/kit/build/reports/coverage/test/debug/report.xml
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 14
 
   sonarqube:
