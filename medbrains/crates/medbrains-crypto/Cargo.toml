@@ -33,4 +33,6 @@ rand = { workspace = true }
 
 # UHI (Beckn) HTTP signatures: ed25519 over a BLAKE2b-512 body digest.
 ed25519-dalek = { workspace = true }
+# The JWT pair is proven at start-up by the library that uses it (`keys::jwt_keys`).
+jsonwebtoken = { workspace = true }
 blake2 = "0.11"

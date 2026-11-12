@@ -126,8 +126,8 @@ export function CashDrawerTab({
         opened={openModal && canOpenWithAmount}
         onClose={closeOpenDrawerModal}
         onOpened={() => {
-          qc.invalidateQueries({ queryKey: ["cash-drawer"] });
-          qc.invalidateQueries({ queryKey: ["cash-drawers"] });
+          void qc.invalidateQueries({ queryKey: ["cash-drawer"] });
+          void qc.invalidateQueries({ queryKey: ["cash-drawers"] });
         }}
         amountAccess={amountAccess}
       />
@@ -135,8 +135,8 @@ export function CashDrawerTab({
         drawer={closeFor}
         onClose={() => setCloseFor(null)}
         onClosed={() => {
-          qc.invalidateQueries({ queryKey: ["cash-drawer"] });
-          qc.invalidateQueries({ queryKey: ["cash-drawers"] });
+          void qc.invalidateQueries({ queryKey: ["cash-drawer"] });
+          void qc.invalidateQueries({ queryKey: ["cash-drawers"] });
         }}
         amountAccess={amountAccess}
       />

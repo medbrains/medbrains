@@ -6,8 +6,14 @@
 //!
 //! Stored Ed25519 private keys are AES-GCM wrapped before writing to
 //! `doctor_signature_credentials.encrypted_private_key`. The secret is resolved
-//! from `MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY`; local dev falls back with a
-//! warning so the app remains runnable.
+//! from `MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY`; only an unset key in
+//! development falls back to the in-repo one (`secrets::sealing`).
+//!
+//! Before a key signs, it must unseal and derive the credential's stored
+//! `public_key`; each signature is verified (`verify_strict`) before it is
+//! written. A credential that fails either is refused and nothing is signed.
+//! A plaintext key from before sealing (until May 2026) that passes the same
+//! check is sealed in place the first time it signs.
 
 use axum::extract::rejection::JsonRejection;
 use axum::{
@@ -461,10 +467,10 @@ async fn write_signature(
     payload_snapshot: &Value,
     with: &SignWith<'_>,
 ) -> Result<(SignedRecord, signing::SignedPayload), AppError> {
-    type CredentialRow = (Uuid, Option<Vec<u8>>, Option<String>, Option<String>);
+    type CredentialRow = (Uuid, Option<Vec<u8>>, Option<String>, Vec<u8>);
     let cred_row: Option<CredentialRow> = if let Some(cid) = with.credential_id {
         sqlx::query_as(
-            "SELECT id, encrypted_private_key, display_image_url, display_font \
+            "SELECT id, encrypted_private_key, display_image_url, public_key \
              FROM doctor_signature_credentials \
              WHERE id = $1 AND tenant_id = $2 \
                AND doctor_user_id = $3 AND revoked_at IS NULL \
@@ -477,7 +483,7 @@ async fn write_signature(
         .await?
     } else {
         sqlx::query_as(
-            "SELECT id, encrypted_private_key, display_image_url, display_font \
+            "SELECT id, encrypted_private_key, display_image_url, public_key \
              FROM doctor_signature_credentials \
              WHERE tenant_id = $1 AND doctor_user_id = $2 \
                AND is_default AND revoked_at IS NULL \
@@ -489,7 +495,7 @@ async fn write_signature(
         .await?
     };
 
-    let (cred_id, priv_key_opt, display_image, _) = cred_row.ok_or_else(|| {
+    let (cred_id, priv_key_opt, display_image, stored_public) = cred_row.ok_or_else(|| {
         AppError::BadRequest(
             "no active default signature credential for this user — admin must issue one"
                 .to_owned(),
@@ -504,20 +510,20 @@ async fn write_signature(
 
     let key_encryption_key = signature_key_encryption_key(state).await?;
     let key_context = signature_key_context(&claims.tenant_id, &claims.sub);
-    let priv_key_bytes = decrypt_signature_private_key(
+    let unsealed = unseal_signing_key(
         &key_encryption_key,
         key_context.as_bytes(),
         &encrypted_priv_key,
+        &stored_public,
         cred_id,
     )?;
-
-    let priv_key = priv_key_bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| AppError::Internal("invalid stored private key".to_owned()))
-        .map(|arr: &[u8; 32]| arr.to_vec())?;
-    let signed = signing::sign_payload(&priv_key, payload_snapshot)
+    if unsealed.was_plaintext {
+        let context = key_context.as_bytes();
+        reseal_legacy_key(tx, &key_encryption_key, context, &unsealed.seed, cred_id).await?;
+    }
+    let signed = signing::sign_payload(&unsealed.seed, payload_snapshot)
         .map_err(|e| AppError::Internal(format!("sign: {e}")))?;
+    check_signature(&stored_public, &signed, cred_id)?;
 
     let display_block = display_block(claims, &signed.hash, cred_id);
 
@@ -749,6 +755,7 @@ pub(crate) fn to_hex(bytes: &[u8]) -> String {
     })
 }
 
+/// The server key that seals doctors' signing keys, by the shared sealing rule.
 async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppError> {
     medbrains_core::secrets::sealing::sealing_key(
         state.secret_resolver.as_ref(),
@@ -759,28 +766,117 @@ async fn signature_key_encryption_key(state: &AppState) -> Result<Vec<u8>, AppEr
     .map_err(AppError::from)
 }
 
+/// The AEAD context a doctor's key is sealed under: bound to tenant and doctor,
+/// so a sealed key copied to another row will not open.
 fn signature_key_context(tenant_id: &Uuid, doctor_user_id: &Uuid) -> String {
     format!("medbrains:doctor-signature-key:v1:{tenant_id}:{doctor_user_id}")
 }
 
-fn decrypt_signature_private_key(
+/// A credential's private key, unsealed and proven to be that credential's.
+pub(crate) struct Unsealed {
+    pub seed: Vec<u8>,
+    /// Stored as plaintext before keys were sealed (until May 2026); the
+    /// caller re-seals it.
+    pub was_plaintext: bool,
+}
+
+/// Unseal a credential's private key and prove it is that credential's key:
+/// the seed must be 32 bytes, not one repeated byte, and derive the stored
+/// `public_key`. A 32-byte plaintext key from before keys were sealed is
+/// accepted only under that same proof (it is then provably this
+/// credential's key) and is flagged for re-sealing.
+///
+/// # Errors
+/// 503 naming `MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY` when a sealed key will
+/// not open (the server key changed: every credential is affected); 400 when
+/// the key is not the credential's. Nothing is signed.
+pub(crate) fn unseal_signing_key(
     key_encryption_key: &[u8],
     context: &[u8],
     encrypted_private_key: &[u8],
+    stored_public: &[u8],
     credential_id: Uuid,
-) -> Result<Vec<u8>, AppError> {
-    match medbrains_crypto::aead::decrypt_bytes(key_encryption_key, context, encrypted_private_key)
-    {
-        Ok(private_key) => Ok(private_key),
-        Err(_) if encrypted_private_key.len() == 32 => {
-            tracing::warn!(
-                credential_id = %credential_id,
-                "using legacy plaintext doctor signature credential; rotate this credential"
-            );
-            Ok(encrypted_private_key.to_vec())
+) -> Result<Unsealed, AppError> {
+    let (seed, was_plaintext) = match medbrains_crypto::aead::decrypt_bytes(
+        key_encryption_key,
+        context,
+        encrypted_private_key,
+    ) {
+        Ok(seed) => (seed, false),
+        // A sealed key is always longer than 32 bytes (nonce and tag).
+        Err(_) if encrypted_private_key.len() == 32 => (encrypted_private_key.to_vec(), true),
+        Err(_) => {
+            tracing::error!(credential_id = %credential_id, "doctor signature key will not unseal");
+            return Err(AppError::ServiceUnavailable(format!(
+                "signing is unavailable: the server's {SIGNATURE_KEY_SECRET} cannot open \
+                     signature keys (it was changed or replaced). Ask your administrator to \
+                     restore it from the backup of the server's settings; nothing was signed"
+            )));
         }
-        Err(_) => Err(AppError::Internal(
-            "signature credential private key decrypt failed; rotate credential".to_owned(),
-        )),
-    }
+    };
+    medbrains_crypto::keys::ed25519_signing_key(&seed, stored_public, "signature key").map_err(
+        |e| {
+            tracing::error!(
+                credential_id = %credential_id,
+                public_key = %medbrains_crypto::keys::fingerprint(stored_public),
+                error = %e,
+                "doctor signature key refused"
+            );
+            AppError::BadRequest(
+                "this signature credential has a damaged key; nothing was signed — ask an \
+                 administrator to issue a new credential"
+                    .to_owned(),
+            )
+        },
+    )?;
+    Ok(Unsealed {
+        seed,
+        was_plaintext,
+    })
 }
+
+/// Seal a legacy plaintext key in place, once, now that it is proven to be
+/// the credential's.
+///
+/// # Errors
+/// 500 when it cannot be sealed; a database error.
+async fn reseal_legacy_key(
+    tx: &mut sqlx::PgConnection,
+    key_encryption_key: &[u8],
+    context: &[u8],
+    seed: &[u8],
+    credential_id: Uuid,
+) -> Result<(), AppError> {
+    let sealed = medbrains_crypto::aead::encrypt_bytes(key_encryption_key, context, seed)
+        .map_err(|_| AppError::Internal("signature key encryption failed".to_owned()))?;
+    sqlx::query("UPDATE doctor_signature_credentials SET encrypted_private_key = $1 WHERE id = $2")
+        .bind(sealed.as_slice())
+        .bind(credential_id)
+        .execute(&mut *tx)
+        .await?;
+    tracing::warn!(credential_id = %credential_id, "legacy plaintext signature key sealed");
+    Ok(())
+}
+
+/// Verify a signature just made against the credential's public key, before
+/// it is written: a signature nobody can verify must never be stored.
+///
+/// # Errors
+/// `Internal` when it does not verify.
+fn check_signature(
+    stored_public: &[u8],
+    signed: &signing::SignedPayload,
+    credential_id: Uuid,
+) -> Result<(), AppError> {
+    use medbrains_crypto::keys::{ed25519_public_key, verify_strict};
+    ed25519_public_key(stored_public, "signature public key")
+        .and_then(|key| verify_strict(&key, &signed.hash, &signed.signature, "signature"))
+        .map_err(|e| {
+            tracing::error!(credential_id = %credential_id, error = %e, "signature did not verify");
+            AppError::Internal("the signature did not verify; nothing was signed".to_owned())
+        })
+}
+
+#[cfg(test)]
+#[path = "signatures_key_tests.rs"]
+mod key_tests;

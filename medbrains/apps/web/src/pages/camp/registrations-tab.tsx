@@ -111,7 +111,7 @@ export function RegistrationsTab({
       // The consultation screen already exists at its own address. The camp
       // copy was the same EncounterDetail in a full-height drawer, with no
       // URL and none of the real page's loading and permission handling.
-      navigate(
+      void navigate(
         `/opd/encounters/${result.encounter_id}?return=${encodeURIComponent(
           campWorkPath(registration.camp_id, contextPatientId, "registrations"),
         )}`,
@@ -140,7 +140,7 @@ export function RegistrationsTab({
       return;
     }
 
-    navigate(campClinicalRoutePath(registration.camp_id, registration.id, contextPatientId));
+    void navigate(campClinicalRoutePath(registration.camp_id, registration.id, contextPatientId));
   };
 
   const columns: Column<CampRegistration>[] = [

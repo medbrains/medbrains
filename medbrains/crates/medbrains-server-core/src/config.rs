@@ -199,21 +199,8 @@ impl AppConfig {
         let environment =
             medbrains_core::secrets::sealing::environment_name(raw.medbrains_env.as_deref());
 
-        // JWT keys: if both are set use them, otherwise generate dev keypair.
-        // Production must never run on an ephemeral keypair — a restart would
-        // silently invalidate every active session.
-        let (private_pem, public_pem) = match (raw.jwt_private_key, raw.jwt_public_key) {
-            (Some(priv_key), Some(pub_key)) => (priv_key, pub_key),
-            _ if environment != medbrains_core::secrets::sealing::DEVELOPMENT => {
-                return Err(ConfigError::Invalid {
-                    key: "JWT_PRIVATE_KEY / JWT_PUBLIC_KEY".to_owned(),
-                    reason: "both must be set outside development; refusing to \
-                             generate an ephemeral keypair"
-                        .to_owned(),
-                });
-            }
-            _ => generate_dev_keypair()?,
-        };
+        let (private_pem, public_pem) =
+            jwt_pair(raw.jwt_private_key, raw.jwt_public_key, &environment)?;
 
         // Parse trusted proxies from comma-separated CIDR list
         let trusted_proxies: Vec<ipnet::IpNet> = raw
@@ -300,6 +287,41 @@ pub enum ConfigError {
     KeyGen(String),
 }
 
+/// The configured JWT pair, or a fresh one only when neither half is set in
+/// development. One half alone is a broken pair, in every mode: generating a
+/// new pair would silently discard the half the operator did set. Production
+/// never runs on an ephemeral pair — a restart would end every session.
+///
+/// # Errors
+/// One half set without the other; neither set outside development.
+fn jwt_pair(
+    private: Option<String>,
+    public: Option<String>,
+    environment: &str,
+) -> Result<(String, String), ConfigError> {
+    let set = |v: Option<String>| v.filter(|k| !k.trim().is_empty());
+    let half = |key: &str| ConfigError::Invalid {
+        key: key.to_owned(),
+        reason: "only one half of the JWT pair is set; set both halves of one pair \
+                 (refusing to generate a new pair over the half that is set)"
+            .to_owned(),
+    };
+    match (set(private), set(public)) {
+        (Some(private), Some(public)) => Ok((private, public)),
+        (Some(_), None) => Err(half("JWT_PUBLIC_KEY")),
+        (None, Some(_)) => Err(half("JWT_PRIVATE_KEY")),
+        (None, None) if environment == medbrains_core::secrets::sealing::DEVELOPMENT => {
+            generate_dev_keypair()
+        }
+        (None, None) => Err(ConfigError::Invalid {
+            key: "JWT_PRIVATE_KEY / JWT_PUBLIC_KEY".to_owned(),
+            reason: "both must be set outside development; refusing to generate an \
+                     ephemeral keypair"
+                .to_owned(),
+        }),
+    }
+}
+
 /// Ed25519 PKCS#8 DER prefix (16 bytes) — wraps a 32-byte seed into a valid PKCS#8 structure.
 const PKCS8_ED25519_PREFIX: [u8; 16] = [
     0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
@@ -331,4 +353,40 @@ fn generate_dev_keypair() -> Result<(String, String), ConfigError> {
     let public_b64 = STANDARD.encode(verifying_key.to_bytes());
 
     Ok((private_b64, public_b64))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ConfigError, jwt_pair};
+
+    fn some(v: &str) -> Option<String> {
+        Some(v.to_owned())
+    }
+
+    #[test]
+    fn one_half_of_the_jwt_pair_refuses_in_every_mode() {
+        for env in ["development", "production"] {
+            for (private, public) in [(some("k"), None), (None, some("k")), (some("k"), some(" "))]
+            {
+                assert!(
+                    matches!(
+                        jwt_pair(private, public, env),
+                        Err(ConfigError::Invalid { .. })
+                    ),
+                    "{env}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_new_pair_is_made_only_when_neither_half_is_set_in_development() {
+        assert!(jwt_pair(None, None, "production").is_err());
+        assert!(jwt_pair(some(""), some(""), "staging").is_err());
+        assert!(jwt_pair(None, None, "development").is_ok());
+        assert!(matches!(
+            jwt_pair(some("a"), some("b"), "production"),
+            Ok((a, b)) if a == "a" && b == "b"
+        ));
+    }
 }

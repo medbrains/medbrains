@@ -24,7 +24,7 @@ export function useRequirePermission(code: string | readonly string[]): void {
   useEffect(() => {
     if (!hasPermission) {
       const state: AccessDeniedState = { from: pathname + search, need: need.split(",") };
-      navigate("/forbidden", { replace: true, state });
+      void navigate("/forbidden", { replace: true, state });
     }
   }, [hasPermission, navigate, pathname, search, need]);
 }

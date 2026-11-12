@@ -178,13 +178,13 @@ export function AppLayout() {
     // session. Without this, the next user on a shared workstation could be
     // served the previous user's cached records before a refetch.
     queryClient.clear();
-    navigate("/login");
+    void navigate("/login");
   };
 
   const handleNavigate = useCallback(
     (path: string) => {
       preloadRoute(path);
-      navigate(path);
+      void navigate(path);
       closeMobile();
     },
     [navigate, closeMobile],

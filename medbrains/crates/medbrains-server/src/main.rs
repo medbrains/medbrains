@@ -5,7 +5,6 @@ use axum::{
     Router,
     http::{HeaderName, HeaderValue, Method, header::CONTENT_TYPE},
 };
-use jsonwebtoken::{DecodingKey, EncodingKey};
 use tower_http::{
     compression::CompressionLayer,
     cors::{AllowOrigin, CorsLayer},
@@ -203,9 +202,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Build JWT keys from Ed25519 PEM/base64
-    let encoding_key = EncodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_private_key_pem)?);
-    let decoding_key = DecodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_public_key_pem)?);
+    // The JWT pair is parsed with the real decoders and proven by a signed
+    // probe; a damaged or mismatched pair refuses to boot (keys::jwt_keys).
+    let medbrains_crypto::keys::JwtKeys {
+        encoding: encoding_key,
+        decoding: decoding_key,
+        fingerprint,
+    } = medbrains_crypto::keys::jwt_keys(&config.jwt_private_key_pem, &config.jwt_public_key_pem)
+        .map_err(|e| {
+        format!(
+            "refusing to start: {e}. Generate JWT_PRIVATE_KEY and JWT_PUBLIC_KEY together \
+                 as one pair (docs/architecture/OS-KEYS.md) and restart"
+        )
+    })?;
+    tracing::info!(jwt_public_key = %fingerprint, "JWT signing pair checked");
 
     // Cookie configuration
     let cookie_config = CookieConfig {
@@ -1207,26 +1217,6 @@ async fn run_verify_chain(
         std::process::exit(2);
     }
     Ok(())
-}
-
-/// Decode a base64-encoded or raw PEM key into DER bytes.
-fn decode_b64_or_pem(input: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use base64::Engine;
-    use base64::engine::general_purpose::STANDARD;
-
-    // Try base64 decode first
-    let trimmed = input.trim();
-    if let Ok(bytes) = STANDARD.decode(trimmed) {
-        return Ok(bytes);
-    }
-
-    // Fall back to treating as PEM — extract base64 content between headers
-    let b64_content: String = trimmed
-        .lines()
-        .filter(|line| !line.starts_with("-----"))
-        .collect();
-
-    Ok(STANDARD.decode(b64_content)?)
 }
 
 #[cfg(test)]

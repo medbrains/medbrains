@@ -10,6 +10,10 @@ GitHub release notes, so write each section for a hospital IT team.
 
 ## [Unreleased]
 
+### Licence
+
+- MedBrains is now dual-licensed: GNU AGPL-3.0, free for everyone, or a commercial licence for vendors who sell, host or embed it without sharing their changes. Versions released before 2026-11-12 stay under Apache 2.0. The client SDKs stay under Apache 2.0.
+
 ## [1.0.0]
 
 The first versioned release. Everything before it was built on `main`

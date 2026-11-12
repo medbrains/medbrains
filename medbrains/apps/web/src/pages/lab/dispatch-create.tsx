@@ -55,7 +55,7 @@ export function LabDispatchCreatePage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-report-dispatches"] });
       toast.success("Dispatch recorded");
-      navigate(backTo);
+      void navigate(backTo);
     },
     onError: (error: Error) => toast.error(error.message, { title: "Could not record dispatch" }),
   });

@@ -94,10 +94,13 @@ async fn open_tx<'a>(
     Ok(tx)
 }
 
+/// The HTTP answer for a PACS error: 400 for a refused address, 503 for
+/// missing setup, a fixed 500 for a store or database fault.
 fn to_app_error(error: PacsError) -> AppError {
     match error {
         PacsError::NotAllowed(msg) => AppError::BadRequest(msg),
         PacsError::NotSetUp(msg) => AppError::ServiceUnavailable(msg),
+        PacsError::KeyStore => AppError::Internal(error.to_string()),
         PacsError::Db(e) => AppError::Internal(format!("PACS settings: {e}")),
     }
 }
