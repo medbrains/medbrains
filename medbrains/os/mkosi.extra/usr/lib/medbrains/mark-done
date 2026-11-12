@@ -1,0 +1,9 @@
+#!/bin/bash
+# mark-done FILE: writes a "this step is finished" marker so a power cut cannot get ahead of the work it vouches
+# for. Everything written on the marker's filesystem is flushed first (ext4 commits every 5 s, and a rename can
+# reach the disk before the data it names), then the marker and its directory entry. A marker lost to a cut
+# only repeats an idempotent step; a marker kept while its work was lost skips that step for good.
+set -euo pipefail
+sync -f "$(dirname "$1")"
+touch "$1"
+sync "$1" "$(dirname "$1")"
