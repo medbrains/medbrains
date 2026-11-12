@@ -11,8 +11,11 @@ def _creds():
     if os.environ.get("MB_DEMO_PASSWORD"):
         return {"hospital code": os.environ.get("MB_DEMO_HOSPITAL", "G2DEMO"), "username": os.environ.get("MB_DEMO_USER", "demo_admin"),
                 "password": os.environ["MB_DEMO_PASSWORD"]}
+    path = os.environ.get("MB_DEMO_LOGIN_FILE", os.path.expanduser("~/.mb-demo-login.txt"))
+    if os.stat(path).st_mode & 0o077:
+        sys.exit(f"{path} holds a password and is readable by others: chmod 600 {path}")
     d = {}
-    for line in open(os.environ.get("MB_DEMO_LOGIN_FILE", os.path.expanduser("~/.mb-demo-login.txt"))):
+    for line in open(path):
         k, _, v = line.partition(":")
         d[k.strip()] = v.strip()
     return d
