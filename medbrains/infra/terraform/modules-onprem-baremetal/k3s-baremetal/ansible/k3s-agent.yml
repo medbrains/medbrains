@@ -23,7 +23,7 @@
     - name: Render /etc/medbrains/cluster-meta
       copy:
         dest: /etc/medbrains/cluster-meta
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): cluster id and server address, no secret
         content: |
           cluster_id={{ cluster_id }}
           role=agent

@@ -196,7 +196,7 @@ export function CampPatientContextPanel({ patientId }: { patientId: string }) {
                   }))}
                   onChange={(campId) => {
                     if (campId) {
-                      navigate(campWorkPath(campId, patientId));
+                      void navigate(campWorkPath(campId, patientId));
                     }
                   }}
                   w={320}

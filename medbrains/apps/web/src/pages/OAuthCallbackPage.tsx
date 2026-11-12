@@ -44,7 +44,7 @@ export function OAuthCallbackPage() {
 
     const stateOk = Boolean(returnedState) && returnedState === savedState;
     if (oauthError || !code || !provider || !stateOk) {
-      navigate(SETTINGS_TARGET, { replace: true });
+      void navigate(SETTINGS_TARGET, { replace: true });
       return;
     }
     exchange.mutate(provider);

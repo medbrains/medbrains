@@ -44,7 +44,7 @@ export function MedicationRound({ patientId }: Props) {
       nurseActivitiesService.updateMarRound(id, input),
     onSuccess: () => {
       setActive(null);
-      qc.invalidateQueries({ queryKey: ["mar-due-now"] });
+      void qc.invalidateQueries({ queryKey: ["mar-due-now"] });
       toast.success("Dose recorded", { title: "eMAR" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not record dose" }),

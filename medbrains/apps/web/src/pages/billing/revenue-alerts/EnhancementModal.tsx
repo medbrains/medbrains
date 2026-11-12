@@ -30,7 +30,7 @@ export function EnhancementModal({ alert, onClose }: EnhancementModalProps) {
         note: note.trim() || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "revenue-alerts"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "revenue-alerts"] });
       toast.success("Enhancement requested");
       onClose();
     },

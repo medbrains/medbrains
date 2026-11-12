@@ -83,7 +83,7 @@ export function VerifyPackPage() {
     mutationFn: () => pharmacyService.markFulfilmentVerified(orderId),
     onSuccess: () => {
       notifications.show({ title: "Pack checked", message: "Ready to be called", color: "green" });
-      navigate("/pharmacy/fulfilment");
+      void navigate("/pharmacy/fulfilment");
     },
     onError: (error: Error) =>
       notifications.show({ title: "Cannot finish", message: error.message, color: "red" }),

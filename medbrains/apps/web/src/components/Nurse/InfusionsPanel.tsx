@@ -60,7 +60,7 @@ export function InfusionsPanel({ admissionId }: Props) {
       ipdService.updateInfusion(admissionId, id, data),
     onSuccess: () => {
       setDiscontinuing(null);
-      invalidate();
+      void invalidate();
     },
     onError: (e: Error) => toast.error(e.message, { title: "Infusion update failed" }),
   });
@@ -138,7 +138,7 @@ export function InfusionsPanel({ admissionId }: Props) {
         admissionId={admissionId}
         onCreated={() => {
           form.close();
-          invalidate();
+          void invalidate();
         }}
       />
 
