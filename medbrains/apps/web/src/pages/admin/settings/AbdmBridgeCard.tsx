@@ -78,7 +78,7 @@ export function AbdmBridgeCard() {
     mutationFn: (v: FormValues) => abdmSettingsService.registerBridge(v),
     onSuccess: (done) => {
       setResult(done);
-      queryClient.invalidateQueries({ queryKey: KEY });
+      void queryClient.invalidateQueries({ queryKey: KEY });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not register the bridge" }),
   });

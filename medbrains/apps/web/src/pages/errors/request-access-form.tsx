@@ -43,7 +43,7 @@ export function RequestAccessForm({ permission, onCancel }: RequestAccessFormPro
       }),
     onSuccess: () => {
       toast.success("Request sent. Your administrators have been notified.");
-      queryClient.invalidateQueries({ queryKey: ["iam-access-requests"] });
+      void queryClient.invalidateQueries({ queryKey: ["iam-access-requests"] });
       onCancel();
     },
     onError: (err: Error) => toast.error(err.message),

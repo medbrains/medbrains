@@ -7,6 +7,7 @@
     patroni_version: "{{ patroni_version }}"
     cluster_id: "{{ cluster_id }}"
     etcd_hosts_csv: "{{ etcd_hosts_csv }}"
+    etcd_pki_dir: "{{ etcd_pki_dir }}"
     pg_data_block_device: "{{ pg_data_block_device }}"
     synchronous_replication: "{{ synchronous_replication }}"
 
@@ -97,6 +98,27 @@
       args:
         creates: /etc/medbrains/secrets/postgres.env
 
+    - name: Install Patroni's etcd client certificate and the cluster CA
+      block:
+        - file:
+            path: /etc/medbrains/etcd-pki
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: '0700'
+        - copy:
+            src: "{{ etcd_pki_dir }}/{{ item.name }}"
+            dest: "/etc/medbrains/etcd-pki/{{ item.name }}"
+            owner: postgres
+            group: postgres
+            mode: "{{ item.mode }}"
+          loop:
+            - { name: ca.crt, mode: '0644' } # NOSONAR(S2612): public CA certificate
+            - { name: patroni.crt, mode: '0644' } # NOSONAR(S2612): public certificate
+            - { name: patroni.key, mode: '0600' }
+          no_log: true
+          notify: restart patroni
+
     - name: Render patroni.yml
       template:
         src: patroni.yml.j2
@@ -104,6 +126,7 @@
         owner: postgres
         group: postgres
         mode: '0600'
+      notify: restart patroni
 
     - name: Load softdog
       block:
@@ -122,7 +145,7 @@
     - name: Patroni systemd unit
       copy:
         dest: /etc/systemd/system/patroni.service
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): systemd unit, no secret
         content: |
           [Unit]
           Description=Patroni PostgreSQL HA orchestrator (medbrains)
@@ -153,3 +176,10 @@
         daemon_reload: yes
         enabled: yes
         state: started
+
+  handlers:
+    - name: restart patroni
+      systemd:
+        name: patroni
+        daemon_reload: yes
+        state: restarted

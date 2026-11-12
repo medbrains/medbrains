@@ -219,7 +219,7 @@ export function PatientFlowNavigator({
                 disabled={!item.enabled}
                 onClick={() => {
                   if (onStageAction?.(item.id)) return;
-                  navigate(item.href);
+                  void navigate(item.href);
                 }}
               >
                 {patientFlowItemLabel(t, item)}

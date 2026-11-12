@@ -24,11 +24,13 @@
     - name: Render /etc/rancher/k3s/config.yaml
       copy:
         dest: /etc/rancher/k3s/config.yaml
-        mode: '0644'
+        # The file carries the cluster join token, and the kubeconfig k3s writes is cluster
+        # admin: neither may be readable by every local user. Ansible runs as root (become).
+        mode: '0600'
         content: |
           cluster-init: true
           token: {{ k3s_token }}
-          write-kubeconfig-mode: "0644"
+          write-kubeconfig-mode: "0600"
           tls-san:
             - {{ cluster_id }}.medbrains.internal
           disable:
@@ -41,7 +43,7 @@
     - name: Render /etc/medbrains/cluster-meta
       copy:
         dest: /etc/medbrains/cluster-meta
-        mode: '0644'
+        mode: '0644' # NOSONAR(S2612): cluster id and login server, no secret
         content: |
           cluster_id={{ cluster_id }}
           headscale_login={{ headscale_login_server }}

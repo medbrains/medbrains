@@ -1,7 +1,7 @@
 ---
 title: Contribute to MedBrains
 sidebar_position: 4
-description: "How to contribute to MedBrains: feature branches, signed commits (DCO), one change per pull request with its screen and tests, and recording decisions."
+description: "How to contribute to MedBrains: feature branches, a signed contributor licence agreement, one change per pull request with its screen and tests, and decisions."
 ---
 
 # Contribute
@@ -13,8 +13,9 @@ is wrong is the most valuable help of all. For code:
    approach.
 2. **Branch from `main`:** `feature/<name>` or `fix/<name>`. Never commit to
    `main` directly.
-3. **Sign every commit** with `git commit -s` (Developer Certificate of
-   Origin).
+3. **Sign the contributor licence agreement** (`CLA.md` in the repository)
+   when the CLA bot asks on your first pull request. Outside pull requests
+   merge only after it is signed; until then, open an issue.
 4. **One change per pull request,** with its screen, its API and its tests
    together. A backend change ships its UI.
 5. **Define permissions first,** in Rust. See

@@ -128,7 +128,7 @@ function CampClinicalRoutePageInner() {
       }
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       void qc.invalidateQueries({ queryKey: ["opd-queue"] });
-      navigate(
+      void navigate(
         `/opd/encounters/${result.encounter_id}?return=${encodeURIComponent(
           campWorkPath(campId ?? "", contextPatientId, "registrations"),
         )}`,

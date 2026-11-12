@@ -129,7 +129,7 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
         message: `User ${formValues.username} created`,
         color: "green",
       });
-      qc.invalidateQueries({ queryKey: ["setup-users"] });
+      void qc.invalidateQueries({ queryKey: ["setup-users"] });
       reset();
       onClose();
     },

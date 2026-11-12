@@ -213,7 +213,7 @@ export function AdminCoveragePage() {
           }))}
           onClose={createHandlers.close}
           onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ["admin-coverage"] });
+            void queryClient.invalidateQueries({ queryKey: ["admin-coverage"] });
             createHandlers.close();
           }}
         />

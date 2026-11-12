@@ -157,16 +157,18 @@ export function AdmissionDetail({
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     const workspaceTab = ipdWorkspaceTabForOrderBasket(tab);
     setActiveWorkspaceTab(workspaceTab);
-    navigate(ipdAdmissionOrderBasketRoute(admissionId, tab));
+    void navigate(ipdAdmissionOrderBasketRoute(admissionId, tab));
   }
 
   function changeOrderBasketTab(tab: OrderBasketTab) {
     setActiveWorkspaceTab(ipdWorkspaceTabForOrderBasket(tab));
-    navigate(ipdAdmissionOrderBasketRoute(admissionId, tab), { replace: true });
+    void navigate(ipdAdmissionOrderBasketRoute(admissionId, tab), { replace: true });
   }
 
   function closeOrderBasket() {
-    navigate(ipdAdmissionWorkspaceTabRoute(admissionId, activeWorkspaceTab), { replace: true });
+    void navigate(ipdAdmissionWorkspaceTabRoute(admissionId, activeWorkspaceTab), {
+      replace: true,
+    });
   }
 
   const { data } = useQuery({

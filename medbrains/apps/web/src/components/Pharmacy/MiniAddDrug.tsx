@@ -79,7 +79,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
     mutationFn: (payload: CreatePharmacyCatalogInput) =>
       pharmacyCatalogService.createPharmacyCatalog(payload),
     onSuccess: (drug) => {
-      queryClient.invalidateQueries({ queryKey: ["drug-search"] });
+      void queryClient.invalidateQueries({ queryKey: ["drug-search"] });
       notifications.show({
         title: "Drug added",
         message: `${drug.name} is now selected`,
