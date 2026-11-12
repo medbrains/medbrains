@@ -1,6 +1,6 @@
 # medbrains-edge
 
-Offline-first edge sync for hospital deployments. Apache-2.0 licensed.
+Offline-first edge sync for hospital deployments. AGPL-3.0-only, or a commercial licence.
 
 ## What this is
 
@@ -77,6 +77,6 @@ send a different protocol see an `Error` frame with the mismatch.
 
 ## Open source
 
-Apache-2.0. PRs welcome. The wire format is documented; alternative
+AGPL-3.0-only, or a commercial licence (see the repository's `COMMERCIAL-LICENSE.md`). PRs welcome. The wire format is documented; alternative
 implementations (Swift for clinical tablets, Java for hospital-internal
 desktop apps) are explicitly supported.
