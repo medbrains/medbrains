@@ -11,7 +11,7 @@ use uuid::Uuid;
 /// A test step's result: a failed seed or request fails the test with its error.
 type R<T> = Result<T, Box<dyn std::error::Error>>;
 
-/// A patient of this tenant, with an issued, unpaid bill of `bill_total`.
+/// A patient of this tenant and the id of their issued, unpaid bill.
 struct Patient {
     id: Uuid,
     invoice: Uuid,
@@ -249,13 +249,14 @@ async fn a_deposit_never_pays_another_patients_bill() -> R<()> {
     grant(&app, tenant, owner.id, &desk).await?;
     grant(&app, tenant, other.id, &desk).await?;
 
-    let (_, advance) = post(
+    let (status, advance) = post(
         &app,
         &desk,
         "/api/billing/advances",
         &json!({ "patient_id": owner.id, "amount": "800", "payment_mode": "cash" }),
     )
     .await?;
+    assert_eq!(status, StatusCode::OK, "{advance}");
     let adv = advance["id"].as_str().ok_or("advance id")?.to_owned();
     let (status, _) = post(
         &app,
@@ -292,13 +293,14 @@ async fn refunds_need_their_permission_and_deposits_need_the_patient() -> R<()> 
     let stranger = patient_with_bill(&app, tenant, 1000).await?;
     grant(&app, tenant, mine.id, &desk).await?;
 
-    let (_, advance) = post(
+    let (status, advance) = post(
         &app,
         &desk,
         "/api/billing/advances",
         &json!({ "patient_id": mine.id, "amount": "300", "payment_mode": "cash" }),
     )
     .await?;
+    assert_eq!(status, StatusCode::OK, "{advance}");
     let adv = advance["id"].as_str().ok_or("advance id")?.to_owned();
     let (status, _) = post(
         &app,
