@@ -622,6 +622,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::mar::HOLD,
             permissions::nurse::mar::REFUSE,
             permissions::nurse::mar::WITNESS,
+            permissions::nurse::mar::ADMINISTER_HIGH_ALERT,
             permissions::nurse::prescriptions::DRAFT,
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::nurse::vitals::VIEW,
