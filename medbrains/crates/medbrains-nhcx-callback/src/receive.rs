@@ -394,6 +394,7 @@ fn unverified_protected_header(token: &str) -> Map<String, Value> {
 fn config_error(e: ConfigError) -> AppError {
     match e {
         ConfigError::NotSetUp(m) => AppError::ServiceUnavailable(m),
+        ConfigError::KeyStore(m) => AppError::Internal(m),
         ConfigError::Db(e) => AppError::from(e),
     }
 }

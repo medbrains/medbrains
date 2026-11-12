@@ -400,6 +400,7 @@ fn transient(e: &sqlx::Error) -> HandlerError {
 fn from_config(e: ConfigError) -> HandlerError {
     match e {
         ConfigError::NotSetUp(m) => HandlerError::Permanent(m),
+        ConfigError::KeyStore(m) => HandlerError::Transient(m),
         ConfigError::Db(e) => transient(&e),
     }
 }

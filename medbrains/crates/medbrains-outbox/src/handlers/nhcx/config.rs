@@ -13,10 +13,9 @@ use uuid::Uuid;
 
 /// Secret-store key holding the sealing key.
 const SEALING_KEY_NAME: &str = "MEDBRAINS_NHCX_SECRET_KEY";
-/// Development fallback only. Production never uses it: without the real key
-/// NHCX is off (preflight warns, `secret.nhcx_key`) and [`sealing_key`] refuses.
+/// Development fallback only, used solely when the key is unset and
+/// `MEDBRAINS_ENV=development` (see `medbrains_core::secrets::sealing`).
 const DEV_SEALING_KEY: &[u8] = b"medbrains-dev-nhcx-secret-key-32";
-const MIN_SEALING_KEY_LEN: usize = 32;
 pub const CLIENT_SECRET_CONTEXT: &[u8] = b"nhcx-client-secret";
 pub const PRIVATE_KEY_CONTEXT: &[u8] = b"nhcx-private-key";
 /// When the hospital has not saved its own, the ABDM client credentials the
@@ -29,28 +28,30 @@ pub enum ConfigError {
     /// Something the hospital must set up first; the message says what.
     #[error("{0}")]
     NotSetUp(String),
+    /// The secret store could not answer; retry, never fall back.
+    #[error("{0}")]
+    KeyStore(String),
     #[error("database: {0}")]
     Db(#[from] sqlx::Error),
 }
 
-/// The sealing key for NHCX secrets. Outside production a missing key falls
-/// back to the development key in the source; in production it is an error,
-/// never a silent fallback that seals hospital keys with a public value.
+/// The sealing key for NHCX secrets, decided by the one shared rule
+/// (`medbrains_core::secrets::sealing::sealing_key`): the development key only
+/// when unset in development; a store fault is never a fallback.
 ///
 /// # Errors
-/// [`ConfigError::NotSetUp`] in production when the key is missing or short.
+/// [`ConfigError::NotSetUp`] when the key is unset (off development) or short;
+/// [`ConfigError::KeyStore`] when the store could not answer.
 pub async fn sealing_key(resolver: &dyn SecretResolver) -> Result<Vec<u8>, ConfigError> {
-    match resolver.get(SEALING_KEY_NAME).await {
-        Ok(value) if value.len() >= MIN_SEALING_KEY_LEN => Ok(value.into_bytes()),
-        _ if std::env::var("MEDBRAINS_ENV").is_ok_and(|e| e == "production") => {
-            tracing::debug!("NHCX disabled: {SEALING_KEY_NAME} not set");
-            Err(ConfigError::NotSetUp(format!(
-                "NHCX is not configured on this server — ask your administrator to set \
-                 {SEALING_KEY_NAME}"
-            )))
-        }
-        _ => Ok(DEV_SEALING_KEY.to_vec()),
-    }
+    use medbrains_core::secrets::sealing::{self, SealingKeyError};
+    sealing::sealing_key(resolver, SEALING_KEY_NAME, DEV_SEALING_KEY)
+        .await
+        .map_err(|e| match e {
+            SealingKeyError::Unreadable { .. } => ConfigError::KeyStore(e.to_string()),
+            SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => ConfigError::NotSetUp(
+                format!("NHCX is not configured on this server ({e}) — ask your administrator"),
+            ),
+        })
 }
 
 /// The environment variable the server still needs before NHCX can work, or

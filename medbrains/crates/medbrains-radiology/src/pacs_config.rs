@@ -98,6 +98,7 @@ fn to_app_error(error: PacsError) -> AppError {
     match error {
         PacsError::NotAllowed(msg) => AppError::BadRequest(msg),
         PacsError::NotSetUp(msg) => AppError::ServiceUnavailable(msg),
+        PacsError::KeyStore(msg) => AppError::Internal(msg),
         PacsError::Db(e) => AppError::Internal(format!("PACS settings: {e}")),
     }
 }

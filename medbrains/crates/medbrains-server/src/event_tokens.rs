@@ -73,5 +73,11 @@ pub async fn open_event_token(
 }
 
 async fn event_token_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), EVENT_TOKEN_KEY_SECRET, DEV_EVENT_TOKEN_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        EVENT_TOKEN_KEY_SECRET,
+        DEV_EVENT_TOKEN_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }

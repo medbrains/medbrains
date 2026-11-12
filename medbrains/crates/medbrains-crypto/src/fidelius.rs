@@ -8,8 +8,14 @@
 //!   multiplication, no clamping. The shared secret is the affine X of `d·Q`,
 //!   32 bytes big-endian.
 //! - Public keys are the uncompressed point `04‖X‖Y` (65 bytes, base64). A
-//!   peer key may also arrive as X.509 SubjectPublicKeyInfo with explicit
-//!   curve parameters; its last 65 bytes are that same point.
+//!   peer key may also arrive as X.509 SubjectPublicKeyInfo (`id-ecPublicKey`
+//!   with this curve's explicit parameters); it is parsed as SPKI and its
+//!   curve must be this one.
+//! - A peer point is refused at infinity, off the curve, or outside the
+//!   prime-order subgroup (`n·Q ≠ O`; the cofactor is 8, so small-order points
+//!   exist). Our private scalar must be `1 ≤ d < n`, at most 32 bytes, and is
+//!   written padded to 32; [`check_pair`] proves a reopened `d` still derives
+//!   its stored public point.
 //! - `xor[i] = sender_nonce[i] ^ requester_nonce[i]` (32-byte nonces);
 //!   salt = `xor[..20]`, IV = `xor[20..]` (the last 12 bytes).
 //! - AES key = HKDF-SHA256(ikm = shared secret, salt, info = empty), 32 bytes.
@@ -22,7 +28,8 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use hkdf::Hkdf;
 use openssl::bn::{BigNum, BigNumContext};
-use openssl::ec::{EcGroup, EcPoint, PointConversionForm};
+use openssl::ec::{EcGroup, EcGroupRef, EcPoint, EcPointRef, PointConversionForm};
+use openssl::pkey::{Id, PKey};
 use rand::Rng;
 use sha2::Sha256;
 
@@ -35,6 +42,10 @@ const GX: &str = "2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD24
 const GY: &str = "20AE19A1B8A086B4E01EDD2C7748D14C923D4D7E6D7C61B229E9C5A27ECED3D9";
 const N: &str = "1000000000000000000000000000000014DEF9DEA2F79CD65812631A5CF5D3ED";
 const POINT_LEN: usize = 65;
+/// Bytes of a coordinate or of the private scalar, big-endian.
+const SCALAR_BYTES: usize = 32;
+/// [`SCALAR_BYTES`] as `BigNum::to_vec_padded` takes it.
+const SCALAR_LEN: i32 = 32;
 const NONCE_LEN: usize = 32;
 const SALT_LEN: usize = 20;
 const IV_LEN: usize = 12;
@@ -83,21 +94,150 @@ fn decode(b64: &str) -> Result<Vec<u8>, CryptoError> {
     B64.decode(b64.trim()).map_err(|_| CryptoError::Encoding)
 }
 
-/// A peer public key: the raw point, or the point at the end of an X.509 SPKI.
+/// A peer public key: the raw uncompressed point, or an SPKI on this curve.
+/// Only points in the prime-order subgroup are returned.
 fn peer_point(group: &EcGroup, b64: &str, ctx: &mut BigNumContext) -> Result<EcPoint, CryptoError> {
     let bytes = decode(b64)?;
-    let point = bytes
-        .len()
-        .checked_sub(POINT_LEN)
-        .map(|start| &bytes[start..])
-        .filter(|p| p.first() == Some(&0x04))
-        .ok_or(CryptoError::InvalidKey)?;
-    EcPoint::from_bytes(group, point, ctx).map_err(|_| CryptoError::InvalidKey)
+    let raw = if bytes.len() == POINT_LEN {
+        bytes
+    } else {
+        spki_point(group, &bytes, ctx)?
+    };
+    let q = EcPoint::from_bytes(group, &raw, ctx).map_err(|_| CryptoError::InvalidKey)?;
+    in_subgroup(group, &q, ctx)?;
+    Ok(q)
 }
 
+/// The uncompressed point inside an X.509 SubjectPublicKeyInfo, after proving
+/// its algorithm is `id-ecPublicKey` and its explicit curve is ours.
+fn spki_point(
+    group: &EcGroup,
+    der: &[u8],
+    ctx: &mut BigNumContext,
+) -> Result<Vec<u8>, CryptoError> {
+    let key = PKey::public_key_from_der(der).map_err(|_| CryptoError::InvalidKey)?;
+    if key.id() != Id::EC {
+        return Err(CryptoError::InvalidKey);
+    }
+    let ec = key.ec_key().map_err(|_| CryptoError::InvalidKey)?;
+    if !same_curve(group, ec.group(), ctx)? {
+        return Err(CryptoError::InvalidKey);
+    }
+    ec.public_key()
+        .to_bytes(ec.group(), PointConversionForm::UNCOMPRESSED, ctx)
+        .map_err(|_| CryptoError::InvalidKey)
+}
+
+/// The field, coefficients, order and generator of a curve, as bytes.
+fn curve_identity(
+    group: &EcGroupRef,
+    ctx: &mut BigNumContext,
+) -> Result<Vec<Vec<u8>>, CryptoError> {
+    let fail = |_| CryptoError::InvalidKey;
+    let (mut p, mut a, mut b, mut n) = (
+        BigNum::new().map_err(fail)?,
+        BigNum::new().map_err(fail)?,
+        BigNum::new().map_err(fail)?,
+        BigNum::new().map_err(fail)?,
+    );
+    group
+        .components_gfp(&mut p, &mut a, &mut b, ctx)
+        .map_err(fail)?;
+    group.order(&mut n, ctx).map_err(fail)?;
+    let g = group
+        .generator()
+        .to_bytes(group, PointConversionForm::UNCOMPRESSED, ctx)
+        .map_err(fail)?;
+    Ok(vec![p.to_vec(), a.to_vec(), b.to_vec(), n.to_vec(), g])
+}
+
+/// Whether `theirs` is the Fidelius curve, parameter for parameter.
+fn same_curve(
+    ours: &EcGroupRef,
+    theirs: &EcGroupRef,
+    ctx: &mut BigNumContext,
+) -> Result<bool, CryptoError> {
+    Ok(curve_identity(ours, ctx)? == curve_identity(theirs, ctx)?)
+}
+
+/// Refuse the point at infinity, a point off the curve, and any point with
+/// a small-order component: only `n·Q = O` (with `Q ≠ O`) is accepted.
+fn in_subgroup(
+    group: &EcGroupRef,
+    q: &EcPointRef,
+    ctx: &mut BigNumContext,
+) -> Result<(), CryptoError> {
+    if q.is_infinity(group)
+        || !q
+            .is_on_curve(group, ctx)
+            .map_err(|_| CryptoError::InvalidKey)?
+    {
+        return Err(CryptoError::InvalidKey);
+    }
+    let mut nq = EcPoint::new(group).map_err(|_| CryptoError::InvalidKey)?;
+    nq.mul2(group, q, &bn(N)?, ctx)
+        .map_err(|_| CryptoError::InvalidKey)?;
+    if nq.is_infinity(group) {
+        Ok(())
+    } else {
+        Err(CryptoError::InvalidKey)
+    }
+}
+
+/// Our private scalar: at most 32 bytes and `1 ≤ d < n`.
+fn private_scalar(b64: &str) -> Result<BigNum, CryptoError> {
+    let raw = decode(b64)?;
+    if raw.is_empty() || raw.len() > SCALAR_BYTES {
+        return Err(CryptoError::InvalidKey);
+    }
+    let d = BigNum::from_slice(&raw).map_err(|_| CryptoError::InvalidKey)?;
+    if d.num_bits() == 0 || d >= bn(N)? {
+        return Err(CryptoError::InvalidKey);
+    }
+    Ok(d)
+}
+
+/// The uncompressed point `d·G`, base64.
+fn public_of(group: &EcGroup, d: &BigNum, ctx: &mut BigNumContext) -> Result<String, CryptoError> {
+    let mut q = EcPoint::new(group).map_err(|_| CryptoError::InvalidKey)?;
+    q.mul_generator2(group, d, ctx)
+        .map_err(|_| CryptoError::InvalidKey)?;
+    let point = q
+        .to_bytes(group, PointConversionForm::UNCOMPRESSED, ctx)
+        .map_err(|_| CryptoError::InvalidKey)?;
+    Ok(B64.encode(point))
+}
+
+/// Prove reopened key material is whole: the private scalar is in range and
+/// derives the stored public point. A key cut or padded in storage fails here
+/// instead of producing ciphertext nobody can open.
+///
+/// # Errors
+/// [`CryptoError::InvalidKey`] when either half is damaged or they differ.
+pub fn check_pair(km: &KeyMaterial) -> Result<(), CryptoError> {
+    let (group, mut ctx) = curve()?;
+    let d = private_scalar(&km.private_key)?;
+    let stored = decode(&km.public_key)?;
+    if decode(&public_of(&group, &d, &mut ctx)?)? == stored {
+        Ok(())
+    } else {
+        Err(CryptoError::InvalidKey)
+    }
+}
+
+/// Check a peer's public key before any work is done for it.
+///
+/// # Errors
+/// [`CryptoError::InvalidKey`] for anything but a subgroup point on this curve.
+pub fn check_peer_key(b64: &str) -> Result<(), CryptoError> {
+    let (group, mut ctx) = curve()?;
+    peer_point(&group, b64, &mut ctx).map(|_| ())
+}
+
+/// The ECDH shared secret: affine X of `d·Q`, 32 bytes big-endian.
 fn shared_secret(private_b64: &str, peer_public_b64: &str) -> Result<[u8; 32], CryptoError> {
     let (group, mut ctx) = curve()?;
-    let d = BigNum::from_slice(&decode(private_b64)?).map_err(|_| CryptoError::InvalidKey)?;
+    let d = private_scalar(private_b64)?;
     let q = peer_point(&group, peer_public_b64, &mut ctx)?;
     let mut s = EcPoint::new(&group).map_err(|_| CryptoError::InvalidKey)?;
     s.mul2(&group, &q, &d, &mut ctx)
@@ -106,7 +246,9 @@ fn shared_secret(private_b64: &str, peer_public_b64: &str) -> Result<[u8; 32], C
     let mut y = BigNum::new().map_err(|_| CryptoError::InvalidKey)?;
     s.affine_coordinates_gfp(&group, &mut x, &mut y, &mut ctx)
         .map_err(|_| CryptoError::InvalidKey)?;
-    let padded = x.to_vec_padded(32).map_err(|_| CryptoError::InvalidKey)?;
+    let padded = x
+        .to_vec_padded(SCALAR_LEN)
+        .map_err(|_| CryptoError::InvalidKey)?;
     let mut out = [0_u8; 32];
     out.copy_from_slice(&padded);
     Ok(out)
@@ -155,17 +297,15 @@ pub fn generate() -> Result<KeyMaterial, CryptoError> {
             .rand_range(&mut d)
             .map_err(|_| CryptoError::InvalidKey)?;
     }
-    let mut q = EcPoint::new(&group).map_err(|_| CryptoError::InvalidKey)?;
-    q.mul_generator2(&group, &d, &mut ctx)
-        .map_err(|_| CryptoError::InvalidKey)?;
-    let point = q
-        .to_bytes(&group, PointConversionForm::UNCOMPRESSED, &mut ctx)
-        .map_err(|_| CryptoError::InvalidKey)?;
+    let public_key = public_of(&group, &d, &mut ctx)?;
     let mut nonce = [0_u8; NONCE_LEN];
     rand::rng().fill_bytes(&mut nonce);
     Ok(KeyMaterial {
-        private_key: B64.encode(d.to_vec()),
-        public_key: B64.encode(point),
+        private_key: B64.encode(
+            d.to_vec_padded(SCALAR_LEN)
+                .map_err(|_| CryptoError::InvalidKey)?,
+        ),
+        public_key,
         nonce: B64.encode(nonce),
     })
 }
@@ -228,58 +368,5 @@ pub fn checksum(plaintext: &str) -> Result<String, CryptoError> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
-    use super::{KeyMaterial, checksum, decrypt, encrypt, generate};
-
-    // The test vector published in mgrmtech/fidelius-cli's README.
-    const SENDER_PRIVATE: &str = "AYhVZpbVeX4KS5Qm/W0+9Ye2q3rnVVGmqRICmseWni4=";
-    const SENDER_PUBLIC: &str =
-        "BABVt+mpRLMXiQpIfEq6bj8hlXsdtXIxLsspmMgLNI1SR5mHgDVbjHO2A+U4QlMddGzqyEidzm1AkhtSxSO2Ahg=";
-    const SENDER_NONCE: &str = "lmXgblZwotx+DfBgKJF0lZXtAXgBEYr5khh79Zytr2Y=";
-    const REQUESTER_PRIVATE: &str = "DMxHPri8d7IT23KgLk281zZenMfVHSdeamq0RhwlIBk=";
-    const REQUESTER_PUBLIC: &str =
-        "BAheD5rUqTy4V5xR4/6HWmYpopu5CO+KO8BECS0udNqUTSNo91TIqIIy1A4Vh+F94c+n9vAcwXU2bGcfsI5f69Y=";
-    const REQUESTER_NONCE: &str = "6uj1RdDUbcpI3lVMZvijkMC8Te20O4Bcyz0SyivX8Eg=";
-    const PLAINTEXT: &str = "Wormtail should never have been Potter cottage's secret keeper.";
-    const CIPHERTEXT: &str = "pzMvVZNNVtJzqPkkxcCbBUWgDEBy/mBXIeT2dJWI16ZAQnnXUb9lI+S4k8XK6mgZSKKSRIHkcNvJpllnBg548wUgavBa0vCRRwdL6kY6Yw==";
-
-    fn km(private_key: &str, public_key: &str, nonce: &str) -> KeyMaterial {
-        KeyMaterial {
-            private_key: private_key.into(),
-            public_key: public_key.into(),
-            nonce: nonce.into(),
-        }
-    }
-
-    #[test]
-    fn matches_the_published_fidelius_vector() {
-        let sender = km(SENDER_PRIVATE, SENDER_PUBLIC, SENDER_NONCE);
-        let out = encrypt(PLAINTEXT, &sender, REQUESTER_PUBLIC, REQUESTER_NONCE).unwrap();
-        assert_eq!(out, CIPHERTEXT);
-        let requester = km(REQUESTER_PRIVATE, REQUESTER_PUBLIC, REQUESTER_NONCE);
-        let back = decrypt(CIPHERTEXT, &requester, SENDER_PUBLIC, SENDER_NONCE).unwrap();
-        assert_eq!(back, PLAINTEXT);
-    }
-
-    #[test]
-    fn generated_keys_round_trip_and_reject_a_wrong_nonce() {
-        let (hip, hiu) = (generate().unwrap(), generate().unwrap());
-        let sealed = encrypt(
-            "{\"resourceType\":\"Bundle\"}",
-            &hip,
-            &hiu.public_key,
-            &hiu.nonce,
-        )
-        .unwrap();
-        let opened = decrypt(&sealed, &hiu, &hip.public_key, &hip.nonce).unwrap();
-        assert_eq!(opened, "{\"resourceType\":\"Bundle\"}");
-        assert!(decrypt(&sealed, &hiu, &hip.public_key, &hiu.nonce).is_err());
-        assert!(!format!("{hip:?}").contains(&hip.private_key));
-    }
-
-    #[test]
-    fn the_entry_checksum_is_md5_hex() {
-        assert_eq!(checksum("abc").unwrap(), "900150983cd24fb0d6963f7d28e17f72");
-    }
-}
+#[path = "fidelius_tests.rs"]
+mod tests;
