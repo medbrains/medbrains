@@ -40,15 +40,26 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CRATES = os.path.join(ROOT, "crates")
 BASELINE = os.path.join(ROOT, "scripts", "query_in_loop.baseline.json")
 
+# One level of nested parentheses: `(a, f(b))`.
+ARGS = r"\((?:[^()]|\([^()]*\))*\)"
 LOOP_HEAD = re.compile(
     r"\bfor\s+[^;{}]+?\s+in\s+[^;{]+\{"
     r"|\bwhile\b[^;{]*\{"
     r"|\bloop\s*\{"
-    r"|\.(?:iter|into_iter|iter_mut|par_iter)\(\)\s*\.(?:map|for_each|filter_map|flat_map|then)\s*\("
+    # rows.iter().map(..), ids.into_iter().enumerate().map(..),
+    # stream::iter(ids).then(..): any adapters between source and closure.
+    r"|(?:\.(?:iter|into_iter|iter_mut|par_iter)\(\)|\bstream::iter" + ARGS + r")"
+    r"(?:\s*\.\w+" + ARGS + r")*?"
+    r"\s*\.(?:map|for_each|filter_map|flat_map|then|and_then|fold|try_fold|try_for_each|"
+    r"for_each_concurrent)\s*\("
 )
 QUERY = re.compile(r"\bsqlx::query(?:_as|_scalar|_with|_as_with|_scalar_with)?(?:!|::<|\()")
 WRITE = re.compile(r"\b(?:INSERT|UPDATE|DELETE)\b|\.execute\(")
 FN = re.compile(r"\bfn\s+([A-Za-z_][A-Za-z0-9_]*)")
+# `impl X {`, `impl<T> Tr for X<T> {`, `trait X {`: the name a method is keyed under.
+IMPL = re.compile(
+    r"\b(?:impl\b(?:\s*<[^{;]*?>)?\s+(?:[^{;]*?\bfor\s+)?|trait\s+)([A-Za-z_]\w*)[^{;]*\{"
+)
 BACKGROUND = re.compile(
     r"(?:^|[/_-])(?:seed\w*|migrat\w*|workers?|jobs?|cron|backfill|simulator|loadtest|bin|cli|"
     r"bench|scheduler|listener|outbox|replay|daemon)(?:[/_.-]|$)"
@@ -147,6 +158,29 @@ def triage(rel: str, call: str) -> str:
     return "write" if WRITE.search(call) else "real"
 
 
+def loop_spans(code: str) -> list[tuple[int, int]]:
+    """`(start, end)` of every loop body and iterator closure in masked `code`."""
+    return [(m.end(), block_end(code, m.end() - 1)) for m in LOOP_HEAD.finditer(code)]
+
+
+def owner_of(code: str, at: int) -> str:
+    """The function enclosing offset `at`, as `Type::fn` inside an impl or trait.
+
+    Bare `fn` names collide: two `impl` blocks in one file can each have a
+    `list`, and the ratchet would merge their counts.
+    """
+    fns = [m for m in FN.finditer(code, 0, at)]
+    if not fns:
+        return "<module>"
+    fn = fns[-1]
+    impls = [
+        m.group(1)
+        for m in IMPL.finditer(code, 0, fn.start())
+        if block_end(code, m.end() - 1) > fn.start()
+    ]
+    return f"{impls[-1]}::{fn.group(1)}" if impls else fn.group(1)
+
+
 def scan() -> list[tuple[str, int, str, str]]:
     """Every site as `(file, line, enclosing fn, verdict)`."""
     sites = []
@@ -154,13 +188,11 @@ def scan() -> list[tuple[str, int, str, str]]:
         rel = os.path.relpath(path, ROOT)
         src = open(path, encoding="utf-8").read()
         code = strip_tests(mask(src))
-        spans = [(m.end(), block_end(code, m.end() - 1)) for m in LOOP_HEAD.finditer(code)]
-        fns = [(m.start(), m.group(1)) for m in FN.finditer(code)]
+        spans = loop_spans(code)
         for q in QUERY.finditer(code):
             if not any(s <= q.start() <= e for s, e in spans):
                 continue
-            owner = [f for f in fns if f[0] < q.start()]
-            name = owner[-1][1] if owner else "<module>"
+            name = owner_of(code, q.start())
             verdict = triage(rel, src[q.start() : q.start() + 600])
             sites.append((rel, src.count("\n", 0, q.start()) + 1, name, verdict))
     return sites
@@ -174,7 +206,7 @@ def per_function(sites: list[tuple[str, int, str, str]]) -> dict[str, int]:
 def sites_in(code_text: str) -> int:
     """Query sites inside loops in one snippet (the self-test's probe)."""
     code = strip_tests(mask(code_text))
-    spans = [(m.end(), block_end(code, m.end() - 1)) for m in LOOP_HEAD.finditer(code)]
+    spans = loop_spans(code)
     return sum(any(s <= q.start() <= e for s, e in spans) for q in QUERY.finditer(code))
 
 
@@ -185,6 +217,12 @@ def self_test() -> None:
     assert sites_in("/// for a patient in the ward {\nfn f() { sqlx::query(\"SELECT {x}\"); }") == 0
     assert sites_in("let s = \"for x in y {\"; sqlx::query(\"a\");") == 0
     assert sites_in("#[cfg(test)]\nmod tests { fn t() { for a in b { sqlx::query(\"q\"); } } }") == 0
+    assert sites_in("ids.into_iter().enumerate().map(|(i, id)| sqlx::query(\"q\"))") == 1
+    assert sites_in("stream::iter(ids).then(|id| async move { sqlx::query(\"q\") })") == 1
+    assert sites_in("rows.iter().filter(|r| r.ok(1)).map(|r| sqlx::query(\"q\"))") == 1
+    two = "impl A { fn list() {} }\nimpl<T> Tr for B<T> { fn list() { x } }"
+    assert owner_of(mask(two), two.index("x")) == "B::list"
+    assert owner_of(mask(two), two.index("{} }")) == "A::list"
     print("self-test passed")
 
 

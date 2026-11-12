@@ -110,6 +110,11 @@ async fn assert_flat(
 ) -> R<()> {
     read(w, path).await?; // warm per-process caches (permissions, settings)
     let (one, body) = cost(w, path).await?;
+    // A list read runs at least its own SELECT: 0 means nothing was counted.
+    assert!(
+        one > 0,
+        "{path}: 0 statements counted — the query counter is not wired"
+    );
     assert_eq!(rows(&body, key), 1, "{path} at 1 row: {body}");
     seed_more().await?;
     let (fifty, body) = cost(w, path).await?;

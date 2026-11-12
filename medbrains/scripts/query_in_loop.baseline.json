@@ -38,7 +38,7 @@
  "crates/medbrains-clinical-ops/src/med_reconciliation.rs::create_med_reconciliation": 1,
  "crates/medbrains-cssd/src/lib.rs::create_set": 1,
  "crates/medbrains-dashboard/src/lib.rs::admin_update_layout": 1,
- "crates/medbrains-db/src/audit.rs::verify_chain_since": 2,
+ "crates/medbrains-db/src/audit.rs::AuditLogger::verify_chain_since": 2,
  "crates/medbrains-db/src/stock.rs::issue_fefo": 2,
  "crates/medbrains-db/src/stock.rs::receive_lines": 2,
  "crates/medbrains-doctor-packages/src/lib.rs::create_package": 1,

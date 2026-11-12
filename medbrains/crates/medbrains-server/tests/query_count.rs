@@ -56,8 +56,11 @@ impl<S: Subscriber> Layer<S> for CountStatements {
 
 /// Install the counting layer as the process's tracing subscriber, once.
 ///
-/// If something else installed a global subscriber first, the header is never
-/// set and every budget test fails on its absence — loudly, not silently.
+/// The middleware sets the header on every response, counted or not. If
+/// something else installed a global subscriber first, or sqlx's statement
+/// events are filtered out, every request reports 0, and `0 <= 0` would pass a
+/// budget. The budget tests therefore also require a non-zero count: every
+/// list read runs at least its own `SELECT`.
 pub fn install() {
     static INSTALLED: OnceLock<bool> = OnceLock::new();
     INSTALLED.get_or_init(|| {
