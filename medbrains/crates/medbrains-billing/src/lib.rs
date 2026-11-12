@@ -4,6 +4,7 @@
 // Re-exported flat so `medbrains_billing::<handler>` paths stay unchanged.
 mod accounting;
 pub use accounting::*;
+pub mod journal_rules;
 
 // Insurance, TPA and co-pay — money that arrives from someone other than the
 // patient. Re-exported flat so `medbrains_billing::<handler>` paths stay unchanged.
