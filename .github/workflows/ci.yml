@@ -98,6 +98,11 @@ jobs:
       - run: python3 scripts/check_no_card_logging.py
       - run: python3 scripts/check_egress_allowlist.py
       - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
+      # Live credentials, new private addresses or internal hostnames, and customer names
+      # (from a secret, never the repo) must not reach the public repo (#5501).
+      - run: python3 medbrains/scripts/check_secrets.py --self-test && python3 medbrains/scripts/check_secrets.py
+        env:
+          MEDBRAINS_CUSTOMER_NAMES: ${{ secrets.MEDBRAINS_CUSTOMER_NAMES }}
 
   docs:
     name: Every new function is documented

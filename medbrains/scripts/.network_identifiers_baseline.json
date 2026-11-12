@@ -1,0 +1,500 @@
+{
+ "RFCs/sprints/SPRINT-B-patroni-ha.md": [
+  "pg.medbrains.internal"
+ ],
+ "medbrains/RFCs/RFC-HOSPITAL-OS.md": [
+  "medbrains.local"
+ ],
+ "medbrains/apps/android/app-patient/build.gradle.kts": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-patient/src/androidTest/kotlin/com/medbrains/patient/PatientJourneyTest.kt": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-patient/src/androidTest/kotlin/com/medbrains/patient/PortalSeed.kt": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-patient/src/debug/res/xml/network_security_config.xml": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-staff/build.gradle.kts": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-staff/src/androidTest/kotlin/com/medbrains/staff/Api.kt": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-staff/src/androidTest/kotlin/com/medbrains/staff/OutageJourneyTest.kt": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-staff/src/debug/res/xml/network_security_config.xml": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/app-staff/src/main/kotlin/com/medbrains/staff/MainActivity.kt": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/kit/src/test/kotlin/com/medbrains/kit/HospitalBindingTest.kt": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/android/kit/src/test/kotlin/com/medbrains/kit/ServerUrlTest.kt": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/desktop/src-tauri/src/commands/server.rs": [
+  "10.0.0.5"
+ ],
+ "medbrains/apps/edge/etc/medbrains-edge/dev.toml": [
+  "medbrains-edge-dev.local"
+ ],
+ "medbrains/apps/ios/Packages/MedBrainsKit/Tests/MedBrainsKitTests/HospitalBindingTests.swift": [
+  "10.0.0.5"
+ ],
+ "medbrains/apps/mobile/src/config.ts": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/tv/src/config.ts": [
+  "10.0.2.2"
+ ],
+ "medbrains/apps/web/e2e/fixtures/patients.ts": [
+  "test.local"
+ ],
+ "medbrains/apps/web/e2e/mock/fixtures/module-api-fixtures.json": [
+  "10.20.30.10",
+  "10.20.30.11",
+  "10.20.40.10",
+  "10.20.40.11",
+  "bridge-agent-a.local",
+  "medbrains.local"
+ ],
+ "medbrains/apps/web/e2e/mock/module-actions.spec.ts": [
+  "10.20.40.12"
+ ],
+ "medbrains/apps/web/e2e/scenarios/actor-perspective-journeys.spec.ts": [
+  "e2e-bridge.local"
+ ],
+ "medbrains/apps/web/src/pages/admin/devices.tsx": [
+  "192.168.1.100"
+ ],
+ "medbrains/apps/web/src/pages/admin/doctors.tsx": [
+  "hospital.local"
+ ],
+ "medbrains/apps/web/src/pages/admin/machines.test.tsx": [
+  "10.1.1.9"
+ ],
+ "medbrains/apps/web/src/pages/admin/settings/Hl7AdtDestinationForm.test.tsx": [
+  "10.0.4.20"
+ ],
+ "medbrains/apps/web/src/pages/admin/settings/Hl7AdtDestinationForm.tsx": [
+  "10.0.4.20"
+ ],
+ "medbrains/apps/web/src/pages/admin/settings/OfflineModeSettings.tsx": [
+  "medbrains-edge.local"
+ ],
+ "medbrains/apps/web/src/pages/documents/printers-tab.tsx": [
+  "10.10.12.25"
+ ],
+ "medbrains/apps/web/src/pages/radiology/PacsSettingsCard.test.tsx": [
+  "10.0.0.5",
+  "10.0.0.9"
+ ],
+ "medbrains/apps/web/src/pages/radiology/PacsSettingsCard.tsx": [
+  "192.168.10.5",
+  "pacs.hospital.local"
+ ],
+ "medbrains/apps/web/src/providers/TenantConfigProvider.tsx": [
+  "medbrains-edge.local"
+ ],
+ "medbrains/crates/medbrains-agent/src/control.rs": [
+  "192.168.1.20"
+ ],
+ "medbrains/crates/medbrains-ai/src/lib.rs": [
+  "10.0.0.1"
+ ],
+ "medbrains/crates/medbrains-bridge/src/printer.rs": [
+  "10.0.0.21"
+ ],
+ "medbrains/crates/medbrains-bridge/src/transport/headscale.rs": [
+  "cloud-bridge.medbrains.internal"
+ ],
+ "medbrains/crates/medbrains-core/src/ai_redact/tests.rs": [
+  "10.0.0.12"
+ ],
+ "medbrains/crates/medbrains-dictation/src/address.rs": [
+  "10.2.3.4",
+  "172.16.0.9",
+  "192.168.1.20"
+ ],
+ "medbrains/crates/medbrains-dictation/src/settings.rs": [
+  "10.0.0.7"
+ ],
+ "medbrains/crates/medbrains-edge/README.md": [
+  "medbrains-edge.local"
+ ],
+ "medbrains/crates/medbrains-nhcx-callback/src/gateway_auth.rs": [
+  "10.0.0.1"
+ ],
+ "medbrains/crates/medbrains-os-setup/src/first_admin.rs": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/crates/medbrains-os-setup/src/machine.rs": [
+  "10.0.2.15",
+  "192.168.1.20"
+ ],
+ "medbrains/crates/medbrains-os-setup/src/rules.rs": [
+  "10.0.0.2",
+  "192.168.1.1",
+  "192.168.1.20"
+ ],
+ "medbrains/crates/medbrains-os-setup/src/status.rs": [
+  "10.0.0.1"
+ ],
+ "medbrains/crates/medbrains-os-test/src/front.rs": [
+  "10.1.2.3",
+  "hims.lan",
+  "medbrains.local",
+  "nhims.lan",
+  "x.internal"
+ ],
+ "medbrains/crates/medbrains-os-test/src/updates.rs": [
+  "10.0.2.2"
+ ],
+ "medbrains/crates/medbrains-outbox/src/handlers/webhook.rs": [
+  "10.0.0.5",
+  "192.168.1.10"
+ ],
+ "medbrains/crates/medbrains-patients/src/lib.rs": [
+  "p.local"
+ ],
+ "medbrains/crates/medbrains-payment-gateway/src/online/payu.rs": [
+  "medbrains.local"
+ ],
+ "medbrains/crates/medbrains-platform/src/hl7_adt.rs": [
+  "10.0.4.20",
+  "pacs.hospital.local",
+  "pacs.local"
+ ],
+ "medbrains/crates/medbrains-proxy/src/front/head_tests.rs": [
+  "10.0.0.5",
+  "medbrains.local"
+ ],
+ "medbrains/crates/medbrains-proxy/src/front/listen_tests.rs": [
+  "10.0.0.9",
+  "192.168.1.20",
+  "medbrains.local"
+ ],
+ "medbrains/crates/medbrains-proxy/src/front/names_tests.rs": [
+  "10.0.0.5",
+  "10.0.0.9",
+  "medbrains.local"
+ ],
+ "medbrains/crates/medbrains-proxy/src/front/site_tests.rs": [
+  "10.0.0.5",
+  "10.0.0.9",
+  "192.168.1.20",
+  "192.168.1.21",
+  "idm.medbrains.local",
+  "medbrains.local"
+ ],
+ "medbrains/crates/medbrains-radiology/src/pacs_config.rs": [
+  "10.0.0.5"
+ ],
+ "medbrains/crates/medbrains-seed/src/device_integration_fixtures.rs": [
+  "192.168.10.0",
+  "192.168.10.41"
+ ],
+ "medbrains/crates/medbrains-seed/src/lib.rs": [
+  "medbrains.local"
+ ],
+ "medbrains/crates/medbrains-server-core/src/config.rs": [
+  "10.0.0.0",
+  "172.16.0.0"
+ ],
+ "medbrains/crates/medbrains-server-core/src/middleware/client_ip.rs": [
+  "10.0.0.0",
+  "10.0.0.2",
+  "10.0.0.3"
+ ],
+ "medbrains/crates/medbrains-server-core/src/middleware/ip_restrict.rs": [
+  "10.0.0.0",
+  "10.1.2.3",
+  "10.5.5.5",
+  "192.168.1.1",
+  "192.168.1.7"
+ ],
+ "medbrains/crates/medbrains-server-core/src/os_identity.rs": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/crates/medbrains-server/src/routes/abdm/hiu/link.rs": [
+  "10.0.0.1",
+  "10.1.2.3",
+  "100.64.0.1",
+  "172.16.0.1",
+  "192.168.1.1"
+ ],
+ "medbrains/crates/medbrains-server/tests/abdm_m3_hiu_gaps_test.rs": [
+  "10.0.0.1"
+ ],
+ "medbrains/crates/medbrains-server/tests/analyzer_orders_test.rs": [
+  "10.0.0.40"
+ ],
+ "medbrains/crates/medbrains-server/tests/devices_test.rs": [
+  "10.0.0.100"
+ ],
+ "medbrains/crates/medbrains-server/tests/online_world/notices.rs": [
+  "medbrains.local"
+ ],
+ "medbrains/crates/medbrains-server/tests/pacs_security_test.rs": [
+  "10.20.30.40",
+  "10.20.30.99"
+ ],
+ "medbrains/crates/medbrains-server/tests/print_delivery_test.rs": [
+  "10.0.0.9"
+ ],
+ "medbrains/crates/medbrains-server/tests/sso_link_guard_test.rs": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/crates/medbrains-server/tests/webhook_subscriptions_test.rs": [
+  "10.1.2.3"
+ ],
+ "medbrains/crates/medbrains-shell/src/api.rs": [
+  "10.0.2.15"
+ ],
+ "medbrains/crates/medbrains-shell/src/apps.rs": [
+  "10.0.0.1",
+  "idm.medbrains.local",
+  "medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/crates/medbrains-shell/src/join.rs": [
+  "192.168.1.20"
+ ],
+ "medbrains/crates/medbrains-shell/src/main_address.rs": [
+  "192.168.1.20"
+ ],
+ "medbrains/crates/medbrains-shell/src/netmenu.rs": [
+  "10.0.0.5",
+  "10.0.2.15"
+ ],
+ "medbrains/crates/medbrains-shell/src/network.rs": [
+  "192.168.1.1",
+  "192.168.1.20",
+  "network.local"
+ ],
+ "medbrains/crates/medbrains-shell/src/ui.rs": [
+  "10.0.2.15"
+ ],
+ "medbrains/crates/medbrains-shell/src/webview.rs": [
+  "idm.medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/crates/medbrains-spicedb-proto/proto/buf/validate/validate.proto": [
+  "192.168.0.0",
+  "192.168.0.1",
+  "192.168.5.21"
+ ],
+ "medbrains/crates/medbrains-sso-login/src/lib.rs": [
+  "10.0.2.20",
+  "idm.medbrains.local",
+  "sso.local"
+ ],
+ "medbrains/deploy/headscale/config.yaml": [
+  "100.64.0.0",
+  "medbrains.internal"
+ ],
+ "medbrains/deploy/onprem/Caddyfile": [
+  "hims.hospital.local"
+ ],
+ "medbrains/deploy/onprem/README.md": [
+  "10.201.0.0",
+  "172.16.0.0",
+  "172.17.0.0",
+  "hims.hospital.local"
+ ],
+ "medbrains/deploy/pacs/README.md": [
+  "192.168.10.20",
+  "192.168.10.31"
+ ],
+ "medbrains/deploy/pacs/install.sh": [
+  "192.168.10.20",
+  "192.168.10.31"
+ ],
+ "medbrains/deploy/standalone/STORAGE.md": [
+  "rustfs.internal"
+ ],
+ "medbrains/deploy/standalone/medbrains-edge.toml.tmpl": [
+  "medbrains-edge.local"
+ ],
+ "medbrains/docs/DECISIONS.md": [
+  "10.0.2.2",
+  "idm.medbrains.local",
+  "medbrains.local"
+ ],
+ "medbrains/docs/security/partner-documents.md": [
+  "10.0.2.15",
+  "10.0.2.2",
+  "192.168.1.20",
+  "medbrains.local"
+ ],
+ "medbrains/docs/sops/28-pacs-dicom.md": [
+  "pacs.hospital.local"
+ ],
+ "medbrains/docs/vpn-platform-setup.md": [
+  "100.64.0.0"
+ ],
+ "medbrains/infra/k8s/cronjobs/pgbackrest-restore-test.yaml": [
+  "pushgateway.observability.svc.cluster.local"
+ ],
+ "medbrains/infra/packer/postgres-bottlerocket/files/medbrains-bootstrap.sh": [
+  "10.10.0.0"
+ ],
+ "medbrains/infra/terraform/modules-onprem-baremetal/patroni-baremetal/ansible/patroni.yml.j2": [
+  "10.0.0.0"
+ ],
+ "medbrains/infra/terraform/modules-onprem/patroni-onprem/cloud-init-pg.yaml.tmpl": [
+  "10.0.0.0"
+ ],
+ "medbrains/infra/terraform/modules/aurora/main.tf": [
+  "10.10.0.0"
+ ],
+ "medbrains/infra/terraform/modules/bridge-ingress/main.tf": [
+  "10.0.0.0"
+ ],
+ "medbrains/infra/terraform/modules/headscale/files/cloud-init.yaml.tmpl": [
+  "100.64.0.0",
+  "medbrains.internal"
+ ],
+ "medbrains/infra/terraform/modules/patroni-cluster/main.tf": [
+  "10.0.0.0"
+ ],
+ "medbrains/infra/terraform/modules/vpc/main.tf": [
+  "10.10.0.0",
+  "10.10.16.0",
+  "10.10.32.0"
+ ],
+ "medbrains/os/README.md": [
+  "idm.medbrains.local",
+  "medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/etc/hosts": [
+  "idm.medbrains.local",
+  "medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/etc/kanidm/server.toml": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/etc/nftables.conf": [
+  "medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/etc/systemd/resolved.conf.d/10-medbrains.conf": [
+  "medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/firstboot": [
+  "medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/front-certs": [
+  "10.0.0.0",
+  "172.16.0.0",
+  "192.168.0.0",
+  "host.local",
+  "idm.medbrains.local",
+  "medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/front.toml": [
+  "idm.medbrains.local",
+  "medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/kanidm-lib.sh": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/kanidm-reset-password": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/kanidm-setup": [
+  "idm.medbrains.local",
+  "medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/kanidm-tls": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/kanidm-upgrade": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/medbrains/role-network": [
+  "10.0.0.0",
+  "172.16.0.0",
+  "192.168.0.0"
+ ],
+ "medbrains/os/mkosi.extra/usr/lib/systemd/system/medbrains-role-network.service": [
+  "medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/share/medbrains/apps/identity.json": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/mkosi.extra/usr/share/medbrains/apps/medbrains.json": [
+  "idm.medbrains.local",
+  "screen.medbrains.local"
+ ],
+ "medbrains/os/qemu-run.sh": [
+  "10.0.3.0"
+ ],
+ "medbrains/os/tests/front-attacks.py": [
+  "idm.medbrains.local",
+  "medbrains.local"
+ ],
+ "medbrains/os/tests/front_attacks_slow.py": [
+  "medbrains.local"
+ ],
+ "medbrains/os/tests/front_lib.py": [
+  "medbrains.local"
+ ],
+ "medbrains/os/tests/kanidm-limit-test.py": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/tests/kanidm-one-login-test.py": [
+  "idm.medbrains.local",
+  "medbrains.local"
+ ],
+ "medbrains/os/tests/kanidm-passkey-lock.js": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/tests/kanidm-review-test.py": [
+  "idm.medbrains.local"
+ ],
+ "medbrains/os/tests/kanidm-upgrade-test.py": [
+  "10.0.2.2"
+ ],
+ "medbrains/os/tests/kanidm_lib.py": [
+  "idm.medbrains.local",
+  "medbrains.local"
+ ],
+ "medbrains/os/tests/sso-entra-fixture.py": [
+  "10.0.2.2"
+ ],
+ "medbrains/packages/api/src/client.test.ts": [
+  "pacs.local"
+ ],
+ "medbrains/packages/crdt/README.md": [
+  "medbrains-edge.local"
+ ],
+ "medbrains/packages/crdt/src/index.ts": [
+  "medbrains-edge.local"
+ ],
+ "medbrains/packages/mobile-shell/src/notifications/use-notifications.test.ts": [
+  "10.0.2.2"
+ ],
+ "medbrains/qa/test-cases/devices.yml": [
+  "192.168.1.100"
+ ],
+ "medbrains/runbooks/sprint-b-cutover.md": [
+  "pg-writer.medbrains.internal"
+ ],
+ "medbrains/scripts/simulators/hospital_stream.mjs": [
+  "simulator.local"
+ ],
+ "medbrains/scripts/test_device_ingest.sh": [
+  "192.168.1.100"
+ ]
+}
