@@ -447,6 +447,8 @@ jobs:
           OS_WORK="$RUNNER_TEMP/os" medbrains/os/build-iso.sh --arch ${{ matrix.arch }} --image "img/$name.raw.zst" --out "img/$name.iso"
           rm -f "$RUNNER_TEMP/sb.key"
           medbrains/os/formats.sh "$raw" "$name" ${{ matrix.arch }} img
+          # The image, its padded Azure copy and every format pass through this disk at once.
+          df -h "$PWD" "$RUNNER_TEMP"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: os-${{ matrix.arch }}
