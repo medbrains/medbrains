@@ -107,10 +107,7 @@ async fn expire_ai_prompts(
         summary.insert("ai_messages_expired".to_owned(), serde_json::json!(blanked));
     }
     if unmapped > 0 {
-        summary.insert(
-            "ai_pseudonym_maps_dropped".to_owned(),
-            serde_json::json!(unmapped),
-        );
+        summary.insert("ai_pseudonym_maps_dropped".to_owned(), serde_json::json!(unmapped));
     }
     Ok(())
 }

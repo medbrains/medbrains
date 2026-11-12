@@ -62,9 +62,7 @@ async fn both_people_on_a_shared_phone_are_offered_and_flagged() {
 
     let matches: Vec<serde_json::Value> = app
         .client
-        .get(app.url(&format!(
-            "/api/marketing/contacts/{contact_id}/patient-matches"
-        )))
+        .get(app.url(&format!("/api/marketing/contacts/{contact_id}/patient-matches")))
         .header("x-csrf-token", &csrf)
         .send()
         .await
@@ -137,18 +135,13 @@ async fn linking_closes_the_enquiry_and_the_callback_with_it() {
         .send()
         .await
         .expect("convert");
-    assert!(
-        res.status().is_success(),
-        "convert rejected: {:?}",
-        res.status()
-    );
+    assert!(res.status().is_success(), "convert rejected: {:?}", res.status());
 
-    let linked: Option<Uuid> =
-        sqlx::query_scalar("SELECT patient_id FROM mkt_contacts WHERE id = $1")
-            .bind(contact_id)
-            .fetch_one(&app.db)
-            .await
-            .expect("read patient_id");
+    let linked: Option<Uuid> = sqlx::query_scalar("SELECT patient_id FROM mkt_contacts WHERE id = $1")
+        .bind(contact_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("read patient_id");
     assert_eq!(linked, Some(patient_id));
 
     let open_callbacks: i64 = sqlx::query_scalar(
@@ -173,17 +166,15 @@ async fn linking_closes_the_enquiry_and_the_callback_with_it() {
     .fetch_one(&app.db)
     .await
     .expect("read stage");
-    assert!(
-        won,
-        "a converted enquiry must land in the won stage to be counted"
-    );
+    assert!(won, "a converted enquiry must land in the won stage to be counted");
 
-    let events: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM mkt_stage_events WHERE contact_id = $1")
-            .bind(contact_id)
-            .fetch_one(&app.db)
-            .await
-            .expect("count stage events");
+    let events: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM mkt_stage_events WHERE contact_id = $1",
+    )
+    .bind(contact_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("count stage events");
     assert!(events >= 1, "the move must be on the funnel history too");
 
     let logged: i64 = sqlx::query_scalar(
@@ -194,10 +185,7 @@ async fn linking_closes_the_enquiry_and_the_callback_with_it() {
     .fetch_one(&app.db)
     .await
     .expect("count interactions");
-    assert_eq!(
-        logged, 1,
-        "who converted this, and when, is an audit question"
-    );
+    assert_eq!(logged, 1, "who converted this, and when, is an audit question");
 }
 
 /// Registering mints one UHID and links it.
@@ -231,13 +219,14 @@ async fn registering_from_an_enquiry_creates_exactly_one_patient() {
         "a registered patient must carry a UHID from the tenant's own sequence"
     );
 
-    let created: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM patients WHERE tenant_id = $1 AND phone = $2")
-            .bind(tenant_id)
-            .bind(&phone)
-            .fetch_one(&app.db)
-            .await
-            .expect("count patients");
+    let created: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM patients WHERE tenant_id = $1 AND phone = $2",
+    )
+    .bind(tenant_id)
+    .bind(&phone)
+    .fetch_one(&app.db)
+    .await
+    .expect("count patients");
     assert_eq!(created, 1, "exactly one patient, not two");
 }
 
@@ -264,28 +253,20 @@ async fn an_enquiry_cannot_be_converted_twice() {
             .send()
     };
 
-    assert!(
-        convert()
-            .await
-            .expect("first convert")
-            .status()
-            .is_success()
-    );
+    assert!(convert().await.expect("first convert").status().is_success());
     assert_eq!(
         convert().await.expect("second convert").status().as_u16(),
         409,
         "a second conversion would mint a second UHID and split the chart"
     );
 
-    let patients: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM patients WHERE tenant_id = $1 AND phone = $2")
-            .bind(tenant_id)
-            .bind(&phone)
-            .fetch_one(&app.db)
-            .await
-            .expect("count patients");
-    assert_eq!(
-        patients, 1,
-        "and no duplicate may have been created on the way"
-    );
+    let patients: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM patients WHERE tenant_id = $1 AND phone = $2",
+    )
+    .bind(tenant_id)
+    .bind(&phone)
+    .fetch_one(&app.db)
+    .await
+    .expect("count patients");
+    assert_eq!(patients, 1, "and no duplicate may have been created on the way");
 }

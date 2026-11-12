@@ -61,8 +61,12 @@ async fn recording_vitals_queues_a_clinical_event() {
         .json()
         .await
         .expect("encounter json");
-    let encounter_id =
-        Uuid::parse_str(created["encounter"]["id"].as_str().expect("encounter id")).expect("uuid");
+    let encounter_id = Uuid::parse_str(
+        created["encounter"]["id"]
+            .as_str()
+            .expect("encounter id"),
+    )
+    .expect("uuid");
 
     let vital: serde_json::Value = app
         .client

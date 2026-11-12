@@ -192,9 +192,7 @@ async fn listen_for_wake(pool: &PgPool) -> Option<sqlx::postgres::PgListener> {
         Ok::<_, sqlx::Error>(l)
     }
     .await;
-    listener
-        .map_err(|e| tracing::warn!(error = %e, "outbox wake listener unavailable"))
-        .ok()
+    listener.map_err(|e| tracing::warn!(error = %e, "outbox wake listener unavailable")).ok()
 }
 
 /// The next wake-up, or never when there is no listener.

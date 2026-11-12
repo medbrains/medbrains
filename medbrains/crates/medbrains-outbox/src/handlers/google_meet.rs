@@ -162,9 +162,7 @@ fn classify_reqwest_err(e: &reqwest::Error) -> HandlerError {
 fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
     let trimmed = body.chars().take(512).collect::<String>();
     match status.as_u16() {
-        400 | 401 | 403 | 404 | 422 => {
-            HandlerError::Permanent(format!("google {status}: {trimmed}"))
-        }
+        400 | 401 | 403 | 404 | 422 => HandlerError::Permanent(format!("google {status}: {trimmed}")),
         429 | 500..=599 => HandlerError::Transient(format!("google {status}: {trimmed}")),
         _ => HandlerError::Transient(format!("google unexpected {status}: {trimmed}")),
     }

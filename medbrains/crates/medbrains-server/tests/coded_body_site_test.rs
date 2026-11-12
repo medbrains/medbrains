@@ -150,9 +150,7 @@ async fn an_ot_booking_carries_the_surgical_site_and_side() {
     let csrf = app.login_admin().await;
     // A theatre and a surgeon of this run's own: the seed has neither, and a
     // shared theatre's 09:00 slot is taken by the previous run's booking.
-    let surgeon = common::provision_staff(&app, &csrf, "doctor", &[])
-        .await
-        .user_id;
+    let surgeon = common::provision_staff(&app, &csrf, "doctor", &[]).await.user_id;
     let room: Uuid = sqlx::query_scalar(
         "INSERT INTO ot_rooms (tenant_id, name, code) \
          SELECT tenant_id, 'Body site theatre', $1 FROM users WHERE username = 'admin' \

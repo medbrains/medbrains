@@ -139,10 +139,7 @@ async fn discharge_releases_the_bed_and_queues_one_summary_and_one_mrd_request()
     .fetch_one(&app.db)
     .await
     .expect("bed status");
-    assert_eq!(
-        status, "vacant_clean",
-        "a cleaned bed can be allocated again"
-    );
+    assert_eq!(status, "vacant_clean", "a cleaned bed can be allocated again");
 
     // Emit half: one clinical event, one queued pipeline event.
     assert_eq!(

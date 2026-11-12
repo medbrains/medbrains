@@ -73,11 +73,7 @@ impl Handler for TeamsCreateMeetingHandler {
         // 1. Client-credentials token.
         let token_resp = ctx
             .http_client
-            .post(format!(
-                "{}/{}/oauth2/v2.0/token",
-                self.login_base(payload),
-                tenant
-            ))
+            .post(format!("{}/{}/oauth2/v2.0/token", self.login_base(payload), tenant))
             .form(&[
                 ("grant_type", "client_credentials"),
                 ("client_id", client_id.as_str()),
@@ -172,9 +168,7 @@ fn classify_reqwest_err(e: &reqwest::Error) -> HandlerError {
 fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
     let trimmed = body.chars().take(512).collect::<String>();
     match status.as_u16() {
-        400 | 401 | 403 | 404 | 422 => {
-            HandlerError::Permanent(format!("teams {status}: {trimmed}"))
-        }
+        400 | 401 | 403 | 404 | 422 => HandlerError::Permanent(format!("teams {status}: {trimmed}")),
         429 | 500..=599 => HandlerError::Transient(format!("teams {status}: {trimmed}")),
         _ => HandlerError::Transient(format!("teams unexpected {status}: {trimmed}")),
     }

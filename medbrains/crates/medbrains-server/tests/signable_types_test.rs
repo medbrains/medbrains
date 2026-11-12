@@ -101,11 +101,7 @@ pub(crate) async fn attend(app: &common::TestApp, tenant: Uuid, patient: Uuid, u
 
 /// A patient with an OPD visit by `doctor`, who attends them;
 /// (patient, encounter, department).
-pub(crate) async fn patient_visit(
-    app: &common::TestApp,
-    tenant: Uuid,
-    doctor: Uuid,
-) -> (Uuid, Uuid, Uuid) {
+pub(crate) async fn patient_visit(app: &common::TestApp, tenant: Uuid, doctor: Uuid) -> (Uuid, Uuid, Uuid) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
     let dept: Uuid = sqlx::query_scalar("SELECT id FROM departments WHERE tenant_id = $1 LIMIT 1")
         .bind(tenant)
@@ -175,11 +171,7 @@ pub(crate) async fn is_signed(app: &common::TestApp, table: &str, id: Uuid) -> b
 }
 
 /// A staff member of `role`, stepped up, with a signing key.
-pub(crate) async fn keyed_staff(
-    app: &common::TestApp,
-    admin_csrf: &str,
-    role: &str,
-) -> common::Staff {
+pub(crate) async fn keyed_staff(app: &common::TestApp, admin_csrf: &str, role: &str) -> common::Staff {
     let staff = common::provision_staff(app, admin_csrf, role, &[]).await;
     signatures_test::issue_key(app, admin_csrf, &staff.user_id.to_string()).await;
     app.step_up(&staff.client, &staff.csrf, &staff.password)
@@ -200,21 +192,11 @@ async fn every_signable_type_reads_the_live_schema() {
         .json()
         .await
         .expect("types json");
-    let published: Vec<&str> = types
-        .iter()
-        .filter_map(|t| t["record_type"].as_str())
-        .collect();
+    let published: Vec<&str> = types.iter().filter_map(|t| t["record_type"].as_str()).collect();
     let table: Vec<&str> = SIGNABLE.iter().map(|t| t.record_type).collect();
-    assert_eq!(
-        published, table,
-        "the server publishes exactly the types it signs"
-    );
+    assert_eq!(published, table, "the server publishes exactly the types it signs");
     for t in &types {
-        assert_eq!(
-            t["step_up"],
-            json!(true),
-            "{t}: every signature needs a step-up"
-        );
+        assert_eq!(t["step_up"], json!(true), "{t}: every signature needs a step-up");
     }
     for t in SIGNABLE {
         // Every payload query runs against the migrated schema.
@@ -243,11 +225,7 @@ async fn every_signable_type_reads_the_live_schema() {
         json!({ "record_type": "progress_note", "record_id": Uuid::new_v4() }),
     )
     .await;
-    assert_eq!(
-        status,
-        StatusCode::BAD_REQUEST,
-        "notes sign through their own ledger"
-    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "notes sign through their own ledger");
 }
 
 #[tokio::test]
@@ -425,12 +403,7 @@ async fn only_a_registered_licensed_author_signs_a_certificate() {
 }
 
 /// A vitals entry recorded by `nurse`.
-pub(crate) async fn vitals_entry(
-    app: &common::TestApp,
-    tenant: Uuid,
-    admin: Uuid,
-    nurse: Uuid,
-) -> Uuid {
+pub(crate) async fn vitals_entry(app: &common::TestApp, tenant: Uuid, admin: Uuid, nurse: Uuid) -> Uuid {
     let (patient, encounter, _) = patient_visit(app, tenant, admin).await;
     attend(app, tenant, patient, nurse).await;
     sqlx::query_scalar(

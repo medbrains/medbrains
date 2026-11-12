@@ -268,9 +268,11 @@ fn test_ctx(event_type: &str) -> HandlerCtx {
         http_client: reqwest::Client::new(),
         // Writes under a temporary root: a handler test that reached the real
         // document store would leave files behind on whoever ran it.
-        object_store: std::sync::Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
-            std::env::temp_dir().join("medbrains-outbox-tests"),
-        )),
+        object_store: std::sync::Arc::new(
+            medbrains_core::object_store::LocalFsObjectStore::new(
+                std::env::temp_dir().join("medbrains-outbox-tests"),
+            ),
+        ),
     }
 }
 

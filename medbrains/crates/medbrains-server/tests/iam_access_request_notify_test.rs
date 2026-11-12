@@ -29,24 +29,15 @@ async fn an_access_request_tells_the_people_who_can_approve_it() {
         .client
         .post(app.url("/api/setup/users"))
         .header("x-csrf-token", &admin_csrf)
-        .json(
-            &json!({ "username": username, "email": format!("{username}@example.test"),
+        .json(&json!({ "username": username, "email": format!("{username}@example.test"),
                        "password": password, "full_name": format!("Reception {t}"),
-                       "role": "receptionist", "department_ids": [dept] }),
-        )
+                       "role": "receptionist", "department_ids": [dept] }))
         .send()
         .await
         .expect("create user");
-    assert!(
-        created.status().is_success(),
-        "create: {}",
-        created.status()
-    );
+    assert!(created.status().is_success(), "create: {}", created.status());
 
-    let desk = Client::builder()
-        .cookie_store(true)
-        .build()
-        .expect("client");
+    let desk = Client::builder().cookie_store(true).build().expect("client");
     let login: Value = desk
         .post(app.url("/api/auth/login"))
         .json(&json!({ "username": username, "password": password }))
@@ -61,11 +52,9 @@ async fn an_access_request_tells_the_people_who_can_approve_it() {
     let resp = desk
         .post(app.url("/api/iam/access-requests"))
         .header("x-csrf-token", &csrf)
-        .json(
-            &json!({ "requested_permissions": ["blood_bank.donors.list"],
+        .json(&json!({ "requested_permissions": ["blood_bank.donors.list"],
                        "reason": format!("Covering the blood bank desk {t}"),
-                       "requested_expires_at": expires }),
-        )
+                       "requested_expires_at": expires }))
         .send()
         .await
         .expect("request access");
@@ -84,10 +73,7 @@ async fn an_access_request_tells_the_people_who_can_approve_it() {
     .fetch_all(&app.db)
     .await
     .expect("notifications");
-    assert!(
-        recipients.iter().any(|u| u == "admin"),
-        "the approver is told: {recipients:?}"
-    );
+    assert!(recipients.iter().any(|u| u == "admin"), "the approver is told: {recipients:?}");
     assert!(
         !recipients.contains(&username),
         "the requester is not told of their own request"
@@ -102,8 +88,5 @@ async fn an_access_request_tells_the_people_who_can_approve_it() {
     .fetch_one(&app.db)
     .await
     .expect("guards");
-    assert_eq!(
-        guards, 0,
-        "a security guard is not an access-request approver"
-    );
+    assert_eq!(guards, 0, "a security guard is not an access-request approver");
 }

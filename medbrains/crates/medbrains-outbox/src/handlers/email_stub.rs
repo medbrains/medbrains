@@ -93,12 +93,7 @@ async fn load_email_config(ctx: &HandlerCtx) -> Value {
 }
 
 /// Prefer the per-tenant config field, else the secret backend / env var.
-async fn cfg_or_secret(
-    config: &Value,
-    ctx: &HandlerCtx,
-    json_key: &str,
-    env_key: &str,
-) -> Option<String> {
+async fn cfg_or_secret(config: &Value, ctx: &HandlerCtx, json_key: &str, env_key: &str) -> Option<String> {
     if let Some(value) = config
         .get(json_key)
         .and_then(Value::as_str)
@@ -195,10 +190,7 @@ async fn smtp_credentials(
 /// Whether the dev-only `SMTP_INSECURE_TLS` flag must be refused in `env`:
 /// a production server never accepts an unverified mail server certificate.
 fn insecure_tls_refused(env: &str) -> bool {
-    matches!(
-        env.trim().to_ascii_lowercase().as_str(),
-        "prod" | "production"
-    )
+    matches!(env.trim().to_ascii_lowercase().as_str(), "prod" | "production")
 }
 
 #[derive(Debug)]
@@ -243,10 +235,7 @@ impl Handler for SmtpSendHandler {
                     recipient: to,
                     subject: Some(subject),
                     body: text.or(html).unwrap_or_default(),
-                    attachments: payload
-                        .get("attachments")
-                        .cloned()
-                        .unwrap_or_else(|| json!([])),
+                    attachments: payload.get("attachments").cloned().unwrap_or_else(|| json!([])),
                     template_id: None,
                 },
             )

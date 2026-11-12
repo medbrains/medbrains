@@ -128,9 +128,7 @@ pub async fn create_batch(
 ) -> Result<Json<IngestionBatch>, AppError> {
     require_permission(&claims, permissions::mrd::records::CREATE)?;
     if body.label.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "A batch label is required.".to_owned(),
-        ));
+        return Err(AppError::BadRequest("A batch label is required.".to_owned()));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -218,10 +216,7 @@ pub async fn link_item(
     .fetch_optional(&mut *tx)
     .await?;
     let record_id = record_id.ok_or_else(|| {
-        AppError::BadRequest(format!(
-            "No MRD record found for '{}'.",
-            body.barcode.trim()
-        ))
+        AppError::BadRequest(format!("No MRD record found for '{}'.", body.barcode.trim()))
     })?;
 
     let row = sqlx::query_as::<_, IngestionItem>(
@@ -306,12 +301,7 @@ pub async fn ocr_item(
         .download_object(&item.file_url)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    let ext = item
-        .original_filename
-        .rsplit('.')
-        .next()
-        .unwrap_or("")
-        .to_owned();
+    let ext = item.original_filename.rsplit('.').next().unwrap_or("").to_owned();
 
     let (text, ocr_status) = match run_tesseract_ocr(&bytes, &ext).await {
         OcrOutcome::Text(t) => (Some(t), "done"),
@@ -347,8 +337,7 @@ pub async fn file_item(
 ) -> Result<Json<IngestionItem>, AppError> {
     require_permission(&claims, permissions::mrd::records::CREATE)?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
     let item = sqlx::query_as::<_, IngestionItem>(
         "SELECT * FROM document_ingestion_items WHERE id = $1 AND tenant_id = $2",

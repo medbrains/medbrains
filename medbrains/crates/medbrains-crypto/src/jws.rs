@@ -63,12 +63,8 @@ impl RsaAlg {
 
     fn verifier(self, pem: &[u8]) -> Result<Box<dyn JwsVerifier>, CryptoError> {
         let built = match self {
-            Self::Rs256 => RS256
-                .verifier_from_pem(pem)
-                .map(|v| Box::new(v) as Box<dyn JwsVerifier>),
-            Self::Rs512 => RS512
-                .verifier_from_pem(pem)
-                .map(|v| Box::new(v) as Box<dyn JwsVerifier>),
+            Self::Rs256 => RS256.verifier_from_pem(pem).map(|v| Box::new(v) as Box<dyn JwsVerifier>),
+            Self::Rs512 => RS512.verifier_from_pem(pem).map(|v| Box::new(v) as Box<dyn JwsVerifier>),
         };
         built.map_err(|_| CryptoError::InvalidKey)
     }
@@ -243,31 +239,12 @@ mod tests {
     fn verifies_rs512_from_a_jwks_and_matches_alg() {
         use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
         let rsa = Rsa::generate(2048).unwrap();
-        let private = PKey::from_rsa(rsa.clone())
-            .unwrap()
-            .private_key_to_pem_pkcs8()
-            .unwrap();
-        let jwk = |alg: &str| {
-            serde_json::json!({ "kty": "RSA", "alg": alg,
-            "n": URL_SAFE_NO_PAD.encode(rsa.n().to_vec()), "e": URL_SAFE_NO_PAD.encode(rsa.e().to_vec()) })
-        };
+        let private = PKey::from_rsa(rsa.clone()).unwrap().private_key_to_pem_pkcs8().unwrap();
+        let jwk = |alg: &str| serde_json::json!({ "kty": "RSA", "alg": alg,
+            "n": URL_SAFE_NO_PAD.encode(rsa.n().to_vec()), "e": URL_SAFE_NO_PAD.encode(rsa.e().to_vec()) });
         let token = sign_with("RS512", &private);
-        assert!(
-            verify_rsa_jwks(
-                &token,
-                &serde_json::json!({ "keys": [jwk("RS512")] }),
-                Duration::ZERO
-            )
-            .is_ok()
-        );
-        assert!(
-            verify_rsa_jwks(
-                &token,
-                &serde_json::json!({ "keys": [jwk("RS256")] }),
-                Duration::ZERO
-            )
-            .is_err()
-        );
+        assert!(verify_rsa_jwks(&token, &serde_json::json!({ "keys": [jwk("RS512")] }), Duration::ZERO).is_ok());
+        assert!(verify_rsa_jwks(&token, &serde_json::json!({ "keys": [jwk("RS256")] }), Duration::ZERO).is_err());
         let public = PKey::from_rsa(rsa).unwrap().public_key_to_pem().unwrap();
         assert!(verify_rsa(&token, &public, Duration::ZERO).is_ok());
         assert!(verify_rsa(&sign_with("RS256", &private), &public, Duration::ZERO).is_ok());
@@ -293,17 +270,9 @@ mod tests {
         use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
         let (_, public) = key_pair();
         let part = |v: Value| URL_SAFE_NO_PAD.encode(v.to_string());
-        let none = format!(
-            "{}.{}.",
-            part(serde_json::json!({"alg":"none"})),
-            part(serde_json::json!({"exp": 9_999_999_999_u64}))
-        );
+        let none = format!("{}.{}.", part(serde_json::json!({"alg":"none"})), part(serde_json::json!({"exp": 9_999_999_999_u64})));
         assert!(verify_rsa(&none, &public, Duration::ZERO).is_err());
-        let hs = format!(
-            "{}.{}.c2ln",
-            part(serde_json::json!({"alg":"HS256"})),
-            part(serde_json::json!({"exp": 9_999_999_999_u64}))
-        );
+        let hs = format!("{}.{}.c2ln", part(serde_json::json!({"alg":"HS256"})), part(serde_json::json!({"exp": 9_999_999_999_u64})));
         assert!(verify_rsa(&hs, &public, Duration::ZERO).is_err());
         assert_eq!(peek_claims(&hs).unwrap()["exp"], 9_999_999_999_u64);
     }
