@@ -23,7 +23,7 @@ const GETCAP: &str = "TPM2TOOLS_TCTI=device:/dev/tpmrm0 tpm2_getcap properties-v
 const POWER_CUTS: usize = 3;
 /// What disk-setup derives the lockout password from, with the recovery key.
 const LOCKOUT_LABEL: &str = "medbrains-tpm-lockout-v1";
-/// disk-setup's DA_MAX_TRIES, the 0x10 above.
+/// disk-setup's `DA_MAX_TRIES`, the 0x10 above.
 const OUR_MAX_TRIES: u32 = 16;
 /// One failure forgiven a day: long enough that no failure is forgiven during the test, so each cut shows.
 const NO_FORGIVENESS_S: u32 = 86_400;
