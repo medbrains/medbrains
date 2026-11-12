@@ -80,7 +80,7 @@ export default function GroupsPage() {
     mutationFn: (id: string) => adminAccessService.deleteAccessGroup(id),
     onSuccess: () => {
       notifications.show({ message: "Group deactivated", color: "green" });
-      qc.invalidateQueries({ queryKey: ["access-groups"] });
+      void qc.invalidateQueries({ queryKey: ["access-groups"] });
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
   });
@@ -225,7 +225,7 @@ function GroupFormModal({
       adminAccessService.createAccessGroup(accessGroupFormToRequest(values)),
     onSuccess: () => {
       notifications.show({ message: "Group created", color: "green" });
-      qc.invalidateQueries({ queryKey: ["access-groups"] });
+      void qc.invalidateQueries({ queryKey: ["access-groups"] });
       onClose();
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
@@ -238,7 +238,7 @@ function GroupFormModal({
     },
     onSuccess: () => {
       notifications.show({ message: "Group updated", color: "green" });
-      qc.invalidateQueries({ queryKey: ["access-groups"] });
+      void qc.invalidateQueries({ queryKey: ["access-groups"] });
       onClose();
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
@@ -343,7 +343,7 @@ function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () =>
       adminAccessService.addAccessGroupMember(group.id, accessGroupMemberFormToRequest(values)),
     onSuccess: () => {
       notifications.show({ message: "Member added", color: "green" });
-      qc.invalidateQueries({ queryKey: ["access-group-members", group.id] });
+      void qc.invalidateQueries({ queryKey: ["access-group-members", group.id] });
       form.reset(defaultAccessGroupMemberFormValues);
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
@@ -353,7 +353,7 @@ function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () =>
     mutationFn: (uid: string) => adminAccessService.removeAccessGroupMember(group.id, uid),
     onSuccess: () => {
       notifications.show({ message: "Member removed", color: "green" });
-      qc.invalidateQueries({ queryKey: ["access-group-members", group.id] });
+      void qc.invalidateQueries({ queryKey: ["access-group-members", group.id] });
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
   });

@@ -61,7 +61,7 @@ export function SsoSettingsPage() {
   const createMut = useMutation({
     mutationFn: (d: CreateSsoProviderRequest) => api.createSsoProvider(d),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       form.close();
       notifications.show({
         title: "Created",
@@ -312,7 +312,7 @@ function GroupMappings({ provider, canManage }: { provider: SsoProvider; canMana
         access_group_id: accessGroupId ?? undefined,
       }),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       setIdpGroup("");
       setRoleCode("");
       setAccessGroupId(null);

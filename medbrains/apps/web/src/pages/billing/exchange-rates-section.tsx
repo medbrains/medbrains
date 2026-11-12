@@ -63,7 +63,7 @@ export function ExchangeRatesSection() {
     mutationFn: (v: RateForm) =>
       billingService.createExchangeRate({ ...v, source: v.source || undefined }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "exchange-rates"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "exchange-rates"] });
       reset();
       toast.success("Exchange rate saved");
     },

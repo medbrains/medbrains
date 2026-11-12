@@ -25,7 +25,7 @@ export function RoomConsentModal({ alert, onClose }: RoomConsentModalProps) {
   const mutation = useMutation({
     mutationFn: () => billingService.recordRoomConsent(alert.id, who),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "revenue-alerts"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "revenue-alerts"] });
       toast.success("Consent recorded");
       onClose();
     },

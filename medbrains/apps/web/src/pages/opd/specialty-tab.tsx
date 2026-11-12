@@ -192,7 +192,7 @@ export function SpecialtyTab({ patientId, encounterId, departmentId }: Specialty
     // value cannot bounce a clinician off-site.
     const back = encodeURIComponent(`/opd/encounters/${encounterId}`);
     const visit = `&encounter_id=${encodeURIComponent(encounterId)}`;
-    navigate(`${path}?patient_id=${encodeURIComponent(patientId)}${visit}&return=${back}`);
+    void navigate(`${path}?patient_id=${encodeURIComponent(patientId)}${visit}&return=${back}`);
   };
 
   if (relevant.length === 0 && others.length === 0) {

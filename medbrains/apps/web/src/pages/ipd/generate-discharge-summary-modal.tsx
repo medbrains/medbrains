@@ -28,7 +28,7 @@ export function GenerateDischargeSummaryModal({
   const generateMutation = useMutation({
     mutationFn: () => ipdService.generateDischargeSummary(admissionId),
     onSuccess: () => {
-      refetch();
+      void refetch();
       toast.success("Discharge summary generated", { title: "Generated" });
     },
     onError: () => {
