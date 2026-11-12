@@ -89,6 +89,7 @@ def mask(src: str) -> str:
     i, n = 0, len(src)
 
     def blank(a: int, b: int) -> None:
+        """Space out `src[a:b]`, keeping newlines so line numbers still match."""
         for k in range(a, min(b, n)):
             if out[k] != "\n":
                 out[k] = " "
