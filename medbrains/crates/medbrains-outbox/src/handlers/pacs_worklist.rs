@@ -31,7 +31,7 @@ impl Handler for WorklistCreateHandler {
         )
         .await
         .map_err(|e| match e {
-            PacsError::Db(_) | PacsError::KeyStore(_) => HandlerError::Transient(e.to_string()),
+            PacsError::Db(_) | PacsError::KeyStore => HandlerError::Transient(e.to_string()),
             _ => HandlerError::Permanent(e.to_string()),
         })?
         .ok_or_else(|| HandlerError::Permanent("the hospital has no PACS configured".to_owned()))?;

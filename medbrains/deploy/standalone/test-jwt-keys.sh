@@ -39,4 +39,23 @@ expect "public key as the private key" refuse "$PUB" "$PUB"
 expect "private key cut by one byte" refuse "$CUT_PRIV" "$PUB"
 expect "public key cut to 31 bytes" refuse "$PRIV" "$CUT_PUB"
 expect "empty pair" refuse "" ""
+# Values are read as the server reads them: quotes and a Windows line end go.
+printf 'JWT_PRIVATE_KEY="%s"\r\nJWT_PUBLIC_KEY=%s\n' "$PRIV" "'$PUB'" > "$TMP/env"
+expect "quoted, CRLF env lines" accept "$(jwt_env_value JWT_PRIVATE_KEY "$TMP/env")" \
+    "$(jwt_env_value JWT_PUBLIC_KEY "$TMP/env")"
+
+# Keys set in a drop-in, a file it loads, or config.toml are not overwritten.
+mkdir -p "$TMP/d"
+elsewhere() { if jwt_keys_elsewhere "$TMP/d" "$TMP/config.toml"; then echo yes; else echo no; fi; }
+check() { if [[ "$2" == "$3" ]]; then echo "PASS $1"; else echo "FAIL $1 (got $2)"; fail=1; fi; }
+check "missing line reads empty" "$(jwt_env_value JWT_MISSING "$TMP/env")" ""
+check "no drop-in, no config.toml" "$(elsewhere)" no
+printf '[Service]\nEnvironment=JWT_PRIVATE_KEY=x\n' > "$TMP/d/jwt.conf"
+check "key in a drop-in" "$(elsewhere)" yes
+printf '[Service]\nEnvironmentFile=-%s\n' "$TMP/extra.env" > "$TMP/d/jwt.conf"
+printf 'JWT_PUBLIC_KEY=x\n' > "$TMP/extra.env"
+check "key in a file a drop-in loads" "$(elsewhere)" yes
+rm "$TMP/d/jwt.conf"
+printf 'jwt_private_key = "x"\n' > "$TMP/config.toml"
+check "key in config.toml" "$(elsewhere)" yes
 exit "$fail"

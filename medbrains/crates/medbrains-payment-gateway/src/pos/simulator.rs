@@ -49,9 +49,10 @@ const UNCANCELLABLE: &[&str] = &["approve", "partial", "upi", "refuse_cancel", "
 /// What the simulated machine says when a cancel comes too late — Plutus's words.
 pub const CANCEL_REFUSED: &str = "CANNOT CANCEL AS TRANSACTION IS IN PROGRESS (simulator)";
 
-/// Whether the simulator may run here.
+/// Whether the simulator may run here: never in production, which includes
+/// any `MEDBRAINS_ENV` that is not a known development or test mode.
 pub async fn enabled(secrets: &dyn SecretResolver) -> bool {
-    let production = std::env::var("MEDBRAINS_ENV").is_ok_and(|e| e == "production");
+    let production = medbrains_core::secrets::sealing::is_production();
     let on = |v: &str| v == "true";
     !production
         && (std::env::var(ENV_FLAG).is_ok_and(|v| on(&v))

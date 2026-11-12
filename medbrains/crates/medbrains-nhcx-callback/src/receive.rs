@@ -391,10 +391,12 @@ fn unverified_protected_header(token: &str) -> Map<String, Value> {
         .unwrap_or_default()
 }
 
+/// The HTTP answer for a settings error: 503 for missing setup, a fixed 500
+/// for a store or database fault (the detail is logged, not returned).
 fn config_error(e: ConfigError) -> AppError {
     match e {
         ConfigError::NotSetUp(m) => AppError::ServiceUnavailable(m),
-        ConfigError::KeyStore(m) => AppError::Internal(m),
+        ConfigError::KeyStore => AppError::Internal(e.to_string()),
         ConfigError::Db(e) => AppError::from(e),
     }
 }

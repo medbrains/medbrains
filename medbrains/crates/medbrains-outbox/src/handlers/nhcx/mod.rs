@@ -397,10 +397,12 @@ fn transient(e: &sqlx::Error) -> HandlerError {
     HandlerError::Transient(format!("nhcx db: {e}"))
 }
 
+/// How the outbox treats a settings error: missing setup is permanent (the
+/// hospital must act), a store or database fault is retried.
 fn from_config(e: ConfigError) -> HandlerError {
     match e {
         ConfigError::NotSetUp(m) => HandlerError::Permanent(m),
-        ConfigError::KeyStore(m) => HandlerError::Transient(m),
+        ConfigError::KeyStore => HandlerError::Transient(e.to_string()),
         ConfigError::Db(e) => transient(&e),
     }
 }

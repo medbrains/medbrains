@@ -140,7 +140,7 @@ pub async fn tenant_target(state: &AppState, tenant_id: Uuid) -> Result<Target, 
     .await
     .map_err(|e| match e {
         PacsError::Db(e) => AppError::Internal(format!("PACS settings: {e}")),
-        PacsError::KeyStore(msg) => AppError::Internal(msg),
+        PacsError::KeyStore => AppError::Internal("PACS secret store unreadable".to_owned()),
         other => AppError::ServiceUnavailable(other.to_string()),
     })?
     .ok_or(AppError::NotFound)?;

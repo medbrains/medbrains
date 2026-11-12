@@ -28,9 +28,10 @@ pub enum ConfigError {
     /// Something the hospital must set up first; the message says what.
     #[error("{0}")]
     NotSetUp(String),
-    /// The secret store could not answer; retry, never fall back.
-    #[error("{0}")]
-    KeyStore(String),
+    /// The secret store could not answer; retry, never fall back. The
+    /// reason is logged, never returned: it may name the store's internals.
+    #[error("the server's secret store could not be read; try again shortly")]
+    KeyStore,
     #[error("database: {0}")]
     Db(#[from] sqlx::Error),
 }
@@ -47,7 +48,10 @@ pub async fn sealing_key(resolver: &dyn SecretResolver) -> Result<Vec<u8>, Confi
     sealing::sealing_key(resolver, SEALING_KEY_NAME, DEV_SEALING_KEY)
         .await
         .map_err(|e| match e {
-            SealingKeyError::Unreadable { .. } => ConfigError::KeyStore(e.to_string()),
+            SealingKeyError::Unreadable { .. } => {
+                tracing::error!(error = %e, "sealing key unreadable");
+                ConfigError::KeyStore
+            }
             SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => ConfigError::NotSetUp(
                 format!("NHCX is not configured on this server ({e}) — ask your administrator"),
             ),

@@ -13,9 +13,11 @@ goes for a new in-repo development key, a hand-rolled `MEDBRAINS_ENV ==
 `secrets::sealing`), and `tail -c` / `head -c` on key material in shell.
 
 A per-file, per-rule ratchet: `scripts/raw_key_bytes.baseline.json` holds the
-sites that existed when the check landed. A file may only lose sites; a new
-one fails. Tests (`tests/`, `*_tests.rs`, `#[cfg(test)]` modules, `test-*.sh`)
-are exempt.
+sites that existed when the check landed. A new site fails; so does a count
+that fell without the baseline being tightened (`--update`), so the slack
+cannot be spent again. Exempt: `medbrains-crypto/src/keys.rs` and
+`keys_tests.rs`, `#[cfg(test)] mod` blocks, test files (`tests/`, `tests.rs`,
+`*_tests.rs`) and `test-*.sh`.
 """
 
 from __future__ import annotations
@@ -27,28 +29,51 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = Path(__file__).resolve().parent / "raw_key_bytes.baseline.json"
-EXEMPT_PREFIX = "crates/medbrains-crypto/src/keys"
+EXEMPT = {
+    "crates/medbrains-crypto/src/keys.rs",
+    "crates/medbrains-crypto/src/keys_tests.rs",
+}
 
 RUST_RULES = {
     "raw-key-constructor": re.compile(
-        r"\b(?:SigningKey::from_bytes|VerifyingKey::from_bytes|EncodingKey::from_ed_\w+"
-        r"|DecodingKey::from_ed_\w+|Aes256Gcm::new_from_slice|PKey::public_key_from_der)\b"
+        r"\b(?:SigningKey::(?:from_bytes|try_from|from_keypair_bytes)|from_keypair_bytes"
+        r"|VerifyingKey::from_bytes|EncodingKey::from_ed_\w+|DecodingKey::from_ed_\w+"
+        r"|Aes256Gcm::new(?:_from_slice)?|X?ChaCha20Poly1305::new(?:_from_slice)?"
+        r"|PKey::public_key_from_der|PKey::\w+_from_raw_bytes)\b"
     ),
     "dev-key-const": re.compile(r"\bconst\s+DEV_\w*KEY\w*\s*:"),
     # MEDBRAINS_ENV, then a literal comparison before the statement ends.
     "env-literal-compare": re.compile(
-        r"\"MEDBRAINS_ENV\"[^;]{0,160}?(?:[=!]=\s*\"|Some\(\")", re.S
+        r"\"MEDBRAINS_ENV\"[^;]{0,160}?(?:[=!]=\s*\"|(?:Some|Ok)\(\"|\.eq\(|matches!\()"
+        r"|matches!\([^;]{0,80}?\"MEDBRAINS_ENV\"",
+        re.S,
     ),
 }
 SHELL_RULE = "shell-key-truncation"
-SHELL_CUT = re.compile(r"\b(?:tail|head)\s+-c\b")
+SHELL_CUT = re.compile(r"\b(?:tail|head)\s+-c\b|\bdd\b[^|;]*\bskip=|\bcut\s+-b\b")
 SHELL_KEY = re.compile(r"key|\.der\b|\.pem\b|priv|pub|spki|seed|secret", re.I)
 
 
-def strip_test_module(text: str) -> str:
-    """Drop everything from the first top-level `#[cfg(test)]` on."""
-    match = re.search(r"^#\[cfg\(test\)\]", text, re.M)
-    return text[: match.start()] if match else text
+TEST_MOD = re.compile(
+    r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*([;{])"
+)
+
+
+def strip_test_modules(text: str) -> str:
+    """Drop each `#[cfg(test)] mod` block (brace-matched) and nothing else."""
+    out, pos = [], 0
+    for match in TEST_MOD.finditer(text):
+        if match.start() < pos:
+            continue
+        out.append(text[pos : match.start()])
+        pos = match.end()
+        if match.group(1) == "{":
+            depth = 1
+            while pos < len(text) and depth:
+                depth += {"{": 1, "}": -1}.get(text[pos], 0)
+                pos += 1
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def is_test_path(rel: str) -> bool:
@@ -59,7 +84,7 @@ def is_test_path(rel: str) -> bool:
 
 def rust_sites(rel: str, text: str) -> dict[str, int]:
     """Count each Rust rule's matches outside test code."""
-    body = strip_test_module(text)
+    body = strip_test_modules(text)
     counts = {rule: len(rx.findall(body)) for rule, rx in RUST_RULES.items()}
     return {rule: n for rule, n in counts.items() if n}
 
@@ -89,7 +114,7 @@ def scan() -> dict[str, dict[str, int]]:
     found: dict[str, dict[str, int]] = {}
     for path in sorted((ROOT / "crates").rglob("*.rs")):
         rel = path.relative_to(ROOT).as_posix()
-        if "/target/" in rel or rel.startswith(EXEMPT_PREFIX) or is_test_path(rel):
+        if "/target/" in rel or rel in EXEMPT or is_test_path(rel):
             continue
         sites = rust_sites(rel, path.read_text(encoding="utf-8", errors="replace"))
         if sites:
@@ -120,14 +145,27 @@ def main(argv: list[str]) -> int:
         if n > baseline.get(rel, {}).get(rule, 0)
     ]
     if new:
-        print("check-raw-key-bytes: new raw key handling outside medbrains-crypto/src/keys*:\n")
+        print("check-raw-key-bytes: new raw key handling outside medbrains-crypto/src/keys.rs:\n")
         for rel, rule, n, allowed in new:
             print(f"  {rel}: {rule} x{n} (baseline {allowed})")
         print(
             "\nLoad keys through medbrains_crypto::keys (length, repeated-byte, pair and"
             " weak-point checks); decide dev keys and modes through"
-            " medbrains_core::secrets::sealing; never cut key bytes with tail/head -c."
+            " medbrains_core::secrets::sealing; never cut key bytes with tail/head -c,"
+            " dd skip= or cut -b."
         )
+        return 1
+    loose = [
+        (rel, rule, allowed, found.get(rel, {}).get(rule, 0))
+        for rel, sites in baseline.items()
+        for rule, allowed in sites.items()
+        if found.get(rel, {}).get(rule, 0) < allowed
+    ]
+    if loose:
+        print("check-raw-key-bytes: sites were removed; tighten the baseline so they stay gone:\n")
+        for rel, rule, allowed, n in loose:
+            print(f"  {rel}: {rule} now x{n} (baseline {allowed})")
+        print("\nRun: python3 scripts/check_raw_key_bytes.py --update")
         return 1
     print(f"check-raw-key-bytes: ok ({sum(map(len, found.values()))} grandfathered site kinds)")
     return 0

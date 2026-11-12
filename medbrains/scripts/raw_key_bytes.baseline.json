@@ -12,7 +12,10 @@
     "raw-key-constructor": 3
   },
   "crates/medbrains-crypto/src/fidelius.rs": {
-    "raw-key-constructor": 2
+    "raw-key-constructor": 1
+  },
+  "crates/medbrains-crypto/src/fidelius_spki.rs": {
+    "raw-key-constructor": 1
   },
   "crates/medbrains-device-pairing/src/binding_token.rs": {
     "raw-key-constructor": 1
@@ -42,14 +45,10 @@
     "dev-key-const": 1
   },
   "crates/medbrains-outbox/src/handlers/pacs_target/mod.rs": {
-    "dev-key-const": 1,
-    "env-literal-compare": 1
+    "dev-key-const": 1
   },
   "crates/medbrains-patients/src/identifier_key.rs": {
     "dev-key-const": 1
-  },
-  "crates/medbrains-payment-gateway/src/pos/simulator.rs": {
-    "env-literal-compare": 1
   },
   "crates/medbrains-research/src/trial_export.rs": {
     "dev-key-const": 1

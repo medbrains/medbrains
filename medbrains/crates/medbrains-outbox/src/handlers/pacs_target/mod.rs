@@ -45,9 +45,10 @@ pub enum PacsError {
     /// Something the hospital or the operator must set up; the message says what.
     #[error("{0}")]
     NotSetUp(String),
-    /// The secret store could not answer; retry, never fall back.
-    #[error("{0}")]
-    KeyStore(String),
+    /// The secret store could not answer; retry, never fall back. The
+    /// reason is logged, never returned: it may name the store's internals.
+    #[error("the server's secret store could not be read; try again shortly")]
+    KeyStore,
     #[error("database: {0}")]
     Db(#[from] sqlx::Error),
 }
@@ -62,10 +63,12 @@ pub struct Policy {
 }
 
 impl Policy {
+    /// The policy for this process: production unless `MEDBRAINS_ENV` is a
+    /// known development or test mode, plus the operator's approved hosts.
     #[must_use]
     pub fn from_env() -> Self {
         Self {
-            production: std::env::var("MEDBRAINS_ENV").is_ok_and(|e| e == "production"),
+            production: medbrains_core::secrets::sealing::is_production(),
             approved_hosts: std::env::var(ALLOWED_HOSTS_ENV)
                 .unwrap_or_default()
                 .split(',')
@@ -241,7 +244,10 @@ pub async fn sealing_key(resolver: &dyn SecretResolver) -> Result<Vec<u8>, PacsE
     sealing::sealing_key(resolver, SEALING_KEY_NAME, DEV_SEALING_KEY)
         .await
         .map_err(|e| match e {
-            SealingKeyError::Unreadable { .. } => PacsError::KeyStore(e.to_string()),
+            SealingKeyError::Unreadable { .. } => {
+                tracing::error!(error = %e, "sealing key unreadable");
+                PacsError::KeyStore
+            }
             SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => {
                 PacsError::NotSetUp(format!(
                     "PACS passwords cannot be stored on this server yet ({e}) — ask your \

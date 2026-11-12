@@ -9,8 +9,8 @@
 //!   32 bytes big-endian.
 //! - Public keys are the uncompressed point `04‖X‖Y` (65 bytes, base64). A
 //!   peer key may also arrive as X.509 `SubjectPublicKeyInfo` (`id-ecPublicKey`
-//!   with this curve's explicit parameters); it is parsed as SPKI and its
-//!   curve must be this one.
+//!   with this curve's explicit parameters, or BouncyCastle's named-curve OID);
+//!   see `fidelius_spki.rs`. Its curve must be this one.
 //! - A peer point is refused at infinity, off the curve, or outside the
 //!   prime-order subgroup (`n·Q ≠ O`; the cofactor is 8, so small-order points
 //!   exist). Our private scalar must be `1 ≤ d < n`, at most 32 bytes, and is
@@ -29,11 +29,13 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use hkdf::Hkdf;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcGroupRef, EcPoint, EcPointRef, PointConversionForm};
-use openssl::pkey::{Id, PKey};
 use rand::Rng;
 use sha2::Sha256;
 
 use crate::CryptoError;
+
+#[path = "fidelius_spki.rs"]
+mod spki;
 
 const P: &str = "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFED";
 const A: &str = "2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA984914A144";
@@ -101,70 +103,11 @@ fn peer_point(group: &EcGroup, b64: &str, ctx: &mut BigNumContext) -> Result<EcP
     let raw = if bytes.len() == POINT_LEN {
         bytes
     } else {
-        spki_point(group, &bytes, ctx)?
+        spki::spki_point(group, &bytes, ctx)?
     };
     let q = EcPoint::from_bytes(group, &raw, ctx).map_err(|_| CryptoError::InvalidKey)?;
     in_subgroup(group, &q, ctx)?;
     Ok(q)
-}
-
-/// The uncompressed point inside an X.509 `SubjectPublicKeyInfo`, after proving
-/// its algorithm is `id-ecPublicKey` and its explicit curve is ours.
-fn spki_point(
-    group: &EcGroup,
-    der: &[u8],
-    ctx: &mut BigNumContext,
-) -> Result<Vec<u8>, CryptoError> {
-    let key = PKey::public_key_from_der(der).map_err(|_| CryptoError::InvalidKey)?;
-    if key.id() != Id::EC {
-        return Err(CryptoError::InvalidKey);
-    }
-    let ec = key.ec_key().map_err(|_| CryptoError::InvalidKey)?;
-    if !same_curve(group, ec.group(), ctx)? {
-        return Err(CryptoError::InvalidKey);
-    }
-    ec.public_key()
-        .to_bytes(ec.group(), PointConversionForm::UNCOMPRESSED, ctx)
-        .map_err(|_| CryptoError::InvalidKey)
-}
-
-/// The field, coefficients, order and generator of a curve, as bytes.
-fn curve_identity(
-    group: &EcGroupRef,
-    ctx: &mut BigNumContext,
-) -> Result<Vec<Vec<u8>>, CryptoError> {
-    let fail = |_| CryptoError::InvalidKey;
-    let (mut field, mut coef_a, mut coef_b, mut order) = (
-        BigNum::new().map_err(fail)?,
-        BigNum::new().map_err(fail)?,
-        BigNum::new().map_err(fail)?,
-        BigNum::new().map_err(fail)?,
-    );
-    group
-        .components_gfp(&mut field, &mut coef_a, &mut coef_b, ctx)
-        .map_err(fail)?;
-    group.order(&mut order, ctx).map_err(fail)?;
-    let generator = group
-        .generator_opt()
-        .ok_or(CryptoError::InvalidKey)?
-        .to_bytes(group, PointConversionForm::UNCOMPRESSED, ctx)
-        .map_err(fail)?;
-    Ok(vec![
-        field.to_vec(),
-        coef_a.to_vec(),
-        coef_b.to_vec(),
-        order.to_vec(),
-        generator,
-    ])
-}
-
-/// Whether `theirs` is the Fidelius curve, parameter for parameter.
-fn same_curve(
-    ours: &EcGroupRef,
-    theirs: &EcGroupRef,
-    ctx: &mut BigNumContext,
-) -> Result<bool, CryptoError> {
-    Ok(curve_identity(ours, ctx)? == curve_identity(theirs, ctx)?)
 }
 
 /// Refuse the point at infinity, a point off the curve, and any point with

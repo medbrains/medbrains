@@ -196,19 +196,28 @@ else
     # Generate when both halves are empty, or replace a legacy PEM-in-base64
     # private key ("LS0t…"): no server ever parsed one, so no session
     # depends on it.
-    EXISTING_PRIV="$(grep '^JWT_PRIVATE_KEY=' /etc/medbrains/env | cut -d= -f2-)"
-    EXISTING_PUB="$(grep '^JWT_PUBLIC_KEY=' /etc/medbrains/env | cut -d= -f2-)"
-    if [[ "$EXISTING_PRIV" == LS0t* || ( -z "$EXISTING_PRIV" && -z "$EXISTING_PUB" ) ]]; then
+    EXISTING_PRIV="$(jwt_env_value JWT_PRIVATE_KEY /etc/medbrains/env)"
+    EXISTING_PUB="$(jwt_env_value JWT_PUBLIC_KEY /etc/medbrains/env)"
+    JWT_DROPINS=/etc/systemd/system/medbrains-server.service.d
+    # The unit has no WorkingDirectory, so the server reads /config.toml.
+    if [[ -z "$EXISTING_PRIV" && -z "$EXISTING_PUB" ]] \
+        && jwt_keys_elsewhere "$JWT_DROPINS" /config.toml; then
+        echo "    JWT keys are set outside /etc/medbrains/env (drop-in or config.toml) — leaving them;"
+        echo "    the server checks the pair when it starts."
+    elif [[ "$EXISTING_PRIV" == LS0t* || ( -z "$EXISTING_PRIV" && -z "$EXISTING_PUB" ) ]]; then
         echo "    JWT pair missing or in a format no server can read — generating"
         generate_jwt_pair
         EXISTING_PRIV="$JWT_NEW_PRIVATE"
         EXISTING_PUB="$JWT_NEW_PUBLIC"
+        for jwt_key in JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
+            grep -q "^$jwt_key=" /etc/medbrains/env || echo "$jwt_key=" >> /etc/medbrains/env
+        done
         sed -i "s|^JWT_PRIVATE_KEY=.*|JWT_PRIVATE_KEY=$EXISTING_PRIV|" /etc/medbrains/env
         sed -i "s|^JWT_PUBLIC_KEY=.*|JWT_PUBLIC_KEY=$EXISTING_PUB|" /etc/medbrains/env
     fi
     # Never rotate a pair that does not match: it may be the half someone set
     # by hand. Stop, and say how to fix it; the server would refuse to start.
-    if ! check_jwt_pair "$EXISTING_PRIV" "$EXISTING_PUB"; then
+    if [[ -n "$EXISTING_PRIV$EXISTING_PUB" ]] && ! check_jwt_pair "$EXISTING_PRIV" "$EXISTING_PUB"; then
         echo "ERROR: JWT_PRIVATE_KEY and JWT_PUBLIC_KEY in /etc/medbrains/env are not one Ed25519 pair." >&2
         echo "       The server refuses to start on them. Restore both from the backup of this file," >&2
         echo "       or delete both lines' values (leave 'JWT_PRIVATE_KEY=' and 'JWT_PUBLIC_KEY=')," >&2

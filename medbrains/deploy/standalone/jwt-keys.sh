@@ -47,3 +47,30 @@ check_jwt_pair() {
     rm -rf "$dir"
     return "$rc"
 }
+
+# Prints the value of $1 in env file $2 as the server reads it: the text after
+# the first '=', with a trailing \r and one pair of surrounding quotes removed.
+jwt_env_value() {
+    local value
+    value="$({ grep "^$1=" "$2" || true; } | tail -n 1 | cut -d= -f2-)"
+    value="${value%$'\r'}"
+    if [[ "$value" == \"*\" || "$value" == \'*\' ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+    printf '%s' "$value"
+}
+
+# Returns 0 when the JWT keys may come from somewhere other than the env
+# file: a systemd drop-in (or a file it loads) or the server's config.toml.
+# $1 is the drop-in directory, $2 the config.toml path.
+jwt_keys_elsewhere() {
+    local dropins="$1" toml="$2" files=() f
+    for f in "$dropins"/*.conf; do
+        [[ -f "$f" ]] || continue
+        files+=("$f")
+        while IFS= read -r f; do files+=("$f"); done \
+            < <(sed -n 's/^EnvironmentFile=-\{0,1\}//p' "$f")
+    done
+    [[ -f "$toml" ]] && files+=("$toml")
+    [[ "${#files[@]}" -gt 0 ]] && grep -qsiE 'jwt_(private|public)_key' "${files[@]}"
+}

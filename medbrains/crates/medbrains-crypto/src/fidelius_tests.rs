@@ -157,3 +157,52 @@ fn a_private_scalar_at_or_above_the_order_is_refused() {
     let sender = km(&B64.encode(n), SENDER_PUBLIC, SENDER_NONCE);
     assert!(encrypt(PLAINTEXT, &sender, REQUESTER_PUBLIC, REQUESTER_NONCE).is_err());
 }
+
+/// The requester key as BouncyCastle 1.85 writes it with
+/// `ECGenParameterSpec("curve25519")`: the cryptlib named-curve OID.
+const BC_NAMED: &str = "MFswFQYHKoZIzj0CAQYKKwYBBAGXVQEFAQNCAAQIXg+a1Kk8uFecUeP+h1pmKaKbuQjvijvARAktLnTalE0jaPdUyKiCMtQOFYfhfeHPp/bwHMF1NmxnH7COX+vW";
+/// The same key with BouncyCastle's explicit X9.62 parameters.
+const BC_EXPLICIT: &str = "MIIBMTCB6gYHKoZIzj0CATCB3gIBATArBgcqhkjOPQEBAiB/////////////////////////////////////////7TBEBCAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqYSRShRAQge0Je0Je0Je0Je0Je0Je0Je0Je0Je0Je0JgtenHcQyGQEQQQqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0kWiCuGaG4oIa04B7dLHdI0UySPU1+bXxhsinpxaJ+ztPZAiAQAAAAAAAAAAAAAAAAAAAAFN753qL3nNZYEmMaXPXT7QIBCANCAAQIXg+a1Kk8uFecUeP+h1pmKaKbuQjvijvARAktLnTalE0jaPdUyKiCMtQOFYfhfeHPp/bwHMF1NmxnH7COX+vW";
+
+#[test]
+fn bouncycastle_named_and_explicit_spki_keys_are_accepted() {
+    let sender = km(SENDER_PRIVATE, SENDER_PUBLIC, SENDER_NONCE);
+    for spki in [BC_NAMED, BC_EXPLICIT] {
+        check_peer_key(spki).unwrap();
+        assert_eq!(
+            encrypt(PLAINTEXT, &sender, spki, REQUESTER_NONCE).unwrap(),
+            CIPHERTEXT
+        );
+    }
+}
+
+/// `der` with the byte at `at` changed.
+fn flipped(der: &[u8], at: usize) -> String {
+    let mut out = der.to_vec();
+    out[at] ^= 1;
+    B64.encode(out)
+}
+
+#[test]
+fn a_damaged_or_foreign_spki_is_refused() {
+    let named = B64.decode(BC_NAMED).unwrap();
+    // The last byte of the cryptlib OID: another curve's name.
+    assert!(check_peer_key(&flipped(&named, 24)).is_err());
+    // id-ecPublicKey changed.
+    assert!(check_peer_key(&flipped(&named, 10)).is_err());
+    let mut trailing = named.clone();
+    trailing.push(0);
+    assert!(check_peer_key(&B64.encode(trailing)).is_err());
+    // A point outside the subgroup, wrapped in the named encoding.
+    let mut small = named[..named.len() - 65].to_vec();
+    small.extend(B64.decode(order_two_point()).unwrap());
+    assert!(check_peer_key(&B64.encode(small)).is_err());
+    let explicit = B64.decode(BC_EXPLICIT).unwrap();
+    // A byte of the coefficient b in the explicit parameters.
+    let b_at = explicit
+        .windows(3)
+        .position(|w| w == [0x04, 0x20, 0x7b])
+        .unwrap()
+        + 5;
+    assert!(check_peer_key(&flipped(&explicit, b_at)).is_err());
+}
