@@ -251,6 +251,8 @@ pub struct CreateJournalEntryRequest {
     pub lines: Vec<JournalLineInput>,
 }
 
+/// Record a manual journal entry as a draft, once its lines are one-sided, positive and
+/// balanced (`journal_rules`).
 pub async fn create_journal_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -258,20 +260,14 @@ pub async fn create_journal_entry(
 ) -> Result<Json<JournalEntryDetail>, AppError> {
     require_permission(&claims, permissions::billing::journal::CREATE)?;
 
-    if body.lines.is_empty() {
-        return Err(AppError::BadRequest(
-            "Journal entry must have at least one line".to_owned(),
-        ));
-    }
-
-    let total_debit: Decimal = body.lines.iter().map(|l| l.debit_amount).sum();
-    let total_credit: Decimal = body.lines.iter().map(|l| l.credit_amount).sum();
-
-    if total_debit != total_credit {
-        return Err(AppError::BadRequest(format!(
-            "Debits ({total_debit}) must equal credits ({total_credit})"
-        )));
-    }
+    let sides: Vec<(Decimal, Decimal)> = body
+        .lines
+        .iter()
+        .map(|l| (l.debit_amount, l.credit_amount))
+        .collect();
+    let total = crate::journal_rules::check_journal_lines(&sides)
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+    let (total_debit, total_credit) = (total, total);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
