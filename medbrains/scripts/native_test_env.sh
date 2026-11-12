@@ -15,7 +15,7 @@ case "${1:-}" in
     RUNTIME="${IOS_RUNTIME:-com.apple.CoreSimulator.SimRuntime.iOS-18-0}"
     TYPE="${IOS_DEVICE_TYPE:-com.apple.CoreSimulator.SimDeviceType.iPhone-16}"
     UDID=$(xcrun simctl list devices -j | python3 -c "import sys,json; d=json.load(sys.stdin)['devices']; print(next((x['udid'] for r,l in d.items() if r.endswith('${RUNTIME##*.}') for x in l if x['name']=='$NAME'),''))")
-    if [ -z "$UDID" ]; then UDID=$(xcrun simctl create "$NAME" "$TYPE" "$RUNTIME"); fi
+    if [[ -z "$UDID" ]]; then UDID=$(xcrun simctl create "$NAME" "$TYPE" "$RUNTIME"); fi
     xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
     xcrun simctl erase "$UDID" >/dev/null
     xcrun simctl boot "$UDID" >/dev/null
@@ -28,7 +28,7 @@ case "${1:-}" in
     adb -s "$SERIAL" emu kill >/dev/null 2>&1 || true
     sleep 3
     (nohup emulator -avd "$NAME" -wipe-data -no-snapshot-save -no-boot-anim -port 5556 >/dev/null 2>&1 &)
-    until [ "$(adb -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do sleep 5; done
+    until [[ "$(adb -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]]; do sleep 5; done
     echo "$SERIAL"
     ;;
   *) echo "usage: $0 ios|android" >&2; exit 2 ;;
