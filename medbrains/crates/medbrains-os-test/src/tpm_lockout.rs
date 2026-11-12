@@ -19,7 +19,7 @@ const LIMITS: [(&str, &str); 3] = [
     ("TPM2_PT_LOCKOUT_RECOVERY", "0x258"),
 ];
 const GETCAP: &str = "TPM2TOOLS_TCTI=device:/dev/tpmrm0 tpm2_getcap properties-variable";
-/// Power cuts after a PIN unlock: each one counts as a failure, and swtpm's own limit is three.
+/// Power cuts after a PIN unlock. The TPM 2.0 reference code counts each as a failure.
 const POWER_CUTS: u32 = 3;
 /// Drives the TPM into lockout with a throwaway PIN-protected object, never the disk's own key.
 const TRIP_LOCKOUT: &str = "export TPM2TOOLS_TCTI=device:/dev/tpmrm0; cd /run; tpm2_createprimary -Q -C o -c os-test-p.ctx && printf x | tpm2_create -Q -C os-test-p.ctx -p right -i- -u os-test.pub -r os-test.priv && tpm2_load -Q -C os-test-p.ctx -u os-test.pub -r os-test.priv -c os-test.ctx && for i in $(seq 20); do tpm2_unseal -Q -c os-test.ctx -p wrong >/dev/null 2>&1; done; rm -f os-test-p.ctx os-test.pub os-test.priv os-test.ctx";
@@ -73,7 +73,8 @@ fn open_with_pin(vm: &mut Vm, pin: &str) -> Result<(), String> {
 }
 
 /// Power cuts after PIN unlocks, then one wrong PIN, and the right PIN still opens: the limits leave room
-/// for a site with an unsteady supply. On swtpm's own limit of three this locks out.
+/// for a site with an unsteady supply. Not yet shown to fail without the fix: in its first run the count
+/// was 1 after three cuts, which forgiveness (one per 300 s) may have hidden. Prints the count.
 pub(crate) fn power_cuts_and_a_wrong_pin_leave_the_pin_working(image: &Path) -> Result<(), String> {
     let mut vm = Vm::start_answering_key(image)?;
     let pin = throwaway_pin()?;
