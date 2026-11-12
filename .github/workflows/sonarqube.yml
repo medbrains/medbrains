@@ -7,10 +7,12 @@
 # (free for public repos), then add the SONAR_TOKEN repository secret. Until then
 # the job reports that it was skipped and passes. Settings: sonar-project.properties.
 #
-# Coverage: web (vitest LCOV) on every run. Rust (cargo llvm-cov LCOV) only on main pushes,
-# the nightly schedule and a manual dispatch, because it rebuilds and reruns the whole
-# workspace's tests instrumented (an hour or more). PR analyses therefore carry web and Android
-# coverage, and Rust coverage on new code is measured on main, not on the PR. Android: JaCoCo
+# Coverage: web (vitest LCOV) on every run. Rust (cargo llvm-cov LCOV) is built only by the
+# nightly schedule and a manual dispatch, because it rebuilds and reruns the whole workspace's
+# tests instrumented (an hour or more). Built on every main push, it was almost never finished:
+# each merge queued a new run and GitHub cancelled the pending one, so main went days without
+# Rust coverage. A main push now reuses the latest nightly report (Rust lines changed since then
+# show as their nightly state until the next night); PR analyses carry web and Android coverage. Android: JaCoCo
 # over the kit's JVM unit tests, every run. iOS: not yet (needs a macOS runner).
 
 name: SonarQube
@@ -27,9 +29,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # A new PR push replaces the old run; on main, runs queue so an hour of coverage is not
-  # thrown away by the next merge.
+  # Per event as well as per ref, so a merge to main never queues behind (and so never cancels)
+  # the nightly coverage run. A new PR push replaces the old run; main runs never cancel.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -40,7 +42,7 @@ jobs:
   # desktop GUI (needs GTK), integration tests against PostgreSQL 17. Never on a PR.
   # No cache: the report feeds main's analysis and is built from a clean tree each time.
   rust-coverage:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     name: Rust coverage
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -156,6 +158,10 @@ jobs:
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     name: SonarQube analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Only to download the nightly run's Rust coverage on a main push.
+      actions: read
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
@@ -194,6 +200,25 @@ jobs:
         with:
           name: rust-lcov
           path: rust-coverage
+      # A main push builds no Rust coverage: take the latest successful nightly's report.
+      - name: Find the latest nightly Rust coverage
+        id: nightly
+        if: env.SONAR_TOKEN != '' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          run=$(gh api "repos/$REPO/actions/workflows/sonarqube.yml/runs?branch=main&status=success&per_page=30" \
+            --jq '[.workflow_runs[] | select(.event == "schedule" or .event == "workflow_dispatch")][0].id // empty')
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.SONAR_TOKEN != '' && steps.nightly.outputs.run != ''
+        continue-on-error: true
+        with:
+          name: rust-lcov
+          path: rust-coverage
+          run-id: ${{ steps.nightly.outputs.run }}
+          github-token: ${{ github.token }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: env.SONAR_TOKEN != '' && needs.android-coverage.result == 'success'
         continue-on-error: true
