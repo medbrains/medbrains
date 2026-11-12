@@ -1,7 +1,7 @@
 ---
 title: Contribute to MedBrains
 sidebar_position: 4
-description: "How to contribute to MedBrains: feature branches, a signed contributor licence agreement, one change per pull request with its screen and tests, and recording decisions."
+description: "How to contribute to MedBrains: feature branches, a signed contributor licence agreement, one change per pull request with its screen and tests, and decisions."
 ---
 
 # Contribute
