@@ -90,6 +90,14 @@ draft; marking it ready for review runs everything.
 
    Linux desktop packages carry no code signature; `SHA256SUMS` and the
    provenance attestation cover them.
+7. Every app carries the one product version, `[workspace.package] version` in
+   `medbrains/Cargo.toml` (`make release` checks it), never a number typed per
+   app. Android `versionName` and iOS `CFBundleShortVersionString` are that
+   version; Android `versionCode` and iOS `CFBundleVersion` are
+   major×10000 + minor×100 + patch (3.33.0 → 33300), so they rise with every
+   release; minor and patch stay below 100. The desktop takes the crate's
+   `version.workspace`. `scripts/app_version.sh` prints both numbers and fails
+   a tag that names another version (a `-rc` tag counts as its version).
 
 A release is not a deploy: production is built with `cargo zigbuild` on the
 operator's machine. How to verify a release:

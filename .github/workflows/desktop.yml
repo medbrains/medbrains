@@ -84,8 +84,10 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      # The updater compares this version with latest.json's, so a release
-      # must carry the tag's version, not the 0.1.0 in tauri.conf.json.
+      # The app's version is the workspace version (tauri.conf.json has none, so Tauri takes the
+      # crate's, which is `version.workspace`). The updater compares it with latest.json's, so a
+      # release tag must name the same version (scripts/app_version.sh), and a pre-release tag
+      # (v3.33.0-rc1) puts its suffix on the app so the updater can order it.
       - name: App version from the tag
         if: inputs.release-id != ''
         shell: bash
@@ -98,6 +100,7 @@ jobs:
             echo "::error::Release tag '$TAG' is not v<semver>; refusing to build an app the updater cannot order"
             exit 1
           fi
+          medbrains/scripts/app_version.sh "$TAG"
           node -e '
             const fs = require("fs");
             const path = "medbrains/apps/desktop/src-tauri/tauri.conf.json";
