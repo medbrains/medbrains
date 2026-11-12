@@ -24,6 +24,7 @@ const RFC8032: [(&str, &str, &str, &str); 2] = [
     ),
 ];
 
+/// Bytes from lower-case hex (test vectors).
 fn hex(s: &str) -> Vec<u8> {
     (0..s.len())
         .step_by(2)

@@ -9,10 +9,12 @@ use super::unseal_signing_key;
 const KEK: &[u8] = b"test-key-encryption-key-32-bytes!";
 const CONTEXT: &[u8] = b"medbrains:doctor-signature-key:v1:t:d";
 
+/// `bytes` sealed as a credential's key is stored.
 fn sealed(bytes: &[u8]) -> Vec<u8> {
     encrypt_bytes(KEK, CONTEXT, bytes).unwrap()
 }
 
+/// Whether a stored key opens against `public`.
 fn open(stored: &[u8], public: &[u8]) -> bool {
     unseal_signing_key(KEK, CONTEXT, stored, public, Uuid::nil()).is_ok()
 }

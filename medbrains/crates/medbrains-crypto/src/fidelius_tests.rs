@@ -21,6 +21,7 @@ const REQUESTER_NONCE: &str = "6uj1RdDUbcpI3lVMZvijkMC8Te20O4Bcyz0SyivX8Eg=";
 const PLAINTEXT: &str = "Wormtail should never have been Potter cottage's secret keeper.";
 const CIPHERTEXT: &str = "pzMvVZNNVtJzqPkkxcCbBUWgDEBy/mBXIeT2dJWI16ZAQnnXUb9lI+S4k8XK6mgZSKKSRIHkcNvJpllnBg548wUgavBa0vCRRwdL6kY6Yw==";
 
+/// Key material from the three base64 fields.
 fn km(private_key: &str, public_key: &str, nonce: &str) -> KeyMaterial {
     KeyMaterial {
         private_key: private_key.into(),

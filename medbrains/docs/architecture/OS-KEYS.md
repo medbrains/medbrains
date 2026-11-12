@@ -111,6 +111,28 @@ disposal. No screen for this yet.
 | **User passwords** | Sign-in | Argon2 with crate defaults, source | Database | RLS | User set | Password change | Reset | Offline guessing |
 | **API keys** | Machine access | 256-bit random, unsalted SHA-256 at rest, source | Database | RLS | Until revoked | Revoke and create | Create new | Hash only; high entropy, so guessing is not practical |
 
+### Checked when loaded
+
+A key is checked before it is used, and a bad one is refused, never warned about
+(`crates/medbrains-crypto/src/keys.rs`; the eMudhra CA incident is why):
+
+- **JWT pair**: parsed with OpenSSL (PKCS#8 private; SPKI or raw 32-byte public),
+  the seed must derive the public key, and a probe token is signed and verified
+  with `jsonwebtoken`. Any failure stops the server with
+  `refusing to start: JWT_PRIVATE_KEY does not belong to its public key ...`.
+  The fingerprint (`SHA256:` + 16 hex) is logged at start-up, never the key.
+  `install.sh` makes the same check with OpenSSL (`deploy/standalone/jwt-keys.sh`).
+- **Sealing keys**: `secrets::sealing::sealing_key` only. The development value in
+  the source is used only when the key is unset and `MEDBRAINS_ENV=development`.
+- **Doctor signing keys**: the unsealed seed must derive the credential's stored
+  public key; each signature is verified before it is written. Plaintext keys from
+  before May 2026 are refused: issue the doctor a new credential.
+- **Fidelius**: peer keys are a raw point or SPKI on exactly this curve, never at
+  infinity, off the curve or outside the prime-order subgroup; a reopened private
+  scalar must be `1 ≤ d < n` and derive its stored public point.
+
+New raw-key handling outside `keys*` fails `make check-raw-key-bytes`.
+
 ## Certificates
 
 | Certificate | Protects | Algorithm | Where | Mode | Lifetime | Renewal | Lost | Stolen |
