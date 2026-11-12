@@ -83,25 +83,25 @@ describe("AccessMatrixSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     held.permissions = new Set(ALL);
-    api.listRoles.mockResolvedValue([role("r1", "nurse", ["nurse.mar.view"])]);
-    api.listUsers.mockResolvedValue([user("u1", "nurse")]);
-    api.listAccessGroups.mockResolvedValue([]);
-    api.getAccessManifest.mockResolvedValue(null);
-    api.updateRolePermissions.mockResolvedValue({});
-    api.updateRoleFieldAccess.mockResolvedValue({});
-    api.updateUserAccessMatrix.mockResolvedValue({});
+    access.listRoles.mockResolvedValue([role("r1", "nurse", ["nurse.mar.view"])]);
+    access.listUsers.mockResolvedValue([user("u1", "nurse")]);
+    access.listAccessGroups.mockResolvedValue([]);
+    access.getAccessManifest.mockResolvedValue(null);
+    access.updateRolePermissions.mockResolvedValue({});
+    access.updateRoleFieldAccess.mockResolvedValue({});
+    access.updateUserAccessMatrix.mockResolvedValue({});
   });
 
   it("shows a fault, not an empty tenant, when roles fail to load", async () => {
-    api.listRoles.mockRejectedValue(new Error("502"));
+    access.listRoles.mockRejectedValue(new Error("502"));
     render(<AccessMatrixSettings />);
     expect(await screen.findByText("Could not load the access matrix")).toBeInTheDocument();
     expect(screen.queryByText(/No roles or users are available/)).toBeNull();
   });
 
   it("says so when the tenant really has no roles or users", async () => {
-    api.listRoles.mockResolvedValue([]);
-    api.listUsers.mockResolvedValue([]);
+    access.listRoles.mockResolvedValue([]);
+    access.listUsers.mockResolvedValue([]);
     render(<AccessMatrixSettings />);
     expect(await screen.findByText(/No roles or users are available/)).toBeInTheDocument();
   });
@@ -112,11 +112,11 @@ describe("AccessMatrixSettings", () => {
     const row = rowFor("nurse.mar.witness");
     await userEvent.click(within(row).getByText("Grant"));
     await userEvent.click(screen.getByRole("button", { name: /Save Matrix/ }));
-    await waitFor(() => expect(api.updateRolePermissions).toHaveBeenCalled());
-    const [roleId, codes] = api.updateRolePermissions.mock.calls[0] as [string, string[]];
+    await waitFor(() => expect(access.updateRolePermissions).toHaveBeenCalled());
+    const [roleId, codes] = access.updateRolePermissions.mock.calls[0] as [string, string[]];
     expect(roleId).toBe("r1");
     expect(new Set(codes)).toEqual(new Set(["nurse.mar.view", "nurse.mar.witness"]));
-    expect(api.updateRoleFieldAccess).toHaveBeenCalledWith("r1", {});
+    expect(access.updateRoleFieldAccess).toHaveBeenCalledWith("r1", {});
   });
 
   it("does not let a reader without admin.roles.update save or change a role", async () => {
@@ -132,17 +132,17 @@ describe("AccessMatrixSettings", () => {
     held.permissions = new Set(["admin.users.list", "admin.users.update"]);
     render(<AccessMatrixSettings />);
     expect(await screen.findByRole("button", { name: /Save User Matrix/ })).toBeInTheDocument();
-    expect(api.listRoles).not.toHaveBeenCalled();
+    expect(access.listRoles).not.toHaveBeenCalled();
   });
 
   it("saves a user's deny override and keeps their existing extras", async () => {
-    api.listUsers.mockResolvedValue([user("u1", "nurse", { extra: ["lab.results.view"] })]);
+    access.listUsers.mockResolvedValue([user("u1", "nurse", { extra: ["lab.results.view"] })]);
     render(<AccessMatrixSettings />, { initialEntries: ["/?user=u1"] });
     await screen.findByRole("button", { name: /Save User Matrix/ });
     await userEvent.click(within(rowFor("nurse.mar.view")).getByText("Deny"));
     await userEvent.click(screen.getByRole("button", { name: /Save User Matrix/ }));
-    await waitFor(() => expect(api.updateUserAccessMatrix).toHaveBeenCalled());
-    expect(api.updateUserAccessMatrix).toHaveBeenCalledWith(
+    await waitFor(() => expect(access.updateUserAccessMatrix).toHaveBeenCalled());
+    expect(access.updateUserAccessMatrix).toHaveBeenCalledWith(
       "u1",
       expect.objectContaining({
         extra_permissions: ["lab.results.view"],
@@ -152,7 +152,7 @@ describe("AccessMatrixSettings", () => {
   });
 
   it("counts a group grant as effective access and lists the group's members", async () => {
-    api.listAccessGroups.mockResolvedValue([
+    access.listAccessGroups.mockResolvedValue([
       {
         id: "g1",
         tenant_id: "t1",
@@ -163,7 +163,7 @@ describe("AccessMatrixSettings", () => {
         is_active: true,
       },
     ]);
-    api.listAccessGroupMembers.mockResolvedValue([
+    access.listAccessGroupMembers.mockResolvedValue([
       { user_id: "u1", username: "u_u1", full_name: "User u1", role: "nurse", expires_at: null },
     ]);
     render(<AccessMatrixSettings />, { initialEntries: ["/?user=u1"] });
