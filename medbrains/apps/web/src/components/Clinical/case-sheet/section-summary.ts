@@ -103,5 +103,11 @@ export function summariseSection(code: string, data: unknown): string[] {
  * would render.
  */
 export function hasVisibleText(html: string): boolean {
-  return (new DOMParser().parseFromString(html, "text/html").body.textContent ?? "").trim() !== "";
+  const body = new DOMParser().parseFromString(html, "text/html").body;
+  // join() reads a null textContent as "", so no node can make this throw or lie.
+  return (
+    Array.from(body.childNodes, (node) => node.textContent)
+      .join("")
+      .trim() !== ""
+  );
 }

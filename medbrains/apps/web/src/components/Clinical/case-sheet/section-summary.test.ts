@@ -25,6 +25,8 @@ describe("hasVisibleText", () => {
   it("is false for markup with no text, so an empty section is hidden", () => {
     expect(hasVisibleText("<p><br></p>")).toBe(false);
     expect(hasVisibleText("  ")).toBe(false);
+    expect(hasVisibleText("<p>&nbsp;</p>")).toBe(false);
+    expect(hasVisibleText("")).toBe(false);
   });
 
   it("is true for any rendered text, however the markup is nested", () => {
