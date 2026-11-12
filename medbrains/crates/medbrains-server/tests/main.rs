@@ -160,6 +160,7 @@ mod immunization_schedule_test;
 mod insurance_claim_money_test;
 mod ipd_admission_guard_test;
 mod ipd_nursing_safety_test;
+mod journal_entry_test;
 mod kpi_department_filter_test;
 mod lab_critical_escalation_test;
 mod lab_critical_value_report_test;
