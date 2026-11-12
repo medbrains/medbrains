@@ -108,10 +108,26 @@ function toReferralUrgency(value: string | null): ReferralUrgency | undefined {
   return referralUrgencyValues.find((candidate) => candidate === value);
 }
 
+/**
+ * A patient-history list whose read failed. Shown instead of the list's empty
+ * state, which would read as a fact about the patient ("no prescriptions").
+ */
+function LoadFailed({ what }: { what: string }) {
+  return (
+    <Alert tone="danger" title={`${what} could not be loaded`}>
+      <Text size="sm">Reload the page; if it keeps failing, tell IT.</Text>
+    </Alert>
+  );
+}
+
 // ── Rx History ──────────────────────────────────────────
 
 export function RxHistoryTab({ patientId }: { patientId: string }) {
-  const { data: history = [], isLoading } = useQuery({
+  const {
+    data: history = [],
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["patient-prescriptions", patientId],
     queryFn: () => opdService.listPatientPrescriptions(patientId),
   });
@@ -123,6 +139,7 @@ export function RxHistoryTab({ patientId }: { patientId: string }) {
       </Text>
     );
   }
+  if (isError) return <LoadFailed what="Prescription history" />;
 
   if (history.length === 0) {
     return (
@@ -217,7 +234,11 @@ export function CertificatesTab({
   });
   const certificateType = watch("certificate_type");
 
-  const { data: certificates = [], isLoading } = useQuery<MedicalCertificate[]>({
+  const {
+    data: certificates = [],
+    isLoading,
+    isError,
+  } = useQuery<MedicalCertificate[]>({
     queryKey: ["patient-certificates", patientId],
     queryFn: () => opdService.listCertificates(patientId),
   });
@@ -281,6 +302,7 @@ export function CertificatesTab({
         </Group>
       )}
 
+      {isError && <LoadFailed what="Certificates" />}
       {certificates.map((cert) => (
         <Card key={cert.id} padding="sm" withBorder>
           <Group justify="space-between" mb="xs">
@@ -453,7 +475,11 @@ export function CertificatesTab({
 export function ChartsTab({ patientId }: { patientId: string }) {
   const [metric, setMetric] = useState<string | null>("bp");
 
-  const { data: history = [], isLoading } = useQuery({
+  const {
+    data: history = [],
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["patient-vitals-history", patientId],
     queryFn: () => opdService.listPatientVitalsHistory(patientId),
   });
@@ -479,6 +505,8 @@ export function ChartsTab({ patientId }: { patientId: string }) {
       </Text>
     );
   }
+
+  if (isError) return <LoadFailed what="Vitals history" />;
 
   if (chartData.length === 0) {
     return (
@@ -546,22 +574,31 @@ export function ChartsTab({ patientId }: { patientId: string }) {
 
 export function TimelineTab({ patientId }: { patientId: string }) {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const { data: visits = [], isLoading: loadingVisits } = useQuery({
+  const visitsQuery = useQuery({
     queryKey: ["patient-visits", patientId],
     queryFn: () => opdService.listPatientVisits(patientId),
   });
-  const { data: rxHistory = [] } = useQuery({
+  const rxQuery = useQuery({
     queryKey: ["patient-prescriptions", patientId],
     queryFn: () => opdService.listPatientPrescriptions(patientId),
   });
-  const { data: labOrders = [] } = useQuery({
+  const labQuery = useQuery({
     queryKey: ["patient-lab-orders", patientId],
     queryFn: () => opdService.listPatientLabOrders(patientId),
   });
-  const { data: certificates = [] } = useQuery({
+  const certificatesQuery = useQuery({
     queryKey: ["patient-certificates", patientId],
     queryFn: () => opdService.listCertificates(patientId),
   });
+  const visits = visitsQuery.data ?? [];
+  const rxHistory = rxQuery.data ?? [];
+  const labOrders = labQuery.data ?? [];
+  const certificates = certificatesQuery.data ?? [];
+  const loadingVisits = visitsQuery.isLoading;
+  // A timeline missing one source reads as a complete history.
+  const anySourceFailed = [visitsQuery, rxQuery, labQuery, certificatesQuery].some(
+    (q) => q.isError,
+  );
 
   // Merge into unified timeline
   const timelineItems = useMemo(() => {
@@ -659,6 +696,8 @@ export function TimelineTab({ patientId }: { patientId: string }) {
     );
   }
 
+  if (anySourceFailed && timelineItems.length === 0) return <LoadFailed what="Clinical history" />;
+
   if (timelineItems.length === 0) {
     return (
       <Text size="sm" c="dimmed" ta="center" py="md">
@@ -669,6 +708,7 @@ export function TimelineTab({ patientId }: { patientId: string }) {
 
   return (
     <Stack gap="sm">
+      {anySourceFailed && <LoadFailed what="Part of the clinical history" />}
       <Group gap="xs">
         <Select
           placeholder="Filter by type"
@@ -803,7 +843,7 @@ export function ProceduresTab({
     staleTime: 300_000,
   });
 
-  const { data: orders = [] } = useQuery<ProcedureOrderWithName[]>({
+  const { data: orders = [], isError: ordersFailed } = useQuery<ProcedureOrderWithName[]>({
     queryKey: ["procedure-orders", encounterId],
     queryFn: () => opdService.listProcedureOrders(encounterId),
   });
@@ -1047,7 +1087,8 @@ export function ProceduresTab({
         </Table>
       )}
 
-      {!formOpened && orders.length === 0 && (
+      {ordersFailed && <LoadFailed what="Procedure orders" />}
+      {!formOpened && !ordersFailed && orders.length === 0 && (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No procedures ordered yet.
         </Text>
@@ -1152,13 +1193,7 @@ export function ReferralsTab({
   }
   // An unanswered list is not an empty one: "No referrals" here would tell a
   // doctor the patient was never referred.
-  if (isError) {
-    return (
-      <Alert tone="danger" title="Referrals could not be loaded">
-        <Text size="sm">Reload the page; if it keeps failing, tell IT.</Text>
-      </Alert>
-    );
-  }
+  if (isError) return <LoadFailed what="Referrals" />;
 
   return (
     <Stack gap="sm">
@@ -1404,9 +1439,7 @@ export function RemindersTab({
       )}
 
       {remindersFailed ? (
-        <Alert tone="danger" title="Reminders could not be loaded">
-          Reload the page; if it keeps failing, tell IT.
-        </Alert>
+        <LoadFailed what="Reminders" />
       ) : reminders.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No reminders yet.
@@ -1767,7 +1800,7 @@ export function ConsentsTab({
   const [formOpened, formHandlers] = useDisclosure(false);
   const [viewing, setViewing] = useState<ProcedureConsent | null>(null);
 
-  const { data: consents = [] } = useQuery<ProcedureConsent[]>({
+  const { data: consents = [], isError: consentsFailed } = useQuery<ProcedureConsent[]>({
     queryKey: ["consents", patientId],
     queryFn: () => opdService.listProcedureConsents(patientId),
   });
@@ -1825,7 +1858,9 @@ export function ConsentsTab({
         </Group>
       )}
 
-      {consents.length === 0 ? (
+      {consentsFailed ? (
+        <LoadFailed what="Consents" />
+      ) : consents.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No consents recorded.
         </Text>
