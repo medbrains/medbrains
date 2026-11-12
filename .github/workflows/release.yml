@@ -54,6 +54,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # A tag that names another version than the workspace stops the whole release here:
+      # the release, the OS image and every app depend on this job.
+      - name: The tag matches the workspace version
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: .
+        run: bash medbrains/scripts/app_version.sh "$GITHUB_REF_NAME"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.triple }}
@@ -69,10 +75,11 @@ jobs:
           -p medbrains-proxy --bin medbrains-front
           -p medbrains-bridge --bin medbrains-bridge
           -p medbrains-edge-app --bin medbrains-edge
+          -p medbrains-os-update --bin medbrains-os-update
       - name: Collect
         run: |
           mkdir -p ../bins
-          for b in medbrains-server medbrains-archive medbrains-os-setup medbrains-agent medbrains-front medbrains-bridge medbrains-edge; do
+          for b in medbrains-server medbrains-archive medbrains-os-setup medbrains-agent medbrains-front medbrains-bridge medbrains-edge medbrains-os-update; do
             cp "target/${{ matrix.triple }}/release/$b" ../bins/
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -110,13 +117,14 @@ jobs:
           retention-days: 30
 
   android:
-    # Staff and patient apps. Release-signed only when the keystore secrets are
-    # set; without them the APKs are marked -unsigned and will not install.
+    # Every native app module (apps/android/app-*: staff and patient today), as an APK to
+    # sideload and an AAB for Play. Release-signed only when the keystore secrets are set;
+    # without them both are marked -unsigned (the APK will not install).
     name: Android apps
     if: github.event_name != 'release'
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
     # trial run joins no environment and builds unsigned.
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    environment: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -152,31 +160,181 @@ jobs:
             --out-dir apps/android/core/src/main/kotlin
           cargo ndk -t arm64-v8a -t x86_64 -o apps/android/core/src/main/jniLibs \
             build --release -p medbrains-edge-rn
-      - run: ./gradlew --no-daemon :app-staff:assembleRelease :app-patient:assembleRelease
+      # A new apps/android/app-<name> module is picked up without editing this job.
+      # versionName and versionCode come from the workspace version (build.gradle.kts); a tag
+      # naming another version fails here rather than shipping apps that disagree with it.
+      - run: |
+          [[ "$GITHUB_REF" != refs/tags/v* ]] || ../../scripts/app_version.sh "$GITHUB_REF_NAME"
+          tasks=()
+          for d in app-*; do tasks+=(":$d:assembleRelease" ":$d:bundleRelease"); done
+          ./gradlew --no-daemon "${tasks[@]}"
       - name: Sign, or mark unsigned
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/apk"
+          out="$GITHUB_WORKSPACE/apk"; mkdir -p "$out"
           bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          for app in staff patient; do
-            in=$(ls app-$app/build/outputs/apk/release/*.apk | head -1)
+          trap 'rm -f "$RUNNER_TEMP/release.jks"' EXIT
+          [ -n "$KEYSTORE_B64" ] && echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          for d in app-*/; do
+            app=${d#app-}; app=${app%/}
+            apk=$(find "${d}build/outputs/apk/release" -name '*.apk' | head -1)
+            aab=$(find "${d}build/outputs/bundle/release" -name '*.aab' | head -1)
             if [ -n "$KEYSTORE_B64" ]; then
-              echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-              "$bt/zipalign" -f 4 "$in" "$RUNNER_TEMP/aligned.apk"
+              "$bt/zipalign" -P 16 -f 4 "$apk" "$RUNNER_TEMP/aligned.apk"
               "$bt/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KEYSTORE_PASSWORD \
-                --ks-key-alias "$KEY_ALIAS" --out "$GITHUB_WORKSPACE/apk/medbrains-$app-android.apk" "$RUNNER_TEMP/aligned.apk"
+                --ks-key-alias "$KEY_ALIAS" --out "$out/medbrains-$app-android.apk" "$RUNNER_TEMP/aligned.apk"
+              # An AAB is signed with jarsigner (apksigner does not take bundles).
+              jarsigner -keystore "$RUNNER_TEMP/release.jks" -storepass:env KEYSTORE_PASSWORD \
+                -signedjar "$out/medbrains-$app-android.aab" "$aab" "$KEY_ALIAS"
             else
-              cp "$in" "$GITHUB_WORKSPACE/apk/medbrains-$app-android-unsigned.apk"
+              cp "$apk" "$out/medbrains-$app-android-unsigned.apk"
+              cp "$aab" "$out/medbrains-$app-android-unsigned.aab"
             fi
           done
-          rm -f "$RUNNER_TEMP/release.jks"
+          rm -f "$RUNNER_TEMP/release.jks" "$out"/*.idsig
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android
           path: apk
+          retention-days: 30
+
+  ios:
+    # Every iOS app (apps/ios: MedBrainsStaff, MedBrainsPatient), archived for release on a
+    # macOS runner. Signed into an App Store .ipa only when all the Apple distribution secrets
+    # are set (docs/developer/reference/ci-cd.md lists them); otherwise an unsigned .xcarchive
+    # marked -unsigned, which proves the release build but installs nowhere. Never uploaded
+    # to App Store Connect from here.
+    name: iOS apps
+    if: github.event_name != 'release'
+    # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
+    # trial run joins no environment and builds unsigned.
+    environment: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    runs-on: macos-26
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The Rust core is generated, never committed (apps/ios/.gitignore): the iOS half of
+      # `make native-core`, UniFFI Swift into MedBrainsCore/Generated and the xcframework.
+      - name: Build the Rust core and its Swift bindings
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+          # Unstripped host build: UniFFI reads its metadata from the library's symbols.
+          CARGO_PROFILE_RELEASE_STRIP=false cargo build -p medbrains-edge-rn --release
+          cargo build -p medbrains-edge-rn --release --target aarch64-apple-ios
+          cargo build -p medbrains-edge-rn --release --target aarch64-apple-ios-sim
+          core=apps/ios/Packages/MedBrainsCore hdr="$RUNNER_TEMP/edge-rn-headers"
+          mkdir -p "$core/Generated" "$hdr"
+          cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
+            --library target/release/libmedbrains_edge_rn.dylib --language swift --out-dir "$core/Generated"
+          cp "$core/Generated/edge_rnFFI.h" "$hdr/"
+          cp "$core/Generated/edge_rnFFI.modulemap" "$hdr/module.modulemap"
+          xcodebuild -create-xcframework \
+            -library target/aarch64-apple-ios-sim/release/libmedbrains_edge_rn.a -headers "$hdr" \
+            -library target/aarch64-apple-ios/release/libmedbrains_edge_rn.a -headers "$hdr" \
+            -output "$core/MedBrainsEdgeRn.xcframework"
+      - name: Generate the Xcode project
+        working-directory: medbrains/apps/ios
+        run: brew install xcodegen && xcodegen generate
+      # A temporary keychain with the distribution certificate, and each app's App Store
+      # provisioning profile installed. Signs only when every secret is present.
+      - name: Signing material, only when set
+        id: sign
+        env:
+          P12: ${{ secrets.APPLE_DIST_CERT_P12 }}
+          P12_PASSWORD: ${{ secrets.APPLE_DIST_CERT_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PROFILE_STAFF: ${{ secrets.APPLE_PROFILE_STAFF }}
+          APPLE_PROFILE_PATIENT: ${{ secrets.APPLE_PROFILE_PATIENT }}
+        run: |
+          if [ -z "$P12" ] || [ -z "$TEAM_ID" ] || [ -z "$APPLE_PROFILE_STAFF" ] || [ -z "$APPLE_PROFILE_PATIENT" ]; then
+            echo "::warning::Apple distribution secrets are not all set: building unsigned .xcarchive files"
+            echo "signed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          kc="$RUNNER_TEMP/sign.keychain-db" kcpw=$(openssl rand -hex 16)
+          security create-keychain -p "$kcpw" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$kcpw" "$kc"
+          echo "$P12" | base64 -d > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -k "$kc" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/dist.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kcpw" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc" "$HOME/Library/Keychains/login.keychain-db"
+          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$dir"
+          done
+          for app in STAFF PATIENT; do
+            v="APPLE_PROFILE_$app"; f="$RUNNER_TEMP/$app.mobileprovision"
+            echo "${!v}" | base64 -d > "$f"
+            uuid=$(security cms -D -i "$f" | plutil -extract UUID raw -)
+            cp "$f" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+            cp "$f" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$uuid.mobileprovision"
+            echo "profile_$(echo "$app" | tr '[:upper:]' '[:lower:]')=$uuid" >> "$GITHUB_OUTPUT"
+          done
+          { echo "signed=true"; echo "keychain=$kc"; } >> "$GITHUB_OUTPUT"
+      - name: Archive, and export when signed
+        working-directory: medbrains/apps/ios
+        env:
+          SIGNED: ${{ steps.sign.outputs.signed }}
+          KEYCHAIN: ${{ steps.sign.outputs.keychain }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PROFILE_STAFF: ${{ steps.sign.outputs.profile_staff }}
+          PROFILE_PATIENT: ${{ steps.sign.outputs.profile_patient }}
+        run: |
+          out="$GITHUB_WORKSPACE/ios"; mkdir -p "$out"
+          # One version for every app (scripts/app_version.sh); a tag naming another version fails.
+          tag=; [[ "$GITHUB_REF" == refs/tags/v* ]] && tag=$GITHUB_REF_NAME
+          read -r version build <<< "$(../../scripts/app_version.sh ${tag:+"$tag"})"
+          for pair in staff:Staff patient:Patient; do
+            app=${pair%%:*} scheme=MedBrains${pair#*:}
+            archive="$RUNNER_TEMP/$scheme.xcarchive"
+            base=(-project MedBrains.xcodeproj -scheme "$scheme" -configuration Release
+                  -destination generic/platform=iOS -archivePath "$archive"
+                  MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build")
+            if [ "$SIGNED" != true ]; then
+              xcodebuild archive "${base[@]}" CODE_SIGNING_ALLOWED=NO
+              ditto -c -k --keepParent "$archive" "$out/medbrains-$app-ios-unsigned.xcarchive.zip"
+              continue
+            fi
+            pv="PROFILE_$(echo "$app" | tr '[:lower:]' '[:upper:]')"; profile=${!pv}
+            # MB_APP_PROFILE reaches only the app target (project.yml); a profile set
+            # globally would also land on the Swift packages, which refuse one.
+            xcodebuild archive "${base[@]}" CODE_SIGN_IDENTITY="Apple Distribution" \
+              DEVELOPMENT_TEAM="$TEAM_ID" MB_APP_PROFILE="$profile" OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN"
+            bundle=$(plutil -extract ApplicationProperties.CFBundleIdentifier raw "$archive/Info.plist")
+            cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict><key>$bundle</key><string>$profile</string></dict>
+            <key>destination</key><string>export</string>
+          </dict></plist>
+          PLIST
+            xcodebuild -exportArchive -archivePath "$archive" -exportPath "$RUNNER_TEMP/export-$app" \
+              -exportOptionsPlist "$RUNNER_TEMP/export.plist"
+            cp "$RUNNER_TEMP/export-$app"/*.ipa "$out/medbrains-$app-ios.ipa"
+          done
+      - name: Remove the keychain
+        if: always() && steps.sign.outputs.keychain != ''
+        env:
+          KEYCHAIN: ${{ steps.sign.outputs.keychain }}
+        run: security delete-keychain "$KEYCHAIN"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios
+          path: ios
           retention-days: 30
 
   build-kanidm:
@@ -215,7 +373,7 @@ jobs:
     needs: [build-backend, build-frontend, build-kanidm]
     # Signing keys live in the `release` environment, which only `v*` tags may use; a manual
     # trial run joins no environment and builds unsigned.
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    environment: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     runs-on: ${{ matrix.runner }}
     container:
       image: debian:trixie
@@ -255,12 +413,17 @@ jobs:
           PCR_KEY: ${{ secrets.OS_PCR_KEY }}
           PCR_CERT: ${{ secrets.OS_PCR_CERT }}
         run: |
-          # A trial run's ref is the branch, release/v3.33.0; a slash cannot go in a file name.
+          # The OS version must be plain dotted numbers (os/build.sh): a v3.33.0 tag gives 3.33.0.
+          # A trial run's ref is a branch, so build.sh numbers it from the commit time, and the
+          # file name carries the branch (a slash cannot go in a file name).
           version=$(printf '%s' "$GITHUB_REF_NAME" | tr / -)
-          export OS_VERSION="$version"
+          case "$GITHUB_REF" in
+            refs/tags/v*) export OS_VERSION="${GITHUB_REF_NAME#v}" ;;
+          esac
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           chmod +x bins/* kanidm/kanidmd
           suffix=-unsigned
+          trap 'rm -f "$RUNNER_TEMP/pcr.key" "$RUNNER_TEMP/pcr.crt"' EXIT
           if [ -n "$PCR_KEY" ]; then
             printf '%s' "$PCR_KEY" > "$RUNNER_TEMP/pcr.key"; printf '%s' "$PCR_CERT" > "$RUNNER_TEMP/pcr.crt"
             export OS_PCR_KEY="$RUNNER_TEMP/pcr.key" OS_PCR_CERT="$RUNNER_TEMP/pcr.crt"; suffix=
@@ -351,8 +514,8 @@ jobs:
   release:
     name: GitHub release
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend, android, os-image]
-    # The server and web app must succeed. A failed Android or OS-image job
+    needs: [build-backend, build-frontend, android, ios, os-image]
+    # The server and web app must succeed. A failed Android, iOS or OS-image job
     # leaves its files out of this release rather than stopping it; its job shows red.
     # The Docker image is not built yet: it follows on Publish (the docker job).
     if: >-
@@ -409,7 +572,7 @@ jobs:
             tar -czf "dist/medbrains-server-bins-linux-$a.tar.gz" -C "artifacts/bins-$a" .
           done
           tar -czf dist/medbrains-web-dist.tar.gz -C artifacts web-dist
-          find artifacts/android artifacts/os-* -type f -exec cp {} dist/ \;
+          find artifacts/android artifacts/ios artifacts/os-* -type f -exec cp {} dist/ \;
           cd dist && sha256sum -- * > SHA256SUMS
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign the checksums (keyless)
@@ -445,6 +608,11 @@ jobs:
   desktop:
     name: Desktop client
     needs: [release]
+    # On a tag, after the draft exists (the installers upload to it). On a manual run the
+    # release job is skipped and this builds the installers unsigned, as workflow artifacts.
+    if: >-
+      always() && (needs.release.result == 'success'
+      || (github.event_name == 'workflow_dispatch' && needs.release.result == 'skipped'))
     permissions:
       contents: write
     # No secrets passed: the desktop job reads its signing secrets from the
@@ -452,3 +620,80 @@ jobs:
     uses: ./.github/workflows/desktop.yml
     with:
       release-id: ${{ needs.release.outputs.release-id }}
+
+  release-files:
+    # The last step of a tag run, once the desktop installers are on the draft: one SHA256SUMS
+    # over every file on the release (re-signed, the draft is still unpublished), provenance for
+    # the files the release job did not attest, and a "which file for which device" table in
+    # the notes, written from the files actually there.
+    name: Checksums and device table
+    needs: [release, desktop]
+    if: always() && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checksum the files the release job did not
+        id: sums
+        run: |
+          mkdir -p new && cd new
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir ..
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > ../names
+          while read -r name; do
+            case "$name" in SHA256SUMS*) continue ;; esac
+            # sha256sum writes "<hash>  <name>"; a name already listed is already summed.
+            awk -v n="$name" '$2 == n { f = 1 } END { exit !f }' ../SHA256SUMS || gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$name" --dir .
+          done < ../names
+          if [ -n "$(ls -A)" ]; then sha256sum -- * >> ../SHA256SUMS; echo "new=true" >> "$GITHUB_OUTPUT"; fi
+          cd .. && sort -k2 -o SHA256SUMS SHA256SUMS && cat SHA256SUMS
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: steps.sums.outputs.new == 'true'
+        with:
+          subject-path: new/*
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: Sign and upload the checksums
+        run: |
+          cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+          gh release upload "$TAG" SHA256SUMS SHA256SUMS.sigstore.json --repo "$GITHUB_REPOSITORY" --clobber
+      - name: Which file for which device
+        run: |
+          {
+            echo "## Which file for which device"
+            echo
+            echo "Files marked \`-unsigned\` are not code-signed: Android and iOS will not install them, and Windows and macOS warn before opening them. Check any file against \`SHA256SUMS\` first."
+            echo
+            echo "| File | Device |"
+            echo "|---|---|"
+            while read -r n; do
+              case "$n" in
+                *-android*.apk) d="Android phone or tablet: install directly (sideload)" ;;
+                *-android*.aab) d="Android: Google Play upload bundle, not installable" ;;
+                *-ios*.ipa) d="iPhone or iPad: App Store Connect upload (TestFlight / App Store)" ;;
+                *-ios*.xcarchive.zip) d="iPhone or iPad: unsigned Xcode archive, for signing by hand" ;;
+                *.dmg) d="Mac (Apple silicon and Intel): desktop client installer" ;;
+                *.app.tar.gz) d="Mac: desktop client auto-update package (the app downloads it)" ;;
+                *.msi) d="Windows PC: desktop client installer (MSI, for IT deployment)" ;;
+                *setup*.exe) d="Windows PC: desktop client installer" ;;
+                *.AppImage) d="Linux PC (any distribution): desktop client, run directly" ;;
+                *.deb) d="Linux PC (Debian, Ubuntu): desktop client package" ;;
+                *.rpm) d="Linux PC (Fedora, RHEL, openSUSE): desktop client package" ;;
+                medbrains-os-*x86-64*) d="Hospital server or PC, x86-64: MedBrains OS disk image, write to USB or disk" ;;
+                medbrains-os-*arm64*) d="Hospital server or board, ARM64: MedBrains OS disk image, write to USB or disk" ;;
+                medbrains-server-bins-linux-x86-64*) d="Existing Linux server, x86-64: server binaries" ;;
+                medbrains-server-bins-linux-arm64*) d="Existing Linux server, ARM64: server binaries" ;;
+                medbrains-web-dist*) d="Server: the web app the server serves" ;;
+                *) continue ;;
+              esac
+              echo "| \`$n\` | $d |"
+            done < names
+          } > table.md
+          # A re-run replaces the table rather than adding a second one.
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body \
+            | sed '/^## Which file for which device$/,$d' > notes.md
+          { cat notes.md; echo; cat table.md; } > body.md
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file body.md
