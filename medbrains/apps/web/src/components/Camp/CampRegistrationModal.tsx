@@ -39,7 +39,7 @@ export function CampRegistrationModal({
       }),
     onSuccess: () => {
       close();
-      navigate("/camp");
+      void navigate("/camp");
     },
   });
 

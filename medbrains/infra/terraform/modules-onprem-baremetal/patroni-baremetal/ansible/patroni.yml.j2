@@ -8,6 +8,10 @@ restapi:
 
 etcd3:
   hosts: {% for h in etcd_hosts_csv.split(',') %}{{ h }}:2379{% if not loop.last %},{% endif %}{% endfor %}
+  protocol: https
+  cacert: /etc/medbrains/etcd-pki/ca.crt
+  cert: /etc/medbrains/etcd-pki/patroni.crt
+  key: /etc/medbrains/etcd-pki/patroni.key
 
 bootstrap:
   dcs:

@@ -24,7 +24,7 @@ export function PharmacyCustomerMatch({ match, onCompleted }: PharmacyCustomerMa
     onSuccess: (done) => {
       toast.success(`Registered as ${done.uhid}. Fill in the rest of their details.`);
       onCompleted();
-      navigate(`/patients/${done.id}`);
+      void navigate(`/patients/${done.id}`);
     },
     onError: (e: Error) => toast.error(e.message, { title: "Not registered" }),
   });
