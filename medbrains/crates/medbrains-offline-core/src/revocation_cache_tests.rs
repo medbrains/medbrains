@@ -171,3 +171,16 @@ fn an_older_row_cannot_roll_back_a_revocation_evicted_from_memory() {
     cache.record_revocation(first, 1_600_000_000).unwrap(); // a stale row from an old page
     assert!(cache.is_revoked(first, 1_699_999_999));
 }
+
+#[test]
+fn a_page_with_two_rows_for_one_user_keeps_the_later_revocation() {
+    let (cache, _td) = make();
+    let user = Uuid::new_v4();
+    cache
+        .record_revocations(&[(user, 200), (user, 100)])
+        .unwrap();
+    assert!(
+        cache.is_revoked(user, 150),
+        "the later revocation (200) must win"
+    );
+}

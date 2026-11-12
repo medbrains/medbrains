@@ -195,8 +195,17 @@ impl RevocationCache {
     /// earlier timestamp never overwrites a later one, checked against the store as well as the
     /// LRU, so an evicted user cannot be rolled back.
     pub fn record_revocations(&self, rows: &[(Uuid, i64)]) -> Result<(), RevocationCacheError> {
-        let mut newer: Vec<(Uuid, i64)> = Vec::with_capacity(rows.len());
+        // One row per user, the latest: a page holding [(u, 200), (u, 100)] must leave 200.
+        let mut latest: std::collections::HashMap<Uuid, i64> =
+            std::collections::HashMap::with_capacity(rows.len());
         for &(user_id, at) in rows {
+            latest
+                .entry(user_id)
+                .and_modify(|t| *t = (*t).max(at))
+                .or_insert(at);
+        }
+        let mut newer: Vec<(Uuid, i64)> = Vec::with_capacity(latest.len());
+        for (user_id, at) in latest {
             if self
                 .revoked_at(user_id)?
                 .is_none_or(|existing| existing < at)
