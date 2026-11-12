@@ -20,7 +20,7 @@ Good first tasks are listed in the README under [Contributing](./README.md#contr
 
 ## Sign your commits (DCO)
 
-We use the [Developer Certificate of Origin](https://developercertificate.org/). By signing off you confirm that you wrote the change, or have the right to submit it, under the project's [Apache 2.0 licence](./LICENSE).
+We use the [Developer Certificate of Origin](https://developercertificate.org/). By signing off you confirm that you wrote the change, or have the right to submit it, under the terms in [CLA.md](./CLA.md).
 
 Add `-s` to every commit:
 
@@ -88,4 +88,4 @@ Do not report vulnerabilities in public issues. Follow [SECURITY.md](./SECURITY.
 
 ## Licence
 
-By contributing, you agree that your contribution is licensed under the [Apache License 2.0](./LICENSE). You keep your copyright.
+MedBrains is dual-licensed (AGPL-3.0 and commercial). By contributing, you accept the [Contributor License Agreement](./CLA.md): your contribution is licensed under the AGPL-3.0, and you grant the maintainer the right to also license it commercially. You keep your copyright.
