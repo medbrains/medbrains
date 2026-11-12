@@ -58,22 +58,46 @@ draft; marking it ready for review runs everything.
 ## Releases
 
 1. A maintainer pushes a tag `vX.Y.Z`. Only a tag publishes a release.
-2. The workflow builds the server, web app, mobile apps and OS images.
+2. The workflow builds the server, web app, OS images, every native Android
+   app (`apps/android/app-*`, APK and AAB), every iOS app (`apps/ios`), and the
+   desktop client for macOS (universal `.dmg`), Windows (`.msi`, `.exe`) and
+   Linux (`.AppImage`, `.deb`, `.rpm`).
 3. It writes the notes from the version's section of `CHANGELOG.md`, makes a
    source SBOM, the tarballs `medbrains-server-linux-x64.tar.gz` and
    `medbrains-web-dist.tar.gz`, and a signed `SHA256SUMS`.
 4. It creates a **draft** GitHub release (a pre-release for `-alpha`, `-beta`
-   or `-rc` tags). A maintainer reviews and publishes it.
+   or `-rc` tags). The desktop job then uploads its installers, updater
+   signatures and `latest.json`, and the last job (`release-files`) adds them to
+   `SHA256SUMS`, re-signs it and appends a "which file for which device" table
+   to the notes. A maintainer reviews and publishes the draft.
 5. Publishing the draft builds the multi-arch Docker image, pushes it to GHCR
    (tagged `X.Y.Z` and `X.Y`, never by commit), signs it keyless with cosign,
    attests its provenance and adds its signed SBOM to the release. A tag push
    or a manual run never pushes an image.
-6. Desktop builds run in the tag-only `release` environment, which holds the
-   signing secrets: `TAURI_SIGNING_PRIVATE_KEY`,
-   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `APPLE_CERTIFICATE`,
-   `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
-   `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `WINDOWS_CERTIFICATE`,
-   `WINDOWS_CERTIFICATE_PASSWORD`.
+6. Signing secrets live only in the tag-only `release` environment; a manual
+   run joins no environment, builds everything unsigned and publishes nothing.
+   Each platform signs only when its secrets are all set, and otherwise ships
+   its files with `-unsigned` in the name:
+
+   | Platform | Secrets |
+   |---|---|
+   | Android (APK + AAB) | `ANDROID_KEYSTORE_B64` (base64 keystore), `ANDROID_KEYSTORE_PASSWORD` (also the key's password), `ANDROID_KEY_ALIAS` |
+   | iOS (App Store `.ipa`) | `APPLE_DIST_CERT_P12` (base64 Apple Distribution `.p12`), `APPLE_DIST_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_PROFILE_STAFF` and `APPLE_PROFILE_PATIENT` (base64 App Store provisioning profiles for `com.medbrains.staff` and `com.medbrains.patient`; the patient one must carry HealthKit). Nothing is uploaded to App Store Connect. |
+   | Desktop updater | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
+   | macOS desktop | `APPLE_CERTIFICATE` (base64 Developer ID Application `.p12`), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID`; notarization with `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`, `APPLE_API_KEY_P8` (App Store Connect API key, `.p8` contents) or `APPLE_ID` + `APPLE_PASSWORD` (app-specific password) |
+   | Windows desktop | `WINDOWS_CERTIFICATE` (base64 `.pfx`), `WINDOWS_CERTIFICATE_PASSWORD` |
+   | OS image | `OS_PCR_KEY`, `OS_PCR_CERT` |
+
+   Linux desktop packages carry no code signature; `SHA256SUMS` and the
+   provenance attestation cover them.
+7. Every app carries the one product version, `[workspace.package] version` in
+   `medbrains/Cargo.toml` (`make release` checks it), never a number typed per
+   app. Android `versionName` and iOS `CFBundleShortVersionString` are that
+   version; Android `versionCode` and iOS `CFBundleVersion` are
+   major×10000 + minor×100 + patch (3.33.0 → 33300), so they rise with every
+   release; minor and patch stay below 100. The desktop takes the crate's
+   `version.workspace`. `scripts/app_version.sh` prints both numbers and fails
+   a tag that names another version (a `-rc` tag counts as its version).
 
 A release is not a deploy: production is built with `cargo zigbuild` on the
 operator's machine. How to verify a release:

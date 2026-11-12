@@ -14,8 +14,8 @@ android {
         applicationId = "com.medbrains.staff"
         minSdk = 28
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = rootProject.extra["appVersionCode"] as Int
+        versionName = rootProject.extra["appVersionName"] as String
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -27,7 +27,10 @@ android {
             // way a keep rule missing from release shows up before a user does.
             if (providers.gradleProperty("minified").isPresent) {
                 isMinifyEnabled = true
-                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "minified-test-rules.pro")
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "minified-test-rules.pro"
+                )
                 testProguardFiles("test-rules.pro")
             }
         }

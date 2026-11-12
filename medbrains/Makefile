@@ -729,7 +729,7 @@ native-core: ## Build the Rust core for iOS + Android and regenerate the UniFFI 
 	ANDROID_NDK_HOME=$$(ls -d $$HOME/Library/Android/sdk/ndk/27* | head -1) CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo ndk -t arm64-v8a -t x86_64 -o apps/android/core/src/main/jniLibs build --release -p medbrains-edge-rn
 
 native-ios: ## Generate the Xcode project and build MedBrainsStaff for the simulator
-	cd apps/ios && xcodegen generate && xcodebuild -project MedBrains.xcodeproj -scheme MedBrainsStaff -destination "platform=iOS Simulator,id=$(IOS_SIM)" -derivedDataPath DerivedData build | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+	cd apps/ios && xcodegen generate && xcodebuild -project MedBrains.xcodeproj -scheme MedBrainsStaff -destination "platform=iOS Simulator,id=$(IOS_SIM)" -derivedDataPath DerivedData $$(../../scripts/app_version.sh | awk '{print "MARKETING_VERSION=" $$1, "CURRENT_PROJECT_VERSION=" $$2}') build | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
 
 native-ios-test: ## Run the Swift package tests (MedBrainsKit)
 	cd apps/ios/Packages/MedBrainsKit && swift test
