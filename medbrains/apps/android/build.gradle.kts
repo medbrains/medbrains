@@ -7,3 +7,14 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
 }
+
+// Every resolved dependency version is pinned in each module's gradle.lockfile, so a build
+// cannot pick up a different transitive version than the one reviewed. Regenerate after a
+// version bump with:
+//   ./gradlew :core:dependencies :kit:dependencies :ui:dependencies \
+//     :app-staff:dependencies :app-patient:dependencies --write-locks
+allprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
+}

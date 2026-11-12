@@ -38,12 +38,18 @@ class MainActivity : ComponentActivity() {
         // Patients only ever hear calm, so only its channel exists.
         AlertChannels.register(applicationContext, AlertAudience.PATIENT)
         val secrets = SecretStore(applicationContext)
-        val client = ApiClient(baseUrl = AppConfig.baseUrl(intent), variant = "patient", secrets = secrets)
+        val client =
+            ApiClient(baseUrl = AppConfig.baseUrl(intent), variant = "patient", secrets = secrets)
         val auth = AuthStore(applicationContext, client, secrets)
         val portal = PortalApi(client)
         setContent {
             MedBrainsTheme {
-                CompositionLocalProvider(LocalApiClient provides client, LocalAuthStore provides auth, LocalPortalApi provides portal, LocalHospitalCode provides AppConfig.hospitalCode(intent)) {
+                CompositionLocalProvider(
+                    LocalApiClient provides client,
+                    LocalAuthStore provides auth,
+                    LocalPortalApi provides portal,
+                    LocalHospitalCode provides AppConfig.hospitalCode(intent)
+                ) {
                     Root(auth)
                 }
             }
@@ -57,7 +63,9 @@ class MainActivity : ComponentActivity() {
  * phone could point it — and the patient's session — at its own server.
  */
 object AppConfig {
-    fun baseUrl(intent: Intent?): String = debugExtra(intent, "baseUrl") ?: "http://10.0.2.2:3000"
+    /** Debug override, else the server this build was made for (the emulator host in debug). */
+    fun baseUrl(intent: Intent?): String =
+        debugExtra(intent, "baseUrl") ?: BuildConfig.DEFAULT_SERVER_URL
     fun hospitalCode(intent: Intent?): String = debugExtra(intent, "hospitalCode") ?: "DEFAULT"
 
     private fun debugExtra(intent: Intent?, key: String): String? =
@@ -69,8 +77,14 @@ private fun Root(auth: AuthStore) {
     val state by auth.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { auth.hydrate() }
     when (val s = state) {
-        AuthState.Hydrating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        AuthState.Hydrating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+
         AuthState.SignedOut -> PatientLoginScreen(auth)
-        is AuthState.SignedIn -> CompositionLocalProvider(LocalIdentity provides s.identity) { PatientHome(auth) }
+
+        is AuthState.SignedIn -> CompositionLocalProvider(LocalIdentity provides s.identity) {
+            PatientHome(auth)
+        }
     }
 }
