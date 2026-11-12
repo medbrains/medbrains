@@ -56,14 +56,13 @@ vi.mock("@/services/lookups.service", () => ({
 const PATIENT = "p1";
 const ENC = "e1";
 
-/** Render with a query cache that swallows the expected read failures. */
+/** Render with a query cache that swallows the expected read failures; returns its client. */
 function renderTab(ui: React.ReactElement) {
-  return render(ui, {
-    queryClient: new QueryClient({
-      queryCache: new QueryCache({ onError: () => {} }),
-      defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
-    }),
+  const client = new QueryClient({
+    queryCache: new QueryCache({ onError: () => {} }),
+    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
+  return { client, ...render(ui, { queryClient: client }) };
 }
 
 const fail = () => Promise.reject(new Error("502"));
@@ -108,7 +107,7 @@ describe("RxHistoryTab", () => {
   it("shows a failed read as a fault, never as no prescriptions", async () => {
     opd.listPatientPrescriptions.mockImplementation(fail);
     renderTab(<RxHistoryTab patientId={PATIENT} />);
-    expect(await screen.findByText("Prescription history could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Prescription history didn't load")).toBeInTheDocument();
     expect(screen.queryByText(/No previous prescriptions/)).toBeNull();
   });
 });
@@ -129,7 +128,7 @@ describe("CertificatesTab", () => {
   it("shows a failed read as a fault", async () => {
     opd.listCertificates.mockImplementation(fail);
     renderTab(<CertificatesTab patientId={PATIENT} encounterId={ENC} canUpdate />);
-    expect(await screen.findByText("Certificates could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Certificates didn't load")).toBeInTheDocument();
   });
 });
 
@@ -167,7 +166,7 @@ describe("ConsentsTab", () => {
   it("shows a failed read as a fault, not 'No consents recorded'", async () => {
     opd.listProcedureConsents.mockImplementation(fail);
     renderTab(<ConsentsTab patientId={PATIENT} encounterId={ENC} canUpdate />);
-    expect(await screen.findByText("Consents could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Consents didn't load")).toBeInTheDocument();
     expect(screen.queryByText("No consents recorded.")).toBeNull();
   });
 });
@@ -204,7 +203,7 @@ describe("ProceduresTab", () => {
   it("shows a failed read as a fault, not 'No procedures ordered yet'", async () => {
     opd.listProcedureOrders.mockImplementation(fail);
     renderTab(<ProceduresTab patientId={PATIENT} encounterId={ENC} canUpdate />);
-    expect(await screen.findByText("Procedure orders could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Procedure orders didn't load")).toBeInTheDocument();
     expect(screen.queryByText("No procedures ordered yet.")).toBeNull();
   });
 });
@@ -251,9 +250,7 @@ describe("TimelineTab", () => {
   it("says part of the history is missing when one source fails", async () => {
     opd.listPatientLabOrders.mockImplementation(fail);
     renderTab(<TimelineTab patientId={PATIENT} />);
-    expect(
-      await screen.findByText("Part of the clinical history could not be loaded"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Part of the clinical history didn't load")).toBeInTheDocument();
     expect(screen.getByText("OPD visit — completed")).toBeInTheDocument();
   });
 
@@ -267,7 +264,7 @@ describe("TimelineTab", () => {
       read.mockImplementation(fail);
     }
     renderTab(<TimelineTab patientId={PATIENT} />);
-    expect(await screen.findByText("Clinical history could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Clinical history didn't load")).toBeInTheDocument();
     expect(screen.queryByText(/No clinical history/)).toBeNull();
   });
 });
@@ -313,7 +310,7 @@ describe("ReferralsTab", () => {
   it("shows a failed read as a fault", async () => {
     opd.listPatientReferrals.mockImplementation(fail);
     renderTab(<ReferralsTab patientId={PATIENT} encounterId={ENC} departmentId="d1" />);
-    expect(await screen.findByText("Referrals could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Referrals didn't load")).toBeInTheDocument();
   });
 });
 
@@ -349,7 +346,7 @@ describe("RemindersTab", () => {
   it("shows a failed read as a fault", async () => {
     opd.listReminders.mockImplementation(fail);
     renderTab(<RemindersTab patientId={PATIENT} encounterId={ENC} canUpdate />);
-    expect(await screen.findByText("Reminders could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Reminders didn't load")).toBeInTheDocument();
   });
 });
 
@@ -390,7 +387,7 @@ describe("ChartsTab", () => {
   it("shows a failed read as a fault, never as no vitals", async () => {
     opd.listPatientVitalsHistory.mockImplementation(fail);
     renderTab(<ChartsTab patientId={PATIENT} />);
-    expect(await screen.findByText("Vitals history could not be loaded")).toBeInTheDocument();
+    expect(await screen.findByText("Vitals history didn't load")).toBeInTheDocument();
     expect(screen.queryByText(/No vitals history available/)).toBeNull();
   });
 });
@@ -416,5 +413,82 @@ describe("FeedbackTab", () => {
     expect(screen.getByText("Anonymous")).toBeInTheDocument();
     expect(screen.queryByText(/Staff:/)).toBeNull();
     expect(screen.queryByRole("button", { name: /Collect Feedback/ })).toBeNull();
+  });
+});
+
+describe("a failed background refetch", () => {
+  const rx = {
+    prescription: { id: "rx1", notes: null },
+    items: [
+      { id: "i1", drug_name: "Amlodipine", dosage: "5 mg", frequency: "OD", duration: "30 days" },
+    ],
+    encounter_date: "2026-10-01T09:00:00Z",
+    doctor_name: null,
+  };
+
+  it("keeps the last good prescriptions on screen under an out-of-date banner", async () => {
+    opd.listPatientPrescriptions.mockResolvedValue([rx]);
+    const { client } = renderTab(<RxHistoryTab patientId={PATIENT} />);
+    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
+    opd.listPatientPrescriptions.mockImplementation(fail);
+    await client.refetchQueries();
+    expect(await screen.findByText("Prescription history may be out of date")).toBeInTheDocument();
+    expect(screen.getByText("Amlodipine")).toBeInTheDocument();
+  });
+
+  it("keeps the consents table, not just the banner, after a failed refetch", async () => {
+    opd.listProcedureConsents.mockResolvedValue([
+      {
+        id: "c1",
+        procedure_name: "Procedure c1",
+        consent_type: "procedure_specific",
+        status: "signed",
+        consented_by_name: null,
+        created_at: "2026-11-01T10:00:00Z",
+      },
+    ]);
+    const { client } = renderTab(<ConsentsTab patientId={PATIENT} encounterId={ENC} canUpdate />);
+    expect(await screen.findByText("Procedure c1")).toBeInTheDocument();
+    opd.listProcedureConsents.mockImplementation(fail);
+    await client.refetchQueries();
+    expect(await screen.findByText("Consents may be out of date")).toBeInTheDocument();
+    expect(screen.getByText("Procedure c1")).toBeInTheDocument();
+  });
+
+  it("keeps the reminders table after a failed refetch", async () => {
+    opd.listReminders.mockResolvedValue([
+      {
+        id: "r1",
+        title: "Recall r1",
+        reminder_type: "follow_up",
+        reminder_date: "2026-12-01",
+        priority: "normal",
+        status: "pending",
+      },
+    ]);
+    const { client } = renderTab(<RemindersTab patientId={PATIENT} encounterId={ENC} canUpdate />);
+    expect(await screen.findByText("Recall r1")).toBeInTheDocument();
+    opd.listReminders.mockImplementation(fail);
+    await client.refetchQueries();
+    expect(await screen.findByText("Reminders may be out of date")).toBeInTheDocument();
+    expect(screen.getByText("Recall r1")).toBeInTheDocument();
+  });
+});
+
+describe("Retry on a failed read", () => {
+  it("loads the list when the retry succeeds", async () => {
+    opd.listPatientPrescriptions.mockImplementationOnce(fail).mockResolvedValue([]);
+    renderTab(<RxHistoryTab patientId={PATIENT} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Retry/ }));
+    expect(await screen.findByText(/No previous prescriptions/)).toBeInTheDocument();
+    expect(screen.queryByText("Prescription history didn't load")).toBeNull();
+  });
+
+  it("shows no certificate cards and no list on a failed first read", async () => {
+    opd.listCertificates.mockImplementation(fail);
+    renderTab(<CertificatesTab patientId={PATIENT} encounterId={ENC} canUpdate />);
+    expect(await screen.findByText("Certificates didn't load")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Retry/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sign/ })).toBeNull();
   });
 });

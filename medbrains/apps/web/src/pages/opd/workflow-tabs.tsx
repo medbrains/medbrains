@@ -71,6 +71,7 @@ import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/co
 import { DiagnosisCodeSelect } from "@/components/Clinical/DiagnosisCodeSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { loadFailedTitle, QueryError } from "@/components/QueryError";
 import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
@@ -108,15 +109,22 @@ function toReferralUrgency(value: string | null): ReferralUrgency | undefined {
   return referralUrgencyValues.find((candidate) => candidate === value);
 }
 
+interface LoadFailedProps {
+  what: string;
+  error: unknown;
+  onRetry: () => unknown;
+  /** An earlier copy stays on screen under the banner (a failed background refetch). */
+  stale?: boolean;
+}
+
 /**
- * A patient-history list whose read failed. Shown instead of the list's empty
- * state, which would read as a fact about the patient ("no prescriptions").
+ * A patient-history list whose read failed, with a retry. With no data it replaces the list's
+ * empty state, which would read as a fact about the patient ("no prescriptions"); after a failed
+ * refetch it sits above the last good copy and says it may be out of date.
  */
-function LoadFailed({ what }: { what: string }) {
+function LoadFailed({ what, error, onRetry, stale = false }: LoadFailedProps) {
   return (
-    <Alert tone="danger" title={`${what} could not be loaded`}>
-      <Text size="sm">Reload the page; if it keeps failing, tell IT.</Text>
-    </Alert>
+    <QueryError error={error} onRetry={() => void onRetry()} title={loadFailedTitle(what, stale)} />
   );
 }
 
@@ -126,7 +134,10 @@ export function RxHistoryTab({ patientId }: { patientId: string }) {
   const {
     data: history = [],
     isLoading,
-    isError,
+    error,
+    isLoadingError,
+    isRefetchError,
+    refetch,
   } = useQuery({
     queryKey: ["patient-prescriptions", patientId],
     queryFn: () => opdService.listPatientPrescriptions(patientId),
@@ -139,18 +150,27 @@ export function RxHistoryTab({ patientId }: { patientId: string }) {
       </Text>
     );
   }
-  if (isError) return <LoadFailed what="Prescription history" />;
+  if (isLoadingError) {
+    return <LoadFailed what="Prescription history" error={error} onRetry={refetch} />;
+  }
+  const stale = isRefetchError && (
+    <LoadFailed what="Prescription history" error={error} onRetry={refetch} stale />
+  );
 
   if (history.length === 0) {
     return (
-      <Text size="sm" c="dimmed" ta="center" py="md">
-        No previous prescriptions found for this patient.
-      </Text>
+      <Stack gap="sm">
+        {stale}
+        <Text size="sm" c="dimmed" ta="center" py="md">
+          No previous prescriptions found for this patient.
+        </Text>
+      </Stack>
     );
   }
 
   return (
     <Stack gap="sm">
+      {stale}
       {(history as PrescriptionHistoryItem[]).map((h) => (
         <Card key={h.prescription.id} padding="sm" withBorder>
           <Group gap={8} mb="xs">
@@ -237,7 +257,10 @@ export function CertificatesTab({
   const {
     data: certificates = [],
     isLoading,
-    isError,
+    error,
+    isLoadingError,
+    isRefetchError,
+    refetch,
   } = useQuery<MedicalCertificate[]>({
     queryKey: ["patient-certificates", patientId],
     queryFn: () => opdService.listCertificates(patientId),
@@ -302,7 +325,9 @@ export function CertificatesTab({
         </Group>
       )}
 
-      {isError && <LoadFailed what="Certificates" />}
+      {(isLoadingError || isRefetchError) && (
+        <LoadFailed what="Certificates" error={error} onRetry={refetch} stale={isRefetchError} />
+      )}
       {certificates.map((cert) => (
         <Card key={cert.id} padding="sm" withBorder>
           <Group justify="space-between" mb="xs">
@@ -478,7 +503,10 @@ export function ChartsTab({ patientId }: { patientId: string }) {
   const {
     data: history = [],
     isLoading,
-    isError,
+    error,
+    isLoadingError,
+    isRefetchError,
+    refetch,
   } = useQuery({
     queryKey: ["patient-vitals-history", patientId],
     queryFn: () => opdService.listPatientVitalsHistory(patientId),
@@ -506,13 +534,21 @@ export function ChartsTab({ patientId }: { patientId: string }) {
     );
   }
 
-  if (isError) return <LoadFailed what="Vitals history" />;
+  if (isLoadingError) {
+    return <LoadFailed what="Vitals history" error={error} onRetry={refetch} />;
+  }
+  const stale = isRefetchError && (
+    <LoadFailed what="Vitals history" error={error} onRetry={refetch} stale />
+  );
 
   if (chartData.length === 0) {
     return (
-      <Text size="sm" c="dimmed" ta="center" py="md">
-        No vitals history available for trend charts.
-      </Text>
+      <Stack gap="sm">
+        {stale}
+        <Text size="sm" c="dimmed" ta="center" py="md">
+          No vitals history available for trend charts.
+        </Text>
+      </Stack>
     );
   }
 
@@ -540,6 +576,7 @@ export function ChartsTab({ patientId }: { patientId: string }) {
 
   return (
     <Stack gap="sm">
+      {stale}
       <Group>
         <Select
           value={metric}
@@ -596,9 +633,11 @@ export function TimelineTab({ patientId }: { patientId: string }) {
   const certificates = certificatesQuery.data ?? [];
   const loadingVisits = visitsQuery.isLoading;
   // A timeline missing one source reads as a complete history.
-  const anySourceFailed = [visitsQuery, rxQuery, labQuery, certificatesQuery].some(
-    (q) => q.isError,
-  );
+  const sources = [visitsQuery, rxQuery, labQuery, certificatesQuery];
+  const failedSource = sources.find((q) => q.isError);
+  const anySourceFailed = failedSource !== undefined;
+  const retryFailedSources = () =>
+    Promise.all(sources.filter((q) => q.isError).map((q) => q.refetch()));
 
   // Merge into unified timeline
   const timelineItems = useMemo(() => {
@@ -696,7 +735,15 @@ export function TimelineTab({ patientId }: { patientId: string }) {
     );
   }
 
-  if (anySourceFailed && timelineItems.length === 0) return <LoadFailed what="Clinical history" />;
+  if (anySourceFailed && timelineItems.length === 0) {
+    return (
+      <LoadFailed
+        what="Clinical history"
+        error={failedSource?.error}
+        onRetry={retryFailedSources}
+      />
+    );
+  }
 
   if (timelineItems.length === 0) {
     return (
@@ -708,7 +755,14 @@ export function TimelineTab({ patientId }: { patientId: string }) {
 
   return (
     <Stack gap="sm">
-      {anySourceFailed && <LoadFailed what="Part of the clinical history" />}
+      {anySourceFailed && (
+        <LoadFailed
+          what={failedSource?.isRefetchError ? "Clinical history" : "Part of the clinical history"}
+          error={failedSource?.error}
+          onRetry={retryFailedSources}
+          stale={failedSource?.isRefetchError}
+        />
+      )}
       <Group gap="xs">
         <Select
           placeholder="Filter by type"
@@ -843,10 +897,11 @@ export function ProceduresTab({
     staleTime: 300_000,
   });
 
-  const { data: orders = [], isError: ordersFailed } = useQuery<ProcedureOrderWithName[]>({
+  const ordersQuery = useQuery<ProcedureOrderWithName[]>({
     queryKey: ["procedure-orders", encounterId],
     queryFn: () => opdService.listProcedureOrders(encounterId),
   });
+  const orders = ordersQuery.data ?? [];
 
   const procOptions = catalog.map((procedure) => ({
     value: procedure.id,
@@ -1087,8 +1142,15 @@ export function ProceduresTab({
         </Table>
       )}
 
-      {ordersFailed && <LoadFailed what="Procedure orders" />}
-      {!formOpened && !ordersFailed && orders.length === 0 && (
+      {ordersQuery.isError && (
+        <LoadFailed
+          what="Procedure orders"
+          error={ordersQuery.error}
+          onRetry={ordersQuery.refetch}
+          stale={ordersQuery.isRefetchError}
+        />
+      )}
+      {!formOpened && !ordersQuery.isLoadingError && orders.length === 0 && (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No procedures ordered yet.
         </Text>
@@ -1134,7 +1196,10 @@ export function ReferralsTab({
   const {
     data: referrals = [],
     isLoading,
-    isError,
+    error,
+    isLoadingError,
+    isRefetchError,
+    refetch,
   } = useQuery({
     queryKey: ["patient-referrals", patientId],
     queryFn: () => opdService.listPatientReferrals(patientId),
@@ -1193,10 +1258,11 @@ export function ReferralsTab({
   }
   // An unanswered list is not an empty one: "No referrals" here would tell a
   // doctor the patient was never referred.
-  if (isError) return <LoadFailed what="Referrals" />;
+  if (isLoadingError) return <LoadFailed what="Referrals" error={error} onRetry={refetch} />;
 
   return (
     <Stack gap="sm">
+      {isRefetchError && <LoadFailed what="Referrals" error={error} onRetry={refetch} stale />}
       {canCreateReferral && (
         <Group>
           <Button
@@ -1370,10 +1436,11 @@ export function RemindersTab({
   });
   const reminderValues = watch();
 
-  const { data: reminders = [], isError: remindersFailed } = useQuery<PatientReminder[]>({
+  const remindersQuery = useQuery<PatientReminder[]>({
     queryKey: ["reminders", patientId],
     queryFn: () => opdService.listReminders({ patient_id: patientId }),
   });
+  const reminders = remindersQuery.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: opdService.createReminder,
@@ -1438,9 +1505,15 @@ export function RemindersTab({
         </Group>
       )}
 
-      {remindersFailed ? (
-        <LoadFailed what="Reminders" />
-      ) : reminders.length === 0 ? (
+      {remindersQuery.isError && (
+        <LoadFailed
+          what="Reminders"
+          error={remindersQuery.error}
+          onRetry={remindersQuery.refetch}
+          stale={remindersQuery.isRefetchError}
+        />
+      )}
+      {remindersQuery.isLoadingError ? null : reminders.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No reminders yet.
         </Text>
@@ -1800,10 +1873,11 @@ export function ConsentsTab({
   const [formOpened, formHandlers] = useDisclosure(false);
   const [viewing, setViewing] = useState<ProcedureConsent | null>(null);
 
-  const { data: consents = [], isError: consentsFailed } = useQuery<ProcedureConsent[]>({
+  const consentsQuery = useQuery<ProcedureConsent[]>({
     queryKey: ["consents", patientId],
     queryFn: () => opdService.listProcedureConsents(patientId),
   });
+  const consents = consentsQuery.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: opdService.createProcedureConsent,
@@ -1858,9 +1932,15 @@ export function ConsentsTab({
         </Group>
       )}
 
-      {consentsFailed ? (
-        <LoadFailed what="Consents" />
-      ) : consents.length === 0 ? (
+      {consentsQuery.isError && (
+        <LoadFailed
+          what="Consents"
+          error={consentsQuery.error}
+          onRetry={consentsQuery.refetch}
+          stale={consentsQuery.isRefetchError}
+        />
+      )}
+      {consentsQuery.isLoadingError ? null : consents.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No consents recorded.
         </Text>
