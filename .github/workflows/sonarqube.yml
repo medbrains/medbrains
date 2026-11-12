@@ -79,7 +79,7 @@ jobs:
         env:
           DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
         run: |
-          cargo llvm-cov --no-report --workspace --exclude medbrains-desktop --no-fail-fast \
+          cargo llvm-cov --locked --no-report --workspace --exclude medbrains-desktop --no-fail-fast \
             || echo "::warning::Some Rust tests failed; coverage is reported for the rest."
       # Test code, vendored crates and build output stay out, as in sonar.exclusions.
       # SonarQube resolves paths from the repo root, so the absolute prefix is stripped.
@@ -129,8 +129,8 @@ jobs:
         run: rustup toolchain install
       - name: Generate the UniFFI Kotlin bindings
         run: |
-          cargo build -p medbrains-edge-rn
-          cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
+          cargo build --locked -p medbrains-edge-rn
+          cargo run --locked -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
             --library target/debug/libmedbrains_edge_rn.so --language kotlin \
             --out-dir apps/android/core/src/main/kotlin
       # Tests are non-blocking here, as for Rust: a failing test still leaves coverage for the rest.

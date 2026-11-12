@@ -304,7 +304,7 @@ jobs:
       # Every crate except the desktop GUI tree, which needs GTK on the runner.
       # Denied lints fail on their own; pedantic and nursery are warnings by
       # project policy (ENGINEERING.md), so -D warnings would overrule it.
-      - run: cargo clippy --workspace --exclude medbrains-desktop
+      - run: cargo clippy --locked --workspace --exclude medbrains-desktop
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -374,6 +374,6 @@ jobs:
       - name: System packages and PostgreSQL
         run: bash scripts/ci_postgres.sh
       # Report every failing test, not just the first binary's.
-      - run: cargo test --workspace --exclude medbrains-desktop --no-fail-fast
+      - run: cargo test --locked --workspace --exclude medbrains-desktop --no-fail-fast
         env:
           DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
