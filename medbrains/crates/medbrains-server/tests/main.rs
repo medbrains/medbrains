@@ -326,6 +326,7 @@ mod step_up_coverage_test;
 mod step_up_token_test;
 mod sticky_notes_test;
 mod stock_at_risk_report_test;
+mod tds_test;
 mod teleconsult_visit_test;
 mod tenant_secret_names_test;
 mod tenant_settings_upsert_test;
