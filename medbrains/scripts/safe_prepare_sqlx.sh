@@ -36,6 +36,6 @@ bash scripts/build_guard.sh --wait
 SQLX_OFFLINE=false DATABASE_URL="$db_url" cargo sqlx prepare --workspace -- "$@" \
   || restore "prepare failed"
 after=$(count)
-[ "$after" -gt 0 ] || restore "prepare left no metadata"
+[[ "$after" -gt 0 ]] || restore "prepare left no metadata"
 echo "== .sqlx: $before -> $after files (backup kept at $backup/.sqlx)"
 git status --short .sqlx | head -20

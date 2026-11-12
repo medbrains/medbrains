@@ -1,0 +1,85 @@
+# Reproducible build check for the server binary (#5500, the xz lesson).
+#
+# Builds medbrains-server twice from the same commit, in two different directories, and compares
+# the sha256. When anyone can rebuild a release and get the same bytes, a tampered build machine
+# shows up as a hash that nobody else can produce.
+#
+# Report-only for now: the job is continue-on-error until a run shows two equal hashes. The known
+# and suspected causes of a difference are tracked in #5509. Weekly, because two clean release
+# builds take over an hour.
+
+name: Reproducible build
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  server-twice:
+    name: Build the server twice and compare
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 240
+    env:
+      SQLX_OFFLINE: true
+      CARGO_INCREMENTAL: 0
+    steps:
+      - name: Free disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: a
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: b-other-dir
+      - name: Rust toolchain
+        # medbrains/rust-toolchain.toml pins the version.
+        working-directory: a/medbrains
+        run: rustup toolchain install
+      # Each build maps its own checkout and the cargo registry to fixed names, as a release build
+      # must for a third party to reproduce it, and takes the commit time as the build time.
+      - name: Build twice
+        env:
+          WS: ${{ github.workspace }}
+        run: |
+          set -eu
+          export SOURCE_DATE_EPOCH
+          SOURCE_DATE_EPOCH=$(git -C a log -1 --format=%ct)
+          for dir in a b-other-dir; do
+            (
+              cd "$dir/medbrains"
+              export RUSTFLAGS="--remap-path-prefix=$WS/$dir=/build --remap-path-prefix=$HOME/.cargo=/cargo"
+              cargo build --locked --release -p medbrains-server
+            )
+            cp "$dir/medbrains/target/release/medbrains-server" "server-$dir"
+            rm -rf "$dir/medbrains/target"
+          done
+      - name: Compare
+        run: |
+          sha256sum server-a server-b-other-dir | tee hashes.txt
+          ls -l server-a server-b-other-dir
+          if [ "$(cut -d' ' -f1 hashes.txt | sort -u | wc -l)" -ne 1 ]; then
+            echo "::error::The two builds differ: the server binary is not reproducible yet"
+            cmp -l server-a server-b-other-dir | wc -l | xargs echo "differing bytes:"
+            exit 1
+          fi
+          echo "Reproducible: both builds are $(head -c 64 hashes.txt)"
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reproducible-build-diff
+          path: |
+            server-a
+            server-b-other-dir
+            hashes.txt
+          retention-days: 7

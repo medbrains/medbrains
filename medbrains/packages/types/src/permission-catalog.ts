@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1254 permissions, one per constant in the Rust source. */
+/** 1255 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7125,6 +7125,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "nurse",
   },
   {
+    code: "nurse.mar.witness",
+    label: "Witness a high-alert dose as the second checker",
+    description: "The independent double check before insulin, heparin, potassium and other high-alert drugs are given (IPSG.3). Checked on the witness, not the giver. Held by nurses, doctors and pharmacists; a bypass role holds it only when granted it by name.",
+    module: "nurse",
+  },
+  {
     code: "nurse.prescriptions.draft",
     label: "Draft Prescriptions",
     description: "Draft OTC/protocol prescriptions for doctor countersign",
@@ -7804,6 +7810,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.EWS.ACKNOWLEDGE,
       P.NURSE.EWS.PLAN,
       P.NURSE.EWS.VIEW,
+      P.NURSE.MAR.WITNESS,
       P.OPD.CERTIFICATES.CREATE,
       P.OPD.CERTIFICATES.LIST,
       P.OPD.CERTIFICATES.PRINT,
@@ -8121,6 +8128,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.MAR.HOLD,
       P.NURSE.MAR.REFUSE,
       P.NURSE.MAR.VIEW,
+      P.NURSE.MAR.WITNESS,
       P.NURSE.PAIN.RECORD,
       P.NURSE.PAIN.VIEW,
       P.NURSE.PRESCRIPTIONS.DRAFT,
@@ -8397,6 +8405,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
       P.NOTES.USE,
+      P.NURSE.MAR.WITNESS,
       P.PATIENTS.VIEW,
       P.PHARMACY.ANALYTICS.VIEW,
       P.PHARMACY.BILLS.PRINT,
