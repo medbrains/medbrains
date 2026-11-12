@@ -46,6 +46,16 @@ pub fn is_dev_like(environment: &str) -> bool {
     DEV_LIKE_ENVIRONMENTS.contains(&environment)
 }
 
+/// True unless this process runs in a development or test mode.
+///
+/// See [`DEV_LIKE_ENVIRONMENTS`]. Unknown values are production, and so is an
+/// unset mode in a release build: the one test for production-only behaviour.
+#[must_use]
+pub fn is_production() -> bool {
+    let raw = std::env::var("MEDBRAINS_ENV").ok();
+    !is_dev_like(&environment_name(raw.as_deref()))
+}
+
 /// True if this process runs in development mode.
 #[must_use]
 pub fn is_development() -> bool {
