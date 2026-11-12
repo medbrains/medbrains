@@ -346,6 +346,7 @@ pub(crate) async fn generate_write_off_number(
     }
 }
 
+/// Write-offs on the bills of patients the caller may see, newest first, one page.
 pub async fn list_write_offs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -358,23 +359,34 @@ pub async fn list_write_offs(
             permissions::billing::write_off::APPROVE,
         ],
     )?;
+    // Each row names a patient's bill and what it lost: only the patients the caller may see
+    // (None = a caller who may see everyone), filtered in SQL in one round trip.
+    let permitted =
+        medbrains_authz_gate::require_patient_billing_filter(&state, &claims, None).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(&claims)).await?;
 
-    let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1 AND deleted_at IS NULL")
-            .bind(claims.tenant_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bad_debt_write_offs w WHERE w.tenant_id = $1 AND w.deleted_at IS NULL \
+           AND ($2::uuid[] IS NULL OR w.invoice_id IN \
+                (SELECT i.id FROM invoices i WHERE i.tenant_id = $1 AND i.patient_id = ANY($2)))",
+    )
+    .bind(claims.tenant_id)
+    .bind(permitted.as_deref())
+    .fetch_one(&mut *tx)
+    .await?;
 
     let rows = sqlx::query_as::<_, BadDebtWriteOff>(
-        "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 AND deleted_at IS NULL \
-         ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        "SELECT w.* FROM bad_debt_write_offs w WHERE w.tenant_id = $1 AND w.deleted_at IS NULL \
+           AND ($4::uuid[] IS NULL OR w.invoice_id IN \
+                (SELECT i.id FROM invoices i WHERE i.tenant_id = $1 AND i.patient_id = ANY($4))) \
+         ORDER BY w.created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
     .bind(p.limit())
     .bind(p.offset())
+    .bind(permitted.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -510,6 +522,8 @@ pub async fn create_write_off(
     Ok(Json(row))
 }
 
+/// Decide a pending write-off (someone other than its requester); approving settles that much
+/// of the bill as written off.
 pub async fn approve_write_off(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -537,6 +551,16 @@ pub async fn approve_write_off(
             "write-off requester cannot approve or reject the same write-off".to_owned(),
         ));
     }
+    // Deciding settles a named patient's bill. The permission says the caller may decide
+    // write-offs, not this patient's; the request side already checked its invoice.
+    let patient: Uuid =
+        sqlx::query_scalar("SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(existing.invoice_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, patient).await?;
 
     let new_status = if body.approved {
         "approved"
@@ -563,14 +587,15 @@ pub async fn approve_write_off(
     // Apply an APPROVED write-off to the invoice — a non-cash settlement of the balance.
     // (Previously approval never touched the invoice, so it still showed fully owing.)
     if body.approved {
-        let outstanding: Decimal = sqlx::query_scalar(
+        let outstanding: Decimal = sqlx::query_scalar::<_, Decimal>(
             "SELECT (total_amount - paid_amount) FROM invoices WHERE id = $1 AND tenant_id = $2",
         )
         .bind(existing.invoice_id)
         .bind(claims.tenant_id)
         .fetch_optional(&mut *tx)
         .await?
-        .unwrap_or(Decimal::ZERO)
+        // A write-off whose invoice is gone is a broken record, not "nothing outstanding".
+        .ok_or(AppError::NotFound)?
         .round_dp(2);
         if existing.amount > outstanding {
             return Err(AppError::BadRequest(format!(
