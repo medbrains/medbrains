@@ -64,7 +64,7 @@ async fn run_node(state: &Path) -> anyhow::Result<()> {
     let node = Node::start(endpoint.clone(), state, FRONT, clock).await?;
     let listener = Arc::clone(&node);
     tokio::spawn(mdns::follow(endpoint, false, move |event| {
-        listener.heard(event)
+        listener.heard(event);
     }));
     control::serve_forever(node, Path::new(CONTROL_SOCKET)).await
 }
