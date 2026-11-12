@@ -108,7 +108,8 @@ memory: it lists the machine's disks, with size, model and how many partitions e
 1. type the disk's name (for example `nvme0n1`);
 2. type `ERASE nvme0n1` exactly. Any other answer writes nothing and goes back to the list;
 3. it writes the image, reads the whole of it back past the cache, and compares the SHA-256 with the one on
-   the medium. On a match it ejects a DVD and restarts in 15 seconds. Take the stick out.
+   the medium. On a match it makes the disk the firmware's first boot entry ("MedBrains OS", replacing an
+   earlier one), ejects a DVD and restarts in 15 seconds. Take the stick out.
 
 The stick or DVD it started from, and any other MedBrains installer, is never listed, and typing its name is
 refused. A read-only disk and one smaller than the image (4.5 GB) are not listed. The same installer runs on the

@@ -73,7 +73,8 @@ choose_disk() {
     done <<<"$disks"
     say ""
     say "The installer stick or DVD is not listed: it is never written."
-    say "Type the name of the disk to install on (for example ${disks%% *}), or press Enter to look again:"
+    local first="${disks%% *}"
+    say "Type the name of the disk to install on (for example ${first#/dev/}), or press Enter to look again:"
     read -r answer || exit 0
     answer="${answer#/dev/}"
     [[ -z "$answer" ]] && return 0
@@ -120,6 +121,24 @@ write_and_verify() {
     fi
     blockdev --rereadpt "$disk" 2>/dev/null || true
     say "Installed and checked: SHA-256 $sha."
+    add_boot_entry "$disk"
+}
+
+# Makes the installed disk the firmware's first boot entry, replacing any earlier MedBrains entry. Firmware
+# does not always find a new disk by itself (it fell through to network boot in testing). Not fatal: the
+# disk also carries the removable-media boot path, and the firmware's boot menu can pick it.
+add_boot_entry() {
+    local disk="$1" loader old
+    case "$(uname -m)" in
+        x86_64) loader='\EFI\BOOT\BOOTX64.EFI' ;;
+        aarch64) loader='\EFI\BOOT\BOOTAA64.EFI' ;;
+    esac
+    for old in $(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-F]\{4\}\)\*\{0,1\} MedBrains OS.*/\1/p'); do
+        efibootmgr --quiet --bootnum "$old" --delete-bootnum || true
+    done
+    if ! efibootmgr --quiet --create --disk "$disk" --part 1 --label "MedBrains OS" --loader "$loader"; then
+        say "Could not add a boot entry. If the machine does not start from $disk, pick it in the firmware's boot menu."
+    fi
 }
 
 # Ejects a DVD, then restarts into the installed system.
