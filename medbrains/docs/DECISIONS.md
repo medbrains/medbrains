@@ -86,6 +86,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-10-31 | Every public message says who it is for and why we build it, by line three: patients, hospitals, love of software | A doctor and an owner should both understand it at once | — | Done |
 | 2026-11-01 | Public copy is country-neutral | The product is for any country; local rules come as plugins | Presenting it as a single-country product | Done (#5149, #5150) |
 | 2026-10-31 | AI-tool files stay out of the repository; rules live in `ENGINEERING.md` | The rules belong to the project, not to one tool | Tracking per-tool config | Done (#5141) |
+| 2026-11-12 | Written pledge in `README.md` and `COMMERCIAL-LICENSE.md`: the source of every release stays public in this repository, never behind a login or customer portal, and no agreement we offer has a term against sharing it (#5502) | Red Hat restricted RHEL source in 2023 and lost the community to OpenELA and the rebuilds; a pledge in the licence page binds future contracts, not only today's RFC | Leaving it only in RFC-PLATFORM-COMMERCIAL, which customers do not read; subscriber-only source | Done |
 
 ### Configuring a hospital
 
