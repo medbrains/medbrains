@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Proves the installer .iso in QEMU, through its serial console, the way an operator would use it:
 
+  0. a stick with one byte of its image changed is refused before any disk is offered, and writes nothing;
   1. it boots from the ISO attached as a USB stick, next to one blank disk;
   2. the stick is not offered, and typing its name is refused;
   3. naming the blank disk and then answering anything but ERASE <name> writes nothing (checked on the host);
@@ -33,12 +34,12 @@ else:
 class Machine:
     """One QEMU run with its serial port on a socket; everything it printed is kept in `seen`."""
 
-    def __init__(self, work, with_stick):
+    def __init__(self, work, with_stick, iso=ISO):
         self.sock_path = os.path.join(work, "serial.sock")
         drives = ["-drive", f"if=virtio,format=qcow2,file={work}/target.qcow2"]
         if with_stick:
             # snapshot=on: the stick looks writable to the guest, as a real one does, and stays untouched.
-            drives += ["-device", "qemu-xhci", "-drive", f"if=none,id=stick,format=raw,snapshot=on,file={ISO}",
+            drives += ["-device", "qemu-xhci", "-drive", f"if=none,id=stick,format=raw,snapshot=on,file={iso}",
                        "-device", "usb-storage,drive=stick"]
         self.qemu = subprocess.Popen([QEMU, *MACHINE, "-smp", "4", "-m", "2048",
             "-drive", f"if=pflash,format=raw,readonly=on,file={SHARE}/{CODE}",
@@ -115,11 +116,43 @@ def target_sha(work, size):
     return digest.hexdigest()
 
 
+def corrupt_copy(work):
+    """A copy of the ISO with one byte of its system image flipped, 16 MiB into the compressed file."""
+    bad = f"{work}/corrupt.iso"
+    subprocess.run(["cp", "-c" if sys.platform == "darwin" else "--reflink=auto", ISO, bad], check=True)
+    with open(bad, "r+b") as f:
+        data = f.read(64 << 20)
+        # The image is the first zstd frame on the ISO: the boot file sits in the EFI partition after it.
+        start = data.index(b"\x28\xb5\x2f\xfd")
+        f.seek(start + (16 << 20))
+        byte = f.read(1)
+        f.seek(start + (16 << 20))
+        f.write(bytes([byte[0] ^ 0xFF]))
+    return bad
+
+
+def damaged_medium_is_refused(work):
+    """Step 0: the damaged stick says so, never lists a disk, and the target stays blank."""
+    vm = Machine(work, with_stick=True, iso=corrupt_copy(work))
+    try:
+        before = vm.expect("THE INSTALLER MEDIUM IS DAMAGED", 900)
+        assert "Type the name of the disk" not in before, "FAIL: a disk was offered from a damaged medium"
+        time.sleep(5)
+        assert "Type the name of the disk" not in vm.seen, "FAIL: a disk was offered from a damaged medium"
+        assert target_is_blank(work), "FAIL: a damaged medium wrote to the disk"
+        print("\nPASS: a damaged medium is refused before any disk is offered; target still blank")
+    finally:
+        vm.stop()
+    os.remove(f"{work}/corrupt.iso")
+    shutil.copy(f"{SHARE}/{VARS}", f"{work}/vars.fd")
+
+
 def main():
     """Runs the five steps above; exits non-zero on the first failure."""
     work = tempfile.mkdtemp(prefix="mb-installer-test-")
     shutil.copy(f"{SHARE}/{VARS}", f"{work}/vars.fd")
     subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", f"{work}/target.qcow2", f"{BLANK_DISK_GB}G"], check=True)
+    damaged_medium_is_refused(work)
     vm = Machine(work, with_stick=True)
     try:
         listing = vm.expect("Type the name of the disk", 600)

@@ -1,6 +1,8 @@
 #!/bin/bash
 # The MedBrains OS installer, on the screen and on each serial console (one copy per console; a lock lets
 # only one write). Class A: it erases a disk. The rules it keeps:
+#   - the image on the medium must match its SHA-256 before any disk is even offered, so a damaged stick or
+#     DVD can never leave a disk erased and empty;
 #   - nothing is written until the operator has typed the disk's name and then ERASE <name>;
 #   - the disk it started from, and any other installer stick, is never offered and is refused if typed;
 #   - the disk must read back with the image's SHA-256 before it says the install worked.
@@ -13,6 +15,7 @@ MEDIUM=/run/medbrains-installer/medium
 PAYLOAD="$MEDIUM/medbrains/medbrains-os.raw.zst"
 INFO="$MEDIUM/medbrains/image.info"
 LOCK=/run/medbrains-installer/lock
+MEDIUM_CHECK=/run/medbrains-installer/medium-check
 MEDIUM_WAIT_S=90
 RESTART_AFTER_S=15
 
@@ -171,6 +174,30 @@ install_once() {
     read -r _ || exit 0
 }
 
+# Checks the image on the medium against the SHA-256 in image.info (which fixes its size too), once for every
+# console: the first checks, the others wait on the lock and read its answer. Returns 0 only on a match.
+check_medium() {
+    local sha="$1" got
+    exec 8>"$LOCK.mount"
+    flock 8
+    if [[ ! -f "$MEDIUM_CHECK" ]]; then
+        say "Checking the installer medium. This reads all of it and takes a few minutes."
+        got="$(zstd -dc --no-progress "$PAYLOAD" | sha256sum | cut -d' ' -f1)"
+        if [[ "$got" == "$sha" ]]; then echo ok; else echo bad; fi > "$MEDIUM_CHECK"
+    fi
+    exec 8>&-
+    [[ "$(cat "$MEDIUM_CHECK")" == ok ]]
+}
+
+# Says the medium is damaged and stays there: no disk is offered, so nothing can be erased.
+refuse_damaged_medium() {
+    say ""
+    say "THE INSTALLER MEDIUM IS DAMAGED: its system image does not match its checksum."
+    say "No disk was offered and nothing was written. Make a new USB stick or DVD from the release"
+    say "(check it against SHA256SUMS), then start again. Turn the machine off now."
+    while true; do read -r _ || sleep infinity; done
+}
+
 # Entry point: mount the medium, then offer the install until one succeeds.
 main() {
     local size sha
@@ -181,6 +208,8 @@ main() {
         exit 1
     fi
     read -r size sha <"$INFO"
+    check_medium "$sha" || refuse_damaged_medium
+    say "The installer medium is intact."
     while true; do install_once "$size" "$sha"; done
 }
 

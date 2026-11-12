@@ -103,7 +103,8 @@ os/formats.sh <image.raw> <name> x86-64 <out-dir>                       # qcow2,
 
 Write the `.iso` to a USB stick (`dd if=<name>.iso of=/dev/sdX bs=4M conv=fsync` on Linux, or an image
 writer in disk-image mode, such as Rufus's DD mode), or burn it to a DVD, and start the machine from it (UEFI boot menu). The installer runs from
-memory: it lists the machine's disks, with size, model and how many partitions each holds. To install:
+memory. It first reads the whole image on the medium and checks its SHA-256; a damaged stick or DVD
+is refused there, before any disk is offered, so it can never leave a disk erased and empty. Then it lists the machine's disks, with size, model and how many partitions each holds. To install:
 
 1. type the disk's name (for example `nvme0n1`);
 2. type `ERASE nvme0n1` exactly. Any other answer writes nothing and goes back to the list;
