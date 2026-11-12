@@ -108,6 +108,7 @@ mod cssd_ot_safety_test;
 mod dashboard_as_of_test;
 mod dashboard_default_widgets_test;
 mod data_processors_test;
+mod day_close_test;
 mod dental_treatment_test;
 mod device_binding_test;
 mod device_node_key_test;

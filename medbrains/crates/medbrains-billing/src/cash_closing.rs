@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
-use medbrains_core::billing::{AuditAction, DayEndClose};
+use medbrains_core::billing::{AuditAction, DayCloseStatus, DayEndClose};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -277,6 +277,8 @@ pub struct VerifyDayCloseRequest {
     pub verification_notes: Option<String>,
 }
 
+/// Check a cashier's day close: verified when cash, card and UPI all match, otherwise
+/// discrepancy. Someone other than the cashier, once.
 pub async fn verify_day_close(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -297,6 +299,19 @@ pub async fn verify_day_close(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // Counting the drawer and checking the count are two people: the cashier cannot sign off
+    // their own close. And a close is checked once; re-verifying would overwrite who checked it.
+    if existing.cashier_id == claims.sub {
+        return Err(AppError::Conflict(
+            "the cashier who closed the day cannot verify it".to_owned(),
+        ));
+    }
+    if existing.status != DayCloseStatus::Open {
+        return Err(AppError::Conflict(
+            "this day close has already been checked".to_owned(),
+        ));
+    }
 
     // Any cash, card or UPI variance leaves the close in discrepancy.
     let balanced = existing.cash_difference == Decimal::ZERO
