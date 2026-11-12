@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MedBrains OS for VMware, filled in by os/formats.sh: UEFI firmware, 4 vCPU, 4 GB, one SATA disk, one
-     VMXNET3 network card. Add a virtual TPM after import for the sealed data disk (os/README.md). -->
+     VMXNET3 network card. Hardware version vmx-19: ESXi 7.0 U2 or later. Add a virtual TPM after import for the sealed data disk (os/README.md). -->
 <Envelope xmlns="http://schemas.dmtf.org/ovf/envelope/1"
           xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1"
           xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData"

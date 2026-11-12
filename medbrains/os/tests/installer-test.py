@@ -4,6 +4,8 @@
   0. a stick with one byte of its image changed is refused before any disk is offered, and writes nothing;
   1. it boots from the ISO attached as a USB stick, next to one blank disk;
   2. the stick is not offered, and typing its name is refused;
+  2b. a disk swapped (hot-unplugged, another plugged in its place) after it was named is refused, and
+      neither disk is written;
   3. naming the blank disk and then answering anything but ERASE <name> writes nothing (checked on the host);
   4. ERASE <name> writes, checks and restarts;
   5. the blank disk now holds the image byte for byte, and boots on its own (debug image: its serial shell
@@ -36,7 +38,12 @@ class Machine:
 
     def __init__(self, work, with_stick, iso=ISO):
         self.sock_path = os.path.join(work, "serial.sock")
-        drives = ["-drive", f"if=virtio,format=qcow2,file={work}/target.qcow2"]
+        # The target sits behind its own PCIe root port so it can be hot-unplugged; two spare ports take the
+        # disk swapped in and the original plugged back.
+        drives = ["-device", "pcie-root-port,id=rp1,chassis=1", "-device", "pcie-root-port,id=rp2,chassis=2",
+                  "-device", "pcie-root-port,id=rp3,chassis=3",
+                  "-drive", f"if=none,id=t0,format=qcow2,file={work}/target.qcow2",
+                  "-device", "virtio-blk-pci,drive=t0,id=tdev,bus=rp1,serial=MBTARGET1"]
         if with_stick:
             # snapshot=on: the stick looks writable to the guest, as a real one does, and stays untouched.
             drives += ["-device", "qemu-xhci", "-drive", f"if=none,id=stick,format=raw,snapshot=on,file={iso}",
@@ -57,6 +64,39 @@ class Machine:
         self.sock.settimeout(1)
         self.seen = ""
         self.work = work
+
+    def hmp(self, command):
+        """Runs one QEMU monitor command and returns what it printed."""
+        mon = socket.socket(socket.AF_UNIX)
+        mon.connect(f"{self.work}/monitor.sock")
+        mon.settimeout(2)
+        mon.sendall(command.encode() + b"\n")
+        out = b""
+        try:
+            while True:
+                chunk = mon.recv(65536)
+                if not chunk:
+                    break
+                out += chunk
+        except socket.timeout:
+            pass
+        mon.close()
+        return out.decode(errors="replace")
+
+    def unplug(self, device, drive):
+        """Hot-unplugs a disk and waits until the guest has let it go."""
+        self.hmp(f"device_del {device}")
+        deadline = time.time() + 120 * SLOW
+        while f"{drive} (" in self.hmp("info block"):
+            if time.time() > deadline:
+                raise SystemExit(f"FAIL: {device} never unplugged")
+            time.sleep(2)
+
+    def plug(self, drive, path, device, port, serial):
+        """Hot-plugs a disk with a given serial, then gives the guest time to see it."""
+        self.hmp(f"drive_add 0 if=none,id={drive},format=qcow2,file={path}")
+        self.hmp(f"device_add virtio-blk-pci,drive={drive},id={device},bus={port},serial={serial}")
+        time.sleep(15 * SLOW)
 
     def expect(self, text, timeout):
         """Waits until `text` appears in what the machine printed after the last `expect`."""
@@ -94,9 +134,9 @@ class Machine:
         self.qemu.wait()
 
 
-def target_is_blank(work):
-    """True if the guest has written nothing at all to the target disk."""
-    out = subprocess.run(["qemu-img", "map", "-U", "--output=json", f"{work}/target.qcow2"],
+def target_is_blank(work, name="target.qcow2"):
+    """True if the guest has written nothing at all to this disk."""
+    out = subprocess.run(["qemu-img", "map", "-U", "--output=json", f"{work}/{name}"],
                          capture_output=True, text=True, check=True).stdout
     return '"data": true' not in out
 
@@ -172,6 +212,23 @@ def main():
         assert target_is_blank(work), "FAIL: the disk was written without ERASE"
         print("\nPASS: a wrong answer writes nothing (target still blank on the host)")
         vm.expect("Type the name of the disk", 30)
+        vm.send(TARGET)
+        vm.expect(f"type ERASE {TARGET}", 30)
+        # Swap the named disk for another of the same size before confirming: the same name, maybe the same
+        # major:minor, but not the same disk.
+        subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", f"{work}/other.qcow2", f"{BLANK_DISK_GB}G"], check=True)
+        vm.unplug("tdev", "t0")
+        vm.plug("t1", f"{work}/other.qcow2", "tdev2", "rp2", "MBOTHER")
+        vm.send(f"ERASE {TARGET}")
+        vm.expect("has changed since it was listed", 120)
+        vm.expect("Press Enter to go back", 30)
+        time.sleep(2)
+        assert target_is_blank(work) and target_is_blank(work, "other.qcow2"), "FAIL: a swapped disk was written"
+        print("\nPASS: a disk swapped after it was named is refused; neither disk written")
+        vm.unplug("tdev2", "t1")
+        vm.plug("t2", f"{work}/target.qcow2", "tdev3", "rp3", "MBTARGET1")
+        vm.send("")
+        vm.expect("Type the name of the disk", 60)
         vm.send(TARGET)
         vm.expect(f"type ERASE {TARGET}", 30)
         vm.send(f"ERASE {TARGET}")

@@ -5,6 +5,10 @@
 #     DVD can never leave a disk erased and empty;
 #   - nothing is written until the operator has typed the disk's name and then ERASE <name>;
 #   - the disk it started from, and any other installer stick, is never offered and is refused if typed;
+#   - the disk named is pinned by identity (major:minor, serial, WWN, size) when listed; after the write lock
+#     is taken the identity is checked again and the disk is opened once, so a disk swapped or replugged in
+#     between is refused, and one pulled during the write takes the write with it, never another disk;
+#   - a disk in use (mounted, or held by RAID, LVM or dm-crypt) is never offered;
 #   - the disk must read back with the image's SHA-256 before it says the install worked.
 # The medium carries medbrains/medbrains-os.raw.zst and medbrains/image.info ("<bytes> <sha256>"),
 # written by os/build-iso.sh.
@@ -45,39 +49,59 @@ installer_disks() {
     lsblk -lnpo NAME,PKNAME,LABEL | awk -v l="$LABEL" '$NF == l { print ($2 != "" && $2 != l) ? $2 : $1 }' | sort -u
 }
 
-# Prints "NAME SIZE MODEL" for every disk the image fits on, never an installer disk or a read-only one.
+# Prints every whole disk as "NAME|BYTES|MAJ:MIN|SERIAL|WWN|TRAN|RO|MODEL", one per line. '|' keeps empty
+# fields in place, where whitespace splitting would shift them.
+list_disks() {
+    lsblk -dnbpP -o NAME,SIZE,MAJ:MIN,SERIAL,WWN,TRAN,RO,MODEL,TYPE |
+        awk '/TYPE="disk"/' | sed -E 's/ ?TYPE="disk"//; s/[A-Z_:]+="([^"]*)" ?/\1|/g; s/\|$//'
+}
+
+# True if the disk or any of its partitions is mounted, or held by RAID, LVM or dm-crypt.
+disk_busy() {
+    local disk="$1"
+    [[ -n "$(lsblk -nro MOUNTPOINTS "$disk" | tr -d '[:space:]')" ]] && return 0
+    find "/sys/block/${disk#/dev/}" -path '*/holders/*' 2>/dev/null | grep -q .
+}
+
+# Prints the list_disks lines of every disk the image fits on: never an installer disk, a read-only one,
+# a busy one, or a RAM disk.
 candidate_disks() {
-    local size="$1" refused
+    local size="$1" refused name bytes rest
     refused="$(installer_disks)"
-    lsblk -dnbpo NAME,SIZE,RO,TYPE,MODEL | while read -r name bytes ro type model; do
-        [[ "$type" == disk && "$ro" == 0 && "$bytes" -ge "$size" && "$name" != /dev/zram* ]] || continue
+    list_disks | while IFS='|' read -r name bytes rest; do
+        [[ "$bytes" -ge "$size" && "$name" != /dev/zram* ]] || continue
+        [[ "$(cut -d'|' -f5 <<<"$rest")" == 0 ]] || continue
         grep -qxF "$name" <<<"$refused" && continue
-        printf '%s %s %s\n' "$name" "$bytes" "${model:-unknown}"
+        disk_busy "$name" && continue
+        printf '%s|%s|%s\n' "$name" "$bytes" "$rest"
     done
 }
 
-# Shows the disks and returns the one the operator named, or nothing.
+# What pins a disk: major:minor, serial, WWN and size, from a list_disks line.
+disk_identity() { cut -d'|' -f2-5 <<<"$1"; }
+
+# Shows the disks and prints the chosen one's list_disks line, or nothing.
 choose_disk() {
-    local size="$1" disks answer
+    local size="$1" disks answer line name bytes serial tran model
     disks="$(candidate_disks "$size")"
     say ""
     say "MedBrains OS installer"
     say ""
     if [[ -z "$disks" ]]; then
-        say "No disk here can take the system (it needs $((size / 1000000000 + 1)) GB or more)."
-        say "Connect one, then press Enter to look again."
+        say "No free disk here can take the system (it needs $((size / 1000000000 + 1)) GB or more)."
+        say "Disks in use (mounted, RAID, LVM, encrypted) are not offered. Connect one, then press Enter to look again."
         read -r answer || exit 0
         return 0
     fi
     say "Disks on this machine:"
-    while read -r name bytes model; do
-        printf '  %-14s %6s GB  %s  (%s partitions)\n' "${name#/dev/}" "$((bytes / 1000000000))" "$model" \
-            "$(lsblk -lnpo TYPE "$name" | grep -c part)" >&2
+    while IFS='|' read -r name bytes _ serial _ tran _ model; do
+        printf '  %-12s %6s GB  %-5s %s  serial %s  (%s partitions)\n' "${name#/dev/}" "$((bytes / 1000000000))" \
+            "${tran:-?}" "${model:-unknown}" "${serial:-none}" "$(lsblk -lnpo TYPE "$name" | grep -c part)" >&2
     done <<<"$disks"
     say ""
-    say "The installer stick or DVD is not listed: it is never written."
-    local first="${disks%% *}"
-    say "Type the name of the disk to install on (for example ${first#/dev/}), or press Enter to look again:"
+    say "The installer stick or DVD, and disks in use, are not listed: they are never written."
+    line="${disks%%$'\n'*}"
+    say "Type the name of the disk to install on (for example $(basename "${line%%|*}")), or press Enter to look again:"
     read -r answer || exit 0
     answer="${answer#/dev/}"
     [[ -z "$answer" ]] && return 0
@@ -85,11 +109,12 @@ choose_disk() {
         say "That is the installer itself. It is never written."
         return 0
     fi
-    if ! cut -d' ' -f1 <<<"$disks" | grep -qxF "/dev/$answer"; then
+    line="$(grep -F "/dev/$answer|" <<<"$disks" | head -1)"
+    if [[ "${line%%|*}" != "/dev/$answer" ]]; then
         say "There is no disk called $answer in the list. Nothing was written."
         return 0
     fi
-    printf '/dev/%s\n' "$answer"
+    printf '%s\n' "$line"
 }
 
 # Asks for the typed confirmation. Returns 0 only for exactly "ERASE <name>".
@@ -105,19 +130,44 @@ confirm_erase() {
     fi
 }
 
-# Writes the image to the disk, then reads it back past the cache and compares its SHA-256.
+# After the write lock: checks the disk is still the one listed, still free and still a candidate, then opens
+# it on fds 5 (end of disk), 6 (read back) and 7 (image), and checks the opened device is that one too. From
+# here on every byte goes through those fds, bound to that device: a disk swapped in later is never touched.
+open_pinned_disk() {
+    local line="$1" size="$2" disk="${1%%|*}" now
+    now="$(candidate_disks "$size" | grep -F "$disk|" | head -1)"
+    if [[ -z "$now" || "$(disk_identity "$now")" != "$(disk_identity "$line")" ]]; then
+        say "$disk has changed since it was listed (unplugged, swapped or now in use). Nothing was written."
+        return 1
+    fi
+    # shellcheck disable=SC2094 # three fds on one disk on purpose: each keeps its own offset.
+    exec 5<>"$disk" 6<"$disk" 7<>"$disk" || { say "Could not open $disk. Nothing was written."; return 1; }
+    if [[ "$(stat -L -c '%Hr:%Lr' /proc/self/fd/7)" != "$(cut -d'|' -f3 <<<"$line")" ]] ||
+        [[ "$(disk_identity "$(list_disks | grep -F "$disk|" | head -1)")" != "$(disk_identity "$line")" ]]; then
+        exec 5>&- 6<&- 7>&-
+        say "$disk changed while it was being opened. Nothing was written."
+        return 1
+    fi
+}
+
+# Writes the image through the pinned fds, then reads it back past the cache and compares its SHA-256.
+# The old backup partition table at the end of the disk is zeroed first, so firmware never finds a stale one.
 write_and_verify() {
-    local disk="$1" size="$2" sha="$3" got
+    local line="$1" size="$2" sha="$3" disk="${1%%|*}" bytes got
+    bytes="$(cut -d'|' -f2 <<<"$line")"
+    open_pinned_disk "$line" "$size" || return 1
     say "Writing the system to $disk. Do not turn the machine off."
-    wipefs --all --force "$disk" >/dev/null || { say "Could not clear $disk. Nothing else was written."; return 1; }
-    if ! zstd -dc --no-progress "$PAYLOAD" | dd of="$disk" bs=4M iflag=fullblock oflag=direct conv=fsync status=progress; then
-        say "Writing failed: the installer medium or $disk is damaged. $disk cannot start the system."
+    if ! dd if=/dev/zero bs=1M count=1 oflag=seek_bytes seek=$((bytes - 1048576)) conv=fsync status=none >&5 ||
+        ! zstd -dc --no-progress "$PAYLOAD" | dd bs=4M iflag=fullblock oflag=direct conv=fsync status=progress >&7; then
+        exec 5>&- 6<&- 7>&-
+        say "Writing failed: the disk went away or is damaged. $disk cannot start the system."
         return 1
     fi
     blockdev --flushbufs "$disk"
     echo 3 > /proc/sys/vm/drop_caches
     say "Checking what was written."
-    got="$(dd if="$disk" bs=4M iflag=direct,count_bytes count="$size" status=none | sha256sum | cut -d' ' -f1)"
+    got="$(dd bs=4M iflag=direct,count_bytes count="$size" status=none <&6 | sha256sum | cut -d' ' -f1)"
+    exec 5>&- 6<&- 7>&-
     if [[ "$got" != "$sha" ]]; then
         say "CHECK FAILED: $disk did not read back what was written. Do not use this disk."
         return 1
@@ -158,32 +208,33 @@ finish() {
 
 # One pass: choose, confirm, then write under the lock, so two consoles can never write at once.
 install_once() {
-    local size="$1" sha="$2" disk
-    disk="$(choose_disk "$size")"
-    [[ -n "$disk" ]] || return 0
-    confirm_erase "$disk" || return 0
+    local size="$1" sha="$2" line
+    line="$(choose_disk "$size")"
+    [[ -n "$line" ]] || return 0
+    confirm_erase "${line%%|*}" || return 0
     exec 9>"$LOCK"
     if ! flock -n 9; then
         say "An install is already running on another console. Nothing was written here."
         exec 9>&-
         return 0
     fi
-    if write_and_verify "$disk" "$size" "$sha"; then finish; fi
+    if write_and_verify "$line" "$size" "$sha"; then finish; fi
     exec 9>&-
     say "Press Enter to go back to the list."
     read -r _ || exit 0
 }
 
-# Checks the image on the medium against the SHA-256 in image.info (which fixes its size too), once for every
+# Checks the image on the medium against the size and SHA-256 in image.info, in one read, once for every
 # console: the first checks, the others wait on the lock and read its answer. Returns 0 only on a match.
 check_medium() {
-    local sha="$1" got
+    local size="$1" sha="$2" got
     exec 8>"$LOCK.mount"
     flock 8
     if [[ ! -f "$MEDIUM_CHECK" ]]; then
         say "Checking the installer medium. This reads all of it and takes a few minutes."
-        got="$(zstd -dc --no-progress "$PAYLOAD" | sha256sum | cut -d' ' -f1)"
-        if [[ "$got" == "$sha" ]]; then echo ok; else echo bad; fi > "$MEDIUM_CHECK"
+        got="$(zstd -dc --no-progress "$PAYLOAD" | tee >(wc -c > "$MEDIUM_CHECK.size") | sha256sum | cut -d' ' -f1
+               wait $!)"
+        if [[ "$got" == "$sha" && "$(cat "$MEDIUM_CHECK.size")" == "$size" ]]; then echo ok; else echo bad; fi > "$MEDIUM_CHECK"
     fi
     exec 8>&-
     [[ "$(cat "$MEDIUM_CHECK")" == ok ]]
@@ -208,7 +259,7 @@ main() {
         exit 1
     fi
     read -r size sha <"$INFO"
-    check_medium "$sha" || refuse_damaged_medium
+    check_medium "$size" "$sha" || refuse_damaged_medium
     say "The installer medium is intact."
     while true; do install_once "$size" "$sha"; done
 }

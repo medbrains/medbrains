@@ -104,7 +104,10 @@ os/formats.sh <image.raw> <name> x86-64 <out-dir>                       # qcow2,
 Write the `.iso` to a USB stick (`dd if=<name>.iso of=/dev/sdX bs=4M conv=fsync` on Linux, or an image
 writer in disk-image mode, such as Rufus's DD mode), or burn it to a DVD, and start the machine from it (UEFI boot menu). The installer runs from
 memory. It first reads the whole image on the medium and checks its SHA-256; a damaged stick or DVD
-is refused there, before any disk is offered, so it can never leave a disk erased and empty. Then it lists the machine's disks, with size, model and how many partitions each holds. To install:
+is refused there, before any disk is offered, so it can never leave a disk erased and empty. That check (the
+hash in `medbrains/image.info` on the medium) proves integrity only, not where the image came from: anyone
+can make a medium with a matching file. Authenticity is the signed `SHA256SUMS` (and its `.sigstore.json`) that
+the `.iso` itself is checked against before it is written to a stick. Then it lists the machine's disks, with size, model and how many partitions each holds. To install:
 
 1. type the disk's name (for example `nvme0n1`);
 2. type `ERASE nvme0n1` exactly. Any other answer writes nothing and goes back to the list;
@@ -113,7 +116,10 @@ is refused there, before any disk is offered, so it can never leave a disk erase
    earlier one), ejects a DVD and restarts in 15 seconds. Take the stick out.
 
 The stick or DVD it started from, and any other MedBrains installer, is never listed, and typing its name is
-refused. A read-only disk and one smaller than the image (4.5 GB) are not listed. The same installer runs on the
+refused. A disk in use (mounted, or part of RAID, LVM or dm-crypt) is not listed either. The list shows each disk's
+bus (usb, nvme, sata) and serial number. The disk named is pinned by its major:minor, serial, WWN and size;
+just before writing the installer checks them again and opens the disk once, so a disk swapped or replugged after
+it was named is refused, and one pulled out mid-write fails the write instead of it landing on another disk. A read-only disk and one smaller than the image (4.5 GB) are not listed. The same installer runs on the
 screen and on the serial console (`ttyS0`, `ttyAMA0` on arm64); only one of them can write at a time. The disk
 then holds the release `.raw` byte for byte, so its signed boot file and PCR 11 signature are the ones released;
 first boot grows the data partition into the rest of the disk. Built by `os/installer/` (mkosi, `Format=uki`)
@@ -130,7 +136,8 @@ libvirt: `virt-install --boot uefi --tpm emulator,model=tpm-crb,version=2.0 --di
 
 ### VMware (.ova)
 
-The OVA asks for UEFI firmware, 4 vCPU, 4 GB, a SATA disk and a VMXNET3 card. Deploy it (vSphere: *Deploy
+The OVA asks for UEFI firmware, 4 vCPU, 4 GB, a SATA disk and a VMXNET3 card. Its virtual hardware is version 19, which needs
+ESXi 7.0 U2 or later (Workstation 16.2 or Fusion 12.2). Deploy it (vSphere: *Deploy
 OVF Template*; Workstation / Fusion: *File > Open*), then grow the disk before first boot. **A virtual TPM**
 needs, on vSphere, a key provider (the Native Key Provider is enough) and VM encryption; on Workstation and
 Fusion, the VM's *Encryption* setting first. Turn **Secure Boot** off in *VM Options > Boot Options* unless the
