@@ -23,6 +23,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | SOP flows and the track builder | `medbrains/RFCs/RFC-SOP-FLOWS.md` |
 | Knowledge change sets | `medbrains/RFCs/RFC-KNOWLEDGE-CHANGE-SETS.md` |
 | AI-native MedBrains | `medbrains/RFCs/RFC-AI-NATIVE.md` |
+| AI in clinical flows, voice first | `medbrains/RFCs/RFC-AI-CLINICAL-FLOWS.md` |
 | Security and health intelligence | `medbrains/RFCs/RFC-OSINT.md` |
 | Extension protocol | `medbrains/docs/extensions/PROTOCOL.md` |
 | Version promise | `medbrains/docs/COMPATIBILITY.md` |
@@ -240,6 +241,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 
 | Item | Waiting on |
 |---|---|
+| AI in clinical flows, voice first (`RFCs/RFC-AI-CLINICAL-FLOWS.md`): kernel AI interface, OS AI service, safer OPD dictation, native, IPD, handover, discharge, ambient | Owner: the 11 questions in its §13 |
 | First OS image (D1) | In progress |
 | Snapshot test (FS1) | A Raspberry Pi 5 with NVMe, and an x86 SSD machine |
 | Five platform-study changes and ledger-grade audit integrity | Owner approval |
