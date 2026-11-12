@@ -63,6 +63,7 @@ People reasonably ask what the catch is. Here is the whole answer:
 - **The software is free forever** under the [GNU AGPL-3.0](./LICENSE). Any hospital, clinic or pharmacy can use it, change it and run it, without asking us. If you change it and let people use it over a network, you share your changes under the same licence.
 - **Selling it or building a closed product on it?** Take a [commercial licence](./COMMERCIAL-LICENSE.md) instead.
 - **The code is public.** Anyone can read how it checks a drug interaction or who can see a record.
+- **Every release's source stays public, and that is a pledge.** The source of every MedBrains release, including the ones subscribers and commercial licensees run, is published in this repository and never put behind a login, a paywall or a customer portal. No contract we sign, subscription, support or commercial, will ever contain a term against sharing that source. We sell updates, support and warranty, never access to the code.
 - **No licence fees, no per-user fees, no selling your data.** We never see your data unless you ask us to host it.
 - **How the team earns:** only from *optional* setup, training, hosting and support for hospitals that want help ([pricing](https://www.medbrains.in/pricing)). If you can run it yourself, you owe us nothing.
 
@@ -376,13 +377,13 @@ You don't have to write code to help. We need:
   - Documentation and setup guides
 - **Testers** to try it in a real department and report back.
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) to get started. Every commit needs a DCO sign-off (`git commit -s`). Never put real patient data in an issue, commit or test.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) to get started. Pull requests are merged after you sign the [contributor licence agreement](./CLA.md); until then, open an issue. Never put real patient data in an issue, commit or test.
 
 ## License
 
 MedBrains is dual-licensed: the [GNU Affero General Public License, version 3 only](./LICENSE) (`AGPL-3.0-only`), free for everyone, or a [commercial licence](./COMMERCIAL-LICENSE.md) for those who cannot meet the AGPL's terms. See [NOTICE](./NOTICE). Versions released before 2026-11-12 were licensed under Apache 2.0. The client SDKs (`packages/sdk`, `sdks/python`) stay under Apache 2.0, so integrating with MedBrains never forces a licence on your code.
 
-**Trademarks:** the name "MedBrains" and the MedBrains logo are trademarks of Domnic Amalan S. Neither licence covers them. You may say your software is "based on MedBrains", but please don't call a modified version "MedBrains" or use the logo in a way that suggests we endorse it.
+**Trademarks:** "MedBrains" and the MedBrains logo are trademarks (™) of Domnic Amalan S. Neither licence covers them. You may say you run MedBrains, redistribute it unchanged, and call a modified fork "based on MedBrains" under your own name. Product names, "official" or "certified" claims, "MedBrains Compatible", the logo in your marketing and domains need written permission. See the [trademark policy](./TRADEMARKS.md).
 
 ## Credits and contact
 

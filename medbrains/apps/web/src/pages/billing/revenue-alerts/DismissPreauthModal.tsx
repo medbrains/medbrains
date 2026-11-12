@@ -34,7 +34,7 @@ export function DismissPreauthModal({ alert, onClose }: DismissPreauthModalProps
         note: note.trim() || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "revenue-alerts"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "revenue-alerts"] });
       toast.success("Alert dismissed");
       onClose();
     },

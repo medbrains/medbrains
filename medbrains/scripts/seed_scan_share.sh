@@ -44,7 +44,7 @@ share() { # last name, ABHA number, patient id or NULL, token
 }
 MATCHED_ID=$(share "$MATCHED" "91${RUN}000001" "'$PATIENT'::uuid" "S-${RUN: -3}1")
 NEW_ID=$(share "$NEW" "91${RUN}000002" "NULL" "S-${RUN: -3}2")
-[ -n "$MATCHED_ID" ] && [ -n "$NEW_ID" ] || { echo "no facility for the admin's hospital: create one first" >&2; exit 1; }
+[[ -n "$MATCHED_ID" ]] && [[ -n "$NEW_ID" ]] || { echo "no facility for the admin's hospital: create one first" >&2; exit 1; }
 echo "SHARE_MATCHED=$MATCHED"
 echo "SHARE_NEW=$NEW"
 echo "SHARE_MATCHED_ID=$MATCHED_ID"

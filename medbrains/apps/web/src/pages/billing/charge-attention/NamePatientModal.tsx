@@ -23,7 +23,7 @@ export function NamePatientModal({ item, onClose }: NamePatientModalProps) {
   const mutation = useMutation({
     mutationFn: () => billingService.namePatientChargeAttention(item.id, { patient_id: patientId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "charge-attention"] });
       toast.success("Patient named. Post the charge when ready.");
       onClose();
     },

@@ -39,7 +39,7 @@ export function HistoryImportPage() {
     onSuccess: () => {
       toast.success("Go-live saved.");
       setGoLive(null);
-      qc.invalidateQueries({ queryKey: KEYS.settings });
+      void qc.invalidateQueries({ queryKey: KEYS.settings });
     },
   });
   const run = useMutation({
@@ -51,7 +51,7 @@ export function HistoryImportPage() {
       }),
     onSuccess: (done) => {
       setResult(done);
-      qc.invalidateQueries({ queryKey: KEYS.batches });
+      void qc.invalidateQueries({ queryKey: KEYS.batches });
       if (done.applied) toast.success("The history has been imported.");
     },
   });
@@ -68,7 +68,7 @@ export function HistoryImportPage() {
     },
     onSuccess: (done) => {
       setResult(done);
-      qc.invalidateQueries({ queryKey: KEYS.batches });
+      void qc.invalidateQueries({ queryKey: KEYS.batches });
     },
   });
   const current = settings.data?.go_live_at ? new Date(settings.data.go_live_at) : null;

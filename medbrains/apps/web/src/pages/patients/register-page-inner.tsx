@@ -330,7 +330,7 @@ export function PatientRegisterPageInner() {
         void queryClient.invalidateQueries({ queryKey: ["camp-registrations"] });
       }
       if (encounterId && linkedServices?.openOpdAfterRegistration) {
-        navigate(
+        void navigate(
           patientRegistrationOpdHandoffRoute({
             campId,
             campRegistrationId: result.campRegistrationId,
@@ -341,10 +341,10 @@ export function PatientRegisterPageInner() {
         return;
       }
       if (campId && resultReturnTo) {
-        navigate(resultReturnTo);
+        void navigate(resultReturnTo);
         return;
       }
-      navigate(`/patients/${patient.id}`);
+      void navigate(`/patients/${patient.id}`);
     },
     onError: (err: Error) => {
       notifications.show({
@@ -560,7 +560,7 @@ export function PatientRegisterPageInner() {
           onCompleted={dupModalHandlers.close}
           onOpen={(m) => {
             dupModalHandlers.close();
-            navigate(`/patients/${m.id}`);
+            void navigate(`/patients/${m.id}`);
           }}
         />
         <Group justify="flex-end" mt="md">

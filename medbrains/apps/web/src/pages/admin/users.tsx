@@ -839,7 +839,7 @@ export function UsersPage() {
   };
 
   const openPermissions = (user: SetupUser) => {
-    navigate(`/admin/settings?user=${encodeURIComponent(user.id)}#access-matrix`);
+    void navigate(`/admin/settings?user=${encodeURIComponent(user.id)}#access-matrix`);
   };
 
   const columns = [
