@@ -2882,8 +2882,8 @@ pub async fn create_mar(
 
 /// Apply a MAR dose status transition with the full IPSG.3 medication-safety gate, shared by
 /// BOTH MAR update endpoints so neither can bypass the checks: an already-administered dose is
-/// immutable; a high-alert `given` requires an independent second-nurse witness (different, real,
-/// active) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
+/// immutable; a high-alert `given` requires an independent witness (a different, active nurse,
+/// doctor or pharmacist) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
 /// `barcode_verified` is server-authoritative (never client-set). `admission_id` optionally scopes
 /// the dose to a specific admission (the admission-nested endpoint) — `None` matches by id alone.
 async fn administer_mar_dose_in_tx(
@@ -2936,10 +2936,15 @@ async fn administer_mar_dose_in_tx(
                             .to_owned(),
                     ));
                 }
+                // An independent double check is a second clinician's, not
+                // any login's: a receptionist cannot check an insulin dose.
                 let witness_is_active = sqlx::query_scalar::<_, bool>(
                     "SELECT EXISTS( \
                          SELECT 1 FROM users \
                          WHERE id = $1 AND tenant_id = $2 AND is_active = true \
+                           AND deleted_at IS NULL \
+                           AND role IN ('nurse'::user_role, 'doctor'::user_role, \
+                                        'pharmacist'::user_role) \
                      )",
                 )
                 .bind(witness)
@@ -2948,7 +2953,8 @@ async fn administer_mar_dose_in_tx(
                 .await?;
                 if !witness_is_active {
                     return Err(AppError::BadRequest(
-                        "The witness must be an active staff user for this tenant.".to_owned(),
+                        "The witness must be an active nurse, doctor or pharmacist of this hospital."
+                            .to_owned(),
                     ));
                 }
                 if !existing.barcode_verified {
@@ -8710,36 +8716,6 @@ pub async fn expected_discharges(
     tx.commit().await?;
     Ok(Json(rows))
 }
-
-#[cfg(test)]
-mod discharge_summary_tests {
-    use super::missing_discharge_summary_fields;
-
-    #[test]
-    fn complete_summary_has_no_missing() {
-        let missing = missing_discharge_summary_fields(
-            Some("Community-acquired pneumonia"),
-            Some("Stable, afebrile"),
-            Some("IV antibiotics, improved"),
-            Some("Review in 1 week"),
-        );
-        assert!(missing.is_empty());
-    }
-
-    #[test]
-    fn blank_and_missing_fields_are_reported() {
-        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
-        assert_eq!(
-            missing,
-            vec![
-                "condition at discharge",
-                "course in hospital",
-                "follow-up instructions"
-            ]
-        );
-    }
-}
-
 /// Inpatient department (admissions, wards, MAR, rounds, discharge, nursing) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -8998,4 +8974,33 @@ pub fn router() -> axum::Router<AppState> {
             get(get_admission_consents),
         )
         .route("/api/ipd/discharges/expected", get(expected_discharges))
+}
+
+#[cfg(test)]
+mod discharge_summary_tests {
+    use super::missing_discharge_summary_fields;
+
+    #[test]
+    fn complete_summary_has_no_missing() {
+        let missing = missing_discharge_summary_fields(
+            Some("Community-acquired pneumonia"),
+            Some("Stable, afebrile"),
+            Some("IV antibiotics, improved"),
+            Some("Review in 1 week"),
+        );
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn blank_and_missing_fields_are_reported() {
+        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
+        assert_eq!(
+            missing,
+            vec![
+                "condition at discharge",
+                "course in hospital",
+                "follow-up instructions"
+            ]
+        );
+    }
 }
