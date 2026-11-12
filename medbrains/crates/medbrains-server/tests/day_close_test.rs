@@ -135,6 +135,16 @@ async fn a_balanced_close_is_signed_off_by_someone_other_than_the_cashier() -> R
         StatusCode::CONFLICT,
         "the cashier cannot sign off their own count"
     );
+    let untouched: (String, Option<Uuid>) =
+        sqlx::query_as("SELECT status::text, verified_by FROM day_end_closes WHERE id = $1::uuid")
+            .bind(row["id"].as_str().ok_or("id")?)
+            .fetch_one(&app.db)
+            .await?;
+    assert_eq!(
+        untouched,
+        ("open".to_owned(), None),
+        "the refused verify changed nothing"
+    );
 
     let (status, checked) = post(
         &app,
@@ -201,5 +211,43 @@ async fn checking_a_close_needs_its_permission() -> R<()> {
     );
     let (status, _) = post(&app, &junior, &verify, &json!({})).await?;
     assert_eq!(status, StatusCode::FORBIDDEN);
+    Ok(())
+}
+
+/// Given one open close, When two supervisors verify it at the same moment, Then exactly one
+/// succeeds and the other is told it was already checked; the record names one checker.
+#[tokio::test]
+async fn two_simultaneous_checks_sign_off_once() -> R<()> {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let cashier = common::provision_staff(&app, &csrf, "billing_clerk", &[]).await;
+    let a = common::provision_staff(&app, &csrf, "billing_clerk", &[]).await;
+    let b = common::provision_staff(&app, &csrf, "billing_clerk", &[]).await;
+    let (day, counter) = (
+        quiet_day(),
+        format!("C-{}", &Uuid::new_v4().simple().to_string()[..8]),
+    );
+    takings(&app, day, &counter).await?;
+    let row = close(&app, &cashier, day, &counter, 500, 300, 200).await?;
+    let verify = format!(
+        "/api/billing/day-closes/{}/verify",
+        row["id"].as_str().ok_or("id")?
+    );
+    let empty = json!({});
+    let (first, second) = tokio::join!(
+        post(&app, &a, &verify, &empty),
+        post(&app, &b, &verify, &empty)
+    );
+    let mut statuses = [first?.0, second?.0];
+    statuses.sort_by_key(StatusCode::as_u16);
+    assert_eq!(statuses, [StatusCode::OK, StatusCode::CONFLICT]);
+    let checkers: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM day_end_closes WHERE id = $1::uuid AND verified_by = ANY($2)",
+    )
+    .bind(row["id"].as_str().ok_or("id")?)
+    .bind(vec![a.user_id, b.user_id])
+    .fetch_one(&app.db)
+    .await?;
+    assert_eq!(checkers, 1);
     Ok(())
 }

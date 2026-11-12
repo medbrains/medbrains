@@ -292,7 +292,7 @@ pub async fn verify_day_close(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let existing = sqlx::query_as::<_, DayEndClose>(
-        "SELECT * FROM day_end_closes WHERE id = $1 AND tenant_id = $2",
+        "SELECT * FROM day_end_closes WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -323,7 +323,7 @@ pub async fn verify_day_close(
         "UPDATE day_end_closes SET \
          status = $1::day_close_status, verified_by = $2, verified_at = now(), \
          verification_notes = COALESCE($5, verification_notes), updated_at = now() \
-         WHERE id = $3 AND tenant_id = $4 \
+         WHERE id = $3 AND tenant_id = $4 AND status = 'open'::day_close_status \
          RETURNING *",
     )
     .bind(new_status)
@@ -336,8 +336,10 @@ pub async fn verify_day_close(
             .map(str::trim)
             .filter(|s| !s.is_empty()),
     )
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    // The row is locked above, so this is belt and braces against a status changed between.
+    .ok_or_else(|| AppError::Conflict("this day close has already been checked".to_owned()))?;
 
     tx.commit().await?;
     Ok(Json(row))
