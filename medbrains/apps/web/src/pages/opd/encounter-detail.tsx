@@ -168,16 +168,18 @@ export function EncounterDetail({
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setActiveEncounterTab(opdEncounterTabForOrderBasket(tab));
-    navigate(opdEncounterOrderBasketRoute(encounterId, tab));
+    void navigate(opdEncounterOrderBasketRoute(encounterId, tab));
   }
 
   function changeOrderBasketTab(tab: OrderBasketTab) {
     setActiveEncounterTab(opdEncounterTabForOrderBasket(tab));
-    navigate(opdEncounterOrderBasketRoute(encounterId, tab), { replace: true });
+    void navigate(opdEncounterOrderBasketRoute(encounterId, tab), { replace: true });
   }
 
   function closeOrderBasket() {
-    navigate(opdEncounterWorkspaceTabRoute(encounterId, activeWorkspaceTab), { replace: true });
+    void navigate(opdEncounterWorkspaceTabRoute(encounterId, activeWorkspaceTab), {
+      replace: true,
+    });
   }
 
   // Fetch all data for visit summary print
@@ -445,7 +447,7 @@ export function EncounterDetail({
             size="xs"
             onClick={() => {
               patientPeek.close();
-              navigate(`/patients/${patientId}`);
+              void navigate(`/patients/${patientId}`);
             }}
           >
             Open full patient record

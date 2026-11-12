@@ -102,7 +102,7 @@ export function OverviewTab({ onOpenTab }: { onOpenTab: (tab: string) => void })
                   size="xs"
                   onClick={() => {
                     const external = EXTERNAL[g.fix];
-                    if (external) navigate(external);
+                    if (external) void navigate(external);
                     else onOpenTab(g.fix);
                   }}
                 >

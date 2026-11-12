@@ -150,16 +150,16 @@ export function PatientDetailPageInner() {
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setActivePatientTab(patientDetailTabForOrderBasket(tab));
-    navigate(patientDetailOrderBasketRoute(patientId, tab));
+    void navigate(patientDetailOrderBasketRoute(patientId, tab));
   }
 
   function changeOrderBasketTab(tab: OrderBasketTab) {
     setActivePatientTab(patientDetailTabForOrderBasket(tab));
-    navigate(patientDetailOrderBasketRoute(patientId, tab), { replace: true });
+    void navigate(patientDetailOrderBasketRoute(patientId, tab), { replace: true });
   }
 
   function closeOrderBasket() {
-    navigate(patientDetailWorkspaceTabRoute(patientId, activeDetailTab), { replace: true });
+    void navigate(patientDetailWorkspaceTabRoute(patientId, activeDetailTab), { replace: true });
   }
 
   const {

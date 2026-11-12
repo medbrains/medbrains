@@ -74,7 +74,7 @@ export function CampCreatePage() {
         message: "Camp planned successfully",
         color: "success",
       });
-      backToList();
+      void backToList();
     },
   });
 

@@ -407,13 +407,13 @@ export function StandardsSettings() {
   const anyLoading = standards.some((item) => item.status === "loading");
 
   const refreshAll = () => {
-    fhirQuery.refetch();
-    icdQuery.refetch();
-    labCatalogQuery.refetch();
-    pharmacyCatalogQuery.refetch();
-    pacsConfigQuery.refetch();
-    dicomStudiesQuery.refetch();
-    hfrQuery.refetch();
+    void fhirQuery.refetch();
+    void icdQuery.refetch();
+    void labCatalogQuery.refetch();
+    void pharmacyCatalogQuery.refetch();
+    void pacsConfigQuery.refetch();
+    void dicomStudiesQuery.refetch();
+    void hfrQuery.refetch();
   };
 
   return (
