@@ -58,18 +58,18 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
 
     // Find first record with phototherapy active and last with it active
     const activeRecords = records.filter((r) => r.phototherapy_active);
-    const firstActive =
-      activeRecords.length > 0
-        ? activeRecords.reduce((earliest, r) =>
-            new Date(r.recorded_at) < new Date(earliest.recorded_at) ? r : earliest,
-          )
-        : null;
-    const lastActive =
-      activeRecords.length > 0
-        ? activeRecords.reduce((latest, r) =>
-            new Date(r.recorded_at) > new Date(latest.recorded_at) ? r : latest,
-          )
-        : null;
+    const firstActive = activeRecords.reduce<(typeof activeRecords)[number] | null>(
+      (earliest, r) =>
+        earliest === null || new Date(r.recorded_at) < new Date(earliest.recorded_at)
+          ? r
+          : earliest,
+      null,
+    );
+    const lastActive = activeRecords.reduce<(typeof activeRecords)[number] | null>(
+      (latest, r) =>
+        latest === null || new Date(r.recorded_at) > new Date(latest.recorded_at) ? r : latest,
+      null,
+    );
 
     // Peak bilirubin
     const peakBili = records.reduce((max, r) => Math.max(max, r.bilirubin_total ?? 0), 0);

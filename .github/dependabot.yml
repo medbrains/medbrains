@@ -1,12 +1,82 @@
 # Actions are pinned to commit SHAs (zizmor unpinned-uses). This keeps those pins
 # current: one grouped PR a month, and a security fix as soon as one is published.
+#
+# Every ecosystem waits 7 days after a version is published before proposing it (#5500, the
+# xz lesson: most poisoned releases are caught and pulled within days). Security updates
+# ignore the cooldown by design and still arrive at once; CI's cooldown check
+# (scripts/check_supply_chain.py) then needs a [[cooldown-exception]] naming the advisory.
+#
+# Not here: medbrains/tools/fonts/requirements.txt is pinned on purpose so the committed fonts
+# rebuild byte for byte; iOS packages are all local; vendor/ is ours.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
     open-pull-requests-limit: 2
+
+  - package-ecosystem: cargo
+    directories: ["/medbrains", "/medbrains/crates/medbrains-shell"]
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      cargo:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: npm
+    directories: ["/medbrains", "/website"]
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: gradle
+    directory: /medbrains/apps/android
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      gradle:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      uv:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: pip
+    directory: /medbrains/qa
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+
+  - package-ecosystem: docker
+    directory: /medbrains
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1

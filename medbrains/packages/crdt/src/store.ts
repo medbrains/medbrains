@@ -60,7 +60,17 @@ export class CrdtStore {
 
   constructor(opts: CrdtStoreOptions) {
     this.opts = opts;
-    void this.openDb().then(() => this.connectWs());
+  }
+
+  /**
+   * Open the local database, then connect to the edge hub. Kept out of the constructor so a
+   * failure is handled: a browser that refuses IndexedDB (private mode, quota) shows the store
+   * as "error" instead of hanging at "connecting" with the rejection unhandled.
+   */
+  start(): void {
+    this.openDb()
+      .then(() => this.connectWs())
+      .catch(() => this.setStatus("error"));
   }
 
   private async openDb() {

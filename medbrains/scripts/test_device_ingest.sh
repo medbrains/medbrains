@@ -16,7 +16,7 @@ LOGIN_RESP=$(curl -s -X POST "$API/auth/login" \
 
 CSRF=$(grep -i 'x-csrf-token\|csrf' /tmp/mb_cookies.txt 2>/dev/null | awk '{print $NF}' || true)
 # Also try extracting from response body
-if [ -z "$CSRF" ]; then
+if [[ -z "$CSRF" ]]; then
   CSRF=$(echo "$LOGIN_RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("csrf_token",""))' 2>/dev/null || true)
 fi
 
@@ -40,7 +40,7 @@ DEVICE_RESP=$(curl -s -X POST "$API/devices/instances" \
 
 DEVICE_ID=$(echo "$DEVICE_RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("id",""))' 2>/dev/null || true)
 
-if [ -z "$DEVICE_ID" ]; then
+if [[ -z "$DEVICE_ID" ]]; then
   echo "   Create failed: $(echo "$DEVICE_RESP" | head -c 200)"
   echo "   Trying to fetch existing..."
   DEVICE_LIST=$(curl -s "$API/devices/instances" "${AUTH_HEADERS[@]}")
@@ -49,7 +49,7 @@ fi
 
 echo "   Device ID: ${DEVICE_ID:0:36}"
 
-if [ -z "$DEVICE_ID" ]; then
+if [[ -z "$DEVICE_ID" ]]; then
   echo "   ERROR: No device available. Cannot continue."
   exit 1
 fi
@@ -102,7 +102,7 @@ MSGS=$(curl -s "$API/devices/instances/$DEVICE_ID/messages" "${AUTH_HEADERS[@]}"
 MSG_COUNT=$(echo "$MSGS" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)))' 2>/dev/null || echo "?")
 echo "   Messages stored: $MSG_COUNT"
 
-if [ "$MSG_COUNT" != "0" ] && [ "$MSG_COUNT" != "?" ]; then
+if [[ "$MSG_COUNT" != "0" ]] && [[ "$MSG_COUNT" != "?" ]]; then
   LAST_STATUS=$(echo "$MSGS" | python3 -c 'import sys,json; ms=json.load(sys.stdin); print(ms[0].get("processing_status","?") if ms else "none")' 2>/dev/null || echo "?")
   echo "   Latest message status: $LAST_STATUS"
 fi
