@@ -14,6 +14,7 @@ mod front;
 mod hardening;
 mod journey;
 mod setup;
+mod tpm_lockout;
 mod update_channel;
 mod update_sealed;
 mod update_steps;
