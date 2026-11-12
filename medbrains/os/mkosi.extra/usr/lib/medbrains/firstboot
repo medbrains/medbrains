@@ -17,11 +17,12 @@ write_env() {
     local tmp priv pub
     tmp="$(mktemp -d)"
     agent_token="$(rand 48)"
-    # JWT: PKCS#8 DER private key; raw 32-byte public key (see install.sh).
-    openssl genpkey -algorithm Ed25519 -outform DER -out "$tmp/priv.der" 2>/dev/null
-    openssl pkey -inform DER -in "$tmp/priv.der" -pubout -outform DER -out "$tmp/spki.der" 2>/dev/null
+    # JWT: PKCS#8 DER private key, SPKI DER public key, as install.sh writes them
+    # (deploy/standalone/jwt-keys.sh). The server proves the pair at start-up.
+    openssl genpkey -algorithm Ed25519 -outform DER -out "$tmp/priv.der"
+    openssl pkey -inform DER -in "$tmp/priv.der" -pubout -outform DER -out "$tmp/spki.der"
     priv="$(base64 -w0 < "$tmp/priv.der")"
-    pub="$(tail -c 32 "$tmp/spki.der" | base64 -w0)"
+    pub="$(base64 -w0 < "$tmp/spki.der")"
     rm -rf "$tmp"
 
     install -m 0640 -o root -g medbrains /dev/null "$ENV.new"
