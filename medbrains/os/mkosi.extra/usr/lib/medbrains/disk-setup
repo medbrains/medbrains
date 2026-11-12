@@ -256,7 +256,9 @@ seal_with_pin() {
 write_record() {
     printf '%s\n' "$1" > "$RECORD.new"
     chmod 0644 "$RECORD.new"
+    sync "$RECORD.new"
     mv "$RECORD.new" "$RECORD"
+    sync "$CONFIG"
     echo "data disk protection: $1" >&2
 }
 
@@ -266,6 +268,9 @@ finish_first_time() {
     show_recovery_key
     provision_lockout "$KEY_FILE"
     : > "$KEY_SAVED"
+    # On disk before anything else happens: without it a power cut in the next seconds (ext4 commits every 5 s)
+    # lost the marker, the next start took the first-time path and waited on a TPM PIN prompt nobody could see.
+    sync "$KEY_SAVED" "$CONFIG"
     ask_for_pin
     [[ -n "$PIN" ]] && seal_with_pin
     clear_screen
