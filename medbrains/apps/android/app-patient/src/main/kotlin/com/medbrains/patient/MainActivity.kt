@@ -24,6 +24,7 @@ import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalAuthStore
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.SecretStore
+import com.medbrains.kit.chooseServerUrl
 import com.medbrains.ui.MedBrainsTheme
 
 /**
@@ -65,7 +66,7 @@ class MainActivity : ComponentActivity() {
 object AppConfig {
     /** Debug override, else the server this build was made for (the emulator host in debug). */
     fun baseUrl(intent: Intent?): String =
-        debugExtra(intent, "baseUrl") ?: BuildConfig.DEFAULT_SERVER_URL
+        chooseServerUrl(debugExtra(intent, "baseUrl"), null, BuildConfig.DEFAULT_SERVER_URL)
     fun hospitalCode(intent: Intent?): String = debugExtra(intent, "hospitalCode") ?: "DEFAULT"
 
     private fun debugExtra(intent: Intent?, key: String): String? =

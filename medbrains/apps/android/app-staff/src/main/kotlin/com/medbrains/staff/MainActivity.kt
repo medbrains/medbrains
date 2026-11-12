@@ -26,6 +26,7 @@ import com.medbrains.kit.LocalAuthStore
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.SecretStore
 import com.medbrains.kit.StoredBinding
+import com.medbrains.kit.chooseServerUrl
 import com.medbrains.ui.MedBrainsTheme
 
 /**
@@ -79,8 +80,11 @@ class MainActivity : ComponentActivity() {
  */
 object AppConfig {
     /** Debug override, else the hospital this device was bound to by its QR. */
-    fun baseUrl(intent: android.content.Intent?, binding: StoredBinding?): String =
-        debugExtra(intent, "baseUrl") ?: binding?.api_base ?: BuildConfig.DEFAULT_SERVER_URL
+    fun baseUrl(intent: android.content.Intent?, binding: StoredBinding?): String = chooseServerUrl(
+        debugExtra(intent, "baseUrl"),
+        binding?.api_base,
+        BuildConfig.DEFAULT_SERVER_URL
+    )
 
     private fun debugExtra(intent: android.content.Intent?, key: String): String? =
         if (BuildConfig.DEBUG) intent?.getStringExtra(key) else null
