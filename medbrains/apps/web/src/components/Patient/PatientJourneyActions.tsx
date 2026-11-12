@@ -304,7 +304,7 @@ export function PatientJourneyActions({
         }
         const route = patientJourneyActionRoute(actionId, journeyContext);
         if (route) {
-          navigate(route);
+          void navigate(route);
           return;
         }
         if (tab) {
@@ -314,7 +314,7 @@ export function PatientJourneyActions({
       }
       default: {
         const route = patientJourneyActionRoute(actionId, journeyContext);
-        if (route) navigate(route);
+        if (route) void navigate(route);
       }
     }
   }

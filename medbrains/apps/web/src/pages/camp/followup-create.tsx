@@ -98,7 +98,7 @@ export function CampFollowupCreatePage() {
         message: t("notify.followupScheduled"),
         color: "success",
       });
-      backToList();
+      void backToList();
     },
   });
 

@@ -158,7 +158,7 @@ export function ShareDrawer({
         subjectType: formValues.subject_type,
       });
       notifications.show({ message: "Grant created", color: "green" });
-      qc.invalidateQueries({
+      void qc.invalidateQueries({
         queryKey: ["sharing", "grants", objectType, objectId],
       });
       reset(DEFAULT_SHARE_GRANT_VALUES);
@@ -184,7 +184,7 @@ export function ShareDrawer({
     },
     onSuccess: () => {
       notifications.show({ message: "Grant revoked", color: "green" });
-      qc.invalidateQueries({
+      void qc.invalidateQueries({
         queryKey: ["sharing", "grants", objectType, objectId],
       });
     },

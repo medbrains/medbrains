@@ -47,7 +47,7 @@ export function PharmacyStaffModal({
         is_default: isDefault,
       }),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       setUserId(null);
       setIsDefault(false);
       notifications.show({ title: "Assigned", message: "Staff added", color: "success" });

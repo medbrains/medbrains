@@ -118,7 +118,7 @@ function ArrangeForm({ orderId, options, onDone }: ArrangeFormProps) {
       });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-deliveries"] });
       onDone();
-      navigate("/pharmacy/deliveries");
+      void navigate("/pharmacy/deliveries");
     },
     onError: (e: Error) => toast.error(e.message, { title: "Not arranged" }),
   });
