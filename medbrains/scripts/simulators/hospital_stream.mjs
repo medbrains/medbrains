@@ -868,8 +868,9 @@ async function main() {
   }
 
   const config = loadConfig(args);
-  const databaseUrl =
-    process.env.DATABASE_URL ?? "postgres://medbrains:medbrains_dev@localhost:5435/medbrains";
+  // No built-in URL: a password in the source is a password for everyone.
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("Set DATABASE_URL (see .env.example).");
   assertSafeMode(config, args, databaseUrl);
 
   if (args.command === "cleanup") {
