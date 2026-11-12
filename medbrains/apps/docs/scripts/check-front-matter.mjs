@@ -1,9 +1,10 @@
 // Fails the build when a page lacks a unique title or a 140-160 character
 // description: both feed search results and social cards.
+import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const DOCS = new URL("../docs/", import.meta.url).pathname;
+const DOCS = fileURLToPath(new URL("../docs/", import.meta.url));
 const GENERATED = new Set(["developer/reference/api.md", "developer/reference/env-vars.md"]);
 
 /** Every markdown page under docs/. */
