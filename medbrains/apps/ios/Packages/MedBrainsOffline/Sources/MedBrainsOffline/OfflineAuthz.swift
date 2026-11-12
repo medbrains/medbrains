@@ -14,11 +14,16 @@ public final class OfflineAuthz: Sendable {
     /// Same sizes the React Native shell opened: 1024 cache entries, 1 hour TTL, 4096 revocations.
     public init(directory: URL) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        authz = try AuthzCacheHandle(path: directory.appendingPathComponent("authz.sled").path, capacity: 1024, defaultTtlSecs: 3600)
-        revocations = try RevocationCacheHandle(path: directory.appendingPathComponent("revocations.sled").path, capacity: 4096)
+        authz = try AuthzCacheHandle(
+            path: directory.appendingPathComponent("authz.sled").path, capacity: 1024,
+            defaultTtlSecs: 3600)
+        revocations = try RevocationCacheHandle(
+            path: directory.appendingPathComponent("revocations.sled").path, capacity: 4096)
     }
 
-    public func check(_ key: CacheKey, jwtPermissions: [String], policy: OfflinePolicyKind = .cacheThenJwt) -> CheckOutcome {
+    public func check(
+        _ key: CacheKey, jwtPermissions: [String], policy: OfflinePolicyKind = .cacheThenJwt
+    ) -> CheckOutcome {
         if isActionOfflineRequired(objectType: key.objectType, action: key.action) {
             return .deny(reason: .onlineRequired)
         }
@@ -28,6 +33,36 @@ public final class OfflineAuthz: Sendable {
             // A fault is not a refusal, but offline it cannot be an allowance either.
             return .deny(reason: .cacheMissStrict)
         }
+    }
+
+    /// The offline sign-in answer, with the words the screen shows when it is a refusal.
+    public enum OfflineSignIn: Equatable, Sendable {
+        case allowed
+        case refused(reason: String)
+    }
+
+    /// Shown when the device has not synced revocations since its store was created.
+    public static let needsSyncReason =
+        "This device needs one online sync after the update before it can sign anyone in offline."
+    /// Shown when the account was turned off before this token was issued.
+    public static let revokedReason = "This account has been turned off. Ask your administrator."
+
+    /// May `userId` be signed in offline on a token issued at `jwtIatUnix`? Fails safe: until this
+    /// device has finished one revocation pull since its store was created (a fresh install, or the
+    /// update that moved the store), and on any fault, the answer is a refusal with its reason.
+    public func signInOffline(userId: String, jwtIatUnix: Int64) -> OfflineSignIn {
+        let kind =
+            (try? revocations.offlineSignIn(userId: userId, jwtIatUnix: jwtIatUnix)) ?? .needsSync
+        switch kind {
+        case .allowed: return .allowed
+        case .revoked: return .refused(reason: Self.revokedReason)
+        case .needsSync: return .refused(reason: Self.needsSyncReason)
+        }
+    }
+
+    /// Call after every successful revocation pull; the first lifts the needs-sync refusal.
+    public func markRevocationsSynced() throws {
+        try revocations.markSynced()
     }
 
     /// Record what the server answered, so the same question answers offline.

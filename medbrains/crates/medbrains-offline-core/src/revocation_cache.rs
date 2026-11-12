@@ -56,6 +56,25 @@ pub struct RevocationEntry {
     pub revoked_at_unix: i64,
 }
 
+/// The store key that says this device has finished a revocation pull since the store was
+/// created. Not 16 bytes, so the replay of user ids skips it.
+const SYNCED_KEY: &[u8] = b"synced";
+
+/// What a device may conclude, offline, about signing a user in on a token.
+///
+/// Three outcomes, never two: a device that has not finished a revocation pull since its store
+/// was created (a fresh install, or the move from sled to redb, which starts empty) cannot know
+/// who was revoked, and must not answer "not revoked".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OfflineSignIn {
+    /// Synced at least once and the token is not revoked.
+    Allowed,
+    /// The token was issued before the user's revocation.
+    Revoked,
+    /// No revocation pull has finished on this store yet: sign-in needs one online sync first.
+    NeedsSync,
+}
+
 #[derive(Clone)]
 pub struct RevocationCache {
     inner: Arc<RwLock<LruCache<Uuid, i64>>>,
@@ -63,6 +82,8 @@ pub struct RevocationCache {
     /// Largest `revoked_at_unix` we've seen so far. Used as the
     /// `since` cursor on the next pull.
     pull_max: Arc<RwLock<i64>>,
+    /// Whether a revocation pull has finished since this store was created.
+    synced: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl std::fmt::Debug for RevocationCache {
@@ -77,7 +98,12 @@ impl RevocationCache {
         let persist = Store::open(persist_path)?;
         let mut lru = LruCache::new(cap);
         let mut max_seen: i64 = 0;
+        let mut synced = false;
         for (k, v) in persist.entries()? {
+            if k == SYNCED_KEY {
+                synced = true;
+                continue;
+            }
             let Ok(uid) = Uuid::from_slice(&k) else {
                 continue;
             };
@@ -93,7 +119,39 @@ impl RevocationCache {
             inner: Arc::new(RwLock::new(lru)),
             persist,
             pull_max: Arc::new(RwLock::new(max_seen)),
+            synced: Arc::new(std::sync::atomic::AtomicBool::new(synced)),
         })
+    }
+
+    /// Record that a revocation pull finished. Call after every successful pull: the first
+    /// one lifts [`OfflineSignIn::NeedsSync`] for good, durably, before it is reported.
+    pub fn mark_synced(&self) -> Result<(), RevocationCacheError> {
+        self.persist.insert(SYNCED_KEY, b"1")?;
+        self.synced
+            .store(true, std::sync::atomic::Ordering::Release);
+        Ok(())
+    }
+
+    /// Whether a revocation pull has finished since this store was created.
+    pub fn has_synced(&self) -> bool {
+        self.synced.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// May `user_id` be signed in offline on a token issued at `jwt_iat_unix`?
+    ///
+    /// Fails safe: before the first sync, and if the cache cannot be read, the answer is
+    /// [`OfflineSignIn::NeedsSync`], never "allowed".
+    pub fn offline_sign_in(&self, user_id: Uuid, jwt_iat_unix: i64) -> OfflineSignIn {
+        if !self.has_synced() {
+            return OfflineSignIn::NeedsSync;
+        }
+        let Ok(mut guard) = self.inner.write() else {
+            return OfflineSignIn::NeedsSync;
+        };
+        match guard.get(&user_id) {
+            Some(&revoked_at) if jwt_iat_unix < revoked_at => OfflineSignIn::Revoked,
+            _ => OfflineSignIn::Allowed,
+        }
     }
 
     /// Record that `user_id` is revoked from `revoked_at_unix`
@@ -183,6 +241,44 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let cache = RevocationCache::new(dir.path(), 1024).unwrap();
         (cache, dir)
+    }
+
+    #[test]
+    fn a_fresh_store_refuses_offline_sign_in_until_its_first_sync() {
+        // A store with no sync marker is what every device has right after the upgrade
+        // from sled: the old revocations were not carried over.
+        let (cache, dir) = make();
+        let user = Uuid::new_v4();
+        assert_eq!(
+            cache.offline_sign_in(user, 1_700_000_000),
+            OfflineSignIn::NeedsSync
+        );
+
+        cache.record_revocation(user, 1_700_000_000).unwrap();
+        assert_eq!(
+            cache.offline_sign_in(user, 1_699_000_000),
+            OfflineSignIn::NeedsSync
+        );
+
+        cache.mark_synced().unwrap();
+        assert_eq!(
+            cache.offline_sign_in(user, 1_699_000_000),
+            OfflineSignIn::Revoked
+        );
+        assert_eq!(
+            cache.offline_sign_in(Uuid::new_v4(), 1_699_000_000),
+            OfflineSignIn::Allowed
+        );
+
+        // The marker is durable and is not mistaken for a revoked user on reopen.
+        drop(cache);
+        let reopened = RevocationCache::new(dir.path(), 1024).unwrap();
+        assert!(reopened.has_synced());
+        assert_eq!(reopened.len(), 1);
+        assert_eq!(
+            reopened.offline_sign_in(user, 1_699_000_000),
+            OfflineSignIn::Revoked
+        );
     }
 
     #[test]

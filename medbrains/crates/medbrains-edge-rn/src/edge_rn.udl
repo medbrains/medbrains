@@ -341,6 +341,15 @@ interface AuthzCacheHandle {
 
 // ── RevocationCache ────────────────────────────────────────────────
 
+/// What a device may conclude offline about signing a user in. `NeedsSync` until the
+/// first revocation pull finishes on this device's store (fresh install, or the sled to
+/// redb move, which starts empty): the screen says it needs one online sync.
+enum OfflineSignInKind {
+    "Allowed",
+    "Revoked",
+    "NeedsSync",
+};
+
 interface RevocationCacheHandle {
     [Throws=BridgeError]
     constructor(string path, u32 capacity);
@@ -362,6 +371,17 @@ interface RevocationCacheHandle {
     /// Drop a record (admin re-activated the user).
     [Throws=BridgeError]
     void forget(string user_id);
+
+    /// Record that a revocation pull finished; call after every successful pull.
+    [Throws=BridgeError]
+    void mark_synced();
+
+    /// True once a revocation pull has finished on this store.
+    boolean has_synced();
+
+    /// May this user sign in offline on a token issued at `jwt_iat_unix`? Fails safe.
+    [Throws=BridgeError]
+    OfflineSignInKind offline_sign_in(string user_id, i64 jwt_iat_unix);
 
     u32 len();
 

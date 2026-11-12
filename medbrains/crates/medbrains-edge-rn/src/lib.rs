@@ -947,6 +947,25 @@ impl AuthzCacheHandle {
 
 // ── Phase B: RevocationCache handle ────────────────────────────────
 
+/// [`offline::OfflineSignIn`] across the bridge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OfflineSignInKind {
+    Allowed,
+    Revoked,
+    NeedsSync,
+}
+
+impl From<offline::OfflineSignIn> for OfflineSignInKind {
+    /// One to one: the bridge adds nothing to the core's answer.
+    fn from(answer: offline::OfflineSignIn) -> Self {
+        match answer {
+            offline::OfflineSignIn::Allowed => Self::Allowed,
+            offline::OfflineSignIn::Revoked => Self::Revoked,
+            offline::OfflineSignIn::NeedsSync => Self::NeedsSync,
+        }
+    }
+}
+
 pub struct RevocationCacheHandle {
     inner: offline::RevocationCache,
 }
@@ -991,6 +1010,28 @@ impl RevocationCacheHandle {
         self.inner
             .forget(uid)
             .map_err(|e| BridgeError::RevocationCache(e.to_string()))
+    }
+
+    /// Record that a revocation pull finished, lifting `NeedsSync` for good.
+    pub fn mark_synced(&self) -> Result<(), BridgeError> {
+        self.inner
+            .mark_synced()
+            .map_err(|e| BridgeError::RevocationCache(e.to_string()))
+    }
+
+    /// Whether a revocation pull has finished on this store.
+    pub fn has_synced(&self) -> bool {
+        self.inner.has_synced()
+    }
+
+    /// The fail-safe offline sign-in answer for `user_id` on a token issued at `jwt_iat_unix`.
+    pub fn offline_sign_in(
+        &self,
+        user_id: String,
+        jwt_iat_unix: i64,
+    ) -> Result<OfflineSignInKind, BridgeError> {
+        let uid = parse_uuid(&user_id, "user_id")?;
+        Ok(self.inner.offline_sign_in(uid, jwt_iat_unix).into())
     }
 
     pub fn len(&self) -> u32 {
@@ -1177,6 +1218,34 @@ mod tests {
         assert_eq!(cache.pull_window_max(), 1_700_000_000);
         cache.forget(user.clone()).unwrap();
         assert!(!cache.is_revoked(user, 1_699_000_000).unwrap());
+    }
+
+    #[test]
+    fn offline_sign_in_is_refused_until_the_first_sync_after_the_upgrade() {
+        // An old sled directory left by the previous release: the new store inside it starts
+        // empty, so the device must not sign anyone in offline until it has synced once.
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("conf"), b"sled leftover").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let user = Uuid::new_v4().to_string();
+        let cache = RevocationCacheHandle::new(path.clone(), 64).unwrap();
+        assert!(!cache.has_synced());
+        assert_eq!(
+            cache.offline_sign_in(user.clone(), 1_700_000_000).unwrap(),
+            OfflineSignInKind::NeedsSync
+        );
+
+        cache.mark_synced().unwrap();
+        assert_eq!(
+            cache.offline_sign_in(user.clone(), 1_700_000_000).unwrap(),
+            OfflineSignInKind::Allowed
+        );
+        drop(cache);
+        let reopened = RevocationCacheHandle::new(path, 64).unwrap();
+        assert_eq!(
+            reopened.offline_sign_in(user, 1_700_000_000).unwrap(),
+            OfflineSignInKind::Allowed
+        );
     }
 
     #[test]

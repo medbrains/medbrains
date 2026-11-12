@@ -38,4 +38,4 @@ pub use authz_cache::{
 pub use jwt_verify::{
     DEFAULT_CLOCK_SKEW, JwtClaims, JwtOutcome, VerifyError, VerifyingKey, verify_jwt,
 };
-pub use revocation_cache::{RevocationCache, RevocationCacheError, RevocationEntry};
+pub use revocation_cache::{OfflineSignIn, RevocationCache, RevocationCacheError, RevocationEntry};
