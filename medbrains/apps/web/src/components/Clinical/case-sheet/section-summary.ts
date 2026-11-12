@@ -96,3 +96,12 @@ export function summariseSection(code: string, data: unknown): string[] {
   if (code === "examination") return examLines(data as ExaminationData);
   return [];
 }
+
+/**
+ * Whether rich-text HTML has any visible text. Parsed, not regex-stripped: a
+ * tag regex leaves fragments like `<script` behind and is not what a browser
+ * would render.
+ */
+export function hasVisibleText(html: string): boolean {
+  return (new DOMParser().parseFromString(html, "text/html").body.textContent ?? "").trim() !== "";
+}

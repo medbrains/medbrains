@@ -21,6 +21,7 @@
 //   --er-only           skip OPD track
 //   --dry-run           log requests but don't send
 
+import { randomInt } from "node:crypto";
 import process from "node:process";
 
 const API_BASE = process.env.MEDBRAINS_API_BASE;
@@ -83,7 +84,9 @@ async function api(method, path, body) {
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const chance = (p) => Math.random() < p;
-const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+// crypto.randomInt, not Math.random: CodeQL cannot tell a vital sign from a token, and the
+// cost of a CSPRNG for a few thousand synthetic values is nothing.
+const randInt = (min, max) => randomInt(min, max + 1);
 const randDecimal = (min, max, decimals = 1) =>
   Number((Math.random() * (max - min) + min).toFixed(decimals));
 
