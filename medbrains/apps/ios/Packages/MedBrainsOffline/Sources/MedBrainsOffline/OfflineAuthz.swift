@@ -21,6 +21,8 @@ public final class OfflineAuthz: Sendable {
             path: directory.appendingPathComponent("revocations.sled").path, capacity: 4096)
     }
 
+    /// Whether `key` is allowed offline: online-only actions are refused outright, otherwise the
+    /// cache answers, then the JWT's permissions, per `policy`. A cache fault refuses.
     public func check(
         _ key: CacheKey, jwtPermissions: [String], policy: OfflinePolicyKind = .cacheThenJwt
     ) -> CheckOutcome {
@@ -60,7 +62,10 @@ public final class OfflineAuthz: Sendable {
         }
     }
 
-    /// Call after every successful revocation pull; the first lifts the needs-sync refusal.
+    /// Call only after a revocation pull has run to completion: on the first run after an update,
+    /// that is the full re-pull from cursor 0 (`pullWindowMax()` is 0 on a new store), every
+    /// page. Calling it after a partial pull would let a revoked user in offline. The first call
+    /// lifts the needs-sync refusal for good.
     public func markRevocationsSynced() throws {
         try revocations.markSynced()
     }

@@ -996,11 +996,6 @@ impl RevocationCacheHandle {
             .map_err(|e| BridgeError::RevocationCache(e.to_string()))
     }
 
-    pub fn is_revoked(&self, user_id: String, jwt_iat_unix: i64) -> Result<bool, BridgeError> {
-        let uid = parse_uuid(&user_id, "user_id")?;
-        Ok(self.inner.is_revoked(uid, jwt_iat_unix))
-    }
-
     pub fn pull_window_max(&self) -> i64 {
         self.inner.pull_window_max()
     }
@@ -1213,11 +1208,17 @@ mod tests {
         cache
             .record_revocation(user.clone(), 1_700_000_000)
             .unwrap();
-        assert!(cache.is_revoked(user.clone(), 1_699_000_000).unwrap());
-        assert!(!cache.is_revoked(user.clone(), 1_700_000_001).unwrap());
+        cache.mark_synced().unwrap();
+        let sign_in = |iat| cache.offline_sign_in(user.clone(), iat).unwrap();
+        assert_eq!(sign_in(1_699_000_000), OfflineSignInKind::Revoked);
+        assert_eq!(sign_in(1_700_000_000), OfflineSignInKind::Revoked);
+        assert_eq!(sign_in(1_700_000_001), OfflineSignInKind::Allowed);
         assert_eq!(cache.pull_window_max(), 1_700_000_000);
         cache.forget(user.clone()).unwrap();
-        assert!(!cache.is_revoked(user, 1_699_000_000).unwrap());
+        assert_eq!(
+            cache.offline_sign_in(user, 1_699_000_000).unwrap(),
+            OfflineSignInKind::Allowed
+        );
     }
 
     #[test]

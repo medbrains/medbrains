@@ -24,6 +24,30 @@ pub type StoreError = redb::Error;
 /// One stored key and its value, as owned bytes.
 pub type Entry = (Vec<u8>, Vec<u8>);
 
+/// Delete what sled 0.34 left in `dir` once the redb store there has opened: its `conf`, `db`,
+/// `blobs/` and `snap.*` files. Nothing reads them any more, and they can hold revoked user
+/// ids and cached decisions. A file that will not go is logged, not fatal: the cache works
+/// without its removal.
+fn remove_sled_leftovers(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let path = entry.path();
+        let removed = match name.as_ref() {
+            "conf" | "db" => std::fs::remove_file(&path),
+            "blobs" => std::fs::remove_dir_all(&path),
+            n if n.starts_with("snap.") => std::fs::remove_file(&path),
+            _ => continue,
+        };
+        if let Err(err) = removed {
+            tracing::warn!(?err, path = %path.display(), "could not remove a sled leftover");
+        }
+    }
+}
+
 /// A byte-keyed store. Cheap to clone: the database is shared.
 #[derive(Clone)]
 pub struct Store {
@@ -49,7 +73,35 @@ impl Store {
         let tx = db.begin_write()?;
         tx.open_table(TABLE)?;
         tx.commit()?;
+        remove_sled_leftovers(dir);
         Ok(Self { db: Arc::new(db) })
+    }
+
+    /// The value stored under `key`, if any.
+    pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StoreError> {
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(TABLE)?;
+        Ok(table.get(key)?.map(|value| value.value().to_vec()))
+    }
+
+    /// Set every `(key, value)` in `rows` in one durable transaction: one fsync for a whole
+    /// pulled page rather than one per row.
+    pub fn insert_all<K: AsRef<[u8]>, V: AsRef<[u8]>>(
+        &self,
+        rows: &[(K, V)],
+    ) -> Result<(), StoreError> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(TABLE)?;
+            for (key, value) in rows {
+                table.insert(key.as_ref(), value.as_ref())?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     /// Set `key` to `value`, durably.
@@ -103,6 +155,26 @@ mod tests {
         drop(store);
         let store = Store::open(dir.path())?;
         assert_eq!(store.entries()?, vec![(b"b".to_vec(), b"2".to_vec())]);
+        Ok(())
+    }
+
+    #[test]
+    fn opening_removes_what_sled_left_and_keeps_everything_else()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        for file in ["conf", "db", "snap.0000000000123", "keep.txt"] {
+            std::fs::write(dir.path().join(file), b"x")?;
+        }
+        std::fs::create_dir(dir.path().join("blobs"))?;
+        let store = Store::open(dir.path())?;
+        store.insert(b"k", b"v")?;
+        let mut left: Vec<String> = std::fs::read_dir(dir.path())?
+            .map(|e| e.map(|e| e.file_name().to_string_lossy().into_owned()))
+            .collect::<Result<_, _>>()?;
+        left.sort();
+        assert_eq!(left, vec!["keep.txt".to_owned(), "store.redb".to_owned()]);
+        assert_eq!(store.get(b"k")?, Some(b"v".to_vec()));
+        assert_eq!(store.get(b"missing")?, None);
         Ok(())
     }
 

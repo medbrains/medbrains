@@ -13,7 +13,7 @@
 namespace edge_rn {
     /// Verify an Ed25519-signed JWT. The host hands the public key
     /// and current time; we do signature + expiry only. Revocation
-    /// is a separate check via `RevocationCacheHandle::is_revoked`.
+    /// is a separate check via `RevocationCacheHandle::offline_sign_in`.
     JwtOutcome verify_jwt(string token, sequence<u8> public_key_bytes, i64 now_unix, u64 clock_skew_secs);
 
     /// True if the given (object_type, action) pair is on the
@@ -358,11 +358,6 @@ interface RevocationCacheHandle {
     /// timestamps never overwrite later ones.
     [Throws=BridgeError]
     void record_revocation(string user_id, i64 revoked_at_unix);
-
-    /// True iff `user_id` has a revocation entry AND the JWT was
-    /// issued before that timestamp.
-    [Throws=BridgeError]
-    boolean is_revoked(string user_id, i64 jwt_iat_unix);
 
     /// Largest revoked_at seen so far. Used as the `since` cursor
     /// on the next pull from `/api/auth/revocations`.

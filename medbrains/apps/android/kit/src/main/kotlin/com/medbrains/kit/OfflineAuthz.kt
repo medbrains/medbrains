@@ -27,6 +27,10 @@ class OfflineAuthz(context: Context) : AutoCloseable {
     val authz = AuthzCacheHandle(File(dir, "authz.sled").path, 1024u, 3600uL)
     val revocations = RevocationCacheHandle(File(dir, "revocations.sled").path, 4096u)
 
+    /**
+     * Whether `key` is allowed offline: online-only actions are refused outright, otherwise the
+     * cache answers, then the JWT's permissions, per `policy`. A cache fault refuses.
+     */
     fun check(
         key: CacheKey,
         jwtPermissions: List<String>,
@@ -56,7 +60,12 @@ class OfflineAuthz(context: Context) : AutoCloseable {
         OfflineSignInKind.NEEDS_SYNC -> OfflineSignIn.Refused(NEEDS_SYNC_REASON)
     }
 
-    /** Call after every successful revocation pull; the first lifts the needs-sync refusal. */
+    /**
+     * Call only after a revocation pull has run to completion: on the first run after an update,
+     * that is the full re-pull from cursor 0 (pullWindowMax() is 0 on a new store), every page.
+     * Calling it after a partial pull would let a revoked user in offline. The first call lifts
+     * the needs-sync refusal for good.
+     */
     fun markRevocationsSynced() {
         revocations.markSynced()
     }
