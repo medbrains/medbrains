@@ -63,6 +63,7 @@ People reasonably ask what the catch is. Here is the whole answer:
 - **The software is free forever** under the [GNU AGPL-3.0](./LICENSE). Any hospital, clinic or pharmacy can use it, change it and run it, without asking us. If you change it and let people use it over a network, you share your changes under the same licence.
 - **Selling it or building a closed product on it?** Take a [commercial licence](./COMMERCIAL-LICENSE.md) instead.
 - **The code is public.** Anyone can read how it checks a drug interaction or who can see a record.
+- **Every release's source stays public, and that is a pledge.** The source of every MedBrains release, including the ones subscribers and commercial licensees run, is published in this repository and never put behind a login, a paywall or a customer portal. No contract we sign, subscription, support or commercial, will ever contain a term against sharing that source. We sell updates, support and warranty, never access to the code.
 - **No licence fees, no per-user fees, no selling your data.** We never see your data unless you ask us to host it.
 - **How the team earns:** only from *optional* setup, training, hosting and support for hospitals that want help ([pricing](https://www.medbrains.in/pricing)). If you can run it yourself, you owe us nothing.
 
