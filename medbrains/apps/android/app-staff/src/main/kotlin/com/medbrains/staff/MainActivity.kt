@@ -26,6 +26,7 @@ import com.medbrains.kit.LocalAuthStore
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.SecretStore
 import com.medbrains.kit.StoredBinding
+import com.medbrains.kit.chooseServerUrl
 import com.medbrains.ui.MedBrainsTheme
 
 /**
@@ -44,15 +45,27 @@ class MainActivity : ComponentActivity() {
         val binding = bindings.read()
         val baseUrl = AppConfig.baseUrl(intent, binding)
         // A bound hospital is reached only through its pinned TLS key.
-        val http = BindingApi.pinnedClient(baseUrl, binding?.takeIf { it.api_base == baseUrl }?.spki)
+        val http = BindingApi.pinnedClient(
+            baseUrl,
+            binding?.takeIf {
+                it.api_base == baseUrl
+            }?.spki
+        )
         val client = ApiClient(baseUrl = baseUrl, variant = "staff", secrets = secrets, http = http)
         val auth = AuthStore(applicationContext, client, secrets)
         // Binding or forgetting a hospital changes the server: start over against it.
         val binder = StaffBinder(auth, bindings, binding, onChanged = { recreate() })
         setContent {
             MedBrainsTheme {
-                CompositionLocalProvider(LocalApiClient provides client, LocalAuthStore provides auth) {
-                    Root(auth = auth, binder = binder, initialModule = intent?.getStringExtra("module"))
+                CompositionLocalProvider(
+                    LocalApiClient provides client,
+                    LocalAuthStore provides auth
+                ) {
+                    Root(
+                        auth = auth,
+                        binder = binder,
+                        initialModule = intent?.getStringExtra("module")
+                    )
                 }
             }
         }
@@ -67,10 +80,11 @@ class MainActivity : ComponentActivity() {
  */
 object AppConfig {
     /** Debug override, else the hospital this device was bound to by its QR. */
-    fun baseUrl(intent: android.content.Intent?, binding: StoredBinding?): String =
-        debugExtra(intent, "baseUrl") ?: binding?.api_base ?: DEFAULT_BASE_URL
-
-    private const val DEFAULT_BASE_URL = "http://10.0.2.2:3000"
+    fun baseUrl(intent: android.content.Intent?, binding: StoredBinding?): String = chooseServerUrl(
+        debugExtra(intent, "baseUrl"),
+        binding?.api_base,
+        BuildConfig.DEFAULT_SERVER_URL
+    )
 
     private fun debugExtra(intent: android.content.Intent?, key: String): String? =
         if (BuildConfig.DEBUG) intent?.getStringExtra(key) else null
@@ -81,11 +95,20 @@ private fun Root(auth: AuthStore, binder: StaffBinder, initialModule: String?) {
     val state by auth.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { auth.hydrate() }
     when (val s = state) {
-        AuthState.Hydrating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        AuthState.Hydrating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+
         AuthState.SignedOut -> LoginScreen(auth, binder)
+
         is AuthState.SignedIn -> CompositionLocalProvider(LocalIdentity provides s.identity) {
             Box(Modifier.fillMaxSize()) {
-                ModuleHome(auth = auth, identity = s.identity, modules = StaffModules.registry, initialModule = initialModule)
+                ModuleHome(
+                    auth = auth,
+                    identity = s.identity,
+                    modules = StaffModules.registry,
+                    initialModule = initialModule
+                )
                 EmergencyFlash()
             }
         }
