@@ -22,3 +22,7 @@
 /.github/                                               @DomnicAmalan
 /medbrains/infra/                                       @DomnicAmalan
 /medbrains/deploy/                                      @DomnicAmalan
+
+# New-dependency reviews and cooldown exceptions (#5500): the owner reviews every entry.
+/medbrains/supply-chain/                                @DomnicAmalan
+/scripts/check_supply_chain.py                          @DomnicAmalan
