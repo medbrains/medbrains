@@ -171,7 +171,8 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       reset(gstrDefaults);
       toast.success("GSTR summary created", { title: "Generated" });
     },
-    onError: () => toast.error("Failed to generate", { title: "Error" }),
+    // The server says why (a filed month, a bad period); a bare "failed" hides it.
+    onError: (e: Error) => toast.error(e.message, { title: "Return not prepared" }),
   });
 
   const fileMut = useMutation({
@@ -180,7 +181,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["gstr-summaries"] });
       toast.success("GSTR marked as filed", { title: "Filed" });
     },
-    onError: () => toast.error("Filing failed", { title: "Error" }),
+    onError: (e: Error) => toast.error(e.message, { title: "Return not filed" }),
   });
 
   const gstrStatusColors: Record<string, BadgeTone> = {
