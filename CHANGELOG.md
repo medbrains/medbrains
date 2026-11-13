@@ -10,6 +10,11 @@ GitHub release notes, so write each section for a hospital IT team.
 
 ## [Unreleased]
 
+### Changed
+
+- **Pairing a waiting-room screen now needs the code shown on that screen.** The admin types the 8-character code from the screen to approve it; pending codes are never listed, each request belongs to one hospital (open the screen at `/screen?hospital=<code>` or scan the QR on Admin → Paired devices), and the flow pairs display screens only. Screens already paired keep working; screens that were waiting at upgrade ask again.
+- **The old React Native TV app (`apps/tv`) can no longer pair.** It is reference-only and unsupported; it sends no hospital code and is refused. Open `/screen?hospital=<code>` in the TV's browser instead.
+
 ### Licence
 
 - MedBrains is now dual-licensed: GNU AGPL-3.0, free for everyone, or a commercial licence for vendors who sell, host or embed it without sharing their changes. Versions released before 2026-11-12 stay under Apache 2.0. The client SDKs stay under Apache 2.0.
