@@ -244,9 +244,10 @@ def main():
         next_bundle = derived("next", NEXT, "1.0.0")
     refused_bundles(next_bundle)
     usb_stick(next_bundle)
+    # Both arches: a failed trial is one of the four apply scenarios run on a sealed x86-64 disk too.
+    bad_server = derived("bad-server", "1.0.4", "1.0.0", "server")
     if ARCH == "arm64":
         after = derived("after", "1.0.3", "1.0.3", upgrades_from=NEXT)
-        bad_server = derived("bad-server", "1.0.4", "1.0.0", "server")
         derived("bad-init", "1.0.5", "1.0.0", "init")
         later_bundles(next_bundle, after, bad_server)
         unsealed(next_bundle, after)
