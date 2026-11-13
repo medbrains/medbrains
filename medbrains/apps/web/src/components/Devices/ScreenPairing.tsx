@@ -12,9 +12,6 @@ interface ScreenPairingProps {
   onPaired: (token: string) => void;
 }
 
-/** The name a screen gives itself on the administrator's list. */
-const SCREEN_LABEL = "Waiting-room screen";
-
 /** The hospital code in the address the screen was opened at (`/screen?hospital=CODE`). */
 function hospitalFromAddress(): string | null {
   return new URLSearchParams(window.location.search).get("hospital")?.trim() || null;
@@ -33,6 +30,7 @@ interface HospitalFormProps {
 /** Asks for the hospital's code when the address did not carry one. */
 function HospitalForm({ onSubmit, refused }: HospitalFormProps) {
   const [typed, setTyped] = useState("");
+  /** Hands the typed code on, without the page reloading for the form. */
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (typed.trim()) onSubmit(typed.trim());
@@ -72,12 +70,12 @@ export function ScreenPairing({ onPaired }: ScreenPairingProps) {
       api.requestDeviceCode({
         hospital_code: hospitalCode,
         app_variant: "tv",
-        label: SCREEN_LABEL,
       }),
   });
   useEffectOnce(() => {
     if (hospital) code.mutate(hospital);
   });
+  /** Asks the named hospital for a code, and keeps its name in the address. */
   const askFor = (hospitalCode: string) => {
     rememberHospital(hospitalCode);
     setHospital(hospitalCode);

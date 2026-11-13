@@ -87,7 +87,6 @@ function ScreenRow({ request, departments, counters }: ScreenRowProps) {
           <Text ff="monospace" fw={700}>
             Screen {request.reference}
           </Text>
-          <Text size="xs">{request.requested_label}</Text>
           <Group gap="xs">
             <Badge tone="neutral">
               {VARIANT_LABELS[request.app_variant] ?? request.app_variant}

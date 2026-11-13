@@ -37,7 +37,6 @@ async fn the_preauth_functions_are_granted_to_the_app_only() {
 const FUNCTIONS: &[&str] = &[
     "app_gateway_txn_tenant",
     "app_log_unmatched_webhook",
-    "app_open_device_pairing_request",
     "app_poll_device_pairing_request",
     "app_device_pairing_token_tenant",
     "app_register_bridge_agent",
@@ -82,7 +81,7 @@ async fn a_display_asks_to_pair_and_waits() {
     let code: Value = app
         .client
         .post(app.url("/api/device-pairing/device-code"))
-        .json(&json!({ "hospital_code": hospital, "app_variant": "tv", "label": "Lobby TV" }))
+        .json(&json!({ "hospital_code": hospital, "app_variant": "tv" }))
         .send()
         .await
         .expect("code")

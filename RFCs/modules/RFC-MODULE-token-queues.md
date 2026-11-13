@@ -323,7 +323,10 @@ edge tier design already written in `medbrains-edge`.
     the request. **Given** a phone or vendor tablet, **when** it asks to pair
     by code, **then** it is refused — those pair by the administrator's QR.
     The token a screen gets carries `display.board.read` only. Asking for
-    codes is limited per address (20 a minute) and per hospital (50 waiting).
+    codes is limited per address (20 a minute, 10 waiting) and per hospital
+    (50 waiting; a full list pushes out the most crowded address's oldest).
+    Every screen is listed under the server's name ("Waiting-room screen
+    AB12CD"), never one the caller sent.
 40. **Given** a camp's Doctor step with two rooms, **when** the doctor in room
     2 presses *Call next*, **then** they get the next patient from the one
     Doctor queue and the call names room 2 — neither room has its own line, so

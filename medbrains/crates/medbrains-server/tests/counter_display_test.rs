@@ -68,13 +68,12 @@ async fn counter(app: &common::TestApp, name: &str) -> Uuid {
 /// Pair a display to a counter through the real device-code flow: returns
 /// its JWT and device id.
 async fn pair_display(app: &common::TestApp, csrf: &str, station: Uuid) -> (String, String) {
-    let label = format!("Counter tablet {station}");
-    let code = ask_to_pair(app, &home_hospital_code(app).await, &label).await;
+    let code = ask_to_pair(app, &home_hospital_code(app).await).await;
     let (status, body) = post(
         app,
         Some(csrf),
         "/api/admin/device-pairing/approve",
-        json!({ "request_id": waiting_id(app, &label).await, "user_code": code["user_code"],
+        json!({ "request_id": waiting_id(app, &code).await, "user_code": code["user_code"],
                 "board_module": "counter_display", "station_id": station }),
     )
     .await;
@@ -140,13 +139,12 @@ async fn a_display_shows_its_own_counter_and_only_the_allowed_fields() {
     );
 
     // A customer display must be told its counter.
-    let label = format!("Counterless {a}");
-    let code = ask_to_pair(&app, &home_hospital_code(&app).await, &label).await;
+    let code = ask_to_pair(&app, &home_hospital_code(&app).await).await;
     let (status, _) = post(
         &app,
         Some(&csrf),
         "/api/admin/device-pairing/approve",
-        json!({ "request_id": waiting_id(&app, &label).await, "user_code": code["user_code"],
+        json!({ "request_id": waiting_id(&app, &code).await, "user_code": code["user_code"],
                 "board_module": "counter_display" }),
     )
     .await;

@@ -13,9 +13,10 @@ use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
+use medbrains_kernel::audit::AuditEntry;
+use medbrains_kernel::{Actor, Tx, begin, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::{Claims, is_display_variant};
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 use crate::device_code::{PendingRequest, normalize_user_code};
@@ -49,7 +50,7 @@ pub struct ApproveRequest {
     pub station_id: Option<Uuid>,
 }
 
-/// `flow` is the MedBrains Flow floor map (#4901): it shows the floor the
+/// `flow` is the Flow floor map (#4901): it shows the floor the
 /// chosen department's zone is on, and answers only while the add-on is on.
 const BOARD_MODULES: [&str; 7] = [
     "registration",
@@ -69,7 +70,7 @@ pub const COUNTER_DISPLAY: &str = "counter_display";
 /// pharmacy counter of this hospital. Returns the counter's department, which
 /// the device row carries like a board's.
 async fn counter_of(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     tenant_id: Uuid,
     station_id: Option<Uuid>,
 ) -> Result<(Uuid, Option<Uuid>), AppError> {
@@ -92,10 +93,7 @@ async fn counter_of(
 /// and holds no grants. What a screen may do comes from its pairing (the auth
 /// middleware gives a display exactly `display.board.read`). Created on first
 /// use.
-async fn display_account(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-) -> Result<Uuid, AppError> {
+async fn display_account(tx: &mut Tx, tenant_id: Uuid) -> Result<Uuid, AppError> {
     if let Some(id) = sqlx::query_scalar!(
         "SELECT id FROM users WHERE tenant_id = $1 AND username = 'display_boards' \
            AND is_service_account",
@@ -123,7 +121,7 @@ async fn display_account(
 /// A waiting screen of this hospital, locked for this decision: its variant
 /// and the code it shows.
 async fn lock_waiting(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     tenant_id: Uuid,
     request_id: Uuid,
 ) -> Result<(String, String), AppError> {
@@ -139,10 +137,35 @@ async fn lock_waiting(
     .ok_or(AppError::NotFound)
 }
 
+/// Records who decided what about which waiting screen, in the decision's own
+/// transaction, so neither can happen without the other.
+async fn audit(
+    tx: &mut Tx,
+    claims: &Claims,
+    action: &str,
+    request_id: Uuid,
+) -> Result<(), AppError> {
+    let details = serde_json::json!({ "request_id": request_id });
+    let entry = AuditEntry {
+        tenant_id: claims.tenant_id,
+        user_id: Some(claims.sub),
+        action,
+        entity_type: "screen_pairing_request",
+        entity_id: Some(request_id),
+        old_values: None,
+        new_values: Some(&details),
+        ip_address: None,
+    };
+    medbrains_kernel::audit(tx, &entry).await?;
+    Ok(())
+}
+
 /// Counts a wrong code against the request and refuses it on the last one.
-/// Committed before the refusal is answered, so the count survives it.
+/// Committed, with its audit row, before the refusal is answered, so the
+/// count survives it.
 async fn count_wrong_code(
-    mut tx: sqlx::Transaction<'_, sqlx::Postgres>,
+    mut tx: Tx,
+    claims: &Claims,
     request_id: Uuid,
 ) -> Result<AppError, AppError> {
     let status: String = sqlx::query_scalar(
@@ -154,6 +177,7 @@ async fn count_wrong_code(
     .bind(MAX_CODE_ATTEMPTS)
     .fetch_one(&mut *tx)
     .await?;
+    audit(&mut tx, claims, "screen_pairing.wrong_code", request_id).await?;
     tx.commit().await?;
     let message = if status == "denied" {
         REFUSED_AFTER_WRONG_CODES
@@ -172,7 +196,7 @@ fn code_matches(expected: &str, typed: &str) -> bool {
 /// Where an approved screen points: its board's department, or for a
 /// customer display its counter and that counter's department.
 async fn screen_target(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx,
     tenant_id: Uuid,
     body: &ApproveRequest,
 ) -> Result<(Option<Uuid>, Option<Uuid>), AppError> {
@@ -205,8 +229,9 @@ async fn screen_target(
     Ok((None, Some(department_id)))
 }
 
-/// `POST /api/admin/device-pairing/approve`: approves or refuses one of this
-/// hospital's waiting screens. Approving needs the code the screen shows; a
+/// `POST /api/admin/device-pairing/approve`: approves or refuses a waiting screen.
+///
+/// Only this hospital's screens are found. Approving needs the code the screen shows; a
 /// wrong code answers 403 and the fifth refuses the request. An approved
 /// screen acts as the hospital's display account, never as the approver.
 pub async fn approve_pairing_request(
@@ -216,8 +241,7 @@ pub async fn approve_pairing_request(
 ) -> Result<Json<PendingRequest>, AppError> {
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
     let Json(body) = body?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = begin(&state.db, Actor::from_claims(&claims)).await?;
     let (app_variant, code) = lock_waiting(&mut tx, claims.tenant_id, body.request_id).await?;
 
     let (approved_for, station_id, department_id, board_module) = if body.deny {
@@ -230,7 +254,7 @@ pub async fn approve_pairing_request(
             ));
         }
         if !code_matches(&code, &body.user_code) {
-            return Err(count_wrong_code(tx, body.request_id).await?);
+            return Err(count_wrong_code(tx, &claims, body.request_id).await?);
         }
         let (station, department) = screen_target(&mut tx, claims.tenant_id, &body).await?;
         let account = display_account(&mut tx, claims.tenant_id).await?;
@@ -260,6 +284,12 @@ pub async fn approve_pairing_request(
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
+    let action = if body.deny {
+        "screen_pairing.denied"
+    } else {
+        "screen_pairing.approved"
+    };
+    audit(&mut tx, &claims, action, body.request_id).await?;
     tx.commit().await?;
     Ok(Json(row))
 }

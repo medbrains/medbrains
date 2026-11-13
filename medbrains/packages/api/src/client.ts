@@ -19378,7 +19378,6 @@ export const api = {
     /** The hospital's code; the request belongs to that hospital only. */
     hospital_code: string;
     app_variant: string;
-    label: string;
     public_key_pem?: string;
   }) =>
     request<DeviceCodeResponse>("/device-pairing/device-code", {

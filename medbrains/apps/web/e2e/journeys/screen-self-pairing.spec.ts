@@ -50,7 +50,8 @@ test("a TV shows a code, is approved, and opens its own board", async ({ hospita
     "GET",
     "/api/admin/paired-devices",
   );
-  const paired = devices.find((d) => d.label === "Waiting-room screen" && !d.revoked_at);
+  const label = `Waiting-room screen ${reference.trim()}`;
+  const paired = devices.find((d) => d.label === label && !d.revoked_at);
   expect(paired, "the TV is listed as paired").toBeTruthy();
   await api(hospital.admin, "DELETE", `/api/admin/paired-devices/${paired?.id}`, {
     reason: "Screen moved",
