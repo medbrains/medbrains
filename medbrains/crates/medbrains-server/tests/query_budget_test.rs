@@ -88,14 +88,20 @@ async fn seed_patients(w: &World, from: i64, n: i64, day: NaiveDate) -> R<Vec<(U
     .map_err(Into::into)
 }
 
-/// The fewest statements two reads of `path` took, with the last body.
+/// The fewest statements three reads of `path` took, with the last body.
 ///
 /// Middleware does throttled work (a session touch, a cache refresh) on some
-/// requests and not others; the smaller of two reads is the list's own cost.
+/// requests and not others, and other tests share the database; the smallest
+/// of three reads is the list's own cost.
 async fn cost(w: &World, path: &str) -> R<(u32, Value)> {
-    let (first, _) = read(w, path).await?;
-    let (second, body) = read(w, path).await?;
-    Ok((first.min(second), body))
+    let mut fewest = u32::MAX;
+    let mut last = Value::Null;
+    for _ in 0..3 {
+        let (n, body) = read(w, path).await?;
+        fewest = fewest.min(n);
+        last = body;
+    }
+    Ok((fewest, last))
 }
 
 /// Read `path` warm at 1 row and again at 50; 50 rows must cost no more.
@@ -117,6 +123,7 @@ async fn assert_flat(
     );
     assert_eq!(rows(&body, key), 1, "{path} at 1 row: {body}");
     seed_more().await?;
+    read(w, path).await?; // warm again: the new rows' first read may fill caches
     let (fifty, body) = cost(w, path).await?;
     assert_eq!(rows(&body, key), 50, "{path} at 50 rows");
     eprintln!("query budget {path}: {one} statements at 1 row, {fifty} at 50");
