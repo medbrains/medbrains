@@ -6,6 +6,14 @@
 # Runs only once the owner has set it up: create the project on SonarQube Cloud
 # (free for public repos), then add the SONAR_TOKEN repository secret. Until then
 # the job reports that it was skipped and passes. Settings: sonar-project.properties.
+#
+# Coverage: web (vitest LCOV) on every run. Rust (cargo llvm-cov LCOV) is built only by the
+# nightly schedule and a manual dispatch, because it rebuilds and reruns the whole workspace's
+# tests instrumented (an hour or more). Built on every main push, it was almost never finished:
+# each merge queued a new run and GitHub cancelled the pending one, so main went days without
+# Rust coverage. A main push now reuses the latest nightly report (Rust lines changed since then
+# show as their nightly state until the next night); PR analyses carry web and Android coverage. Android: JaCoCo
+# over the kit's JVM unit tests, every run. iOS: not yet (needs a macOS runner).
 
 name: SonarQube
 
@@ -15,20 +23,145 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
+  schedule:
+    # Nightly, so Rust coverage stays current even on a day with no merge.
+    - cron: "30 1 * * *"
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Per event as well as per ref, so a merge to main never queues behind (and so never cancels)
+  # the nightly coverage run. A new PR push replaces the old run; main runs never cancel.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  sonarqube:
-    # A draft PR spends no build; marking it ready for review runs everything.
+  # Rust coverage with the same tests as ci.yml's "Rust tests": the whole workspace except the
+  # desktop GUI (needs GTK), integration tests against PostgreSQL 17. Never on a PR.
+  # No cache: the report feeds main's analysis and is built from a clean tree each time.
+  rust-coverage:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: Rust coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: medbrains
+    env:
+      CARGO_TERM_COLOR: always
+      SQLX_OFFLINE: true
+      LLVM_COV_VERSION: v0.9.1
+      # sha256 of cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz, from the v0.9.1 release.
+      LLVM_COV_SHA256: b3f68e625481fed9b16444174f3fa5ebcdbde4a1878803a35eabe2dcefcdc41a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # An instrumented workspace build is larger than the runner's free disk.
+      - name: Free disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Rust toolchain with llvm-tools
+        # rust-toolchain.toml pins the version; this adds the component coverage needs.
+        run: |
+          rustup toolchain install
+          rustup component add llvm-tools-preview
+      - name: Install cargo-llvm-cov
+        run: |
+          tgz=cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz
+          curl -fsSLO "https://github.com/taiki-e/cargo-llvm-cov/releases/download/$LLVM_COV_VERSION/$tgz"
+          echo "$LLVM_COV_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$HOME/.cargo/bin" cargo-llvm-cov
+          rm "$tgz"
+      - name: System packages and PostgreSQL
+        run: bash scripts/ci_postgres.sh
+      # Tests are non-blocking in ci.yml too; a failing test still leaves coverage for the rest.
+      - name: Run the tests instrumented
+        env:
+          DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
+        run: |
+          cargo llvm-cov --locked --no-report --workspace --exclude medbrains-desktop --no-fail-fast \
+            || echo "::warning::Some Rust tests failed; coverage is reported for the rest."
+      # Test code, vendored crates and build output stay out, as in sonar.exclusions.
+      # SonarQube resolves paths from the repo root, so the absolute prefix is stripped.
+      - name: Write the LCOV report
+        run: |
+          cargo llvm-cov report --lcov --output-path lcov.info \
+            --ignore-filename-regex '(^|/)(tests|benches|examples|vendor|target|\.sqlx)/|_test\.rs$'
+          sed -i "s#^SF:$(cd .. && pwd -P)/#SF:#" lcov.info
+          # A `#[path = "../../.."]` module is reported through its `..` path, which SonarQube cannot
+          # match to an indexed file ("problems in LCOV report"); normalise every path.
+          python3 -c 'import os,sys; p="lcov.info"; t=open(p).read().splitlines(); open(p,"w").write("\n".join("SF:"+os.path.normpath(l[3:]) if l.startswith("SF:") else l for l in t)+"\n")'
+          if grep '^SF:' lcov.info | grep -qv '^SF:medbrains/'; then
+            echo "::error::lcov.info has paths outside the repo"; exit 1
+          fi
+          grep -c '^SF:' lcov.info
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rust-lcov
+          path: medbrains/lcov.info
+          retention-days: 14
+
+  # Android: JaCoCo over the kit's JVM unit tests, on every run including PRs, so Kotlin new
+  # code is measured instead of counting as uncovered. The UniFFI Kotlin is generated, not
+  # committed, so the Rust core is built first (debug, host only) to generate it. iOS coverage
+  # needs a macOS runner, which this workflow does not have yet; it is a follow-up.
+  android-coverage:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Android coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: medbrains
+    env:
+      CARGO_TERM_COLOR: always
+      SQLX_OFFLINE: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Rust toolchain
+        # rust-toolchain.toml pins the version.
+        run: rustup toolchain install
+      - name: Generate the UniFFI Kotlin bindings
+        run: |
+          cargo build --locked -p medbrains-edge-rn
+          cargo run --locked -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
+            --library target/debug/libmedbrains_edge_rn.so --language kotlin \
+            --out-dir apps/android/core/src/main/kotlin
+      # A failing Android unit test fails this job: no other workflow runs the kit's tests, so a
+      # warning here would be the only signal and nobody reads it. The analysis still runs
+      # (it needs this job only to have finished) and carries the other coverage reports.
+      - name: Kit unit tests with coverage
+        working-directory: medbrains/apps/android
+        run: ./gradlew :kit:createDebugUnitTestCoverageReport --no-daemon
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-jacoco
+          path: medbrains/apps/android/kit/build/reports/coverage/test/debug/report.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  sonarqube:
+    # Runs after the coverage jobs when they ran, and without them if they were skipped (Rust
+    # on a PR) or failed: the analysis then carries whatever coverage did arrive.
+    needs: [rust-coverage, android-coverage]
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     name: SonarQube analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Only to download the nightly run's Rust coverage on a main push.
+      actions: read
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
@@ -62,11 +195,52 @@ jobs:
           pnpm --filter @medbrains/web exec vitest run --coverage --coverage.reporter=lcov --coverage.reportOnFailure=true
           # LCOV paths are relative to apps/web; SonarQube resolves them from the repo root.
           sed -i 's#^SF:src/#SF:medbrains/apps/web/src/#' apps/web/coverage/lcov.info
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.SONAR_TOKEN != '' && needs.rust-coverage.result == 'success'
+        with:
+          name: rust-lcov
+          path: rust-coverage
+      # A main push builds no Rust coverage: take the latest successful nightly's report.
+      - name: Find the latest nightly Rust coverage
+        id: nightly
+        if: env.SONAR_TOKEN != '' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          run=$(gh api "repos/$REPO/actions/workflows/sonarqube.yml/runs?branch=main&status=success&per_page=30" \
+            --jq '[.workflow_runs[] | select(.event == "schedule" or .event == "workflow_dispatch")][0].id // empty')
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.SONAR_TOKEN != '' && steps.nightly.outputs.run != ''
+        continue-on-error: true
+        with:
+          name: rust-lcov
+          path: rust-coverage
+          run-id: ${{ steps.nightly.outputs.run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.SONAR_TOKEN != '' && needs.android-coverage.result == 'success'
+        continue-on-error: true
+        with:
+          name: android-jacoco
+          path: android-coverage
       - name: Read the release version
         id: version
         if: env.SONAR_TOKEN != ''
-        run: echo "version=$(grep -m1 -E '^version *=' medbrains/Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(grep -m1 -E '^version *=' medbrains/Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          # Rust coverage only when this run built it (main, schedule, dispatch).
+          extra=""
+          if [ -f rust-coverage/lcov.info ]; then
+            extra="-Dsonar.rust.lcov.reportPaths=rust-coverage/lcov.info"
+          fi
+          # Kotlin coverage from the Android job, when it produced a report.
+          if [ -f android-coverage/report.xml ]; then
+            extra="$extra -Dsonar.coverage.jacoco.xmlReportPaths=android-coverage/report.xml"
+          fi
+          echo "rust=$extra" >> "$GITHUB_OUTPUT"
       - uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         if: env.SONAR_TOKEN != ''
         with:
-          args: -Dsonar.projectVersion=${{ steps.version.outputs.version }}
+          args: -Dsonar.projectVersion=${{ steps.version.outputs.version }} ${{ steps.version.outputs.rust }}

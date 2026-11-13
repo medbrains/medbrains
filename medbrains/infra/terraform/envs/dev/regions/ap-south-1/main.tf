@@ -75,6 +75,8 @@ module "aurora" {
   kms_key_arn   = module.kms.key_arns.db
   min_acu       = 0 # dev — scale-to-zero when idle ($0/hr; ~5-15s cold start)
   max_acu       = 4 # dev — small ceiling
+  # The module now defaults to protected; dev keeps teardown possible.
+  deletion_protection = false
 }
 
 module "eks" {

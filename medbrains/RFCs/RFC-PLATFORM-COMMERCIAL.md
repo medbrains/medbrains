@@ -20,7 +20,7 @@ host them or they run it on **their own bare metal**; and **we** see and update 
 | Device trust | `medbrains-device-pairing` (5-min token → keypair → 30-day JWT, admin revoke) | QR is unsigned and carries no server; native apps never call pairing |
 | Editions / modules | `tenants.hospital_type` (8 types, no lab-only); `module_config` presets via `/api/setup/edition` | Fail-open; tenant admin can switch their own edition; no plans, prices or subscriptions |
 | Licence (bare metal) | none | Nothing signed, no expiry, no limits |
-| Provisioning | Hand-run per client (`envs/clients/alagappa`, `make ship-cold`), public sign-up (closed in #4671) | No pipeline, no vetted sign-up |
+| Provisioning | Hand-run per client (`envs/standalone/hospital-a`, `make ship-cold`), public sign-up (closed in #4671) | No pipeline, no vetted sign-up |
 | Updates on customer boxes | Operator `make apply`; `.prev` binary + `medbrains-rollback`; backup timer | No OS patching, no release channel, no version report |
 | Vendor view | none (`/api/health` = up/down, no version) | No fleet, no telemetry, no operator role (tenant `super_admin` is treated as operator in `multi_hospital.rs`) |
 | Store apps | Bundle ids `com.medbrains.staff/.patient`; fastlane targets the **old RN** apps | Native lanes, privacy manifest, Data Safety, reviewer demo hospital |
@@ -181,6 +181,49 @@ by a tenant.
 - **Keep:** `hospital-package`, `standalone-vm` tiers, `envs/clients/*` and the on-prem tenant
   template. These become the silo and on-prem paths of the pipeline.
 - This is a shared institutional account: never touch non-MedBrains resources.
+
+## Business model: subscriptions, the Red Hat way (decided 2026-11-12)
+
+The code is public under AGPL-3.0-only and every hospital, clinic and pharmacy may run it without
+paying. What we sell is what an open licence cannot give: an accountable, maintained, certified
+product. This supersedes decision 1 below for self-hosted installs (see DECISIONS.md, 2026-11-12).
+
+| We sell | What the customer gets | Without it |
+|---|---|---|
+| **Subscription** (per server or per bed, yearly) | The official signed update feed: OS and app releases, security fixes within 72 hours of a critical advisory, USB bundles for air-gapped sites | The software keeps running with every feature; the box stops receiving our signed updates, and the admin screen says so |
+| **Support and SLAs** (inside the subscription, or an AMC) | Named contacts, response times by severity, upgrade help | Community help only |
+| **Warranty and indemnity** (commercial licence) | Contractual liability cover | AGPL's "no warranty" |
+| **MedBrains Certified** | Hardware, lab machines, partner apps and implementers listed as tested; vendors pay for certification | Anything may still run, but not under the name |
+| **Training** | Certified administrator and implementer courses | Public docs |
+
+**What locks it, and what does not.**
+- The update feed checks a subscription token signed by the control plane (the licence file in §3,
+  with `entitles: ["updates", "support"]`). The OS updater already refuses unsigned bundles; it now
+  also asks the feed with that token. No token, no download; nothing already installed changes.
+- The trademark (`TRADEMARKS.md`) keeps "MedBrains" and "MedBrains Certified" on official builds only.
+  Rebuilds from source are lawful and must carry their own name.
+- **Never locked:** the source code (public, never behind a login, no contract term against sharing
+  it), clinical features, data export, or a running hospital. An expired subscription never stops
+  care, settings or users.
+
+**Rejected.** Gating the source to subscribers (Red Hat, 2023): it costs the community's trust and
+breeds hostile forks. Locking features after expiry: contradicts the free licence for hospitals and
+risks patient care. Per-user seats: hospital headcount churns; beds and servers are stable.
+
+**Priority before the feed opens: protect the signing keys** (owner, 2026-11-12). Red Hat's 2008
+breach is the warning: attackers signed tampered packages with Red Hat's own key. Before any paid
+update feed goes live:
+- The OS update and release signing keys live offline (hardware key or an air-gapped machine); CI
+  signs only with a short-lived, separately revocable key, never the root (OS-THREATS X2).
+- A written key-compromise plan: revoke, re-key, ship the new trust anchor in a signed update, and
+  tell customers within 24 hours.
+- Support dates only ever lengthen (COMPATIBILITY.md), source stays public, dependencies stay locked
+  and scanned (the CentOS 2020, RHEL 2023 and xz 2024 lessons), and partner documents about hospital
+  networks stay out of shared tools, need-to-know and encrypted (Red Hat consulting, 2025).
+
+**Build, in order.** (0) Offline signing keys and the compromise plan above. (1) Subscription token in the licence file, a feed check in `medbrains-os-update`
+and the app updater, and an admin screen showing entitlement and expiry. (2) Support portal and
+severity SLAs. (3) Certification programme: test suite, listing page, badge rules. (4) Training.
 
 ## Phases (each a PR through the full gate; each ends on a screen)
 

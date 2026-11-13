@@ -62,7 +62,7 @@ export function reportSeries(rows: Row[]): ReportSeries | null {
   const label = (r: Row) => String(r[category] ?? "—");
   const isTrend = ISO_DATE.test(label(rows[0] ?? {}));
   let x = [...new Set(rows.map(label))];
-  if (isTrend) x.sort();
+  if (isTrend) x.sort((a, b) => a.localeCompare(b));
   else x = x.slice(0, MAX_BARS);
 
   const at = new Map<string, Row[]>();

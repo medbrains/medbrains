@@ -91,7 +91,7 @@ function modulesForPermissions(permissions: string[]) {
         .map((p) => p.split(".")[0])
         .filter((module): module is string => typeof module === "string" && module.length > 0),
     ),
-  ).sort();
+  ).sort((a, b) => a.localeCompare(b));
 }
 
 export function AccessRequestsPage() {
@@ -152,7 +152,7 @@ export function AccessRequestsPage() {
       notifications.show({ message: "Access request updated", color: "green" });
       setReviewTarget(null);
       setReviewNote("");
-      qc.invalidateQueries({ queryKey: ["iam-access-requests"] });
+      void qc.invalidateQueries({ queryKey: ["iam-access-requests"] });
     },
     onError: (err: Error) => notifications.show({ message: err.message, color: "red" }),
   });
@@ -307,7 +307,7 @@ export function AccessRequestsPage() {
         permissionOptions={permissionOptions}
         onCreated={() => {
           closeCreate();
-          qc.invalidateQueries({ queryKey: ["iam-access-requests"] });
+          void qc.invalidateQueries({ queryKey: ["iam-access-requests"] });
         }}
       />
 

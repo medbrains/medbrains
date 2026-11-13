@@ -447,15 +447,6 @@ async fn a_vendor_domain_account_is_flagged_when_written() {
     .fetch_one(&app.db)
     .await
     .expect("digest");
-    let workflow: Uuid = sqlx::query_scalar(
-        "INSERT INTO automation_workflows (tenant_id, name, active, created_by) \
-         VALUES ($1, 'Nightly export', true, $2) RETURNING id",
-    )
-    .bind(tenant)
-    .bind(moved)
-    .fetch_one(&app.db)
-    .await
-    .expect("workflow");
     sqlx::query("UPDATE users SET email = 'moved.' || id || '@help.medbrains.in' WHERE id = $1")
         .bind(moved)
         .execute(&app.db)
@@ -468,28 +459,22 @@ async fn a_vendor_domain_account_is_flagged_when_written() {
 
     // The flag came from the BEFORE trigger, not from the UPDATE's own SET
     // list: the revocations must still run.
-    let (digest_on, workflow_on): (bool, bool) = sqlx::query_as(
-        "SELECT (SELECT is_active FROM eod_digest_subscriptions WHERE id = $1), \
-                (SELECT active FROM automation_workflows WHERE id = $2)",
-    )
-    .bind(digest)
-    .bind(workflow)
-    .fetch_one(&app.db)
-    .await
-    .expect("rows kept");
-    assert!(
-        !digest_on && !workflow_on,
-        "the trigger-set flag revoked nothing"
-    );
+    let digest_on: bool =
+        sqlx::query_scalar("SELECT is_active FROM eod_digest_subscriptions WHERE id = $1")
+            .bind(digest)
+            .fetch_one(&app.db)
+            .await
+            .expect("row kept");
+    assert!(!digest_on, "the trigger-set flag revoked nothing");
     let revoked: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM vendor_credential_revocations WHERE user_id = $1 \
-            AND kind IN ('eod_digest_subscription', 'automation_workflow')",
+            AND kind = 'eod_digest_subscription'",
     )
     .bind(moved)
     .fetch_one(&app.db)
     .await
     .expect("revocations");
-    assert_eq!(revoked, 2);
+    assert_eq!(revoked, 1);
 }
 
 /// Given a site MedBrains issued to a hospital under `medbrains.in`, and

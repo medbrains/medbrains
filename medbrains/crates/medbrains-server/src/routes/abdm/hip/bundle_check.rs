@@ -38,6 +38,7 @@ pub fn findings(documents: &[(String, Value)]) -> (Vec<String>, Vec<String>) {
 ///
 /// # Errors
 /// A database fault.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn record(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,

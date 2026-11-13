@@ -175,6 +175,7 @@ pub(crate) async fn session(
 ///
 /// # Errors
 /// 503 when credentials are missing or ABDM is unreachable.
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError> {
     let Session {
         client,
@@ -269,25 +270,22 @@ pub async fn status(
 
 /// Where the ABDM client secret's encryption key lives in the secret store.
 const SECRET_KEY_NAME: &str = "MEDBRAINS_ABDM_SECRET_KEY";
-/// Development and tests only. Production never falls back to it: without the
-/// real key ABDM and UHI are off ([`secret_key`] refuses; preflight warns).
+/// Development only: used solely when the key is unset and
+/// `MEDBRAINS_ENV=development` ([`secret_key`]; preflight warns elsewhere).
 const DEV_SECRET_KEY: &[u8] = b"medbrains-dev-abdm-secret-key-32";
 const SECRET_CONTEXT: &[u8] = b"abdm-client-secret";
 
 /// The key that seals the ABDM client secret, link tokens and transfer keys.
 ///
+/// Decided by the one shared rule (`medbrains_core::secrets::sealing`).
+///
 /// # Errors
-/// 503 outside development when `MEDBRAINS_ABDM_SECRET_KEY` is missing or
-/// shorter than 32 bytes — never a silent switch to the key in the source.
+/// 503 when `MEDBRAINS_ABDM_SECRET_KEY` is short, or unset outside
+/// development; 500 when the secret store fails — never the key in the source.
 pub(crate) async fn secret_key(secrets: &dyn SecretResolver) -> Result<Vec<u8>, AppError> {
-    match secrets.get(SECRET_KEY_NAME).await {
-        Ok(value) if value.len() >= 32 => Ok(value.into_bytes()),
-        _ if dev_overrides_allowed() => Ok(DEV_SECRET_KEY.to_vec()),
-        _ => Err(AppError::ServiceUnavailable(format!(
-            "ABDM is not configured on this server — ask your administrator to set \
-             {SECRET_KEY_NAME}"
-        ))),
-    }
+    medbrains_core::secrets::sealing::sealing_key(secrets, SECRET_KEY_NAME, DEV_SECRET_KEY)
+        .await
+        .map_err(AppError::from)
 }
 
 /// The environment variable the server still needs before ABDM (and UHI,
@@ -300,9 +298,9 @@ pub(crate) async fn server_key_missing(secrets: &dyn SecretResolver) -> Option<&
         .then_some(SECRET_KEY_NAME)
 }
 
-/// Test stand-ins (`*_OVERRIDE` keys, the development secret key) are
-/// honoured only in development and tests — `MEDBRAINS_ENV` unset,
-/// `development`, `dev` or `test`. Anywhere else they are ignored.
+/// Test stand-ins (`*_OVERRIDE` keys) are honoured only in development:
+/// `MEDBRAINS_ENV=development`, or unset in a debug build. Any other value,
+/// known or not, is treated as production and they are ignored.
 pub(crate) fn dev_overrides_allowed() -> bool {
     medbrains_core::secrets::sealing::is_development()
 }

@@ -17,7 +17,7 @@ interface DepartmentDue {
 export function groupByDepartment(bills: DueBill[]): DepartmentDue[] {
   const groups = new Map<string, DepartmentDue>();
   for (const bill of bills) {
-    const key = [...bill.lanes].sort().join("+");
+    const key = [...bill.lanes].sort((a, b) => a.localeCompare(b)).join("+");
     const group = groups.get(key) ?? {
       key,
       label: bill.lanes.map((l) => LANE_LABEL[l] ?? l).join(" + "),

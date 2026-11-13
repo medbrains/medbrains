@@ -181,16 +181,6 @@ pub struct VitalsChecklistRow {
 // ── Handover Summary ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-struct HandoverPatientBase {
-    pub admission_id: Uuid,
-    pub patient_name: String,
-    pub bed_name: Option<String>,
-    pub is_critical: bool,
-    pub isolation_required: bool,
-    pub provisional_diagnosis: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct HandoverSummaryPatient {
     pub admission_id: Uuid,
     pub patient_name: String,
@@ -517,14 +507,28 @@ pub async fn handover_summary(
         .await?
         .unwrap_or_else(|| "Unknown Ward".to_owned());
 
-    // Get admitted patients in ward
-    let base_patients = sqlx::query_as::<_, HandoverPatientBase>(
+    // The ward's admitted patients with their open work, in one statement.
+    // Each list used to be its own query per patient: 3 round trips per bed,
+    // 150 for a 50-bed ward (#5462). The LIMITs inside each subquery are the
+    // same caps the per-patient queries had.
+    let patients = sqlx::query_as::<_, HandoverSummaryPatient>(
         "SELECT a.id AS admission_id,
                 p.first_name || ' ' || COALESCE(p.last_name, '') AS patient_name,
                 bl.bed_number AS bed_name,
                 a.is_critical,
                 a.isolation_required,
-                a.provisional_diagnosis
+                a.provisional_diagnosis,
+                ARRAY(SELECT t.description FROM nursing_tasks t
+                       WHERE t.admission_id = a.id AND NOT t.is_completed
+                       ORDER BY t.priority = 'stat' DESC, t.due_at ASC NULLS LAST
+                       LIMIT 10) AS pending_tasks,
+                ARRAY(SELECT m.drug_name || ' ' || m.dose || ' (' || m.route || ')'
+                        FROM ipd_medication_administration m
+                       WHERE m.admission_id = a.id AND m.status = 'scheduled'
+                       ORDER BY m.scheduled_at ASC LIMIT 10) AS pending_meds,
+                ARRAY(SELECT d.title FROM ipd_clinical_documentations d
+                       WHERE d.admission_id = a.id AND NOT d.is_resolved
+                       ORDER BY d.recorded_at DESC LIMIT 5) AS active_clinical_docs
          FROM admissions a
          JOIN patients p ON p.id = a.patient_id
          LEFT JOIN beds bl ON bl.id = a.bed_id
@@ -534,54 +538,7 @@ pub async fn handover_summary(
     .bind(params.ward_id)
     .fetch_all(&mut *tx)
     .await?;
-
-    let mut patients = Vec::with_capacity(base_patients.len());
-    let critical_count = base_patients.iter().filter(|p| p.is_critical).count();
-
-    for bp in &base_patients {
-        // Pending tasks
-        let pending_tasks: Vec<String> = sqlx::query_scalar(
-            "SELECT description FROM nursing_tasks \
-             WHERE admission_id = $1 AND NOT is_completed \
-             ORDER BY priority = 'stat' DESC, due_at ASC NULLS LAST LIMIT 10",
-        )
-        .bind(bp.admission_id)
-        .fetch_all(&mut *tx)
-        .await?;
-
-        // Pending meds
-        let pending_meds: Vec<String> = sqlx::query_scalar(
-            "SELECT drug_name || ' ' || dose || ' (' || route || ')' \
-             FROM ipd_medication_administration \
-             WHERE admission_id = $1 AND status = 'scheduled' \
-             ORDER BY scheduled_at ASC LIMIT 10",
-        )
-        .bind(bp.admission_id)
-        .fetch_all(&mut *tx)
-        .await?;
-
-        // Active clinical docs
-        let active_docs: Vec<String> = sqlx::query_scalar(
-            "SELECT title FROM ipd_clinical_documentations \
-             WHERE admission_id = $1 AND NOT is_resolved \
-             ORDER BY recorded_at DESC LIMIT 5",
-        )
-        .bind(bp.admission_id)
-        .fetch_all(&mut *tx)
-        .await?;
-
-        patients.push(HandoverSummaryPatient {
-            admission_id: bp.admission_id,
-            patient_name: bp.patient_name.clone(),
-            bed_name: bp.bed_name.clone(),
-            is_critical: bp.is_critical,
-            isolation_required: bp.isolation_required,
-            provisional_diagnosis: bp.provisional_diagnosis.clone(),
-            pending_tasks,
-            pending_meds,
-            active_clinical_docs: active_docs,
-        });
-    }
+    let critical_count = patients.iter().filter(|p| p.is_critical).count();
 
     let total_patients = patients.len();
 

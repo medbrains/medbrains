@@ -300,6 +300,8 @@ locals {
 }
 
 resource "aws_s3_bucket" "uploads" {
+  #checkov:skip=CKV_AWS_144: PHI stays in its home region until a data-residency decision names a second one; versioning covers overwrite and delete
+  #checkov:skip=CKV2_AWS_62: nothing consumes upload events; the app records each upload itself
   bucket        = local.uploads_bucket_name
   force_destroy = false
 
@@ -351,7 +353,39 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
     noncurrent_version_expiration {
       noncurrent_days = 365
     }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
+}
+
+resource "aws_s3_bucket_logging" "uploads" {
+  bucket        = aws_s3_bucket.uploads.id
+  target_bucket = module.access_logs.bucket_id
+  target_prefix = "uploads/"
+}
+
+# Refuse plain HTTP: every client (SDK, CLI, presigned URL) already uses TLS.
+resource "aws_s3_bucket_policy" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.uploads.arn, "${aws_s3_bucket.uploads.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.uploads]
+}
+
+module "access_logs" {
+  source      = "../s3-access-logs"
+  bucket_name = "${local.uploads_bucket_name}-logs"
+  tags        = { Project = "medbrains", HospitalId = var.hospital_id, ManagedBy = "terraform" }
 }
 
 resource "aws_s3_bucket_cors_configuration" "uploads" {

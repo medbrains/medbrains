@@ -33,7 +33,7 @@ resource "aws_iam_role_policy_attachment" "cluster_vpc_resource_controller" {
 
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 90
+  retention_in_days = 365
   kms_key_id        = var.kms_key_arn
   tags              = local.tags
 }
@@ -47,18 +47,29 @@ resource "aws_security_group" "cluster" {
   tags        = merge(local.tags, { Name = "${var.cluster_name}-cluster-sg" })
 }
 
+# The control plane only dials its workers (kubelet, webhooks, metrics);
+# everything else it needs runs on the AWS side of the ENIs.
+# create_before_destroy: the rule's source is force-new, so the new rule
+# is in place before the old 0.0.0.0/0 one goes.
 resource "aws_security_group_rule" "cluster_egress_all" {
-  type              = "egress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.cluster.id
+  description              = "Control plane to worker nodes (kubelet, webhooks)"
+  type                     = "egress"
+  from_port                = 0
+  to_port                  = 65535
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.nodes.id
+  security_group_id        = aws_security_group.cluster.id
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ── EKS cluster ───────────────────────────────────────────────────────
 
 resource "aws_eks_cluster" "this" {
+  #checkov:skip=CKV_AWS_38: public_access_cidrs is a module input; envs narrow it once CI/CD runners live in-VPC (see variable description)
+  #checkov:skip=CKV_AWS_39: endpoint_public_access is a module input defaulting on until CI/CD runners live in-VPC
   name     = var.cluster_name
   role_arn = aws_iam_role.cluster.arn
   version  = var.kubernetes_version
@@ -126,6 +137,7 @@ resource "aws_iam_openid_connect_provider" "this" {
 # ── Worker security group (Karpenter-launched nodes attach here) ──────
 
 resource "aws_security_group" "nodes" {
+  #checkov:skip=CKV2_AWS_5: attached by Karpenter at launch through the discovery tag, not by a Terraform reference
   name        = "${var.cluster_name}-nodes-sg"
   description = "Karpenter-managed worker nodes"
   vpc_id      = var.vpc_id
@@ -137,6 +149,7 @@ resource "aws_security_group" "nodes" {
 }
 
 resource "aws_security_group_rule" "nodes_self" {
+  description       = "Node to node (pod network, kube-proxy, DNS)"
   type              = "ingress"
   from_port         = 0
   to_port           = 0
@@ -146,6 +159,8 @@ resource "aws_security_group_rule" "nodes_self" {
 }
 
 resource "aws_security_group_rule" "nodes_egress_all" {
+  #checkov:skip=CKV_AWS_382: workers pull images from any registry and pods reach hospital integrations and payment/ABDM APIs on ports set at runtime; egress control is per pod, through network policy on the Cilium CNI this module installs
+  description       = "Workers to anywhere (images, AWS APIs, integrations)"
   type              = "egress"
   from_port         = 0
   to_port           = 0
@@ -155,6 +170,7 @@ resource "aws_security_group_rule" "nodes_egress_all" {
 }
 
 resource "aws_security_group_rule" "cluster_to_nodes" {
+  description              = "Control plane to kubelet and webhooks"
   type                     = "ingress"
   from_port                = 1025
   to_port                  = 65535
@@ -164,6 +180,7 @@ resource "aws_security_group_rule" "cluster_to_nodes" {
 }
 
 resource "aws_security_group_rule" "nodes_to_cluster_443" {
+  description              = "Workers to the Kubernetes API"
   type                     = "ingress"
   from_port                = 443
   to_port                  = 443

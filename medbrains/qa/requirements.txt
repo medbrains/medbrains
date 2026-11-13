@@ -1,3 +1,9 @@
 tcms-api>=13.0
 pyyaml>=6.0
 python-dotenv>=1.0
+# Floors for transitive deps of tcms-api, so a resolver never picks a release
+# with a known CVE (requests < 2.33.0, setuptools < 83.0.0).
+requests>=2.33.0
+setuptools>=84.2.1
+certifi>=2026.10.18  # drops the compromised eMudhra (emSign) intermediates, GHSA-6q48-6c7w-9gw2
+idna>=3.15  # GHSA-65pc-fj4g-8rjx

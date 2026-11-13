@@ -3,11 +3,9 @@ resolver = "2"
 members = [
     "crates/medbrains-os-test",
     "crates/medbrains-os-setup",
+    "crates/medbrains-os-update",
     "crates/medbrains-agent",
     "crates/medbrains-server",
-    "crates/medbrains-automation",
-    "crates/medbrains-automation-store",
-    "crates/medbrains-automation-api",
     "crates/medbrains-core",
     "crates/medbrains-research",
     "crates/medbrains-knowledge",
@@ -187,7 +185,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "1.0.0"
+version = "3.33.0"
 edition = "2024"
 rust-version = "1.97.1"
 license-file = "../LICENSE"

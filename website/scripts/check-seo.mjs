@@ -77,7 +77,10 @@ assert.ok(pricing.types.includes("FAQPage"), "/pricing: FAQPage");
 const terms = checkPage("terms");
 const aiSafety = checkPage("ai-and-data-safety");
 assert.ok(aiSafety.types.includes("FAQPage"), "/ai-and-data-safety: FAQPage");
-results.push(pricing, terms, aiSafety, ...guides, ...resources, ...tools, ...camps, ...tokens, ...compare);
+const os = checkPage("os");
+assert.ok(os.types.includes("FAQPage"), "/os: FAQPage");
+const readiness = checkPage("readiness");
+results.push(pricing, terms, aiSafety, os, readiness, ...guides, ...resources, ...tools, ...camps, ...tokens, ...compare);
 for (const f of ["llms.txt", "robots.txt"]) assert.ok(existsSync(join(dist, f)), `/${f} built`);
 assert.ok(existsSync(join(dist, "pagefind", "pagefind.js")), "Pagefind index built");
 assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
@@ -86,7 +89,8 @@ assert.ok(existsSync(join(dist, "blog", "rss.xml")), "RSS feed built");
 // and rewrites a description that is too short or too long, so both are held here.
 const htmlFiles = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) =>
   d.isDirectory() ? htmlFiles(join(dir, d.name)) : d.name === "index.html" ? [join(dir, d.name)] : []);
-const decode = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+// `&amp;` goes last, or "&amp;lt;" would decode twice into "<".
+const decode = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 let snippets = 0;
 for (const file of htmlFiles(dist)) {
   const html = readFileSync(file, "utf8");

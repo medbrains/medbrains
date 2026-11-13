@@ -68,6 +68,7 @@ import {
   registrationTypeOptions,
   trimOrUndefined,
 } from "@/forms/patientRegistration.form";
+import { joinRuns, withoutTrailingParenthesised } from "@/lib/text-shape";
 import { abhaService } from "@/services/abha.service";
 import { lookupsService } from "@/services/lookups.service";
 import { patientsService } from "@/services/patients.service";
@@ -134,10 +135,7 @@ const PATIENT_REGISTRATION_ERROR_KEYS: Record<string, string> = {
 };
 
 function optionKey(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+  return joinRuns(value.toLowerCase(), "_", /[a-z0-9]/);
 }
 
 function translateEnumOptions<T extends LabelOption>(
@@ -503,7 +501,7 @@ export function PatientRegisterForm({
       const venue = campVenueLabel(camp);
       if (venue) options.add(venue);
     }
-    return [...options].sort();
+    return [...options].sort((a, b) => a.localeCompare(b));
   }, [camps]);
   // Names, not ids: the referrer is free text. Two doctors can share a name,
   // and a duplicate option crashes the picker — so each name once.
@@ -511,7 +509,7 @@ export function PatientRegisterForm({
     () =>
       [
         ...new Set(doctors.filter((doctor) => doctor.is_active).map((doctor) => doctor.full_name)),
-      ].sort(),
+      ].sort((a, b) => a.localeCompare(b)),
     [doctors],
   );
   const referredByFacilityOptions = useMemo(() => {
@@ -524,7 +522,7 @@ export function PatientRegisterForm({
       const venue = campVenueLabel(camp);
       if (venue) options.add(venue);
     }
-    return [...options].sort();
+    return [...options].sort((a, b) => a.localeCompare(b));
   }, [camps, facilities]);
   const phoneDialOptions = useMemo(
     () => buildPhoneCountryOptions(geoCountries, tenant?.country_id),
@@ -540,7 +538,7 @@ export function PatientRegisterForm({
         options.add(drugAllergyOptionLabel(item));
       }
     }
-    return [...options].sort();
+    return [...options].sort((a, b) => a.localeCompare(b));
   }, [drugAllergyCatalog, drugAllergiesValue, t]);
   const localizedGenderOptions = useMemo(
     () => translateEnumOptions(genderOptions, "options.gender", t),
@@ -667,7 +665,7 @@ export function PatientRegisterForm({
       Boolean(dateOfBirth) &&
       (dobEstimated || (!values.date_of_birth && typeof values.age_years === "number"));
     const departmentName =
-      optionLabel(departmentOptions, values.department_id)?.replace(/\s+\([^)]*\)$/, "") ??
+      withoutTrailingParenthesised(optionLabel(departmentOptions, values.department_id) ?? "") ||
       undefined;
     const consultantName = optionLabel(consultantOptions, values.consultant_id);
     const address: Record<string, unknown> = {};

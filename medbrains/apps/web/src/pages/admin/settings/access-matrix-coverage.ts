@@ -21,6 +21,7 @@ import {
   WORKFLOW_SIGNAL_SHAPE_DEFINITIONS,
 } from "@medbrains/types";
 import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
+import { trimTrailing } from "@/lib/text-shape";
 
 export const ACCESS_MATRIX_PLATFORMS: readonly AccessMatrixPlatform[] = [
   "web",
@@ -535,7 +536,7 @@ export function normalizeCoverageRoute(path: string) {
   const [withoutHash] = (withoutQuery ?? path).split("#");
   const normalized = withoutHash && withoutHash.length > 0 ? withoutHash : "/";
   const withLeadingSlash = normalized.startsWith("/") ? normalized : `/${normalized}`;
-  return withLeadingSlash.length > 1 ? withLeadingSlash.replace(/\/+$/, "") : withLeadingSlash;
+  return withLeadingSlash.length > 1 ? trimTrailing(withLeadingSlash, "/") : withLeadingSlash;
 }
 
 function flattenNavItems(items: readonly NavItemConfig[], rows: NavRouteRequirement[]) {
@@ -596,7 +597,7 @@ export function buildNavRouteCoverage(
       .map((surfaceRow) => surfaceRow.surface);
     const mappedPermissions = [
       ...new Set(matchedSurfaces.flatMap((surface) => [...surface.requiredPermissions])),
-    ].sort();
+    ].sort((a, b) => a.localeCompare(b));
     const missingPermissions = route.requiredPermissions.filter(
       (permission) => !mappedPermissions.includes(permission),
     );
@@ -612,7 +613,7 @@ export function buildNavRouteCoverage(
       labelKey: route.labelKey,
       requiredPermissions: route.requiredPermissions,
       mappedPermissions,
-      surfaceIds: matchedSurfaces.map((surface) => surface.id).sort(),
+      surfaceIds: matchedSurfaces.map((surface) => surface.id).sort((a, b) => a.localeCompare(b)),
       missingPermissions,
       status,
     };
@@ -823,15 +824,15 @@ export function buildAccessFieldCoverage(
       }
       const platforms = [
         ...new Set(fieldSurfaces.flatMap((surface) => [...surface.platforms])),
-      ].sort();
+      ].sort((a, b) => a.localeCompare(b));
       const maskingBehaviors = [
         ...new Set(
           fieldSurfaces.map((surface) => surface.masking).filter((masking) => masking !== "none"),
         ),
-      ].sort();
+      ].sort((a, b) => a.localeCompare(b));
       const permissions = [
         ...new Set(fieldSurfaces.flatMap((surface) => [...surface.requiredPermissions])),
-      ].sort();
+      ].sort((a, b) => a.localeCompare(b));
       const routeMapped = fieldSurfaces.filter((surface) => surface.route).length;
       const rowWithoutGaps = {
         dataType: field.data_type,
@@ -850,7 +851,7 @@ export function buildAccessFieldCoverage(
         platforms,
         printMapped: fieldSurfaces.filter((surface) => surface.kind === "print").length,
         routeMapped,
-        surfaceIds: fieldSurfaces.map((surface) => surface.id).sort(),
+        surfaceIds: fieldSurfaces.map((surface) => surface.id).sort((a, b) => a.localeCompare(b)),
         surfaces: fieldSurfaces,
       } satisfies Omit<AccessFieldCoverageRow, "gaps"> & {
         gaps: readonly AccessFieldCoverageGap[];
@@ -894,7 +895,9 @@ export function buildAccessPlatformCoverage(
     return {
       platform,
       surfaces: platformSurfaces,
-      modules: [...new Set(platformSurfaces.map((surface) => surface.module))].sort(),
+      modules: [...new Set(platformSurfaces.map((surface) => surface.module))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
       kindCounts,
       routeMapped: platformSurfaces.filter((surface) => surface.route).length,
       platformRouteMapped: platformSurfaces.filter((surface) =>
@@ -935,7 +938,9 @@ export function buildWorkflowKindCoverage(
     const workflowSurfaces = surfaces.filter((surface) =>
       workflow.modules.includes(surface.module),
     );
-    const presentKinds = [...new Set(workflowSurfaces.map((surface) => surface.kind))].sort();
+    const presentKinds = [...new Set(workflowSurfaces.map((surface) => surface.kind))].sort(
+      (a, b) => a.localeCompare(b),
+    );
     const missingKinds = workflow.requiredKinds.filter((kind) => !presentKinds.includes(kind));
     const permissions = new Set(
       workflowSurfaces.flatMap((surface) => [...surface.requiredPermissions]),
@@ -994,10 +999,12 @@ export function buildPatientFlowGovernanceCoverage(
 ): PatientFlowGovernanceRow[] {
   return expectations.map((expectation) => {
     const flowSurfaces = surfaces.filter((surface) => expectation.modules.includes(surface.module));
-    const presentKinds = [...new Set(flowSurfaces.map((surface) => surface.kind))].sort();
+    const presentKinds = [...new Set(flowSurfaces.map((surface) => surface.kind))].sort((a, b) =>
+      a.localeCompare(b),
+    );
     const presentPlatforms = [
       ...new Set(flowSurfaces.flatMap((surface) => [...surface.platforms])),
-    ].sort();
+    ].sort((a, b) => a.localeCompare(b));
     const launchTargetPlatforms = expectation.requiredPlatforms.filter((platform) =>
       flowSurfaces.some((surface) => Boolean(accessSurfacePlatformRoute(surface, platform))),
     );
@@ -1083,10 +1090,10 @@ export function buildWorkflowShapeGovernanceCoverage(
     );
     const presentSemantics = [
       ...new Set(expectation.scenarios.map((scenario) => scenario.semantic)),
-    ].sort();
+    ].sort((a, b) => a.localeCompare(b));
     const platforms = [
       ...new Set(workflowSurfaces.flatMap((surface) => [...surface.platforms])),
-    ].sort();
+    ].sort((a, b) => a.localeCompare(b));
     const missingPlatforms = expectation.requiredPlatforms.filter(
       (platform) => !platforms.includes(platform),
     );

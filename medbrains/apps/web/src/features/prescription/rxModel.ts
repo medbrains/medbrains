@@ -328,7 +328,7 @@ export function dosesFreqCode(doses: Dose[], sos: boolean): string {
 
 /** Stable key for an unordered drug pair. */
 export function pairKey(a: string, b: string): string {
-  return [a, b].sort().join("|");
+  return [a, b].sort((a, b) => a.localeCompare(b)).join("|");
 }
 
 export const byTime = (a: Dose, b: Dose): number => (a.time || "").localeCompare(b.time || "");

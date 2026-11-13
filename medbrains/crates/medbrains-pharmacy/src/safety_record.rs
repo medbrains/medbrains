@@ -6,11 +6,11 @@
 //! over without a witness on a reason, a look-alike caution. Filed and unread
 //! is not a log anyone can use, so the pharmacy order shows it.
 
+use axum::Extension;
 use axum::{
     Json,
     extract::{Path, State},
 };
-use axum::Extension;
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use medbrains_kernel::authz::{Relation, Resource, authorize, authz_context, collapse};
@@ -50,7 +50,15 @@ pub async fn order_safety_record(
         kind: "pharmacy_order",
         id,
     };
-    collapse(authorize(&*state.authz, &authz_context(&claims), Relation::Viewer, order).await)?;
+    collapse(
+        authorize(
+            &*state.authz,
+            &authz_context(&claims),
+            Relation::Viewer,
+            order,
+        )
+        .await,
+    )?;
 
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query_as!(

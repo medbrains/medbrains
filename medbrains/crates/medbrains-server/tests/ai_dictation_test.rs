@@ -1012,7 +1012,11 @@ async fn a_config_import_refuses_every_guarded_category() {
                 .send()
                 .await
                 .expect("import");
-            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{own} dry_run={dry_run}");
+            assert_eq!(
+                resp.status(),
+                StatusCode::BAD_REQUEST,
+                "{own} dry_run={dry_run}"
+            );
         }
     }
     let stored: i64 = sqlx::query_scalar(
@@ -1022,7 +1026,10 @@ async fn a_config_import_refuses_every_guarded_category() {
     .fetch_one(&app.db)
     .await
     .expect("settings");
-    assert_eq!(stored, 0, "a refused bundle writes nothing, not even its ordinary rows");
+    assert_eq!(
+        stored, 0,
+        "a refused bundle writes nothing, not even its ordinary rows"
+    );
 
     configure(&app, json!({ "stt_url": "http://127.0.0.1:8178" })).await;
     let bundle: Value = app

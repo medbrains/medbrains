@@ -530,9 +530,17 @@ mod request_role_tests {
         let found = request_role_finding(Ok((false, "medbrains".to_owned())), false);
         assert_eq!(found.level, Level::Fail);
         assert!(found.detail.contains("medbrains_app"), "{}", found.detail);
-        assert!(found.fix.is_some_and(|f| f.contains("docs/ops/DB-ROLES.md")));
+        assert!(
+            found
+                .fix
+                .is_some_and(|f| f.contains("docs/ops/DB-ROLES.md"))
+        );
         let unknown = request_role_finding(Err("timeout".to_owned()), false);
-        assert_eq!(unknown.level, Level::Fail, "an unanswered check is not a pass");
+        assert_eq!(
+            unknown.level,
+            Level::Fail,
+            "an unanswered check is not a pass"
+        );
     }
 
     /// The request role passes everywhere.

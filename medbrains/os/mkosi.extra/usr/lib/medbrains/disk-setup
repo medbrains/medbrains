@@ -5,6 +5,7 @@
 #   disk-setup notice    say what the passphrase prompt means if the disk did not open by itself
 #   disk-setup finish    after /var is mounted: show the recovery key once, offer a PIN, record it
 #   disk-setup reseal KEYFILE   seal to this machine's TPM again, after a board or TPM change; drops a PIN
+#   disk-setup clear-lockout KEYFILE   lift the TPM's lockout after too many failed starts, with the recovery key
 set -euo pipefail
 
 PART="${MEDBRAINS_DISK_PART:-/dev/disk/by-partlabel/medbrains-data}"
@@ -28,6 +29,19 @@ SETTLE_S=30
 NOTICE_AFTER_S=20
 RECOVERY_KEY_SHAPE='^[a-z]+(-[a-z]+){7}$'
 RECOVERY_KEY_GROUPS=8
+# The TPM's dictionary-attack limits (OS-KEYS.md, "TPM lockout"). A PIN-sealed key counts every wrong PIN, and the
+# TPM also counts every power cut after it was used, so a site with power cuts needs room: 16 failures before the
+# TPM refuses even the right PIN, one forgiven every 5 minutes switched on. A wrong lockout password locks that
+# path for 10 minutes. With a 6-digit PIN that is under 300 guesses a day.
+DA_MAX_TRIES=16
+DA_RECOVERY_S=300
+DA_LOCKOUT_RECOVERY_S=600
+# The lockout password is derived from the recovery key, so whoever holds the key can lift a lockout and no
+# second secret exists anywhere. The label keeps it from being the recovery key itself.
+LOCKOUT_LABEL=medbrains-tpm-lockout-v1
+export TPM2TOOLS_TCTI=device:/dev/tpmrm0
+# 1 once provision_lockout has put our limits and password in place. Until then no PIN is offered.
+LOCKOUT_OURS=0
 
 # Clears the machine's screen and shows the cursor, which the kernel command line hides.
 clear_screen() { printf '\033c\033[?25h'; }
@@ -104,6 +118,18 @@ notice() {
         [[ -e "$MAPPED" ]] && return 0
         sleep 1
     done
+    if tpm_in_lockout; then
+        cat <<'TEXT'
+
+MedBrains: the data disk did not open by itself: too many failed starts. The security chip
+refuses the PIN for now, even the right one.
+
+Type the recovery key that was written down at setup, then press Enter, or ask IT. The PIN works
+again once the machine has been switched on for a while. Typed characters are not shown.
+
+TEXT
+        return 0
+    fi
     cat <<'TEXT'
 
 MedBrains: the data disk did not open by itself.
@@ -121,7 +147,7 @@ TEXT
 # the trap runs after the function has returned.
 use_key_file() {
     KEY_FILE="$(mktemp -p /run)"
-    trap 'rm -f "$KEY_FILE"' EXIT
+    trap 'rm -f "$KEY_FILE" "$KEY_FILE.lockout"' EXIT
 }
 
 # Stops first boot with a plain message. The screen unit needs this step, so nothing draws over it.
@@ -141,6 +167,8 @@ show_recovery_key() {
     key="$(systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery --recovery-key "$PART" 2>/dev/null)" \
         || fail 'the recovery key could not be made.'
     [[ "$key" =~ $RECOVERY_KEY_SHAPE ]] || fail 'the recovery key could not be made.'
+    # Kept in memory-backed /run only for this run, to derive the TPM lockout password from.
+    printf '%s' "$key" > "$KEY_FILE"
     IFS=- read -r -a groups <<<"$key"
     # A loop with no limit, on purpose: the machine holds no data until the key is saved. Printed, not
     # `read -p`: that writes to stderr, which is the journal.
@@ -182,17 +210,36 @@ ask_for_saved_key() {
     done
 }
 
-# Succeeds if the file holds a key that opens this disk by itself. Without the flag, a TPM token opens
-# the disk whatever the key says.
+# Succeeds if the file holds this disk's recovery key: checked against its recovery slot alone, because the
+# lockout password is derived from that key and nothing else. Without the flag, a TPM token opens the disk
+# whatever the key says.
 check_key_file() {
-    cryptsetup open --test-passphrase --disable-external-tokens --key-file="$1" "$PART" 2>/dev/null
+    local slot
+    slot="$(systemd-cryptenroll "$PART" 2>/dev/null | awk '$2 == "recovery" { print $1; exit }')"
+    [[ -n "$slot" ]] || return 1
+    cryptsetup open --test-passphrase --disable-external-tokens --key-slot="$slot" --key-file="$1" "$PART" 2>/dev/null
 }
 
 # Offers a PIN at every start: stronger against someone with the machine in their hands, but it will not
 # restart by itself after a power cut. Empty means no PIN. Sets PIN. A loop with no limit, on purpose.
+# Never offered without our TPM lockout limits: a PIN with no limit on guesses is a false promise.
 ask_for_pin() {
     local again
     clear_screen
+    if ((!LOCKOUT_OURS)); then
+        PIN=
+        cat <<'TEXT'
+MedBrains: this machine will start without typing.
+
+A PIN cannot be offered: the security chip's limit on wrong guesses could not be set,
+so a PIN here would have no limit. Ask IT to clear the chip in the firmware settings,
+then set the machine up again, if a PIN is needed.
+
+TEXT
+        printf 'Press Enter to carry on. '
+        read -r again
+        return 0
+    fi
     cat <<'TEXT'
 MedBrains: how should this machine start?
 
@@ -230,14 +277,22 @@ seal_with_pin() {
 write_record() {
     printf '%s\n' "$1" > "$RECORD.new"
     chmod 0644 "$RECORD.new"
+    sync "$RECORD.new"
     mv "$RECORD.new" "$RECORD"
+    sync "$CONFIG"
     echo "data disk protection: $1" >&2
 }
 
 # First boot's sealed path: the key, then the PIN question, then the record.
 finish_first_time() {
+    use_key_file
     show_recovery_key
     : > "$KEY_SAVED"
+    # On disk before anything else happens: without it a power cut in the next seconds (ext4 commits every 5 s)
+    # lost the marker, the next start took the first-time path and waited on a TPM PIN prompt nobody could see.
+    sync "$KEY_SAVED" "$CONFIG"
+    # Only now: a lockout password derived from a key that a power cut then replaced would be lost for good.
+    provision_lockout "$KEY_FILE"
     ask_for_pin
     [[ -n "$PIN" ]] && seal_with_pin
     clear_screen
@@ -249,6 +304,7 @@ finish_first_time() {
 finish_after_interruption() {
     use_key_file
     ask_for_saved_key "$KEY_FILE"
+    provision_lockout "$KEY_FILE"
     ask_for_pin
     set_seal_args
     systemd-cryptenroll --wipe-slot=tpm2 "$PART" >/dev/null 2>&1 || fail 'the old seal could not be removed.'
@@ -289,7 +345,49 @@ reseal() {
     set_seal_args
     systemd-cryptenroll --wipe-slot=tpm2 "$PART"
     systemd-cryptenroll --unlock-key-file="$KEY_FILE" "${SEAL_ARGS[@]}" "$PART"
+    provision_lockout "$KEY_FILE"
     if mountpoint -q /var; then write_record encrypted-tpm2; fi
+}
+
+# Writes the TPM lockout password for the recovery key in file $1 to file $2: 32 raw bytes, never printed.
+lockout_auth() {
+    { printf '%s\n' "$LOCKOUT_LABEL"; tr -d '[:space:]' < "$1"; } | openssl dgst -sha256 -binary > "$2"
+}
+
+# Sets this machine's lockout limits and password, from the recovery key in file $1, and sets LOCKOUT_OURS=1 once
+# both are in place. The chip says whether it has a lockout password, and each password is tried at most once:
+# a wrong one shuts the lockout path for DA_LOCKOUT_RECOVERY_S, so guessing (an empty one first, say) would leave
+# IT unable to lift a lockout. None yet: the limits, then ours. One already: ours, if it is ours. Somebody else's
+# (a previous owner or the firmware) means the chip keeps its own limits, which nothing here can check.
+provision_lockout() {
+    local auth="$1.lockout" has_auth limits=(--setup-parameters --max-tries="$DA_MAX_TRIES" --recovery-time="$DA_RECOVERY_S" \
+        --lockout-recovery-time="$DA_LOCKOUT_RECOVERY_S")
+    LOCKOUT_OURS=0
+    has_auth="$(tpm2_getcap properties-variable 2>/dev/null | sed -nE 's/^ *lockoutAuthSet: *([01]).*/\1/p' || true)"
+    lockout_auth "$1" "$auth"
+    case "$has_auth" in
+        0) tpm2_dictionarylockout "${limits[@]}" >/dev/null 2>&1 && tpm2_changeauth -c lockout "file:$auth" >/dev/null 2>&1 \
+            && LOCKOUT_OURS=1 ;;
+        1) tpm2_dictionarylockout "${limits[@]}" -p "file:$auth" >/dev/null 2>&1 && LOCKOUT_OURS=1 ;;
+    esac
+    rm -f "$auth"
+    ((LOCKOUT_OURS)) || echo "The TPM's lockout limits could not be set (lockoutAuthSet: ${has_auth:-unreadable}), so a PIN is not offered." >&2
+}
+
+# Lifts the TPM's lockout with the recovery key in file $1, for IT after too many failed starts. Checks the key
+# first, so a wrong key never counts against the chip.
+clear_lockout() {
+    use_key_file
+    tr -d '[:space:]' < "$1" > "$KEY_FILE"
+    check_key_file "$KEY_FILE" || { echo 'That key does not open this disk; nothing changed.' >&2; exit 1; }
+    lockout_auth "$KEY_FILE" "$KEY_FILE.lockout"
+    tpm2_dictionarylockout --clear-lockout -p "file:$KEY_FILE.lockout" || { rm -f "$KEY_FILE.lockout"; exit 1; }
+    rm -f "$KEY_FILE.lockout"
+}
+
+# True if the TPM is refusing PIN-protected keys after too many failed starts.
+tpm_in_lockout() {
+    tpm2_getcap properties-variable 2>/dev/null | grep -qE '^ *inLockout: *1'
 }
 
 case "${1:-}" in
@@ -297,5 +395,6 @@ case "${1:-}" in
     notice) notice ;;
     finish) finish ;;
     reseal) reseal "$2" ;;
-    *) echo "usage: disk-setup prepare|notice|finish|reseal KEYFILE" >&2; exit 2 ;;
+    clear-lockout) clear_lockout "$2" ;;
+    *) echo "usage: disk-setup prepare|notice|finish|reseal KEYFILE|clear-lockout KEYFILE" >&2; exit 2 ;;
 esac

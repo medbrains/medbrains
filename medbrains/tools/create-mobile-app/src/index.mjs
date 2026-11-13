@@ -65,6 +65,9 @@ async function main() {
       "iOS bundle id / Android package",
       `com.medbrains.${id.replace(/-/gu, "")}`,
     ));
+  if (!/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/u.test(bundleId)) {
+    throw new Error(`invalid bundle id: ${bundleId}`);
+  }
   const modules = flags.modules
     ? flags.modules.split(",").map((m) => m.trim()).filter(Boolean)
     : await askMulti(
@@ -109,7 +112,6 @@ async function main() {
     biometricPolicy: variant.biometricPolicy,
     displayName,
     bundleId,
-    bundleIdEscaped: bundleId.replace(/\./gu, "\\."),
     modules,
     moduleEntries,
     hasModules: modules.length > 0,

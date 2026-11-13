@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
   "productName": "MedBrains",
-  "version": "0.1.0",
   "identifier": "in.medbrains.desktop",
   "build": {
     "beforeDevCommand": "cd ../web && pnpm dev",
@@ -41,9 +40,7 @@
     "windows": {
       "wix": {
         "language": [
-          "en-IN",
-          "ta-IN",
-          "hi-IN"
+          "en-US"
         ]
       },
       "nsis": null,

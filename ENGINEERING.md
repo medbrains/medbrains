@@ -45,7 +45,7 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Language | Rust (edition 2024, MSRV 1.95; toolchain pinned 1.99.0) |
+| Language | Rust (edition 2024, MSRV 1.95; toolchain pinned 1.99.1) |
 | Web framework | Axum 0.8 + Tower 0.5 |
 | Async runtime | Tokio 1.54.1+ (full features; 1.54.0 is yanked and denied) |
 | Serialization | serde + serde_json |
@@ -86,7 +86,7 @@ All RFCs live in `RFCs/` at the project root.
 | Client state | Zustand 5 |
 | Forms | React Hook Form 7 + Zod 4 |
 | Linting | **Biome 2** (lint + format) |
-| Fonts | **Inter Tight** (UI), **Fraunces** (display/editorial), **JetBrains Mono** (code/metadata) |
+| Fonts | **MedBrains Sans** (UI, derived from IBM Plex Sans, OFL), **IBM Plex Mono** (code/metadata), **Archivo** expanded (display) |
 
 ### Mobile
 
@@ -146,7 +146,7 @@ The app uses **the colours of www.medbrains.in** (source of truth: `website/src/
 
 - Colour only via `--mb-*` tokens; never raw hex in components. Emergency codes below stay fixed.
 - Shape: unchanged — Carbon sharp corners, bottom-rule inputs, the design-system elevation tokens.
-- Fonts: IBM Plex Sans (UI), IBM Plex Mono (labels, UHIDs, timestamps), Archivo expanded (display, KPI numerals).
+- Fonts: MedBrains Sans (UI; derived from IBM Plex Sans, OFL; easy-read: slashed zero, Atkinson Hyperlegible Next b d p q l 1, wider spacing, Regular at 440; `medbrains/docs/design/fonts/MEDBRAINS-SANS.md`), IBM Plex Mono (labels, UHIDs, timestamps), Archivo expanded (display, KPI numerals). Font files are built by `make fonts`, never edited by hand.
 - Mascots: `Crab` (geometric = small system spots, line = clinical empty states/print, medic = patient-facing, chibi = big moments) and `AiOrb` (halo = inline AI, glass = assistant chat, blob = voice, pulse = clinical-AI/vitals) from the `@/components/ui` seam. ECG loader stays the default loader.
 
 ### Emergency Code Layer (fixed, safety-critical)
@@ -205,7 +205,7 @@ medbrains/
 
 ### Rust
 
-- **Edition 2024**, minimum Rust version **1.95** (workspace `rust-version`; toolchain pinned to 1.99.0)
+- **Edition 2024**, minimum Rust version **1.95** (workspace `rust-version`; toolchain pinned to 1.99.1)
 - `unsafe` code is **forbidden**
 - **Strict clippy** — `clippy::all` denied, `clippy::pedantic` + `clippy::nursery` warned
 - The following are **denied** (will not compile):
@@ -275,7 +275,7 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 - **Icons come from `@tabler/icons-react` components — never inline `<svg>`/`<path>` in TSX.** For a genuinely custom glyph with no tabler equivalent, add the `.svg` to `apps/web/src/assets/` and import it (wire `vite-plugin-svgr` for `import Icon from "./x.svg?react"` if a React-component import is needed). Inline SVG markup is not allowed.
 - **Custom components follow the Mantine pattern** ([custom-components](https://mantine.dev/styles/styles-api/), [polymorphic](https://mantine.dev/guides/polymorphic-components/)). When adding a `@/components/ui` primitive: **wrap** the Mantine component (don't reimplement), use the **`factory`/`forwardRef`** API so `ref` + all native props pass through, expose Mantine's **`classNames`/`styles`/`vars`** so callers can theme parts, make it **polymorphic** via `createPolymorphicComponent` where an element swap makes sense (e.g. Button as `a`/`Link`), and drive colour **only from theme tokens** (`--mb-*` / semantic `tone`), never inline hexes or gradients. No per-component colour in SCSS — SCSS is layout only; the **theme is the single source of truth**.
 - **Accessibility is mandatory (WCAG 2.2 AA)** — for everyone, including specially-abled users; it's a patient-safety requirement. Keyboard-operable everything (no `div`/`span` `onClick` — use `<button>` or `role`+`tabIndex`+`onKeyDown`), visible ≥2px focus indicator (WCAG 2.2 SC 2.4.13 — don't remove `outline`), ≥24px target size (SC 2.5.8), accessible auth/allow paste (SC 3.3.8), `aria-label` on every icon-only control, real labels + wired errors on inputs, never colour-alone for meaning, honour `prefers-reduced-motion`. Enforced by **strict Biome a11y rules** (all `error`) + the `@/components/ui` seam. **Full WCAG 2.2 rules: `medbrains/docs/WCAG-2.2-RULES.md`**; ARIA index: `medbrains/docs/ACCESSIBILITY.md`.
-- **Carbon layout + motion + iconography are LAW** — spacing/grid follow `medbrains/docs/CARBON-LAYOUT-RULES.md` (8px mini-unit, 2x grid, sharp corners, token spacing — never literal px; layout via Mantine primitives not `<div>`). Motion follows `medbrains/docs/CARBON-MOTION-RULES.md` (productive vs expressive, duration/easing tokens, ≤240ms UI feedback, reduced-motion fallback required, pausable auto-play). Icons follow `medbrains/docs/CARBON-ICONOGRAPHY-RULES.md` (one family = tabler, sizes 16/20/24/32, monochrome from tokens, real glyphs not letter-abbreviations, `aria-label` on icon-only controls; UI-icons vs app-icons distinction). Photography follows `medbrains/docs/CARBON-PHOTOGRAPHY-RULES.md` (authentic/human/dignified, no generic stock, patient privacy — no identifiable patients/PHI, scrim behind text). Data viz follows `medbrains/docs/CARBON-DATAVIZ-RULES.md` (right chart for the question, honest zero-baseline scales + clinical reference ranges, Carbon palettes, colour-blind-safe + never colour-alone, text/data-table alternative; **`@mantine/charts` for standard charts, `echarts` only for marks it lacks — heatmap/sankey/treemap/gauge/boxplot — never `@carbon/charts` (not installed), never hand-rolled SVG; `recharts` is `@mantine/charts`' peer, don't import or remove it**). Colour follows `medbrains/docs/CARBON-COLOR-RULES.md` (semantic `--mb-*` tokens only, never raw hex; layer elevation; support + fixed emergency colours; light and dark themes, both WCAG 2.2 AA). Typography follows `medbrains/docs/CARBON-TYPOGRAPHY-RULES.md` (IBM Plex; 14px body clinical density; tokens not px; sentence-case hierarchy). Content/voice follows `medbrains/docs/CARBON-CONTENT-RULES.md` (plain + human + sentence case, fix-oriented errors, clinical accuracy, inclusive/accessible content, i18n). **Index: `medbrains/docs/DESIGN-RULES.md`.**
+- **Carbon layout + motion + iconography are LAW** — spacing/grid follow `medbrains/docs/CARBON-LAYOUT-RULES.md` (8px mini-unit, 2x grid, sharp corners, token spacing — never literal px; layout via Mantine primitives not `<div>`). Motion follows `medbrains/docs/CARBON-MOTION-RULES.md` (productive vs expressive, duration/easing tokens, ≤240ms UI feedback, reduced-motion fallback required, pausable auto-play). Icons follow `medbrains/docs/CARBON-ICONOGRAPHY-RULES.md` (one family = tabler, sizes 16/20/24/32, monochrome from tokens, real glyphs not letter-abbreviations, `aria-label` on icon-only controls; UI-icons vs app-icons distinction). Photography follows `medbrains/docs/CARBON-PHOTOGRAPHY-RULES.md` (authentic/human/dignified, no generic stock, patient privacy — no identifiable patients/PHI, scrim behind text). Data viz follows `medbrains/docs/CARBON-DATAVIZ-RULES.md` (right chart for the question, honest zero-baseline scales + clinical reference ranges, Carbon palettes, colour-blind-safe + never colour-alone, text/data-table alternative; **`@mantine/charts` for standard charts, `echarts` only for marks it lacks — heatmap/sankey/treemap/gauge/boxplot — never `@carbon/charts` (not installed), never hand-rolled SVG; `recharts` is `@mantine/charts`' peer, don't import or remove it**). Colour follows `medbrains/docs/CARBON-COLOR-RULES.md` (semantic `--mb-*` tokens only, never raw hex; layer elevation; support + fixed emergency colours; light and dark themes, both WCAG 2.2 AA). Typography follows `medbrains/docs/CARBON-TYPOGRAPHY-RULES.md` (MedBrains Sans + IBM Plex Mono; 14px body clinical density; tokens not px; sentence-case hierarchy). Content/voice follows `medbrains/docs/CARBON-CONTENT-RULES.md` (plain + human + sentence case, fix-oriented errors, clinical accuracy, inclusive/accessible content, i18n). **Index: `medbrains/docs/DESIGN-RULES.md`.**
 - **Per-surface design is LAW — the 10 Commandments (`medbrains/docs/DEVICE-SURFACE-DESIGN-RULES.md`)** — the right design system per surface, with IBM Carbon as brand/tokens layered on (never a per-surface fork, never raw hex). (1) Right design system per surface — never force the web Carbon 2x-grid onto TV/mobile. (2) Carbon is the brand, not the layout — tokens from `@medbrains/design-system`. (3) TV = 10-foot UI — default focus + D-pad directional logic + an **obvious** focus state (`hasTVPreferredFocus`/`TVFocusGuideView`). (4) TV overscan safe area — 48dp L/R, 27dp T/B; light-on-dark, large type. (5) Mobile = Carbon-for-RN + Material 3/Apple HIG; **touch targets ≥44px**. (6) Kiosk = self-service touch (big targets, linear flow, forgiving timeouts). (7) Virtualize + bound everything (`FlatList`, no `ScrollView.map`). (8) Fail safe, never blank (error boundary per screen + last-good render). (9) Share, never copy (`@medbrains/*`, diverge by variant not fork). (10) Accessible everywhere (WCAG 2.2 AA — visible focus, target size, never colour-alone). Pairs with the constrained-device Power-of-Ten below.
 - **Constrained-device code is LAW (`medbrains/docs/DEVICE-CONSTRAINED-RULES.md`)** — before writing ANY code for a low-end surface (all `TV-*`, `Desktop-Kiosk`, all `Mobile-*`, `headless-edge`, `headless-iot` — everything except web/`ui-desktop`), obey the "Power of Ten": bound every loop/list/queue/cache (no unbounded growth), zero leaks (tear down every timer/socket/listener), virtualize every list (`FlatList`+`getItemLayout`, slim DTOs), bound the network (timeout+capped-retry+backoff), keep the JS thread free (native-driver animations, no heavy work in render/gestures), minimize re-renders (memoize + store selectors), efficient structures up front (DSA mandatory, not optional), **share via `@medbrains/*` never copy-paste**, small bundle/fast cold-start, and fail-safe (error boundary per screen + offline last-good render, never a blank board). Memory must be **flat over uptime** and under the per-surface budget (TV ≤120 MB, mobile ≤200 MB). Run the pre-code checklist in that doc.
 - **Light and dark themes (decided 2026-09-26)** — the app defaults to dark with a header switcher. Both themes must meet WCAG 2.2 AA contrast; colour comes only from theme tokens (`packages/design-system/src/theme`), each defined for both schemes. `e2e/accessibility/theme-contrast.spec.ts` must pass in both.
@@ -527,6 +527,52 @@ handler is how that happens.
    "backend-only, unblocks X" out loud. Never let it pass silently as "done".
 5. **Both directions.** A screen with no endpoint is equally incomplete —
    `make check-api` and `check-ui-api` enforce the pair.
+
+## Apps Are Permission-Gated Bricks (MANDATORY, core rule)
+
+**Every module ships as an app brick, and permissions decide where it fits.** This is the
+core of how MedBrains is built, installed, shown and sold. Full design:
+`medbrains/docs/architecture/MODULE-BRICKS.md`.
+
+1. **One app is one brick on every layer:** its backend crate, its web package, its native
+   app and its manifest, with the same id everywhere. About 20 apps (Pharmacy, EMR, Patient
+   Registration, Billing...), each with its own side panel of screens, never one tile per screen.
+2. **Bricks connect only through the base plate:** the kernel, the shared kit, the API, events
+   and opening another app by id. No brick imports another brick's code on any layer.
+3. **The manifest declares the brick's permission modules and the bricks it depends on**,
+   generated from the Rust permission list, never written by hand.
+4. **Onboarding picks the bricks:** a hospital installs only the apps it needs (a pharmacy-only
+   customer gets Pharmacy and its dependencies), the rest switched off for the tenant and
+   refused by the server.
+5. **A machine gets a brick only when its assigned roles hold the brick's permissions**, with its
+   dependencies: a pharmacy edge has Pharmacy alone. Changing roles is the only control.
+6. **A person sees an app, and each screen in its side panel, only with its permissions.**
+   Screens they may not open are left out, not greyed. Inside a screen, fields are shown,
+   masked or hidden by data class.
+7. **Tabs and panels that belong to another brick are plugged in by that brick.** The EMR tab
+   on a patient record is declared in the EMR brick's manifest ("adds a tab to the patient
+   record") and appears only when EMR is installed for the tenant and the machine and the person
+   holds its permission. The host screen shows whatever tabs are plugged in and imports none;
+   removing a brick removes its tabs everywhere. The same holds for components a brick adds
+   elsewhere: dashboard widgets, cards on a patient summary, actions in a shared menu.
+   Every control a person can press is gated on the permission its request needs (see
+   "Authorization Is Repo-Wide Law", rule 7). Shared kit components carry no permission of
+   their own; they belong to the base plate.
+8. **Administration and settings are bricks too.** The Administration app (users, roles,
+   audit, integrations) is installed where IT works, the main machine, not on edge machines,
+   which are managed from the main machine or MedBrains Control. Each app plugs its own
+   settings section into Settings, so Pharmacy settings exist only where Pharmacy is installed
+   and only for people holding its settings permission. Machine settings on the OS screen stay
+   in the shell's Settings: everyday actions open, severe ones behind IT sign-in. Roles are the
+   control that makes bricks fit, so changing them is the most protected and audited action.
+9. **The server decides every request.** A brick being present grants nothing; the launcher,
+   the side panel and each screen's check only keep the screen honest about what the server
+   allows.
+10. **Same everywhere:** web, the OS launcher, edge machines and native apps read one installed
+   set, then the person's permissions.
+
+A module that is not a brick, a screen reachable without its permission, or an app installed
+on a machine whose roles do not need it, is a defect.
 
 ## Permissions First (MANDATORY)
 

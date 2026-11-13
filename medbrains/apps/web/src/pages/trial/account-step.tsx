@@ -85,7 +85,7 @@ export function AccountStep({ facility, onBack }: AccountStepProps) {
         created_at: now,
         updated_at: now,
       });
-      navigate("/dashboard", { replace: true });
+      void navigate("/dashboard", { replace: true });
     },
     onError: (error) => applyServerErrors(error, form.setError),
   });

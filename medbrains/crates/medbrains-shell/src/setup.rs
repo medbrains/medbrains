@@ -1,61 +1,24 @@
-//! First boot: Network, Updates, the main question, three fields, Review. Nothing is final
-//! until Review, and every screen after the first has Back.
+//! First boot: Network, Updates, the main question, three fields, Review, then the authenticator app.
+//! Nothing is final until the authenticator code is confirmed, and every screen after the first has Back.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk4 as gtk;
 use gtk4::prelude::{AccessibleExtManual, BoxExt, ButtonExt, Cast, EditableExt, WidgetExt};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::api::{self, Failure};
+use crate::authenticator;
 use crate::join;
 use crate::network;
+use crate::step::{Step, strip};
 use crate::timezone;
 use crate::ui;
 
-/// The setup screens.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Step {
-    Network,
-    Time,
-    Updates,
-    Purpose,
-    Connecting,
-    Details,
-    Review,
-}
-
-impl Step {
-    /// The screen's name in the stack.
-    const fn name(self) -> &'static str {
-        match self {
-            Self::Network => "network",
-            Self::Time => "time",
-            Self::Updates => "updates",
-            Self::Purpose => "purpose",
-            Self::Connecting => "connecting",
-            Self::Details => "details",
-            Self::Review => "review",
-        }
-    }
-
-    /// Where Back goes. Only the first screen has none.
-    const fn back(self) -> Option<Self> {
-        match self {
-            Self::Network => None,
-            Self::Time => Some(Self::Network),
-            Self::Updates => Some(Self::Time),
-            Self::Purpose => Some(Self::Updates),
-            Self::Connecting | Self::Details => Some(Self::Purpose),
-            Self::Review => Some(Self::Details),
-        }
-    }
-}
-
 /// What the flow carries between screens.
 #[derive(Clone)]
-struct Flow {
+pub(crate) struct Flow {
     stack: gtk::Stack,
     /// The three fields as last accepted, held only until they reach the service.
     draft: Rc<RefCell<(String, String, String)>>,
@@ -64,12 +27,12 @@ struct Flow {
 impl Flow {
     /// Shows a screen. The stack moves the focus into it, so the keyboard follows; moving it
     /// again here would skip the first field.
-    fn go(&self, step: Step) {
+    pub(crate) fn go(&self, step: Step) {
         self.stack.set_visible_child_name(step.name());
     }
 
     /// The button row for a screen: Back if it has one, then `extra`.
-    fn actions(&self, step: Step, extra: Option<&gtk::Button>) -> gtk::Box {
+    pub(crate) fn actions(&self, step: Step, extra: Option<&gtk::Button>) -> gtk::Box {
         let actions = ui::row(ui::GAP);
         if let Some(previous) = step.back() {
             let back = ui::button("Back", "");
@@ -237,8 +200,42 @@ fn details_page(flow: &Flow, review: Rc<dyn Fn()>) -> gtk::Widget {
     )
 }
 
-/// The last screen before anything changes, and how it updates its summary.
-fn review_page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Rc<dyn Fn()>) {
+/// Sends everything, with the authenticator code, and starts the main machine. `failed` gets the words why not.
+pub(crate) fn start_machine(
+    flow: &Flow,
+    code: &str,
+    finished: Rc<dyn Fn()>,
+    failed: Rc<dyn Fn(&str)>,
+) {
+    let (hospital, username, password) = flow.draft.borrow().clone();
+    let body =
+        json!({ "hospital": hospital, "username": username, "password": password, "code": code });
+    let flow = flow.clone();
+    api::post("/hospital", &body, move |result| match result {
+        Ok(_) => {
+            *flow.draft.borrow_mut() = Default::default();
+            finished();
+        }
+        // It may have got further than the answer says. Reads the truth before saying anything,
+        // so a machine already set up moves on rather than offering a dead end.
+        Err(failure) => api::fetch_state(move |state| {
+            if state.is_ok_and(|state| state.set_up) {
+                *flow.draft.borrow_mut() = Default::default();
+                finished();
+            } else {
+                failed(&failure.text());
+            }
+        }),
+    });
+}
+
+/// The last screen before anything changes, and how it updates its summary. Its button makes the login,
+/// then `enrol` shows the authenticator step.
+fn review_page(
+    flow: &Flow,
+    finished: Rc<dyn Fn()>,
+    enrol: Rc<dyn Fn(&Value)>,
+) -> (gtk::Widget, Rc<dyn Fn()>) {
     let body = ui::column(ui::GAP / 2);
     let name = ui::label("", "");
     let user = ui::label("", "");
@@ -259,28 +256,32 @@ fn review_page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Rc<dyn Fn()
         let (hospital, username, password) = target.draft.borrow().clone();
         let body = json!({ "hospital": hospital, "username": username, "password": password });
         sending.set_sensitive(false);
-        let (flow, finished, problem, sending) = (
+        problem.set_label("");
+        let (flow, finished, enrol, problem, sending) = (
             target.clone(),
             Rc::clone(&finished),
+            Rc::clone(&enrol),
             problem.clone(),
             sending.clone(),
         );
-        api::post("/hospital", &body, move |result| match result {
-            Ok(_) => {
-                *flow.draft.borrow_mut() = Default::default();
-                finished();
-            }
-            // It may have got further than the answer says. Reads the truth before saying anything,
-            // so a machine already set up moves on rather than offering a dead end.
-            Err(failure) => api::fetch_state(move |state| {
-                if state.is_ok_and(|state| state.set_up) {
-                    *flow.draft.borrow_mut() = Default::default();
-                    finished();
-                } else {
-                    problem.set_label(&failure.text());
+        api::post("/hospital/admin", &body, move |result| match result {
+            // A machine with no identity provider has no code to confirm.
+            Ok(answer) if answer["totp"].is_null() => {
+                let failed: Rc<dyn Fn(&str)> = Rc::new(move |words: &str| {
+                    problem.set_label(words);
                     sending.set_sensitive(true);
-                }
-            }),
+                });
+                start_machine(&flow, "", finished, failed);
+            }
+            Ok(answer) => {
+                sending.set_sensitive(true);
+                enrol(&answer["totp"]);
+                flow.go(Step::Authenticator);
+            }
+            Err(failure) => {
+                problem.set_label(&failure.text());
+                sending.set_sensitive(true);
+            }
         });
     });
 
@@ -290,46 +291,35 @@ fn review_page(flow: &Flow, finished: Rc<dyn Fn()>) -> (gtk::Widget, Rc<dyn Fn()
         name.set_label(&format!("Hospital: {}", draft.0));
         user.set_label(&format!("Username: {}", draft.1));
     });
-    let words = "Check this. After this step the machine starts as your hospital's main machine.";
+    let words = "Check this. After this step, and an authenticator app if asked, the machine starts as your hospital's main machine.";
     (ui::page("Review", words, &body, &actions), refresh)
 }
 
-/// Builds the whole flow. `finished` runs once the service has started the main machine.
-pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Stack {
+/// Builds the whole flow, under its strip. `finished` runs once the service has started the main
+/// machine.
+pub(crate) fn build(finished: impl Fn() + 'static) -> gtk::Box {
     let stack = ui::stack();
     let flow = Flow {
         stack: stack.clone(),
         draft: Rc::default(),
     };
     let finished: Rc<dyn Fn()> = Rc::new(finished);
-    let (review, refresh) = review_page(&flow, Rc::clone(&finished));
+    let (authenticator, enrol) = authenticator::page(&flow, Rc::clone(&finished));
+    let (review, refresh) = review_page(&flow, Rc::clone(&finished), enrol);
     stack.add_named(&network_page(&flow), Some(Step::Network.name()));
     stack.add_named(&time_page(&flow), Some(Step::Time.name()));
     stack.add_named(&updates_page(&flow), Some(Step::Updates.name()));
     stack.add_named(&purpose_page(&flow), Some(Step::Purpose.name()));
-    stack.add_named(&connecting_page(&flow, finished), Some(Step::Connecting.name()));
+    stack.add_named(
+        &connecting_page(&flow, finished),
+        Some(Step::Connecting.name()),
+    );
     stack.add_named(&details_page(&flow, refresh), Some(Step::Details.name()));
     stack.add_named(&review, Some(Step::Review.name()));
-    stack
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Step;
-
-    /// Every screen after the first must have a way back, and the connecting dead end
-    /// must lead back to the question, or a person is stuck there.
-    #[test]
-    fn back_walks_the_flow_and_only_the_first_screen_has_none() {
-        assert_eq!(Step::Network.back(), None);
-        assert_eq!(Step::Connecting.back(), Some(Step::Purpose));
-        assert_eq!(Step::Details.back(), Some(Step::Purpose));
-        let mut step = Step::Review;
-        let mut hops = 0;
-        while let Some(previous) = step.back() {
-            step = previous;
-            hops += 1;
-        }
-        assert_eq!((step, hops), (Step::Network, 5));
-    }
+    stack.add_named(&authenticator, Some(Step::Authenticator.name()));
+    stack.set_vexpand(true);
+    let root = ui::column(0);
+    root.append(&strip(&stack));
+    root.append(&stack);
+    root
 }

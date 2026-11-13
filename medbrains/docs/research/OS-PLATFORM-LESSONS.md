@@ -243,7 +243,7 @@ knowledge and were not checked against a primary source in this pass.
    end-of-support date for each certified hardware kit, as ChromeOS and Debian do.
 4. **Grant hygiene.** Extension grants expire automatically when unused, are time-limited where
    possible, and are approved once by the hospital admin, never prompted to clinicians.
-5. **Open-source and economics pledges, written now.** The core stays Apache-2.0 with no relicensing.
+5. **Open-source and economics pledges, written now.** The core stays free and open under AGPL-3.0-only (moved from Apache-2.0 on 2026-11-12; see DECISIONS.md), and earlier releases stay Apache-2.0.
    No fee for API or FHIR access. Store and certification fees cover costs only. A trademark policy.
    A guaranteed full data export, as the Google Health and HealthVault exits did.
 6. **Governance.** Named subsystem maintainers and a public RFC process. Consider a neutral foundation

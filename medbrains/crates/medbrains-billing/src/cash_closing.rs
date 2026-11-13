@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
-use medbrains_core::billing::{AuditAction, DayEndClose};
+use medbrains_core::billing::{AuditAction, DayCloseStatus, DayEndClose};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -277,6 +277,8 @@ pub struct VerifyDayCloseRequest {
     pub verification_notes: Option<String>,
 }
 
+/// Check a cashier's day close: verified when cash, card and UPI all match, otherwise
+/// discrepancy. Someone other than the cashier, once.
 pub async fn verify_day_close(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -290,13 +292,26 @@ pub async fn verify_day_close(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let existing = sqlx::query_as::<_, DayEndClose>(
-        "SELECT * FROM day_end_closes WHERE id = $1 AND tenant_id = $2",
+        "SELECT * FROM day_end_closes WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // Counting the drawer and checking the count are two people: the cashier cannot sign off
+    // their own close. And a close is checked once; re-verifying would overwrite who checked it.
+    if existing.cashier_id == claims.sub {
+        return Err(AppError::Conflict(
+            "the cashier who closed the day cannot verify it".to_owned(),
+        ));
+    }
+    if existing.status != DayCloseStatus::Open {
+        return Err(AppError::Conflict(
+            "this day close has already been checked".to_owned(),
+        ));
+    }
 
     // Any cash, card or UPI variance leaves the close in discrepancy.
     let balanced = existing.cash_difference == Decimal::ZERO
@@ -308,7 +323,7 @@ pub async fn verify_day_close(
         "UPDATE day_end_closes SET \
          status = $1::day_close_status, verified_by = $2, verified_at = now(), \
          verification_notes = COALESCE($5, verification_notes), updated_at = now() \
-         WHERE id = $3 AND tenant_id = $4 \
+         WHERE id = $3 AND tenant_id = $4 AND status = 'open'::day_close_status \
          RETURNING *",
     )
     .bind(new_status)
@@ -321,8 +336,10 @@ pub async fn verify_day_close(
             .map(str::trim)
             .filter(|s| !s.is_empty()),
     )
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    // The row is locked above, so this is belt and braces against a status changed between.
+    .ok_or_else(|| AppError::Conflict("this day close has already been checked".to_owned()))?;
 
     tx.commit().await?;
     Ok(Json(row))

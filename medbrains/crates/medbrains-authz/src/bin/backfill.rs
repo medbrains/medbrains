@@ -325,8 +325,7 @@ async fn backfill_paged(
         if let Some(last) = rows.last() {
             cursor = last.0;
         }
-        written +=
-            write_derived_batch(run, object_type, relation_name, &rows, &map, label).await?;
+        written += write_derived_batch(run, object_type, relation_name, &rows, &map, label).await?;
     }
     Ok(written)
 }

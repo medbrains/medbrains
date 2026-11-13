@@ -41,7 +41,11 @@ fn is_local_page(uri: &str, origin: &str) -> bool {
 
 /// True for a navigation away from this app. The content filter would block it too, but on a
 /// dead-end page; refusing it here leaves the person where they were.
-fn leaves_this_app(decision: &NavigationPolicyDecision, origin: &str, sign_in: Option<&str>) -> bool {
+fn leaves_this_app(
+    decision: &NavigationPolicyDecision,
+    origin: &str,
+    sign_in: Option<&str>,
+) -> bool {
     let target = decision
         .navigation_action()
         .and_then(|mut action| action.request())
@@ -60,6 +64,9 @@ const NETWORK_PROCESS_LIMIT_MB: u32 = 128;
 /// Share of the limit at which caches are dropped, then compiled code too.
 const CONSERVATIVE_SHARE: f64 = 0.5;
 const STRICT_SHARE: f64 = 0.65;
+// Caches go before compiled code, and both well before the limit, so the page slows a little rather
+// than running out. Checked when the shell is compiled.
+const _: () = assert!(CONSERVATIVE_SHARE < STRICT_SHARE && STRICT_SHARE < 1.0);
 
 /// The memory pressure thresholds for one WebKit process.
 fn pressure(limit_mb: u32) -> MemoryPressureSettings {
@@ -157,7 +164,12 @@ fn forget_sign_in_on_sign_out(view: &WebView, session: &NetworkSession, origin: 
     view.connect_notify_local(Some("uri"), move |view, _| {
         if view.uri().is_some_and(|uri| is_sign_in_page(&uri, &origin)) {
             if let Some(data) = session.website_data_manager() {
-                data.clear(WebsiteDataTypes::COOKIES, gtk4::glib::TimeSpan::from_seconds(0), gtk4::gio::Cancellable::NONE, |_| {});
+                data.clear(
+                    WebsiteDataTypes::COOKIES,
+                    gtk4::glib::TimeSpan::from_seconds(0),
+                    gtk4::gio::Cancellable::NONE,
+                    |_| {},
+                );
             }
         }
     });
@@ -165,24 +177,31 @@ fn forget_sign_in_on_sign_out(view: &WebView, session: &NetworkSession, origin: 
 
 #[cfg(test)]
 mod tests {
-    use super::{CONSERVATIVE_SHARE, STRICT_SHARE, is_local_page, is_sign_in_page};
-
-    /// Caches go before compiled code, and both well before the limit, so the page slows a
-    /// little rather than running out.
-    #[test]
-    fn memory_is_given_back_in_order_before_the_limit() {
-        assert!(CONSERVATIVE_SHARE < STRICT_SHARE);
-        assert!(STRICT_SHARE < 1.0);
-    }
+    use super::{is_local_page, is_sign_in_page};
 
     /// Only the app's own sign-in page clears the view's cookies, not a page that merely looks like it.
     #[test]
     fn only_the_apps_own_sign_in_page_counts() {
-        assert!(is_sign_in_page("https://screen.medbrains.local:8443/login", "https://screen.medbrains.local:8443"));
-        assert!(is_sign_in_page("https://screen.medbrains.local:8443/login?sso_error=unavailable", "https://screen.medbrains.local:8443"));
-        assert!(!is_sign_in_page("https://screen.medbrains.local:8443/loginhelp", "https://screen.medbrains.local:8443"));
-        assert!(!is_sign_in_page("https://screen.medbrains.local:8443/dashboard", "https://screen.medbrains.local:8443"));
-        assert!(!is_sign_in_page("https://idm.medbrains.local:9443/login", "https://screen.medbrains.local:8443"));
+        assert!(is_sign_in_page(
+            "https://screen.medbrains.local:8443/login",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(is_sign_in_page(
+            "https://screen.medbrains.local:8443/login?sso_error=unavailable",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(!is_sign_in_page(
+            "https://screen.medbrains.local:8443/loginhelp",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(!is_sign_in_page(
+            "https://screen.medbrains.local:8443/dashboard",
+            "https://screen.medbrains.local:8443"
+        ));
+        assert!(!is_sign_in_page(
+            "https://idm.medbrains.local:9443/login",
+            "https://screen.medbrains.local:8443"
+        ));
     }
 
     const ORIGIN: &str = "https://127.0.0.1:8443";

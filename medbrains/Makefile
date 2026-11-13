@@ -9,7 +9,7 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
-       check-field-classes check-authz-collapse check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
+       check-field-classes check-authz-collapse check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers check-migration-immutable perf-web e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
@@ -101,7 +101,7 @@ dev-backend-watch: db ## Backend auto-rebuild+restart on save (incremental — o
 	cargo watch --why --watch crates --exec 'run -p medbrains-server --bin medbrains-server'
 
 dev-mail-mailboxes: ## Create a local Stalwart mailbox for every seeded user (via the app API)
-	scripts/dev_mail_mailboxes.sh
+	DATABASE_URL="$(SQLX_DATABASE_URL)" scripts/dev_mail_mailboxes.sh
 
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
@@ -137,13 +137,13 @@ dev-split: ## Start backend + web without local HTTPS proxy
 		wait
 
 sim-hospital: ## Stream synthetic OPD/lab/radiology/pharmacy traffic into local dev DB
-	node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --stream
+	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --stream
 
 sim-hospital-batch: ## Bulk-generate synthetic hospital traffic quickly
-	node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --batch
+	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID) --patients $(SIM_PATIENTS) --rate $(SIM_RATE) --batch
 
 sim-hospital-clean: ## Remove only simulator records for SIM_RUN_ID
-	node scripts/simulators/hospital_stream.mjs cleanup --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID)
+	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs cleanup --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID)
 
 # ── Mobile / Camp Mode ───────────────────────────────────────
 
@@ -296,12 +296,12 @@ prepare-sqlx: guard-sqlx-nonprod ## Refresh SQLx offline metadata from local/CI 
 safe-prepare-sqlx: guard-sqlx-nonprod ## prepare-sqlx that refuses unless the workspace compiles, and restores .sqlx if prepare fails
 	bash scripts/safe_prepare_sqlx.sh "$(SQLX_DATABASE_URL)" $(SQLX_PREPARE_CARGO_ARGS)
 
-.PHONY: doctor gate safe-prepare-sqlx
+.PHONY: doctor gate safe-prepare-sqlx fonts check-fonts
 doctor: ## Find dev traps (root-owned caches, disk, stale master, busy cargo, .env, DB); prints fixes, changes nothing
 	@bash scripts/doctor.sh
 
 .PHONY: release
-release: ## Check a release is ready (VERSION=1.0.0) and print the tag commands; never tags or pushes
+release: ## Check a release is ready (VERSION=3.33.0) and print the tag commands; never tags or pushes
 	@bash scripts/release.sh "$(VERSION)"
 
 gate: ## Strict pre-merge gate: biome, packages+typecheck, check-all, targeted clippy+tests (CRATES=, TESTS=)
@@ -348,6 +348,10 @@ check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
 check-ui-slop: ## Decorative effects in the web app only ever go down
 	python3 scripts/check_ui_slop.py
 
+check-query-fallbacks: ## Query data defaulted to []/false only ever goes down (outage is not empty)
+	python3 scripts/check_query_fallbacks.py --self-test
+	python3 scripts/check_query_fallbacks.py
+
 check-ui-seam: ## Verify pages use @/components/ui (not raw Mantine Button/Badge)
 	python3 scripts/check_ui_seam.py
 
@@ -357,7 +361,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-shell-theme check-raw-key-bytes ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -414,12 +418,33 @@ check-ui-permission-match-update-baseline: ## Record the current under-gated set
 check-authz-collapse: ## Ban collapsing an authz check's error into a denial
 	python3 scripts/check_authz_collapse.py
 
+check-raw-key-bytes: ## Ban building keys from raw bytes, new in-repo dev keys and MEDBRAINS_ENV literals outside medbrains-crypto/src/keys*
+	python3 scripts/check_raw_key_bytes.py
+	bash deploy/standalone/test-jwt-keys.sh
+
+FONTS_PY = uv run --no-project --python 3.12 --with-requirements tools/fonts/requirements.txt python -I
+
+fonts: ## Rebuild MedBrains Sans from the pinned IBM Plex release, then its review sheet
+	$(FONTS_PY) tools/fonts/build_medbrains_sans.py
+	$(FONTS_PY) tools/fonts/render_samples.py
+
+check-fonts: ## The committed MedBrains Sans files are exactly what the build makes, and no kerned pair collides
+	$(FONTS_PY) tools/fonts/build_medbrains_sans.py --check
+	$(FONTS_PY) tools/fonts/check_glyph_collisions.py
+
+check-shell-theme: ## The OS shell's GTK colours match the design tokens and meet WCAG 2.2 AA
+	python3 -I os/shell-tokens.py --check
+
 check-docs: ## Every function this branch adds or changes has a doc comment
 	cd .. && python3 medbrains/scripts/check_docs_on_new_functions.py
 
 check-kernel-boundary: ## Ratchet: apps reach the trusted core only through medbrains-kernel
 	python3 scripts/check_kernel_boundary.py --self-test
 	python3 scripts/check_kernel_boundary.py
+
+hooks: ## Install the repo git hooks (rustfmt staged Rust files, migration checks) for this clone
+	git config core.hooksPath medbrains/.githooks
+	@echo "git hooks installed: medbrains/.githooks"
 
 check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts, web first load
 	python3 scripts/check_size_budgets.py --self-test
@@ -446,6 +471,10 @@ eval-ai-record: ## Re-record the golden answers from the real model (synthetic o
 
 check-query-collapse: ## Ban collapsing a DB read's error into an empty result
 	python3 scripts/check_query_collapse.py
+
+check-query-in-loop: ## No new database query inside a loop (N+1 ratchet)
+	python3 scripts/check_query_in_loop.py --self-test
+	python3 scripts/check_query_in_loop.py --check
 
 check-boundary-filter: ## Ban a deploy mode that needs PHI egress filtering from booting without it
 	python3 scripts/check_boundary_filter.py
@@ -708,7 +737,7 @@ native-core: ## Build the Rust core for iOS + Android and regenerate the UniFFI 
 	ANDROID_NDK_HOME=$$(ls -d $$HOME/Library/Android/sdk/ndk/27* | head -1) CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo ndk -t arm64-v8a -t x86_64 -o apps/android/core/src/main/jniLibs build --release -p medbrains-edge-rn
 
 native-ios: ## Generate the Xcode project and build MedBrainsStaff for the simulator
-	cd apps/ios && xcodegen generate && xcodebuild -project MedBrains.xcodeproj -scheme MedBrainsStaff -destination "platform=iOS Simulator,id=$(IOS_SIM)" -derivedDataPath DerivedData build | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+	cd apps/ios && xcodegen generate && xcodebuild -project MedBrains.xcodeproj -scheme MedBrainsStaff -destination "platform=iOS Simulator,id=$(IOS_SIM)" -derivedDataPath DerivedData $$(../../scripts/app_version.sh | awk '{print "MARKETING_VERSION=" $$1, "CURRENT_PROJECT_VERSION=" $$2}') build | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
 
 native-ios-test: ## Run the Swift package tests (MedBrainsKit)
 	cd apps/ios/Packages/MedBrainsKit && swift test
@@ -869,11 +898,11 @@ ship: ## Full CI gate (no deploy). Includes full E2E before release build.
 	@$(MAKE) -s build
 	@echo "✅ ship clean — ready to deploy."
 
-ship-cold: ship ## Full ship + deploy to prod (Starter tier on hims.amh.org.in)
+ship-cold: ship ## Full ship + deploy to prod (Starter tier; host from TF_VAR_domain in infra/.env)
 	@echo "── deploy ──────────────────────────────"
-	@cd infra/terraform/envs/clients/alagappa && $(MAKE) apply
+	@cd infra/terraform/envs/standalone/hospital-a && $(MAKE) apply
 	@echo "── post-deploy smoke ───────────────────"
-	@curl -sS --fail --max-time 10 https://hims.amh.org.in/api/health > /dev/null \
+	@set -a; . infra/.env; set +a; curl -sS --fail --max-time 10 "https://$${TF_VAR_domain:?Set TF_VAR_domain in infra/.env}/api/health" > /dev/null \
 		&& echo "✅ /api/health 200" \
 		|| { echo "❌ /api/health failed"; exit 1; }
 	@echo "✅ ship-cold complete."
@@ -882,8 +911,8 @@ hotpush-ui: ## Build and deploy only the web SPA to the standalone host
 	@set -euo pipefail; \
 	if [ -f infra/.env ]; then set -a; . infra/.env; set +a; fi; \
 	: "$${TF_VAR_ssh_private_key_path:?Set TF_VAR_ssh_private_key_path in infra/.env}"; \
-	DOMAIN="$${TF_VAR_domain:-hims.amh.org.in}"; \
-	SSH_ENDPOINT="$$(cd infra/terraform/envs/clients/alagappa && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
+	DOMAIN="$${TF_VAR_domain:?Set TF_VAR_domain in infra/.env}"; \
+	SSH_ENDPOINT="$$(cd infra/terraform/envs/standalone/hospital-a && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
 	if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then SSH_ENDPOINT="ubuntu@$$DOMAIN"; fi; \
 	echo "── hotpush-ui: typecheck web ───────────"; \
 	pnpm --filter @medbrains/web typecheck; \
@@ -1004,7 +1033,7 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 	bash scripts/build_guard.sh --wait
 	# jemalloc's build runs make itself, and would read this make's ARCH=... as a target. It also
 	# takes macOS ar and ranlib unless told, which index Linux objects as Mach-O and break the link.
-	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
+	env -u MAKEFLAGS -u ARCH AR="zig ar" RANLIB="zig ranlib" CARGO_TARGET_DIR=$(OS_TARGET_DIR) SQLX_OFFLINE=true cargo zigbuild --release --target=$(OS_ARCH_TRIPLE).2.36 -p medbrains-server --bin medbrains-server -p medbrains-os-setup --bin medbrains-os-setup -p medbrains-os-update --bin medbrains-os-update -p medbrains-agent --bin medbrains-agent -p medbrains-proxy --bin medbrains-front
 	OS_TARGET_DIR=$(OS_TARGET_DIR)-kanidm os/build-kanidm.sh --arch $(or $(ARCH),arm64)
 	pnpm turbo run build --filter=@medbrains/web...
 	CARGO_TARGET_DIR=$(OS_TARGET_DIR) os/build.sh --arch $(or $(ARCH),arm64) $(if $(DEBUG),--debug)
@@ -1012,6 +1041,10 @@ os-image: ## Build the MedBrains OS disk image (ARCH=arm64|x86-64, DEBUG=1 for a
 os-test: ## Boot a debug image and check security, boot and memory (IMAGE=path/to/image.raw)
 	bash scripts/build_guard.sh --wait
 	cargo run -q -p medbrains-os-test -- $(IMAGE)
+
+os-test-updates: ## Prove A/B updates on real QEMU machines (IMAGE=path/to/image.raw BUNDLES=path)
+	bash scripts/build_guard.sh --wait
+	cargo run -q -p medbrains-os-test -- $(IMAGE) updates $(BUNDLES)
 
 os-boot: ## Boot the built arm64 image in QEMU (FRESH=1 for a brand-new box)
 	os/qemu-run.sh $(if $(FRESH),--fresh)

@@ -5,7 +5,6 @@ use axum::{
     Router,
     http::{HeaderName, HeaderValue, Method, header::CONTENT_TYPE},
 };
-use jsonwebtoken::{DecodingKey, EncodingKey};
 use tower_http::{
     compression::CompressionLayer,
     cors::{AllowOrigin, CorsLayer},
@@ -162,8 +161,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // keep a connection that can alter the schema.
     let bootstrap_pool = match std::env::var("MIGRATION_DATABASE_URL") {
         Ok(url) if !url.trim().is_empty() => {
-            let owner =
-                medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            let owner = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
             medbrains_db_migrations::run(&owner).await?;
             tracing::info!("migrations ran on the owner connection");
             owner
@@ -204,9 +202,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Build JWT keys from Ed25519 PEM/base64
-    let encoding_key = EncodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_private_key_pem)?);
-    let decoding_key = DecodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_public_key_pem)?);
+    // The JWT pair is parsed with the real decoders and proven by a signed
+    // probe; a damaged or mismatched pair refuses to boot (keys::jwt_keys).
+    let medbrains_crypto::keys::JwtKeys {
+        encoding: encoding_key,
+        decoding: decoding_key,
+        fingerprint,
+    } = medbrains_crypto::keys::jwt_keys(&config.jwt_private_key_pem, &config.jwt_public_key_pem)
+        .map_err(|e| {
+        format!(
+            "refusing to start: {e}. Generate JWT_PRIVATE_KEY and JWT_PUBLIC_KEY together \
+                 as one pair (docs/architecture/OS-KEYS.md) and restart"
+        )
+    })?;
+    tracing::info!(jwt_public_key = %fingerprint, "JWT signing pair checked");
 
     // Cookie configuration
     let cookie_config = CookieConfig {
@@ -227,10 +236,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let topology_resolver: Arc<dyn medbrains_db_topology::TopologyResolver> = Arc::new(
         medbrains_db_topology::PostgresTopologyResolver::new(db_pool.clone()),
     );
+    // The reader is the reports pool (report_runner): its own small cap, so
+    // a burst of reports can never take the connections the wards need.
+    let reports_pool = reports_pool(&config.database_url, &pool_config).await?;
     let topology_router: Arc<dyn medbrains_db_topology::TopologyDispatcher> =
         Arc::new(medbrains_db_topology::TopologyRouter::new(
             db_pool.clone(),
-            db_pool.clone(),
+            reports_pool,
             topology_resolver,
         ));
 
@@ -378,6 +390,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         s3: s3_client,
         gotenberg: gotenberg_client,
         documents_store: Arc::clone(&documents_store),
+        reports: medbrains_server_core::report_runner::ReportGate::new(
+            medbrains_server_core::report_runner::ReportLimits::from_env(),
+        ),
     };
 
     // Seeding runs on the bootstrap connection, not the request pool.
@@ -412,23 +427,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
     let domains = medbrains_core::vendor::vendor_domains();
-    let (flagged, skipped): (i32, Vec<uuid::Uuid>) =
-        sqlx::query_as(
-            "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
-        )
-            .bind(&domains)
-            .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
-            .bind(medbrains_core::vendor::backfill_max())
-            .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
-            .fetch_one(&bootstrap_pool)
-            .await
-            .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;
+    let (flagged, skipped): (i32, Vec<uuid::Uuid>) = sqlx::query_as(
+        "SELECT flagged, skipped FROM public.app_flag_vendor_accounts($1, $2, $3, $4)",
+    )
+    .bind(&domains)
+    .bind(medbrains_core::vendor::PUBLIC_SUFFIXES)
+    .bind(medbrains_core::vendor::backfill_max())
+    .bind(medbrains_core::vendor::PLATFORM_DOMAINS)
+    .fetch_one(&bootstrap_pool)
+    .await
+    .map_err(|e| format!("vendor-domain list refused, server not started: {e}"))?;
     sqlx::query("SELECT public.app_set_vendor_domains($1)")
         .bind(&domains)
         .execute(&bootstrap_pool)
         .await?;
     if flagged > 0 {
-        tracing::warn!(flagged, "accounts on vendor domains flagged; what they set up is revoked");
+        tracing::warn!(
+            flagged,
+            "accounts on vendor domains flagged; what they set up is revoked"
+        );
     }
     for user_id in skipped {
         tracing::error!(
@@ -444,7 +461,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let findings = medbrains_server::preflight::run(
         &config,
         state.secret_resolver.as_ref(),
-        &medbrains_server::preflight::Pools { request: &db_pool, owner: &bootstrap_pool },
+        &medbrains_server::preflight::Pools {
+            request: &db_pool,
+            owner: &bootstrap_pool,
+        },
     )
     .await;
     medbrains_server::preflight::log(&findings);
@@ -595,17 +615,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Same directory, mounted separately so the immutable header lands on the
     // hashed bundles only. No not_found_service: a miss under /assets is a
     // genuine 404, not a route to hand to the SPA.
-    let assets_service = tower::ServiceBuilder::new().layer(immutable_assets).service(
-        tower_http::services::ServeDir::new(format!("{static_dir}/assets"))
-            .precompressed_br()
-            .precompressed_gzip(),
-    );
+    let assets_service = tower::ServiceBuilder::new()
+        .layer(immutable_assets)
+        .service(
+            tower_http::services::ServeDir::new(format!("{static_dir}/assets"))
+                .precompressed_br()
+                .precompressed_gzip(),
+        );
 
     // Real-time notification bridge: LISTEN on the `notification_created`
     // channel (migration 0285 trigger) and republish committed rows to the
     // NotificationHub for WebSocket fan-out. Clone the hub before `state` is
     // moved into the router.
-    medbrains_server::services::notification_listener::spawn(db_pool.clone(), state.notifications.clone());
+    medbrains_server::services::notification_listener::spawn(
+        db_pool.clone(),
+        state.notifications.clone(),
+    );
 
     // Clone state for the simulator scheduler before `state` is moved into
     // the router below — the scheduler needs AppState (AI config) to run
@@ -646,6 +671,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(permissions_policy)
         .layer(coop)
         .layer(cors)
+        // A failed request's query and JSON body, identity masked, so a refused
+        // save can be traced to its field. Off unless
+        // MEDBRAINS_LOG_FAILED_PAYLOADS=1. Inside the trace span for the path.
+        .layer(axum::middleware::from_fn(
+            medbrains_server_core::payload_log::log_failed_payload,
+        ))
         // Negotiated response compression (brotli / zstd / gzip / deflate).
         // JSON API payloads are highly repetitive → typically 70–90% smaller
         // on the wire. Picks the best algorithm from the request's
@@ -729,6 +760,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_server::services::room_rent::spawn(worker_pool.clone());
     // Revenue leakage — daily pass queueing orders done but never billed.
     medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
+    // Paperless meter — daily recount of the last week's documents and paper.
+    medbrains_server::services::paperless_meter::spawn(worker_pool.clone());
     medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
     // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
     medbrains_hrms_gateway::spawn(worker_pool.clone());
@@ -818,9 +851,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Not `axum::serve(listener, app)`: that form copies the whole route table for every
     // connection (DECISIONS, 2026-11-04), and gives handlers no connecting address, leaving them
     // only headers that a client can write.
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     tracing::info!("shutdown complete — all in-flight requests drained");
     Ok(())
@@ -838,11 +874,17 @@ async fn run_preflight(config: &AppConfig) -> Result<(), Box<dyn std::error::Err
     let findings = medbrains_server::preflight::run(
         config,
         secrets.as_ref(),
-        &medbrains_server::preflight::Pools { request: &request, owner: &owner },
+        &medbrains_server::preflight::Pools {
+            request: &request,
+            owner: &owner,
+        },
     )
     .await;
     medbrains_server::preflight::log(&findings);
-    if findings.iter().any(|f| f.level == medbrains_infra_settings::preflight::Level::Fail) {
+    if findings
+        .iter()
+        .any(|f| f.level == medbrains_infra_settings::preflight::Level::Fail)
+    {
         return Err(medbrains_server::preflight::failure_summary(&findings).into());
     }
     tracing::info!(checks = findings.len(), "preflight passed");
@@ -873,6 +915,45 @@ async fn shutdown_signal() {
         () = ctrl_c => tracing::info!("SIGINT received — draining"),
         () = terminate => tracing::info!("SIGTERM received — draining"),
     }
+}
+
+/// The pool every report, analytics and dashboard read runs on.
+///
+/// `REPORTS_DATABASE_URL` names a read replica or a low-priority role; unset,
+/// this is the primary. Either way it is a pool of its own, capped at
+/// `REPORTS_DB_POOL_MAX_CONNECTIONS` (default 4), so reports cannot exhaust
+/// the request pool. A configured replica that cannot be reached at boot is
+/// logged and the primary is used, still bounded: a replica outage must not
+/// stop the server, and the runner's bounds keep the primary safe meanwhile.
+async fn reports_pool(
+    primary_url: &str,
+    base: &medbrains_db::pool::PoolConfig,
+) -> Result<sqlx::PgPool, Box<dyn std::error::Error>> {
+    let max_connections = std::env::var("REPORTS_DB_POOL_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(4)
+        .max(1);
+    let config = medbrains_db::pool::PoolConfig {
+        max_connections,
+        min_connections: 0,
+        ..base.clone()
+    };
+    if let Ok(url) = std::env::var("REPORTS_DATABASE_URL")
+        && !url.trim().is_empty()
+    {
+        match medbrains_db::pool::create_pool_with_config(&url, &config).await {
+            Ok(pool) => {
+                tracing::info!(max_connections, "reports run on REPORTS_DATABASE_URL");
+                return Ok(pool);
+            }
+            Err(error) => tracing::error!(
+                %error,
+                "REPORTS_DATABASE_URL unreachable — reports fall back to the primary, bounded"
+            ),
+        }
+    }
+    Ok(medbrains_db::pool::create_pool_with_config(primary_url, &config).await?)
 }
 
 /// Sprint A.8 — assemble the outbox Handler Registry.
@@ -933,7 +1014,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.prescription_expiring"));
     registry.register(email_stub::SmtpSendHandler::new("email.radiology_report"));
     registry.register(email_stub::SmtpSendHandler::new("email.low_stock"));
-    registry.register(email_stub::SmtpSendHandler::new("email.incident_escalation"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        "email.incident_escalation",
+    ));
     registry.register(whatsapp::WhatsAppSendHandler::new(
         "whatsapp.radiology_report_ready",
     ));
@@ -1134,26 +1217,6 @@ async fn run_verify_chain(
         std::process::exit(2);
     }
     Ok(())
-}
-
-/// Decode a base64-encoded or raw PEM key into DER bytes.
-fn decode_b64_or_pem(input: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use base64::Engine;
-    use base64::engine::general_purpose::STANDARD;
-
-    // Try base64 decode first
-    let trimmed = input.trim();
-    if let Ok(bytes) = STANDARD.decode(trimmed) {
-        return Ok(bytes);
-    }
-
-    // Fall back to treating as PEM — extract base64 content between headers
-    let b64_content: String = trimmed
-        .lines()
-        .filter(|line| !line.starts_with("-----"))
-        .collect();
-
-    Ok(STANDARD.decode(b64_content)?)
 }
 
 #[cfg(test)]

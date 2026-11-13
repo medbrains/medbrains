@@ -442,7 +442,7 @@ function patientFlowSql(config, context, index, rng) {
       INSERT INTO encounters
         (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, encounter_date,
          notes, attributes, visit_type, created_by)
-      SELECT ${sql(context.tenant_id)}, id, 'opd'::encounter_type, ${sql(queueCompleted ? "open" : "open")}::encounter_status,
+      SELECT ${sql(context.tenant_id)}, id, 'opd'::encounter_type, ${sql("open")}::encounter_status,
              ${sql(departmentId)}, ${sql(context.doctor_id)}, CURRENT_DATE,
              ${sql(`Simulator OPD visit. run_id=${config.run_id}`)}, ${jsonSql(attrs)}, 'walk_in', ${sql(context.user_id)}
       FROM patient
@@ -868,8 +868,9 @@ async function main() {
   }
 
   const config = loadConfig(args);
-  const databaseUrl =
-    process.env.DATABASE_URL ?? "postgres://medbrains:medbrains_dev@localhost:5435/medbrains";
+  // No built-in URL: a password in the source is a password for everyone.
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("Set DATABASE_URL (see .env.example).");
   assertSafeMode(config, args, databaseUrl);
 
   if (args.command === "cleanup") {

@@ -37,7 +37,9 @@ export function useFailedQueries() {
       failed,
       error: failed[0]?.state.error ?? null,
       retry: () => {
-        for (const query of failed) void query.fetch();
+        // `fetch` rejects when the retry fails too; the failure is already in the
+        // query's state (and on screen), so the rejection is handled, not dropped.
+        for (const query of failed) query.fetch().catch(() => undefined);
       },
     };
   }, [key, cache]);

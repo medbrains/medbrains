@@ -235,6 +235,7 @@ async fn test_pool(url: &str) -> Result<sqlx::PgPool, medbrains_db::pool::DbErro
 /// `request_url` names the role the server's requests run as
 /// (`TEST_APP_DATABASE_URL` for a whole run); the owner otherwise.
 async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
+    crate::query_count::install();
     // Connect to DB
     let db = test_pool(&database_url())
         .await
@@ -312,6 +313,7 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
         secret_resolver,
         s3: None,
         gotenberg,
+        reports: medbrains_server_core::report_runner::ReportGate::default(),
         documents_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
             std::env::temp_dir().join("medbrains-test-docs"),
         )),
@@ -327,7 +329,9 @@ async fn spawn(secrets: TestSecrets, request_url: Option<String>) -> TestApp {
     tokio::spawn(async move {
         // Hundreds of tests sign in from loopback, so each request gets its own address to stay
         // clear of per-address limits. A test that sets its own header keeps it.
-        let app = app.layer(axum::middleware::from_fn(give_each_request_an_address));
+        let app = app
+            .layer(axum::middleware::from_fn(give_each_request_an_address))
+            .layer(axum::middleware::from_fn(crate::query_count::count_queries));
         axum::serve(
             listener,
             app.into_make_service_with_connect_info::<SocketAddr>(),

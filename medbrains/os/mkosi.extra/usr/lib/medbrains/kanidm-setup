@@ -75,7 +75,7 @@ set_up() {
     printf '%s\n' "$token" > "$TOKEN_FILE.new"
     mv "$TOKEN_FILE.new" "$TOKEN_FILE"
     install -d -m 0750 "$OWN"
-    touch "$STATE"
+    /usr/lib/medbrains/mark-done "$STATE"
 }
 
 # The directory account the server's link screen reads people through: read only, in the one group that may
@@ -126,7 +126,7 @@ connect_medbrains() {
     link_first_admin "$tenant"
     make_directory_account "$admin"
     install -d -m 0750 "$OWN"
-    touch "$CONNECTED"
+    /usr/lib/medbrains/mark-done "$CONNECTED"
 }
 
 # Links the first administrator's MedBrains account to its Kanidm login by Kanidm's UUID, which is the `sub`

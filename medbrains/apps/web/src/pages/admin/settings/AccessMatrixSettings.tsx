@@ -46,6 +46,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { OperationalSignal } from "@/components/OperationalSignal";
+import { loadFailedTitle, QueryError } from "@/components/QueryError";
 import { Alert, Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { NAV_GROUPS } from "@/config/navigation";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
@@ -459,13 +460,13 @@ function fieldCoverageMatches(
 
 function accessSurfaceKindOptions() {
   return [...new Set(ACCESS_MATRIX_SURFACES.map((surface) => surface.kind))]
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .map((kind) => ({ value: kind, label: kind }));
 }
 
 function accessSurfaceModuleOptions() {
   return [...new Set(ACCESS_MATRIX_SURFACES.map((surface) => surface.module))]
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .map((module) => ({ value: module, label: module }));
 }
 
@@ -534,7 +535,9 @@ function RoleMatrixEditor({
     const modules = new Set<string>();
     for (const permission of PERMISSIONS) modules.add(moduleFromPermission(permission.code));
     for (const field of FIELD_ACCESS_FIELDS) modules.add(fieldModule(field));
-    return [...modules].sort().map((module) => ({ value: module, label: module }));
+    return [...modules]
+      .sort((a, b) => a.localeCompare(b))
+      .map((module) => ({ value: module, label: module }));
   }, []);
 
   const visiblePermissions = useMemo(
@@ -952,7 +955,9 @@ function EffectiveUserAccessMatrix({
     const modules = new Set<string>();
     for (const permission of PERMISSIONS) modules.add(moduleFromPermission(permission.code));
     for (const field of FIELD_ACCESS_FIELDS) modules.add(fieldModule(field));
-    return [...modules].sort().map((module) => ({ value: module, label: module }));
+    return [...modules]
+      .sort((a, b) => a.localeCompare(b))
+      .map((module) => ({ value: module, label: module }));
   }, []);
 
   const visibleFields = useMemo(
@@ -3633,27 +3638,36 @@ export function AccessMatrixSettings() {
   const [activeMatrixTab, setActiveMatrixTab] = useState<string | null>(initialMatrixTab);
   const [selectedRoleId, setSelectedRoleId] = useState(searchParams.get("role"));
   const [selectedUserId, setSelectedUserId] = useState(searchParams.get("user"));
-  const { data: roles = [], isLoading: rolesLoading } = useQuery({
+  const rolesQuery = useQuery({
     queryKey: ["roles"],
     queryFn: () => adminAccessService.listRoles(),
     enabled: canViewRoles,
   });
-  const { data: users = [], isLoading: usersLoading } = useQuery({
+  const roles = rolesQuery.data ?? [];
+  const rolesLoading = rolesQuery.isLoading;
+  const usersQuery = useQuery({
     queryKey: ["setup-users"],
     queryFn: () => adminAccessService.listUsers(),
     enabled: canViewUsers,
   });
-  const { data: groups = [], isLoading: groupsLoading } = useQuery({
+  const users = usersQuery.data ?? [];
+  const usersLoading = usersQuery.isLoading;
+  const groupsQuery = useQuery({
     queryKey: ["access-groups"],
     queryFn: () => adminAccessService.listAccessGroups(),
     enabled: canViewUsers,
   });
+  const groups = groupsQuery.data ?? [];
+  const groupsLoading = groupsQuery.isLoading;
   const { data: accessManifest = null, isLoading: accessManifestLoading } = useQuery({
     queryKey: ["access-manifest"],
     queryFn: () => adminAccessService.getAccessManifest(),
   });
   const groupMemberBundlesQuery = useQuery({
-    queryKey: ["access-group-member-index", groups.map((group) => group.id).sort()],
+    queryKey: [
+      "access-group-member-index",
+      groups.map((group) => group.id).sort((a, b) => a.localeCompare(b)),
+    ],
     queryFn: async (): Promise<GroupMemberBundle[]> =>
       Promise.all(
         groups.map(async (group) => ({
@@ -3677,11 +3691,31 @@ export function AccessMatrixSettings() {
     ? (groupMemberIndex.byUser.get(selectedUser.id) ?? [])
     : [];
 
+  const matrixReads = [rolesQuery, usersQuery, groupsQuery];
+  const failedRead = matrixReads.find((q) => q.isError);
+  const retryMatrix = () => {
+    for (const q of matrixReads) if (q.isError) void q.refetch();
+  };
+
   if (rolesLoading || usersLoading || groupsLoading || accessManifestLoading) {
     return (
       <Group justify="center" py="xl">
         <Loader />
       </Group>
+    );
+  }
+
+  // A failed read is a fault, not an empty tenant: "no roles or users" would
+  // tell an administrator to go and create what already exists. With nothing
+  // loaded the fault replaces the page; after a failed refetch the last good
+  // copy stays under a banner.
+  if (matrixReads.some((q) => q.isLoadingError)) {
+    return (
+      <QueryError
+        error={failedRead?.error}
+        onRetry={retryMatrix}
+        title={loadFailedTitle("The access matrix", false)}
+      />
     );
   }
 
@@ -3695,6 +3729,13 @@ export function AccessMatrixSettings() {
 
   return (
     <Stack gap="md">
+      {failedRead && (
+        <QueryError
+          error={failedRead.error}
+          onRetry={retryMatrix}
+          title={loadFailedTitle("The access matrix", true)}
+        />
+      )}
       <Card withBorder padding="md">
         <Group justify="space-between" align="flex-start">
           <Group gap="sm">

@@ -13,12 +13,24 @@ export function describeLoadError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403) return "You don't have access to this. Ask your administrator.";
     if (error.status === 404) return "It could not be found. It may have been removed.";
+    // A report the server stopped for running too long: its words say what
+    // to do (narrow the date range), "a problem" would not.
+    if (error.code === "report_timeout") return error.message;
     if (error.status >= 500) return "The server ran into a problem. Try again in a moment.";
     return error.message;
   }
   if (error instanceof TypeError)
     return "Couldn't reach the server. Check your connection and try again.";
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+/**
+ * The title for a failed read of `what`: it "didn't load" when nothing was
+ * ever shown, and "may be out of date" when an earlier copy stays on screen
+ * under the banner (a failed background refetch keeps the last good data).
+ */
+export function loadFailedTitle(what: string, hasData: boolean): string {
+  return hasData ? `${what} may be out of date` : `${what} didn't load`;
 }
 
 /**

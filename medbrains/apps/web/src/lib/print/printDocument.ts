@@ -107,7 +107,7 @@ function renderItem(value: unknown): string {
 
 const PRINT_CSS = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { padding: 24px; font: 13px/1.5 "IBM Plex Sans", system-ui, sans-serif; color: #161616; }
+  body { padding: 24px; font: 13px/1.5 "MedBrains Sans", system-ui, sans-serif; color: #161616; }
   h1 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }

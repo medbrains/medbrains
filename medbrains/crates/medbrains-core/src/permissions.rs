@@ -4046,6 +4046,20 @@ pub mod analytics {
         /// general analytics access.
         pub const VIEW: &str = "analytics.management.view";
     }
+
+    pub mod paperless {
+        /// See the paperless meter.
+        ///
+        /// The share of clinical documents made in the system, signed
+        /// digitally and legally signed, by department and day, and the paper
+        /// still in use. Counts only; no patient or clinician is named.
+        pub const VIEW: &str = "analytics.paperless.view";
+        /// Recount the paperless meter now.
+        ///
+        /// Rebuilds the meter's daily counts for recent days instead of
+        /// waiting for the nightly pass.
+        pub const REFRESH: &str = "analytics.paperless.refresh";
+    }
 }
 
 pub mod command_center {
@@ -4304,6 +4318,20 @@ pub mod nurse {
         pub const ADMINISTER: &str = "nurse.mar.administer";
         pub const HOLD: &str = "nurse.mar.hold";
         pub const REFUSE: &str = "nurse.mar.refuse";
+        /// Witness a high-alert dose as the second checker.
+        ///
+        /// The independent double check before insulin, heparin, potassium
+        /// and other high-alert drugs are given (IPSG.3). Checked on the
+        /// witness, not the giver. Held by nurses, doctors and pharmacists;
+        /// a bypass role holds it only when granted it by name.
+        pub const WITNESS: &str = "nurse.mar.witness";
+        /// Give a high-alert dose.
+        ///
+        /// Checked on the giver of insulin, heparin, potassium and other
+        /// high-alert drugs (IPSG.3), on top of `nurse.mar.administer` or
+        /// `ipd.mar.update`. Held by nurses; a bypass role holds it only when
+        /// granted it by name, so an administrator is never the recorded giver.
+        pub const ADMINISTER_HIGH_ALERT: &str = "nurse.mar.administer_high_alert";
     }
     pub mod prescriptions {
         pub const DRAFT: &str = "nurse.prescriptions.draft";

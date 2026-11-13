@@ -192,8 +192,10 @@ export function timeline(
   history: FlowHistoryPoint[],
   forecast: FlowForecast | null,
 ): TimelineStep[] {
-  const past = [...new Set(history.map((p) => p.at))].sort();
-  const ahead = [...new Set((forecast?.points ?? []).map((p) => p.at))].sort();
+  const past = [...new Set(history.map((p) => p.at))].sort((a, b) => a.localeCompare(b));
+  const ahead = [...new Set((forecast?.points ?? []).map((p) => p.at))].sort((a, b) =>
+    a.localeCompare(b),
+  );
   return [
     ...past.map((at) => ({ moment: { kind: "history", at } as Moment, label: timeLabel(at) })),
     { moment: { kind: "live" }, label: "Now" },

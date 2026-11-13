@@ -30,3 +30,7 @@ RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+IPAddressDeny=any
+IPAddressAllow=localhost
+UMask=0077

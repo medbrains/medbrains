@@ -14,7 +14,7 @@ interface BindingQrSheetProps {
 const SHEET_CSS = `
 @page { size: A5 portrait; margin: 12mm; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'IBM Plex Sans', system-ui, sans-serif; color: black; background: white; }
+body { font-family: 'MedBrains Sans', system-ui, sans-serif; color: black; background: white; }
 .sheet { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .sheet-qr svg { width: 80mm; height: 80mm; }
 .sheet-meta { font-family: 'IBM Plex Mono', monospace; font-size: 10px; }

@@ -1,6 +1,6 @@
 # @medbrains/crdt
 
-Web-side offline-first store for MedBrains pages. Apache-2.0.
+Web-side offline-first store for MedBrains pages. AGPL-3.0-only, like the rest of MedBrains.
 
 Wraps [loro-crdt](https://github.com/loro-dev/loro) with:
 - IndexedDB persistence (so reloading a tab doesn't lose offline writes)

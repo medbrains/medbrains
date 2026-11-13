@@ -38,7 +38,10 @@ async fn group_with(app: &common::TestApp, admin: &common::Staff, code: &str) ->
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{group}");
-    group["id"].as_str().and_then(|id| id.parse().ok()).expect("group id")
+    group["id"]
+        .as_str()
+        .and_then(|id| id.parse().ok())
+        .expect("group id")
 }
 
 /// Given a manager, When they edit an administrator's name or deactivate
@@ -48,31 +51,53 @@ async fn group_with(app: &common::TestApp, admin: &common::Staff, code: &str) ->
 async fn a_manager_cannot_edit_an_administrator_or_their_own_scope() {
     let app = common::spawn_app().await;
     let admin = admin(&app).await;
-    let manager = common::provision_staff_with(&app, &admin.csrf, "receptionist", MANAGER, &[]).await;
+    let manager =
+        common::provision_staff_with(&app, &admin.csrf, "receptionist", MANAGER, &[]).await;
     let user = |id: Uuid| app.url(&format!("/api/setup/users/{id}"));
 
-    let (status, body) =
-        send(&manager, manager.client.put(user(admin.user_id)), json!({ "full_name": "Not Admin" })).await;
+    let (status, body) = send(
+        &manager,
+        manager.client.put(user(admin.user_id)),
+        json!({ "full_name": "Not Admin" }),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "renaming the admin: {body}");
-    let (status, body) =
-        send(&manager, manager.client.put(user(admin.user_id)), json!({ "is_active": false })).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "deactivating the admin: {body}");
+    let (status, body) = send(
+        &manager,
+        manager.client.put(user(admin.user_id)),
+        json!({ "is_active": false }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "deactivating the admin: {body}"
+    );
 
-    let dept: Uuid = sqlx::query_scalar("SELECT id FROM departments WHERE deleted_at IS NULL LIMIT 1")
-        .fetch_one(&app.db)
-        .await
-        .expect("a department");
+    let dept: Uuid =
+        sqlx::query_scalar("SELECT id FROM departments WHERE deleted_at IS NULL LIMIT 1")
+            .fetch_one(&app.db)
+            .await
+            .expect("a department");
     let scope = json!({ "department_ids": [dept] });
-    let (status, body) =
-        send(&manager, manager.client.put(user(manager.user_id)), scope.clone()).await;
+    let (status, body) = send(
+        &manager,
+        manager.client.put(user(manager.user_id)),
+        scope.clone(),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "own departments: {body}");
     let other = common::provision_staff(&app, &admin.csrf, "receptionist", &[]).await;
     let (status, body) = send(&manager, manager.client.put(user(other.user_id)), scope).await;
     assert_eq!(status, StatusCode::OK, "someone else's departments: {body}");
 
     let facilities = app.url(&format!("/api/setup/users/{}/facilities", manager.user_id));
-    let (status, body) =
-        send(&manager, manager.client.put(&facilities), json!({ "facility_ids": [] })).await;
+    let (status, body) = send(
+        &manager,
+        manager.client.put(&facilities),
+        json!({ "facility_ids": [] }),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "own facilities: {body}");
 }
 
@@ -88,7 +113,9 @@ async fn sso_memberships_survive_a_second_sign_in() {
 
     for _ in 0..2 {
         let mut tx = app.db.begin().await.expect("tx");
-        medbrains_db::pool::set_tenant_context(&mut tx, &tenant).await.expect("tenant");
+        medbrains_db::pool::set_tenant_context(&mut tx, &tenant)
+            .await
+            .expect("tenant");
         medbrains_sso_login::sync_sso_memberships(&mut tx, tenant, person.user_id, &[group])
             .await
             .expect("sync");
@@ -102,7 +129,10 @@ async fn sso_memberships_survive_a_second_sign_in() {
     )
     .await
     .expect("resolve");
-    assert!(held.contains(&HELD.to_owned()), "the second sign-in kept the membership");
+    assert!(
+        held.contains(&HELD.to_owned()),
+        "the second sign-in kept the membership"
+    );
 }
 
 /// Given a group with view on a patient and a member of it, When the admin
@@ -125,21 +155,45 @@ async fn a_removed_member_loses_group_access_in_the_pg_backend() {
     };
     let authz = PgAuthzBackend::new(app.db.clone());
     authz
-        .write_tuple(&as_user(admin.user_id, true), "patient", patient, Relation::Viewer, Subject::Group(group), None, None)
+        .write_tuple(
+            &as_user(admin.user_id, true),
+            "patient",
+            patient,
+            Relation::Viewer,
+            Subject::Group(group),
+            None,
+            None,
+        )
         .await
         .expect("group tuple");
     let members = app.url(&format!("/api/access-groups/{group}/members"));
-    let (status, body) =
-        send(&admin, admin.client.post(&members), json!({ "user_id": member.user_id })).await;
+    let (status, body) = send(
+        &admin,
+        admin.client.post(&members),
+        json!({ "user_id": member.user_id }),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let ctx = as_user(member.user_id, false);
     let can_view = || authz.check(&ctx, Relation::Viewer, "patient", patient);
-    assert!(can_view().await.expect("check"), "a member views through the group");
+    assert!(
+        can_view().await.expect("check"),
+        "a member views through the group"
+    );
 
-    let leave = app.url(&format!("/api/access-groups/{group}/members/{}", member.user_id));
+    let leave = app.url(&format!(
+        "/api/access-groups/{group}/members/{}",
+        member.user_id
+    ));
     let (status, body) = send(&admin, admin.client.delete(&leave), json!({})).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(!can_view().await.expect("check"), "a removed member does not");
-    let listed = authz.list_accessible(&ctx, "patient", Relation::Viewer).await.expect("list");
+    assert!(
+        !can_view().await.expect("check"),
+        "a removed member does not"
+    );
+    let listed = authz
+        .list_accessible(&ctx, "patient", Relation::Viewer)
+        .await
+        .expect("list");
     assert!(!listed.contains(&patient), "nor is it listed for them");
 }

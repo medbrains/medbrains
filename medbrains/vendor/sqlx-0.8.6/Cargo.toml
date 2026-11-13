@@ -279,10 +279,6 @@ optional = true
 version = "=0.8.6"
 optional = true
 
-[dependencies.sqlx-sqlite]
-version = "=0.8.6"
-optional = true
-
 [dev-dependencies.anyhow]
 version = "1.0.52"
 
@@ -305,9 +301,6 @@ version = "0.3.19"
 
 [dev-dependencies.hex]
 version = "0.4.3"
-
-[dev-dependencies.libsqlite3-sys]
-version = "0.30.1"
 
 [dev-dependencies.paste]
 version = "1.0.6"
@@ -360,14 +353,12 @@ _unstable-all-types = [
     "bstr",
 ]
 all-databases = [
-    "sqlite",
     "postgres",
     "any",
 ]
 any = [
     "sqlx-core/any",
     "sqlx-postgres?/any",
-    "sqlx-sqlite?/any",
 ]
 bigdecimal = [
     "sqlx-core/bigdecimal",
@@ -384,7 +375,6 @@ chrono = [
     "sqlx-core/chrono",
     "sqlx-macros?/chrono",
     "sqlx-postgres?/chrono",
-    "sqlx-sqlite?/chrono",
 ]
 default = [
     "any",
@@ -407,7 +397,6 @@ json = [
     "sqlx-core/json",
     "sqlx-macros?/json",
     "sqlx-postgres?/json",
-    "sqlx-sqlite?/json",
 ]
 mac_address = [
     "sqlx-core/mac_address",
@@ -422,14 +411,13 @@ migrate = [
     "sqlx-core/migrate",
     "sqlx-macros?/migrate",
     "sqlx-postgres?/migrate",
-    "sqlx-sqlite?/migrate",
 ]
 mysql = []
 postgres = [
     "sqlx-postgres",
     "sqlx-macros?/postgres",
 ]
-regexp = ["sqlx-sqlite?/regexp"]
+regexp = []
 runtime-async-std = [
     "_rt-async-std",
     "sqlx-core/_rt-async-std",
@@ -461,22 +449,13 @@ rust_decimal = [
     "sqlx-macros?/rust_decimal",
     "sqlx-postgres?/rust_decimal",
 ]
-sqlite = [
-    "_sqlite",
-    "sqlx-sqlite/bundled",
-    "sqlx-macros?/sqlite",
-]
-sqlite-preupdate-hook = ["sqlx-sqlite/preupdate-hook"]
-sqlite-unbundled = [
-    "_sqlite",
-    "sqlx-sqlite/unbundled",
-    "sqlx-macros?/sqlite-unbundled",
-]
+sqlite = []
+sqlite-preupdate-hook = []
+sqlite-unbundled = []
 time = [
     "sqlx-core/time",
     "sqlx-macros?/time",
     "sqlx-postgres?/time",
-    "sqlx-sqlite?/time",
 ]
 tls-native-tls = [
     "sqlx-core/_tls-native-tls",
@@ -501,9 +480,4 @@ uuid = [
     "sqlx-core/uuid",
     "sqlx-macros?/uuid",
     "sqlx-postgres?/uuid",
-    "sqlx-sqlite?/uuid",
 ]
-
-[target."cfg(sqlite_test_sqlcipher)".dev-dependencies.libsqlite3-sys]
-version = "0.30.1"
-features = ["bundled-sqlcipher"]

@@ -125,7 +125,9 @@ export function parsePincodes(text: string): { pincodes: string[]; bad: string[]
     .split(/[\s,;]+/)
     .map((p) => p.trim())
     .filter(Boolean);
-  const pincodes = [...new Set(parts.filter((p) => PINCODE.test(p)))].sort();
+  const pincodes = [...new Set(parts.filter((p) => PINCODE.test(p)))].sort((a, b) =>
+    a.localeCompare(b),
+  );
   return { pincodes, bad: parts.filter((p) => !PINCODE.test(p)) };
 }
 

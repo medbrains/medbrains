@@ -1,7 +1,7 @@
 [package]
 name = "medbrains-desktop"
 publish = false
-version = "0.1.0"
+version.workspace = true
 description = "MedBrains desktop client for Windows and Mac PCs"
 authors = ["MedBrains"]
 edition = "2024"
@@ -28,7 +28,7 @@ tauri-plugin-dialog = "2.8.3"
 tauri-plugin-notification = "2.7.0"
 tauri-plugin-updater = "2.14.1"
 tauri-plugin-process = "2.4.0"
-tauri-plugin-deep-link = "2.6.2"
+tauri-plugin-deep-link = "2.6.3"
 tauri-plugin-single-instance = "2.5.4"
 # Remembers the hospital server this desktop opens.
 tauri-plugin-store = "2.5.0"

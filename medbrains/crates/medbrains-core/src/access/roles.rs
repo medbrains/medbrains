@@ -31,6 +31,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // The second check on a high-alert dose at the bedside.
+            permissions::nurse::mar::WITNESS,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
             permissions::health::intel::VIEW,
             // Sees where a patient is in discharge and who holds it up.
@@ -619,6 +621,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::mar::ADMINISTER,
             permissions::nurse::mar::HOLD,
             permissions::nurse::mar::REFUSE,
+            permissions::nurse::mar::WITNESS,
+            permissions::nurse::mar::ADMINISTER_HIGH_ALERT,
             permissions::nurse::prescriptions::DRAFT,
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::nurse::vitals::VIEW,
@@ -913,6 +917,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            // The second check on a high-alert dose at the bedside.
+            permissions::nurse::mar::WITNESS,
             // Sees where a patient is in discharge and who holds it up.
             permissions::flows::VIEW,
             // Pharmacists propose drug interaction changes; the change goes
@@ -1462,6 +1468,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.
             permissions::analytics::management::VIEW,
+            // How paperless the hospital is, measured (NABH IMS).
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             // ABDM adoption and DHIS are measured as a compliance programme.
             permissions::abdm::dashboard::VIEW,
             // NMC advertising and the Drugs and Magic Remedies Act are
@@ -1599,6 +1608,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "MRD Officer",
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
+            // Medical records runs the scanning and the file room the meter
+            // counts.
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             permissions::terminology::snomed::VIEW,
             // Statutory reporting runs through medical records where there is
             // no infection control officer.
@@ -2203,6 +2216,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ipd::admissions::LIST,
             permissions::ipd::admissions::VIEW,
             permissions::quality::indicators::LIST,
+            // Medical administration answers for the move off paper.
+            permissions::analytics::paperless::VIEW,
+            permissions::analytics::paperless::REFRESH,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,

@@ -1,0 +1,22 @@
+name: Problem with a docs page
+description: Something on docs.medbrains.in is wrong, unclear or out of date
+labels: ["documentation", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping fix the docs. **Never include real patient data**: no names, phone numbers, UHIDs or screenshots of real records.
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The address of the page. The "Report a problem" link fills this in.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong?
+      description: What the page says, and what the screen or the product really does.
+    validations:
+      required: true

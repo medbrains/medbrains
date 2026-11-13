@@ -390,6 +390,22 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
                     AND timezone($3, discharged_at)::date BETWEEN $1 AND $2 \
                   GROUP BY 1",
         },
+        // Clinical documents made in the system that are signed digitally,
+        // from the paperless meter's daily rows (migration 1424), already
+        // dated by the hospital's clock. A day never counted has no row, so a
+        // week the meter did not run is unknown, not 0%.
+        "paperless_signed_pct" => Kpi {
+            unit: "%",
+            better: Better::Higher,
+            zero_fill: false,
+            clock: false,
+            shape: Shape::Rate,
+            departmental: false,
+            sql: "SELECT day, SUM(signed)::float8, SUM(created)::float8 \
+                  FROM paperless_daily \
+                  WHERE day BETWEEN $1 AND $2 \
+                  GROUP BY day",
+        },
         _ => return super::file_delivery::kpi(code),
     })
 }
@@ -398,7 +414,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
 mod tests {
     use super::{Shape, kpi};
 
-    const CODES: [&str; 19] = [
+    const CODES: [&str; 20] = [
         "opd_visits",
         "patient_registrations",
         "opd_wait_minutes",
@@ -418,6 +434,7 @@ mod tests {
         "mortality_pct",
         "readmission_30d_pct",
         "lama_dama_pct",
+        "paperless_signed_pct",
     ];
 
     /// Postgres refuses a statement bound with parameters it does not use, at

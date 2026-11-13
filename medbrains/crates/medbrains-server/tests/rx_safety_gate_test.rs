@@ -431,7 +431,10 @@ async fn picking_a_pack_and_collect_order_runs_the_safety_gate() {
     // Allergy status unknown on this patient: asked and acknowledged first.
     let (status, body) = send(&app, &csrf, "POST", &claim, json!({})).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert!(body.to_string().contains("allergy status is unknown"), "{body}");
+    assert!(
+        body.to_string().contains("allergy status is unknown"),
+        "{body}"
+    );
     let (status, body) = send(
         &app,
         &csrf,

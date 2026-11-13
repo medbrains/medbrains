@@ -3,22 +3,25 @@
 
 mod api;
 mod apps;
+mod authenticator;
 mod child;
 mod desktop;
 mod display;
 mod dock;
-mod netmenu;
 mod join;
 mod main_address;
+mod netmenu;
 mod network;
 mod power;
 mod prefs;
 mod running;
 mod settings;
 mod setup;
+mod step;
 mod timezone;
 mod topbar;
 mod ui;
+mod updates;
 mod webapp;
 mod webview;
 mod widgets;
@@ -27,13 +30,17 @@ mod wifi_panel;
 use std::time::Duration;
 
 use gtk4 as gtk;
-use gtk4::prelude::{ApplicationExt, ApplicationExtManual, GtkWindowExt, SettingsExt, WidgetExt};
+use gtk4::prelude::{
+    ApplicationExt, ApplicationExtManual, BoxExt, GtkWindowExt, SettingsExt, WidgetExt,
+};
 use gtk4::{gio, glib};
 
 /// How soon to ask again while the service is starting.
 const STARTUP_RETRY: Duration = Duration::from_secs(1);
 /// How many tries before the wait is called a fault.
 const STARTUP_PATIENCE: u32 = 30;
+/// The mascot on the screen shown while the machine starts, so it is never a bare page.
+const MASCOT_SIZE: i32 = 96;
 
 /// Shows the desktop in place of whatever the window held. Setup is dropped, not hidden: its
 /// fields still hold the password that was typed.
@@ -52,9 +59,7 @@ fn show_setup(stack: &gtk::Stack, css: &gtk::CssProvider) {
     let flow = setup::build(move || route_after_setup(target.clone(), theme.clone()));
     stack.add_named(&flow, Some("setup"));
     stack.set_visible_child_name("setup");
-    if let Some(child) = flow.visible_child() {
-        child.child_focus(gtk::DirectionType::TabForward);
-    }
+    flow.child_focus(gtk::DirectionType::TabForward);
 }
 
 /// Shows the desktop for the role setup has just written, trying again until the service says.
@@ -112,8 +117,14 @@ fn activate(app: &gtk::Application) {
     let stack = ui::stack();
     stack.add_css_class("wallpaper");
     let starting = ui::label("Starting…", "title");
-    starting.set_halign(gtk::Align::Center);
-    stack.add_named(&starting, Some("starting"));
+    starting.set_xalign(0.5);
+    starting.set_justify(gtk::Justification::Center);
+    let waiting = ui::column(ui::GAP);
+    waiting.set_halign(gtk::Align::Center);
+    waiting.set_valign(gtk::Align::Center);
+    waiting.append(&ui::mascot(MASCOT_SIZE));
+    waiting.append(&starting);
+    stack.add_named(&waiting, Some("starting"));
     let window = gtk::ApplicationWindow::builder()
         .application(app)
         .child(&stack)

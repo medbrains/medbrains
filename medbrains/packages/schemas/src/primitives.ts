@@ -87,7 +87,8 @@ export function isUUID(value: unknown): value is string {
 }
 
 /** Email format (basic validation) */
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Domain labels exclude "." so the match is linear (no ReDoS on "a@a.a.a.…").
+const EMAIL_REGEX = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
 
 /** Check if value is a valid email */
 export function isEmail(value: unknown): value is string {

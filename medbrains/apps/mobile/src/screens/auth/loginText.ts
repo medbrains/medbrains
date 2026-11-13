@@ -12,7 +12,7 @@ const MOBILE_LOGIN_MESSAGES: Record<string, string> = {
   "auth.login.errors.usernamePattern":
     "Username must start with a letter and contain only lowercase letters, digits, and underscores",
   "auth.login.errors.usernameRequired": "Username is required",
-  "auth.login.footer.poweredBy": "Powered by Alagappa Group of Institutions",
+  "auth.login.footer.poweredBy": "Powered by Example Group of Institutions",
   "auth.login.footer.version": "v0.1.0",
   "auth.login.form.password": "Password",
   "auth.login.form.username": "Username",

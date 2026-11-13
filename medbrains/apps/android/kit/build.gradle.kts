@@ -17,6 +17,8 @@ android {
         compilerOptions { allWarningsAsErrors.set(true) }
     }
     buildFeatures { compose = true }
+    // JaCoCo for the JVM unit tests: SonarQube reads build/reports/coverage/test/debug/report.xml.
+    buildTypes { getByName("debug") { enableUnitTestCoverage = true } }
     // Alert sounds shared with web and iOS: packages/alert-sounds/android/raw.
     sourceSets { named("main") { res.directories.add("../../../packages/alert-sounds/android") } }
 }

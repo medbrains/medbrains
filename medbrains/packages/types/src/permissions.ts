@@ -403,6 +403,12 @@ export const P = {
       VIEW: "analytics.management.view",
     },
     MANAGEMENT_VIEW: "analytics.management.view",
+    PAPERLESS: {
+      REFRESH: "analytics.paperless.refresh",
+      VIEW: "analytics.paperless.view",
+    },
+    PAPERLESS_REFRESH: "analytics.paperless.refresh",
+    PAPERLESS_VIEW: "analytics.paperless.view",
     VIEW: "analytics.view",
   },
   ASSETS: {
@@ -2256,14 +2262,18 @@ export const P = {
     INTAKE_OUTPUT_VIEW: "nurse.intake_output.view",
     MAR: {
       ADMINISTER: "nurse.mar.administer",
+      ADMINISTER_HIGH_ALERT: "nurse.mar.administer_high_alert",
       HOLD: "nurse.mar.hold",
       REFUSE: "nurse.mar.refuse",
       VIEW: "nurse.mar.view",
+      WITNESS: "nurse.mar.witness",
     },
     MAR_ADMINISTER: "nurse.mar.administer",
+    MAR_ADMINISTER_HIGH_ALERT: "nurse.mar.administer_high_alert",
     MAR_HOLD: "nurse.mar.hold",
     MAR_REFUSE: "nurse.mar.refuse",
     MAR_VIEW: "nurse.mar.view",
+    MAR_WITNESS: "nurse.mar.witness",
     PAIN: {
       RECORD: "nurse.pain.record",
       VIEW: "nurse.pain.view",

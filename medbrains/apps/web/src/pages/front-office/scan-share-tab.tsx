@@ -86,7 +86,7 @@ export function ScanShareTab() {
         return;
       }
       const state: ScanShareRegistrationState = { scanShare: { shareId: share.id, step } };
-      navigate("/patients/register", { state });
+      void navigate("/patients/register", { state });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not use this share" }),
   });
@@ -272,7 +272,7 @@ export function ScanShareTab() {
           setCompare(null);
           refresh();
           toast.success("The ABHA is linked", { title: "Linked" });
-          navigate(`/patients/${patientId}`);
+          void navigate(`/patients/${patientId}`);
         }}
       />
     </Stack>

@@ -92,7 +92,7 @@ mod tests {
             "St Mary s Hospi"
         );
         assert_eq!(hip_name("  City   Clinic "), "City Clinic");
-        assert!(hip_name("Alagappa Multispeciality").chars().count() <= 15);
+        assert!(hip_name("Example Multispeciality").chars().count() <= 15);
     }
 
     /// The HFR documentation's three samples (linked, already linked here,

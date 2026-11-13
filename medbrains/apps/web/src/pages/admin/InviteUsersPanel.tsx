@@ -47,7 +47,9 @@ type FormInput = z.infer<typeof schema>;
 export function InviteUsersPanel() {
   const canInvite = useHasPermission(P.ADMIN.USERS.CREATE);
   // Only an administrator invites an administrator; the server refuses anyone else.
-  const isCallerAdmin = usePermissionStore((s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole));
+  const isCallerAdmin = usePermissionStore(
+    (s) => s.userRole !== null && BYPASS_ROLES.has(s.userRole),
+  );
   const roleOptions = ROLE_OPTIONS.filter((r) => isCallerAdmin || !BYPASS_ROLES.has(r.value));
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);

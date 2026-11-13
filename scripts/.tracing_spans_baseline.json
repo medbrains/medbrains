@@ -1,13 +1,11 @@
 {
-  "coverage": 0.232558,
+  "coverage": 0.733333,
   "description": "Route tracing baseline. New handlers must carry #[tracing::instrument(... fields(tenant_id ...))].",
-  "instrumented_handlers": 20,
-  "total_handlers": 86,
-  "violation_count": 66,
+  "instrumented_handlers": 176,
+  "total_handlers": 240,
+  "violation_count": 64,
   "violations": [
-    "medbrains/crates/medbrains-server/src/routes/abdm/hfr.rs:get_tenant_facility:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/abdm/hfr.rs:list_registrations:missing_instrument",
-    "medbrains/crates/medbrains-server/src/routes/abdm/hfr.rs:register:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/abdm/hip_relay.rs:ack_callback:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/abdm/hip_relay.rs:list_pending_callbacks:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/abdm/hip_relay.rs:receive_callback:missing_instrument",

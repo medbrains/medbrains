@@ -23,6 +23,8 @@ const REFRESH_EVERY: Duration = Duration::from_secs(10);
 /// How long an app may sit in the background before its view is closed to give its memory back.
 /// Opening it again reloads the page, about a second on a main machine.
 const IDLE_LIMIT: Duration = Duration::from_secs(600);
+/// How long a dock tile plays its launch settle: Carbon's longest feedback time.
+const LAUNCH_FEEDBACK: Duration = Duration::from_millis(240);
 
 /// The page name for an app in the desktop's stack.
 fn page_name(app: &App) -> String {
@@ -54,9 +56,30 @@ pub(crate) struct Desktop {
     power_words: gtk::Label,
 }
 
+/// Plays the launch settle on an app's dock tile, once. With motion reduced GTK skips it.
+fn play_launch(entry: &Entry) {
+    let Some(body) = entry.running.parent() else {
+        return;
+    };
+    body.add_css_class("launching");
+    glib::timeout_add_local_once(LAUNCH_FEEDBACK, move || body.remove_css_class("launching"));
+}
+
 impl Desktop {
+    /// Marks the app on screen with the dock's blue bar, and no other.
+    fn mark_showing(&self, showing: Option<usize>) {
+        for (index, entry) in self.entries.iter().enumerate() {
+            if showing == Some(index) {
+                entry.running.add_css_class("showing");
+            } else {
+                entry.running.remove_css_class("showing");
+            }
+        }
+    }
+
     /// Goes back to the wallpaper. Apps stay as they were.
     pub(crate) fn go_home(&self) {
+        self.mark_showing(None);
         self.running.borrow_mut().home(Instant::now());
         self.content.set_visible_child_name("home");
         self.bar.show_screen(Screen::Desktop);
@@ -67,6 +90,10 @@ impl Desktop {
         let Some(entry) = self.entries.get(index) else {
             return;
         };
+        if !self.running.borrow().is_open(index) {
+            play_launch(entry);
+        }
+        self.mark_showing(Some(index));
         self.running.borrow_mut().open(index, Instant::now());
         self.content.set_visible_child_name(&page_name(&entry.app));
         let reloads = entry.web.is_some();
@@ -97,6 +124,7 @@ impl Desktop {
         self.running.borrow_mut().close(index);
         if let Some(entry) = self.entries.get(index) {
             entry.running.remove_css_class("running");
+            entry.running.remove_css_class("showing");
         }
         if was_showing {
             self.go_home();
@@ -122,6 +150,7 @@ impl Desktop {
     /// Takes the screen once the machine has accepted a power action, so it can't look frozen. The
     /// words change if the machine is somehow still on after the limit.
     fn show_power(&self, action: &'static str) {
+        self.mark_showing(None);
         self.power_words.set_label(power::accepted_words(action));
         self.content.set_visible_child_name("power");
         self.bar.show_screen(Screen::Desktop);
@@ -168,9 +197,12 @@ impl Desktop {
 
     /// Shows the launcher with its search empty and focused.
     pub(crate) fn show_launcher(&self) {
+        self.mark_showing(None);
         self.running.borrow_mut().home(Instant::now());
         self.content.set_visible_child_name("launcher");
         self.bar.show_screen(Screen::Launcher);
+        // The search is the page's first control, so typing starts a search at once.
+        self.focus_screen();
     }
 
     /// Shows one poll of the machine.

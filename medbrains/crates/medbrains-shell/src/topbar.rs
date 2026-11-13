@@ -5,10 +5,10 @@ use std::rc::Rc;
 
 use gtk4 as gtk;
 use gtk4::glib;
-use gtk4::prelude::{BoxExt, WidgetExt};
+use gtk4::prelude::{BoxExt, ButtonExt, WidgetExt};
 
 use crate::api::{Network, State};
-use crate::{netmenu, power, timezone, ui};
+use crate::{netmenu, power, timezone, ui, updates};
 
 /// The logo, staged by `os/build.sh`.
 const LOGO: &str = "/usr/share/medbrains/shell/logo.svg";
@@ -56,6 +56,9 @@ pub(crate) struct TopBar {
     disk_words: gtk::Label,
     network_icon: gtk::Image,
     network_words: gtk::Label,
+    update: gtk::Button,
+    update_dot: gtk::Box,
+    update_words: gtk::Label,
 }
 
 /// A small icon, with words beside it.
@@ -87,8 +90,10 @@ const fn clock_note(clock: &str) -> &'static str {
     match clock.as_bytes() {
         b"verified" => "The time is confirmed by an authenticated source.",
         b"checking" => "Checking the time with a time server.",
-        _ => "This machine could not confirm the time, so it may be wrong. A workstation or display \
-              gets its time from the main machine, so check that one first.",
+        _ => {
+            "This machine could not confirm the time, so it may be wrong. A workstation or display \
+              gets its time from the main machine, so check that one first."
+        }
     }
 }
 
@@ -130,6 +135,24 @@ impl TopBar {
         );
         firewall.prepend(&firewall_dot);
         right.append(&firewall);
+        let update_words = ui::line("", "");
+        let update_chip = chip(
+            &gtk::Image::from_icon_name("software-update-available-symbolic"),
+            &update_words,
+        );
+        let update_dot = ui::column(0);
+        update_dot.add_css_class("dot");
+        update_dot.set_valign(gtk::Align::Center);
+        update_chip.prepend(&update_dot);
+        let update = gtk::Button::builder()
+            .child(&update_chip)
+            .visible(false)
+            .build();
+        update.add_css_class("update-chip");
+        ui::set_name(&update, "Updates: open Settings");
+        let open_for_update = Rc::clone(&open_settings);
+        update.connect_clicked(move |_| open_for_update());
+        right.append(&update);
         let disk_words = ui::line("", "");
         let disk = chip(
             &gtk::Image::from_icon_name("drive-harddisk-symbolic"),
@@ -149,7 +172,7 @@ impl TopBar {
         right.append(&power::button(power_accepted));
 
         let zone_name = Rc::new(RefCell::new("UTC".to_owned()));
-        let (day, time) = (ui::line("", ""), ui::line("", "heading"));
+        let (day, time) = (ui::line("", ""), ui::line("", "clock-time"));
         let (zone, clock_note) = (ui::label("", "muted"), ui::label("", "muted"));
         clock_note.set_max_width_chars(36);
         root.set_start_widget(Some(&left));
@@ -184,6 +207,9 @@ impl TopBar {
             disk_words,
             network_icon,
             network_words,
+            update,
+            update_dot,
+            update_words,
         };
         bar.draw_clock();
         let ticking = bar.clone();
@@ -217,6 +243,12 @@ impl TopBar {
         self.firewall_words
             .set_label(firewall_words(state.firewall));
         ui::set_warning(&self.firewall_dot, !state.firewall);
+        let update = updates::chip_words(&state.update);
+        self.update.set_visible(update.is_some());
+        if let Some((words, warning)) = update {
+            self.update_words.set_label(words);
+            ui::set_warning(&self.update_dot, warning);
+        }
         let warning = disk_warning(&state.disk);
         self.disk.set_visible(warning.is_some());
         self.disk_words.set_label(warning.unwrap_or_default());
@@ -226,7 +258,8 @@ impl TopBar {
             .set_label(&ui::network_words(&state.network));
         self.clock_note.set_label(clock_note(&state.clock));
         self.time_alert.set_visible(state.clock == "unconfirmed");
-        self.main_alert.set_visible(state.role == "node" && !state.main_ready);
+        self.main_alert
+            .set_visible(state.role == "node" && !state.main_ready);
         let was_role = self.machine_role.replace(role_words(&state.role));
         if self.role.label() == was_role {
             self.role.set_label(self.machine_role.get());

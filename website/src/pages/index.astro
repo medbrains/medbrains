@@ -7,8 +7,11 @@ import Header from "../components/Header.astro";
 import Hero from "../components/Hero.astro";
 import Intelligence from "../components/Intelligence.astro";
 import Mission from "../components/Mission.astro";
+import Os from "../components/Os.astro";
+import OsHardwareHero from "../components/OsHardwareHero.astro";
 import Proof from "../components/Proof.astro";
 import Rail from "../components/Rail.astro";
+import Readiness from "../components/Readiness.astro";
 import Statement from "../components/Statement.astro";
 import Story from "../components/Story.astro";
 import Trust from "../components/Trust.astro";
@@ -58,6 +61,7 @@ const schema = [
   <Header />
   <main id="main">
     <Hero />
+    <OsHardwareHero more />
     <Proof />
     <Mission />
     <Statement text="One patient. One record. Every department. Nothing typed twice." accent={["record.", "twice."]} />
@@ -65,7 +69,9 @@ const schema = [
     <Rail />
     <Intelligence />
     <Apps />
+    <Os />
     <Trust />
+    <Readiness />
     <Faq />
     <Demo />
   </main>

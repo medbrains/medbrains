@@ -2,7 +2,7 @@
 # MedBrains standalone deploy — bootstrap a single Ubuntu/Debian
 # server to run the HMS behind the MedBrains Pingora edge proxy.
 #
-#   sudo bash install.sh hims.amh.org.in admin@example.com [backup-bucket]
+#   sudo bash install.sh hims.example-hospital.org admin@example.com [backup-bucket]
 #
 # Idempotent: re-running advances state without breaking anything.
 
@@ -59,7 +59,7 @@ if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" ]]; then
 Usage:  sudo bash install.sh <domain> <admin-email> [backup-bucket]
 
 Examples:
-  sudo bash install.sh hims.amh.org.in ops@amh.org.in
+  sudo bash install.sh hims.example-hospital.org ops@example-hospital.org
 
 Attach tier (host already runs other applications):
   ATTACH_MODE=1 \
@@ -161,6 +161,8 @@ chown -R medbrains:medbrains /var/lib/medbrains /var/lib/medbrains-edge /var/log
 echo "==> [3/9] Writing /etc/medbrains/env (preserving existing if present)"
 # shellcheck source=./db-roles.sh
 . "$DEPLOY_DIR/db-roles.sh"
+# shellcheck source=./jwt-keys.sh
+. "$DEPLOY_DIR/jwt-keys.sh"
 ENV_CREATED=0
 # Keys are written into these files before their final modes are set.
 PREVIOUS_UMASK="$(umask)"
@@ -170,23 +172,15 @@ if [[ ! -f /etc/medbrains/env ]]; then
     cp "$DEPLOY_DIR/env.example" /etc/medbrains/env
     sed -i "s|__DOMAIN__|$DOMAIN|g" /etc/medbrains/env
 
-    # Generate Ed25519 JWT keypair.
-    # - JWT_PRIVATE_KEY: PKCS#8 v1 DER (jsonwebtoken EncodingKey::from_ed_der)
-    # - JWT_PUBLIC_KEY:  raw 32-byte pub key (ring's Ed25519 verifier — NOT SPKI)
-    # Both base64-encoded.
-    JWT_TMP="$(mktemp -d)"
-    PRIV_DER="$JWT_TMP/priv.der"
-    SPKI_DER="$JWT_TMP/pub-spki.der"
-    PUB_RAW="$JWT_TMP/pub-raw.bin"
-    openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
-    openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
-    # SPKI for Ed25519 is 44 bytes; raw 32-byte key = last 32 bytes.
-    tail -c 32 "$SPKI_DER" > "$PUB_RAW"
-    PRIV="$(base64 -w0 < "$PRIV_DER")"
-    PUB="$(base64 -w0 < "$PUB_RAW")"
-    rm -rf "$JWT_TMP"
-    sed -i "s|^JWT_PRIVATE_KEY=$|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
-    sed -i "s|^JWT_PUBLIC_KEY=$|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
+    # Ed25519 JWT pair (jwt-keys.sh): PKCS#8 private, SPKI public, checked
+    # before it is written.
+    generate_jwt_pair
+    if ! check_jwt_pair "$JWT_NEW_PRIVATE" "$JWT_NEW_PUBLIC"; then
+        echo "ERROR: the JWT pair just generated does not check out — see the openssl errors above" >&2
+        exit 1
+    fi
+    sed -i "s|^JWT_PRIVATE_KEY=$|JWT_PRIVATE_KEY=$JWT_NEW_PRIVATE|" /etc/medbrains/env
+    sed -i "s|^JWT_PUBLIC_KEY=$|JWT_PUBLIC_KEY=$JWT_NEW_PUBLIC|" /etc/medbrains/env
 
     # Generate a random postgres password.
     DBPW="$(openssl rand -base64 24 | tr -d /=+ | head -c 32)"
@@ -199,28 +193,36 @@ if [[ ! -f /etc/medbrains/env ]]; then
 else
     echo "    /etc/medbrains/env already exists — leaving alone."
 
-    # Rotate JWT keys if existing format is broken:
-    #  - "LS0t..." prefix     → legacy PEM-base64 (`InvalidEddsaKey`)
-    #  - PUBLIC key length 60 → SPKI-wrapped DER (decode-side wants raw 32B)
-    EXISTING_PRIV="$(grep '^JWT_PRIVATE_KEY=' /etc/medbrains/env | cut -d= -f2-)"
-    EXISTING_PUB="$(grep '^JWT_PUBLIC_KEY=' /etc/medbrains/env | cut -d= -f2-)"
-    NEEDS_ROTATE=0
-    [[ "$EXISTING_PRIV" == LS0t* ]] && NEEDS_ROTATE=1
-    [[ "${#EXISTING_PUB}" -eq 60 ]] && NEEDS_ROTATE=1
-    if [[ "$NEEDS_ROTATE" -eq 1 ]]; then
-        echo "    JWT key format incompatible with jsonwebtoken — rotating"
-        JWT_TMP="$(mktemp -d)"
-        PRIV_DER="$JWT_TMP/priv.der"
-        SPKI_DER="$JWT_TMP/pub-spki.der"
-        PUB_RAW="$JWT_TMP/pub-raw.bin"
-        openssl genpkey -algorithm Ed25519 -outform DER -out "$PRIV_DER" 2>/dev/null
-        openssl pkey -inform DER -in "$PRIV_DER" -pubout -outform DER -out "$SPKI_DER" 2>/dev/null
-        tail -c 32 "$SPKI_DER" > "$PUB_RAW"
-        PRIV="$(base64 -w0 < "$PRIV_DER")"
-        PUB="$(base64 -w0 < "$PUB_RAW")"
-        rm -rf "$JWT_TMP"
-        sed -i "s|^JWT_PRIVATE_KEY=.*|JWT_PRIVATE_KEY=$PRIV|" /etc/medbrains/env
-        sed -i "s|^JWT_PUBLIC_KEY=.*|JWT_PUBLIC_KEY=$PUB|" /etc/medbrains/env
+    # Generate when both halves are empty, or replace a legacy PEM-in-base64
+    # private key ("LS0t…"): no server ever parsed one, so no session
+    # depends on it.
+    EXISTING_PRIV="$(jwt_env_value JWT_PRIVATE_KEY /etc/medbrains/env)"
+    EXISTING_PUB="$(jwt_env_value JWT_PUBLIC_KEY /etc/medbrains/env)"
+    JWT_DROPINS=/etc/systemd/system/medbrains-server.service.d
+    # The unit has no WorkingDirectory, so the server reads /config.toml.
+    if [[ -z "$EXISTING_PRIV" && -z "$EXISTING_PUB" ]] \
+        && jwt_keys_elsewhere "$JWT_DROPINS" /config.toml; then
+        echo "    JWT keys are set outside /etc/medbrains/env (drop-in or config.toml) — leaving them;"
+        echo "    the server checks the pair when it starts."
+    elif [[ "$EXISTING_PRIV" == LS0t* || ( -z "$EXISTING_PRIV" && -z "$EXISTING_PUB" ) ]]; then
+        echo "    JWT pair missing or in a format no server can read — generating"
+        generate_jwt_pair
+        EXISTING_PRIV="$JWT_NEW_PRIVATE"
+        EXISTING_PUB="$JWT_NEW_PUBLIC"
+        for jwt_key in JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
+            grep -q "^$jwt_key=" /etc/medbrains/env || echo "$jwt_key=" >> /etc/medbrains/env
+        done
+        sed -i "s|^JWT_PRIVATE_KEY=.*|JWT_PRIVATE_KEY=$EXISTING_PRIV|" /etc/medbrains/env
+        sed -i "s|^JWT_PUBLIC_KEY=.*|JWT_PUBLIC_KEY=$EXISTING_PUB|" /etc/medbrains/env
+    fi
+    # Never rotate a pair that does not match: it may be the half someone set
+    # by hand. Stop, and say how to fix it; the server would refuse to start.
+    if [[ -n "$EXISTING_PRIV$EXISTING_PUB" ]] && ! check_jwt_pair "$EXISTING_PRIV" "$EXISTING_PUB"; then
+        echo "ERROR: JWT_PRIVATE_KEY and JWT_PUBLIC_KEY in /etc/medbrains/env are not one Ed25519 pair." >&2
+        echo "       The server refuses to start on them. Restore both from the backup of this file," >&2
+        echo "       or delete both lines' values (leave 'JWT_PRIVATE_KEY=' and 'JWT_PUBLIC_KEY=')," >&2
+        echo "       re-run install.sh to generate a new pair, and expect everyone to sign in again." >&2
+        exit 1
     fi
 fi
 umask "$PREVIOUS_UMASK"
@@ -521,6 +523,45 @@ install_attach_dropins() {
     echo "    attach: removed the docker dependency (host Postgres in use)"
 }
 
+# CERT-In direction (i): clocks synced to NIC/NPL NTP or sources traceable
+# to them. Adds India's public servers as extra sources to whichever daemon
+# the host already runs; never swaps one daemon for another on a host that
+# may not be ours. Amazon Time Sync (169.254.169.123) stays preferred on EC2:
+# it is closer and more accurate, and the NIC/NPL sources cross-check it.
+# Hostnames per CERT-In's FAQ: samay1/samay2.nic.in (NIC), time.nplindia.org (NPL).
+INDIA_NTP="time.nplindia.org samay1.nic.in samay2.nic.in"
+configure_time_sync() {
+    local on_ec2=0
+    grep -qi amazon /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null && on_ec2=1
+    if systemctl is-active --quiet chrony || systemctl is-active --quiet chronyd; then
+        if grep -qs '^sourcedir /etc/chrony/sources.d' /etc/chrony/chrony.conf; then
+            install -d /etc/chrony/sources.d
+            {
+                echo "# MedBrains (install.sh): NIC/NPL time for CERT-In direction (i)."
+                # Already in chrony.conf on Amazon's images; a duplicate is
+                # harmless and keeps it preferred on images that lack it.
+                [[ "$on_ec2" == "1" ]] && echo "server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4"
+                for s in $INDIA_NTP; do echo "server $s iburst"; done
+            } > /etc/chrony/sources.d/medbrains-india.sources
+            chronyc reload sources >/dev/null 2>&1 || systemctl restart chrony 2>/dev/null || true
+            echo "    time: chrony sources += $INDIA_NTP"
+        else
+            echo "    WARNING: chrony.conf has no 'sourcedir /etc/chrony/sources.d' — add"
+            echo "             'server <host> iburst' for $INDIA_NTP by hand (CERT-In)."
+        fi
+    elif systemctl is-active --quiet systemd-timesyncd; then
+        install -d /etc/systemd/timesyncd.conf.d
+        local list="$INDIA_NTP"
+        [[ "$on_ec2" == "1" ]] && list="169.254.169.123 $list"
+        printf '[Time]\nNTP=%s\n' "$list" > /etc/systemd/timesyncd.conf.d/medbrains.conf
+        systemctl restart systemd-timesyncd || true
+        echo "    time: timesyncd NTP=$list"
+    else
+        echo "    WARNING: neither chrony nor systemd-timesyncd is running — the clock"
+        echo "             is not synchronised (CERT-In direction (i)); host-check will page."
+    fi
+}
+
 echo "==> [7/9] Installing systemd units + backup tooling"
 install -m 0644 "$DEPLOY_DIR/medbrains-server.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-archive.service" /etc/systemd/system/
@@ -532,6 +573,9 @@ install -m 0644 "$DEPLOY_DIR/medbrains-host-check.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-host-check.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-host-check" /usr/local/bin/medbrains-host-check
 install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-backup
+install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.timer" /etc/systemd/system/
+install -m 0755 "$DEPLOY_DIR/medbrains-log-archive" /usr/local/bin/medbrains-log-archive
 # Backup public keys. Not secret — the matching private key lives offline
 # with the founder — so the committed kit file is the source of truth
 # (setup lives in git); BACKUP_AGE_RECIPIENT is the per-install override.
@@ -617,15 +661,31 @@ if [[ -n "${ALERT_TOPIC_ARN:-}" ]]; then
     fi
 fi
 
-# Bound journald so logs can never fill the root volume silently.
+# CERT-In direction (iv) log archive: the bucket ops.tf grants this host
+# (terraform output prod_ops). Unset = no archive, warned about below.
+for key in LOG_ARCHIVE_BUCKET LOG_ARCHIVE_PREFIX; do
+    [[ -n "${!key:-}" ]] || continue
+    if grep -q "^$key=" /etc/medbrains/env 2>/dev/null; then
+        sed -i "s|^$key=.*|$key=${!key}|" /etc/medbrains/env
+    else
+        echo "$key=${!key}" >> /etc/medbrains/env
+    fi
+done
+
+# journald: persistent, kept up to 180 days locally (CERT-In), but the size
+# caps still win so logs can never fill the root volume silently. On a busy
+# host 2G is days, not months — the S3 archive is the 180-day record.
 mkdir -p /etc/systemd/journald.conf.d
 cat > /etc/systemd/journald.conf.d/medbrains.conf <<'JOURNALD'
 [Journal]
-SystemMaxUse=1G
+Storage=persistent
+SystemMaxUse=2G
 SystemKeepFree=2G
-MaxRetentionSec=30day
+MaxRetentionSec=180day
 JOURNALD
 systemctl restart systemd-journald || true
+
+configure_time_sync
 
 # The shipped unit hard-requires docker.service because the dedicated
 # shape runs Postgres in a container. When the host's own Postgres is
@@ -656,7 +716,11 @@ if systemctl is-active --quiet medbrains-server.service \
     if ! systemctl start medbrains-pg-backup.service; then
         echo "ERROR: pre-deploy backup failed — not restarting onto new migrations." >&2
         journalctl -u medbrains-pg-backup -n 20 --no-pager >&2 || true
-        echo "       Fix it, or re-run with SKIP_PREDEPLOY_BACKUP=1 after a manual dump." >&2
+        echo "       The new binaries are already in /usr/local/bin: any restart now runs their migrations." >&2
+        echo "       Fix the backup and re-deploy, or take a dump by hand and restart:" >&2
+        echo "         sudo -u postgres bash -c 'umask 077; pg_dump -Fc medbrains > /var/lib/postgresql/medbrains-predeploy-\$(date +%F).dump'" >&2
+        echo "         sudo systemctl restart medbrains-server" >&2
+        echo "       (SKIP_PREDEPLOY_BACKUP=1 skips this check when install.sh is run by hand on the host.)" >&2
         exit 1
     fi
 fi
@@ -703,6 +767,14 @@ else
     echo "             to fail nightly, because an enabled unit that always"
     echo "             errors reads as a backup that is running."
 fi
+if [[ -n "$(env_value LOG_ARCHIVE_BUCKET)" ]]; then
+    systemctl enable --now medbrains-log-archive.timer
+else
+    systemctl disable --now medbrains-log-archive.timer 2>/dev/null || true
+    echo "    WARNING: no LOG_ARCHIVE_BUCKET — host logs are NOT archived. CERT-In"
+    echo "             direction (iv) needs 180 days in India; journald alone keeps"
+    echo "             at most 2G. See deploy/standalone/README.md 'Log archive'."
+fi
 systemctl enable --now medbrains-host-check.timer
 if [[ -z "$(env_value ALERT_TOPIC_ARN)" ]]; then
     echo "    WARNING: no ALERT_TOPIC_ARN — host checks run but CANNOT notify."
@@ -720,7 +792,7 @@ fi
 # to point it at, which is the same condition the rest of this script uses
 # to decide whether a database is available at all.
 #
-# It ran on the Alagappa host for months as a hand-installed service with no
+# It ran on the first client's host for months as a hand-installed service with no
 # way to rebuild it: a fetched binary, a hand-written unit, a hand-created
 # database, a hand-loaded schema. It worked, and losing the host would have
 # lost it. Managing it here is the whole point.

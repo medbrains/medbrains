@@ -15,8 +15,8 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
-pub(crate) mod inpatient;
 pub(crate) mod implants;
+pub(crate) mod inpatient;
 pub(crate) mod orders;
 pub(crate) mod stock;
 
@@ -51,6 +51,7 @@ pub(crate) fn state(db: PgPool) -> AppState {
         secret_resolver: Arc::new(medbrains_core::secrets::EnvSecretResolver::new()),
         s3: None,
         gotenberg: None,
+        reports: medbrains_server_core::report_runner::ReportGate::default(),
         documents_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
             std::env::temp_dir().join("charge-attention-test-docs"),
         )),

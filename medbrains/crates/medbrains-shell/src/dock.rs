@@ -17,17 +17,58 @@ use crate::ui;
 const DOCK_APPS: usize = 6;
 const BRAND_ICON_SIZE: i32 = 40;
 const DOCK_ICON_SIZE: i32 = 24;
-const TILE_ICON_SIZE: i32 = 64;
+const TILE_ICON_SIZE: i32 = 32;
+const SEARCH_WIDTH: i32 = 400;
+/// Drawn for an app whose icon is missing, so no tile is ever blank or shows a broken picture.
+const FALLBACK_ICON: &str = "application-x-executable-symbolic";
 
-/// An app's image: a theme icon by name, or a file by path.
+/// True if the screen's icon theme has this icon. Without a display there is nothing to ask, and
+/// GTK draws its own placeholder.
+fn theme_has(icon: &str) -> bool {
+    gtk::gdk::Display::default()
+        .is_none_or(|display| gtk::IconTheme::for_display(&display).has_icon(icon))
+}
+
+/// An app's image: a theme icon by name, or a file by path, or the fallback if neither exists.
 fn app_image(app: &App, size: i32) -> gtk::Image {
-    let image = if app.icon.starts_with('/') {
+    let image = if app.icon.starts_with('/') && std::path::Path::new(&app.icon).is_file() {
         gtk::Image::from_file(&app.icon)
-    } else {
+    } else if !app.icon.starts_with('/') && theme_has(&app.icon) {
         gtk::Image::from_icon_name(&app.icon)
+    } else {
+        gtk::Image::from_icon_name(FALLBACK_ICON)
     };
     image.set_pixel_size(size);
     image
+}
+
+/// What the launcher says when no tile is showing, so an empty grid never reads as a broken one.
+fn empty_words(query: &str) -> String {
+    match query.trim() {
+        "" => "There are no apps on this machine yet.".to_owned(),
+        query => format!("No app is called \u{201c}{query}\u{201d}."),
+    }
+}
+
+/// A launcher tile: the app's icon in the one tile shape every app shares, its name and its note.
+fn launcher_tile(entry: &crate::desktop::Entry) -> gtk::Button {
+    let frame = gtk::CenterBox::new();
+    frame.add_css_class("tile-icon");
+    frame.set_halign(gtk::Align::Center);
+    if entry.app.accent {
+        frame.add_css_class("brand");
+    }
+    frame.set_center_widget(Some(&app_image(&entry.app, TILE_ICON_SIZE)));
+    let body = ui::column(ui::GAP / 2);
+    body.append(&frame);
+    let name = ui::line(&entry.app.name, "");
+    name.set_xalign(0.5);
+    body.append(&name);
+    body.append(&entry.notes[0]);
+    let tile = gtk::Button::builder().child(&body).build();
+    tile.add_css_class("tile");
+    ui::set_name(&tile, &entry.app.name);
+    tile
 }
 
 /// True when a launcher search should show this name. An empty search shows everything.
@@ -44,8 +85,13 @@ pub(crate) fn launcher_page(desktop: &Rc<Desktop>) -> gtk::Box {
     let search = gtk::SearchEntry::builder()
         .placeholder_text("Search apps")
         .halign(gtk::Align::Center)
-        .width_request(320)
+        .width_request(SEARCH_WIDTH)
         .build();
+    search.add_css_class("launcher-search");
+    ui::set_name(&search, "Search apps");
+    let empty = ui::label(&empty_words(""), "muted");
+    empty.set_halign(gtk::Align::Center);
+    empty.set_visible(desktop.entries.is_empty());
     let grid = gtk::FlowBox::builder()
         .selection_mode(gtk::SelectionMode::None)
         .halign(gtk::Align::Center)
@@ -53,14 +99,7 @@ pub(crate) fn launcher_page(desktop: &Rc<Desktop>) -> gtk::Box {
         .max_children_per_line(6)
         .build();
     for (index, entry) in desktop.entries.iter().enumerate() {
-        let body = ui::column(ui::GAP / 2);
-        body.append(&app_image(&entry.app, TILE_ICON_SIZE));
-        let name = ui::line(&entry.app.name, "");
-        name.set_xalign(0.5);
-        body.append(&name);
-        body.append(&entry.notes[0]);
-        let tile = gtk::Button::builder().child(&body).build();
-        tile.add_css_class("tile");
+        let tile = launcher_tile(entry);
         let target = Rc::clone(desktop);
         tile.connect_clicked(move |_| target.open(index));
         grid.insert(&tile, -1);
@@ -72,8 +111,14 @@ pub(crate) fn launcher_page(desktop: &Rc<Desktop>) -> gtk::Box {
             .get(index)
             .is_some_and(|e| matches_search(&e.app.name, &filter_text.text()))
     });
-    let changed = grid.clone();
-    search.connect_search_changed(move |_| changed.invalidate_filter());
+    let (changed, entries, nothing) = (grid.clone(), Rc::clone(&desktop.entries), empty.clone());
+    search.connect_search_changed(move |entry| {
+        changed.invalidate_filter();
+        let query = entry.text();
+        let any = entries.iter().any(|e| matches_search(&e.app.name, &query));
+        nothing.set_label(&empty_words(&query));
+        nothing.set_visible(!any);
+    });
     let target = Rc::clone(desktop);
     search.connect_activate(move |entry| {
         let found = target
@@ -90,6 +135,7 @@ pub(crate) fn launcher_page(desktop: &Rc<Desktop>) -> gtk::Box {
         target.go_home();
     });
     page.append(&search);
+    page.append(&empty);
     page.append(&grid);
     page
 }
@@ -217,7 +263,14 @@ fn add_tile_menu(tile: &gtk::Button, desktop: &Rc<Desktop>, index: usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::matches_search;
+    use super::{empty_words, matches_search};
+
+    /// An empty grid must say why, and name what was searched for.
+    #[test]
+    fn an_empty_launcher_says_why() {
+        assert_eq!(empty_words("  "), "There are no apps on this machine yet.");
+        assert!(empty_words(" pharmacy ").contains("\u{201c}pharmacy\u{201d}"));
+    }
 
     #[test]
     fn search_ignores_case_and_space_and_empty_shows_everything() {

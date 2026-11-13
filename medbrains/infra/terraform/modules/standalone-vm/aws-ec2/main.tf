@@ -126,6 +126,8 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "aws_security_group" "this" {
+  #checkov:skip=CKV_AWS_260: port 80 is public on purpose - ACME HTTP-01 and the HTTP->HTTPS redirect
+  #checkov:skip=CKV_AWS_382: the host pulls packages and images and the app reaches hospital-configured integrations (SMTP on any port, HL7/DICOM, ABDM/NHCX, LDAP) set at runtime in the admin UI; outbound control for those belongs to the hospital's firewall
   name        = "${var.hostname}-sg"
   description = "MedBrains standalone - 22/80/443 inbound"
   vpc_id      = data.aws_vpc.default.id
@@ -153,6 +155,7 @@ resource "aws_security_group" "this" {
   }
 
   egress {
+    description = "Outbound: packages, S3 backups, SNS, hospital integrations"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -166,13 +169,15 @@ resource "aws_security_group" "this" {
   }
 }
 
-resource "aws_instance" "this" {
+resource "aws_instance" "this" { # NOSONAR(S6329): single public host by design (EIP + ingress on 80/443); the attribute is force-new, so setting it would replace the host and its data volume
+  #checkov:skip=CKV_AWS_135: current-generation types are EBS-optimised by default; setting the flag on a running host would stop and start it
   ami                    = var.ami != "" ? var.ami : data.aws_ami.ubuntu[0].id
   instance_type          = var.instance_type
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [aws_security_group.this.id]
   subnet_id              = data.aws_subnets.default.ids[0]
   iam_instance_profile   = aws_iam_instance_profile.this.name
+  monitoring             = true
 
   root_block_device {
     volume_size = 40
@@ -295,6 +300,8 @@ EOT
 # 5y COMPLIANCE retention satisfies NABH/DPDP requirements + makes
 # the backups ransomware-proof.
 resource "aws_s3_bucket" "backups" {
+  #checkov:skip=CKV_AWS_144: this bucket is already the off-host copy, Object-Locked for 5 years; a second-region replica doubles the cost of every dump - opt in per hospital when its DR plan needs a regional outage covered
+  #checkov:skip=CKV2_AWS_62: nothing consumes object events from the backup bucket; the host pages through SNS itself
   bucket              = "${var.hostname}-backups"
   force_destroy       = false
   object_lock_enabled = true
@@ -343,6 +350,35 @@ resource "aws_s3_bucket_public_access_block" "backups" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_logging" "backups" {
+  bucket        = aws_s3_bucket.backups.id
+  target_bucket = module.access_logs.bucket_id
+  target_prefix = "backups/"
+}
+
+# Refuse plain HTTP: every client (SDK, CLI, presigned URL) already uses TLS.
+resource "aws_s3_bucket_policy" "backups" {
+  bucket = aws_s3_bucket.backups.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.backups.arn, "${aws_s3_bucket.backups.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.backups]
+}
+
+module "access_logs" {
+  source      = "../../s3-access-logs"
+  bucket_name = "${var.hostname}-backups-logs"
+  tags        = { Project = "medbrains", ManagedBy = "terraform" }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "backups" {
   bucket = aws_s3_bucket.backups.id
 
@@ -362,6 +398,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
     noncurrent_version_transition {
       noncurrent_days = 30
       storage_class   = "GLACIER"
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }
@@ -410,6 +450,12 @@ resource "aws_iam_policy" "backup_writer" {
           Effect   = "Allow"
           Action   = ["sns:Publish"]
           Resource = [aws_sns_topic.alerts.arn]
+        },
+        # The topic is encrypted; publishing needs its key.
+        {
+          Effect   = "Allow"
+          Action   = ["kms:GenerateDataKey", "kms:Decrypt"]
+          Resource = [module.alerts_key.key_arn]
       }],
       local.backup_kms_key_arn == null ? [] : [{
         Effect = "Allow"

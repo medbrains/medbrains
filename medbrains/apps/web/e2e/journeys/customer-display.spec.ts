@@ -85,12 +85,16 @@ test("the counter's display mirrors the drawer: lines, QR, then Paid with the an
   await display.route("https://rzp.io/**", (route) =>
     route.fulfill({ contentType: "image/svg+xml", body: QR_IMAGE }),
   );
-  await display.goto("/screen");
+  const tenant = await api<{ code: string }>(hospital.admin, "GET", "/api/setup/tenant");
+  await display.goto(`/screen?hospital=${tenant.code}`);
   const shown = display.getByTestId("screen-pairing-code");
   await expect(shown).toBeVisible({ timeout: 20_000 });
+  const reference = (await display.getByTestId("screen-pairing-ref").innerText())
+    .replace("Screen", "")
+    .trim();
   const admin = new DevicesAdmin(await hospital.asAdmin());
   await admin.open();
-  await admin.approveCounterDisplay((await shown.innerText()).trim(), counter.name);
+  await admin.approveCounterDisplay(reference, (await shown.innerText()).trim(), counter.name);
 
   await expect(display.getByTestId("cd-idle")).toContainText(counter.name, { timeout: 20_000 });
   // Someone taps the tablet once when it is set up: browsers need that for sound.

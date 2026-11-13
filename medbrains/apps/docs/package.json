@@ -2,18 +2,19 @@
   "name": "@medbrains/docs",
   "private": true,
   "version": "0.0.0",
-  "description": "MedBrains user guide, served by the app at /help",
+  "description": "MedBrains documentation: served by the app at /help and publicly at docs.medbrains.in",
   "scripts": {
-    "dev": "docusaurus start --port 3010 --no-open",
-    "build": "docusaurus build --out-dir build",
+    "generate": "node scripts/generate-reference.mjs && node scripts/check-front-matter.mjs",
+    "dev": "node scripts/generate-reference.mjs && docusaurus start --port 3010 --no-open",
+    "build": "node scripts/generate-reference.mjs && node scripts/check-front-matter.mjs && docusaurus build --out-dir build",
+    "build:public": "DOCS_BASE_URL=/ pnpm run build",
     "serve": "docusaurus serve --port 3010"
   },
   "dependencies": {
     "@docusaurus/core": "^3.10.2",
     "@docusaurus/preset-classic": "^3.10.2",
-    "@easyops-cn/docusaurus-search-local": "^0.55.3",
+    "@easyops-cn/docusaurus-search-local": "0.55.3",
     "@fontsource/ibm-plex-mono": "^5.2.7",
-    "@fontsource/ibm-plex-sans": "^5.2.8",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   }

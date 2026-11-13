@@ -166,7 +166,7 @@ export function NabhIndicatorMatrix({ search = "" }: NabhIndicatorMatrixProps) {
 
   const categories = useMemo(() => {
     const categorySet = new Set((data?.indicators ?? []).map((indicator) => indicator.category));
-    return ["all", ...Array.from(categorySet).sort()];
+    return ["all", ...Array.from(categorySet).sort((a, b) => a.localeCompare(b))];
   }, [data]);
 
   const filteredIndicators = useMemo(() => {

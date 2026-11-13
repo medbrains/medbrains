@@ -1,0 +1,34 @@
+# One update action, started by the setup service for the person at the screen, by the daily look for
+# updates, or by the quiet-window timer. Root, because it writes a system partition and the boot partition.
+# Low priority: a hospital is using this machine while it writes.
+[Unit]
+Description=MedBrains OS update: %i
+RequiresMountsFor=/var
+After=local-fs.target medbrains-update-reconcile.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/medbrains-os-update %i
+Nice=10
+IOSchedulingClass=idle
+CPUWeight=20
+IOWeight=10
+MemoryMax=512M
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateMounts=yes
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+RestrictNamespaces=yes
+ProtectKernelTunables=yes

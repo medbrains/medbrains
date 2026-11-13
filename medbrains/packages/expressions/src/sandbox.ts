@@ -209,7 +209,8 @@ export function validateTemplateString(template: string): ValidationResult {
   }
 
   // Count interpolation points as rough complexity measure
-  const interpolations = template.match(/\{\{[^}]*\}\}/g);
+  // The body excludes "{" too, so a run of braces cannot make the scan quadratic.
+  const interpolations = template.match(/\{\{[^{}]*\}\}/g);
   const nodeCount = interpolations?.length ?? 0;
 
   if (nodeCount > MAX_AST_NODES) {
