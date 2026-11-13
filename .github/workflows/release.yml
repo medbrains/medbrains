@@ -371,9 +371,15 @@ jobs:
           version: 0.15.2
           # No cache in a release: a poisoned cache would ship in signed artefacts.
           use-cache: false
-      # The pinned 1.99.1 and both Linux targets, from medbrains/rust-toolchain.toml.
+      # The workspace pin and both Linux targets, from medbrains/rust-toolchain.toml.
       - run: rustup toolchain install
         working-directory: medbrains
+      # Kanidm builds on its own toolchain, read from build-kanidm.sh so the two cannot drift.
+      - run: |
+          kanidm_rust="$(sed -n 's/^KANIDM_RUST=//p' medbrains/os/build-kanidm.sh)"
+          test -n "$kanidm_rust"
+          rustup toolchain install "$kanidm_rust" --profile minimal \
+            --target x86_64-unknown-linux-gnu --target aarch64-unknown-linux-gnu
       - run: cargo install cargo-zigbuild --locked --version 0.24.0
       - run: OS_WORK="$RUNNER_TEMP/os" medbrains/os/build-kanidm.sh --arch ${{ matrix.arch }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
