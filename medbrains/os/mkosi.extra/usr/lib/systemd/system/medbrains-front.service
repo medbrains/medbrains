@@ -14,6 +14,8 @@ Type=notify
 NotifyAccess=main
 # As root, with the + : makes whatever certificate is missing. If that fails, so does this unit,
 # visibly, on the machine's screen; there is no plain HTTP to fall back to.
+# Refuses to start unconfined: AppArmor off or this profile not enforcing (L6).
+ExecStartPre=+/usr/lib/medbrains/require-apparmor medbrains-front
 ExecStartPre=+/usr/lib/medbrains/front-certs
 ExecStart=/usr/bin/medbrains-front --config /usr/lib/medbrains/front.toml
 Restart=always

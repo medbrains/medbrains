@@ -10,6 +10,8 @@ After=network.target systemd-tmpfiles-setup.service
 Type=exec
 User=medbrains-agent
 Group=kiosk
+# Refuses to start unconfined: AppArmor off or this profile not enforcing (L6).
+ExecStartPre=+/usr/lib/medbrains/require-apparmor medbrains-agent
 ExecStart=/usr/bin/medbrains-agent
 Restart=always
 RestartSec=2s

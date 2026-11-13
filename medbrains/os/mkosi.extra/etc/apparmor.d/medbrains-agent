@@ -1,0 +1,38 @@
+# The machine agent (task T1.1), on nodes and main machines: its own state and socket, the network, and the
+# clock's port. It runs no program.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile medbrains-agent /usr/bin/medbrains-agent flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+
+  capability net_bind_service,
+  signal (receive) peer=unconfined,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+  network netlink dgram,
+  unix,
+
+  /usr/bin/medbrains-agent mr,
+  /var/lib/medbrains-agent/ rw,
+  /var/lib/medbrains-agent/** rwk,
+  /run/medbrains-agent/ rw,
+  /run/medbrains-agent/** rwk,
+  /var/lib/medbrains-settings/** r,
+  owner /tmp/** rwk,
+  @{PROC}/@{pid}/** r,
+  @{PROC}/sys/net/** r,
+  @{PROC}/sys/kernel/** r,
+  /sys/class/net/ r,
+  # Which addresses and leases this machine has, from networkd.
+  /run/systemd/netif/** r,
+  /sys/devices/** r,
+  /sys/fs/cgroup/** r,
+
+  include if exists <local/medbrains-agent>
+}

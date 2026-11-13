@@ -145,6 +145,8 @@ if [[ "$DEBUG" == 1 ]]; then
     rm -f "$OS_WORK/update-test.seed"
     : > "$KEYS/THIS-IS-A-DEBUG-IMAGE"
     install -m 0755 "$HERE/debug/pcr11-replay" "$EXTRA/usr/lib/medbrains/pcr11-replay"
+    # The CIS-style hardening report (X16), run by medbrains-os-test. A release image has no shell to run it in.
+    install -m 0755 "$HERE/tests/cis-check.sh" "$EXTRA/usr/lib/medbrains/cis-check"
     # A clearly marked sign-in for trying the Identity app. Never in a release image.
     install -m 0755 "$HERE/debug/kanidm-debug-account" "$EXTRA/usr/lib/medbrains/kanidm-debug-account"
     install -m 0644 "$HERE/debug/kanidm-debug-account.service" "$EXTRA/usr/lib/systemd/system/"

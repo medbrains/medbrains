@@ -204,6 +204,18 @@ pub(crate) fn no_login_anywhere(vm: &mut Vm, _: &Value) -> Result<(), String> {
     )
 }
 
+/// Ctrl+Alt+Del does nothing: its target is masked and seven presses in two seconds are not a forced reboot,
+/// so a kiosk keyboard cannot restart a ward machine from any console.
+pub(crate) fn ctrl_alt_del_does_nothing(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let state = vm.run(
+        "systemctl is-enabled ctrl-alt-del.target 2>/dev/null; systemctl show -p CtrlAltDelBurstAction --value; true",
+    )?;
+    ensure(
+        state.split_whitespace().eq(["masked", "none"]),
+        format!("Ctrl+Alt+Del: {state}"),
+    )
+}
+
 /// A release image, from outside: nothing on SSH, and its serial port shows no login and runs no
 /// command, however long after boot a cable is plugged in.
 pub(crate) fn run_release(image: &Path) -> Result<usize, String> {

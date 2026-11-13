@@ -1,0 +1,56 @@
+# The support console (issue #5383): /usr/lib/medbrains/boot-health on a console. On tty2 from early boot,
+# so a technician presses Ctrl+Alt+F2 to see what is starting and what failed, on a machine with no login.
+# On tty1 when the screen gave up restarting (cage-console's OnFailure), so the machine is never left black.
+# It shows and never reads: no keyboard input reaches it, and it runs no shell.
+[Unit]
+Description=MedBrains boot health on %I
+DefaultDependencies=no
+After=systemd-journald.service
+Conflicts=shutdown.target
+Before=shutdown.target
+ConditionPathExists=/dev/%I
+
+[Service]
+Type=simple
+# On tty1, not after the data disk step failed: its own message is on tty1 and must stay (tty2 has this view).
+ExecCondition=/bin/sh -c '[ %I != tty1 ] || ! systemctl -q is-failed medbrains-disk-setup.service medbrains-disk-finish.service'
+ExecStart=/usr/lib/medbrains/boot-health
+Restart=always
+RestartSec=5s
+TTYPath=/dev/%I
+# No TTYReset or TTYVTDisallocate: they clear the console before ExecCondition runs, which wiped the disk
+# step's message from tty1 (seen in the VM). The script clears its own screen when it draws.
+StandardInput=null
+StandardOutput=tty
+StandardError=journal
+# Root only to read every unit's journal; no capability, no network, nothing writable.
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateNetwork=yes
+PrivateDevices=no
+DeviceAllow=/dev/%I rw
+DevicePolicy=closed
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+MemoryMax=64M
+TasksMax=16
+Nice=10
+
+[Install]
+WantedBy=sysinit.target
