@@ -66,6 +66,8 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         with:
           version: 0.15.2
+          # No cache in a release: a poisoned cache would ship in signed artefacts.
+          use-cache: false
       - run: cargo install cargo-zigbuild --locked --version 0.24.0
       - run: >-
           cargo zigbuild --locked --release --target=${{ matrix.triple }}.2.36
@@ -154,8 +156,8 @@ jobs:
           cargo install cargo-ndk --locked --version 4.1.2
           # Unstripped host build: UniFFI reads its metadata from the library's symbols, and the
           # release profile strips them (strip = true), which leaves "No UniFFI metadata found".
-          CARGO_PROFILE_RELEASE_STRIP=false cargo build -p medbrains-edge-rn --release
-          cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
+          CARGO_PROFILE_RELEASE_STRIP=false cargo build --locked -p medbrains-edge-rn --release
+          cargo run --locked -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
             --library target/release/libmedbrains_edge_rn.so --language kotlin \
             --out-dir apps/android/core/src/main/kotlin
           cargo ndk -t arm64-v8a -t x86_64 -o apps/android/core/src/main/jniLibs \
@@ -228,12 +230,12 @@ jobs:
           rustup toolchain install
           rustup target add aarch64-apple-ios aarch64-apple-ios-sim
           # Unstripped host build: UniFFI reads its metadata from the library's symbols.
-          CARGO_PROFILE_RELEASE_STRIP=false cargo build -p medbrains-edge-rn --release
-          cargo build -p medbrains-edge-rn --release --target aarch64-apple-ios
-          cargo build -p medbrains-edge-rn --release --target aarch64-apple-ios-sim
+          CARGO_PROFILE_RELEASE_STRIP=false cargo build --locked -p medbrains-edge-rn --release
+          cargo build --locked -p medbrains-edge-rn --release --target aarch64-apple-ios
+          cargo build --locked -p medbrains-edge-rn --release --target aarch64-apple-ios-sim
           core=apps/ios/Packages/MedBrainsCore hdr="$RUNNER_TEMP/edge-rn-headers"
           mkdir -p "$core/Generated" "$hdr"
-          cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
+          cargo run --locked -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate \
             --library target/release/libmedbrains_edge_rn.dylib --language swift --out-dir "$core/Generated"
           cp "$core/Generated/edge_rnFFI.h" "$hdr/"
           cp "$core/Generated/edge_rnFFI.modulemap" "$hdr/module.modulemap"
@@ -354,6 +356,8 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         with:
           version: 0.15.2
+          # No cache in a release: a poisoned cache would ship in signed artefacts.
+          use-cache: false
       # The pinned 1.99.0 and both Linux targets, from medbrains/rust-toolchain.toml.
       - run: rustup toolchain install
         working-directory: medbrains
