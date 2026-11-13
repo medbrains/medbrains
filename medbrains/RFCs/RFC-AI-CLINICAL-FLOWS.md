@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Plan, waiting for the owner.** No code in this PR |
+| Status | **Plan, agreed** (owner answers 2026-11-13, §13). No code in this PR |
 | Date | 2026-11-12 |
 | Builds on | `RFCs/modules/RFC-MODULE-ai-dictation.md` (slice 1, built), `RFCs/RFC-AI-NATIVE.md` (F0/F1), `RFCs/RFC-HOSPITAL-OS.md` §8b, §8f, §8h, §8o, §8p, `docs/OS-PRINCIPLES.md`, `../RFCs/RFC-AUTHZ-2026-001-Design-and-Grammar.md` (§0, §2A.5 acting-for), `../RFCs/RFC-AI-CLINICAL-COPILOT.md`, `../RFCs/RFC-NATIVE-MOBILE.md` |
 | Owner direction | 2026-11-12: make MedBrains easy for doctors; most doctors prefer **voice notes**. AI is an **OS and kernel service**, not a per-app feature |
@@ -150,7 +150,7 @@ speech, so a misheard number cannot overwrite a charted one.
 ### 5.1 The OS AI service (`medbrains-ai.service`)
 
 An OS service like PostgreSQL or the update service, present on every image, **off until the
-setup wizard or the admin turns it on** (owner question 3).
+setup wizard or the admin turns it on** after the models are installed (decided, §13.3).
 
 | Concern | Design |
 |---|---|
@@ -180,7 +180,7 @@ Approximate model sizes (to be measured; Q = quantised):
 | 3–4B instruction model (Q4 GGUF) | ~2–2.5 GB | ~3 GB | Structuring into sections |
 
 Hardware floor: transcription only on a Pi-5-class 8 GB box (slow, phase V2 measures it);
-transcription plus drafting needs 16 GB RAM (the "hospital edge" kit, §8p). Owner question 5.
+transcription plus drafting needs 16 GB RAM (the "hospital edge" kit, §8p). Decided, §13.5.
 
 ### 5.2 The kernel interface (`kernel::ai`)
 
@@ -288,7 +288,7 @@ granted in `access/roles.rs`, before any handler or screen. Proposed:
 | `ipd.discharge_summary.ai_draft` | Draft a discharge summary with AI. | doctor | V4 |
 | `opd.ambient.use` | Record the consultation with consent. | doctor | V5 |
 | `opd.ambient_consent.record` | Record a patient's recording consent. | doctor, nurse, front office | V5 |
-| `ai.governance.view` | See AI suggestion outcomes. | (bypass); custom clinical-safety role | V1 |
+| `ai.governance.view` | See AI suggestion outcomes. | (bypass); quality committee / medical director custom role (§13.8). A clinician always sees their own outcomes without it | V1 |
 | `admin.ai.service.manage` | Manage the AI service and models. | (bypass) | V0 |
 
 Every voice panel also needs the write permission of the record it fills (`clinical_notes.write`,
@@ -311,7 +311,7 @@ from about May 2027; consent managers from November 2026).
 **Ambient (patient's voice, V5).** Explicit consent per visit, before recording:
 
 - asked by the doctor or front office in the patient's language, recorded as a consent record
-  (who asked, how: verbal witnessed or signed on the tablet; owner question 2), revocable at any
+  (who asked, when; verbal by default, signed where policy or law requires it; decided §13.2), revocable at any
   time during the visit, which stops and deletes the recording;
 - a refusal changes nothing about care; the doctor dictates or types;
 - the recording screen shows "Recording, patient consented at 10:42" for the whole visit;
@@ -325,7 +325,7 @@ transparency) are met by the same mechanism.
 
 | What | Default | Hospital setting |
 |---|---|---|
-| Audio | Deleted when the review is saved or rejected; purge after 24 h if abandoned | Owner question 6: allow a dispute window (e.g. up to 30 days, the shortest vendor practice) or never |
+| Audio | Deleted when the review is saved or rejected; purge after 24 h if abandoned | Up to 30 days, purpose documented on the settings screen (decided, §13.6) |
 | Transcript and draft | Kept with the saved note as provenance; deleted on reject / 24 h | Same retention as the note |
 | Signed note | The legal record; retained per medical-record rules (at least 3 years per IMC Regulations 2002 §1.3.1; NMC 2023 text to verify; longer per hospital policy and MLC rules) | — |
 | Suggestion outcomes | Kept (governance), append-only | — |
@@ -385,7 +385,7 @@ MDR Rule 11 at least class IIa, and under the US FDA's CDS criteria possibly a d
 |---|---|---|---|
 | **DPDP Act 2023 + DPDP Rules 2025** (G.S.R. 846(E), notified 13/14 Nov 2025; consent managers after 12 months; notice, consent, security, breach and rights after 18 months, about May 2027). Itemised notice, consent for a specified purpose, erasure when the purpose is served, reasonable security safeguards, breach notice to the Board and the people affected (72 h to the Board, to verify), verifiable parental consent for children, penalties up to ₹250 crore. https://www.meity.gov.in/data-protection-framework | Purpose limitation (the recording exists only to draft this note); real DELETE of audio at save / 24 h; ambient needs per-visit consent with revocation (§8); local-only by default; kernel consent check refuses on `Unknown`; encrypted data partition | Registration notice text for dictation; consent record for ambient (V5); breach runbook for AI data; guardian consent flow for children | Lawyer: confirm the lawful basis for dictation under the treatment notice; approve notice text; confirm the 72 h figure and the phase-in dates |
 | **ICMR Ethical Guidelines for AI in Biomedical Research and Healthcare (2023)**: autonomy (patient may refuse AI), safety, data privacy, accountability and liability, transparency, bias, validation. https://www.icmr.gov.in/guidelines | Refusal changes nothing about care (§8); human decides (S1, S9); labels (S2); acting-for audit (§5.2); eval before use (S12) | Bias evaluation per language, sex and age; published model cards | Owner: approve bias cases in the eval set and who publishes model cards |
-| **CDSCO, Medical Devices Rules 2017** (SaMD by intended use, classes A–D). https://cdsco.gov.in/opencms/opencms/en/Medical-Device-Diagnostics/ | V0–V4 scoped as documentation aid; anything beyond is presumed SaMD, off by default (AI-NATIVE layer 5) | Written classification per capability; any current CDSCO SaMD guidance not yet read | Lawyer or regulatory consultant: sign the classification for V1 and V5 (owner question 9) |
+| **CDSCO, Medical Devices Rules 2017** (SaMD by intended use, classes A–D). https://cdsco.gov.in/opencms/opencms/en/Medical-Device-Diagnostics/ | V0–V4 scoped as documentation aid; anything beyond is presumed SaMD, off by default (AI-NATIVE layer 5) | Written classification per capability; any current CDSCO SaMD guidance not yet read | Lawyer or regulatory consultant: sign the classification for V1 and V5 (decided §13.9: owner plus an external regulatory consultant, under QMS practice) |
 | **NMC**: prescriptions in generic names, legible; records kept and given to patients on request; Telemedicine Practice Guidelines 2020 for recorded consultations. The RMP (Professional Conduct) Regulations 2023 were reported held in abeyance in Aug 2023, so the 2002 IMC regulations may still apply (3-year record retention). https://www.nmc.org.in | The prescription is made on the pad, which already enforces generic names and schedules; the signed note is the record; nothing signs itself | Which NMC text is in force | Lawyer: confirm the regulations in force and the retention period |
 | **ABDM / NHA Health Data Management Policy**: consent-based sharing through the consent manager, data minimisation, security. https://abdm.gov.in/publications | AI never sends records out; ABDM sharing stays in the existing M2/M3 consent flows; AI outputs are labelled in the record | Whether an AI-drafted note shared through ABDM needs a provenance mark in the FHIR resource | Owner: decide the FHIR provenance tag (Provenance resource with the agent) |
 | **IT Act 2000 + CERT-In Directions (28 Apr 2022)**: report listed cyber incidents within 6 hours; keep ICT logs 180 days in India; sync clocks to NIC/NPL NTP. https://www.cert-in.org.in/Directions70B.jsp | Kernel audit log and service logs on the box (in India by default); trusted time (kernel compliance primitive); health screen alerts | 6-hour incident path for an AI incident (e.g. a model leak); log retention set to ≥ 180 days for the AI service's metadata logs | Owner: name the incident contact and approve the runbook |
@@ -559,7 +559,7 @@ references are to §9A and are to verify; none implies certification.
 | R9 | About footer in `AiPanel`: model name, version, last validation date, model-card link; SaMD class and UDI shown **only** if a capability is ever classified as a device. Today it says "Documentation aid, not a medical device" | Art. 13; MDR / CDSCO labelling | New |
 | R10 | Deterministic localisation: every clinical UI string, warning and instruction in AI components comes from human-reviewed i18n files; never live model translation. A CI check fails AI components that render string literals instead of i18n keys | Art. 13 (instructions); ICMR; CARBON content rules | New (`check-ai-seam` includes it) |
 | **Privacy, consent and audit** | | | |
-| R11 | Plain-language consent and use statement: "Used only to draft this note. Nothing is kept to train AI." Ambient (V5) adds the patient's consent toggle; any hospital retention window (owner question 6) is stated in the same words | DPDP notice; ICMR privacy | Partly exists (panel says transcribed on the hospital's server, review before save); New wording and ambient consent |
+| R11 | Plain-language consent and use statement: "Used only to draft this note. Nothing is kept to train AI." Ambient (V5) adds the patient's consent toggle; any hospital retention window (§13.6) is stated in the same words | DPDP notice; ICMR privacy | Partly exists (panel says transcribed on the hospital's server, review before save); New wording and ambient consent |
 | R12 | Read-only **AI activity log per record**: generated when, model version, who viewed, who accepted / edited / rejected / overrode, with reasons | Art. 12 (logs); ICMR accountability; CERT-In logs | Data partly exists (`dictation_sessions`, `ai_suggestion_outcomes`, `audit_log`); New: view events and the screen (gated by `ai.governance.view` or the record's own read permission for its own entries) |
 | R13 | "Patient details masked" indicator whenever redaction ran before a model call, and "Not sent: could not be made safe" when it failed closed | DPDP security; HIPAA minimum necessary | Redaction exists (`ai_redact`); indicator New |
 | R14 | Inactivity lock: AI panels sit inside the app session, which locks on inactivity | DPDP security; HIPAA automatic logoff | **To confirm**: no idle-lock code was found in the web app on 2026-11-12; if absent it is New and applies to the whole app, not just AI |
@@ -631,8 +631,8 @@ A KPI tile ("Voice notes this week") on the management dashboard, gated by `ai.g
 
 | Phase | Scope | Exit |
 |---|---|---|
-| **V0 Kernel and OS service** | `kernel::ai` (transcribe, extract, decide; Capability, Draft/Accepted types, audit rows, rate limits, kill switch); `medbrains-ai.service` with systemd + AppArmor, unix socket, bounded queue, probe, models on the data partition; dictation moved onto it, behaviour unchanged; `admin.ai.service.manage` + health screen line | `check-kernel-no-domain` green; failure table rows 1–3, 7–9 injected and passing; dictation e2e unchanged |
-| **V1 Safer OPD dictation (recommended first slice)** | On the existing web OPD panel: whisper `verbose_json` + "unclear" spans; vocabulary prompt from the hospital formulary and the doctor's frequent drugs; S4 drug/dose guard, S5 negation guard, S6 quote check; codes from the terminology lookup (S8); investigations → basket lines and follow-up date drafts; `ai.governance.view` + outcomes KPI tile | Eval set (≥ 100 synthetic Indian-English dictations incl. negations and doses) passes the bar; on-screen check as a doctor; edit ratio and time measured on a pilot |
+| **V0 Kernel and OS service** (right after V1) | `kernel::ai` (transcribe, extract, decide; Capability, Draft/Accepted types, audit rows, rate limits, kill switch); `medbrains-ai.service` with systemd + AppArmor, unix socket, bounded queue, probe, models on the data partition; dictation moved onto it, behaviour unchanged; `admin.ai.service.manage` + health screen line | `check-kernel-no-domain` green; failure table rows 1–3, 7–9 injected and passing; dictation e2e unchanged |
+| **V1 Safer OPD dictation (first slice, decided §13.1)** | On the existing web OPD panel: whisper `verbose_json` + "unclear" spans; vocabulary prompt from the hospital formulary and the doctor's frequent drugs; S4 drug/dose guard, S5 negation guard, S6 quote check; codes from the terminology lookup (S8); investigations → basket lines and follow-up date drafts; `ai.governance.view` + outcomes KPI tile | Eval set (≥ 100 synthetic Indian-English dictations incl. negations and doses) passes the bar; on-screen check as a doctor; edit ratio and time measured on a pilot |
 | V1b | Chunked upload while recording (latency) | p90 budget met |
 | **V2 Native doctor** | iOS + Android OPD consult dictation with the shared AI kit, encrypted bounded queue | Long-session journey green on both; 44 pt; memory flat |
 | **V3 IPD round + nursing handover** | `ipd.dictation.use`, `ipd.handover.dictation.use`; web + native | On screen as doctor and nurse |
@@ -641,29 +641,49 @@ A KPI tile ("Voice notes this week") on the management dashboard, gated by `ai.g
 | **V6 Indian languages** | Hindi, Tamil, Telugu, code-mixed; note written in English with the original transcript kept | Per-language eval sets pass |
 | V7 MCP | Kernel AI capabilities exposed to approved outside assistants | 403 proven for a capability the app lacks |
 
-**Why V0 before V1.** V0 is small if it only moves the existing calls (the mechanism already exists
-in `medbrains-dictation`), and building V1's guards on top of the kernel means IPD, handover, native
-and MCP inherit them instead of copying them. V1 is the smallest slice a doctor notices. If the owner
-wants that win sooner, V1 can land first inside `medbrains-dictation` and V0 moves it afterwards, at
-the cost of one extra move. Owner question 1.
+**Order (decided, §13.1).** V1 ships first inside `medbrains-dictation`, so doctors get the
+safety guards soonest; V0 then moves those calls onto `kernel::ai` and the OS service, behaviour
+unchanged, so IPD, handover, native and MCP inherit them instead of copying them. The cost is one
+extra move, accepted.
 
 ---
 
-## 13. Open questions for the owner
+## 13. Owner answers (decided 2026-11-13, "per standard practice")
 
-1. **Order:** V0 (kernel + OS service) before V1 (safer OPD dictation), or V1 first for a visible win?
-2. **Ambient consent:** verbal consent witnessed and recorded by staff, or signed on a tablet per visit?
-3. **AI service default:** on or off on a new install? (Recommended: off until the wizard step "Voice notes: install models".)
-4. **Cloud:** allow cloud speech (e.g. an Indian provider) as an opt-in in V1, or local only until V6?
-5. **Hardware floor:** is a CPU-only box acceptable for transcription only, with drafting requiring the 16 GB edge kit?
-6. **Audio dispute window:** keep audio only until save (current), or allow a hospital-set window up to 30 days?
-7. **Note language:** for Indian-language dictation, the note in English, in the spoken language, or both?
-8. **Who sees AI governance** (outcomes, edit rates per doctor): a clinical-safety role only, or department heads too?
-9. **SaMD review for ambient (V5):** an outside regulatory consultant or an internal clinical-safety lead?
-10. **Evaluation recordings:** may staff volunteers record synthetic scripts in real OPDs to build the Indian-English and code-mixed test sets?
-11. **Model downloads:** who approves the first model files (each is a large download and a licence check)?
-12. **Markets and regulatory help:** India only until when? Is the EU, UK or US a target before ambient (V5), and who is the regulatory consultant or lawyer for §9A's actions?
-13. **Incident contact:** who is named for the CERT-In 6-hour report and the DPDP breach notice for AI incidents?
+The owner answered every open question by standard operating practice. These are decisions.
+
+1. **Order:** V1 (safer OPD voice) ships first; V0 moves it onto `kernel::ai` and the OS service
+   right after. Safety improvements are delivered incrementally.
+2. **Ambient consent (V5):** as scribe products do in practice: the patient is informed and gives
+   verbal consent, which the clinician records in the note (time, who asked); clinic signage and the
+   patient notice say consultations may be recorded for note drafting. A written or tablet signature
+   is used where the hospital's policy or local law requires it. The patient may refuse or withdraw
+   at any time, with no effect on care.
+3. **AI default:** off on every new install (privacy by default: GDPR Art. 25, DPDP). The hospital
+   admin turns it on after the models are installed.
+4. **Cloud:** local only (data minimisation) until V6. After that, cloud only as a per-hospital
+   opt-in with a data-processing agreement.
+5. **Hardware floor:** a CPU-only box does transcription only; drafting needs the AI kit (16 GB
+   hospital-edge kit or better).
+6. **Audio retention:** deleted when the note is saved (default). A hospital setting allows up to 30
+   days, with its purpose documented on the settings screen.
+7. **Note language:** the note is written in English, the clinical record language; the
+   original-language transcript is kept with the note.
+8. **Edit-rate data:** visible to the clinician (their own) and to the hospital's quality committee
+   or medical director; not used for disciplinary action. The screen says so.
+9. **Device classification:** signed by regulatory affairs under a QMS (ISO 13485 practice), meaning
+   the owner plus an external regulatory consultant, before V5.
+10. **Evaluation recordings:** scripted, synthetic content only, read by staff volunteers who give
+    written consent; institutional ethics committee approval per the ICMR guidelines before any
+    recording in a real clinical setting.
+11. **Model releases:** through change control. Licence, evaluation and red-team results are reviewed
+    and approved by the owner (model governance) and each release is recorded in
+    `docs/DECISIONS.md`.
+12. **Markets:** India first (CDSCO, ICMR, DPDP); EU and US later. The owner appoints a regulatory
+    consultant or lawyer before V5.
+13. **Incident contact:** the designated point of contact for CERT-In and security incidents is the
+    owner, with a named deputy once hired. DPDP breach notices are made by the hospital (the data
+    fiduciary); MedBrains, as processor, notifies the hospital without delay.
 
 ---
 
@@ -671,5 +691,8 @@ the cost of one extra move. Owner question 1.
 
 - 2026-11-12, owner: the strict AI component seam (§10.0), regulation by design, with server-side
   enforcement and `check-ai-seam`. Recorded in `docs/DECISIONS.md` (Clinical safety).
+- 2026-11-13, owner, per standard practice: the 13 answers in §13. Recorded in
+  `docs/DECISIONS.md` (Clinical safety).
 
-Everything else is a proposal until the owner answers §13.
+The rest of the RFC (architecture, guards, permissions, phases) is the agreed plan; details change
+only through a new decision row.
