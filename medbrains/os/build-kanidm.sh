@@ -95,13 +95,13 @@ done
 
 bash "$HERE/../scripts/build_guard.sh" --wait
 if [[ ! -f "$VENDOR.config" ]]; then
-    (cd "$SRC" && RUSTUP_TOOLCHAIN=1.99.0 cargo vendor --locked --versioned-dirs "$VENDOR") > "$VENDOR.config.new"
+    (cd "$SRC" && RUSTUP_TOOLCHAIN=1.99.1 cargo vendor --locked --versioned-dirs "$VENDOR") > "$VENDOR.config.new"
     mv "$VENDOR.config.new" "$VENDOR.config"
 fi
 cat "$VENDOR.config" >> "$SRC/.cargo/config.toml"
 # The trailing .2.41 is trixie's glibc: Debian's libssl needs symbols older targets lack.
 # Debug info off: its release profile keeps it, and it would only add to the image.
-(cd "$SRC" && env -u MAKEFLAGS -u ARCH RUSTUP_TOOLCHAIN=1.99.0 CARGO_TARGET_DIR="$OS_TARGET_DIR" \
+(cd "$SRC" && env -u MAKEFLAGS -u ARCH RUSTUP_TOOLCHAIN=1.99.1 CARGO_TARGET_DIR="$OS_TARGET_DIR" \
     KANIDM_BUILD_PROFILE=release_linux CARGO_PROFILE_RELEASE_DEBUG=false CARGO_PROFILE_RELEASE_STRIP=debuginfo \
     OPENSSL_INCLUDE_DIR="$SSL/usr/include" OPENSSL_LIB_DIR="$SSL/usr/lib/$MULTIARCH" \
     cargo zigbuild --release --frozen --target="$TRIPLE.2.41" -p daemon --bin kanidmd)

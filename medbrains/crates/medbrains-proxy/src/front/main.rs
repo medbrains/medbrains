@@ -123,7 +123,8 @@ async fn serve(config: Config) -> anyhow::Result<()> {
             "the limits need {needed} open files, and {limit} are allowed"
         );
     }
-    let text = std::fs::read_to_string(&config.names_file)
+    let text = tokio::fs::read_to_string(&config.names_file)
+        .await
         .with_context(|| format!("cannot read {}", config.names_file.display()))?;
     let names = Names::parse(&text).context("the names file holds no valid name")?;
     let conf = Arc::new(ServerConf {

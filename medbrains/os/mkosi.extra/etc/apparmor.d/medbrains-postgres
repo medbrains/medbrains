@@ -1,0 +1,48 @@
+# PostgreSQL 17 (task T1.1): its cluster, configuration, sockets and logs, and the backup folder. Debian
+# ships no profile for it. Its own worker processes inherit this one.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile medbrains-postgres /usr/lib/postgresql/17/bin/postgres flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+
+  signal (send, receive) peer=medbrains-postgres,
+  signal (receive) peer=unconfined,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+  unix,
+
+  /usr/lib/postgresql/17/bin/postgres mrix,
+  # It asks for the system's locales through sh when the cluster is made (seen in the VM), in this profile.
+  /usr/bin/{dash,locale} mrix,
+  # Shared memory that systemd's private mounts leave without a path; only that object, not the root folder's files.
+  / rw,
+  /usr/lib/postgresql/17/lib/** mr,
+  /usr/share/postgresql/** r,
+  /usr/share/postgresql-common/** r,
+  /usr/share/zoneinfo/** r,
+  /var/lib/postgresql/ r,
+  /var/lib/postgresql/** rwk,
+  /run/postgresql/ rw,
+  /run/postgresql/** rwk,
+  /var/log/postgresql/** rw,
+  /var/backups/medbrains/ rw,
+  /var/backups/medbrains/** rwk,
+  /dev/shm/ r,
+  /dev/shm/PostgreSQL.* rw,
+  owner /tmp/** rwk,
+  @{PROC}/@{pid}/** rw,
+  @{PROC}/sys/kernel/** r,
+  @{PROC}/sys/vm/** r,
+  @{PROC}/{meminfo,stat} r,
+  /sys/fs/cgroup/** r,
+  /sys/devices/system/** r,
+  /sys/kernel/mm/transparent_hugepage/** r,
+
+  include if exists <local/medbrains-postgres>
+}

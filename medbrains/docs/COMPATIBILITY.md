@@ -14,13 +14,13 @@ MedBrains uses [Semantic Versioning 2.0](https://semver.org/): `MAJOR.MINOR.PATC
 
 | Change | Version |
 |---|---|
-| Bug and security fixes, nothing else changes | PATCH (1.0.**1**) |
-| Something added that cannot break anything built on a covered interface: a new endpoint, a new readable resource, a new event, a new optional manifest field, a new kernel function | MINOR (1.**1**.0) |
-| Anything that can break something built on a covered interface | MAJOR (**2**.0.0) |
+| Bug and security fixes, nothing else changes | PATCH (3.33.**1**) |
+| Something added that cannot break anything built on a covered interface: a new endpoint, a new readable resource, a new event, a new optional manifest field, a new kernel function | MINOR (3.**34**.0) |
+| Anything that can break something built on a covered interface | MAJOR (**4**.0.0) |
 
 There is one product version. It lives in `medbrains/Cargo.toml` (`[workspace.package] version`)
 and is repeated in `medbrains/package.json` and `medbrains/apps/web/package.json`;
-`make release` refuses a release where they differ. Pre-releases are `1.1.0-rc.1`,
+`make release` refuses a release where they differ. Pre-releases are `3.34.0-rc.1`,
 `-beta.N`, `-alpha.N` and carry no promise.
 
 ## 2. What is covered
@@ -69,11 +69,18 @@ fixes on the timelines in [`SECURITY-RELEASE-PROCESS.md`](SECURITY-RELEASE-PROCE
 
 | Major | Released | Security fixes until | Status |
 |---|---|---|---|
-| **1.x** | on the v1.0.0 tag | **proposed:** 12 months after 2.0.0 ships, and never before **2029-12-31** | proposed — the owner confirms before v1.0.0 |
-| **Protocol v1** | with MedBrains 1.0.0 | **proposed:** 12 months after protocol v2 ships, and never before **2029-12-31** | proposed — the owner confirms before v1.0.0 |
+| **3.x** | on the v3.33.0 tag, 2026-11-13 (the first versioned release; there was no 1.x or 2.x) | 12 months after 4.0.0 ships, and never before **2029-12-31** | confirmed by the owner, 2026-11-12 |
+| **Protocol v1** | with MedBrains 3.33.0 | **proposed:** 12 months after protocol v2 ships, and never before **2029-12-31** | proposed — the owner confirms before v3.33.0 |
 
-Only the latest minor of a supported major gets fixes: 1.3 is fixed by shipping 1.3.1 or 1.4.0,
-not 1.2.5. Hospitals move within a major freely, because nothing in §2 breaks inside one.
+**These dates only get longer.** A date here may be extended, never moved earlier, and a supported
+line is never removed from the table. CI enforces it on every pull request
+(`scripts/check_support_dates.py`, #5499), and the same check reads any support date in a Markdown
+table of the CHANGELOG, `medbrains/docs/release-notes/` and the website's Markdown pages. A page that
+publishes a support date puts it in such a table, so the check can see it. This is the CentOS 8
+lesson: a support date cut by eight years in 2020 cost that project its users.
+
+Only the latest minor of a supported major gets fixes: 3.34 is fixed by shipping 3.34.1 or 3.35.0,
+not 3.33.5. Hospitals move within a major freely, because nothing in §2 breaks inside one.
 
 ## 5. The compatibility test suite
 

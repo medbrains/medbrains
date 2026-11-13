@@ -99,6 +99,22 @@ jobs:
       - run: python3 scripts/check_egress_allowlist.py
       - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
 
+  readiness:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Readiness meters (evidence + generated badges)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Evidence PRs are found in the history, so it must be all there.
+          fetch-depth: 0
+      - run: python3 scripts/readiness.py --self-test
+      - run: python3 scripts/readiness.py --check
+
   docs:
     name: Every new function is documented
     runs-on: ubuntu-latest
@@ -110,6 +126,22 @@ jobs:
           fetch-depth: 0
       - run: python3 medbrains/scripts/check_docs_on_new_functions.py --self-test
       - run: python3 medbrains/scripts/check_docs_on_new_functions.py "origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+  support-dates:
+    # A published end-of-support date may be extended, never cut, and a supported line never
+    # vanishes from the table (COMPATIBILITY.md §4, #5499; the CentOS 8 lesson).
+    name: Support dates only get longer
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python3 scripts/check_support_dates.py --self-test
+      - run: python3 scripts/check_support_dates.py "origin/$BASE_REF"
         env:
           BASE_REF: ${{ github.base_ref }}
 

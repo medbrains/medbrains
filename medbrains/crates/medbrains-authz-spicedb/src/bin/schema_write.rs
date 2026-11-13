@@ -1,4 +1,4 @@
-use std::{env, fs, path::PathBuf, time::Duration};
+use std::{env, path::PathBuf, time::Duration};
 
 use anyhow::{Context, bail};
 use medbrains_spicedb_proto::authzed::api::v1::{
@@ -19,7 +19,8 @@ async fn main() -> anyhow::Result<()> {
         .map_or_else(|| PathBuf::from(DEFAULT_SCHEMA_PATH), PathBuf::from);
     let endpoint = env::var("SPICEDB_ENDPOINT").unwrap_or_else(|_| DEFAULT_ENDPOINT.to_owned());
     let token = env::var("SPICEDB_TOKEN").unwrap_or_else(|_| DEFAULT_TOKEN.to_owned());
-    let schema = fs::read_to_string(&schema_path)
+    let schema = tokio::fs::read_to_string(&schema_path)
+        .await
         .with_context(|| format!("read SpiceDB schema file {}", schema_path.display()))?;
 
     let mut last_error = String::new();

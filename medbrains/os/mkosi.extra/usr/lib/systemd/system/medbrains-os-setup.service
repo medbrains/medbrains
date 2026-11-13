@@ -6,6 +6,8 @@ After=systemd-tmpfiles-setup.service
 
 [Service]
 Type=exec
+# Refuses to start unconfined: AppArmor off or this profile not enforcing (L6).
+ExecStartPre=+/usr/lib/medbrains/require-apparmor medbrains-os-setup
 ExecStart=/usr/bin/medbrains-os-setup
 Restart=always
 RestartSec=2s

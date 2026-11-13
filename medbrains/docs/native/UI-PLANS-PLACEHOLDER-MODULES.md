@@ -445,7 +445,7 @@ paired.revoke and roster.read.
 |---|---|---|---|---|
 | D1 | **Paired devices** (home) | List: label, app variant, ward/station, last seen (stale is shown as a word) and revoked. | `GET /api/admin/paired-devices` | `devices.pairing.paired.list` |
 | D2 | **Device detail** | Fingerprint (mono, truncated), issued-to and node key. **Revoke device** is a destructive confirmation that states the 16 h lag. | `DELETE /api/admin/paired-devices/{id}`, `GET/DELETE /api/device-pairing/paired/{id}/node-key` | `devices.pairing.paired.revoke` (node key: see G-DEV-1) |
-| D3 | **Approve pairing** | Pending device-code requests. A TV shows a code; the admin matches it and approves. | `GET /api/admin/device-pairing/requests`, `POST /api/admin/device-pairing/approve` | `devices.pairing.token.create` |
+| D3 | **Approve pairing** | Pending device-code requests of this hospital. A TV shows a reference and a code; the admin finds the reference, types the code (never listed) and approves. | `GET /api/admin/device-pairing/requests`, `POST /api/admin/device-pairing/approve` | `devices.pairing.token.create` |
 | D4 | **Pair a device** | Mint a one-time token, shown as a QR for the other device to scan. | `POST /api/admin/device-pairing-tokens` | `devices.pairing.token.create` |
 | D5 | **This phone's sync** | Local node identity (Rust `generateNodeIdentity`) and the peer roster. | `GET /api/device-pairing/peer-roster` | `devices.pairing.roster.read` |
 

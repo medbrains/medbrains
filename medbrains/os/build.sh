@@ -13,6 +13,8 @@
 #
 #   OS_PCR_KEY, OS_PCR_CERT  RSA key and certificate signing the boot file's expected PCR 11. Without them
 #                         a release image's disk seal covers only PCR 7. --debug makes a throwaway.
+#   OS_SB_KEY, OS_SB_CERT    key and certificate signing systemd-boot and the boot file for UEFI Secure
+#                         Boot. Without them the image boots only with Secure Boot off. build-iso.sh takes the same.
 #
 # --debug adds a root shell on the serial console, for verification only.
 set -euo pipefail
@@ -143,6 +145,8 @@ if [[ "$DEBUG" == 1 ]]; then
     rm -f "$OS_WORK/update-test.seed"
     : > "$KEYS/THIS-IS-A-DEBUG-IMAGE"
     install -m 0755 "$HERE/debug/pcr11-replay" "$EXTRA/usr/lib/medbrains/pcr11-replay"
+    # The CIS-style hardening report (X16), run by medbrains-os-test. A release image has no shell to run it in.
+    install -m 0755 "$HERE/tests/cis-check.sh" "$EXTRA/usr/lib/medbrains/cis-check"
     # A clearly marked sign-in for trying the Identity app. Never in a release image.
     install -m 0755 "$HERE/debug/kanidm-debug-account" "$EXTRA/usr/lib/medbrains/kanidm-debug-account"
     install -m 0644 "$HERE/debug/kanidm-debug-account.service" "$EXTRA/usr/lib/systemd/system/"
@@ -150,7 +154,7 @@ if [[ "$DEBUG" == 1 ]]; then
     # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
     # a test Wi-Fi network with mac80211_hwsim.
     DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service systemd.mask=serial-getty@ttyS0.service"
-                --package strace --package tpm2-tools --package wtype --package grim --package hostapd --package iw)
+                --package strace --package xz-utils --package wtype --package grim --package hostapd --package iw)
 fi
 
 # A debug image gets a throwaway signing key, so the signed path is what gets tested. Never for release.
@@ -165,6 +169,11 @@ SIGN_MOUNTS=()
 if [[ -n "${OS_PCR_KEY:-}" ]]; then
     SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT")
     SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro")
+fi
+
+if [[ -n "${OS_SB_KEY:-}" ]]; then
+    SIGN_ARGS+=(--secure-boot yes --secure-boot-key "$OS_SB_KEY" --secure-boot-certificate "$OS_SB_CERT")
+    SIGN_MOUNTS+=(-v "$OS_SB_KEY:$OS_SB_KEY:ro" -v "$OS_SB_CERT:$OS_SB_CERT:ro")
 fi
 
 ROOT_ARG="root=PARTLABEL=medbrains_$VERSION"

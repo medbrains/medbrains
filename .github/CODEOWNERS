@@ -20,6 +20,7 @@
 
 # Infrastructure, deploy and CI.
 /.github/                                               @DomnicAmalan
+/.github/workflows/claude.yml                           @DomnicAmalan
 /medbrains/infra/                                       @DomnicAmalan
 /medbrains/deploy/                                      @DomnicAmalan
 

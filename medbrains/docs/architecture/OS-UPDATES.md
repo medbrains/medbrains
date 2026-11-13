@@ -91,7 +91,10 @@ A folder of four files, the same on a USB stick (`medbrains-update/`) and at an 
 `os/update-keys/*.pub` into a release image and fails if one is named `test-*`. A debug image gives root to anyone with a serial
 cable, so this key protects nothing and only lets the tests run.
 
-**Release key: designed, not made** (plan X2). Until it exists, a release image refuses every bundle and says so.
+**Release key: designed, not made** (plan X2). Until it exists, a release image refuses every bundle and says so. The custody
+design (three offline root tokens, a 30-day intermediate for CI, a revocation list in every bundle) and the compromise runbook
+are in [OS-SIGNING-KEYS.md](OS-SIGNING-KEYS.md); the updater code for the chain is #5510. The table below is the single-key
+design that document replaces.
 
 | Question | Answer |
 |---|---|
@@ -107,7 +110,8 @@ machine holding either (`a_bundle_signed_by_two_keys_passes_on_old_and_new_machi
 
 **A stolen key.** Rotating drops it only from machines that update. A thief can sign a bundle with a high version for anything
 that still trusts it, so a stolen key needs a same-day release raising the floor, and the release list on another path. Machines
-offline during that window stay exposed. There is no revocation list: a machine has no trusted time or channel to read one from.
+offline during that window stay exposed. There is no revocation list today: a machine has no trusted time or channel to read one from. OS-SIGNING-KEYS.md §4 makes
+the bundle itself that channel, with a sequence number for freshness and a 30-day certificate instead of trusted time (#5510).
 
 **The boot signing key is a different key.** `OS_PCR_KEY` (OS-KEYS.md) signs what may open the disk; this one what may be
 installed. They could be the same physical custody. Keep them apart in software: a mistake with one mustn't release the other.

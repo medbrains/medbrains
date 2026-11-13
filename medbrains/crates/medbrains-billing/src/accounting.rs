@@ -533,12 +533,38 @@ pub struct ImportBankTransactionsResponse {
     pub import_batch: String,
 }
 
+/// A statement line is money in or money out, never both, never neither, never negative; an
+/// empty import is refused rather than recorded as a batch of nothing.
+///
+/// # Errors
+/// 400 naming the first bad line (1-based, as on the statement).
+fn validate_statement_lines(rows: &[ImportBankTransactionRow]) -> Result<(), AppError> {
+    if rows.is_empty() {
+        return Err(AppError::BadRequest(
+            "The statement has no lines.".to_owned(),
+        ));
+    }
+    for (index, row) in rows.iter().enumerate() {
+        let (debit, credit) = (row.debit_amount, row.credit_amount);
+        let one_sided = (debit > Decimal::ZERO) != (credit > Decimal::ZERO);
+        if debit < Decimal::ZERO || credit < Decimal::ZERO || !one_sided {
+            return Err(AppError::BadRequest(format!(
+                "Line {}: give either a debit or a credit, as a positive amount.",
+                index + 1
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Load a bank statement's lines as one import batch, all or none, each line unmatched.
 pub async fn import_bank_transactions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<ImportBankTransactionsRequest>,
 ) -> Result<Json<ImportBankTransactionsResponse>, AppError> {
     require_permission(&claims, permissions::billing::bank_recon::MANAGE)?;
+    validate_statement_lines(&body.transactions)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -586,6 +612,109 @@ pub struct MatchBankTransactionRequest {
     pub notes: Option<String>,
 }
 
+/// Serialise reconciliation for one tenant inside the caller's transaction, so a manual match
+/// and an auto-reconcile run cannot both claim the same payment.
+async fn lock_reconciliation(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('bank_recon:' || $1::text))")
+        .bind(tenant_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// What a bank line is matched to: money in matches a payment, money out a refund.
+enum ReconTarget {
+    Payment(Uuid),
+    Refund(Uuid),
+}
+
+impl ReconTarget {
+    /// Exactly one of `payment_id` and `refund_id`.
+    fn from_request(body: &MatchBankTransactionRequest) -> Result<Self, AppError> {
+        match (body.payment_id, body.refund_id) {
+            (Some(id), None) => Ok(Self::Payment(id)),
+            (None, Some(id)) => Ok(Self::Refund(id)),
+            _ => Err(AppError::BadRequest(
+                "Match a bank line to one payment or one refund.".to_owned(),
+            )),
+        }
+    }
+}
+
+/// The amount of the completed payment or refund `target`, if it exists and no other live bank
+/// line already holds it.
+///
+/// # Errors
+/// 400 when it is not a live completed payment or refund of this tenant; 409 when another bank
+/// line is already matched to it.
+async fn target_amount(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    line_id: Uuid,
+    target: &ReconTarget,
+) -> Result<Decimal, AppError> {
+    let (amount, taken) = match target {
+        ReconTarget::Payment(id) => {
+            let amount = sqlx::query_scalar::<_, Decimal>(
+                "SELECT amount FROM payments WHERE id = $1 AND tenant_id = $2 \
+                 AND deleted_at IS NULL AND status = 'completed'",
+            )
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+            let taken = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM bank_transactions WHERE tenant_id = $1 \
+                 AND matched_payment_id = $2 AND id <> $3 AND deleted_at IS NULL)",
+            )
+            .bind(tenant_id)
+            .bind(id)
+            .bind(line_id)
+            .fetch_one(&mut **tx)
+            .await?;
+            (amount, taken)
+        }
+        ReconTarget::Refund(id) => {
+            let amount = sqlx::query_scalar::<_, Decimal>(
+                "SELECT amount FROM refunds WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+            )
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+            let taken = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM bank_transactions WHERE tenant_id = $1 \
+                 AND matched_refund_id = $2 AND id <> $3 AND deleted_at IS NULL)",
+            )
+            .bind(tenant_id)
+            .bind(id)
+            .bind(line_id)
+            .fetch_one(&mut **tx)
+            .await?;
+            (amount, taken)
+        }
+    };
+    let amount = amount.ok_or_else(|| {
+        AppError::BadRequest(
+            "That is not a completed payment or refund of this hospital.".to_owned(),
+        )
+    })?;
+    if taken {
+        return Err(AppError::Conflict(
+            "Another bank line is already matched to that payment or refund.".to_owned(),
+        ));
+    }
+    Ok(amount)
+}
+
+/// Match one statement line to one payment (money in) or one refund (money out) by hand.
+///
+/// A line is matched once; a payment or refund backs one line. A difference between the bank
+/// amount and the receipt (card fees, short credit) is kept as `variance_amount` and the line
+/// is marked `discrepancy` for review, never `matched`.
 pub async fn match_bank_transaction(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -593,16 +722,47 @@ pub async fn match_bank_transaction(
     Json(body): Json<MatchBankTransactionRequest>,
 ) -> Result<Json<BankTransaction>, AppError> {
     require_permission(&claims, permissions::billing::bank_recon::MANAGE)?;
+    let target = ReconTarget::from_request(&body)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    lock_reconciliation(&mut tx, claims.tenant_id).await?;
+
+    let (status, credit, debit) = sqlx::query_as::<_, (String, Decimal, Decimal)>(
+        "SELECT recon_status::text, credit_amount, debit_amount FROM bank_transactions \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if status != "unmatched" {
+        return Err(AppError::Conflict(format!(
+            "This bank line is already {status}; it cannot be matched again."
+        )));
+    }
+    let bank_amount = match target {
+        ReconTarget::Payment(_) if credit > Decimal::ZERO => credit,
+        ReconTarget::Refund(_) if debit > Decimal::ZERO => debit,
+        ReconTarget::Payment(_) => {
+            return Err(AppError::BadRequest(
+                "A payment matches money received; this line is money paid out.".to_owned(),
+            ));
+        }
+        ReconTarget::Refund(_) => {
+            return Err(AppError::BadRequest(
+                "A refund matches money paid out; this line is money received.".to_owned(),
+            ));
+        }
+    };
+    let variance = bank_amount - target_amount(&mut tx, claims.tenant_id, id, &target).await?;
 
     let row = sqlx::query_as::<_, BankTransaction>(
         "UPDATE bank_transactions SET \
-         recon_status = 'matched', \
-         matched_payment_id = COALESCE($3, matched_payment_id), \
-         matched_refund_id = COALESCE($4, matched_refund_id), \
-         matched_by = $5, matched_at = now(), \
+         recon_status = CASE WHEN $7 = 0 THEN 'matched' ELSE 'discrepancy' END::recon_status, \
+         matched_payment_id = $3, matched_refund_id = $4, \
+         matched_by = $5, matched_at = now(), variance_amount = $7, \
          notes = COALESCE($6, notes) \
          WHERE id = $1 AND tenant_id = $2 RETURNING *",
     )
@@ -612,6 +772,7 @@ pub async fn match_bank_transaction(
     .bind(body.refund_id)
     .bind(claims.sub)
     .bind(body.notes.as_deref())
+    .bind(variance)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -625,6 +786,7 @@ pub struct AutoReconcileResponse {
     pub unmatched_count: i64,
 }
 
+/// Match unmatched bank credits to completed payments one-to-one and report what is left.
 pub async fn auto_reconcile(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -634,35 +796,48 @@ pub async fn auto_reconcile(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Match bank credits to payments by amount + date ± 1 day + reference_number
-    let matched = sqlx::query_scalar::<_, i64>(
-        "WITH matches AS ( \
-           SELECT bt.id AS bt_id, p.id AS pay_id \
+    lock_reconciliation(&mut tx, claims.tenant_id).await?;
+
+    // Match bank credits to completed payments of the same amount within a day, by reference
+    // when the bank gives one. One-to-one: each line takes its best payment and each payment its
+    // best line; a pair is matched only when both agree, so two equal credits never claim the
+    // same receipt. Ambiguous lines stay unmatched for a person (or the next run) to decide.
+    let matched = sqlx::query_scalar::<_, Uuid>(
+        "WITH candidates AS ( \
+           SELECT bt.id AS bt_id, p.id AS pay_id, \
+             ROW_NUMBER() OVER (PARTITION BY bt.id \
+               ORDER BY ABS(p.paid_at::date - bt.transaction_date), p.paid_at, p.id) AS bt_rank, \
+             ROW_NUMBER() OVER (PARTITION BY p.id \
+               ORDER BY ABS(p.paid_at::date - bt.transaction_date), bt.transaction_date, bt.id) \
+               AS pay_rank \
            FROM bank_transactions bt \
            JOIN payments p ON p.tenant_id = bt.tenant_id \
              AND p.amount = bt.credit_amount \
-             AND ABS(EXTRACT(DAY FROM p.paid_at - bt.transaction_date::timestamp)) <= 1 \
+             AND p.deleted_at IS NULL AND p.status = 'completed' \
+             AND ABS(p.paid_at::date - bt.transaction_date) <= 1 \
              AND (bt.reference_number IS NULL OR p.reference_number = bt.reference_number) \
            WHERE bt.tenant_id = $1 AND bt.recon_status = 'unmatched' \
-             AND bt.credit_amount > 0 \
-             AND p.id NOT IN (SELECT matched_payment_id FROM bank_transactions \
-                              WHERE matched_payment_id IS NOT NULL AND tenant_id = $1) \
+             AND bt.deleted_at IS NULL AND bt.credit_amount > 0 \
+             AND NOT EXISTS (SELECT 1 FROM bank_transactions o \
+                             WHERE o.tenant_id = $1 AND o.matched_payment_id = p.id \
+                               AND o.deleted_at IS NULL) \
          ) \
          UPDATE bank_transactions SET \
-           recon_status = 'matched', matched_payment_id = m.pay_id, \
+           recon_status = 'matched', matched_payment_id = m.pay_id, variance_amount = 0, \
            matched_by = $2, matched_at = now() \
-         FROM matches m WHERE bank_transactions.id = m.bt_id \
+         FROM candidates m \
+         WHERE bank_transactions.id = m.bt_id AND m.bt_rank = 1 AND m.pay_rank = 1 \
          RETURNING bank_transactions.id",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
     .fetch_all(&mut *tx)
     .await?
-    .len() as i64;
+    .len();
 
     let unmatched = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM bank_transactions \
-         WHERE tenant_id = $1 AND recon_status = 'unmatched'",
+         WHERE tenant_id = $1 AND recon_status = 'unmatched' AND deleted_at IS NULL",
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
@@ -951,12 +1126,42 @@ pub struct GenerateGstrRequest {
     pub period: String,
 }
 
+/// Refuse a return this hospital cannot compute from its own sales: a return type other than
+/// GSTR-1 or GSTR-3B (GSTR-2B is the portal's statement of input tax credit on purchases; it is
+/// downloaded, never built from sales invoices), or a period that is not a real `YYYY-MM`.
+///
+/// # Errors
+/// 400 saying which.
+fn validate_gstr_request(body: &GenerateGstrRequest) -> Result<(), AppError> {
+    if !matches!(body.return_type.as_str(), "GSTR-1" | "GSTR-3B") {
+        return Err(AppError::BadRequest(
+            "Only GSTR-1 and GSTR-3B are prepared from the hospital's invoices; GSTR-2B is \
+             downloaded from the GST portal."
+                .to_owned(),
+        ));
+    }
+    let is_month = body.period.len() == 7
+        && NaiveDate::parse_from_str(&format!("{}-01", body.period), "%Y-%m-%d").is_ok();
+    if !is_month {
+        return Err(AppError::BadRequest(
+            "The period is a month, written YYYY-MM.".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Prepare (or re-prepare) a draft GSTR-1 / GSTR-3B summary for one month from issued invoices.
+///
+/// A return already filed or accepted is the record of what was declared to the government and
+/// is never recomputed: changes after filing go in a later period's amendment, so a second
+/// generate for that month answers 409 and leaves the filed figures as they were.
 pub async fn generate_gstr_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<GenerateGstrRequest>,
 ) -> Result<Json<GstReturnSummary>, AppError> {
     require_permission(&claims, permissions::billing::gst_returns::MANAGE)?;
+    validate_gstr_request(&body)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1016,6 +1221,7 @@ pub async fn generate_gstr_summary(
          hsn_summary = EXCLUDED.hsn_summary, \
          invoice_count = EXCLUDED.invoice_count, \
          filing_status = 'draft' \
+         WHERE gst_return_summaries.filing_status NOT IN ('filed', 'accepted') \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1029,8 +1235,15 @@ pub async fn generate_gstr_summary(
     .bind(totals.total_tax)
     .bind(&hsn)
     .bind(totals.invoice_count)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::Conflict(format!(
+            "The {} for {} is already filed; record later changes as amendments in a later \
+             period's return.",
+            body.return_type, body.period
+        ))
+    })?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -1068,6 +1281,10 @@ pub async fn list_gstr_summaries(
     Ok(Json(rows))
 }
 
+/// Mark a draft or validated summary as filed, by whom and when.
+///
+/// # Errors
+/// 404 when there is no such summary; 409 when it is already filed or accepted.
 pub async fn file_gstr(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1087,8 +1304,22 @@ pub async fn file_gstr(
     .bind(id)
     .bind(claims.tenant_id)
     .bind(claims.sub)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+    let Some(row) = row else {
+        let status = sqlx::query_scalar::<_, String>(
+            "SELECT filing_status::text FROM gst_return_summaries \
+             WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        return Err(AppError::Conflict(format!(
+            "This return is {status}; only a draft or validated return can be filed."
+        )));
+    };
 
     tx.commit().await?;
     Ok(Json(row))

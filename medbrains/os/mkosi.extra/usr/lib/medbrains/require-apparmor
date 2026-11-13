@@ -1,0 +1,10 @@
+#!/bin/bash
+# require-apparmor PROFILE: run as a unit's first ExecStartPre=+, it refuses to start the service unless its
+# AppArmor profile is loaded in enforce mode. The profile attaches by path when the service's program starts,
+# so loaded-and-enforcing means confined; anything else (AppArmor off, a profile that failed to load, complain
+# mode) would run the service unconfined without a word. Not AppArmorProfile=: that also confines the unit's own
+# setup steps (kanidm-tls, pg_ctlcluster), which the profiles rightly do not allow.
+set -euo pipefail
+grep -qxF "$1 (enforce)" /sys/kernel/security/apparmor/profiles 2>/dev/null && exit 0
+echo "AppArmor profile $1 is not loaded in enforce mode, so this service will not start unconfined." >&2
+exit 1
