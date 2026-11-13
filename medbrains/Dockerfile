@@ -29,7 +29,10 @@ WORKDIR /app
 ENV SQLX_OFFLINE=true
 
 # Build deps from recipe — this layer is cached unless deps change.
-# OpenSSL is vendored (medbrains-crypto, medbrains-server), so no libssl-dev.
+# OpenSSL is vendored (medbrains-crypto, medbrains-server), so no libssl-dev;
+# libz-ng-sys and aws-lc-sys build with cmake, which the base image lacks.
+RUN apt-get update && apt-get install -y --no-install-recommends cmake \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=planner /app/recipe.json recipe.json
 COPY .cargo/ .cargo/
 COPY vendor/ vendor/
