@@ -893,6 +893,7 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `tests/kanidm-one-login-test.py`, `tests/kanidm-limit-test.py`: one login from setup, and the limit by address.
 - `tests/kanidm-attacks.py`, `tests/kanidm-upgrade-test.py`, `tests/sso-entra-fixture.py`: the published crashes, a real upgrade and the Entra-shaped sign-in, each against a booted debug image.
 - `tests/kanidm-pin-test.sh`, `tests/kanidm-disk-guard-test.sh`: the build's pins and the encryption guard, with no VM.
+- `tests/disk-setup-lockout-test.sh`: how `disk-setup` sets the TPM's lockout password, against stubbed tpm2-tools, with no VM.
 - `tests/webauthn-probe.html`, `tests/webauthn-probe.js`: what a browser offers for hardware keys, shown on the page. Copy them to a test VM's `/usr/share/kanidm/ui/hpkg/` and open `/pkg/webauthn-probe.html`.
 
 ## Measured
