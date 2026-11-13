@@ -8,6 +8,7 @@ use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::Semaphore;
 
 use super::Node;
+use crate::limits::ErrorPause;
 use crate::time::{ask_main, is_time_packet};
 use crate::wire::{TIME_ALPN, TUNNEL_ALPN};
 
@@ -34,14 +35,18 @@ impl Node {
 
     /// Relays chrony's packets to the main machine for as long as the agent runs; one at a time,
     /// which is plenty at chrony's rate, and each with a time limit. Returns `!`: a node whose clock
-    /// relay stopped would drift unseen, so no path may end it.
+    /// relay stopped would drift unseen, so no path may end it. A failed receive backs off
+    /// (`ErrorPause`) rather than spinning.
     async fn relay_time_forever(self: Arc<Self>, socket: UdpSocket) -> ! {
         let mut buffer = [0_u8; 1024];
         let mut held: Option<Connection> = None;
+        let mut pause = ErrorPause::new();
         loop {
             let Ok((read, from)) = socket.recv_from(&mut buffer).await else {
+                pause.after_error().await;
                 continue;
             };
+            pause.reset();
             if !is_time_packet(read) {
                 continue;
             }
@@ -67,14 +72,18 @@ impl Node {
 
     /// Carries each connection from the screen over one iroh connection, which is dialled again
     /// when it has dropped. Knows nothing about what it carries: TLS ends at the main machine.
-    /// Returns `!`: a failed accept is skipped, so the screen never loses its path by the loop ending.
+    /// Returns `!`: a failed accept backs off (`ErrorPause`) and is retried, so the screen never
+    /// loses its path by the loop ending, and a lasting error does not spin.
     async fn carry_forever(self: Arc<Self>, listener: TcpListener) -> ! {
         let conn: Arc<tokio::sync::Mutex<Option<Connection>>> = Arc::default();
         let limit = Arc::new(Semaphore::new(MAX_STREAMS));
+        let mut pause = ErrorPause::new();
         loop {
             let Ok((screen, _)) = listener.accept().await else {
+                pause.after_error().await;
                 continue;
             };
+            pause.reset();
             let Ok(permit) = Arc::clone(&limit).try_acquire_owned() else {
                 continue;
             };

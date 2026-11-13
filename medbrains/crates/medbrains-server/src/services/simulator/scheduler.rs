@@ -40,7 +40,7 @@ const SYSTEM_ROLE: &str = "system";
 
 /// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(state: AppState) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         let mut ticker = tokio::time::interval(TICK_INTERVAL);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {

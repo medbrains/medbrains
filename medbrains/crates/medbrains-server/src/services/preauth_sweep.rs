@@ -14,7 +14,7 @@ const PASS_INTERVAL_SECS: u64 = 3600;
 /// visits than a pass checks is covered over the following passes.
 /// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         let mut cursors = HashMap::new();
         loop {
             match medbrains_billing::preauth_sweep::sweep_all(&pool, &mut cursors).await {

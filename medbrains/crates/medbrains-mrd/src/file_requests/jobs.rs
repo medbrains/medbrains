@@ -54,7 +54,7 @@ const TENANT_LIMIT: i64 = 1000;
 /// Run both timers forever on the worker pool.
 /// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         let mut pass: u64 = 0;
         loop {
             match escalate_late(&pool).await {

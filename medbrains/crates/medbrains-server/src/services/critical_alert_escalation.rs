@@ -79,7 +79,7 @@ pub const RADIOLOGY: Kind = Kind {
 /// Run both escalation passes forever on the worker pool.
 /// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool, resolver: Arc<dyn SecretResolver>) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             for kind in [&LAB, &RADIOLOGY] {
                 match escalate(&pool, resolver.as_ref(), kind).await {

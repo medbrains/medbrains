@@ -42,7 +42,7 @@ const PASS_LIMIT: i64 = 200;
 /// Run the pass forever on the worker pool.
 /// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             match escalate_unanswered(&pool).await {
                 Ok(n) if n > 0 => tracing::warn!(n, "code blues re-paged: nobody responded"),

@@ -70,12 +70,56 @@ impl AddressLimits {
     }
 }
 
+/// First pause after a failed accept or receive; it doubles with each failure in a row.
+const ERROR_PAUSE_START: Duration = Duration::from_millis(100);
+/// Longest pause, so a lasting error (too many open files) costs one try per this long, not a
+/// core spinning.
+const ERROR_PAUSE_MAX: Duration = Duration::from_secs(5);
+
+/// The pause a socket loop takes after errors in a row: doubling, capped, back to the start on a
+/// success.
+#[derive(Debug)]
+pub(crate) struct ErrorPause(Duration);
+
+impl ErrorPause {
+    /// A pause that has seen no errors yet.
+    pub(crate) const fn new() -> Self {
+        Self(ERROR_PAUSE_START)
+    }
+
+    /// Waits out the current pause, then doubles it up to the cap.
+    pub(crate) async fn after_error(&mut self) {
+        tokio::time::sleep(self.0).await;
+        self.0 = self.0.saturating_mul(2).min(ERROR_PAUSE_MAX);
+    }
+
+    /// A success: the next error starts again from the shortest pause.
+    pub(crate) const fn reset(&mut self) {
+        self.0 = ERROR_PAUSE_START;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::IpAddr;
     use std::time::{Duration, Instant};
 
-    use super::{AddressLimits, MAX_TRACKED, WINDOW};
+    use super::{
+        AddressLimits, ERROR_PAUSE_MAX, ERROR_PAUSE_START, ErrorPause, MAX_TRACKED, WINDOW,
+    };
+
+    #[tokio::test(start_paused = true)]
+    async fn error_pause_doubles_to_the_cap_and_resets() {
+        let mut pause = ErrorPause::new();
+        for _ in 0..10 {
+            pause.after_error().await;
+        }
+        assert_eq!(pause.0, ERROR_PAUSE_MAX);
+        pause.reset();
+        assert_eq!(pause.0, ERROR_PAUSE_START);
+        pause.after_error().await;
+        assert_eq!(pause.0, ERROR_PAUSE_START * 2);
+    }
 
     const MAX_LIVE: u32 = 3;
     const MAX_STARTED: u32 = 10;

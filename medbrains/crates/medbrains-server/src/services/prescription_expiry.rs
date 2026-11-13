@@ -20,7 +20,7 @@ pub const NOTICE_DAYS: i32 = 3;
 
 /// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             match scan_once(&pool).await {
                 Ok(raised) if raised > 0 => {

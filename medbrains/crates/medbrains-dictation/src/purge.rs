@@ -27,7 +27,7 @@ const MAX_SESSIONS_PER_TENANT: i64 = 5000;
 /// Run [`purge_expired`] every fifteen minutes on `pool` (the worker pool).
 /// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             match purge_expired(&pool, HOLD_HOURS).await {
                 Ok(pass) => tracing::info!(

@@ -37,7 +37,7 @@ const DEFAULT_AI_PROMPT_DAYS: i32 = 90;
 
 /// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             if let Err(error) = run_retention_pass(&pool).await {
                 tracing::error!(%error, "retention pass failed");

@@ -48,7 +48,7 @@ const DEFAULT_SLA_MINUTES: i32 = 60;
 
 /// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    medbrains_server_core::background::spawn_forever(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             match escalate_breached_callbacks(&pool).await {
                 Ok(count) if count > 0 => {
