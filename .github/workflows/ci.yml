@@ -53,6 +53,7 @@ jobs:
     outputs:
       rust: ${{ steps.diff.outputs.rust }}
       web: ${{ steps.diff.outputs.web }}
+      docker: ${{ steps.diff.outputs.docker }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,14 +67,18 @@ jobs:
           set -u
           if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
              || ! files=$(git diff --name-only "$BASE" "$HEAD"); then
-            echo "rust=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"; exit 0
+            printf 'rust=true\nweb=true\ndocker=true\n' >> "$GITHUB_OUTPUT"; exit 0
           fi
           printf '%s\n' "$files"
           ci='^\.github/workflows/ci\.yml$'
           rust='^medbrains/(crates/|Cargo\.(toml|lock)|\.sqlx/|rust-toolchain|rustfmt|deny\.toml|clippy\.toml|\.cargo/)'
           web='^medbrains/(apps/web/|packages/|package\.json|pnpm-(lock|workspace)\.yaml|turbo\.json|biome\.json|\.nvmrc|tsconfig)'
-          echo "rust=$(grep -qE "$rust|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "web=$(grep -qE "$web|$ci" <<<"$files" && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          docker='^medbrains/(Dockerfile|\.dockerignore|rust-toolchain\.toml|Cargo\.lock)$'
+          {
+            echo "rust=$(grep -qE "$rust|$ci" <<<"$files" && echo true || echo false)"
+            echo "web=$(grep -qE "$web|$ci" <<<"$files" && echo true || echo false)"
+            echo "docker=$(grep -qE "$docker|$ci" <<<"$files" && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
 
   # ── Blocking: run against master and verified green ──────────────
 
@@ -223,6 +228,39 @@ jobs:
       - name: Python SDK speaks the extension protocol
         working-directory: medbrains/sdks/python
         run: python3 -m unittest discover -s tests
+
+  # The image is built only when a release is published, so a stale base image
+  # surfaced there first (v3.33.0: rust:1.85 against a 1.95 MSRV). This keeps the
+  # two in step on every PR, at the cost of one grep.
+  docker-toolchain:
+    name: Dockerfile matches the toolchain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - working-directory: medbrains
+        run: |
+          want=$(sed -nE 's/^channel *= *"([^"]+)".*/\1/p' rust-toolchain.toml)
+          have=$(sed -nE 's/^FROM rust:([0-9.]+)-.*/\1/p' Dockerfile)
+          echo "rust-toolchain.toml: $want  Dockerfile: $have"
+          if [ -z "$want" ] || [ "$want" != "$have" ]; then
+            echo "::error file=medbrains/Dockerfile::FROM rust:$have must match rust-toolchain.toml ($want)"
+            exit 1
+          fi
+
+  # Builds the release image without pushing, only when what it depends on changed.
+  docker-build:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true'
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - run: docker buildx build --platform linux/amd64 -f medbrains/Dockerfile medbrains
 
   rust-fmt:
     # A draft PR spends no build; marking it ready for review runs everything.
