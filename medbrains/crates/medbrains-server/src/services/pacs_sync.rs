@@ -25,8 +25,9 @@ const PASS_INTERVAL_SECS: u64 = 60;
 /// Change-feed pages read per tenant per pass (100 changes each).
 const MAX_PAGES: usize = 20;
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         let secrets = crate::secret_backend::build_secret_resolver().await;
         loop {
             match scan_once(&pool, secrets.as_ref()).await {

@@ -20,8 +20,9 @@ const PASS_INTERVAL_SECS: u64 = 300;
 /// Distinct patients in an hour before it is a bulk read.
 pub const BULK_PATIENTS: i64 = 50;
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             match scan_once(&pool).await {
                 Ok(raised) if raised > 0 => tracing::warn!(raised, "access alerts raised"),

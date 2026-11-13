@@ -66,7 +66,8 @@ async fn run_node(state: &Path) -> anyhow::Result<()> {
     tokio::spawn(mdns::follow(endpoint, false, move |event| {
         listener.heard(event);
     }));
-    control::serve_forever(node, Path::new(CONTROL_SOCKET)).await
+    let Err(error) = control::serve_forever(node, Path::new(CONTROL_SOCKET)).await;
+    Err(error)
 }
 
 /// Starts the agent, in the mode its unit asked for.

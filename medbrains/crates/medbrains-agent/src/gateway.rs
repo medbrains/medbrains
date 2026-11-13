@@ -18,7 +18,7 @@ use tokio::sync::{Semaphore, watch};
 use uuid::Uuid;
 
 use crate::hospital::{GivenUpReport, Hospital, Seen};
-use crate::limits::AddressLimits;
+use crate::limits::{AddressLimits, ErrorPause};
 use crate::time;
 use crate::wire::{JOIN_ALPN, TIME_ALPN, TUNNEL_ALPN};
 
@@ -252,7 +252,8 @@ impl Gateway {
     }
 
     /// Keeps the roster current: a loop meant never to end, each round with its own time limits.
-    pub(crate) async fn sync_forever(self: Arc<Self>) {
+    /// Returns `!`: a path that stopped syncing would leave the roster stale, so none can compile.
+    pub(crate) async fn sync_forever(self: Arc<Self>) -> ! {
         loop {
             self.sync_round().await;
             tokio::time::sleep(SYNC_EVERY).await;
@@ -379,13 +380,17 @@ impl Gateway {
     }
 
     /// Answers "who are you?" with this machine's key and name. Unauthenticated on purpose: a
-    /// liar here gets a key whose code does not match the real main machine's.
-    pub(crate) async fn whoami_forever(self: Arc<Self>, socket: UdpSocket) {
+    /// liar here gets a key whose code does not match the real main machine's. Returns `!`: a bad
+    /// packet is skipped and a failed receive backs off (`ErrorPause`), never a reason to stop.
+    pub(crate) async fn whoami_forever(self: Arc<Self>, socket: UdpSocket) -> ! {
         let mut buffer = [0_u8; WHOAMI_SIZE + 1];
+        let mut pause = ErrorPause::new();
         loop {
             let Ok((read, from)) = socket.recv_from(&mut buffer).await else {
+                pause.after_error().await;
                 continue;
             };
+            pause.reset();
             if read != WHOAMI_SIZE {
                 continue;
             }

@@ -340,12 +340,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(spicedb) = spicedb_outbox_client {
         let outbox_db = db_pool.clone();
-        tokio::spawn(async move {
+        medbrains_server_core::background::spawn_forever(
+            "spicedb_outbox_worker",
             medbrains_authz_spicedb::backend_durable_spicedb::run_spicedb_outbox_worker(
                 outbox_db, spicedb,
-            )
-            .await;
-        });
+            ),
+        );
         tracing::info!("rebac: SpiceDB outbox worker spawned");
     }
 

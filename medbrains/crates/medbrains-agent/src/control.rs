@@ -94,8 +94,9 @@ async fn serve(node: Arc<Node>, stream: UnixStream) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Serves the screen for as long as the agent runs.
-pub(crate) async fn serve_forever(node: Arc<Node>, path: &Path) -> anyhow::Result<()> {
+/// Serves the screen for as long as the agent runs. Returns `Result<!>`: only binding the socket
+/// can end it; once bound, a failed accept is retried, never returned.
+pub(crate) async fn serve_forever(node: Arc<Node>, path: &Path) -> anyhow::Result<!> {
     drop(tokio::fs::remove_file(path).await);
     let listener = UnixListener::bind(path)?;
     tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(SOCKET_MODE)).await?;

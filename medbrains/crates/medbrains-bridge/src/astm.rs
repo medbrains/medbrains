@@ -193,13 +193,14 @@ pub(crate) fn parse_records(text: &str) -> Vec<SampleResults> {
     samples
 }
 
-/// Accept ASTM analyzers on `addr`.
+/// Accept ASTM analyzers on `addr`. Returns `Result<!>`: it only ends when binding or accepting
+/// fails, never by finishing.
 pub(crate) async fn listen(
     addr: &str,
     buffer: MessageBuffer,
     client: &reqwest::Client,
     cfg: &BridgeConfig,
-) -> Result<()> {
+) -> Result<!> {
     let listener = TcpListener::bind(addr).await?;
     info!(addr = %addr, "ASTM listener started");
     loop {

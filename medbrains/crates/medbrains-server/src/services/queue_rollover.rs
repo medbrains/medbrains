@@ -40,8 +40,9 @@ const PASS_INTERVAL_SECS: u64 = 3600;
 /// on the next tick an hour later.
 const MAX_ROWS_PER_TENANT: i64 = 5000;
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             if let Err(error) = run_rollover_pass(&pool).await {
                 tracing::error!(%error, "queue rollover pass failed");

@@ -245,7 +245,9 @@ pub(crate) async fn poll_once(
     Ok(taken)
 }
 
-pub(crate) async fn poll_loop(client: &reqwest::Client, cfg: &BridgeConfig, every: Duration) {
+/// Takes card-machine jobs every `every` for as long as the bridge runs. Returns `!`: a failed
+/// poll is logged and retried, so a card machine is never silently dropped by the loop ending.
+pub(crate) async fn poll_loop(client: &reqwest::Client, cfg: &BridgeConfig, every: Duration) -> ! {
     for t in cfg.card_terminals.iter().flatten() {
         let drivable = adapter_for(t).is_some();
         info!(terminal = %t.id, adapter = %t.adapter, address = ?t.address, drivable, "card machine");

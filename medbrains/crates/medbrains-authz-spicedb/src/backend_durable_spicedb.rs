@@ -357,8 +357,9 @@ impl AuthzBackend for DurableSpiceDbBackend {
     }
 }
 
-/// Retry worker for pending `relation_tuples` rows.
-pub async fn run_spicedb_outbox_worker(pool: PgPool, spicedb: SpiceDbBackend) {
+/// Retry worker for pending `relation_tuples` rows. Returns `!`: a stopped worker would leave
+/// grants and revocations unsynced to SpiceDB, so a failed drain is logged and retried.
+pub async fn run_spicedb_outbox_worker(pool: PgPool, spicedb: SpiceDbBackend) -> ! {
     loop {
         match drain_spicedb_outbox_once(&pool, &spicedb, OUTBOX_BATCH_PER_TENANT).await {
             Ok(0) => tokio::time::sleep(OUTBOX_IDLE_SLEEP).await,

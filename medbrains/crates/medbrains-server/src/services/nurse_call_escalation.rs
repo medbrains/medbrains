@@ -29,8 +29,9 @@ const PASS_INTERVAL_SECS: u64 = 30;
 const DEFAULT_ESCALATE_SECS: i32 = 120;
 const DEFAULT_SUPERVISOR_SECS: i32 = 300;
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             match escalate_unanswered(&pool).await {
                 Ok(escalated) if escalated > 0 => {

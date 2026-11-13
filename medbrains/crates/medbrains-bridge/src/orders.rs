@@ -188,13 +188,14 @@ pub(crate) async fn send_pending(
     Ok(accepted_count)
 }
 
-/// Loads pending orders onto the analyzer every `every`; a failed send is retried.
+/// Loads pending orders onto the analyzer every `every` for as long as the bridge runs. Returns
+/// `!`: a failed send is logged and retried, so orders never stop reaching the analyzer.
 pub(crate) async fn poll_loop(
     client: &reqwest::Client,
     cfg: &BridgeConfig,
     device_id: &str,
     every: Duration,
-) {
+) -> ! {
     loop {
         match send_pending(client, cfg, device_id).await {
             Ok(0) => {}

@@ -34,8 +34,9 @@ const TAG_LIMIT: i64 = 2000;
 pub const ENVIRONMENT_SETTING: &str = "health_intel/environment_fetch";
 
 /// Start the hourly pass. `pool` must be the worker pool (it lists hospitals).
+/// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(module_path!(), async move {
         loop {
             run_pass(&pool).await;
             #[allow(clippy::cast_sign_loss)] // a positive constant
