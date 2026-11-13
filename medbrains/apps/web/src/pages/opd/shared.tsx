@@ -196,10 +196,14 @@ export function queueTokenLabel(entry: {
   return entry.token_code ?? `${formatQueueToken(entry.token_number)} (no token)`;
 }
 
+/** The words shown when a queue entry's name or UHID is withheld and the caller gives none. */
+const DEFAULT_IDENTITY_FALLBACK = { patient: "Patient", uhid: "No UHID" } as const;
+
+/** A queue entry's name, token and UHID as this viewer may see them, with `fallback` words. */
 export function protectedOpdQueueIdentity(
   entry: QueueEntry,
   access: { name: FieldAccessLevel; uhid: FieldAccessLevel },
-  fallback: { patient: string; uhid: string } = { patient: "Patient", uhid: "No UHID" },
+  fallback: { patient: string; uhid: string } = DEFAULT_IDENTITY_FALLBACK,
 ): { name: string; token: string; uhid: string } {
   const name = fieldAccessText(access.name, entry.patient_name, "name");
   const uhid = fieldAccessText(access.uhid, entry.uhid, "identifier");

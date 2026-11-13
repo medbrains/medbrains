@@ -68,7 +68,7 @@ jobs:
           version: 0.15.2
       - run: cargo install cargo-zigbuild --locked --version 0.24.0
       - run: >-
-          cargo zigbuild --release --target=${{ matrix.triple }}.2.36
+          cargo zigbuild --locked --release --target=${{ matrix.triple }}.2.36
           -p medbrains-server --bin medbrains-server --bin medbrains-archive
           -p medbrains-os-setup --bin medbrains-os-setup
           -p medbrains-agent --bin medbrains-agent

@@ -27,7 +27,6 @@ import {
   billingInsuranceSchemeTypeValues,
   billingPaymentModeValues,
   billingServiceCategoryValues,
-  billingTdsQuarterValues,
   billingTdsSectionValues,
   integerFromFormValue,
   numberFromFormValue,
@@ -136,13 +135,6 @@ const tdsSectionLabels: Record<BillingTdsSectionFormValue, string> = {
   "194Q": "194Q",
 };
 
-const tdsQuarterLabels: Record<BillingTdsQuarterFormValue, string> = {
-  Q1: "Q1",
-  Q2: "Q2",
-  Q3: "Q3",
-  Q4: "Q4",
-};
-
 const gstrReturnTypeLabels: Record<BillingGstrReturnTypeFormValue, string> = {
   "GSTR-1": "GSTR-1",
   "GSTR-2B": "GSTR-2B",
@@ -213,11 +205,6 @@ export const billingTdsSectionOptions = billingTdsSectionValues.map((value) => (
   label: tdsSectionLabels[value],
 }));
 
-export const billingTdsQuarterOptions = billingTdsQuarterValues.map((value) => ({
-  value,
-  label: tdsQuarterLabels[value],
-}));
-
 export const billingGstrReturnTypeOptions = billingGstrReturnTypeValues.map((value) => ({
   value,
   label: gstrReturnTypeLabels[value],
@@ -232,6 +219,21 @@ export const billingErpExportTypeOptions = billingErpExportTypeValues.map((value
   value,
   label: erpExportTypeLabels[value],
 }));
+
+/**
+ * The Indian financial year ("2026-27") and TDS quarter (Q1 April–June … Q4 January–March) a
+ * deduction dated `isoDate` (YYYY-MM-DD) is reported in. The server refuses any other pair.
+ */
+export function tdsPeriodOf(isoDate: string): {
+  financial_year: string;
+  quarter: BillingTdsQuarterFormValue;
+} {
+  const [year = 0, month = 1] = isoDate.split("-").map(Number);
+  const start = month >= 4 ? year : year - 1;
+  const quarter: BillingTdsQuarterFormValue =
+    month <= 3 ? "Q4" : month <= 6 ? "Q1" : month <= 9 ? "Q2" : "Q3";
+  return { financial_year: `${start}-${String((start + 1) % 100).padStart(2, "0")}`, quarter };
+}
 
 export function billingNumberOrFallback(value: number | string, fallback: number): number {
   return numberFromFormValue(value, fallback);

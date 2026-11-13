@@ -115,7 +115,7 @@ export function EmergencyVisitDetailPage() {
     },
     onSuccess: (invoice) => {
       toast.success(`Invoice ${invoice.invoice_number} created.`, { title: "ER invoice created" });
-      navigate(billingInvoiceWorkspaceRoute(invoice.id));
+      void navigate(billingInvoiceWorkspaceRoute(invoice.id));
     },
     onError: (error: Error) => {
       toast.error(error.message, { title: "Could not create ER invoice" });

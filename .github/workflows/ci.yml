@@ -99,6 +99,22 @@ jobs:
       - run: python3 scripts/check_egress_allowlist.py
       - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
 
+  readiness:
+    # A draft PR spends no build; marking it ready for review runs everything.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Readiness meters (evidence + generated badges)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Evidence PRs are found in the history, so it must be all there.
+          fetch-depth: 0
+      - run: python3 scripts/readiness.py --self-test
+      - run: python3 scripts/readiness.py --check
+
   docs:
     name: Every new function is documented
     runs-on: ubuntu-latest
@@ -138,6 +154,11 @@ jobs:
         run: python3 scripts/check_ui_api_coverage.py
       - name: Decorative effects only ever go down
         run: python3 medbrains/scripts/check_ui_slop.py
+      # `data ?? []` draws an outage as an empty ward; per-file ratchet (#5474).
+      - name: Query data defaulted to empty only ever goes down
+        run: |
+          python3 medbrains/scripts/check_query_fallbacks.py --self-test
+          python3 medbrains/scripts/check_query_fallbacks.py
       - name: Pages build from the @/components/ui seam
         run: python3 medbrains/scripts/check_ui_seam.py
       - name: No raw interactive HTML in shipped JSX
@@ -150,6 +171,12 @@ jobs:
       # same 404 / empty list it answers a real refusal with.
       - name: No authorization check collapses its error
         run: python3 medbrains/scripts/check_authz_collapse.py
+      # A query inside a loop is one round trip per row; existing sites are
+      # baselined per function, never grown (#5462).
+      - name: No new database query inside a loop
+        run: |
+          python3 medbrains/scripts/check_query_in_loop.py --self-test
+          python3 medbrains/scripts/check_query_in_loop.py --check
       # Apps reach tenancy, authz, audit, sequences, storage and config only
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
@@ -299,7 +326,7 @@ jobs:
       # Every crate except the desktop GUI tree, which needs GTK on the runner.
       # Denied lints fail on their own; pedantic and nursery are warnings by
       # project policy (ENGINEERING.md), so -D warnings would overrule it.
-      - run: cargo clippy --workspace --exclude medbrains-desktop
+      - run: cargo clippy --locked --workspace --exclude medbrains-desktop
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -369,6 +396,6 @@ jobs:
       - name: System packages and PostgreSQL
         run: bash scripts/ci_postgres.sh
       # Report every failing test, not just the first binary's.
-      - run: cargo test --workspace --exclude medbrains-desktop --no-fail-fast
+      - run: cargo test --locked --workspace --exclude medbrains-desktop --no-fail-fast
         env:
           DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains

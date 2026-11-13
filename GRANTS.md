@@ -17,8 +17,8 @@ The [DPG Standard](https://digitalpublicgoods.net/standard/) has nine criteria. 
 | DPG criterion | MedBrains |
 |---|---|
 | 1. Relevance to SDGs | SDG 3 (good health and well-being). |
-| 2. Open licence | AGPL-3.0 (OSI-approved). See [LICENSE](./LICENSE). A commercial licence is also offered ([COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md)); the AGPL version is always free. |
-| 3. Clear ownership | Copyright Domnic Amalan S and contributors ([NOTICE](./NOTICE)). Contributions are signed off under the DCO. |
+| 2. Open licence | AGPL-3.0-only (OSI-approved). See [LICENSE](./LICENSE). A commercial licence is also offered ([COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md)); the AGPL version is always free. |
+| 3. Clear ownership | Copyright Domnic Amalan S and contributors ([NOTICE](./NOTICE)). Contributions are accepted under a signed contributor licence agreement ([CLA.md](./CLA.md)); the name is covered by [TRADEMARKS.md](./TRADEMARKS.md). |
 | 4. Platform independence | Self-hostable on an open stack (Rust, PostgreSQL, React). No proprietary runtime. |
 | 5. Documentation | Architecture, module RFCs and contribution docs are in the repository. |
 | 6. Data extraction and no lock-in | Open PostgreSQL schema, per-patient FHIR R4 Bundle download, CSV exports and documented backups. Whole-hospital FHIR bulk export is on the roadmap. |
@@ -50,11 +50,11 @@ This list is not complete. Suggestions and leads are welcome in [Discussions](ht
 
 ## How it pays for itself
 
-MedBrains is licensed under the AGPL-3.0 and is free for everyone to use. The team earns from commercial licences for vendors who sell or embed it, and from optional setup, training, hosting and support. Grants speed up the public-good work that service income cannot cover on its own.
+MedBrains is licensed under the AGPL-3.0-only and is free for everyone to use. The team earns from commercial licences for vendors who sell or embed it, and from optional setup, training, hosting and support. Grants speed up the public-good work that service income cannot cover on its own.
 
 ## Short description for applications
 
-> MedBrains is an open-source hospital management system built in Rust and PostgreSQL, designed to cover 67+ clinical, diagnostic, financial and administrative modules. Patient-safety logic (medication checks, consent, infection control, statutory disease reporting) is enforced in code that anyone can read. It is licensed under the AGPL-3.0 and designed against the Digital Public Goods Standard, so public hospitals, NGOs and health ministries anywhere can deploy, audit and own their hospital information system without licence lock-in.
+> MedBrains is an open-source hospital management system built in Rust and PostgreSQL, designed to cover 67+ clinical, diagnostic, financial and administrative modules. Patient-safety logic (medication checks, consent, infection control, statutory disease reporting) is enforced in code that anyone can read. It is licensed under the AGPL-3.0-only and designed against the Digital Public Goods Standard, so public hospitals, NGOs and health ministries anywhere can deploy, audit and own their hospital information system without licence lock-in.
 
 ---
 

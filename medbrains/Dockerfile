@@ -5,7 +5,7 @@
 # ── Stage 1: Cargo Chef plan ─────────────────────────────────────────────
 FROM rust:1.85-bookworm AS chef
 WORKDIR /app
-RUN cargo install cargo-chef --locked --version ^0.1
+RUN cargo install cargo-chef --locked --version 0.1.78
 
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml ./
@@ -24,14 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libssl-dev \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN cargo chef cook --release --recipe-path recipe.json --bin medbrains-server
+RUN cargo chef cook --locked --release --recipe-path recipe.json --bin medbrains-server
 
 # Now copy real source and build
 COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml ./
 COPY crates/ crates/
 COPY .sqlx/ .sqlx/
 ENV SQLX_OFFLINE=true
-RUN cargo build --release --bin medbrains-server \
+RUN cargo build --locked --release --bin medbrains-server \
     && strip target/release/medbrains-server
 
 # ── Stage 3: distroless runtime ──────────────────────────────────────────

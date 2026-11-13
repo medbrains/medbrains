@@ -199,7 +199,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: medbrains/apps/desktop
-          args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }} ${{ steps.winsign.outputs.args }}
+          args: ${{ matrix.target.args }} ${{ steps.updater.outputs.args }} ${{ steps.winsign.outputs.args }} -- --locked
           releaseId: ${{ inputs.release-id }}
           uploadUpdaterJson: ${{ steps.updater.outputs.signed == 'true' }}
           # Not code-signed on macOS or Windows: say so in the uploaded names (latest.json uses them too).

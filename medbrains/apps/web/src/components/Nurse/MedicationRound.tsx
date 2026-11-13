@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasGrantedPermission, useHasPermission } from "@medbrains/stores";
 import type { MarDueRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconPill } from "@tabler/icons-react";
@@ -24,6 +24,8 @@ interface Props {
 export function MedicationRound({ patientId }: Props) {
   const qc = useQueryClient();
   const canAdminister = useHasPermission(P.NURSE.MAR_ADMINISTER);
+  // By name: an administrator is never the recorded giver of a high-alert dose.
+  const canGiveHighAlert = useHasGrantedPermission(P.NURSE.MAR_ADMINISTER_HIGH_ALERT);
   const [windowMin, setWindowMin] = useState(60);
   const [active, setActive] = useState<MarDueRow | null>(null);
 
@@ -44,7 +46,7 @@ export function MedicationRound({ patientId }: Props) {
       nurseActivitiesService.updateMarRound(id, input),
     onSuccess: () => {
       setActive(null);
-      qc.invalidateQueries({ queryKey: ["mar-due-now"] });
+      void qc.invalidateQueries({ queryKey: ["mar-due-now"] });
       toast.success("Dose recorded", { title: "eMAR" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not record dose" }),
@@ -114,14 +116,18 @@ export function MedicationRound({ patientId }: Props) {
                   </Text>
                 )}
               </Stack>
-              {canAdminister ? (
-                <Button size="xs" tone="primary" onClick={() => setActive(row)}>
-                  Administer
-                </Button>
-              ) : (
+              {!canAdminister ? (
                 <Text size="xs" c="dimmed">
                   View only
                 </Text>
+              ) : row.is_high_alert && !canGiveHighAlert ? (
+                <Text size="xs" c="dimmed">
+                  Hand to a nurse allowed to give high-alert doses
+                </Text>
+              ) : (
+                <Button size="xs" tone="primary" onClick={() => setActive(row)}>
+                  Administer
+                </Button>
               )}
             </Group>
           </Card>

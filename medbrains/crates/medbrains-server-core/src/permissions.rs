@@ -69,8 +69,13 @@ pub async fn resolve_granted_permissions(
 }
 
 /// [`resolve_granted_permissions`] on a connection the caller already holds, which must carry
-/// the tenant context.
-async fn resolve_granted_permissions_on(
+/// the tenant context. Used to read another user's grant inside a transaction (the witness of
+/// a high-alert dose).
+///
+/// These are the codes granted by name only, not the effective permission set: a bypass role
+/// (super or hospital admin) passes every check without holding the codes, and gets back only
+/// what it was granted by name here.
+pub async fn resolve_granted_permissions_on(
     conn: &mut PgConnection,
     tenant_id: Uuid,
     user_id: Uuid,

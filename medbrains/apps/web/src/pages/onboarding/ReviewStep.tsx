@@ -67,7 +67,7 @@ export function ReviewStep({ onBack }: Props) {
     },
     onSuccess: () => {
       reset();
-      navigate("/dashboard");
+      void navigate("/dashboard");
     },
   });
 

@@ -139,7 +139,7 @@ export function PairedDevicesPage() {
     mutationFn: (input: { id: string; reason?: string }) =>
       adminDevicesService.revokePairedDevice(input.id, input.reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["paired-devices"] });
+      void queryClient.invalidateQueries({ queryKey: ["paired-devices"] });
     },
   });
 
@@ -276,7 +276,7 @@ export function PairedDevicesPage() {
             onDone={() => {
               setTokenResult(null);
               closeMint();
-              queryClient.invalidateQueries({ queryKey: ["paired-devices"] });
+              void queryClient.invalidateQueries({ queryKey: ["paired-devices"] });
             }}
           />
         ) : (

@@ -9,6 +9,7 @@ import { IconCheck, IconLock, IconPill } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { withoutParenthesised } from "@/lib/text-shape";
 import {
   type CreatePharmacyCatalogInput,
   pharmacyCatalogService,
@@ -30,7 +31,7 @@ const scheduleOptions: { value: DrugScheduleFormValue; label: string }[] = [
 ];
 
 function inferName(searchText: string): string {
-  return searchText.replace(/\([^)]*\)/g, " ").trim();
+  return withoutParenthesised(searchText).trim();
 }
 
 function inferCode(name: string): string {
@@ -79,7 +80,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
     mutationFn: (payload: CreatePharmacyCatalogInput) =>
       pharmacyCatalogService.createPharmacyCatalog(payload),
     onSuccess: (drug) => {
-      queryClient.invalidateQueries({ queryKey: ["drug-search"] });
+      void queryClient.invalidateQueries({ queryKey: ["drug-search"] });
       notifications.show({
         title: "Drug added",
         message: `${drug.name} is now selected`,

@@ -1,10 +1,9 @@
 MedBrains
 Copyright 2026 Domnic Amalan S and MedBrains contributors
 
-This product is licensed under the GNU Affero General Public License, version 3
-(see LICENSE), or under a commercial licence (see COMMERCIAL-LICENSE.md).
+This product is licensed under the GNU Affero General Public License, version 3 only
+(AGPL-3.0-only, see LICENSE), or under a commercial licence (see COMMERCIAL-LICENSE.md).
 Versions released before 2026-11-12 were licensed under the Apache License 2.0.
 
-The names "MedBrains" and the MedBrains logo are trademarks of Domnic Amalan S
-and are not licensed under either licence. See the Trademarks section of
-README.md.
+The name "MedBrains" and the MedBrains logo are trademarks of Domnic Amalan S
+and are not licensed under either licence. See TRADEMARKS.md.

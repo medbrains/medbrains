@@ -207,7 +207,7 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
           amountAccess={billingAmountAccess}
           onClose={subscribeHandlers.close}
           onSubscribed={() => {
-            queryClient.invalidateQueries({ queryKey: ["patient-packages", patientId] });
+            void queryClient.invalidateQueries({ queryKey: ["patient-packages", patientId] });
             subscribeHandlers.close();
           }}
         />

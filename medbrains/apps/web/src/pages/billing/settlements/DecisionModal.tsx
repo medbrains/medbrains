@@ -55,7 +55,7 @@ export function DecisionModal({ kind, posting, onClose }: DecisionModalProps) {
   const mutation = useMutation({
     mutationFn: () => decide(kind, posting.id, acceptExcess, reason.trim()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing"] });
       toast.success(
         kind === "approve"
           ? "Settlement posted to the bill"

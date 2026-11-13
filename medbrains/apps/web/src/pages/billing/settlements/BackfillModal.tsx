@@ -21,7 +21,7 @@ export function BackfillModal({ opened, onClose }: { opened: boolean; onClose: (
         return;
       }
       setDone(result);
-      queryClient.invalidateQueries({ queryKey: ["billing", "claim-settlements"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing", "claim-settlements"] });
       toast.success(`${result.filed} pending postings filed`);
     },
   });

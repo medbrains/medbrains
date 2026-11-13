@@ -25,7 +25,7 @@ H+=(-H "authorization: Bearer $TOKEN")
 json() { python3 -c "import sys,json; d=json.load(sys.stdin); print($1)"; }
 
 TENANT=$(curl "${H[@]}" "$BASE/api/auth/me" | json "d.get('tenant_id') or d['user']['tenant_id']")
-if [ "$(curl "${H[@]}" "$BASE/api/uhi/settings" | json "d['configured']")" != "True" ]; then
+if [[ "$(curl "${H[@]}" "$BASE/api/uhi/settings" | json "d['configured']")" != "True" ]]; then
   curl "${H[@]}" -o /dev/null -X PUT "$BASE/api/uhi/settings" -d "{\"environment\":\"sandbox\",\"subscriber_id\":\"e2e-${TENANT:0:8}.medbrains\",\"unique_key_id\":\"e2e-key\",\"services\":[\"blood_bank\"],\"facility_id\":null,\"city_code\":null,\"is_active\":false}"
   curl "${H[@]}" -o /dev/null -X POST "$BASE/api/uhi/settings/keys"
 fi

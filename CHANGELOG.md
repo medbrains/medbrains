@@ -105,6 +105,118 @@ PRs still open when this release was cut are not included.
 - The retired r8r automation engine and its tables are removed (#5415, #5417).
 - The attach deploy fails if install.sh fails, and says how to finish (#5454).
 
+#### Merged on 2026-11-12 and 2026-11-13
+
+##### Licence
+
+- Every page says AGPL-3.0-only, and hospitals on the free licence can buy
+  support and service levels without a commercial licence (#5484).
+- Contributions need a signed contributor licence agreement, and a trademark
+  policy says how the MedBrains name and logo may be used (#5485).
+- A written pledge: the source of every release stays public in this
+  repository, never behind a login or customer portal (#5504).
+
+##### Security
+
+- The development database password is no longer written into three scripts
+  (#5488), and the code analysis now reports on exactly the code it reads (#5489).
+- A security fix for rustix, and four code-scanning findings closed (#5490).
+- The k3s cluster join token and admin kubeconfig are no longer readable by
+  every user on the server (#5492).
+- Android release builds have no plain-HTTP default server (#5494).
+- On bare-metal installs, the database cluster's etcd runs on TLS with client
+  certificates (#5495).
+- Offline sign-in fails safe: the offline permission and revocation caches
+  move to the maintained redb store, and after the upgrade a device refuses
+  offline sign-in until it has synced revocations once online (#5493).
+- Supply chain: every build uses its lock file, every new package is
+  reviewed, and a new dependency version must be a week old before it is
+  taken, security fixes excepted (#5512).
+
+##### Clinical and IPD
+
+- A clinical list that fails to load says so, instead of looking empty (#5481).
+- A high-alert dose (insulin, heparin, potassium) can be given only by someone
+  holding `nurse.mar.administer_high_alert`, and its second check signed only
+  by someone holding `nurse.mar.witness`. Before, any signed-in user could
+  witness it and an administrator account could be recorded as the giver
+  (#5528, #5540).
+- A bed cannot be held for two patients, while occupied or until a time
+  already past; restraint checks and birth records refuse impossible values
+  (#5533).
+- If the ward cannot be read when a patient is admitted, the care-team grant
+  fails with an error instead of silently leaving the ward nurses without
+  access to the admission (#5538).
+- The access matrix and a patient's OPD history show a fault when loading
+  fails, not an empty hospital or "no history" (#5542, #5543).
+
+##### Billing and accounting
+
+- A cashier cannot sign off their own day close, and a checked close cannot be
+  checked again (#5523).
+- Approving a write-off is checked against the patient whose bill it settles
+  (#5522).
+- A journal entry must move money: at least two lines, each with one positive
+  side, debits equal to credits (#5527).
+- A TDS deduction is filed in the quarter its date falls in, and needs a valid
+  PAN (#5547).
+- Patient deposits and concessions are tested end to end: a deposit pays only
+  its patient's bill and the rest is refunded, and a concession is asked by one
+  person and approved by another (#5518, #5521).
+
+##### Reliability
+
+- Text typed into forms is shaped without backtracking patterns, so a long
+  input cannot freeze the screen (#5506).
+- The web app's offline store reports an error, instead of "connecting"
+  forever, when the browser refuses its database (#5514).
+- Background navigation and refreshes in the web app are marked as deliberate,
+  so real unhandled errors stand out (#5497), and the install and deploy
+  scripts use safer shell tests (#5507, #5536).
+- Lists are tested so that one cannot cost a database query per row (#5483).
+
+##### Operations
+
+- Readiness meters for OS strength, paperless working and AI clinical flows,
+  measured from a checklist with evidence, on GitHub and the website (#5551).
+
+#### Downloads
+
+Every release file is listed in `SHA256SUMS`, signed with Sigstore; check a
+file against it before you use it. The release page ends with a "Which file
+for which device" table.
+
+- **Android:** staff and patient apps, as an `.apk` to install directly and an
+  `.aab` for Google Play (#5486).
+- **iPhone and iPad:** staff and patient apps, as an `.ipa` for App Store
+  Connect, or an unsigned Xcode archive (#5486).
+- **Desktop client:** Mac (`.dmg`, Apple silicon and Intel), Windows (`.msi`,
+  `.exe`) and Linux (`.AppImage`, `.deb`, `.rpm`) (#5486).
+- **MedBrains OS images** (x86-64 and arm64, UEFI only; Intel and AMD both use
+  x86-64), all built from the same system image (#5525):
+  - a physical machine from a USB stick or DVD: the installer `.iso`;
+  - a physical disk written from another computer: `.raw.zst`;
+  - Proxmox, KVM, libvirt, OpenStack: `.qcow2`;
+  - VMware ESXi, vSphere, Workstation, Fusion: `.ova` (x86-64);
+  - Hyper-V generation 2: `.vhdx` (x86-64);
+  - Azure: `-azure.vhd.zst`, unpacked first (x86-64);
+  - AWS: import the `.vmdk` (x86-64) or the unpacked `.raw.zst` (arm64) as a
+    snapshot, then register it with UEFI boot and TPM 2.0.
+
+  Give a virtual machine a virtual TPM 2.0, or setup asks before it stores
+  anything unencrypted. Steps for each are in `medbrains/os/README.md`.
+- Server binaries for an existing Linux server, and the web app.
+
+#### Known limits
+
+- The MedBrains OS image is a preview. Do not use it for patient data yet.
+- The OS image is not signed for Secure Boot yet.
+- The iOS, macOS and Windows builds are unsigned until the signing
+  certificates are added; files marked `-unsigned` will not install on iOS, and
+  macOS and Windows warn before opening them.
+- The OS images have not yet been tested on real VMware, Hyper-V, Proxmox,
+  AWS or Azure.
+
 ### Upgrade notes
 
 - New database migrations apply automatically when the server starts; take a
@@ -117,6 +229,10 @@ PRs still open when this release was cut are not included.
   engine. Nothing reads them; export them first if you want a copy (#5417).
 - Production must set its own sealing key; the server no longer falls back
   to the development key outside development (#5479).
+- Custom roles whose staff give or witness high-alert doses need the new
+  `nurse.mar.administer_high_alert` and `nurse.mar.witness` permissions. The
+  built-in nurse role holds both; doctor and pharmacist hold the witness one
+  (#5528, #5540).
 
 ### The hospital system
 

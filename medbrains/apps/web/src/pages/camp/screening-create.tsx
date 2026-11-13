@@ -184,7 +184,7 @@ function CampScreeningCreatePageInner() {
       }
       void qc.invalidateQueries({ queryKey: ["camp-screenings"] });
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
-      backToList();
+      void backToList();
       notifications.show({
         title: t("notify.screeningRecorded"),
         message: t("notify.screeningSaved"),

@@ -80,7 +80,7 @@ function envVars() {
   }
   const example = envExample();
   const names = [...new Set([...reads.keys(), ...example.keys()])].sort();
-  const cell = (s) => s.replace(/\|/g, "\\|").replace(/[{}<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const cell = (s) => s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/[{}<>]/g, (c) => `&#${c.charCodeAt(0)};`);
   const rows = names.map((name) => {
     const ex = example.get(name);
     const value = SECRET.test(name) ? "**secret:** set in your secret store, never commit" : ex?.example ? `\`${cell(ex.example)}\`` : "";

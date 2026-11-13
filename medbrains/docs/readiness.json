@@ -1,0 +1,306 @@
+{
+  "about": "Readiness meters. Each item counts only when it is merged on main with evidence. done = full weight, partial = half, not-started = none. Edit this file, then run `python3 scripts/readiness.py` to regenerate the badges and the README table; CI runs `--check`. Evidence: {\"pr\": N} (squash-merged on main), {\"path\": \"repo/relative\"} (must exist), {\"test\": \"name\", \"path\": \"file\"} (file must contain the name). `tracking` names the open PR or issue for work not yet done.",
+  "meters": [
+    {
+      "id": "os",
+      "title": "OS strength",
+      "summary": "MedBrains OS: the hospital appliance's security, updates and recovery.",
+      "items": [
+        {
+          "id": "os-image",
+          "title": "A bootable OS image built from source, checked by tests that boot it",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5211 }, { "pr": 5219 }, { "pr": 5315 }, { "path": "medbrains/os/qemu-run.sh" }]
+        },
+        {
+          "id": "firewall-time",
+          "title": "Default-deny firewall, authenticated time and first Linux hardening",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5217 }]
+        },
+        {
+          "id": "disk-encryption",
+          "title": "Data disk encrypted, with every key accounted for",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 5230 }, { "path": "medbrains/os/tests/disk-setup.sh" }]
+        },
+        {
+          "id": "signed-updates",
+          "title": "Signed A/B updates with trial boots and rollback; tampered and rolled-back updates refused",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 5279 }, { "path": "medbrains/os/tests/make-update-bundles.py" }]
+        },
+        {
+          "id": "identity",
+          "title": "Built-in identity provider (Kanidm); the first administrator enrols an authenticator at setup",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5242 }, { "pr": 5316 }, { "pr": 5317 }, { "path": "medbrains/os/tests/kanidm-attacks.py" }]
+        },
+        {
+          "id": "node-join",
+          "title": "A machine joins the main machine only by approval, over encrypted links",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5226 }, { "path": "medbrains/os/tests/two-machines.sh" }]
+        },
+        {
+          "id": "front-proxy",
+          "title": "Memory-safe front proxy (Pingora) in place of Caddy",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 5234 }, { "path": "medbrains/os/tests/front-attacks.py" }]
+        },
+        {
+          "id": "audit-chain",
+          "title": "Append-only, hash-chained audit log of every change and record opened",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4771 }, { "path": "medbrains/crates/medbrains-db-migrations/src/migrations/1082_audit_append_only.sql" }]
+        },
+        {
+          "id": "backups",
+          "title": "Backups sealed to an offline key, with a restore drill that proves they restore",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5066 }, { "pr": 5132 }, { "path": "medbrains/deploy/standalone/medbrains-restore-drill" }]
+        },
+        {
+          "id": "wipe-restore",
+          "title": "Wipe an OS machine's data disk, restore it and verify (ransomware test)",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "medbrains/docs/architecture/OS-THREATS.md row 3"
+        },
+        {
+          "id": "dm-verity",
+          "title": "Sealed, read-only system partition (dm-verity)",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5451"
+        },
+        {
+          "id": "hardening",
+          "title": "Kernel, service sandbox and AppArmor hardening, scored against CIS",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5449, #5453"
+        },
+        {
+          "id": "offline-keys",
+          "title": "Release signing keys kept offline before the update feed opens",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5498"
+        },
+        {
+          "id": "secure-boot",
+          "title": "Secure Boot with our own key and a signed boot image",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "medbrains/docs/architecture/OS-THREATS.md H2"
+        },
+        {
+          "id": "system-headroom",
+          "title": "Room to grow on the system partition (8 MB left today)",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5519"
+        },
+        {
+          "id": "installer",
+          "title": "Release shipped as an installer ISO, VM and cloud disks",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "#5525"
+        },
+        {
+          "id": "real-hardware",
+          "title": "Tests passed on real hardware, not only virtual machines",
+          "weight": 3,
+          "status": "not-started"
+        },
+        {
+          "id": "pentest",
+          "title": "External penetration test report",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "medbrains/docs/architecture/OS-THREATS.md row 10"
+        }
+      ]
+    },
+    {
+      "id": "paperless",
+      "title": "Paperless",
+      "summary": "Paperless records: signed, verifiable clinical records instead of paper files.",
+      "items": [
+        {
+          "id": "case-sheet",
+          "title": "One case sheet per visit: written, signed and filed to the medical record",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4715 }, { "pr": 4717 }, { "pr": 4718 }]
+        },
+        {
+          "id": "mrd",
+          "title": "Medical records custodian: opens every chart, each opening logged",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4719 }]
+        },
+        {
+          "id": "signed-prints",
+          "title": "Signed prints carry a QR that lets an outsider check the record is unchanged; signing needs a fresh step-up",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 5241 }]
+        },
+        {
+          "id": "paperless-meter",
+          "title": "A meter of how paperless the hospital is, by department and day",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 5269 }, { "path": "medbrains/crates/medbrains-analytics/src/paperless.rs" }, { "path": "medbrains/crates/medbrains-db-migrations/src/migrations/1424_paperless_meter.sql" }]
+        },
+        {
+          "id": "record-types",
+          "title": "Every clinical record type signable by its author (21 types); partial because signing keys still sit on the server",
+          "weight": 3,
+          "status": "partial",
+          "evidence": [{ "pr": 5259 }, { "path": "medbrains/crates/medbrains-documents/src/signable.rs" }]
+        },
+        {
+          "id": "hardware-keys",
+          "title": "Each doctor signs with their own hardware key (badge or FIDO2); the server cannot sign as them",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "RFCs/modules/RFC-MODULE-paperless-records.md 4.1"
+        },
+        {
+          "id": "legal-esign",
+          "title": "Legal electronic signatures (remote DSC, eSign) through providers",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "RFCs/modules/RFC-MODULE-paperless-records.md 4.2"
+        },
+        {
+          "id": "patient-consent",
+          "title": "Patient e-consent with capacity, witness and separate purposes",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "RFCs/modules/RFC-MODULE-paperless-records.md 4.3"
+        },
+        {
+          "id": "court-certificate",
+          "title": "One-click court certificate from the seal chain and audit log",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "RFCs/modules/RFC-MODULE-paperless-records.md 4.4"
+        },
+        {
+          "id": "transfer",
+          "title": "Transfer to another hospital with signatures kept and checkable",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "RFCs/modules/RFC-MODULE-paperless-records.md 4.5"
+        },
+        {
+          "id": "downtime",
+          "title": "Downtime mode: a read-only snapshot and offline entry when the server is down",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "hms-connector",
+          "title": "Connector that runs beside another hospital system (HL7 and FHIR in)",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "RFCs/modules/RFC-MODULE-paperless-records.md 8.5"
+        }
+      ]
+    },
+    {
+      "id": "ai",
+      "title": "AI clinical flows",
+      "summary": "AI that drafts clinical work for a clinician to review, on the hospital's own machines.",
+      "items": [
+        {
+          "id": "dictation",
+          "title": "Doctor records or uploads dictation; it becomes note sections and medicines, each reviewed before saving",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 5258 }, { "test": "saves only accepted (and edited) sections into the note, and hands accepted medicines to the pad", "path": "medbrains/apps/web/src/components/Clinical/dictation/DictationPanel.test.tsx" }]
+        },
+        {
+          "id": "redaction",
+          "title": "Every model call goes through one pseudonymising redaction layer",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5030 }, { "path": "medbrains/crates/medbrains-ai/src/redaction.rs" }]
+        },
+        {
+          "id": "labels-approval",
+          "title": "Every AI answer is labelled, and reaches a record only when a clinician accepts it (audited)",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4907 }, { "pr": 5258 }]
+        },
+        {
+          "id": "dictated-rx",
+          "title": "Dictated medicines become a prescription only through the allergy, interaction and dose checks",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5258 }, { "pr": 5244 }, { "path": "medbrains/apps/web/src/components/Clinical/dictation/dictated-rx-store.ts" }]
+        },
+        {
+          "id": "os-ai-service",
+          "title": "Local speech and language models shipped as an OS service on the appliance",
+          "weight": 3,
+          "status": "not-started"
+        },
+        {
+          "id": "kernel-ai-api",
+          "title": "Kernel AI interface with permissions, consent and audit on every call",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "medbrains/RFCs/RFC-HOSPITAL-OS.md 8h"
+        },
+        {
+          "id": "mcp-server",
+          "title": "MCP server so outside assistants work under the same permissions",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "medbrains/RFCs/RFC-HOSPITAL-OS.md 8f"
+        },
+        {
+          "id": "native-voice",
+          "title": "Voice capture in the native iOS and Android apps",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "languages",
+          "title": "Speech in local languages and mixed-language dictation",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "recording-consent",
+          "title": "Patient consent captured before a consultation is recorded",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "offline",
+          "title": "Dictation that works with no network",
+          "weight": 1,
+          "status": "not-started"
+        }
+      ]
+    }
+  ]
+}

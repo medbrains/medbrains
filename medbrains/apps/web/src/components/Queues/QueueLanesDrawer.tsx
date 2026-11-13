@@ -5,6 +5,7 @@ import { IconLock, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { Alert, Button, IconButton, Input, Modal, Select, Switch, toast } from "@/components/ui";
+import { joinRuns } from "@/lib/text-shape";
 
 interface QueueLanesDrawerProps {
   queue: QueueRow | null;
@@ -43,10 +44,7 @@ const ORDER = [3, 4, 5, 6, 7, 8, 9].map((rank, i) => ({
 }));
 
 const slug = (label: string) =>
-  label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
+  joinRuns(label.toLowerCase(), "_", /[a-z0-9]/)
     .replace(/^(\d)/, "l_$1")
     .slice(0, 32);
 
