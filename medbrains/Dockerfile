@@ -3,7 +3,9 @@
 # Final image is distroless — no shell, no package manager, minimal attack surface.
 
 # ── Stage 1: Cargo Chef plan ─────────────────────────────────────────────
-FROM rust:1.85-bookworm AS chef
+# Same toolchain as rust-toolchain.toml, so rustup does not download a second one mid-build;
+# pinned by digest so a re-pushed tag cannot change what we compile with.
+FROM rust:1.100.0-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea AS chef
 WORKDIR /app
 RUN cargo install cargo-chef --locked --version 0.1.78
 

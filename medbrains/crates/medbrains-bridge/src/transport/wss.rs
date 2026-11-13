@@ -16,13 +16,13 @@ use std::time::Duration;
 use tracing::{debug, info};
 
 #[derive(Debug, Clone)]
-pub struct WssTransport {
+pub(crate) struct WssTransport {
     bridge_ingress_url: String,
     client: reqwest::Client,
 }
 
 impl WssTransport {
-    pub fn new(bridge_ingress_url: String) -> Self {
+    pub(crate) fn new(bridge_ingress_url: String) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()

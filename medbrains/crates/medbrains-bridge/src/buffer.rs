@@ -5,12 +5,12 @@ use std::sync::{Arc, Mutex};
 /// SQLite-backed message buffer for offline resilience.
 /// Messages are stored locally and drained to MedBrains API.
 #[derive(Clone)]
-pub struct MessageBuffer {
+pub(crate) struct MessageBuffer {
     conn: Arc<Mutex<Connection>>,
 }
 
 impl MessageBuffer {
-    pub fn open(path: &str) -> Result<Self> {
+    pub(crate) fn open(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS pending_messages (
@@ -33,7 +33,7 @@ impl MessageBuffer {
     }
 
     /// Store a message for delivery.
-    pub fn enqueue(
+    pub(crate) fn enqueue(
         &self,
         device_instance_id: &str,
         module: &str,
@@ -59,7 +59,7 @@ impl MessageBuffer {
     }
 
     /// Get pending messages for delivery (oldest first, max 50).
-    pub fn pending(&self, limit: usize) -> Result<Vec<BufferedMessage>> {
+    pub(crate) fn pending(&self, limit: usize) -> Result<Vec<BufferedMessage>> {
         let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
         let mut stmt = conn.prepare(
             "SELECT id, device_instance_id, module, protocol, parsed_payload, mapped_data, processing_duration_ms, retry_count
@@ -88,14 +88,14 @@ impl MessageBuffer {
     }
 
     /// Remove a delivered message.
-    pub fn remove(&self, id: i64) -> Result<()> {
+    pub(crate) fn remove(&self, id: i64) -> Result<()> {
         let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
         conn.execute("DELETE FROM pending_messages WHERE id = ?1", [id])?;
         Ok(())
     }
 
     /// Increment retry count and store error.
-    pub fn mark_retry(&self, id: i64, error: &str) -> Result<()> {
+    pub(crate) fn mark_retry(&self, id: i64, error: &str) -> Result<()> {
         let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("lock: {e}"))?;
         conn.execute(
             "UPDATE pending_messages SET retry_count = retry_count + 1, last_error = ?2 WHERE id = ?1",
@@ -105,7 +105,7 @@ impl MessageBuffer {
     }
 }
 
-pub struct BufferedMessage {
+pub(crate) struct BufferedMessage {
     pub id: i64,
     pub device_instance_id: String,
     pub module: String,

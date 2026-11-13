@@ -80,9 +80,9 @@ pub(crate) async fn import(
         .fetch_one(&mut **tx)
         .await?;
         if inserted {
-            tally.added += 1
+            tally.added += 1;
         } else {
-            tally.updated += 1
+            tally.updated += 1;
         }
         if let Some(parent) = text(r.parent_code.as_ref()) {
             parents.push((r.row, code, parent.to_uppercase()));

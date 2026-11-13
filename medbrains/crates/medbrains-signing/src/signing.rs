@@ -179,13 +179,10 @@ mod tests {
 
         let signing = SigningKey::from_bytes(&seed);
         assert_eq!(signing.verifying_key().to_bytes(), public);
-        let signature = ed25519_dalek::Signer::sign(&signing, b"");
+        let signature = Signer::sign(&signing, b"");
         assert_eq!(signature.to_bytes().to_vec(), expected);
         let sig: [u8; 64] = expected.try_into().unwrap();
         let verifying = VerifyingKey::from_bytes(&public).unwrap();
-        assert!(
-            ed25519_dalek::Verifier::verify(&verifying, b"", &ed25519_dalek::Signature::from_bytes(&sig))
-                .is_ok()
-        );
+        assert!(Verifier::verify(&verifying, b"", &Signature::from_bytes(&sig)).is_ok());
     }
 }

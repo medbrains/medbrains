@@ -60,7 +60,6 @@ loro = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["sync", "rt"] }
 uuid = { workspace = true }
 
 # Peer-to-peer sync identity. `iroh-base` only — the key types, none of
@@ -79,5 +78,4 @@ uniffi = { version = "0.32", features = ["cli"] }
 uniffi = { version = "0.32", features = ["build"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tempfile = "3"

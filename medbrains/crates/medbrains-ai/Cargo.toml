@@ -12,7 +12,6 @@ medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
-medbrains-patients = { path = "../medbrains-patients" }
 medbrains-pharmacy = { path = "../medbrains-pharmacy" }
 axum = { workspace = true }
 serde = { workspace = true }

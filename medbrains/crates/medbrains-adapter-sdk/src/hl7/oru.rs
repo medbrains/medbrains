@@ -46,14 +46,15 @@ pub struct ObservationGroup {
     /// OBR-3.1 (filler order number, where analysers echo the tube's
     /// barcode), else SPM-2.1.
     pub sample_barcode: Option<String>,
-    /// OBR-2.1, the placer order number MedBrains sent in the ORM.
+    /// OBR-2.1, the placer order number `MedBrains` sent in the ORM.
     pub placer_order: Option<String>,
     /// OBR-4.1.
     pub service_code: Option<String>,
     pub results: Vec<Observation>,
 }
 
-fn non_empty(s: String) -> Option<String> {
+/// The trimmed text, or `None` when an HL7 field is blank, so absent and empty read the same.
+fn non_empty(s: &str) -> Option<String> {
     let t = s.trim();
     (!t.is_empty()).then(|| t.to_owned())
 }
@@ -68,16 +69,16 @@ pub fn observation_groups(msg: &Message) -> Vec<ObservationGroup> {
     for seg in &msg.segments {
         match seg.name.as_str() {
             "PID" => {
-                patient = non_empty(msg.component(seg, 3, 1))
-                    .or_else(|| non_empty(msg.component(seg, 2, 1)));
+                patient = non_empty(&msg.component(seg, 3, 1))
+                    .or_else(|| non_empty(&msg.component(seg, 2, 1)));
                 last_was_obx = false;
             }
             "OBR" => {
                 groups.push(ObservationGroup {
                     patient_id: patient.clone(),
-                    sample_barcode: non_empty(msg.component(seg, 3, 1)),
-                    placer_order: non_empty(msg.component(seg, 2, 1)),
-                    service_code: non_empty(msg.component(seg, 4, 1)),
+                    sample_barcode: non_empty(&msg.component(seg, 3, 1)),
+                    placer_order: non_empty(&msg.component(seg, 2, 1)),
+                    service_code: non_empty(&msg.component(seg, 4, 1)),
                     results: Vec::new(),
                 });
                 last_was_obx = false;
@@ -89,7 +90,7 @@ pub fn observation_groups(msg: &Message) -> Vec<ObservationGroup> {
                         .split(msg.delimiters.subcomponent)
                         .next()
                         .unwrap_or_default();
-                    group.sample_barcode = non_empty(id.to_owned());
+                    group.sample_barcode = non_empty(id);
                 }
             }
             "OBX" => {
@@ -106,7 +107,7 @@ pub fn observation_groups(msg: &Message) -> Vec<ObservationGroup> {
             }
             "NTE" if last_was_obx => {
                 let obx = groups.last_mut().and_then(|g| g.results.last_mut());
-                if let (Some(obx), Some(text)) = (obx, non_empty(note_text(msg, seg))) {
+                if let (Some(obx), Some(text)) = (obx, non_empty(&note_text(msg, seg))) {
                     obx.notes = Some(match obx.notes.take() {
                         Some(prev) => format!("{prev}\n{text}"),
                         None => text,
@@ -128,18 +129,18 @@ fn note_text(msg: &Message, seg: &Segment) -> String {
 }
 
 fn observation(msg: &Message, seg: &Segment) -> Observation {
-    let value_type = non_empty(msg.component(seg, 2, 1));
+    let value_type = non_empty(&msg.component(seg, 2, 1));
     Observation {
-        set_id: non_empty(msg.component(seg, 1, 1)),
+        set_id: non_empty(&msg.component(seg, 1, 1)),
         test_code: msg.component(seg, 3, 1).trim().to_owned(),
-        test_name: non_empty(msg.component(seg, 3, 2)),
-        sub_id: non_empty(msg.component(seg, 4, 1)),
+        test_name: non_empty(&msg.component(seg, 3, 2)),
+        sub_id: non_empty(&msg.component(seg, 4, 1)),
         value: value_text(msg, seg, value_type.as_deref()),
-        unit: non_empty(msg.component(seg, 6, 1)).or_else(|| non_empty(msg.component(seg, 6, 2))),
-        reference_range: non_empty(msg.text(seg, 7)),
-        abnormal_flag: non_empty(msg.component(seg, 8, 1)),
-        status: non_empty(msg.component(seg, 11, 1)),
-        observed_at: non_empty(msg.component(seg, 14, 1)),
+        unit: non_empty(&msg.component(seg, 6, 1)).or_else(|| non_empty(&msg.component(seg, 6, 2))),
+        reference_range: non_empty(&msg.text(seg, 7)),
+        abnormal_flag: non_empty(&msg.component(seg, 8, 1)),
+        status: non_empty(&msg.component(seg, 11, 1)),
+        observed_at: non_empty(&msg.component(seg, 14, 1)),
         notes: None,
         value_type,
     }
@@ -157,7 +158,7 @@ fn value_text(msg: &Message, seg: &Segment, value_type: Option<&str>) -> String 
             .collect::<String>(),
         // Coded: the text when sent, else the code.
         Some("CE" | "CWE" | "CNE") => {
-            non_empty(msg.component_of(first, 2)).unwrap_or_else(|| msg.component_of(first, 1))
+            non_empty(&msg.component_of(first, 2)).unwrap_or_else(|| msg.component_of(first, 1))
         }
         _ => reps
             .iter()

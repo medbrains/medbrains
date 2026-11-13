@@ -13,7 +13,7 @@ use tokio::process::Command;
 use tracing::{debug, info, warn};
 
 #[derive(Debug, Clone)]
-pub struct HeadscaleTransport {
+pub(crate) struct HeadscaleTransport {
     login_server: String,
     cloud_hostname_override: Option<String>,
     /// Path to the tailscale CLI binary. Override in tests.
@@ -21,7 +21,7 @@ pub struct HeadscaleTransport {
 }
 
 impl HeadscaleTransport {
-    pub fn new(login_server: String, cloud_hostname_override: Option<String>) -> Self {
+    pub(crate) fn new(login_server: String, cloud_hostname_override: Option<String>) -> Self {
         Self {
             login_server,
             cloud_hostname_override,
@@ -30,7 +30,7 @@ impl HeadscaleTransport {
     }
 
     #[cfg(test)]
-    pub fn with_tailscale_bin(mut self, bin: impl Into<String>) -> Self {
+    pub(crate) fn with_tailscale_bin(mut self, bin: impl Into<String>) -> Self {
         self.tailscale_bin = bin.into();
         self
     }

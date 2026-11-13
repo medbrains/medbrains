@@ -16,8 +16,8 @@
 //!   deployments where the bridge runs on a host with public network
 //!   access.
 
-pub mod headscale;
-pub mod wss;
+pub(crate) mod headscale;
+pub(crate) mod wss;
 
 use crate::config::{BridgeConfig, TunnelProvider};
 use anyhow::{Context, Result};
@@ -25,7 +25,7 @@ use async_trait::async_trait;
 use std::fmt;
 
 #[async_trait]
-pub trait Transport: Send + Sync + fmt::Debug {
+pub(crate) trait Transport: Send + Sync + fmt::Debug {
     fn name(&self) -> &'static str;
 
     /// Confirm the tunnel is up. Called at startup and periodically
@@ -40,12 +40,12 @@ pub trait Transport: Send + Sync + fmt::Debug {
     fn cloud_url(&self, api_base: &str) -> String;
 }
 
-pub use headscale::HeadscaleTransport;
-pub use wss::WssTransport;
+pub(crate) use headscale::HeadscaleTransport;
+pub(crate) use wss::WssTransport;
 
 /// No-op transport (legacy / dev). Always healthy, passes URLs through.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct NoneTransport;
+pub(crate) struct NoneTransport;
 
 #[async_trait]
 impl Transport for NoneTransport {
@@ -63,7 +63,7 @@ impl Transport for NoneTransport {
 }
 
 /// Build the right Transport from BridgeConfig. Used at startup.
-pub fn build(cfg: &BridgeConfig) -> Result<Box<dyn Transport>> {
+pub(crate) fn build(cfg: &BridgeConfig) -> Result<Box<dyn Transport>> {
     let Some(tunnel) = cfg.tunnel.as_ref() else {
         return Ok(Box::new(NoneTransport));
     };

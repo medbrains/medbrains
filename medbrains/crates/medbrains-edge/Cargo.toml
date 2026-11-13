@@ -11,17 +11,13 @@ license-file.workspace = true
 medbrains-core = { path = "../medbrains-core" }
 medbrains-offline-core = { path = "../medbrains-offline-core" }
 
-# Async runtime + WebSocket sync server
+# Async runtime
 tokio = { workspace = true }
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 async-trait = { workspace = true }
 futures = { workspace = true }
 
 # CRDT engine
 loro = { workspace = true }
-
-# LAN service discovery (mDNS)
-mdns-sd = { workspace = true }
 
 # Serialization + types
 serde = { workspace = true }

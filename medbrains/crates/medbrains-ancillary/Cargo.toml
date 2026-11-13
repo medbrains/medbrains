@@ -16,7 +16,6 @@ serde_json = { workspace = true }
 sqlx = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
-schemars = { workspace = true }
 rust_decimal = { workspace = true }
 
 [dev-dependencies]
