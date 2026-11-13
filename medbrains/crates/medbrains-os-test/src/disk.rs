@@ -11,7 +11,7 @@ use crate::vm::{KEYBOARD_READY, NO_TPM_QUESTION, OWN_TPM, Vm, scaled, tpm_usable
 
 const PARTITION: &str = "/dev/disk/by-partlabel/medbrains-data";
 const MAPPED: &str = "/dev/mapper/medbrains-data";
-const RECORD: &str = "/var/lib/medbrains/config/disk-protection";
+pub(crate) const RECORD: &str = "/var/lib/medbrains/config/disk-protection";
 const MARKER_FILE: &str = "/var/lib/medbrains/config/os-test-marker";
 /// Written only to the encrypted partition: must not be found on the raw disk. Written in two parts,
 /// so the command that writes it cannot put the whole text on the disk through shell history.
@@ -20,10 +20,10 @@ const SECRET_MARKER_PARTS: (&str, &str) = ("MBOSTESTSECRET", "MARKER7Q2");
 /// Written to the unencrypted system partition: must be found, or the search proves nothing.
 const CONTROL_MARKER: &str = "MBOSTESTPLAINCONTROL7Q2";
 const OTHER_TPM: &str = "tpm-other";
-const NOTICE: &str = "did not open by itself";
-const SCREEN_LIMIT: Duration = Duration::from_secs(120);
+pub(crate) const NOTICE: &str = "did not open by itself";
+pub(crate) const SCREEN_LIMIT: Duration = Duration::from_secs(120);
 const OPEN_LIMIT: Duration = Duration::from_secs(60);
-const SETTLE: Duration = Duration::from_secs(8);
+pub(crate) const SETTLE: Duration = Duration::from_secs(8);
 const REPLAY_LIMIT: Duration = Duration::from_secs(120);
 /// After this many wrong answers to the PIN prompt, systemd asks for the recovery key instead.
 const WRONG_PINS_BEFORE_KEY: u32 = 2;
@@ -58,7 +58,7 @@ fn data_open(vm: &mut Vm) -> Result<bool, String> {
 }
 
 /// Waits for the data disk to open with nothing typed or something typed earlier.
-fn wait_open(vm: &mut Vm) -> Result<(), String> {
+pub(crate) fn wait_open(vm: &mut Vm) -> Result<(), String> {
     let deadline = Instant::now() + scaled(OPEN_LIMIT);
     while Instant::now() < deadline {
         if data_open(vm)? {
@@ -71,7 +71,7 @@ fn wait_open(vm: &mut Vm) -> Result<(), String> {
 }
 
 /// Waits for the data disk step to finish, which comes before the setup screen.
-fn wait_disk_step_done(vm: &mut Vm) -> Result<(), String> {
+pub(crate) fn wait_disk_step_done(vm: &mut Vm) -> Result<(), String> {
     let deadline = Instant::now() + scaled(SCREEN_LIMIT);
     while Instant::now() < deadline {
         if vm.run(&format!("test -e {RECORD}; echo $?"))? == "0" {
@@ -316,7 +316,7 @@ fn destroying_the_key_wipes_the_disk(vm: &mut Vm, _: &Path) -> Result<(), String
 }
 
 /// A PIN for one throwaway machine, made fresh so none is written down anywhere.
-fn throwaway_pin() -> Result<String, String> {
+pub(crate) fn throwaway_pin() -> Result<String, String> {
     let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
@@ -386,8 +386,8 @@ fn recovery_key_opens_a_pin_machine(vm: &mut Vm, pin: &str) -> Result<(), String
     vm.type_text(&format!("{pin}\n"))?;
     sleep(scaled(SETTLE));
     if !data_open(vm)? {
-        // Three wrong PINs so far trip swtpm's dictionary-attack lockout, and then the right PIN is
-        // refused too, measured, and the PIN prompt comes back. The recovery key must still open it.
+        // If the wrong PINs so far have tripped the TPM's dictionary-attack lockout, the right PIN is
+        // refused too and the PIN prompt comes back. The recovery key must still open it.
         answer_wrong_pins_until_key_asked(vm)?;
         let key = vm.recovery_key.clone();
         vm.type_text(&format!("{key}\n"))?;
@@ -428,6 +428,10 @@ fn power_cut_during_pin_setup_recovers(image: &Path) -> Result<(), String> {
     wait_disk_step_done(&mut vm)?;
     let record = vm.run(&format!("cat {RECORD}"))?;
     ensure(record == "encrypted-tpm2", record)?;
+    // Setup set the lockout password before the cut and again after: the second run must use it, not guess,
+    // or the lockout path stays shut for ten minutes and IT cannot lift a lockout.
+    crate::tpm_lockout::limits_are_ours(&mut vm, image)?;
+    crate::tpm_lockout::it_lifts_a_lockout(&mut vm, image)?;
     vm.reboot()?;
     wait_open(&mut vm)
 }
@@ -514,6 +518,12 @@ pub(crate) fn run_pin_only(image: &Path) -> usize {
         &power_cut_during_pin_setup_recovers(image),
         started,
     ));
+    let started = Instant::now();
+    failed += usize::from(!report(
+        "power cuts and a wrong PIN leave the right PIN working",
+        &crate::tpm_lockout::power_cuts_and_a_wrong_pin_leave_the_pin_working(image),
+        started,
+    ));
     failed
 }
 
@@ -553,6 +563,14 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
         (
             "the original opens with no typing, cold and on a restart",
             normal_restarts_need_no_typing,
+        ),
+        (
+            "the TPM has our lockout limits and a lockout password",
+            crate::tpm_lockout::limits_are_ours,
+        ),
+        (
+            "IT lifts a TPM lockout with the recovery key, and a wrong key changes nothing",
+            crate::tpm_lockout::it_lifts_a_lockout,
         ),
         ("the boot menu and its editor are off", boot_editor_off),
         (
@@ -595,6 +613,12 @@ pub(crate) fn run_sealed_disk(vm: &mut Vm, image: &Path) -> Result<usize, String
     failed += usize::from(!report(
         cut,
         &power_cut_during_pin_setup_recovers(image),
+        started,
+    ));
+    let started = Instant::now();
+    failed += usize::from(!report(
+        "power cuts and a wrong PIN leave the right PIN working",
+        &crate::tpm_lockout::power_cuts_and_a_wrong_pin_leave_the_pin_working(image),
         started,
     ));
     Ok(failed)

@@ -15,7 +15,7 @@
 //! # Two-tier store
 //!
 //! Same shape as [`crate::authz_cache::AuthzCache`]:
-//! - sled-persisted `user_id → revoked_at_unix` so a reboot doesn't
+//! - redb-persisted `user_id → revoked_at_unix` so a reboot doesn't
 //!   clear it.
 //! - In-memory LRU front for hot-path checks.
 //!
@@ -35,16 +35,21 @@ use std::sync::{Arc, RwLock};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::store::{Store, StoreError};
+
 #[derive(Debug, Error)]
 pub enum RevocationCacheError {
-    #[error("sled: {0}")]
-    Sled(#[from] sled::Error),
+    #[error("store: {0}")]
+    Store(#[from] StoreError),
 
     #[error("serde_json: {0}")]
     Serde(#[from] serde_json::Error),
 
     #[error("invalid cache capacity: must be > 0")]
     InvalidCapacity,
+
+    #[error("revocation cache lock poisoned")]
+    LockPoisoned,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -54,13 +59,34 @@ pub struct RevocationEntry {
     pub revoked_at_unix: i64,
 }
 
+/// The store key that says this device has finished a revocation pull since the store was
+/// created. Not 16 bytes, so the replay of user ids skips it.
+const SYNCED_KEY: &[u8] = b"synced";
+
+/// What a device may conclude, offline, about signing a user in on a token.
+///
+/// Three outcomes, never two: a device that has not finished a revocation pull since its store
+/// was created (a fresh install, or the move from sled to redb, which starts empty) cannot know
+/// who was revoked, and must not answer "not revoked".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OfflineSignIn {
+    /// Synced at least once and the token is not revoked.
+    Allowed,
+    /// The token was issued before the user's revocation.
+    Revoked,
+    /// No revocation pull has finished on this store yet: sign-in needs one online sync first.
+    NeedsSync,
+}
+
 #[derive(Clone)]
 pub struct RevocationCache {
     inner: Arc<RwLock<LruCache<Uuid, i64>>>,
-    persist: sled::Db,
+    persist: Store,
     /// Largest `revoked_at_unix` we've seen so far. Used as the
     /// `since` cursor on the next pull.
     pull_max: Arc<RwLock<i64>>,
+    /// Whether a revocation pull has finished since this store was created.
+    synced: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl std::fmt::Debug for RevocationCache {
@@ -72,11 +98,15 @@ impl std::fmt::Debug for RevocationCache {
 impl RevocationCache {
     pub fn new(persist_path: &Path, capacity: usize) -> Result<Self, RevocationCacheError> {
         let cap = NonZeroUsize::new(capacity).ok_or(RevocationCacheError::InvalidCapacity)?;
-        let persist = sled::open(persist_path)?;
+        let persist = Store::open(persist_path)?;
         let mut lru = LruCache::new(cap);
         let mut max_seen: i64 = 0;
-        for kv in persist.iter() {
-            let (k, v) = kv?;
+        let mut synced = false;
+        for (k, v) in persist.entries()? {
+            if k == SYNCED_KEY {
+                synced = true;
+                continue;
+            }
             let Ok(uid) = Uuid::from_slice(&k) else {
                 continue;
             };
@@ -92,7 +122,61 @@ impl RevocationCache {
             inner: Arc::new(RwLock::new(lru)),
             persist,
             pull_max: Arc::new(RwLock::new(max_seen)),
+            synced: Arc::new(std::sync::atomic::AtomicBool::new(synced)),
         })
+    }
+
+    /// Record that a revocation pull finished. Call after every successful pull: the first
+    /// one lifts [`OfflineSignIn::NeedsSync`] for good, durably, before it is reported.
+    pub fn mark_synced(&self) -> Result<(), RevocationCacheError> {
+        self.persist.insert(SYNCED_KEY, b"1")?;
+        self.synced
+            .store(true, std::sync::atomic::Ordering::Release);
+        Ok(())
+    }
+
+    /// Whether a revocation pull has finished since this store was created.
+    pub fn has_synced(&self) -> bool {
+        self.synced.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// May `user_id` be signed in offline on a token issued at `jwt_iat_unix`?
+    ///
+    /// Fails safe: before the first sync, and if the cache cannot be read, the answer is
+    /// [`OfflineSignIn::NeedsSync`], never "allowed".
+    pub fn offline_sign_in(&self, user_id: Uuid, jwt_iat_unix: i64) -> OfflineSignIn {
+        if !self.has_synced() {
+            return OfflineSignIn::NeedsSync;
+        }
+        match self.revoked_at(user_id) {
+            Ok(Some(revoked_at)) if jwt_iat_unix <= revoked_at => OfflineSignIn::Revoked,
+            Ok(_) => OfflineSignIn::Allowed,
+            Err(_) => OfflineSignIn::NeedsSync,
+        }
+    }
+
+    /// When `user_id` was revoked, if ever: the LRU first, then the store.
+    ///
+    /// The LRU holds only `capacity` users and the store holds them all, so a miss in memory is
+    /// not an answer: a revocation evicted from the LRU still revokes. A read fault is an error,
+    /// never `None`, so no caller can mistake it for "not revoked".
+    fn revoked_at(&self, user_id: Uuid) -> Result<Option<i64>, RevocationCacheError> {
+        if let Some(&at) = self
+            .inner
+            .write()
+            .map_err(|_| RevocationCacheError::LockPoisoned)?
+            .get(&user_id)
+        {
+            return Ok(Some(at));
+        }
+        let Some(bytes) = self.persist.get(user_id.as_bytes())? else {
+            return Ok(None);
+        };
+        let at: i64 = serde_json::from_slice(&bytes)?;
+        if let Ok(mut guard) = self.inner.write() {
+            guard.put(user_id, at);
+        }
+        Ok(Some(at))
     }
 
     /// Record that `user_id` is revoked from `revoked_at_unix`
@@ -104,44 +188,58 @@ impl RevocationCache {
         user_id: Uuid,
         revoked_at_unix: i64,
     ) -> Result<(), RevocationCacheError> {
-        let existing = self
-            .inner
-            .read()
-            .ok()
-            .and_then(|g| g.peek(&user_id).copied());
+        self.record_revocations(&[(user_id, revoked_at_unix)])
+    }
 
-        if let Some(existing_ts) = existing
-            && existing_ts >= revoked_at_unix
-        {
-            return Ok(());
+    /// Record a pulled page of revocations in one durable transaction. Monotonic per user: an
+    /// earlier timestamp never overwrites a later one, checked against the store as well as the
+    /// LRU, so an evicted user cannot be rolled back.
+    pub fn record_revocations(&self, rows: &[(Uuid, i64)]) -> Result<(), RevocationCacheError> {
+        // One row per user, the latest: a page holding [(u, 200), (u, 100)] must leave 200.
+        let mut latest: std::collections::HashMap<Uuid, i64> =
+            std::collections::HashMap::with_capacity(rows.len());
+        for &(user_id, at) in rows {
+            latest
+                .entry(user_id)
+                .and_modify(|t| *t = (*t).max(at))
+                .or_insert(at);
         }
-
-        let bytes = serde_json::to_vec(&revoked_at_unix)?;
-        self.persist.insert(user_id.as_bytes(), bytes)?;
+        let mut newer: Vec<(Uuid, i64)> = Vec::with_capacity(latest.len());
+        for (user_id, at) in latest {
+            if self
+                .revoked_at(user_id)?
+                .is_none_or(|existing| existing < at)
+            {
+                newer.push((user_id, at));
+            }
+        }
+        let encoded: Vec<([u8; 16], Vec<u8>)> = newer
+            .iter()
+            .map(|(uid, at)| Ok((*uid.as_bytes(), serde_json::to_vec(at)?)))
+            .collect::<Result<_, serde_json::Error>>()?;
+        self.persist.insert_all(&encoded)?;
         if let Ok(mut guard) = self.inner.write() {
-            guard.put(user_id, revoked_at_unix);
+            for &(uid, at) in &newer {
+                guard.put(uid, at);
+            }
         }
-        if let Ok(mut max_guard) = self.pull_max.write()
-            && revoked_at_unix > *max_guard
+        if let Some(max) = newer.iter().map(|r| r.1).max()
+            && let Ok(mut max_guard) = self.pull_max.write()
+            && max > *max_guard
         {
-            *max_guard = revoked_at_unix;
+            *max_guard = max;
         }
         Ok(())
     }
 
-    /// True if `user_id` is revoked AND `jwt_iat_unix` is at or
-    /// before the revocation timestamp. JWTs issued AFTER the
-    /// revocation are NOT considered revoked — that handles the
-    /// re-activation case (admin disables, then re-enables, then
-    /// user logs in fresh; the new JWT's iat is after the old
-    /// `revoked_at` and should be honored).
+    /// True if `user_id` is revoked and `jwt_iat_unix` is at or before the revocation time
+    /// (a token minted in the revocation's own second is refused). Tokens issued after it are
+    /// honoured: that is re-activation. Fails closed: a fault reads as revoked.
     pub fn is_revoked(&self, user_id: Uuid, jwt_iat_unix: i64) -> bool {
-        let Ok(mut guard) = self.inner.write() else {
-            return false;
-        };
-        match guard.get(&user_id) {
-            Some(&revoked_at) => jwt_iat_unix < revoked_at,
-            None => false,
+        match self.revoked_at(user_id) {
+            Ok(Some(revoked_at)) => jwt_iat_unix <= revoked_at,
+            Ok(None) => false,
+            Err(_) => true,
         }
     }
 
@@ -155,7 +253,7 @@ impl RevocationCache {
     /// the user mints will be valid; we keep the in-memory record
     /// only briefly as the "denied past" window collapses.
     pub fn forget(&self, user_id: Uuid) -> Result<(), RevocationCacheError> {
-        self.persist.remove(user_id.as_bytes())?;
+        self.persist.remove_all(&[user_id.as_bytes()])?;
         if let Ok(mut guard) = self.inner.write() {
             guard.pop(&user_id);
         }
@@ -173,102 +271,5 @@ impl RevocationCache {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    fn make() -> (RevocationCache, TempDir) {
-        let dir = TempDir::new().unwrap();
-        let cache = RevocationCache::new(dir.path(), 1024).unwrap();
-        (cache, dir)
-    }
-
-    #[test]
-    fn record_then_check_revoked() {
-        let (cache, _td) = make();
-        let user = Uuid::new_v4();
-        cache.record_revocation(user, 1_700_000_000).unwrap();
-        // Token issued before revocation → revoked.
-        assert!(cache.is_revoked(user, 1_700_000_000 - 60));
-        // Token issued after revocation → not revoked (re-activation).
-        assert!(!cache.is_revoked(user, 1_700_000_000 + 60));
-    }
-
-    #[test]
-    fn unknown_user_not_revoked() {
-        let (cache, _td) = make();
-        let user = Uuid::new_v4();
-        assert!(!cache.is_revoked(user, 1_700_000_000));
-    }
-
-    #[test]
-    fn earlier_record_does_not_overwrite_later() {
-        let (cache, _td) = make();
-        let user = Uuid::new_v4();
-        cache.record_revocation(user, 1_700_000_000).unwrap();
-        // Stale entry (admin pulled an older row from the cursor) —
-        // must not move the boundary backward.
-        cache.record_revocation(user, 1_699_000_000).unwrap();
-        // Boundary stays at 1_700_000_000: anything before is still
-        // revoked, including the half-way mark.
-        assert!(cache.is_revoked(user, 1_699_500_000));
-        assert!(cache.is_revoked(user, 1_700_000_000 - 1));
-        // Token issued AT or AFTER the boundary is not revoked.
-        assert!(!cache.is_revoked(user, 1_700_000_000));
-    }
-
-    #[test]
-    fn later_record_supersedes_earlier() {
-        let (cache, _td) = make();
-        let user = Uuid::new_v4();
-        cache.record_revocation(user, 1_699_000_000).unwrap();
-        cache.record_revocation(user, 1_700_000_000).unwrap();
-        // Token at iat 1_699_500_000 was previously NOT revoked
-        // (after first record) — now it IS, because the later
-        // record extended the window.
-        assert!(cache.is_revoked(user, 1_699_500_000));
-    }
-
-    #[test]
-    fn pull_window_max_tracks_largest_seen() {
-        let (cache, _td) = make();
-        let u1 = Uuid::new_v4();
-        let u2 = Uuid::new_v4();
-        cache.record_revocation(u1, 1_700_000_000).unwrap();
-        cache.record_revocation(u2, 1_700_500_000).unwrap();
-        cache.record_revocation(u1, 1_700_300_000).unwrap();
-        assert_eq!(cache.pull_window_max(), 1_700_500_000);
-    }
-
-    #[test]
-    fn forget_clears_revocation() {
-        let (cache, _td) = make();
-        let user = Uuid::new_v4();
-        cache.record_revocation(user, 1_700_000_000).unwrap();
-        assert!(cache.is_revoked(user, 1_699_000_000));
-        cache.forget(user).unwrap();
-        assert!(!cache.is_revoked(user, 1_699_000_000));
-    }
-
-    #[test]
-    fn replay_on_boot_restores_revocations() {
-        let dir = TempDir::new().unwrap();
-        let user = Uuid::new_v4();
-        {
-            let cache = RevocationCache::new(dir.path(), 1024).unwrap();
-            cache.record_revocation(user, 1_700_000_000).unwrap();
-        }
-        // Drop the first cache (sled releases lock); reopen.
-        let cache = RevocationCache::new(dir.path(), 1024).unwrap();
-        assert!(cache.is_revoked(user, 1_699_000_000));
-        assert_eq!(cache.pull_window_max(), 1_700_000_000);
-    }
-
-    #[test]
-    fn rejects_zero_capacity() {
-        let dir = TempDir::new().unwrap();
-        let result = RevocationCache::new(dir.path(), 0);
-        assert!(matches!(result, Err(RevocationCacheError::InvalidCapacity)));
-    }
-}
+#[path = "revocation_cache_tests.rs"]
+mod tests;

@@ -4,8 +4,9 @@ import { useHasAnyPermission } from "@medbrains/stores";
 import type { DevicePairingRequest } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Button, Card, Select, toast } from "@/components/ui";
+import { Alert, Badge, Button, Card, Input, Select, toast } from "@/components/ui";
 import { DEPARTMENT_LIST_CODES, STATION_LIST_CODES } from "@/lib/api-permission-sets";
+import { formatTime } from "@/lib/date-utils";
 import { ScreenUrlHint } from "./ScreenUrlHint";
 
 /** The boards a waiting-room screen can show. */
@@ -24,6 +25,15 @@ export const BOARDS = [
 /** A customer display is bound to a counter, not a department (#4883). */
 const COUNTER_DISPLAY = "counter_display";
 const COUNTER_TYPES = new Set(["billing_counter", "pharmacy_counter"]);
+/** Letters and digits in a pairing code; the dash and spaces are forgiven. */
+const CODE_LENGTH = 8;
+/** What each app variant is, in words. Only screens pair by code. */
+const VARIANT_LABELS: Record<string, string> = { tv: "Screen (TV)" };
+
+/** Whether `typed` has as many letters and digits as a pairing code. */
+export function isCompleteCode(typed: string): boolean {
+  return typed.replace(/[^a-z0-9]/gi, "").length === CODE_LENGTH;
+}
 
 interface Option {
   value: string;
@@ -36,9 +46,14 @@ interface ScreenRowProps {
   counters: Option[];
 }
 
-/** One screen asking to be paired: choose its board, then approve or deny. */
+/**
+ * One screen asking to be paired: type the code it shows, choose its board,
+ * then approve; or deny. The list never carries the code — typing it is how
+ * the server knows the approver can see that screen.
+ */
 function ScreenRow({ request, departments, counters }: ScreenRowProps) {
   const queryClient = useQueryClient();
+  const [code, setCode] = useState("");
   const [board, setBoard] = useState<string | null>("opd");
   const [department, setDepartment] = useState<string | null>(null);
   const [counter, setCounter] = useState<string | null>(null);
@@ -46,7 +61,8 @@ function ScreenRow({ request, departments, counters }: ScreenRowProps) {
   const decide = useMutation({
     mutationFn: (deny: boolean) =>
       api.approveDevicePairingRequest({
-        user_code: request.user_code,
+        request_id: request.id,
+        user_code: deny ? undefined : code,
         deny,
         department_id: deny || isCounter ? undefined : (department ?? undefined),
         board_module: deny ? undefined : (board ?? undefined),
@@ -57,23 +73,43 @@ function ScreenRow({ request, departments, counters }: ScreenRowProps) {
       void queryClient.invalidateQueries({ queryKey: ["paired-devices"] });
       toast.success(deny ? "Screen refused" : "Screen paired — it opens its board by itself");
     },
-    onError: (error: Error) => toast.error(error.message, { title: "Not done" }),
+    onError: (error: Error) => {
+      // A fifth wrong code refuses the request; the list drops it.
+      void queryClient.invalidateQueries({ queryKey: ["device-pairing-requests"] });
+      toast.error(error.message, { title: "Not done" });
+    },
   });
 
   return (
-    <Card data-testid={`row-screen-${request.user_code}`}>
+    <Card data-testid={`row-screen-${request.reference}`}>
       <Group align="flex-end" wrap="wrap" gap="sm">
-        <Stack gap={0}>
-          <Text size="xs" c="dimmed">
-            Code on the screen
+        <Stack gap={2}>
+          <Text ff="monospace" fw={700}>
+            Screen {request.reference}
           </Text>
-          <Text ff="monospace" fw={700} size="lg">
-            {request.user_code}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {request.requested_label}
-          </Text>
+          <Group gap="xs">
+            <Badge tone="neutral">
+              {VARIANT_LABELS[request.app_variant] ?? request.app_variant}
+            </Badge>
+            <Text size="xs" c="dimmed">
+              Asked at {formatTime(request.created_at)}
+            </Text>
+          </Group>
         </Stack>
+        <Input
+          label="Code on the screen"
+          description="Type it from the screen"
+          placeholder="XXXX-XXXX"
+          value={code}
+          onChange={(event) => setCode(event.currentTarget.value)}
+          maxLength={CODE_LENGTH + 2}
+          autoComplete="off"
+          spellCheck={false}
+          required
+          ff="monospace"
+          w={160}
+          data-testid={`input-screen-code-${request.reference}`}
+        />
         <Select label="Board" data={BOARDS} value={board} onChange={setBoard} w={160} />
         {isCounter ? (
           <Select
@@ -85,7 +121,7 @@ function ScreenRow({ request, departments, counters }: ScreenRowProps) {
             searchable
             w={220}
             nothingFoundMessage="No billing or pharmacy counters — add one under Manage stations"
-            data-testid={`picker-screen-counter-${request.user_code}`}
+            data-testid={`picker-screen-counter-${request.reference}`}
           />
         ) : (
           <Select
@@ -96,15 +132,15 @@ function ScreenRow({ request, departments, counters }: ScreenRowProps) {
             onChange={setDepartment}
             searchable
             w={220}
-            data-testid={`picker-screen-department-${request.user_code}`}
+            data-testid={`picker-screen-department-${request.reference}`}
           />
         )}
         <Button
           tone="primary"
           onClick={() => decide.mutate(false)}
           loading={decide.isPending}
-          disabled={!board || !(isCounter ? counter : department)}
-          data-testid={`btn-approve-screen-${request.user_code}`}
+          disabled={!isCompleteCode(code) || !board || !(isCounter ? counter : department)}
+          data-testid={`btn-approve-screen-${request.reference}`}
         >
           Approve
         </Button>
@@ -117,9 +153,10 @@ function ScreenRow({ request, departments, counters }: ScreenRowProps) {
 }
 
 /**
- * Waiting-room screens asking to be paired. A TV shows a code; the
- * administrator matches it here and chooses the board it shows. The screen
- * then acts as the hospital's display account — never as the administrator.
+ * Waiting-room screens asking to be paired with this hospital. A TV shows a
+ * reference and a code; the administrator finds the reference here, types the
+ * code and chooses the board it shows. The screen then acts as the hospital's
+ * display account — never as the administrator.
  */
 export function PendingScreensCard() {
   const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);

@@ -19,8 +19,9 @@ has left the machine. Without a PIN it does not protect a stolen machine from so
 | Stolen machine booted from an attacker's own system | **Stopped by PCR 4, tested.** Before that the disk **opened**: with Secure Boot off PCR 7 is the same under any system, and PCR 11 can be extended by hand to the published values and the signature replayed. Measured on swtpm | `stolen_machine_replay_refused`, with a control that still opens without PCR 4 |
 | Boot file (UKI) changed | **Stopped:** PCR 4 and PCR 11 both change | `changed_boot_file_stays_locked` |
 | Kernel command line edited | **Menu and editor off**, tested by file only; **not sealed:** PCR 12 changed between normal cold boots, so a machine stopped opening itself. Starting a firmware shell first changes PCR 4 | `boot_editor_off`, anomaly in DECISIONS |
-| Passive sniffing of the TPM bus | **Stopped.** Unseal runs in a salted HMAC session with response encryption, on by default | Below |
+| Passive sniffing of the TPM bus | **Stopped** for the disk key: unseal runs in a salted HMAC session with response encryption, on by default. **Not for the lockout password** (next row): a passive reader sees it too, and an HMAC session with parameter encryption is what would close it | Below |
 | Active interposer on the TPM bus, no PIN | **Not stopped.** systemd says so in its source. A PIN closes it | Below |
+| Passive or active reader on the TPM bus while the lockout password is used | **Not stopped, accepted.** The lockout password crosses the bus in clear at setup, an interrupted setup, `reseal` and `clear-lockout`; whoever reads it then can reset the failure count and guess PINs without limit on that machine | Below, "TPM lockout" |
 | System partition edited, then booted in this machine | **Not stopped without a PIN, tested.** Same loader and boot file, so PCR 4 matches and the TPM opens the disk for whatever runs. The same goes for those files copied to a USB stick with another system partition (reasoned, not run). **Only verity and Secure Boot close this. A PIN does, today** | `known_gap_system_partition_edit_opens` |
 | Cold boot, or DMA while running | Volume key is in kernel memory. IOMMU settings help against DMA; nothing here stops cold boot | Below |
 
@@ -38,12 +39,51 @@ encrypted session, and just forward everything to the real TPM". Binding the ses
 |---|---|---|
 | Power cut | **Comes back by itself** | Waits for a person at the screen, however long that is |
 | Stolen machine, edited system partition | **Opens** | Needs the PIN |
-| Active interposer on the TPM bus | Can get the key | Needs the PIN too. Wrong PINs trip the TPM's lockout: on swtpm three, across boots, then even the right PIN is refused for a while (real chips allow more). The recovery key still works, tested |
+| Active interposer on the TPM bus | Can get the key | Needs the PIN too. Wrong PINs count towards the TPM's lockout, and on real chips power cuts do too; setup sets 16, one forgiven every 5 minutes switched on (below). The recovery key still works, tested |
 
 Setup asks once, at first boot; Enter means no PIN. Recorded as `encrypted-tpm2` or `encrypted-tpm2-pin`. A ward
 with no system until someone types a PIN carries its own patient risk, so no PIN is the default.
 
 **FIDO2 key: not built.** `systemd-cryptenroll --fido2-device=auto` can do it; a VM cannot test a real key.
+
+### TPM lockout
+
+A PIN-sealed key is protected against guessing by the TPM's dictionary-attack counter; a key without a PIN is
+exempt (systemd marks it `NODA`), so only the PIN option is affected. Each wrong PIN raises the counter. Real
+TPM 2.0 chips also count a non-orderly shutdown while a DA-protected key is in use (TPM 2.0 Part 1, `DAStartup`);
+swtpm does not model this (measured: no rise over three cuts with forgiveness held off), so that part is tested
+only on a real chip (`MB_OS_TEST_REAL_TPM`). At its limit the TPM refuses even the right PIN until it has forgiven enough
+failures, one per interval of powered-on time, and a power cut restarts that clock. A hospital with an unsteady
+supply can therefore lock out a machine nobody attacked.
+
+Measured on swtpm, whose defaults are 3 failures and 1000 s: the PIN tests' wrong PINs drove it into lockout as a
+side effect, and whether a run passed depended on timing.
+
+| Setting | Value | Why |
+|---|---|---|
+| Failures before lockout | 16 | Room for a few power cuts and mistyped PINs between healings |
+| Forgiven | one per 5 minutes switched on | Heals in about 80 minutes of uptime; with a 6-digit PIN, under 300 guesses a day |
+| Wrong lockout password | that path shut for 10 minutes | Stops guessing the lockout password itself |
+| Lockout password | SHA-256 of a fixed label and the recovery key | Whoever holds the recovery key can lift a lockout; no second secret exists |
+
+`disk-setup` sets these at first boot (once the recovery-key marker is on disk, so a password is never derived from
+a key a power cut then replaces), after an interrupted setup and on `reseal`. It reads `lockoutAuthSet` first and
+tries one password at most, because a wrong one shuts the lockout path for 10 minutes: none set, the limits and
+then ours; one set, ours, once. If ours is not in place afterwards (a previous owner's or the firmware's password,
+or a step failed), the chip keeps limits nothing here can check, so setup offers no PIN and says so on the screen;
+the machine starts without typing.
+When the disk does not open and the TPM is locked out, the screen says "too many failed starts" instead of looking
+like a wrong PIN, and points to the recovery key, which opens the disk whatever the TPM says. IT lifts the lockout
+with `disk-setup clear-lockout <file with the recovery key>` (below); there is no screen for it yet, **gap**. The key
+is checked against the recovery slot alone before the TPM is asked, so a wrong key never costs the 10 minutes.
+
+**Accepted, with reasons:**
+
+| Risk | Why it is accepted | What would close it |
+|---|---|---|
+| The lockout password crosses the TPM bus in clear, readable by a passive sniffer as well as an interposer | `tpm2_dictionarylockout` has no session option, so every use goes in a plain password session; encrypting only the change (`tpm2_changeauth -S`) would leave each use exposed. A reader must be on the bus at setup, an interrupted setup, a reseal or an IT visit, and the same interposer already defeats the default no-PIN machine | The lockout commands in Rust (`tss-esapi`) under a salted session with parameter encryption, as systemd does for unseal |
+| Up to about 300 PIN guesses a day (one failure forgiven every 5 minutes) | Each guess is typed at the machine's own screen and needs a restart after two; a 6-digit PIN has a million values, so half of them takes years. Still faster than many chips' factory recovery (often hours per failure), and a PIN may be digits only | A longer PIN, letters required, or a longer interval at the cost of power-cut room |
+| `tpm2-tools` on every image | Root on the machine can lock the TPM out in one line, but root can already wipe the disk; the recovery key still opens it and the lockout heals with uptime. The tools are what lets setup set the limits at all | The same Rust lockout code, then the tools leave the image |
 
 ### Binding to the signed boot image
 
@@ -97,7 +137,8 @@ disposal. No screen for this yet.
 | **TPM seal** | Opens the volume key at boot | LUKS2 `systemd-tpm2` token, SHA-256 bank, PCR 7, PCR 11 by signature, measured; slot uses minimal PBKDF2 (1000 rounds) because its secret is high entropy | Sealed blob in LUKS2 header; only that TPM can unseal | header | Until PCR 7 changes, or the TPM is replaced | `disk-setup reseal KEYFILE`, below | Recovery key opens the disk | Useless without that TPM |
 | **Optional PIN** | Binds the seal to a person | TPM auth value, chosen at setup | In the person's head | none | Until replaced | No screen yet, **gap** | Recovery key | Needs the TPM too; lockout limits guessing |
 | **Boot signing key** (`OS_PCR_KEY`) | Which boot files may open disks | RSA 2048, `systemd-measure`. Public half in every boot file | Debug: throwaway in the build folder. Release: **none exists** | | 30 days for the throwaway | Plan T2 | No signed update can open existing disks, after which the recovery key is needed | **Any machine** would accept that boot file: offline only |
-| **Recovery key** | Opens the disk on any machine | 64 modhex characters, 256 bits, from `systemd-cryptenroll` | **Paper only**; a slot in the header | none on disk | Life of the disk | `systemd-cryptenroll --wipe-slot=recovery --recovery-key` on a running machine: no screen yet, **gap** | If the TPM also fails, data is gone; MedBrains holds no copy | Full data access from a copy. Replace it at once |
+| **TPM lockout password** | Resets the TPM's failure count; sets its lockout limits | SHA-256 of `medbrains-tpm-lockout-v1` and the recovery key, 32 bytes | Nowhere: derived when needed | none | Life of the recovery key | Must move with the recovery key: `tpm2_changeauth -c lockout -p file:<old> file:<new>`. Resealing keeps the key and so the same password. No command does this yet, so recovery-key rotation is **unsupported** | IT cannot lift a lockout; it heals by itself with uptime | Whoever has the recovery key can already open the disk |
+| **Recovery key** | Opens the disk on any machine | 64 modhex characters, 256 bits, from `systemd-cryptenroll` | **Paper only**; a slot in the header | none on disk | Life of the disk | **Unsupported for now**: a new key also needs the TPM lockout password moved (`tpm2_changeauth -c lockout -p file:<old> file:<new>`), or `clear-lockout` stops working, and no command does both; no screen either, **gap** | If the TPM also fails, data is gone; MedBrains holds no copy | Full data access from a copy. Replace it at once |
 | **`JWT_PRIVATE_KEY`** | Sessions (15 min), refresh chain (7 days), step-up (5 min), portal (12 h), device tokens (30 days) | Ed25519, source (`jsonwebtoken` 10, aws-lc-rs) | `/var/lib/medbrains/config/env` | 0640 root:medbrains | Forever | **None**: no key id, no verify-with-old. Replace and every session and device token ends | Everyone signs in again; devices re-pair. No data lost | Forge any user until replaced. **High** |
 | **`MEDBRAINS_IDENTIFIER_HMAC_KEY`** | Aadhaar and identifier fingerprints | HMAC-SHA256, source | same env | 0640 | Forever | **None**: fingerprints cannot be recomputed from the hash | Duplicate matching stops, permanently | Identifier values can be tested offline against stolen fingerprints |
 | **`MEDBRAINS_ABDM_SECRET_KEY`** | ABDM client secret, link tokens, transfer keys, UHI signing key, sealed in the database | AES-256-GCM, key from HKDF-SHA256, random 96-bit nonce, source | same env | 0640 | Forever | **None** | Re-enter those secrets with ABDM | Those secrets, given the database |
@@ -191,8 +232,13 @@ systemd-cryptenroll "$PART"                                  # list key slots
 # After a board or TPM change. Two steps inside: in one, cryptenroll finds the same policy enrolled and does
 # nothing, though that TPM has gone. Tested: reseal_to_new_tpm.
 /usr/lib/medbrains/disk-setup reseal <file with the recovery key>   # checks the key first; drops any PIN
-# New recovery key; prints it once.
+# Too many failed starts: lifts the TPM's lockout. Checks the key first. Tested: it_lifts_a_lockout.
+/usr/lib/medbrains/disk-setup clear-lockout <file with the recovery key>
+# New recovery key: UNSUPPORTED for now. It prints once, and the TPM's lockout password, derived from the old
+# key, must move to the new one in the same visit, or clear-lockout stops working. Not tested; no command does both.
 systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery --recovery-key "$PART"
+# <old>/<new>: SHA-256 of "medbrains-tpm-lockout-v1\n" followed by the key with whitespace removed, as disk-setup derives it.
+TPM2TOOLS_TCTI=device:/dev/tpmrm0 tpm2_changeauth -c lockout -p file:<old> file:<new>
 # Late TPM on a disk set up unencrypted: first a recovery key, which prints once. Then seal, and remove the empty
 # key. Then write encrypted-tpm2 into the record. The volume key stays the same: old copies stay open.
 systemd-cryptenroll --unlock-key-file=/dev/null --recovery-key "$PART"
@@ -212,6 +258,7 @@ disk to a file on that disk. A test found this: the disk would not open.
 | Person chooses unencrypted | Data readable from any copy | Typed choice; empty-key slot; `disk-protection` record | Stores data and records it; the top bar says "This disk is not encrypted" at every boot | `no_tpm_records_the_choice` |
 | Boot file changed | PCR 4 and 11 differ | Unseal fails | Same screen as a copied disk; restoring the file opens it | `changed_boot_file_stays_locked` |
 | PIN wrong or forgotten | | Unseal fails | Two wrong tries, then it asks for the recovery key, which opens it; a key typed before that counts as a wrong PIN. A restart asks for the PIN again | `recovery_key_opens_a_pin_machine` |
+| TPM lockout: power cuts and wrong PINs reach the limit | Right PIN refused | `inLockout` set | Screen says "too many failed starts"; the recovery key opens the disk; IT runs `clear-lockout`, or it heals with uptime | `it_lifts_a_lockout`, `limits_are_ours`, both also after an interrupted setup |
 | Power cut after the key is saved and before the record | The seal may need a PIN nobody can vouch for | Marker with no record | Disk asks; the saved recovery key opens it; setup asks for it again, re-seals, records what the seal is | `power_cut_during_pin_setup_recovers` |
 | Disk copied to another machine | TPM refuses | Unseal fails | Prompt on the screen, with a notice after 20 s. `/var` not mounted; no service starts | `copy_stays_locked` |
 | Recovery key lost **and** TPM gone | **Data lost** | Nothing opens | Stays at the prompt. Restore from backup; no backup exists until D2 | none: by design |

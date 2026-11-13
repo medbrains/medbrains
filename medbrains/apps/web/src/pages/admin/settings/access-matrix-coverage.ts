@@ -21,6 +21,7 @@ import {
   WORKFLOW_SIGNAL_SHAPE_DEFINITIONS,
 } from "@medbrains/types";
 import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
+import { trimTrailing } from "@/lib/text-shape";
 
 export const ACCESS_MATRIX_PLATFORMS: readonly AccessMatrixPlatform[] = [
   "web",
@@ -535,7 +536,7 @@ export function normalizeCoverageRoute(path: string) {
   const [withoutHash] = (withoutQuery ?? path).split("#");
   const normalized = withoutHash && withoutHash.length > 0 ? withoutHash : "/";
   const withLeadingSlash = normalized.startsWith("/") ? normalized : `/${normalized}`;
-  return withLeadingSlash.length > 1 ? withLeadingSlash.replace(/\/+$/, "") : withLeadingSlash;
+  return withLeadingSlash.length > 1 ? trimTrailing(withLeadingSlash, "/") : withLeadingSlash;
 }
 
 function flattenNavItems(items: readonly NavItemConfig[], rows: NavRouteRequirement[]) {

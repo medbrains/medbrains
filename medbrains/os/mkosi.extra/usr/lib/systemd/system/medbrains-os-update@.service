@@ -29,3 +29,6 @@ LockPersonality=yes
 MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+RestrictNamespaces=yes
+ProtectKernelTunables=yes

@@ -17,6 +17,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { QueryError } from "@/components/QueryError";
 import { Button, Card, Input, PasswordField, toast } from "@/components/ui";
+import { trimTrailing } from "@/lib/text-shape";
 import { radiologyService } from "@/services/radiology.service";
 
 const savedSchema = z
@@ -28,7 +29,7 @@ const savedSchema = z
   .passthrough();
 type Saved = z.infer<typeof savedSchema>;
 
-const trimSlash = (v: string) => v.trim().replace(/\/+$/, "");
+const trimSlash = (v: string) => trimTrailing(v.trim(), "/");
 
 function formSchema(saved: Saved | undefined) {
   return z

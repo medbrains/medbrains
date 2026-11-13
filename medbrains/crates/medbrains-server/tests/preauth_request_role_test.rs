@@ -37,7 +37,6 @@ async fn the_preauth_functions_are_granted_to_the_app_only() {
 const FUNCTIONS: &[&str] = &[
     "app_gateway_txn_tenant",
     "app_log_unmatched_webhook",
-    "app_open_device_pairing_request",
     "app_poll_device_pairing_request",
     "app_device_pairing_token_tenant",
     "app_register_bridge_agent",
@@ -73,15 +72,16 @@ async fn an_unknown_order_is_filed_not_refused() {
     assert_eq!(filed, 1);
 }
 
-/// Given a display with no hospital, When it asks for a code and polls,
-/// Then it is told to wait, and each poll is counted.
+/// Given a display that names its hospital but has no credentials, When it
+/// asks for a code and polls, Then it is told to wait, and each poll is counted.
 #[tokio::test]
 async fn a_display_asks_to_pair_and_waits() {
     let app = common::spawn_app_as_request_role().await;
+    let hospital = crate::display_pairing_test::home_hospital_code(&app).await;
     let code: Value = app
         .client
         .post(app.url("/api/device-pairing/device-code"))
-        .json(&json!({ "app_variant": "tv", "label": "Lobby TV" }))
+        .json(&json!({ "hospital_code": hospital, "app_variant": "tv" }))
         .send()
         .await
         .expect("code")

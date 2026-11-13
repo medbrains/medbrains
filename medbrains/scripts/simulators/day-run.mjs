@@ -21,6 +21,7 @@
 //   --er-only           skip OPD track
 //   --dry-run           log requests but don't send
 
+import { randomInt } from "node:crypto";
 import process from "node:process";
 
 const API_BASE = process.env.MEDBRAINS_API_BASE;
@@ -81,11 +82,15 @@ async function api(method, path, body) {
   return res.json();
 }
 
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const chance = (p) => Math.random() < p;
-const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const pick = (arr) => arr[randomInt(arr.length)];
+const chance = (p) => unit() < p;
+// crypto, not Math.random, for every draw: CodeQL and SonarCloud cannot tell a vital sign from
+// a token, and the cost of a CSPRNG for a few thousand synthetic values is nothing.
+/** A uniform draw in [0, 1) from the CSPRNG, 2^-47 apart (randomInt takes at most 2^48 - 1). */
+const unit = () => randomInt(2 ** 47) / 2 ** 47;
+const randInt = (min, max) => randomInt(min, max + 1);
 const randDecimal = (min, max, decimals = 1) =>
-  Number((Math.random() * (max - min) + min).toFixed(decimals));
+  Number((unit() * (max - min) + min).toFixed(decimals));
 
 // ─── Reference data (small fixed pools) ──────────────────────
 const ICD10_OPD = [
@@ -349,7 +354,7 @@ async function main() {
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(i + 1);
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;

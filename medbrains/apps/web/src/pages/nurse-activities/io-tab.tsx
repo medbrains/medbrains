@@ -113,6 +113,8 @@ function CreateIoPanel({ encounterId, onCreated }: { encounterId: string; onCrea
   const [notes, setNotes] = useState("");
   const intakeCats = ["oral", "iv", "tube", "blood", "tpn", "other"];
   const outputCats = ["urine", "stool", "emesis", "drain", "other"];
+  // "Urine 0 ml this shift" is a finding (anuric, blocked catheter); zero intake is not.
+  const minVolume = direction === "output" ? 0 : 1;
   const directionStatus: ClinicalStatus =
     direction === "intake"
       ? { label: "Intake", color: "blue", tone: "neutral" }
@@ -170,7 +172,7 @@ function CreateIoPanel({ encounterId, onCreated }: { encounterId: string; onCrea
             label="Volume"
             value={volume}
             onChange={(value) => setVolume(toNumber(value))}
-            min={1}
+            min={minVolume}
             suffix=" ml"
           />
           <Button
@@ -179,7 +181,7 @@ function CreateIoPanel({ encounterId, onCreated }: { encounterId: string; onCrea
             leftSection={<IconPlus size={14} />}
             onClick={() => create.mutate()}
             loading={create.isPending}
-            disabled={!encounterId || volume <= 0}
+            disabled={!encounterId || volume < minVolume}
           >
             Save entry
           </Button>
