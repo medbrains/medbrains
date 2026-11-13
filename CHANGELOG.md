@@ -10,12 +10,32 @@ GitHub release notes, so write each section for a hospital IT team.
 
 ## [Unreleased]
 
+## [3.33.1] - 2026-11-13
+
+The first update to 3.33.0. It adds the container image, which did not build for 3.33.0, plus OS hardening and fixes.
+
+### Added
+
+- **Container image.** `ghcr.io/medbrains/medbrains:3.33.1` for x86-64 and arm64, signed with cosign. The 3.33.0 image did not build because its Dockerfile used an outdated Rust toolchain. The Dockerfile now follows the pinned toolchain, and CI checks that the two match and builds the image whenever either changes (#5572).
+- **OS hardening.** OS services are confined with AppArmor. The image is scored against the CIS benchmark, and the console shows boot health (#5453).
+- **Download page** on the website, listing every OS image, the desktop clients, the Android staff app and how to verify a download (#5570).
+
 ### Changed
 
-- **Pairing a waiting-room screen now needs the code shown on that screen.** The admin types the 8-character code from the screen to approve it; pending codes are never listed, each request belongs to one hospital (open the screen at `/screen?hospital=<code>` or scan the QR on Admin → Paired devices), and the flow pairs display screens only. Screens already paired keep working; screens that were waiting at upgrade ask again.
-- **The old React Native TV app (`apps/tv`) can no longer pair.** It is reference-only and unsupported; it sends no hospital code and is refused. Open `/screen?hospital=<code>` in the TV's browser instead.
+- **Waiting-room screen pairing needs the code shown on that screen.** The admin types the 8-character code from the screen to approve it. Pending codes are never listed, and each request belongs to one hospital: open the screen at `/screen?hospital=<code>`, or scan the QR code on Admin → Paired devices. The flow pairs display screens only. Screens already paired keep working; screens that were waiting during the upgrade ask again.
+- **The old React Native TV app (`apps/tv`) can no longer pair.** It is reference-only and unsupported. It sends no hospital code, so it is refused. Open `/screen?hospital=<code>` in the TV's browser instead.
+- **Offline signing-key design** for OS updates. Every intermediate key, revocation list and root change needs two of three root keys, and no single stolen key can sign an update (#5511).
+- Background file reads and writes no longer block the server (#5515).
 
-### Licence
+### Fixed
+
+- The app version check and the OPD vitals screen no longer trip reliability warnings (#5571).
+
+### Not in this release
+
+- The patient app waits for run-time hospital configuration (#5569).
+- Sealing the OS system partition (dm-verity) waits for its update-unlock fix.
+
 ## [3.33.0] - 2026-11-13
 
 The first versioned release of MedBrains, an open-source hospital OS built for hospitals anywhere.

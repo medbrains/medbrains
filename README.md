@@ -24,7 +24,7 @@
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=medbrains_medbrains)](https://sonarcloud.io/summary/new_code?id=medbrains_medbrains)
 [![Security scans](https://github.com/medbrains/medbrains/actions/workflows/security.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/security.yml)
 [![Security policy](https://img.shields.io/badge/Security-policy-0F62FE.svg)](./SECURITY.md)
-[![Status: beta](https://img.shields.io/badge/Status-beta-851B7F.svg)](#release-status)
+[![Latest release](https://img.shields.io/github/v/release/medbrains/medbrains?label=Release&color=851B7F)](https://github.com/medbrains/medbrains/releases/latest)
 [![Rust](https://img.shields.io/badge/Rust-2024_·_1.95+-0F62FE?logo=rust&logoColor=white)](#why-rust)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-0F62FE.svg)](./CONTRIBUTING.md)
 
@@ -48,17 +48,17 @@
 
 ## Release status
 
-**MedBrains is in beta.** The first release, **v3.33.0**, is being prepared. It will appear on the
-[Releases page](https://github.com/medbrains/medbrains/releases) with:
+MedBrains is released. Each version is on the [Releases page](https://github.com/medbrains/medbrains/releases), and the
+[Download page](https://medbrains.in/download) lists every file. Each release has:
 
-- the server for Linux (x86-64 and arm64)
-- the desktop app for Windows and Mac
-- the Android apps
-- MedBrains OS disk images (see below)
+- MedBrains OS disk images for x86-64 and arm64 (ISO, VMware, Hyper-V, KVM/Proxmox, Azure and AWS)
+- the server for Linux (x86-64 and arm64) and the container image `ghcr.io/medbrains/medbrains`
+- the desktop app for Windows, Mac and Linux
+- the Android staff app
+- signed SHA-256 checksums for checking every download
 
-Until then, build from source with the [quick start](#quick-start). Beta means the features listed
-below work end to end, but please test with your own sample data before you put real patients on it,
-and tell us what breaks.
+Before you put real patients on it, try it with your own sample data, and tell us what breaks.
+The [readiness meters](#readiness) below show how far each part has come.
 
 ## Readiness
 
