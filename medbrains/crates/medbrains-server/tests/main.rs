@@ -77,6 +77,7 @@ mod auth_test;
 mod authz_admission_care_team_test;
 mod authz_pharmacy_dispense_view_test;
 mod auto_charge_savepoint_test;
+mod bank_recon_test;
 mod bad_debt_write_off_test;
 mod billing_concession_test;
 mod billing_payment_settings_test;
