@@ -21,7 +21,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-0F62FE.svg)](./LICENSE)
 [![CI](https://github.com/medbrains/medbrains/actions/workflows/ci.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/ci.yml)
-[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=medbrains_medbrains&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=medbrains_medbrains)
+[![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=medbrains_medbrains)](https://sonarcloud.io/summary/new_code?id=medbrains_medbrains)
 [![Security scans](https://github.com/medbrains/medbrains/actions/workflows/security.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/security.yml)
 [![Security policy](https://img.shields.io/badge/Security-policy-0F62FE.svg)](./SECURITY.md)
 [![Status: beta](https://img.shields.io/badge/Status-beta-851B7F.svg)](#release-status)
