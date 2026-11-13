@@ -11,10 +11,10 @@ name: Security
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, next]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master, main]
+    branches: [master, main, next]
   schedule:
     # Daily: new advisories land against unchanged code, and a week is too long for a hospital.
     - cron: "0 0 * * *"
