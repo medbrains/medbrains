@@ -15,9 +15,9 @@ use uuid::Uuid;
 async fn own_department(app: &common::TestApp) -> (Uuid, Uuid) {
     // The admin's own tenant — the database also holds an RLS probe tenant.
     let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-    .fetch_one(&app.db)
-    .await
-    .expect("a tenant with a department");
+        .fetch_one(&app.db)
+        .await
+        .expect("a tenant with a department");
     let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
     let department: Uuid = sqlx::query_scalar(
         "INSERT INTO departments (tenant_id, code, name, department_type) \
@@ -86,9 +86,16 @@ async fn a_completed_token_cannot_be_moved_backwards() {
     let id = token["id"].as_str().expect("token id");
 
     for action in ["call", "serve", "complete"] {
-        assert_eq!(step(&app, &csrf, id, action).await, StatusCode::OK, "{action}");
+        assert_eq!(
+            step(&app, &csrf, id, action).await,
+            StatusCode::OK,
+            "{action}"
+        );
     }
-    assert_eq!(advance(&app, &csrf, id, "waiting").await, StatusCode::CONFLICT);
+    assert_eq!(
+        advance(&app, &csrf, id, "waiting").await,
+        StatusCode::CONFLICT
+    );
     assert_eq!(step(&app, &csrf, id, "no-show").await, StatusCode::CONFLICT);
 
     let status: String = sqlx::query_scalar("SELECT status FROM tokens WHERE id = $1::uuid")
@@ -126,7 +133,10 @@ async fn two_desks_calling_next_together_call_two_patients() {
         let resp = resp.expect("call-next request");
         assert_eq!(resp.status(), StatusCode::OK);
         let token: serde_json::Value = resp.json().await.expect("call-next json");
-        let id = token["id"].as_str().expect("each desk called someone").to_owned();
+        let id = token["id"]
+            .as_str()
+            .expect("each desk called someone")
+            .to_owned();
         assert!(called.insert(id), "two desks called the same patient");
     }
 
@@ -172,7 +182,12 @@ async fn simultaneous_camp_registrations_get_distinct_numbers() {
     for resp in responses {
         let resp = resp.expect("registration request");
         let status = resp.status();
-        assert_eq!(status, StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "{}",
+            resp.text().await.unwrap_or_default()
+        );
     }
 
     let (total, distinct): (i64, i64) = sqlx::query_as(
@@ -184,7 +199,10 @@ async fn simultaneous_camp_registrations_get_distinct_numbers() {
     .await
     .expect("count numbers");
     assert_eq!(total, 10);
-    assert_eq!(distinct, 10, "two patients were given the same registration number");
+    assert_eq!(
+        distinct, 10,
+        "two patients were given the same registration number"
+    );
 }
 
 /// Given a board pointed at a room (a location scope, not a department), When
@@ -340,9 +358,17 @@ async fn a_doctor_calling_from_the_opd_screen_announces_the_call() {
         .send()
         .await
         .expect("create encounter");
-    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
     let visit: serde_json::Value = resp.json().await.expect("visit json");
-    let encounter = visit["encounter"]["id"].as_str().expect("encounter id").to_owned();
+    let encounter = visit["encounter"]["id"]
+        .as_str()
+        .expect("encounter id")
+        .to_owned();
     let queue_entry = visit["queue"]["id"].as_str().expect("queue id").to_owned();
 
     let token_number: String = sqlx::query_scalar(
@@ -352,7 +378,11 @@ async fn a_doctor_calling_from_the_opd_screen_announces_the_call() {
     .fetch_one(&app.db)
     .await
     .expect("the visit's token");
-    assert_eq!(visit["token_number"], token_number.as_str(), "the desk tells the patient the board's number");
+    assert_eq!(
+        visit["token_number"],
+        token_number.as_str(),
+        "the desk tells the patient the board's number"
+    );
 
     let resp = app
         .client
@@ -362,7 +392,12 @@ async fn a_doctor_calling_from_the_opd_screen_announces_the_call() {
         .send()
         .await
         .expect("doctor calls");
-    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
     let events = app.outbox_rows("opd.queue.called", &encounter).await;
     assert_eq!(events.len(), 1, "the doctor's call is announced once");
 }

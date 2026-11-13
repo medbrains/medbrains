@@ -44,8 +44,8 @@ pub async fn screen_pop(
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let Some(contact) = find_by_identity(&mut tx, claims.tenant_id, CHANNEL_PHONE, &canonical)
-        .await?
+    let Some(contact) =
+        find_by_identity(&mut tx, claims.tenant_id, CHANNEL_PHONE, &canonical).await?
     else {
         tx.commit().await?;
         // Say "new caller" rather than render an empty record. An agent shown

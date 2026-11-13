@@ -112,7 +112,9 @@ pub async fn cha2ds2_vasc_score(
 ) -> Result<Json<Cha2ds2VascResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(0..=130).contains(&body.age) {
-        return Err(AppError::BadRequest("age must be between 0 and 130".to_owned()));
+        return Err(AppError::BadRequest(
+            "age must be between 0 and 130".to_owned(),
+        ));
     }
     Ok(Json(compute_cha2ds2_vasc(&body)))
 }

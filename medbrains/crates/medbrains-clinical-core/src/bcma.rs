@@ -16,7 +16,10 @@ pub struct WitnessCandidate {
 /// second check by the same pair of eyes is not a second check.
 #[must_use]
 pub fn eligible_witnesses(on_duty: Vec<WitnessCandidate>, actor_id: &str) -> Vec<WitnessCandidate> {
-    on_duty.into_iter().filter(|n| n.nurse_user_id != actor_id).collect()
+    on_duty
+        .into_iter()
+        .filter(|n| n.nurse_user_id != actor_id)
+        .collect()
 }
 
 /// Whether "Give now" may be pressed.
@@ -36,8 +39,16 @@ pub fn can_record_given(is_high_alert: bool, witness_id: Option<&str>) -> bool {
 /// keep the patient.
 #[must_use]
 pub fn scan_rights_summary(right_patient: bool, right_drug: bool) -> String {
-    let patient = if right_patient { "Wristband matched." } else { "Wristband did not match." };
-    let drug = if right_drug { "Drug matched." } else { "Drug did not match." };
+    let patient = if right_patient {
+        "Wristband matched."
+    } else {
+        "Wristband did not match."
+    };
+    let drug = if right_drug {
+        "Drug matched."
+    } else {
+        "Drug did not match."
+    };
     format!("{patient} {drug}")
 }
 
@@ -46,15 +57,20 @@ mod tests {
     use super::{WitnessCandidate, can_record_given, eligible_witnesses, scan_rights_summary};
 
     fn nurse(id: &str, name: &str) -> WitnessCandidate {
-        WitnessCandidate { nurse_user_id: id.into(), nurse_name: name.into(), is_charge: false }
+        WitnessCandidate {
+            nurse_user_id: id.into(),
+            nurse_name: name.into(),
+            is_charge: false,
+        }
     }
 
     #[test]
     fn never_offers_the_nurse_giving_it() {
-        let ids: Vec<String> = eligible_witnesses(vec![nurse("me", "Asha"), nurse("other", "Bilal")], "me")
-            .into_iter()
-            .map(|n| n.nurse_user_id)
-            .collect();
+        let ids: Vec<String> =
+            eligible_witnesses(vec![nurse("me", "Asha"), nurse("other", "Bilal")], "me")
+                .into_iter()
+                .map(|n| n.nurse_user_id)
+                .collect();
         assert_eq!(ids, vec!["other".to_owned()]);
     }
 
@@ -79,7 +95,13 @@ mod tests {
 
     #[test]
     fn names_both_rights_including_the_one_that_passed() {
-        assert_eq!(scan_rights_summary(true, false), "Wristband matched. Drug did not match.");
-        assert_eq!(scan_rights_summary(false, true), "Wristband did not match. Drug matched.");
+        assert_eq!(
+            scan_rights_summary(true, false),
+            "Wristband matched. Drug did not match."
+        );
+        assert_eq!(
+            scan_rights_summary(false, true),
+            "Wristband did not match. Drug matched."
+        );
     }
 }

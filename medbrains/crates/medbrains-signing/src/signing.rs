@@ -184,8 +184,12 @@ mod tests {
         let sig: [u8; 64] = expected.try_into().unwrap();
         let verifying = VerifyingKey::from_bytes(&public).unwrap();
         assert!(
-            ed25519_dalek::Verifier::verify(&verifying, b"", &ed25519_dalek::Signature::from_bytes(&sig))
-                .is_ok()
+            ed25519_dalek::Verifier::verify(
+                &verifying,
+                b"",
+                &ed25519_dalek::Signature::from_bytes(&sig)
+            )
+            .is_ok()
         );
     }
 }

@@ -79,7 +79,13 @@ pub fn compute_has_bled(r: &HasBledRequest) -> HasBledResult {
         "Low-to-moderate bleeding risk — proceed with anticoagulation per CHA2DS2-VASc and review at \
          routine intervals; reassess if a modifiable factor changes."
     };
-    HasBledResult { score, elderly_point: elderly, risk, high_risk, response }
+    HasBledResult {
+        score,
+        elderly_point: elderly,
+        risk,
+        high_risk,
+        response,
+    }
 }
 
 /// `POST /api/clinical/has-bled` — major-bleeding risk for AF anticoagulation.
@@ -90,7 +96,9 @@ pub async fn has_bled_score(
 ) -> Result<Json<HasBledResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(0..=130).contains(&body.age) {
-        return Err(AppError::BadRequest("age must be between 0 and 130".to_owned()));
+        return Err(AppError::BadRequest(
+            "age must be between 0 and 130".to_owned(),
+        ));
     }
     Ok(Json(compute_has_bled(&body)))
 }

@@ -214,8 +214,14 @@ pub async fn refund_payment(
             pos::undo::refund_on_machine(state, &txn, terminal_id, refund_paise).await?
         }
         None => {
-            refund_online(tx, state, &txn, (&gateway_payment_id, refund_paise), refund.reason)
-                .await?
+            refund_online(
+                tx,
+                state,
+                &txn,
+                (&gateway_payment_id, refund_paise),
+                refund.reason,
+            )
+            .await?
         }
     };
     let made = settle::RefundMade {

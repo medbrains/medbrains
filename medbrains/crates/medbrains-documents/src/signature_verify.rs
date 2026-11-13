@@ -244,8 +244,13 @@ async fn current_hash(
     tenant_id: Uuid,
     source: SignedSource<'_>,
 ) -> Result<Option<[u8; 32]>, AppError> {
-    let payload = match resolve_signable_payload(tx, &tenant_id, source.record_type, source.record_id)
-        .await
+    let payload = match resolve_signable_payload(
+        tx,
+        &tenant_id,
+        source.record_type,
+        source.record_id,
+    )
+    .await
     {
         Ok(payload) => payload,
         Err(AppError::NotFound | AppError::BadRequest(_)) => return Ok(None),

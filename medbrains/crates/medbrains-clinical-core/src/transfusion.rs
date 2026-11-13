@@ -38,15 +38,25 @@ pub const fn is_running(started_unix: Option<i64>, ended: bool) -> bool {
 /// once and never as overdue afterwards. Completion is never overdue: flagging
 /// it would put a red mark on every transfusion that is simply still running.
 #[must_use]
-pub fn phase_states(started_unix: Option<i64>, ended: bool, recorded: &[String], now_unix: i64) -> Vec<PhaseState> {
+pub fn phase_states(
+    started_unix: Option<i64>,
+    ended: bool,
+    recorded: &[String],
+    now_unix: i64,
+) -> Vec<PhaseState> {
     let running = is_running(started_unix, ended);
     let elapsed_minutes = started_unix.map_or(0, |s| (now_unix - s) / 60);
     PHASES
         .iter()
         .map(|&phase| {
             let done = recorded.iter().any(|r| r == phase);
-            let overdue = !done && phase != "completion" && running && elapsed_minutes >= due_minutes(phase);
-            PhaseState { phase: phase.to_owned(), recorded: done, overdue }
+            let overdue =
+                !done && phase != "completion" && running && elapsed_minutes >= due_minutes(phase);
+            PhaseState {
+                phase: phase.to_owned(),
+                recorded: done,
+                overdue,
+            }
         })
         .collect()
 }
@@ -90,7 +100,11 @@ pub fn abo_compatible(patient_group: &str, unit_group: &str) -> bool {
     }
     let positive = |g: &str| g.ends_with('+') || g.contains("positive");
     let letters = |g: &str| -> Option<&'static str> {
-        match g.trim_end_matches(['+', '-']).trim_end_matches("_positive").trim_end_matches("_negative") {
+        match g
+            .trim_end_matches(['+', '-'])
+            .trim_end_matches("_positive")
+            .trim_end_matches("_negative")
+        {
             "ab" => Some("ab"),
             "a" => Some("a"),
             "b" => Some("b"),
@@ -121,7 +135,10 @@ mod tests {
     // A missing phase is a failed test, and a test may say so loudly.
     #[allow(clippy::panic)]
     fn state<'a>(states: &'a [PhaseState], phase: &str) -> &'a PhaseState {
-        states.iter().find(|s| s.phase == phase).unwrap_or_else(|| panic!("no {phase}"))
+        states
+            .iter()
+            .find(|s| s.phase == phase)
+            .unwrap_or_else(|| panic!("no {phase}"))
     }
 
     #[test]
@@ -136,7 +153,14 @@ mod tests {
         // If this stops flagging, the screen looks calm through the exact
         // window it exists for.
         let s = phase_states(Some(START), false, &["baseline".into()], START + 20 * 60);
-        assert_eq!(state(&s, "fifteen_min"), &PhaseState { phase: "fifteen_min".into(), recorded: false, overdue: true });
+        assert_eq!(
+            state(&s, "fifteen_min"),
+            &PhaseState {
+                phase: "fifteen_min".into(),
+                recorded: false,
+                overdue: true
+            }
+        );
     }
 
     #[test]
@@ -153,8 +177,20 @@ mod tests {
 
     #[test]
     fn a_charted_phase_stops_flagging() {
-        let s = phase_states(Some(START), false, &["baseline".into(), "fifteen_min".into()], START + 90 * 60);
-        assert_eq!(state(&s, "fifteen_min"), &PhaseState { phase: "fifteen_min".into(), recorded: true, overdue: false });
+        let s = phase_states(
+            Some(START),
+            false,
+            &["baseline".into(), "fifteen_min".into()],
+            START + 90 * 60,
+        );
+        assert_eq!(
+            state(&s, "fifteen_min"),
+            &PhaseState {
+                phase: "fifteen_min".into(),
+                recorded: true,
+                overdue: false
+            }
+        );
     }
 
     #[test]
@@ -165,13 +201,52 @@ mod tests {
 
     #[test]
     fn hanging_a_unit_needs_consent_compatibility_and_a_second_nurse() {
-        assert!(can_start_transfusion("BAG-1", "O", "PRBC", "2026-09-01", true, true, Some("n2")));
-        assert!(!can_start_transfusion("BAG-1", "O", "PRBC", "2026-09-01", false, true, Some("n2")));
-        assert!(!can_start_transfusion("BAG-1", "O", "PRBC", "2026-09-01", true, false, Some("n2")));
-        assert!(!can_start_transfusion("BAG-1", "O", "PRBC", "2026-09-01", true, true, None));
-        assert!(!can_start_transfusion("   ", "O", "PRBC", "2026-09-01", true, true, Some("n2")));
+        assert!(can_start_transfusion(
+            "BAG-1",
+            "O",
+            "PRBC",
+            "2026-09-01",
+            true,
+            true,
+            Some("n2")
+        ));
+        assert!(!can_start_transfusion(
+            "BAG-1",
+            "O",
+            "PRBC",
+            "2026-09-01",
+            false,
+            true,
+            Some("n2")
+        ));
+        assert!(!can_start_transfusion(
+            "BAG-1",
+            "O",
+            "PRBC",
+            "2026-09-01",
+            true,
+            false,
+            Some("n2")
+        ));
+        assert!(!can_start_transfusion(
+            "BAG-1",
+            "O",
+            "PRBC",
+            "2026-09-01",
+            true,
+            true,
+            None
+        ));
+        assert!(!can_start_transfusion(
+            "   ",
+            "O",
+            "PRBC",
+            "2026-09-01",
+            true,
+            true,
+            Some("n2")
+        ));
     }
-
 
     #[test]
     fn o_negative_goes_to_anyone_and_ab_positive_takes_anything() {
@@ -203,9 +278,18 @@ mod tests {
 
     #[test]
     fn both_spellings_agree_and_an_unreadable_group_is_not_compatible() {
-        assert_eq!(abo_compatible("a_positive", "o_negative"), abo_compatible("A+", "O-"));
-        assert!(!abo_compatible("", "O-"), "no patient group is a reason to stop");
-        assert!(!abo_compatible("A+", ""), "no unit group is a reason to stop");
+        assert_eq!(
+            abo_compatible("a_positive", "o_negative"),
+            abo_compatible("A+", "O-")
+        );
+        assert!(
+            !abo_compatible("", "O-"),
+            "no patient group is a reason to stop"
+        );
+        assert!(
+            !abo_compatible("A+", ""),
+            "no unit group is a reason to stop"
+        );
         assert!(!abo_compatible("A+", "banana"));
     }
 }

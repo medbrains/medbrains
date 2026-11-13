@@ -8,9 +8,9 @@
 use std::collections::{HashMap, HashSet};
 
 use medbrains_core::diagnosis_coding::icd_system_of_code;
-use quick_xml::{Reader, XmlVersion};
 use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesRef, BytesStart, Event};
+use quick_xml::{Reader, XmlVersion};
 
 /// More rows than any ICD-10 edition (WHO ~12k, ICD-10-CM ~75k) holds.
 pub const MAX_CODES: usize = 200_000;

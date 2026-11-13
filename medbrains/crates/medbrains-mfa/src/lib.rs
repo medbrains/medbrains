@@ -11,8 +11,8 @@
 //! array of role names). /auth/me reports `mfa_enrollment_required`
 //! and the frontend blocks the app until enrollment completes.
 
+use axum::routing::post;
 use axum::{Extension, Json, extract::State};
-use axum::routing::{post};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use totp_rs::{Algorithm, Secret, TOTP};

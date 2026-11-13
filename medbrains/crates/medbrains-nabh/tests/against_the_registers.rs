@@ -2,7 +2,12 @@
 //!
 //!   cargo test -p medbrains-nabh -- --ignored
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 use chrono::Utc;
 use medbrains_nabh::compliance::{assess_tenant, last_met};
@@ -42,7 +47,11 @@ async fn every_register_in_the_catalogue_actually_exists() {
         .await
         .expect("query");
 
-        assert!(exists, "{} points at missing table {}", norm.code, norm.source_table);
+        assert!(
+            exists,
+            "{} points at missing table {}",
+            norm.code, norm.source_table
+        );
     }
 }
 
@@ -151,12 +160,13 @@ async fn a_recorded_drill_moves_the_obligation_to_met() {
     .await
     .expect("record a drill");
 
-    let seen: Option<chrono::DateTime<Utc>> =
-        sqlx::query_scalar("SELECT max(drill_at) FROM public.nabh_fire_safety_drills WHERE tenant_id = $1")
-            .bind(tenant)
-            .fetch_one(&mut *tx)
-            .await
-            .expect("read it back");
+    let seen: Option<chrono::DateTime<Utc>> = sqlx::query_scalar(
+        "SELECT max(drill_at) FROM public.nabh_fire_safety_drills WHERE tenant_id = $1",
+    )
+    .bind(tenant)
+    .fetch_one(&mut *tx)
+    .await
+    .expect("read it back");
 
     assert!(seen.is_some(), "the drill was not recorded");
 
@@ -165,5 +175,9 @@ async fn a_recorded_drill_moves_the_obligation_to_met() {
     tx.rollback().await.expect("rollback");
 
     let after = assess_tenant(&pool, tenant, &[drill], Utc::now()).await;
-    assert_eq!(after[0].standing, Standing::NeverRecorded, "the test left data behind");
+    assert_eq!(
+        after[0].standing,
+        Standing::NeverRecorded,
+        "the test left data behind"
+    );
 }

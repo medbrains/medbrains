@@ -23,8 +23,12 @@ impl Node {
         if *open {
             return Ok(());
         }
-        let listener = TcpListener::bind(self.screen_port).await.context("the screen's port")?;
-        let clock = UdpSocket::bind(self.time_port).await.context("the clock's port")?;
+        let listener = TcpListener::bind(self.screen_port)
+            .await
+            .context("the screen's port")?;
+        let clock = UdpSocket::bind(self.time_port)
+            .await
+            .context("the clock's port")?;
         let (this, time_node) = (Arc::clone(self), Arc::clone(self));
         tokio::spawn(async move { time_node.relay_time_forever(clock).await });
         tokio::spawn(async move { this.carry_forever(listener).await });
@@ -57,7 +61,10 @@ impl Node {
         held: &mut Option<Connection>,
         question: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
-        if held.as_ref().is_none_or(|conn| conn.close_reason().is_some()) {
+        if held
+            .as_ref()
+            .is_none_or(|conn| conn.close_reason().is_some())
+        {
             *held = Some(self.dial_main(TIME_ALPN).await?);
         }
         let conn = held.as_ref().context("no connection")?;

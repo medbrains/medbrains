@@ -73,7 +73,13 @@ pub fn compute_curb65(r: &Curb65Request) -> Curb65Result {
              antibiotics and safety-netting, if no other concern (hypoxia, comorbidity, social).",
         )
     };
-    Curb65Result { score, age_point, risk, disposition, response }
+    Curb65Result {
+        score,
+        age_point,
+        risk,
+        disposition,
+        response,
+    }
 }
 
 /// `POST /api/clinical/curb-65` — community-acquired pneumonia severity + site-of-care guidance.
@@ -84,7 +90,9 @@ pub async fn curb65_score(
 ) -> Result<Json<Curb65Result>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(0..=130).contains(&body.age) {
-        return Err(AppError::BadRequest("age must be between 0 and 130".to_owned()));
+        return Err(AppError::BadRequest(
+            "age must be between 0 and 130".to_owned(),
+        ));
     }
     Ok(Json(compute_curb65(&body)))
 }

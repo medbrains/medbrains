@@ -28,7 +28,10 @@ async fn group(app: &common::TestApp, s: &Setup, other: Uuid, shares: bool) -> U
         "INSERT INTO hospital_groups (code, name, share_clinical_records) \
          VALUES ($1, 'Sunrise Hospitals', $2) RETURNING id",
     )
-    .bind(format!("G{}", Uuid::new_v4().simple().to_string()[..8].to_uppercase()))
+    .bind(format!(
+        "G{}",
+        Uuid::new_v4().simple().to_string()[..8].to_uppercase()
+    ))
     .bind(shares)
     .fetch_one(&app.db)
     .await

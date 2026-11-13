@@ -82,7 +82,11 @@ pub fn compute_meld(r: &MeldRequest) -> MeldResult {
         "Lower short-term mortality — continue surveillance for decompensation, treat the underlying \
          cause, and re-score periodically (MELD guides transplant timing as it rises)."
     };
-    MeldResult { score, mortality_band, response }
+    MeldResult {
+        score,
+        mortality_band,
+        response,
+    }
 }
 
 /// `POST /api/clinical/meld` — MELD score (6-40) + 90-day mortality band.
@@ -93,7 +97,9 @@ pub async fn meld_score(
 ) -> Result<Json<MeldResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if body.bilirubin_mg_dl < 0.0 || body.inr < 0.0 || body.creatinine_mg_dl < 0.0 {
-        return Err(AppError::BadRequest("lab values must not be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "lab values must not be negative".to_owned(),
+        ));
     }
     Ok(Json(compute_meld(&body)))
 }
