@@ -36,7 +36,7 @@ document is about them; the desktop key gets the same runbook in §5.
 | Algorithm | Ed25519, as the updater already verifies (`crates/medbrains-os-update/src/manifest.rs`) |
 | Where | Generated **on** the token, so no copy exists anywhere else. Three tokens, three independent keys: `root-a`, `root-b`, `root-c` |
 | Custody | `root-a`: the owner, in a safe at home or office. `root-b`: a bank safe-deposit box. `root-c`: a second named person, in their safe. Never two in one building |
-| Protection | PIN and touch on every signature; 3 wrong PINs block the key, the PUK (different, kept on paper with the token) unblocks it |
+| Protection | PIN and touch on every signature; 3 wrong PINs block the key, and the PUK unblocks it. **A PUK is never kept with its token:** each PUK sheet is sealed in its own bag and held by a different holder in a different place (`root-a`'s PUK with `root-c`'s holder, `root-b`'s with the owner, `root-c`'s in `root-b`'s box). A stolen bag then holds a token whose PIN the thief cannot reset |
 | Used on | A dedicated signing laptop that never joins a network (radio removed or disabled in firmware), booting a read-only live system. Files cross in and out on a USB stick, and a person reads each one before it is signed |
 | Signs | Intermediate certificates, revocation lists and a new trust anchor set (adding or dropping a root): **two of three, always**. No root signs anything alone |
 | Every image carries | `os/update-keys/root-a.pub`, `root-b.pub`, `root-c.pub`, and the anchor policy (`threshold` = 2) |
@@ -65,9 +65,17 @@ The bundle gains two pairs of files beside `manifest.json` and `manifest.sig`:
 
 ## 4. How a machine checks a bundle (the updater change, #5510)
 
+0. **Anchors first.** The bundle carries every `anchors.json` issued since the oldest root set a
+   supported image shipped with (`anchors/<sequence>.json` + `.sig`). The machine applies them in
+   `sequence` order: each must have a `sequence` above the stored one and valid signatures from at
+   least two distinct roots of the set **currently stored**. Each accepted one replaces the stored
+   set (in `/var`), and the next is checked against it. Steps 1 to 5 then use the newest set. So a
+   machine that missed one or more anchor changes still chains to the newest set, and a bundle signed
+   after a root change (§5.2) installs on a machine still on the old anchors.
 1. `intermediate.sig` carries valid signatures from **at least two distinct** roots the machine
    trusts (the same root twice counts once), and the certificate's purpose is `os-update`.
-2. `revoked.json` carries valid signatures from at least two distinct trusted roots, and its `sequence` is **at least** the highest one this
+2. `revoked.json` must be present: a bundle without one is refused. It carries valid signatures
+   from at least two distinct trusted roots, and its `sequence` is **at least** the highest one this
    machine has stored (in `/var`). A higher one is stored. A lower one is refused: an attacker cannot
    serve an old list to undo a revocation. Because a list needs two roots, a thief with one token
    cannot publish a list with a huge `sequence` (or `min_serial`) to freeze every machine's updates;
@@ -87,9 +95,8 @@ the channel is the signed bundle and freshness is the sequence number. Time is b
 backdated by whoever holds the key, so it bounds nothing on its own.
 
 **A new trust anchor** (`anchors.json`: the full list of root public keys, a `sequence`) is signed by
-two current roots and carried in a bundle. The machine replaces its stored anchors with it only if
-the sequence rises and two roots it already trusts signed it. Images built after that carry the new
-set from the start.
+two current roots and checked in step 0. Images built after that carry the new set from the start.
+A machine older than the oldest anchor set still carried in bundles must be re-imaged.
 
 **Written limits.**
 - A machine that never updates, and is never offline-updated by USB, never learns of a revocation.
@@ -102,7 +109,9 @@ set from the start.
   machine: an RSA 2048 key on a fourth PIV slot of `root-a`'s token if `systemd-measure` can sign
   through PKCS#11 (systemd 256 and later take a `--private-key-source`; to be tested), otherwise on the
   signing laptop's encrypted disk with a backup on a second encrypted stick in `root-b`'s
-  box. Its rotation follows §5.3.
+  box. That fallback is a **copyable key**, an accepted exception to the §2 rule, allowed only until
+  the PKCS#11 test passes (the key then moves to the token and both copies are wiped) or re-seal is
+  built (it then becomes an intermediate). Its rotation follows §5.3.
 
 ## 5. Compromise runbook
 
@@ -128,8 +137,8 @@ hands; if it is, the desktop app must be reinstalled from the website, and the n
 
 | By | Step |
 |---|---|
-| **T+1 h** | The two other tokens are checked: present, sealed bags intact. Their holders are told |
-| **T+4 h** | Two-person ceremony with the two good tokens: a new token `root-d` generated; `anchors.json` with `sequence` + 1 listing the two good roots and `root-d`, signed by the two good roots (this retires the lost root: machines stop counting its signatures); a new intermediate signed by two of the new set; `revoked.json` with `min_serial` raised past every intermediate the lost root co-signed, signed by two of the new set |
+| **T+1 h** | The two other tokens and all three PUK sheets are checked: present, sealed bags intact. Their holders are told. If the lost token's PUK bag was taken too, treat the root as stolen with its PIN resettable; the steps are the same |
+| **T+4 h** | Two-person ceremony with the two good tokens: a new token `root-d` generated; `anchors.json` with `sequence` + 1 listing the two good roots and `root-d`, signed by the two good roots (this retires the lost root: machines stop counting its signatures); a new intermediate signed by two of the new set; `revoked.json` with `min_serial` raised past every intermediate the lost root co-signed, signed by two of the new set. Raising `min_serial` past every intermediate the lost root co-signed is deliberately broader than needed: each also carried a good root's signature, but we revoke them all rather than reason about which were safe |
 | **T+8 h** | Emergency release carrying the new anchors and revocation list, floor raised; USB bundle |
 | **T+24 h at the latest** | Customers told (§5.4); advisory published |
 | **Next release** | `os/update-keys/` updated in the repo, so new images ship without the lost root |
@@ -198,7 +207,7 @@ in CI; the human part (the people, the ceremony, the notice) is the drill.
 | YubiKey 5 series with firmware **5.7 or later** (Ed25519 in PIV) | 3, plus 1 for drills | Buy from Yubico directly: firmware cannot be upgraded, and reseller stock can be older than 5.7 |
 | A small laptop used only for signing | 1 | Any x86-64 laptop that can have Wi-Fi and Bluetooth removed or disabled in firmware; never connected to a network |
 | USB sticks for files in and out | 2 | Labelled "in" and "out", wiped after each ceremony |
-| Tamper-evident bags | 10 | One per stored token, its PUK sheet, and the laptop; bag numbers written in the log |
+| Tamper-evident bags | 10 | One per stored token, one per PUK sheet (never in the token's bag), and the laptop; bag numbers written in the log |
 | A bank safe-deposit box | 1 | For `root-b` |
 | A bound paper logbook | 1 | Every ceremony: date, people, what was signed, bag numbers |
 
@@ -208,7 +217,7 @@ in CI; the human part (the people, the ceremony, the notice) is the drill.
 2. Now, with no purchase: check that no long-lived signing key sits in CI, move any that does out,
    and require the owner's approval on the environment that holds release secrets.
 3. When the tokens arrive: the first ceremony. Generate `root-a`, `root-b`, `root-c` on the tokens,
-   set PINs and PUKs, export only the public keys. A pull request adds them to `os/update-keys/` with
+   set PINs and PUKs, seal each PUK in its own bag and hand it to its holder (§2), export only the public keys. A pull request adds them to `os/update-keys/` with
    the anchor threshold; nobody else can do this step.
 4. Issue intermediate serial 1 and put it in the protected release environment.
 5. Merge #5510 (chain and revocation in the updater) and run the drill (§5.5) before the first paid
