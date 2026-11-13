@@ -111,3 +111,31 @@ pub(crate) async fn drain_loop(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Delivery;
+
+    #[test]
+    fn delivery_body_keeps_the_api_keys_and_leaves_out_module() {
+        let (parsed, mapped) = (serde_json::json!({"p": 1}), serde_json::json!({"m": 2}));
+        let body = Delivery {
+            device_instance_id: "dev-1",
+            module: "lab",
+            protocol: "HL7v2",
+            parsed_payload: &parsed,
+            mapped_data: &mapped,
+            processing_duration_ms: 7,
+        };
+        assert_eq!(
+            serde_json::to_value(&body).ok(),
+            Some(serde_json::json!({
+                "device_instance_id": "dev-1",
+                "protocol": "HL7v2",
+                "parsed_payload": {"p": 1},
+                "mapped_data": {"m": 2},
+                "processing_duration_ms": 7,
+            }))
+        );
+    }
+}
