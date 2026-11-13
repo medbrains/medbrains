@@ -536,14 +536,19 @@ async fn ipd_is_read_by_census_and_by_discharge() {
             .expect("a seeded IPD widget"),
         );
     }
-    let beds: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ward_bed_mappings \
-          WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL",
-    )
-    .bind(tenant)
-    .fetch_one(&app.db)
-    .await
-    .expect("beds");
+    // The denominator is every mapped bed in the hospital, and tests running
+    // beside this one add beds of their own. Count before and after the read:
+    // the figure must be two occupied beds over a count inside that window.
+    let count_beds = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM ward_bed_mappings \
+              WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL",
+        )
+        .bind(tenant)
+        .fetch_one(&app.db)
+        .await
+        .expect("beds")
+    };
     let read = || async {
         app.client
             .post(app.url("/api/dashboard/widget-data/batch"))
@@ -571,7 +576,9 @@ async fn ipd_is_read_by_census_and_by_discharge() {
         .execute(&app.db)
         .await
         .expect("the readmission gets its bed");
+    let beds_before = count_beds().await;
     let answers = read().await;
+    let beds_after = count_beds().await;
     let value = |i: usize| {
         answers
             .iter()
@@ -580,9 +587,15 @@ async fn ipd_is_read_by_census_and_by_discharge() {
             .unwrap_or(f64::NAN)
     };
     #[allow(clippy::cast_precision_loss)] // a handful of beds
-    let census = 200.0 / beds as f64;
-    let expected = [census, 7.25 / 3.0, 100.0 / 3.0, 100.0 / 3.0, 25.0];
-    for (i, want) in expected.iter().enumerate() {
+    let census_fits =
+        (beds_before..=beds_after).any(|b| (value(0) - 200.0 / b as f64).abs() < 1e-6);
+    assert!(
+        census_fits,
+        "bed_occupancy_pct: {} is not 2 beds over {beds_before}..={beds_after}",
+        value(0)
+    );
+    let expected = [7.25 / 3.0, 100.0 / 3.0, 100.0 / 3.0, 25.0];
+    for (i, want) in (1..).zip(expected.iter()) {
         assert!(
             (value(i) - want).abs() < 1e-6,
             "{}: {} ≠ {want}",

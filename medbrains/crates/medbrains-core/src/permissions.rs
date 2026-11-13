@@ -4325,6 +4325,13 @@ pub mod nurse {
         /// witness, not the giver. Held by nurses, doctors and pharmacists;
         /// a bypass role holds it only when granted it by name.
         pub const WITNESS: &str = "nurse.mar.witness";
+        /// Give a high-alert dose.
+        ///
+        /// Checked on the giver of insulin, heparin, potassium and other
+        /// high-alert drugs (IPSG.3), on top of `nurse.mar.administer` or
+        /// `ipd.mar.update`. Held by nurses; a bypass role holds it only when
+        /// granted it by name, so an administrator is never the recorded giver.
+        pub const ADMINISTER_HIGH_ALERT: &str = "nurse.mar.administer_high_alert";
     }
     pub mod prescriptions {
         pub const DRAFT: &str = "nurse.prescriptions.draft";

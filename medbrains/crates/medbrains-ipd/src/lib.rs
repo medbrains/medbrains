@@ -2889,26 +2889,27 @@ pub async fn create_mar(
 //  PUT /api/ipd/admissions/{id}/mar/{mar_id}
 // ══════════════════════════════════════════════════════════
 
-/// Whether `witness` may be the second checker on a high-alert dose: an active
-/// user of this tenant whose resolved grant (role, access groups, `access_matrix`
-/// extra and temporary grants, less denied) holds `nurse.mar.witness`.
+/// Whether `user` is an active user of this tenant whose resolved grant (role,
+/// access groups, `access_matrix` extra and temporary grants, less denied) holds
+/// `code` by name. Decides the giver and the witness of a high-alert dose.
 ///
 /// Read inside the caller's transaction. A bypass role's row carries no codes,
-/// so an admin witnesses only when granted the code by name.
+/// so an admin holds `code` here only when granted it by name.
 ///
 /// # Errors
 /// The grant could not be read. That is neither a yes nor a no: the caller
 /// fails the request rather than refusing or allowing the dose.
-async fn witness_may_check(
+async fn holds_by_name(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
-    witness: Uuid,
+    user: Uuid,
+    code: &str,
 ) -> Result<bool, AppError> {
     let role = sqlx::query_scalar::<_, String>(
         "SELECT role::text FROM users \
          WHERE id = $1 AND tenant_id = $2 AND is_active = true AND deleted_at IS NULL",
     )
-    .bind(witness)
+    .bind(user)
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -2916,18 +2917,16 @@ async fn witness_may_check(
         return Ok(false);
     };
     let granted = medbrains_server_core::permissions::resolve_granted_permissions_on(
-        tx, tenant_id, witness, &role,
+        tx, tenant_id, user, &role,
     )
     .await?;
-    Ok(granted
-        .iter()
-        .any(|code| code == permissions::nurse::mar::WITNESS))
+    Ok(granted.iter().any(|held| held == code))
 }
 
 /// Apply a MAR dose status transition with the full IPSG.3 medication-safety gate, shared by
 /// BOTH MAR update endpoints so neither can bypass the checks: an already-administered dose is
-/// immutable; a high-alert `given` requires an independent witness (a different, active user
-/// holding `nurse.mar.witness`) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
+/// immutable; a high-alert `given` requires a giver holding `nurse.mar.administer_high_alert`, an
+/// independent witness (a different, active user holding `nurse.mar.witness`) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
 /// `barcode_verified` is server-authoritative (never client-set). `admission_id` optionally scopes
 /// the dose to a specific admission (the admission-nested endpoint) — `None` matches by id alone.
 async fn administer_mar_dose_in_tx(
@@ -2968,6 +2967,21 @@ async fn administer_mar_dose_in_tx(
     match status {
         MarStatus::Given => {
             if existing.is_high_alert {
+                if !holds_by_name(
+                    tx,
+                    tenant_id,
+                    actor_sub,
+                    permissions::nurse::mar::ADMINISTER_HIGH_ALERT,
+                )
+                .await?
+                {
+                    return Err(AppError::ForbiddenReason(
+                        "You are not allowed to give high-alert doses. Ask an administrator to grant \
+                         'Give a high-alert dose' (nurse.mar.administer_high_alert), or hand this \
+                         dose to a nurse who holds it."
+                            .to_owned(),
+                    ));
+                }
                 let witness = body.witnessed_by.ok_or_else(|| {
                     AppError::BadRequest(
                         "A second-nurse witness is required to administer a high-alert drug."
@@ -2980,7 +2994,7 @@ async fn administer_mar_dose_in_tx(
                             .to_owned(),
                     ));
                 }
-                if !witness_may_check(tx, tenant_id, witness).await? {
+                if !holds_by_name(tx, tenant_id, witness, permissions::nurse::mar::WITNESS).await? {
                     return Err(AppError::BadRequest(
                         "The witness must be an active colleague allowed to witness high-alert \
                          doses (nurse.mar.witness)."
