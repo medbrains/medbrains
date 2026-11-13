@@ -13,7 +13,7 @@ networked computer, and the key a networked computer holds expires within weeks 
 
 | Key | Signs | Trusted by | Target custody |
 |---|---|---|---|
-| **OS update root** | Intermediate certificates, revocation lists, new trust anchors | Every OS image (`os/update-keys/root-*.pub`) | 3 hardware tokens, offline, 2-of-3 for anchor changes (§2) |
+| **OS update root** | Intermediate certificates, revocation lists, new trust anchors | Every OS image (`os/update-keys/root-*.pub`) | 3 hardware tokens, offline, 2-of-3 for every signature (§2) |
 | **OS update intermediate** | Update manifests (`manifest.sig`), weekly `refresh` re-signs | Machines, through the root's certificate | Ed25519, 30-day certificate, readable only by the approved release job (§3) |
 | **Boot signing key** (`OS_PCR_KEY`) | Expected PCR 11 values of the boot file | The disk seal on every machine | Offline, held like the root (§4, written limits): a disk is sealed to one public key, so it cannot be short-lived until re-seal is built |
 | **Release checksums, container image** | `SHA256SUMS`, the GHCR image | Anyone verifying a release | Sigstore keyless: a certificate valid for minutes, bound to the release workflow's identity, logged in Rekor (`release.yml`). Already the short-lived pattern |
@@ -38,20 +38,25 @@ document is about them; the desktop key gets the same runbook in §5.
 | Custody | `root-a`: the owner, in a safe at home or office. `root-b`: a bank safe-deposit box. `root-c`: a second named person, in their safe. Never two in one building |
 | Protection | PIN and touch on every signature; 3 wrong PINs block the key, the PUK (different, kept on paper with the token) unblocks it |
 | Used on | A dedicated signing laptop that never joins a network (radio removed or disabled in firmware), booting a read-only live system. Files cross in and out on a USB stick, and a person reads each one before it is signed |
-| Signs | Intermediate certificates and revocation lists: **any one root**. A new trust anchor set (adding or dropping a root) and revoking a root: **two of three** |
-| Every image carries | `os/update-keys/root-a.pub`, `root-b.pub`, `root-c.pub`, and the anchor policy (`threshold` for anchor changes = 2) |
+| Signs | Intermediate certificates, revocation lists and a new trust anchor set (adding or dropping a root): **two of three, always**. No root signs anything alone |
+| Every image carries | `os/update-keys/root-a.pub`, `root-b.pub`, `root-c.pub`, and the anchor policy (`threshold` = 2) |
 
 Why three tokens and not a seed on encrypted USB sticks: a seed can be copied without anyone
 noticing, and its copies must be destroyed by trust. A key generated on a token cannot be copied at
 all; losing one token costs nothing while two remain. Why not one token: losing it would strand
 every machine on the last trust anchor.
 
+Why two of three for every signature, not only anchor changes: if one root could sign an
+intermediate, one stolen token could mint a key that signs updates for every machine. With two of
+three, one stolen token signs nothing a machine accepts. Signatures are separate lines in one file,
+so the two holders can sign in turn and the tokens never need to be in one building.
+
 ## 3. The intermediate: what CI holds
 
 | | |
 |---|---|
 | Key | Ed25519, made on the signing laptop at a ceremony, put into a protected GitHub environment as a secret, then the stick is wiped. **Planned:** that environment needs the owner's approval for each run and accepts only release tags |
-| Certificate | `intermediate.json`: `format`, `serial` (increasing integer), `key_id`, `public_key`, `not_before`, `not_after` (30 days later), `purposes` (`os-update`). Signed by one root into `intermediate.sig`, one line per signature (`<root id> <base64>`), the same form as `manifest.sig` |
+| Certificate | `intermediate.json`: `format`, `serial` (increasing integer), `key_id`, `public_key`, `not_before`, `not_after` (30 days later), `purposes` (`os-update`). Signed by two roots into `intermediate.sig`, one line per signature (`<root id> <base64>`), the same form as `manifest.sig` |
 | Lifetime | 30 days. A new one is issued every 3 weeks, so there is always one week of overlap. **The bound needs a trusted clock:** the manifest's `issued` time is written by whoever signs, so a thief can backdate it into the window. With a confirmed clock (NTS), a leaked intermediate is accepted at most until `not_after` plus the manifest's 30-day expiry. Without one it is not time-bounded, and only the revocation list stops it |
 | Signs | Release manifests and the weekly `refresh`. Nothing else: never another certificate |
 
@@ -60,10 +65,13 @@ The bundle gains two pairs of files beside `manifest.json` and `manifest.sig`:
 
 ## 4. How a machine checks a bundle (the updater change, #5510)
 
-1. `intermediate.sig` verifies against a root in the image, and the certificate's purpose is `os-update`.
-2. `revoked.json` verifies against a root, and its `sequence` is **at least** the highest one this
+1. `intermediate.sig` carries valid signatures from **at least two distinct** roots the machine
+   trusts (the same root twice counts once), and the certificate's purpose is `os-update`.
+2. `revoked.json` carries valid signatures from at least two distinct trusted roots, and its `sequence` is **at least** the highest one this
    machine has stored (in `/var`). A higher one is stored. A lower one is refused: an attacker cannot
-   serve an old list to undo a revocation.
+   serve an old list to undo a revocation. Because a list needs two roots, a thief with one token
+   cannot publish a list with a huge `sequence` (or `min_serial`) to freeze every machine's updates;
+   no separate bound on the jump is needed.
 3. The intermediate is not in `revoked.json`'s `revoked_serials`, and its serial is at or above
    `min_serial`. Raising `min_serial` revokes every older intermediate at once.
 4. The manifest's signed `issued` time lies in the certificate's `not_before`..`not_after`, and, when
@@ -86,8 +94,9 @@ set from the start.
 **Written limits.**
 - A machine that never updates, and is never offline-updated by USB, never learns of a revocation.
   On a machine with a confirmed clock a leaked intermediate stops at `not_after` plus 30 days; on
-  one without, it does not stop. A leaked root never stops. That is why roots are on
-  tokens and a root revocation needs two of them.
+  one without, it does not stop. One leaked root signs nothing a machine accepts; two
+  leaked roots never stop. That is why roots are on tokens, kept apart, and every root signature needs
+  two of them.
 - The boot signing key cannot move to an intermediate until `disk-setup reseal` to a new key is built
   (OS-UPDATES.md "Rotating `OS_PCR_KEY`"). Until then it is held like a root and never on a networked
   machine: an RSA 2048 key on a fourth PIV slot of `root-a`'s token if `systemd-measure` can sign
@@ -106,7 +115,7 @@ clock starts when the first person suspects it, not when it is confirmed.
 |---|---|
 | **T+15 min** | Delete the secret from the protected environment (`gh secret delete … --env <name>`). Disable `release.yml` and `desktop.yml` (`gh workflow disable`). Nothing more can be signed by CI |
 | **T+1 h** | Find what it signed: every `manifest.sig` with its key id since `not_before`, from the release channel's history and GitHub's audit log. Any bundle we did not make is the incident's evidence: keep it |
-| **T+2 h** | Ceremony on the signing laptop, one root token, two people present: (1) `revoked.json` with `sequence` + 1, the leaked serial in `revoked_serials`, `min_serial` raised past it; (2) a new intermediate key and certificate; (3) the new key into the protected environment; the stick wiped |
+| **T+2 h** | Ceremony on the signing laptop, two root tokens signing each file (in turn if they are apart), two people present: (1) `revoked.json` with `sequence` + 1, the leaked serial in `revoked_serials`, `min_serial` raised past it; (2) a new intermediate key and certificate; (3) the new key into the protected environment; the stick wiped |
 | **T+4 h** | An emergency release: version up, floor up past any version the attacker could have signed, carrying the new revocation list. Published to the channel and as a USB bundle. The weekly refresh carries the list from now on |
 | **T+24 h at the latest** | Every customer told (§5.4). A public advisory (GitHub security advisory) with the revoked key id and the version that carries the revocation |
 | **T+7 days** | Written review: how it leaked, what it signed, what changed. A row in `docs/DECISIONS.md` under "What went wrong" |
@@ -120,14 +129,15 @@ hands; if it is, the desktop app must be reinstalled from the website, and the n
 | By | Step |
 |---|---|
 | **T+1 h** | The two other tokens are checked: present, sealed bags intact. Their holders are told |
-| **T+4 h** | Two-person ceremony with the two good tokens: a new token `root-d` generated; `anchors.json` with `sequence` + 1 listing the two good roots and `root-d`, signed by the two good roots; `revoked.json` revoking every intermediate the lost root ever signed, and a new intermediate signed by a good root |
+| **T+4 h** | Two-person ceremony with the two good tokens: a new token `root-d` generated; `anchors.json` with `sequence` + 1 listing the two good roots and `root-d`, signed by the two good roots (this retires the lost root: machines stop counting its signatures); a new intermediate signed by two of the new set; `revoked.json` with `min_serial` raised past every intermediate the lost root co-signed, signed by two of the new set |
 | **T+8 h** | Emergency release carrying the new anchors and revocation list, floor raised; USB bundle |
 | **T+24 h at the latest** | Customers told (§5.4); advisory published |
 | **Next release** | `os/update-keys/` updated in the repo, so new images ship without the lost root |
 
-If **two** tokens are lost, the third alone cannot change the anchors, by design. Machines must then be
-re-imaged from installation media with a new root set, and the notice says so. This is the price of
-a single stolen token being unable to take over the fleet.
+Until the new anchors install, the lost token alone still signs nothing a machine accepts, so this
+is tidy-up, not a race. If **two** tokens are lost, the third alone cannot sign anything, by design.
+Machines must then be re-imaged from installation media with a new root set, and the notice says so.
+This is the price of a single stolen token being unable to take over the fleet.
 
 ### 5.3 Boot signing key (`OS_PCR_KEY`) leaked
 
@@ -166,6 +176,7 @@ Once before the paid feed opens, then every six months, with **test** roots and 
 never the real tokens' real keys:
 
 1. Build two debug images in QEMU and let them install a bundle signed by intermediate serial 1.
+   Check that an intermediate or a revocation list signed by only one root is refused.
 2. Declare serial 1 leaked. Run §5.1 by the clock: revoke, issue serial 2, ship the emergency bundle.
 3. Check on both machines: a bundle signed by serial 1 is refused with the revocation reason; an old
    revocation list served again is refused; the emergency bundle installs.
