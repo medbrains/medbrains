@@ -14,9 +14,16 @@ build/
 .next/
 **/.next/
 
-# Frontend artefacts (web/mobile/tv) — server image doesn't need these
-apps/
-packages/
+# Frontend artefacts (web/mobile/tv) — server image doesn't need these.
+# Two workspace members live under apps/ and the server embeds one JSON file
+# from packages/, so those are let back in; cargo cannot resolve without them.
+apps/*
+!apps/edge/
+!apps/desktop/
+apps/desktop/*
+!apps/desktop/src-tauri/
+packages/*
+!packages/privacy/
 e2e/
 **/e2e/
 playwright-report/
