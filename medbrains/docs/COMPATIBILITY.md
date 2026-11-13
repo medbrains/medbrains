@@ -72,6 +72,13 @@ fixes on the timelines in [`SECURITY-RELEASE-PROCESS.md`](SECURITY-RELEASE-PROCE
 | **1.x** | on the v1.0.0 tag | **proposed:** 12 months after 2.0.0 ships, and never before **2029-12-31** | proposed — the owner confirms before v1.0.0 |
 | **Protocol v1** | with MedBrains 1.0.0 | **proposed:** 12 months after protocol v2 ships, and never before **2029-12-31** | proposed — the owner confirms before v1.0.0 |
 
+**These dates only get longer.** A date here may be extended, never moved earlier, and a supported
+line is never removed from the table. CI enforces it on every pull request
+(`scripts/check_support_dates.py`, #5499), and the same check reads any support date in a Markdown
+table of the CHANGELOG, `medbrains/docs/release-notes/` and the website's Markdown pages. A page that
+publishes a support date puts it in such a table, so the check can see it. This is the CentOS 8
+lesson: a support date cut by eight years in 2020 cost that project its users.
+
 Only the latest minor of a supported major gets fixes: 1.3 is fixed by shipping 1.3.1 or 1.4.0,
 not 1.2.5. Hospitals move within a major freely, because nothing in §2 breaks inside one.
 
