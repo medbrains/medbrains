@@ -132,18 +132,21 @@ SCRIPT = r"""
 set -euo pipefail
 version="$1" broken="$2" arch="$3"
 cd /w
-if [[ "$broken" == server ]]; then debugfs -w -R 'rm /usr/bin/medbrains-server' root.img; fi
-if [[ "$broken" == init ]]; then debugfs -w -R 'rm /usr/lib/systemd/systemd' root.img; fi
 debugfs -R 'cat /usr/lib/os-release' root.img | sed "s/^IMAGE_VERSION=.*/IMAGE_VERSION=\"$version\"/" > os-release
-debugfs -w -R 'rm /usr/lib/os-release' root.img
-debugfs -w -R 'write os-release /usr/lib/os-release' root.img
-debugfs -w -R 'sif /usr/lib/os-release mode 0100644' root.img
-e2fsck -fy root.img >/dev/null || [[ $? -le 2 ]]
-# A changed system needs a new tree, and its root hash goes on the boot file's command line.
-command -v veritysetup >/dev/null || { apt-get update -qq && apt-get install -qq -y cryptsetup-bin >/dev/null; }
-rm -f verity.img
-veritysetup format --root-hash-file=roothash root.img verity.img >/dev/null
-sed -i "s/roothash=[0-9a-f]*/roothash=$(cat roothash)/" cmdline
+# same-system: only a new boot file for a system as it is, so its root hash and tree stay.
+if [[ "$broken" != same-system ]]; then
+    if [[ "$broken" == server ]]; then debugfs -w -R 'rm /usr/bin/medbrains-server' root.img; fi
+    if [[ "$broken" == init ]]; then debugfs -w -R 'rm /usr/lib/systemd/systemd' root.img; fi
+    debugfs -w -R 'rm /usr/lib/os-release' root.img
+    debugfs -w -R 'write os-release /usr/lib/os-release' root.img
+    debugfs -w -R 'sif /usr/lib/os-release mode 0100644' root.img
+    e2fsck -fy root.img >/dev/null || [[ $? -le 2 ]]
+    # A changed system needs a new tree, and its root hash goes on the boot file's command line.
+    command -v veritysetup >/dev/null || { apt-get update -qq && apt-get install -qq -y cryptsetup-bin >/dev/null; }
+    rm -f verity.img
+    veritysetup format --root-hash-file=roothash root.img verity.img >/dev/null
+    sed -i "s/roothash=[0-9a-f]*/roothash=$(cat roothash)/" cmdline
+fi
 if [[ "$arch" == arm64 ]]; then
     stub=/usr/lib/systemd/boot/efi/linuxaa64.efi.stub
 else
@@ -177,18 +180,24 @@ def pe_section(path, name):
     raise SystemExit(f"{path} has no {name}")
 
 
-def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0"):
+def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0", system=None):
     """Makes a bundle from the first image's root and kernel, under a new version. A real second image
-    build proves more, and costs 5 GB and 8 minutes: pass its version as NEXT once one is built."""
+    build proves more, and costs 5 GB and 8 minutes: pass its version as NEXT once one is built. With
+    `system`, a bundle folder, only the boot file is new: that bundle's system, tree and root hash are kept."""
     work = os.path.join(OUT, f"derive-{name}")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work)
     base = os.path.join(IMAGES, f"medbrains-os_{FIRST}")
     root = os.path.join(work, "root.img")
-    run(TOOL, "extract", base + ".raw", f"medbrains_{FIRST}", root)
+    if system:
+        for file in (ROOT_FILE, VERITY_FILE):
+            run("zstd", "-q", "-d", os.path.join(system, file), "-o", os.path.join(work, file[:-4]))
+        broken = "same-system"
+    else:
+        run(TOOL, "extract", base + ".raw", f"medbrains_{FIRST}", root)
     run("cp", "-c", base + ".vmlinuz", os.path.join(work, "vmlinuz"))
     run("cp", "-c", base + ".initrd", os.path.join(work, "initrd"))
-    line = pe_section(base + ".efi", ".cmdline")
+    line = pe_section(os.path.join(system, BOOT_FILE) if system else base + ".efi", ".cmdline")
     with open(os.path.join(work, "cmdline"), "w", encoding="utf8") as file:
         file.write(line)
     pcr_key = key or os.path.join(WORK, "throwaway-pcr.key")
@@ -254,7 +263,8 @@ def main():
     else:
         other_key = os.path.join(OUT, "other-pcr.key")
         run("openssl", "genrsa", "-out", other_key, "2048")
-        derived("other-seal", NEXT, "1.0.0", key=other_key)
+        # NEXT's own system, so the slot it is installed over verifies and only the seal can fail.
+        derived("other-seal", NEXT, "1.0.0", key=other_key, system=next_bundle)
 
 
 main()

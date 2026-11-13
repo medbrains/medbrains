@@ -105,7 +105,7 @@ file with another root hash is another boot file: the seal already refuses it. M
 PCR of its own would add nothing.
 
 **After an update:** verity changes nothing here. PCR 4 holds the boot file's own hash, so a new boot file
-changes it, and the data disk asks for its recovery key at the first start of a new version, as it has since
+changes it, and the data disk asks for its recovery key at every start of a new version, not only the first, as it has since
 PCR 4 joined the seal (DECISIONS 2026-11-05). Not closed by this work: see "Open".
 
 ## What this closes, and what it does not

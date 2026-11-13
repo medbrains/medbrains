@@ -193,8 +193,9 @@ rotate, a release must add a second seal while the disk is open, with `systemd-c
 Until built, losing that key means an updated machine needs its recovery key once, so it is held like the release key.
 
 **The system partition is now covered too**, through the root hash on the boot file's command line (`OS-VERITY.md`): a changed
-slot does not start. **But the seal includes PCR 4, the boot file's own hash, so a new version's first start asks for the recovery
-key** (DECISIONS 2026-11-05, after the rows above were tested). The rows "Opens by itself" above predate PCR 4. The fix, a seal for
+slot does not start. **But the seal includes PCR 4, the boot file's own hash, so every start of a new version asks for the recovery
+key**, not only the first: nothing seals the disk to the new boot file, and typing the key does not either (seen on swtpm
+2026-11-13, a power cut after the new version proved good) (DECISIONS 2026-11-05, after the rows above were tested). The rows "Opens by itself" above predate PCR 4. The fix, a seal for
 the new boot file's predicted PCR 4 added before applying, is open (`OS-VERITY.md`, "Open").
 
 ### Proposal: no recovery key after an update (must land before any release key)

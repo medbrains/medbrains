@@ -218,9 +218,10 @@ pub(crate) fn apply_and_prove(
     Ok(started.elapsed())
 }
 
-/// KNOWN GAP #5452: the disk is sealed to PCR 4, the boot file's own hash, so a new version's first start
-/// on a sealed disk asks for the recovery key (`OS-UPDATES.md`, "Proposal: no recovery key after an
-/// update"). Types it, as IT would, and says so, so the rest of the scenario is proved on a sealed disk.
+/// KNOWN GAP #5452: the disk is sealed to PCR 4, the boot file's own hash, and nothing seals it to a new
+/// version, so every start of a new version on a sealed disk asks for the recovery key, not only the first
+/// (`OS-UPDATES.md`, "Proposal: no recovery key after an update"). Types it, as IT would, and says so, so
+/// the rest of the scenario is proved on a sealed disk. Call it after each start of a new version.
 /// Nothing to do where no TPM seals the disk. Delete once #5452 seals to the predicted PCR 4.
 pub(crate) fn unlock_new_version(vm: &mut Vm) -> Result<(), String> {
     if !vm::tpm_usable() {
@@ -230,7 +231,7 @@ pub(crate) fn unlock_new_version(vm: &mut Vm) -> Result<(), String> {
     sleep(vm::KEYBOARD_READY);
     let key = vm.recovery_key.clone();
     vm.type_text(&format!("{key}\n"))?;
-    say("      KNOWN GAP #5452: the new version asked for the recovery key once; typed");
+    say("      KNOWN GAP #5452: the new version asked for the recovery key at this start; typed");
     Ok(())
 }
 
