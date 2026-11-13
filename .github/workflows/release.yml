@@ -165,11 +165,22 @@ jobs:
       # A new apps/android/app-<name> module is picked up without editing this job.
       # versionName and versionCode come from the workspace version (build.gradle.kts); a tag
       # naming another version fails here rather than shipping apps that disagree with it.
-      - run: |
+      # The patient app's release build needs the hospital server it talks to; a public release
+      # names one only when the PATIENT_SERVER_URL repository variable is set, otherwise the
+      # patient app is left out of the release (a hospital builds it with its own address).
+      - env:
+          PATIENT_SERVER_URL: ${{ vars.PATIENT_SERVER_URL }}
+        run: |
           [[ "$GITHUB_REF" != refs/tags/v* ]] || ../../scripts/app_version.sh "$GITHUB_REF_NAME"
           tasks=()
-          for d in app-*; do tasks+=(":$d:assembleRelease" ":$d:bundleRelease"); done
-          ./gradlew --no-daemon "${tasks[@]}"
+          for d in app-*; do
+            if [[ "$d" == app-patient && -z "$PATIENT_SERVER_URL" ]]; then
+              echo "::notice::app-patient left out: set the PATIENT_SERVER_URL repository variable to build it"
+              continue
+            fi
+            tasks+=(":$d:assembleRelease" ":$d:bundleRelease")
+          done
+          ./gradlew --no-daemon ${PATIENT_SERVER_URL:+"-Pmedbrains.serverUrl=$PATIENT_SERVER_URL"} "${tasks[@]}"
       - name: Sign, or mark unsigned
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
@@ -182,6 +193,8 @@ jobs:
           [ -n "$KEYSTORE_B64" ] && echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
           for d in app-*/; do
             app=${d#app-}; app=${app%/}
+            # A module left out of this build (app-patient without a server address) has no output.
+            [ -d "${d}build/outputs/apk/release" ] || continue
             apk=$(find "${d}build/outputs/apk/release" -name '*.apk' | head -1)
             aab=$(find "${d}build/outputs/bundle/release" -name '*.aab' | head -1)
             if [ -n "$KEYSTORE_B64" ]; then
@@ -431,6 +444,8 @@ jobs:
           chmod +x bins/* kanidm/kanidmd
           suffix=-unsigned
           trap 'rm -f "$RUNNER_TEMP/pcr.key" "$RUNNER_TEMP/pcr.crt" "$RUNNER_TEMP/sb.key" "$RUNNER_TEMP/sb.crt"' EXIT
+          # Key files are readable by their owner only; mkosi refuses a group- or world-readable key.
+          umask 077
           if [ -n "$PCR_KEY" ]; then
             printf '%s' "$PCR_KEY" > "$RUNNER_TEMP/pcr.key"; printf '%s' "$PCR_CERT" > "$RUNNER_TEMP/pcr.crt"
             export OS_PCR_KEY="$RUNNER_TEMP/pcr.key" OS_PCR_CERT="$RUNNER_TEMP/pcr.crt"; suffix=
