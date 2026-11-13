@@ -182,6 +182,8 @@ PRs still open when this release was cut are not included.
 
 - Readiness meters for OS strength, paperless working and AI clinical flows,
   measured from a checklist with evidence, on GitHub and the website (#5551).
+- Built with Rust 1.99.1, which fixes a miscompile of FFI `bool` return values
+  on x86_64.
 
 #### Downloads
 

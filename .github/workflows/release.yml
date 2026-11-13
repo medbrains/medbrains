@@ -358,7 +358,7 @@ jobs:
           version: 0.15.2
           # No cache in a release: a poisoned cache would ship in signed artefacts.
           use-cache: false
-      # The pinned 1.99.0 and both Linux targets, from medbrains/rust-toolchain.toml.
+      # The pinned 1.99.1 and both Linux targets, from medbrains/rust-toolchain.toml.
       - run: rustup toolchain install
         working-directory: medbrains
       - run: cargo install cargo-zigbuild --locked --version 0.24.0
