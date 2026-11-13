@@ -218,7 +218,7 @@ const schema = [
 
   .commit {
     margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: step;
-    li { counter-increment: step; padding: 16px 20px 16px 24px; border-left: 4px solid var(--blue); background: var(--paper-2); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); font-size: 1.05rem; }
+    li { min-width: 0; counter-increment: step; padding: 16px 20px 16px 24px; border-left: 4px solid var(--blue); background: var(--paper-2); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); font-size: 1.05rem; }
     li::before { content: counter(step) ". "; font-weight: 700; color: var(--ink); }
     code { font: .88rem var(--mono); }
   }
