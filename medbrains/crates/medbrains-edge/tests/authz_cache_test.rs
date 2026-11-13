@@ -3,7 +3,7 @@
 //! These tests pin the offline-policy contract: what we serve on
 //! hits, deny on misses, fall back to the JWT for, and refuse
 //! outright (`ONLINE_REQUIRED_ACTIONS`). They also exercise the
-//! sled persistence path so a reboot doesn't lose warm state.
+//! persistent store path so a reboot doesn't lose warm state.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 

@@ -1,0 +1,37 @@
+---
+// Every readiness item and its state, from medbrains/docs/readiness.json via src/data/readiness.ts.
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import Readiness from "../components/Readiness.astro";
+import { SITE } from "../consts";
+import Base from "../layouts/Base.astro";
+
+const title = "Readiness meters: measured progress | MedBrains";
+const description = "How far MedBrains OS, paperless records and AI clinical flows have come, measured from a public checklist where each item counts only with merged evidence.";
+const home = new URL("/", Astro.site).href;
+const url = new URL("/readiness", Astro.site).href;
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: home },
+      { "@type": "ListItem", position: 2, name: "Readiness", item: url },
+    ],
+  },
+  { "@type": "WebPage", name: title, url, description, inLanguage: "en" },
+];
+---
+
+<Base title={title} description={description} schema={schema}>
+  <Header />
+  <main id="main">
+    <nav class="wrap crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>Readiness</span></nav>
+    <Readiness detail heading="h1" />
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .crumbs-dark { padding-top: 32px; font-size: .88rem; color: var(--night-text); }
+  .crumbs-dark a { color: #fff; }
+</style>

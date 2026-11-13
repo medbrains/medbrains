@@ -17,6 +17,7 @@ import {
   Select,
   toast,
 } from "@/components/ui";
+import { joinRuns } from "@/lib/text-shape";
 
 interface QueueCountersDrawerProps {
   queue: QueueRow | null;
@@ -38,11 +39,7 @@ const STATION_TYPE: Record<string, string> = {
 
 const stationCode = (name: string) =>
   `${
-    name
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 20) || "COUNTER"
+    joinRuns(name.toUpperCase(), "-", /[A-Z0-9]/).slice(0, 20) || "COUNTER"
   }-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
 
 /**

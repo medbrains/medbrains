@@ -3,7 +3,7 @@ import type { Note, NoteSectionPatch } from "@medbrains/types";
 import type { ReactNode } from "react";
 import { AiLabel, Badge, Button, RichTextEditor } from "@/components/ui";
 import { NoteDraftEditor } from "./NoteDraftEditor";
-import { STRUCTURED_SECTIONS, summariseSection } from "./section-summary";
+import { hasVisibleText, STRUCTURED_SECTIONS, summariseSection } from "./section-summary";
 
 export interface NoteActions {
   canSign: boolean;
@@ -85,7 +85,7 @@ function Sections({ note }: { note: Note }) {
     .map((s) => ({
       ...s,
       lines: STRUCTURED_SECTIONS[s.code] ? summariseSection(s.code, s.data) : [],
-      hasText: s.text.replace(/<[^>]*>/g, "").trim() !== "",
+      hasText: hasVisibleText(s.text),
     }))
     .filter((s) => s.hasText || s.lines.length > 0);
   if (written.length === 0) {

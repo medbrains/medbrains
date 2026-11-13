@@ -21,6 +21,7 @@ export {
   useFieldAccess,
   useHasAllPermissions,
   useHasAnyPermission,
+  useHasGrantedPermission,
   useHasPermission,
 } from "./permission-hooks.js";
 export { BYPASS_ROLES, usePermissionStore } from "./permission-store.js";
