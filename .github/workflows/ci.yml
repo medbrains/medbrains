@@ -22,10 +22,10 @@ name: CI
 
 on:
   push:
-    branches: [master, main, develop]
+    branches: [master, main, 'release/**', 'hotfix/**']
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master, main, develop]
+    branches: [master, main, 'release/**', 'hotfix/**']
     # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
     # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
 
