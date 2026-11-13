@@ -122,10 +122,12 @@ fn recovery_key_not_logged(vm: &mut Vm, _: &Path) -> Result<(), String> {
     )
 }
 
-/// A raw copy holds neither the secret marker nor the key file, while the plaintext control is found.
+/// A raw copy holds neither the secret marker nor the key file, while the plaintext control is found. The
+/// control goes on the boot partition: with the sealed system the root is read-only, and the boot
+/// partition is the one place a file is written unencrypted.
 fn raw_disk_shows_nothing(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let (first, second) = SECRET_MARKER_PARTS;
-    vm.run(&format!("printf '%s%s\\n' {first} {second} > {MARKER_FILE}; echo {CONTROL_MARKER} > /root/control; sync"))?;
+    vm.run(&format!("printf '%s%s\\n' {first} {second} > {MARKER_FILE}; echo {CONTROL_MARKER} > /boot/os-test-control; sync --file-system /boot; sync"))?;
     let jwt = vm.run("sed -n 's/^JWT_PRIVATE_KEY=//p' /etc/medbrains/env")?;
     ensure(jwt.len() > 16, "could not read the JWT key to look for")?;
     vm.shut_down()?;
