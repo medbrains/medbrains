@@ -20,16 +20,17 @@ test("an administrator pairs a TV to one department's board", async ({ hospital 
   const request = await http.newContext({ storageState: { cookies: [], origins: [] } });
   const dept = await hospital.department("Paired OPD");
 
-  // The TV asks for a code (its own screen for this is the next slice).
+  // The TV names its hospital and asks for a code.
+  const tenant = await api<{ code: string }>(hospital.admin, "GET", "/api/setup/tenant");
   const code = await (
     await request.post(`${BACKEND}/api/device-pairing/device-code`, {
-      data: { app_variant: "tv", label: `Hall TV ${dept.name}` },
+      data: { hospital_code: tenant.code, app_variant: "tv" },
     })
   ).json();
 
   const admin = new DevicesAdmin(await hospital.asAdmin());
   await admin.open();
-  await admin.approveScreen(code.user_code, dept.name);
+  await admin.approveScreen(code.reference, code.user_code, dept.name);
 
   const token = await (
     await request.post(`${BACKEND}/api/device-pairing/device-token`, {
@@ -42,7 +43,7 @@ test("an administrator pairs a TV to one department's board", async ({ hospital 
   // The administrator can see which board each screen shows.
   await admin.page.reload();
   await expect(
-    admin.page.getByRole("row", { name: new RegExp(`Hall TV ${dept.name}`) }),
+    admin.page.getByRole("row", { name: new RegExp(`Waiting-room screen ${code.reference}`) }),
   ).toContainText(`OPD board · ${dept.name}`);
 
   const board = await (await request.get(`${BACKEND}/api/device/board`, asScreen)).json();

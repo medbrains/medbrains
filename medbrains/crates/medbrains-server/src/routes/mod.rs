@@ -72,8 +72,8 @@ use crate::{
         entitlement::gated,
         ip_restrict::ip_restrict_middleware,
         rate_limit::{
-            RateLimiter, public_verify_rate_limit_middleware, rate_limit_middleware,
-            storefront_rate_limit_middleware, tiered_rate_limit_middleware,
+            RateLimiter, device_pairing_rate_limit_middleware, public_verify_rate_limit_middleware,
+            rate_limit_middleware, storefront_rate_limit_middleware, tiered_rate_limit_middleware,
         },
         system_state::system_state_layer,
     },
@@ -128,11 +128,19 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/gateway/callback",
             post(abdm::hip_relay::receive_callback),
         )
-        // Device pairing — gated by short-lived one-time token, not JWT
-        .merge(medbrains_device_pairing::router())
-        // Device-code pairing — a display has no credentials yet, so asking for a
-        // code and polling for the result are public; approving is not.
-        .merge(medbrains_device_pairing::device_code_router())
+        // Device pairing — gated by short-lived one-time token, not JWT; and
+        // device-code pairing — a display has no credentials yet, so asking for
+        // a code and polling for the result are public; approving is not. Both
+        // are rate-limited per IP, since anybody can reach them.
+        .merge(
+            Router::new()
+                .merge(medbrains_device_pairing::router())
+                .merge(medbrains_device_pairing::device_code_router())
+                .layer(from_fn_with_state(
+                    RateLimiter::new(),
+                    device_pairing_rate_limit_middleware,
+                )),
+        )
         // A machine's agent on this same box, with its own token.
         .merge(medbrains_device_pairing::machine_agent::router())
         // FHIR CapabilityStatement — clients read it before they authenticate.

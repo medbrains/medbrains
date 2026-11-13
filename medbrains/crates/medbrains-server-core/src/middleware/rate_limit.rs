@@ -239,7 +239,69 @@ pub async fn public_verify_rate_limit_middleware(
     next.run(request).await
 }
 
+/// Pairing codes a screen may ask for, per IP per minute. A screen asks once
+/// every 15 minutes while it waits; a hospital switching on a new floor of
+/// screens behind one address stays under it. Inferred, not from a spec.
+const PAIRING_CODES_PER_MINUTE: usize = 20;
+/// Other pre-credential pairing calls (polls, token and QR redemption), per IP
+/// per minute. A waiting screen polls every 5 seconds, 12 a minute, so this
+/// is twenty screens pairing at once from one address.
+const PAIRING_CALLS_PER_MINUTE: usize = 240;
+
+/// The budget a pre-credential pairing call is counted against: asking for a
+/// new code is tight, polling and redeeming are not.
+fn pairing_budget(path: &str) -> (&'static str, usize) {
+    if path.ends_with("/device-code") {
+        ("pairing_code", PAIRING_CODES_PER_MINUTE)
+    } else {
+        ("pairing", PAIRING_CALLS_PER_MINUTE)
+    }
+}
+
+/// The device pairing routes a device reaches before it has credentials:
+/// anybody may ask, nobody may ask fast.
+pub async fn device_pairing_rate_limit_middleware(
+    State(limiter): State<RateLimiter>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let (class, max) = pairing_budget(request.uri().path());
+    if let Some(ip) = extract_client_ip(&request)
+        && !limiter.check_and_record_class(ip, class, max, WINDOW_SECS)
+    {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(serde_json::json!({
+                "error": "too_many_requests",
+                "detail": "Too many pairing requests. Please wait a minute and try again.",
+            })),
+        )
+            .into_response();
+    }
+    next.run(request).await
+}
+
 /// The address worked out by `client_ip_middleware`, never read from headers here.
 fn extract_client_ip(request: &Request) -> Option<IpAddr> {
     request.extensions().get::<ClientIp>().map(|ip| ip.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PAIRING_CALLS_PER_MINUTE, PAIRING_CODES_PER_MINUTE, pairing_budget};
+
+    #[test]
+    fn asking_for_a_pairing_code_is_counted_apart_and_tighter() {
+        assert_eq!(
+            pairing_budget("/api/device-pairing/device-code"),
+            ("pairing_code", PAIRING_CODES_PER_MINUTE)
+        );
+        for path in [
+            "/api/device-pairing/device-token",
+            "/api/device-pairing/pair",
+        ] {
+            assert_eq!(pairing_budget(path), ("pairing", PAIRING_CALLS_PER_MINUTE));
+        }
+        assert!(PAIRING_CODES_PER_MINUTE < PAIRING_CALLS_PER_MINUTE);
+    }
 }
