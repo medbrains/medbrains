@@ -24,7 +24,7 @@
         "url": "https://github.com/medbrains/medbrains"
       },
       "licenses": [
-        "spdx:Apache-2.0"
+        "spdx:AGPL-3.0-only"
       ],
       "tags": [
         "healthcare",

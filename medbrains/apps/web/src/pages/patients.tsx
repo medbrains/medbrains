@@ -158,7 +158,7 @@ function PatientsPageInner() {
   });
 
   const openRegister = () => {
-    navigate("/patients/register");
+    void navigate("/patients/register");
   };
 
   const totalPages = data ? Math.ceil(data.total / PER_PAGE) : 0;

@@ -292,7 +292,7 @@ export function RolesPage() {
   });
 
   const handleEditPermissions = (role: CustomRole) => {
-    navigate(`/admin/settings?role=${encodeURIComponent(role.id)}#access-matrix`);
+    void navigate(`/admin/settings?role=${encodeURIComponent(role.id)}#access-matrix`);
   };
 
   const handleEditRole = (role: CustomRole) => {

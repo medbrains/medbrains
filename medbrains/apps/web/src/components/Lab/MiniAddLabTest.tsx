@@ -8,6 +8,7 @@ import { IconCheck, IconMicroscope } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { withoutParenthesised } from "@/lib/text-shape";
 import { type CreateLabCatalogInput, labCatalogService } from "@/services/labCatalog.service";
 
 interface MiniAddLabTestProps {
@@ -17,7 +18,7 @@ interface MiniAddLabTestProps {
 }
 
 function inferName(searchText: string): string {
-  return searchText.replace(/\([^)]*\)/g, " ").trim();
+  return withoutParenthesised(searchText).trim();
 }
 
 function inferCode(name: string): string {
@@ -62,7 +63,7 @@ export function MiniAddLabTest({ searchText, onCreated, onCancel }: MiniAddLabTe
     mutationFn: (payload: CreateLabCatalogInput) =>
       labCatalogService.createLabCatalogEntry(payload),
     onSuccess: (test) => {
-      queryClient.invalidateQueries({ queryKey: ["lab-test-search"] });
+      void queryClient.invalidateQueries({ queryKey: ["lab-test-search"] });
       notifications.show({
         title: "Lab test added",
         message: `${test.name} is now selected`,

@@ -10,6 +10,17 @@ export function useHasPermission(code: string): boolean {
 }
 
 /**
+ * Returns true if the current user's token carries `code` by name.
+ *
+ * For the few rights a bypass role does not hold implicitly (giving or
+ * witnessing a high-alert dose): `super_admin` / `hospital_admin` are not
+ * waved through, so the control matches what the server will accept.
+ */
+export function useHasGrantedPermission(code: string): boolean {
+  return usePermissionStore((s) => s.userPermissions.has(code));
+}
+
+/**
  * Returns true if the current user has ALL of the given permissions.
  */
 export function useHasAllPermissions(codes: readonly string[]): boolean {

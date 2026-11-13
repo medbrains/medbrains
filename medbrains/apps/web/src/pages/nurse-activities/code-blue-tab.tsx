@@ -79,7 +79,7 @@ export function CodeBlueTab({
       if (!linkedLocation) {
         setLocation("");
       }
-      qc.invalidateQueries({ queryKey: ["code-blue"] });
+      void qc.invalidateQueries({ queryKey: ["code-blue"] });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not start code blue" }),
   });

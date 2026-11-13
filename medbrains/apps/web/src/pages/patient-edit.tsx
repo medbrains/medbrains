@@ -53,7 +53,7 @@ function PatientEditPageInner() {
       });
       void queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
-      navigate(`/patients/${patientId}`);
+      void navigate(`/patients/${patientId}`);
     },
     onError: (err: Error) => {
       notifications.show({

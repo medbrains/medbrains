@@ -31,6 +31,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // The second check on a high-alert dose at the bedside.
+            permissions::nurse::mar::WITNESS,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
             permissions::health::intel::VIEW,
             // Sees where a patient is in discharge and who holds it up.
@@ -619,6 +621,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::mar::ADMINISTER,
             permissions::nurse::mar::HOLD,
             permissions::nurse::mar::REFUSE,
+            permissions::nurse::mar::WITNESS,
+            permissions::nurse::mar::ADMINISTER_HIGH_ALERT,
             permissions::nurse::prescriptions::DRAFT,
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::nurse::vitals::VIEW,
@@ -913,6 +917,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            // The second check on a high-alert dose at the bedside.
+            permissions::nurse::mar::WITNESS,
             // Sees where a patient is in discharge and who holds it up.
             permissions::flows::VIEW,
             // Pharmacists propose drug interaction changes; the change goes

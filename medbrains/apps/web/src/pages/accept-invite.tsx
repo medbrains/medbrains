@@ -48,7 +48,7 @@ export function AcceptInvitePage() {
     mutationFn: (data: FormInput) => api.acceptInvite(token, data),
     onSuccess: () => {
       toast.success("Account created — you can sign in now.", { title: "Welcome" });
-      navigate("/login");
+      void navigate("/login");
     },
     onError: (err: Error) => toast.error(err.message, { title: "Could not accept invitation" }),
   });

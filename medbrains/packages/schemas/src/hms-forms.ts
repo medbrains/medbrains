@@ -21,7 +21,6 @@ import { isoDay, registrationProblems } from "./registration-rules.js";
 const phonePattern = /^[\d+\-() ]+$/;
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 const yearMonthPattern = /^\d{4}-\d{2}$/;
-const financialYearPattern = /^\d{4}-\d{2}$/;
 const panPattern = /^[A-Z]{5}\d{4}[A-Z]$/;
 const setupCodePattern = /^[A-Z0-9][A-Z0-9-]*[A-Z0-9]$/;
 const usernamePattern = /^[a-z][a-z0-9_]*$/;
@@ -2178,11 +2177,6 @@ export const billingTdsFormSchema = z.object({
     (value) => value.trim().length > 0,
     "Deducted date is required",
   ),
-  financial_year: requiredTrimmed("Financial year is required", 7).refine(
-    (value) => financialYearPattern.test(value.trim()),
-    "Use YYYY-YY financial year format",
-  ),
-  quarter: billingTdsQuarterFormSchema,
 });
 
 export const billingGstrFormSchema = z.object({

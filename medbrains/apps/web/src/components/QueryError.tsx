@@ -25,6 +25,15 @@ export function describeLoadError(error: unknown): string {
 }
 
 /**
+ * The title for a failed read of `what`: it "didn't load" when nothing was
+ * ever shown, and "may be out of date" when an earlier copy stays on screen
+ * under the banner (a failed background refetch keeps the last good data).
+ */
+export function loadFailedTitle(what: string, hasData: boolean): string {
+  return hasData ? `${what} may be out of date` : `${what} didn't load`;
+}
+
+/**
  * A failed load, shown as a failure. An outage rendered as an empty list
  * reads as a fact about the ward; this says it did not load, and offers the
  * retry.

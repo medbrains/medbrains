@@ -25,9 +25,9 @@ use uuid::Uuid;
 
 /// Secret-store key holding the sealing key.
 pub const SEALING_KEY_NAME: &str = "MEDBRAINS_PACS_SECRET_KEY";
-/// Development fallback only; production refuses it (see [`sealing_key`]).
+/// Development fallback only, used solely when the key is unset and
+/// `MEDBRAINS_ENV=development` (see [`sealing_key`]).
 const DEV_SEALING_KEY: &[u8] = b"medbrains-dev-pacs-secret-key-32";
-const MIN_SEALING_KEY_LEN: usize = 32;
 /// Operator-approved PACS hosts outside the hospital network, comma-separated.
 const ALLOWED_HOSTS_ENV: &str = "MEDBRAINS_PACS_ALLOWED_HOSTS";
 /// The JSON field in `tenant_settings(radiology, pacs_config)` that holds the
@@ -45,6 +45,10 @@ pub enum PacsError {
     /// Something the hospital or the operator must set up; the message says what.
     #[error("{0}")]
     NotSetUp(String),
+    /// The secret store could not answer; retry, never fall back. The
+    /// reason is logged, never returned: it may name the store's internals.
+    #[error("the server's secret store could not be read; try again shortly")]
+    KeyStore,
     #[error("database: {0}")]
     Db(#[from] sqlx::Error),
 }
@@ -59,10 +63,12 @@ pub struct Policy {
 }
 
 impl Policy {
+    /// The policy for this process: production unless `MEDBRAINS_ENV` is a
+    /// known development or test mode, plus the operator's approved hosts.
     #[must_use]
     pub fn from_env() -> Self {
         Self {
-            production: std::env::var("MEDBRAINS_ENV").is_ok_and(|e| e == "production"),
+            production: medbrains_core::secrets::sealing::is_production(),
             approved_hosts: std::env::var(ALLOWED_HOSTS_ENV)
                 .unwrap_or_default()
                 .split(',')
@@ -226,22 +232,29 @@ pub async fn vet(raw: &str, policy: &Policy) -> Result<(reqwest::Client, String)
     Ok((client, base))
 }
 
-/// The sealing key. Outside production a missing key falls back to the
-/// development key; production refuses rather than seal with a public value.
+/// The sealing key, decided by the one shared rule
+/// (`medbrains_core::secrets::sealing::sealing_key`): the development key only
+/// when unset in development; a store fault is never a fallback.
 ///
 /// # Errors
-/// [`PacsError::NotSetUp`] in production when the key is missing or short.
+/// [`PacsError::NotSetUp`] when the key is unset (off development) or short;
+/// [`PacsError::KeyStore`] when the store could not answer.
 pub async fn sealing_key(resolver: &dyn SecretResolver) -> Result<Vec<u8>, PacsError> {
-    match resolver.get(SEALING_KEY_NAME).await {
-        Ok(value) if value.len() >= MIN_SEALING_KEY_LEN => Ok(value.into_bytes()),
-        _ if std::env::var("MEDBRAINS_ENV").is_ok_and(|e| e == "production") => {
-            Err(PacsError::NotSetUp(format!(
-                "PACS passwords cannot be stored on this server yet — ask your administrator \
-                 to set {SEALING_KEY_NAME}"
-            )))
-        }
-        _ => Ok(DEV_SEALING_KEY.to_vec()),
-    }
+    use medbrains_core::secrets::sealing::{self, SealingKeyError};
+    sealing::sealing_key(resolver, SEALING_KEY_NAME, DEV_SEALING_KEY)
+        .await
+        .map_err(|e| match e {
+            SealingKeyError::Unreadable { .. } => {
+                tracing::error!(error = %e, "sealing key unreadable");
+                PacsError::KeyStore
+            }
+            SealingKeyError::NotSet(_) | SealingKeyError::TooShort(_) => {
+                PacsError::NotSetUp(format!(
+                    "PACS passwords cannot be stored on this server yet ({e}) — ask your \
+                     administrator"
+                ))
+            }
+        })
 }
 
 fn context(tenant_id: Uuid, url: &str, username: &str) -> Vec<u8> {

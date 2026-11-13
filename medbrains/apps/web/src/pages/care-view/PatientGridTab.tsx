@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { DataTable, OperationalSignal, type OperationalSignalTone } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EwsCardSignals } from "@/components/EarlyWarning/EwsCardSignals";
+import { QueryError } from "@/components/QueryError";
 import { Badge, Button } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 import { urgencyColor } from "./shared";
@@ -48,13 +49,21 @@ function OnDutySection({ wardId }: { wardId: string | null }) {
   // dashboard would not show an empty on-duty list, it would show no on-duty
   // section at all, with nothing to question.
   const canSeeOnDuty = useHasPermission(P.IPD.BED_DASHBOARD_VIEW);
-  const { data = [] } = useQuery<WardOnDutyRow[]>({
+  const { data, error, refetch } = useQuery<WardOnDutyRow[]>({
     queryKey: ["care-view", "on-duty", wardId],
     queryFn: () => careViewService.wardOnDuty(wardId ?? ""),
     enabled: !!wardId && canSeeOnDuty,
     refetchInterval: 60_000,
   });
-  if (!wardId || !canSeeOnDuty || data.length === 0) return null;
+  if (!wardId || !canSeeOnDuty) return null;
+  // A failed read must not remove the section: "nobody on duty" and "could
+  // not ask" are different answers for a ward.
+  if (error) {
+    return (
+      <QueryError error={error} onRetry={() => void refetch()} title="On-duty list didn't load" />
+    );
+  }
+  if (!data || data.length === 0) return null;
   return (
     <Card withBorder padding="sm">
       <Group gap="xs" mb={6}>
@@ -86,7 +95,7 @@ function OnDutySection({ wardId }: { wardId: string | null }) {
 
 export function PatientGridTab({ wardId }: { wardId: string | null }) {
   const { t } = useTranslation("careView");
-  const { data, isLoading } = useQuery<WardGridResponse>({
+  const { data, isLoading, error, refetch } = useQuery<WardGridResponse>({
     queryKey: ["care-view", "ward-grid", wardId],
     queryFn: () => careViewService.wardPatientGrid(wardId ?? undefined),
     refetchInterval: 30_000,
@@ -149,7 +158,16 @@ export function PatientGridTab({ wardId }: { wardId: string | null }) {
         ))}
       </SimpleGrid>
 
-      {patients.length === 0 && !isLoading && (
+      {/* An outage is not an empty ward: say the grid did not load. */}
+      {error && (
+        <QueryError
+          error={error}
+          onRetry={() => void refetch()}
+          title="Ward patients didn't load"
+        />
+      )}
+
+      {patients.length === 0 && !isLoading && !error && (
         <Text c="dimmed" ta="center" py="xl">
           {t("patientGrid.empty")}
         </Text>
