@@ -363,7 +363,7 @@ provision_lockout() {
     local auth="$1.lockout" has_auth limits=(--setup-parameters --max-tries="$DA_MAX_TRIES" --recovery-time="$DA_RECOVERY_S" \
         --lockout-recovery-time="$DA_LOCKOUT_RECOVERY_S")
     LOCKOUT_OURS=0
-    has_auth="$(tpm2_getcap properties-variable 2>/dev/null | sed -nE 's/^ *lockoutAuthSet: *([01]).*/\1/p')"
+    has_auth="$(tpm2_getcap properties-variable 2>/dev/null | sed -nE 's/^ *lockoutAuthSet: *([01]).*/\1/p' || true)"
     lockout_auth "$1" "$auth"
     case "$has_auth" in
         0) tpm2_dictionarylockout "${limits[@]}" >/dev/null 2>&1 && tpm2_changeauth -c lockout "file:$auth" >/dev/null 2>&1 \
