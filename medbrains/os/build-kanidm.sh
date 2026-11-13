@@ -32,6 +32,9 @@ SSL_DEV_amd64=c5f5f0383cac45209fefe85b3c3308e5ef6743663597d89bedcb96aaa06b8342
 SSL_LIB_amd64=ff16bc048bcd7d1b256094450b79c77947d8e76fe2a24bd99b91021d591fa074
 ARCH=arm64
 KANIDM_VERSION=1.12.0
+# Kanidm's own toolchain, apart from the workspace pin: it moves to the workspace's 1.100.0 after an
+# OS image build passes on it (docs/DECISIONS.md). release.yml reads this line, so keep it NAME=value.
+KANIDM_RUST=1.99.1
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --arch) ARCH="$2"; shift 2 ;;
@@ -93,15 +96,17 @@ for carried in "$HERE"/patches/kanidm-*.patch; do
     (cd "$SRC" && patch -p1 --forward --fuzz=0 < "$carried")
 done
 
+# Current rustup does not install an env-named toolchain on its own, and it needs the cross target.
+rustup toolchain install "$KANIDM_RUST" --profile minimal --target "$TRIPLE"
 bash "$HERE/../scripts/build_guard.sh" --wait
 if [[ ! -f "$VENDOR.config" ]]; then
-    (cd "$SRC" && RUSTUP_TOOLCHAIN=1.99.1 cargo vendor --locked --versioned-dirs "$VENDOR") > "$VENDOR.config.new"
+    (cd "$SRC" && RUSTUP_TOOLCHAIN="$KANIDM_RUST" cargo vendor --locked --versioned-dirs "$VENDOR") > "$VENDOR.config.new"
     mv "$VENDOR.config.new" "$VENDOR.config"
 fi
 cat "$VENDOR.config" >> "$SRC/.cargo/config.toml"
 # The trailing .2.41 is trixie's glibc: Debian's libssl needs symbols older targets lack.
 # Debug info off: its release profile keeps it, and it would only add to the image.
-(cd "$SRC" && env -u MAKEFLAGS -u ARCH RUSTUP_TOOLCHAIN=1.99.1 CARGO_TARGET_DIR="$OS_TARGET_DIR" \
+(cd "$SRC" && env -u MAKEFLAGS -u ARCH RUSTUP_TOOLCHAIN="$KANIDM_RUST" CARGO_TARGET_DIR="$OS_TARGET_DIR" \
     KANIDM_BUILD_PROFILE=release_linux CARGO_PROFILE_RELEASE_DEBUG=false CARGO_PROFILE_RELEASE_STRIP=debuginfo \
     OPENSSL_INCLUDE_DIR="$SSL/usr/include" OPENSSL_LIB_DIR="$SSL/usr/lib/$MULTIARCH" \
     cargo zigbuild --release --frozen --target="$TRIPLE.2.41" -p daemon --bin kanidmd)

@@ -24,7 +24,6 @@ tower-http = { workspace = true }
 jsonwebtoken = { workspace = true }
 time = "0.3"
 tokio = { workspace = true }
-futures = { workspace = true }
 sqlx = { workspace = true }
 url = { workspace = true }
 getrandom = { workspace = true }

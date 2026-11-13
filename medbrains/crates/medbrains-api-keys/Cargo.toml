@@ -12,15 +12,11 @@ rust-version.workspace = true
 # the constant-time comparison, what a key may and may not be granted — is
 # settled by a test rather than by reading.
 [dependencies]
-medbrains-core = { path = "../medbrains-core" }
-serde = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 getrandom = { workspace = true }
 subtle = "2"
 thiserror = { workspace = true }
-chrono = { workspace = true }
-uuid = { workspace = true }
 
 [lints]
 workspace = true

@@ -16,7 +16,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
-chrono = { workspace = true }
 ed25519-dalek = { workspace = true }
 
 # Persistent embedded KV (redb: maintained, pure Rust, one file, durable commits) + in-memory

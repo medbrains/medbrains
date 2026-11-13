@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct BridgeConfig {
+pub(crate) struct BridgeConfig {
     pub agent_name: String,
     pub agent_key: String,
     pub api_base: String,
@@ -49,7 +49,7 @@ pub struct BridgeConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CardTerminalConfig {
+pub(crate) struct CardTerminalConfig {
     /// The terminal's id in MedBrains (Settings → Payment terminals).
     pub id: String,
     /// The device adapter: `simulator` today; a brand's ECR protocol later.
@@ -63,7 +63,7 @@ pub struct CardTerminalConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct TunnelConfig {
+pub(crate) struct TunnelConfig {
     pub provider: TunnelProvider,
 
     /// Headscale `--login-server`, e.g. https://headscale.medbrains.cloud
@@ -83,7 +83,7 @@ pub struct TunnelConfig {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TunnelProvider {
+pub(crate) enum TunnelProvider {
     Headscale,
     Wss,
     None,
@@ -103,7 +103,8 @@ fn default_deployment_mode() -> String {
 }
 
 impl BridgeConfig {
-    pub fn load(path: &str) -> Result<Self> {
+    /// Reads the bridge's TOML config from `path`, naming the file in the error.
+    pub(crate) fn load(path: &str) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("failed to read config {path}: {e}"))?;
         let cfg: BridgeConfig = toml::from_str(&contents)?;

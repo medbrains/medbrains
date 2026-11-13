@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::config::BridgeConfig;
 
 /// Register this bridge agent with MedBrains API.
-pub async fn register(client: &reqwest::Client, cfg: &BridgeConfig) -> Result<Uuid> {
+pub(crate) async fn register(client: &reqwest::Client, cfg: &BridgeConfig) -> Result<Uuid> {
     let url = format!("{}/api/bridge/register", cfg.api_base);
 
     let body = serde_json::json!({
@@ -36,7 +36,7 @@ pub async fn register(client: &reqwest::Client, cfg: &BridgeConfig) -> Result<Uu
 }
 
 /// Send heartbeats at the configured interval.
-pub async fn heartbeat_loop(client: &reqwest::Client, cfg: &BridgeConfig, agent_id: Uuid) {
+pub(crate) async fn heartbeat_loop(client: &reqwest::Client, cfg: &BridgeConfig, agent_id: Uuid) {
     let url = format!("{}/api/bridge/heartbeat", cfg.api_base);
     let interval = tokio::time::Duration::from_secs(cfg.heartbeat_interval_secs);
 

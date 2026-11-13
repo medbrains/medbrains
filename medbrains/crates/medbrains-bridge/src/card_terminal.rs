@@ -25,7 +25,7 @@ use crate::ingest::authed;
 
 /// What the machine did with the card.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Outcome {
+pub(crate) enum Outcome {
     Approved {
         reference: String,
         approved_paise: Option<i64>,
@@ -38,7 +38,7 @@ pub enum Outcome {
 }
 
 #[async_trait]
-pub trait CardMachine: Send + Sync {
+pub(crate) trait CardMachine: Send + Sync {
     /// Is the machine there and answering?
     async fn ping(&self) -> Result<()>;
     /// Run a sale; `cancel` fires if the counter cancels it meanwhile.
@@ -53,7 +53,7 @@ pub trait CardMachine: Send + Sync {
 /// A pretend machine: after `delay` it answers `outcome` (approve, decline,
 /// timeout), unless cancelled first.
 #[derive(Debug)]
-pub struct Simulator {
+pub(crate) struct Simulator {
     pub outcome: String,
     pub delay: Duration,
 }
@@ -87,7 +87,7 @@ impl CardMachine for Simulator {
 }
 
 /// The adapter for a configured machine; `None` for one this bridge cannot drive yet.
-pub fn adapter_for(t: &CardTerminalConfig) -> Option<Arc<dyn CardMachine>> {
+pub(crate) fn adapter_for(t: &CardTerminalConfig) -> Option<Arc<dyn CardMachine>> {
     match t.adapter.as_str() {
         "simulator" => Some(Arc::new(Simulator {
             outcome: t
@@ -175,7 +175,7 @@ async fn run_sale(
         match report(&client, &cfg, &job.job_id, &result_body(&outcome)).await {
             Ok(()) => return,
             Err(e) => {
-                warn!(job = %job.job_id, attempt, error = %e, "card result not delivered — retrying")
+                warn!(job = %job.job_id, attempt, error = %e, "card result not delivered — retrying");
             }
         }
         tokio::time::sleep(Duration::from_secs(attempt * 2)).await;
@@ -183,7 +183,7 @@ async fn run_sale(
 }
 
 /// One poll: report each machine's health, take jobs, start them.
-pub async fn poll_once(
+pub(crate) async fn poll_once(
     client: &reqwest::Client,
     cfg: &BridgeConfig,
     running: &Running,
@@ -245,7 +245,7 @@ pub async fn poll_once(
     Ok(taken)
 }
 
-pub async fn poll_loop(client: &reqwest::Client, cfg: &BridgeConfig, every: Duration) {
+pub(crate) async fn poll_loop(client: &reqwest::Client, cfg: &BridgeConfig, every: Duration) {
     for t in cfg.card_terminals.iter().flatten() {
         let drivable = adapter_for(t).is_some();
         info!(terminal = %t.id, adapter = %t.adapter, address = ?t.address, drivable, "card machine");

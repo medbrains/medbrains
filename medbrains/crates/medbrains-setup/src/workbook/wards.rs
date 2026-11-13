@@ -124,9 +124,9 @@ pub(crate) async fn import(
         .fetch_one(&mut **tx)
         .await?;
         if inserted {
-            tally.added += 1
+            tally.added += 1;
         } else {
-            tally.updated += 1
+            tally.updated += 1;
         }
     }
     Ok(tally)

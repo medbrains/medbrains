@@ -27,3 +27,6 @@ medbrains-authz = { path = "../medbrains-authz" }
 sqlx = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
+
+[lints]
+workspace = true

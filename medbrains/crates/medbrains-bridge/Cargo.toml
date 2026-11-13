@@ -30,10 +30,6 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-# Crypto
-sha2 = { workspace = true }
-hex = "0.4"
-
 # SQLite buffer
 rusqlite = { version = "0.41", features = ["bundled"] }
 
@@ -54,8 +50,10 @@ hostname = "0.4"
 
 # Error handling
 anyhow = "1"
-thiserror = "2"
 
 # Hybrid transport (Headscale tailnet + WSS fallback to bridge-ingress)
 async-trait = { workspace = true }
 url = { workspace = true }
+
+[lints]
+workspace = true

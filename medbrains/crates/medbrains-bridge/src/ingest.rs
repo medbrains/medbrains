@@ -5,35 +5,38 @@ use crate::buffer::MessageBuffer;
 use crate::config::BridgeConfig;
 
 /// Attach the bridge's API key, when configured.
-pub fn authed(request: reqwest::RequestBuilder, cfg: &BridgeConfig) -> reqwest::RequestBuilder {
+pub(crate) fn authed(
+    request: reqwest::RequestBuilder,
+    cfg: &BridgeConfig,
+) -> reqwest::RequestBuilder {
     match cfg.api_key.as_deref() {
         Some(key) => request.bearer_auth(key),
         None => request,
     }
 }
 
+/// One parsed device message bound for the MedBrains API; it is also the request body.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct Delivery<'a> {
+    pub device_instance_id: &'a str,
+    /// The ingest route (`lab`, `radiology`, ...); part of the URL, not the body.
+    #[serde(skip)]
+    pub module: &'a str,
+    pub protocol: &'a str,
+    pub parsed_payload: &'a serde_json::Value,
+    pub mapped_data: &'a serde_json::Value,
+    pub processing_duration_ms: i32,
+}
+
 /// Deliver a message directly to MedBrains API.
-pub async fn deliver(
+pub(crate) async fn deliver(
     client: &reqwest::Client,
     cfg: &BridgeConfig,
-    device_instance_id: &str,
-    module: &str,
-    protocol: &str,
-    parsed_payload: &serde_json::Value,
-    mapped_data: &serde_json::Value,
-    processing_duration_ms: i32,
+    delivery: &Delivery<'_>,
 ) -> Result<()> {
-    let url = format!("{}/api/device-ingest/{module}", cfg.api_base);
+    let url = format!("{}/api/device-ingest/{}", cfg.api_base, delivery.module);
 
-    let body = serde_json::json!({
-        "device_instance_id": device_instance_id,
-        "protocol": protocol,
-        "parsed_payload": parsed_payload,
-        "mapped_data": mapped_data,
-        "processing_duration_ms": processing_duration_ms,
-    });
-
-    let resp = authed(client.post(&url), cfg).json(&body).send().await?;
+    let resp = authed(client.post(&url), cfg).json(delivery).send().await?;
 
     if resp.status().is_success() {
         Ok(())
@@ -45,7 +48,11 @@ pub async fn deliver(
 }
 
 /// Background loop that drains the SQLite buffer — retries failed messages.
-pub async fn drain_loop(buffer: MessageBuffer, client: &reqwest::Client, cfg: &BridgeConfig) {
+pub(crate) async fn drain_loop(
+    buffer: MessageBuffer,
+    client: &reqwest::Client,
+    cfg: &BridgeConfig,
+) {
     let interval = tokio::time::Duration::from_secs(cfg.drain_interval_secs);
 
     loop {
@@ -84,18 +91,15 @@ pub async fn drain_loop(buffer: MessageBuffer, client: &reqwest::Client, cfg: &B
                 }
             };
 
-            match deliver(
-                client,
-                cfg,
-                &msg.device_instance_id,
-                &msg.module,
-                &msg.protocol,
-                &parsed,
-                &mapped,
-                msg.processing_duration_ms.unwrap_or(0),
-            )
-            .await
-            {
+            let delivery = Delivery {
+                device_instance_id: &msg.device_instance_id,
+                module: &msg.module,
+                protocol: &msg.protocol,
+                parsed_payload: &parsed,
+                mapped_data: &mapped,
+                processing_duration_ms: msg.processing_duration_ms.unwrap_or(0),
+            };
+            match deliver(client, cfg, &delivery).await {
                 Ok(()) => {
                     info!(id = msg.id, "buffered message delivered");
                     let _ = buffer.remove(msg.id);
@@ -105,5 +109,33 @@ pub async fn drain_loop(buffer: MessageBuffer, client: &reqwest::Client, cfg: &B
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Delivery;
+
+    #[test]
+    fn delivery_body_keeps_the_api_keys_and_leaves_out_module() {
+        let (parsed, mapped) = (serde_json::json!({"p": 1}), serde_json::json!({"m": 2}));
+        let body = Delivery {
+            device_instance_id: "dev-1",
+            module: "lab",
+            protocol: "HL7v2",
+            parsed_payload: &parsed,
+            mapped_data: &mapped,
+            processing_duration_ms: 7,
+        };
+        assert_eq!(
+            serde_json::to_value(&body).ok(),
+            Some(serde_json::json!({
+                "device_instance_id": "dev-1",
+                "protocol": "HL7v2",
+                "parsed_payload": {"p": 1},
+                "mapped_data": {"m": 2},
+                "processing_duration_ms": 7,
+            }))
+        );
     }
 }

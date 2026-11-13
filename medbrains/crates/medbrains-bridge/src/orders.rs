@@ -22,14 +22,14 @@ const IO_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_ACK: usize = 16 * 1024;
 
 #[derive(Debug, Deserialize)]
-pub struct Analyzer {
+pub(crate) struct Analyzer {
     pub name: String,
     pub host: Option<String>,
     pub port: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Order {
+pub(crate) struct Order {
     pub order_id: String,
     pub sample_barcode: String,
     pub sample_type: Option<String>,
@@ -61,7 +61,7 @@ fn esc(value: &str) -> String {
 }
 
 /// The ORM^O01 for one order, under message control id `control_id`.
-pub fn build_orm(order: &Order, analyzer: &str, control_id: &str, now: &str) -> String {
+pub(crate) fn build_orm(order: &Order, analyzer: &str, control_id: &str, now: &str) -> String {
     let sex = match order.gender.as_deref() {
         Some("male") => "M",
         Some("female") => "F",
@@ -133,7 +133,7 @@ async fn exchange(stream: &mut TcpStream, message: &str) -> Result<String> {
 }
 
 /// One poll: fetch, send, report. Returns how many the analyzer accepted.
-pub async fn send_pending(
+pub(crate) async fn send_pending(
     client: &reqwest::Client,
     cfg: &BridgeConfig,
     device_id: &str,
@@ -188,7 +188,8 @@ pub async fn send_pending(
     Ok(accepted_count)
 }
 
-pub async fn poll_loop(
+/// Loads pending orders onto the analyzer every `every`; a failed send is retried.
+pub(crate) async fn poll_loop(
     client: &reqwest::Client,
     cfg: &BridgeConfig,
     device_id: &str,

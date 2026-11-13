@@ -31,7 +31,7 @@ const MAX_TEXT: usize = 1024 * 1024;
 
 /// What the link layer does with bytes from the analyzer.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Event {
+pub(crate) enum Event {
     /// Write this byte back (ACK or NAK).
     Reply(u8),
     /// A whole transmission arrived (at EOT): its record text.
@@ -40,13 +40,15 @@ pub enum Event {
 
 /// One connection's E1381 state.
 #[derive(Default)]
-pub struct Session {
+pub(crate) struct Session {
     pending: Vec<u8>,
     text: String,
 }
 
 impl Session {
-    pub fn feed(&mut self, bytes: &[u8]) -> Vec<Event> {
+    /// Feeds bytes read from the analyzer and returns what they complete: a byte to send back,
+    /// or a whole message. Bytes that end mid-frame wait for the next read.
+    pub(crate) fn feed(&mut self, bytes: &[u8]) -> Vec<Event> {
         self.pending.extend_from_slice(bytes);
         let mut events = Vec::new();
         while let Some(&first) = self.pending.first() {
@@ -105,7 +107,7 @@ fn frame_text(frame: &[u8]) -> Option<String> {
 
 /// One sample's results.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub struct SampleResults {
+pub(crate) struct SampleResults {
     pub sample_barcode: String,
     pub patient_id: Option<String>,
     pub results: Vec<serde_json::Value>,
@@ -117,7 +119,7 @@ fn field<'a>(parts: &[&'a str], n: usize) -> &'a str {
 }
 
 /// Group a transmission's records into samples and their results.
-pub fn parse_records(text: &str) -> Vec<SampleResults> {
+pub(crate) fn parse_records(text: &str) -> Vec<SampleResults> {
     let mut samples: Vec<SampleResults> = Vec::new();
     let mut patient: Option<String> = None;
     for line in text.split(['\r', '\n']).filter(|l| !l.is_empty()) {
@@ -192,7 +194,7 @@ pub fn parse_records(text: &str) -> Vec<SampleResults> {
 }
 
 /// Accept ASTM analyzers on `addr`.
-pub async fn listen(
+pub(crate) async fn listen(
     addr: &str,
     buffer: MessageBuffer,
     client: &reqwest::Client,
@@ -245,9 +247,15 @@ async fn deliver(text: &str, buffer: &MessageBuffer, client: &reqwest::Client, c
             "results": sample.results,
         });
         let ms = i32::try_from(start.elapsed().as_millis()).unwrap_or(i32::MAX);
-        if let Err(e) =
-            ingest::deliver(client, cfg, device_id, "lab", "astm", &parsed, &mapped, ms).await
-        {
+        let delivery = ingest::Delivery {
+            device_instance_id: device_id,
+            module: "lab",
+            protocol: "astm",
+            parsed_payload: &parsed,
+            mapped_data: &mapped,
+            processing_duration_ms: ms,
+        };
+        if let Err(e) = ingest::deliver(client, cfg, &delivery).await {
             warn!(error = %e, barcode = %sample.sample_barcode, "ASTM delivery failed — buffering");
             if let Err(e) = buffer.enqueue(device_id, "lab", "astm", &parsed, &mapped, Some(ms)) {
                 error!(error = %e, "ASTM buffer write failed");

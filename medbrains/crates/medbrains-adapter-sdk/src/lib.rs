@@ -1,4 +1,4 @@
-//! MedBrains Adapter SDK
+//! `MedBrains` Adapter SDK
 //!
 //! Build WASM adapter plugins for medical devices.
 //! Each adapter handles one device model's protocol parsing and field mapping.
@@ -46,16 +46,16 @@ pub struct AdapterManifest {
 // ── Field Mapping ────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════
 
-/// Maps a device protocol field to a MedBrains entity field.
+/// Maps a device protocol field to a `MedBrains` entity field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldMapping {
-    /// Path in device message (e.g., "OBX.5", "PID.3", "PatientID")
+    /// Path in device message (e.g., "OBX.5", "PID.3", "`PatientID`")
     pub device_field: String,
-    /// Target in MedBrains (e.g., "lab_results.value", "vitals.heart_rate")
+    /// Target in `MedBrains` (e.g., "`lab_results.value`", "`vitals.heart_rate`")
     pub target: String,
     /// Data type hint
     pub data_type: FieldType,
-    /// Optional context (e.g., "heart_rate" to disambiguate multiple OBX.5 fields)
+    /// Optional context (e.g., "`heart_rate`" to disambiguate multiple OBX.5 fields)
     pub context: Option<String>,
     /// Is this field required?
     pub required: bool,
@@ -96,7 +96,7 @@ pub struct KnownQuirk {
 pub struct ParsedMessage {
     /// Message type identifier (e.g., "ORU^R01" for HL7 results, "C-STORE" for DICOM)
     pub message_type: String,
-    /// Unique message ID from the device (MSH.10 in HL7, MessageID in DICOM)
+    /// Unique message ID from the device (MSH.10 in HL7, `MessageID` in DICOM)
     pub message_id: Option<String>,
     /// Timestamp from the device message
     pub timestamp: Option<String>,
@@ -121,10 +121,10 @@ pub struct MessageSegment {
 // ── Mapped Data (output of adapter.map_fields()) ─────────────
 // ═══════════════════════════════════════════════════════════════
 
-/// Data mapped to MedBrains schema, ready for ingest.
+/// Data mapped to `MedBrains` schema, ready for ingest.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MappedData {
-    /// Which MedBrains module this data targets
+    /// Which `MedBrains` module this data targets
     pub target_module: String,
     /// Which entity type to create/update
     pub target_entity: String,
@@ -218,7 +218,7 @@ mod tests {
     // ── Type Serialization ──
 
     #[test]
-    fn field_mapping_serialization() {
+    fn field_mapping_serialization() -> Result<(), serde_json::Error> {
         let mapping = FieldMapping {
             device_field: "OBX.5".to_owned(),
             target: "lab_results.value".to_owned(),
@@ -226,16 +226,17 @@ mod tests {
             context: None,
             required: true,
         };
-        let json = serde_json::to_string(&mapping).unwrap();
+        let json = serde_json::to_string(&mapping)?;
         assert!(json.contains("OBX.5"));
         assert!(json.contains("numeric"));
 
-        let parsed: FieldMapping = serde_json::from_str(&json).unwrap();
+        let parsed: FieldMapping = serde_json::from_str(&json)?;
         assert_eq!(parsed.data_type, FieldType::Numeric);
+        Ok(())
     }
 
     #[test]
-    fn adapter_manifest_serialization() {
+    fn adapter_manifest_serialization() -> Result<(), serde_json::Error> {
         let manifest = AdapterManifest {
             adapter_code: "test_device".to_owned(),
             adapter_version: "1.0.0".to_owned(),
@@ -254,10 +255,11 @@ mod tests {
             field_mappings: vec![],
             known_quirks: vec![],
         };
-        let json = serde_json::to_string(&manifest).unwrap();
-        let parsed: AdapterManifest = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&manifest)?;
+        let parsed: AdapterManifest = serde_json::from_str(&json)?;
         assert_eq!(parsed.adapter_code, "test_device");
         assert_eq!(parsed.default_port, Some(2575));
+        Ok(())
     }
 
     #[test]

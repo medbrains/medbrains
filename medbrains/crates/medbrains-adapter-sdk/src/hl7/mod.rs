@@ -224,7 +224,9 @@ pub fn mllp_wrap(message: &str) -> Vec<u8> {
     buf
 }
 
-/// The message inside an MLLP frame. Bytes before the start block (line
+/// The message inside an MLLP frame.
+///
+/// Bytes before the start block (line
 /// noise, a newline between frames) are skipped; text that is not UTF-8
 /// (Latin-1 names from older analysers) is decoded lossily rather than
 /// refused, since results themselves are ASCII.
