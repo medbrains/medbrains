@@ -160,6 +160,9 @@ PRs still open when this release was cut are not included.
   side, debits equal to credits (#5527).
 - A TDS deduction is filed in the quarter its date falls in, and needs a valid
   PAN (#5547).
+- Each bank line is reconciled to one receipt: two equal credits on a day can
+  no longer claim the same payment, and short credits are held for review
+  (#5544).
 - Patient deposits and concessions are tested end to end: a deposit pays only
   its patient's bill and the rest is refunded, and a concession is asked by one
   person and approved by another (#5518, #5521).
