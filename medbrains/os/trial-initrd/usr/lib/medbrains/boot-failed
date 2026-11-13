@@ -1,0 +1,8 @@
+#!/bin/sh
+# In the boot file's initrd: says why the system did not start, on every console (the screen and a serial
+# port: /dev/console is only the last of them) and in the kernel log (OS-VERITY.md).
+words="MedBrains could not start its system: the system partition failed its check or could not be read, so nothing was started and patient data stays locked. Call your system administrator: the system must be reinstalled from a MedBrains USB installer."
+for console in $(awk '{ print $1 }' /proc/consoles); do
+    printf '\r\n%s\r\n\r\n' "$words" > "/dev/$console"
+done
+printf '<2>%s\n' "$words" > /dev/kmsg

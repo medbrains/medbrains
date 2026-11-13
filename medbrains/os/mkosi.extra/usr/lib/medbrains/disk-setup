@@ -28,6 +28,10 @@ SETTLE_S=30
 NOTICE_AFTER_S=20
 RECOVERY_KEY_SHAPE='^[a-z]+(-[a-z]+){7}$'
 RECOVERY_KEY_GROUPS=8
+# systemd's recovery keys are 8 groups of 8 modhex letters.
+RECOVERY_KEY_GROUP_LENGTH=8
+# Where a typed key waits, briefly, to be checked: memory only, never the disk.
+KEY_DIR="${MEDBRAINS_KEY_DIR:-/run}"
 
 # Clears the machine's screen and shows the cursor, which the kernel command line hides.
 clear_screen() { printf '\033c\033[?25h'; }
@@ -70,6 +74,18 @@ TEXT
     exit 1
 }
 
+# Prints a copy of the data partition's definition that gives it this boot's machine id as its UUID. The
+# root is read-only, so that UUID is where the initrd finds the id on every later start (OS-VERITY.md).
+definitions_named_after_this_machine() {
+    local id copy=/run/medbrains-repart
+    id="$(cat /etc/machine-id)"
+    [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo "MedBrains: this machine has no usable id ($id)." >&2; exit 1; }
+    rm -rf "$copy"
+    cp -R "$DEFINITIONS/$1" "$copy"
+    echo "UUID=${id:0:8}-${id:8:4}-${id:12:4}-${id:16:4}-${id:20:12}" >> "$copy/30-data.conf"
+    echo "$copy"
+}
+
 # Creates the data partition unless this disk already has one. systemd-repart formats it and writes the
 # partition table last, so a power cut here leaves a disk that simply starts over.
 prepare() {
@@ -86,7 +102,7 @@ prepare() {
     clear_screen
     echo 'MedBrains: preparing the data disk. This takes a moment.'
     set_seal_args
-    if ! systemd-repart --dry-run=no --definitions="$DEFINITIONS/$definitions" "${SEAL_ARGS[@]}"; then
+    if ! systemd-repart --dry-run=no --definitions="$(definitions_named_after_this_machine "$definitions")" "${SEAL_ARGS[@]}"; then
         echo
         echo 'MedBrains could not prepare the data disk, so nothing was stored.'
         echo 'Call your system administrator. The reason is shown above.'
@@ -133,15 +149,14 @@ fail() {
 }
 
 # Makes a new recovery key and has the person prove they wrote it down, from their copy, with the screen
-# cleared. Replaces any earlier key: until the proof, nobody can be relied on to have saved that one.
+# cleared: they type the whole key back, and it must open the disk. Replaces any earlier key: until the
+# proof, nobody can be relied on to have saved that one.
 show_recovery_key() {
-    local key typed wanted group
-    local -a groups
+    local key typed
     # stderr holds a QR code of the key when it is a terminal, and must never reach the journal.
     key="$(systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery --recovery-key "$PART" 2>/dev/null)" \
         || fail 'the recovery key could not be made.'
-    [[ "$key" =~ $RECOVERY_KEY_SHAPE ]] || fail 'the recovery key could not be made.'
-    IFS=- read -r -a groups <<<"$key"
+    key_well_formed "$key" || fail 'the recovery key could not be made.'
     # A loop with no limit, on purpose: the machine holds no data until the key is saved. Printed, not
     # `read -p`: that writes to stderr, which is the journal.
     while true; do
@@ -159,13 +174,38 @@ TEXT
         printf 'When it is written down, press Enter. The key will leave the screen.'
         read -r typed
         clear_screen
-        group=$((RANDOM % RECOVERY_KEY_GROUPS + 1))
-        wanted="${groups[group - 1]}"
-        printf 'From what you wrote down, type group %s, counting from the left, and press Enter: ' "$group"
+        printf 'From what you wrote down, type the whole recovery key, with its dashes, and press Enter:\n'
         read -r typed
-        [[ "$typed" == "$wanted" ]] && break
+        typed_key_opens "$typed" && break
+        printf 'That is not the key on the screen. It will be shown again. Press Enter.'
+        read -r typed
     done
     clear_screen
+}
+
+# Succeeds if $1 has a recovery key's shape: 8 groups of exactly 8 lower-case letters, between dashes.
+key_well_formed() {
+    local group
+    local -a groups
+    [[ "$1" =~ $RECOVERY_KEY_SHAPE ]] || return 1
+    IFS=- read -r -a groups <<<"$1"
+    (( ${#groups[@]} == RECOVERY_KEY_GROUPS )) || return 1
+    for group in "${groups[@]}"; do
+        (( ${#group} == RECOVERY_KEY_GROUP_LENGTH )) || return 1
+    done
+}
+
+# Succeeds if what the person typed, $1, is a well-formed key that opens this disk by itself: proof they
+# wrote down all of it, not one group. Checked through a private file in memory, removed at once.
+typed_key_opens() {
+    local file status
+    key_well_formed "$1" || return 1
+    file="$(umask 077 && mktemp "$KEY_DIR/medbrains-typed-key.XXXXXX")" || return 1
+    printf '%s' "$1" > "$file"
+    status=0
+    check_key_file "$file" || status=1
+    rm -f "$file"
+    return "$status"
 }
 
 # Asks for a recovery key that was already saved, checks it, and leaves it in the file $1.
@@ -292,6 +332,8 @@ reseal() {
     if mountpoint -q /var; then write_record encrypted-tpm2; fi
 }
 
+# Sourced by its tests, which call the functions above; run, it does what it is asked.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 case "${1:-}" in
     prepare) prepare ;;
     notice) notice ;;

@@ -24,10 +24,11 @@ No internet: the same signed bundle arrives on a USB stick, and every check afte
 
 ## How it works
 
-**Two slots, one boot file each.** System partitions are named after their version (`medbrains_3.33.0`), and an empty one
-`_empty`. A boot file (UKI) names its partition on its command line, `root=PARTLABEL=medbrains_3.33.0`, so it can only
-start its own system. Finding the root by partition type would not do: systemd's `gpt-auto` always takes the newest label,
-which would defeat rollback.
+**Two slots, one boot file each.** A slot is a read-only system partition and its dm-verity hash tree
+(`OS-VERITY.md`). They are named after their version (`medbrains_3.33.0`, `medbrains_3.33.0_verity`), and an empty slot
+`_empty`. A boot file (UKI) carries the tree's root hash on its command line, `roothash=…`, and systemd finds the two
+partitions by the UUIDs that hash gives them, so a boot file can only start its own system, block for block. Finding the
+root by partition type would not do: systemd's `gpt-auto` always takes the newest, which would defeat rollback.
 
 **Install and apply are two steps.** Installing writes the other slot while the machine works, at low priority, and leaves
 the boot file in `EFI/MedBrains/`, where the loader never looks. So a power cut or an ordinary restart can't change
@@ -46,8 +47,8 @@ A version that can't reach its own system stops in the initrd, where neither of 
 the boot file's initrd that restarts from emergency mode, on a counted boot only. `panic=10` restarts a dead kernel. Hardware watchdog as before. `systemd-boot-update.service` is masked: a kernel fix must
 not rewrite the boot loader on the way past, the one write here with no second copy. Replacing the loader is not built.
 
-**A new system adopts this machine.** It gets the machine id, because a new one would change the DHCP identity and start a
-new journal folder. Installing refuses a system whose user or group numbers differ, because `/var` keeps numbers, not names.
+**A new system adopts this machine.** The machine id is kept as the data partition's UUID and given to every system at
+start (`OS-VERITY.md`), because a new one would change the DHCP identity and start a new journal folder. Installing refuses a system whose user or group numbers differ, because `/var` keeps numbers, not names.
 This is not theoretical: `medbrains` and `kiosk` were dynamic, and the Pingora branch's new user moved `kiosk` by one.
 They are now pinned to 990 and 989.
 
@@ -73,13 +74,14 @@ settings pass through one door, `crates/medbrains-os-setup/src/updates.rs`, wher
 
 ## Bundles
 
-A folder of four files, the same on a USB stick (`medbrains-update/`) and at an address (`<url>/<arch>/`):
+A folder of five files, the same on a USB stick (`medbrains-update/`) and at an address (`<url>/<arch>/`):
 
 | File | What |
 |---|---|
 | `manifest.json` | Format, version, architecture, floor, oldest version it upgrades from, expiry, security flag, one sentence, hashes and sizes. Unknown fields refused |
 | `manifest.sig` | One line per signature: `<key id> <base64>`. Up to 4: an old and a new key, or two people's |
 | `root.img.zst` | The system partition, compressed |
+| `verity.img.zst` | Its hash tree, compressed. Format 2; a format 1 bundle has none and is refused |
 | `boot.efi` | The boot file |
 
 `medbrains-os-bundle` makes them (`keygen`, `extract`, `make`, `refresh`, `sign`). It runs on a build machine and is not in the image.
@@ -97,7 +99,7 @@ cable, so this key protects nothing and only lets the tests run.
 |---|---|
 | Algorithm | Ed25519. One small signature, and the manifest is the only thing signed, so signing never touches the image |
 | Where it lives | Never on a build machine. An air-gapped computer that stays off and locked, with the seed on two encrypted USB sticks kept apart, or a hardware token doing Ed25519. A CI runner must not be able to sign |
-| How a release is signed | The build makes the bundle and `manifest.json`. Only that small file crosses to the signing machine; a person reads its version and hashes, runs `medbrains-os-bundle sign`, and carries back `manifest.sig` |
+| How a release is signed | The build makes the bundle and `manifest.json`. Only that small file crosses to the signing machine; a person reads its version and hashes, runs `medbrains-os-bundle sign <bundle> <key id> <key file> os/update-keys`, which refuses a key that is not the one images trust under that id (or an all-zero one) and checks the line it wrote, and carries back `manifest.sig`. `medbrains-os-bundle verify <bundle> os/update-keys` checks a finished bundle as a machine would |
 | Two people | Holding the key is the owner's; two named people should witness each signing. Not enforced by anything yet |
 | Public half | `os/update-keys/release-<n>.pub`, in every image |
 
@@ -190,8 +192,45 @@ rotate, a release must add a second seal while the disk is open, with `systemd-c
 --tpm2-pcrs=7 --tpm2-public-key=<new> --tpm2-public-key-pcrs=11`, and only then may a later release carry the new key. systemd tries each token.
 Until built, losing that key means an updated machine needs its recovery key once, so it is held like the release key.
 
-**PCR 11 covers the boot file, not the system partition** (OS-KEYS.md gap 1). Someone with the disk in their hands can change a slot, and
-the disk still opens. Verity closes that, not this.
+**The system partition is now covered too**, through the root hash on the boot file's command line (`OS-VERITY.md`): a changed
+slot does not start. **But the seal includes PCR 4, the boot file's own hash, so a new version's first start asks for the recovery
+key** (DECISIONS 2026-11-05, after the rows above were tested). The rows "Opens by itself" above predate PCR 4. The fix, a seal for
+the new boot file's predicted PCR 4 added before applying, is open (`OS-VERITY.md`, "Open").
+
+### Proposal: no recovery key after an update (must land before any release key)
+
+**The problem.** The seal includes PCR 4, which holds the hash of the boot loader and of the boot file the firmware started
+(DECISIONS 2026-11-05, the attack it closes). Every update ships a new boot file, so PCR 4 changes and the first start of every
+new version stops at the recovery-key prompt. A hospital cannot have a person type 64 characters after each update, and a
+machine that waits there is a ward without a system. Until this is fixed, no release may be signed.
+
+**Fix A, recommended: seal to the predicted PCR 4 before applying.** PCR 4 is not secret or random: it is the SHA-256 chain of the
+firmware's `EV_EFI_BOOT_SERVICES_APPLICATION` events, one per binary it started, each the binary's Authenticode hash. The
+machine knows all of them except the new boot file's, and that one is a hash of a file it already holds and has verified.
+
+1. At install, after the slot is named and before the boot file is staged: replay the running machine's PCR 4 event log
+   (`/sys/kernel/security/tpm0/binary_bios_measurements`), replacing the running boot file's Authenticode digest with the new
+   one's. systemd 257 ships the parts: `systemd-pcrlock log` reads and checks the log against the live PCR, `lock-uki` and
+   `lock-pe` compute the Authenticode digests. Refuse the install if the replayed log does not reproduce today's PCR 4: an
+   unreadable log must not become a guessed seal.
+2. Add a second TPM2 token while the disk is open: `systemd-cryptenroll --unlock-tpm2-device=auto --tpm2-device=auto
+   --tpm2-pcrs=4:sha256=<predicted>+7 --tpm2-public-key=<key> --tpm2-public-key-pcrs=11`. The old token stays, so a rollback
+   or a person going back still opens by itself.
+3. When the new version proves good, drop the old token; when it rolls back, drop the new one. At most two tokens, both
+   named in the update record, so a power cut at any step leaves a token that opens the disk for whichever version boots.
+
+Cost: about 150 lines in the updater (log replay, Authenticode digest, two `cryptenroll` calls, the record), one new failure
+row per step, and x86-64 swtpm tests: update opens by itself, rollback opens by itself, a cut between enrolling and staging opens.
+Ruled out: `systemd-pcrlock make-policy` as the whole answer. It moves the seal to an NV-index policy that tolerates listed
+variants, a larger change to `disk-setup` and recovery than this needs; its log and digest code is what we reuse.
+
+**Fix B: Secure Boot, then drop PCR 4.** With our key in the firmware's db and Secure Boot on, the firmware refuses an
+attacker's boot file and PCR 7 records the policy, so the seal can be PCR 7 plus signed PCR 11 and survives every update.
+Needs a key enrolled per machine at installation (or shim with a vendor certificate), a signing key held like the release key
+(X2), and a plan for machines whose firmware cannot enrol keys. It also closes the loader-command-line gap in `OS-VERITY.md`.
+It is the end state; A is what makes updates usable before every installed machine has it.
+
+Tracked in #5452, linked from #5403 and #5404.
 
 ## The hard part: the database
 
@@ -211,6 +250,7 @@ Measured on the arm64 debug image of 2026-11-09 (main before this merged):
 | Part | Size | Room |
 |---|---|---|
 | Boot partition | 512 MiB | One boot file is 153 MB. An install removes the other slot's entry before staging the new one, so at most two are there: about 307 MB, leaving about 200 MB. Refused before writing if not |
+| Hash tree, each slot | 32 MiB, fixed; the tree over 2 GiB is 16.1 MiB | Refused before writing if a tree would not fit |
 | System slot, each | 2 GiB, fixed when the disk is first written | 658 MiB free inside the filesystem. The partition image is the whole slot, so a bundle always fits the other slot; growing past 2 GiB would need a new layout that no update can make, so watch this number each release |
 | Data disk | the rest of the disk | Bundle plus 1 GiB kept free, checked before downloading |
 
@@ -227,7 +267,8 @@ Compressed bundle size: not yet measured. Deltas only if measured download sizes
 Settings has an Updates section, read through the setup service: the version running, what waits in one sentence, the last result, and only the
 buttons that would work now: **Restart to update…**, **Look for updates**, **Install from a USB stick**, **Try that version again**, **Go back to version X…**.
 Restarts ask first. The address and quiet window are set there too. The top bar shows a chip only with something to say: Update ready, Security fix
-ready, Last update failed or Updates need attention. It opens Settings.
+ready, Security fix overdue (waiting more than 72 hours), System damaged (the running system failed its seal check),
+Last update failed or Updates need attention. It opens Settings.
 
 ## Failure table (OS-PRINCIPLES section 7)
 
@@ -245,10 +286,15 @@ ready, Last update failed or Updates need attention. It opens Settings.
 | Disk fails, image write or read-back wrong | Slot unusable | Hash on the way in, and again from disk, past the cache | Stays `_empty`, no boot entry, reported | reasoned: not injected |
 | New system's user numbers differ | Files would change owner | Compared while mounted | Refused; slot stays unnamed | unit, `id_conflicts` |
 | Power cut downloading | Partial staged file | Record says fetching at start | Cleared, "interrupted" | `power_cuts_installing` |
-| Power cut writing the slot | Half a system in `_empty` | Name is `_empty`; no boot entry | Boots old; slot overwritten next time | `power_cuts_installing` |
-| Power cut around each rename | One name or the other (GPT has two checksummed copies) | | Boots old | `power_cuts_installing`, before and after each |
+| Power cut writing the slot | Half a system in `_empty` | Name is `_empty`, UUIDs random; no boot entry | Boots old; slot overwritten next time | `power_cuts_installing` |
+| System and tree disagree with the boot file's root hash | Would never start | `veritysetup verify` before naming | Fails, slot stays `_empty` | `unsealed_never_named` |
+| Slot changed after it was installed | Would run changed code | dm-verity at start | Stops in the initrd, counted starts run out, old version | `changed_slot_rolls_back` |
+| Power cut around each rename | One name or UUID or the other (GPT has two checksummed copies) | | Boots old | `power_cuts_installing`, at sfdisk 1, 3, 5, 7 and after 8 |
 | Power cut with update waiting | None | Record says waiting | Boots old, still waiting | `power_cuts_installing` |
-| Power cut publishing the boot file | Old or new name. FAT has no journal: a torn rename could leave a damaged directory entry | | Boots one of them; fsck not automated on the boot partition | Before and after tested; mid-rename **reasoned**, not reachable from a VM |
+| Power cut publishing the boot file | Old or new name. FAT has no journal: a torn rename could leave a damaged directory entry | `fsck.vfat -a` at every start, before the boot partition is mounted: systemd's own `systemd-fsck@` for the automounted boot partition, now that the image carries `dosfstools` | Boots one of them; the next start repairs what fsck safely can | Before and after tested; mid-rename **reasoned**, not reachable from a VM |
+| A boot file on the boot partition changed or damaged | An install would delete beside a damaged file | The SHA-256 of every boot file this machine put there is in the record, and checked before anything there is deleted | Install refused; nothing deleted | reasoned |
+| The staged boot file changed while waiting | Would start something unsigned | Hashed again against the signed manifest at apply | Not applied; the update ends as failed and can be installed again | reasoned |
+| Power cut just after a change to the boot partition | **Found 2026-11-11:** fsync of a FAT directory did not keep the rename; the staged file came back as `<v>.tmp`, an applied one under its staged name | QEMU power-cut scenarios | Every change to the boot partition now ends with `sync --file-system /boot` | `power_cuts_installing`, `power_cuts_applying` |
 | Power cut after publishing | New version on trial | Loader counts | Starts new version on trial | `power_cuts_applying` |
 | Power cut on each trial start | Starts used up | Loader's count | After 3, old version; "rolled back" | `power_cuts_applying` |
 | New version fails health | Would be unusable | Health check | Marks bad, restarts, old version says why, not retried by itself | `failed_health` |
@@ -259,9 +305,13 @@ ready, Last update failed or Updates need attention. It opens Settings.
 | Health passes, power cut before blessing | Next start counted again | Count still there | Health passes again | reasoned: idempotent |
 | Update record damaged | Would forget the floor | Parse fails | Screen says so; no action offered; a person must act | unit |
 | Boot partition full or read-only at apply | Apply fails | rename fails | Stays waiting; says failed | reasoned |
+| The running system fails its seal check | See `OS-VERITY.md` | dm-verity | Never restarted while in use; at the next start or quiet window, back to a version that left today's database schema, or a plain stop | unit |
 | Quiet window typo | Would restart at random | Parse | Refused on save; never open if read | unit |
 | Clock wrong or unknown | Window at the wrong hour | chrony | Doesn't apply | `waits_for_quiet`, partly |
-| Someone connected in the window | Would drop them | `ss` | Doesn't apply | `waits_for_quiet` |
+| Someone using the app in the window, here or at a node | Would drop them | The server's note of the last request a person made (`/run/medbrains-server/last-person-request`): idle only when older than `update-idle-minutes` (30 by default) | Doesn't apply | `waits_for_quiet`: a person signed in over the loopback front, as a node's users arrive through the tunnel, blocks it |
+| Counting connections instead | **Found 2026-11-11, twice.** Counting loopback meant a window never came; ignoring it meant the screen and every node's users counted as nobody, so a quiet window would restart a main machine mid-use | Review | Connections are not used. Polling by an idle page is marked background by the web app and does not count; API keys and display screens do not count; unmarked clients do | `waits_for_quiet`: an idle page still polling, screen on, applies |
+| The activity note can't be read (no server, a node, a fault) | Not known | Read fails | In use: the window never applies; a person restarts | unit (`is_idle`) |
+| A security fix left waiting | Machine stays exposed | Record says when it became ready | After 72 hours the screen says so loudly and the top bar shows "Security fix overdue"; still never restarts a machine in use | unit (`view::alarm`) |
 | New version loses its seal | Prompt nobody answers | Deadline | Old version opens the disk | `seal_prompt_rolls_back` |
 | Migration then failure | **Old server may not start on newer database** | Health, on the old slot too | **Not handled. U1.3** | Not tested |
 | Release key stolen | Anyone can sign | Outside this machine | Rotation and floor, above | Design |
@@ -269,6 +319,25 @@ ready, Last update failed or Updates need attention. It opens Settings.
 
 ## What is proved
 
-The unit tests in the crate run in CI. The QEMU scenarios in `crates/medbrains-os-test/src/update_steps.rs` ran on the branch
-before it was merged with the Pingora front, Kanidm, disk encryption and the node changes; they have not been run on the merged
-code. The next OS image trial runs them (`cargo run -p medbrains-os-test -- <image> updates <bundles>`), and its result goes here.
+The unit tests in the crate run in CI, including the install-order model with the hash tree (`plan.rs`). The QEMU scenarios
+(`update_steps.rs`, `update_power.rs`, `update_verity.rs`) were run on the merged code for the first time on 2026-11-10, on an arm64
+debug image with the sealed system partition (`OS-VERITY.md`), and found three bugs in the test harness itself, now fixed: setup's
+authenticator step was not answered; every background command was a shell syntax error, so the power-cut scenarios never
+installed anything; and scenarios shared one set of firmware variables.
+
+| Scenario | Result |
+|---|---|
+| refusals, including a changed hash tree | pass |
+| update, keep `/var`, go back, update twice | pass |
+| USB, failed health, not retried, mixed releases, catches up in order | pass |
+| a system its boot file's seal does not match is never named | pass |
+| a slot changed after it was installed does not start, and rolls back | pass |
+| network cable out, too little space | pass |
+| power cut at each install step: downloading, before emptying, half emptied, written and verified, tree named, named, while writing, waiting | **every cut boots the old version, healthy, `/var` unchanged** |
+| the same scenario's final step, applying the reinstalled update | **fails: the machine did not restart into the new version** |
+| power cut while applying and on trial | **fails: the first start after the cut ran the old version** |
+| a security fix waits for a quiet window | **fails: the window's apply did not restart into the new version** |
+| a new version that cannot even start | **fails: stays hung after the initrd; `medbrains-has-init` is the fix under test** |
+
+The three apply failures share one symptom and are not yet explained; the update cycle's own apply passes. Until they are, a
+release must not ship on this branch. x86-64 with swtpm (`update_sealed.rs`, the disk scenarios) was not run.

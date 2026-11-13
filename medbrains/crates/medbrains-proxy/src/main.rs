@@ -984,7 +984,7 @@ fn apply_cors_headers(
     )?;
     resp.insert_header(
         "Access-Control-Allow-Headers",
-        "Authorization, Content-Type, X-CSRF-Token, X-MedBrains-Client, X-Requested-With, API-Version, Accept-Language",
+        "Authorization, Content-Type, X-CSRF-Token, X-MedBrains-Client, X-MedBrains-Background, X-Requested-With, API-Version, Accept-Language",
     )?;
     resp.insert_header("Access-Control-Max-Age", "600")?;
     Ok(())

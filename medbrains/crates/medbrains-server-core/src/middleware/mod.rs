@@ -1,4 +1,5 @@
 pub mod access_log;
+pub mod activity;
 pub mod api_key;
 pub mod audit;
 pub mod auth;

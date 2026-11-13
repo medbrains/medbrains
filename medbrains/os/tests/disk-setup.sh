@@ -42,6 +42,36 @@ check "no seal and no choice records nothing" "SLOT TYPE
 check "a seal whose recovery key cannot be made records nothing" "SLOT TYPE
    0 tpm2" 0 1 ""
 
+# The recovery key the person types back: all of it, each group its full length, and it must open the
+# disk. A stand-in cryptsetup opens only for the right key, or for anything ("any"), so the shape check
+# is seen on its own.
+KEY=cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv
+typed() {
+    local name="$1" accepts="$2" typed="$3" want="$4" got
+    mkdir -p "$WORK/bin" "$WORK/run"
+    cat > "$WORK/bin/cryptsetup" <<STUB
+#!/bin/bash
+for arg; do [[ "\$arg" == --key-file=* ]] && file="\${arg#--key-file=}"; done
+[[ "$accepts" == any ]] && exit 0
+[[ "\$(cat "\$file")" == "$accepts" ]]
+STUB
+    chmod +x "$WORK/bin/cryptsetup"
+    got=0
+    (export PATH="$WORK/bin:$PATH" MEDBRAINS_DISK_PART=/dev/null MEDBRAINS_KEY_DIR="$WORK/run"
+        source "$SCRIPT" && typed_key_opens "$typed") >/dev/null 2>&1 || got=1
+    if [[ "$got" == "$want" && -z "$(ls -A "$WORK/run")" ]]; then
+        echo "pass  $name"
+    else
+        echo "FAIL  $name: got $got, left $(ls -A "$WORK/run")"
+        FAILED=1
+    fi
+}
+typed "the whole key opens" "$KEY" "$KEY" 0
+typed "one group is not enough" "$KEY" "cbdefghi" 1
+typed "a key that does not open the disk is refused" "$KEY" "${KEY/cbdefghi/cbdefghj}" 1
+typed "a group of the wrong length is refused" any "${KEY/cbdefghi/cbdefgh}" 1
+typed "a ninth group is refused" any "$KEY-cbdefghi" 1
+
 # A local variable named in an exit trap is unbound by the time the trap runs, which turned a finished
 # re-seal into a failure and left the key file behind.
 if grep -nE "^ +local .*KEY_FILE|trap .*key_file" "$SCRIPT"; then

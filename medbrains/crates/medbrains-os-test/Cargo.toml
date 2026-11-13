@@ -8,6 +8,7 @@ rust-version.workspace = true
 license-file.workspace = true
 
 [dependencies]
+medbrains-os-update = { path = "../medbrains-os-update" }
 serde_json = { workspace = true }
 
 [lints]

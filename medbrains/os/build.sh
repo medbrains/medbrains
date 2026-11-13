@@ -11,14 +11,16 @@
 #   KANIDM_DIR            the identity provider, from build-kanidm.sh [$OS_WORK/kanidm-<arch>]
 #   OS_WORK               build cache + output [/tmp/mb-osimage]
 #
-#   OS_PCR_KEY, OS_PCR_CERT  RSA key and certificate signing the boot file's expected PCR 11. Without them
-#                         a release image's disk seal covers only PCR 7. --debug makes a throwaway.
+#   OS_PCR_KEY, OS_PCR_CERT  RSA key and certificate signing the boot file's expected PCR 11. Required for a
+#                         release image, and checked to match. --debug makes a throwaway.
 #
 # --debug adds a root shell on the serial console, for verification only.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
+# shellcheck source=build-keys.sh
+source "$HERE/build-keys.sh"
 ARCH=arm64
 DEBUG=0
 while [[ $# -gt 0 ]]; do
@@ -132,15 +134,7 @@ if [[ "$DEBUG" == 1 ]]; then
     install -m 0644 "$HERE/debug/medbrains-debug-shell@.service" "$EXTRA/usr/lib/systemd/system/"
     install -m 0644 "$HERE/debug/90-medbrains-debug-shell.rules" "$EXTRA/usr/lib/udev/rules.d/"
     # A test key for updates, trusted only because of the mark next to it. Never for a release image.
-    TEST_KEY="$OS_WORK/update-test.key"
-    if [[ ! -f "$TEST_KEY" ]]; then
-        openssl genpkey -algorithm ed25519 -outform DER 2>/dev/null | tail -c 32 | base64 > "$TEST_KEY"
-        chmod 600 "$TEST_KEY"
-    fi
-    base64 -d < "$TEST_KEY" > "$OS_WORK/update-test.seed"
-    (printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'; cat "$OS_WORK/update-test.seed") |
-        openssl pkey -inform DER -pubout -outform DER | tail -c 32 | base64 > "$KEYS/test-1.pub"
-    rm -f "$OS_WORK/update-test.seed"
+    make_debug_update_key "$OS_WORK/update-test.key" "$KEYS/test-1.pub"
     : > "$KEYS/THIS-IS-A-DEBUG-IMAGE"
     install -m 0755 "$HERE/debug/pcr11-replay" "$EXTRA/usr/lib/medbrains/pcr11-replay"
     # A clearly marked sign-in for trying the Identity app. Never in a release image.
@@ -157,17 +151,18 @@ fi
 if [[ "$DEBUG" == 1 && -z "${OS_PCR_KEY:-}" ]]; then
     OS_PCR_KEY="$OS_WORK/throwaway-pcr.key"
     OS_PCR_CERT="$OS_WORK/throwaway-pcr.crt"
+    refuse_empty_key "$OS_PCR_KEY"
     [[ -f "$OS_PCR_KEY" ]] || openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=throwaway \
         -keyout "$OS_PCR_KEY" -out "$OS_PCR_CERT" 2>/dev/null
 fi
+require_release_pcr_key "$DEBUG" "${OS_PCR_KEY:-}"
+check_pcr_key_matches "$OS_PCR_KEY" "${OS_PCR_CERT:-}"
 SIGN_ARGS=()
 SIGN_MOUNTS=()
 if [[ -n "${OS_PCR_KEY:-}" ]]; then
     SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT")
     SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro")
 fi
-
-ROOT_ARG="root=PARTLABEL=medbrains_$VERSION"
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
 build_on_linux() {
@@ -176,7 +171,7 @@ build_on_linux() {
     work="$(mktemp -d)"
     cp -R "$HERE/." "$work/"
     cp -R "$REPO/crates/medbrains-shell" "$work/medbrains-shell"
-    (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" --kernel-command-line "$ROOT_ARG" \
+    (cd "$work" && mkosi --architecture "$ARCH" --extra-tree "$EXTRA" \
         --output-directory "$OS_WORK/out-$ARCH" --cache-directory "$OS_WORK/cache-$ARCH" \
         --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} -f build)
     rm -rf "$work"
@@ -197,7 +192,7 @@ build_on_mac_with_docker() {
         -v "$OS_WORK/out-$ARCH:/out" -v "$OS_WORK/cache-$ARCH:/cache" ${SIGN_MOUNTS[@]+"${SIGN_MOUNTS[@]}"} \
         "medbrains-os-builder:${PLATFORM#linux/}" \
         bash -c 'cp -R /src /build && cp -R /shell /build/medbrains-shell && cd /build && mkosi "$@" -f build' _ \
-        --architecture "$ARCH" --extra-tree /extra --kernel-command-line "$ROOT_ARG" --output-directory /out \
+        --architecture "$ARCH" --extra-tree /extra --output-directory /out \
         --cache-directory /cache --image-version "$VERSION" ${DEBUG_ARGS[@]+"${DEBUG_ARGS[@]}"} \
         ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
 }

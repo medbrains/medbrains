@@ -11,6 +11,10 @@ use serde::{Deserialize, Serialize};
 use crate::version::Version;
 
 const MAX_FAILED: usize = 8;
+/// Versions whose database schema is remembered: the running one and the few a machine could go back to.
+const MAX_SCHEMAS: usize = 8;
+/// Boot files whose hash is remembered: at most two are on the boot partition, plus one staged.
+const MAX_BOOT_FILES: usize = 4;
 /// The most of a health check's reason kept: a list of failed units can be long, and the record is bounded.
 const MAX_REASON_CHARS: usize = 600;
 
@@ -32,7 +36,8 @@ pub enum Stage {
 }
 
 /// The update being worked on.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Target {
     /// The version being installed.
     pub version: String,
@@ -42,6 +47,44 @@ pub struct Target {
     pub security: bool,
     /// One plain sentence for the screen.
     pub summary: String,
+    /// When it became ready to apply, so a security fix left waiting too long is said loudly.
+    pub ready_at: Option<u64>,
+    /// The signed hash of its boot file, checked again when it is applied.
+    pub boot_sha256: String,
+}
+
+/// A system slot that failed its seal check while its version was in use. The slot is damaged, not the
+/// version: the same version may be installed again over it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Damaged {
+    /// The version the slot holds.
+    pub version: String,
+    /// The slot's partition UUID, which says which slot it is.
+    pub uuid: String,
+    /// When it was found, in seconds since 1970.
+    pub at: u64,
+    /// The start it was found in, so the next start knows it is the next one.
+    pub boot_id: String,
+}
+
+/// The database schema a version left: its highest migration, or `none` on a machine with no database.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Schema {
+    /// The version.
+    pub version: String,
+    /// Its schema.
+    pub schema: String,
+}
+
+/// A boot file as it was put on the boot partition, so a change to it is noticed before anything is
+/// deleted there.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BootFile {
+    /// The version it starts.
+    pub version: String,
+    /// Its SHA-256.
+    pub sha256: String,
 }
 
 /// How an attempt ended.
@@ -60,6 +103,8 @@ pub enum Ending {
     Failed,
     /// A power cut or restart stopped it, and it can be started again.
     Interrupted,
+    /// The system partition failed its seal check.
+    SealFailed,
 }
 
 /// An attempt's result, for the screen.
@@ -95,6 +140,12 @@ pub struct State {
     pub last: Option<Outcome>,
     /// When a signed manifest was last read, so a channel that stops answering shows on the screen.
     pub checked: Option<u64>,
+    /// A slot that failed its seal check while in use, until it is installed over.
+    pub damaged: Option<Damaged>,
+    /// The database schema each recent version left, so going back is allowed only to a compatible one.
+    pub schemas: Vec<Schema>,
+    /// The hash of each boot file this machine put on the boot partition.
+    pub boot_files: Vec<BootFile>,
 }
 
 impl State {
@@ -115,14 +166,62 @@ impl State {
         write_atomically(path, &text).map_err(|e| format!("The update record can't be saved: {e}"))
     }
 
-    /// Records a version that failed, keeping the list bounded.
+    /// Records a version that failed, keeping the list bounded. A version that can't be named is not
+    /// recorded: an empty entry would match nothing, and would push a real one out.
     pub fn add_failed(&mut self, version: &str) {
+        if version.is_empty() {
+            return;
+        }
         if !self.failed.iter().any(|known| known == version) {
             self.failed.push(version.to_owned());
         }
         if self.failed.len() > MAX_FAILED {
             self.failed.remove(0);
         }
+    }
+
+    /// Remembers the database schema `version` left, keeping the list bounded.
+    pub fn record_schema(&mut self, version: &str, schema: &str) {
+        self.schemas.retain(|known| known.version != version);
+        self.schemas.push(Schema {
+            version: version.to_owned(),
+            schema: schema.to_owned(),
+        });
+        if self.schemas.len() > MAX_SCHEMAS {
+            self.schemas.remove(0);
+        }
+    }
+
+    /// True only if `previous` is known to have left the same database schema as `current`, so its
+    /// server would start on today's database. Unknown is not compatible.
+    pub fn can_go_back(&self, previous: &str, current: &str) -> bool {
+        let of = |version: &str| {
+            self.schemas
+                .iter()
+                .find(|known| known.version == version)
+                .map(|known| known.schema.as_str())
+        };
+        of(previous).is_some_and(|schema| Some(schema) == of(current))
+    }
+
+    /// Remembers the hash of the boot file that starts `version`, keeping the list bounded.
+    pub fn record_boot_file(&mut self, version: &str, sha256: &str) {
+        self.boot_files.retain(|known| known.version != version);
+        self.boot_files.push(BootFile {
+            version: version.to_owned(),
+            sha256: sha256.to_owned(),
+        });
+        if self.boot_files.len() > MAX_BOOT_FILES {
+            self.boot_files.remove(0);
+        }
+    }
+
+    /// The remembered hash of the boot file that starts `version`.
+    pub fn boot_file_hash(&self, version: &str) -> Option<&str> {
+        self.boot_files
+            .iter()
+            .find(|known| known.version == version)
+            .map(|known| known.sha256.as_str())
     }
 
     /// Puts things right at each start, after a power cut or a return to the old system.

@@ -17,6 +17,7 @@ fn target() -> Target {
         min_version: "1.5.0".to_owned(),
         security: true,
         summary: String::new(),
+        ..Target::default()
     }
 }
 
@@ -126,4 +127,43 @@ fn a_damaged_record_is_a_fault_and_not_an_empty_state() {
     assert!(std::fs::write(&path, b"{ not json").is_ok());
     assert!(State::load(&path).is_err());
     assert!(std::fs::remove_dir_all(&dir).is_ok());
+}
+
+/// Going back is allowed only to a version known to have left today's database schema; one never
+/// recorded, or one that left another, is not.
+#[test]
+fn going_back_needs_the_same_recorded_schema() {
+    let mut state = State::default();
+    assert!(!state.can_go_back("1.0.0", "2.0.0"));
+    state.record_schema("2.0.0", "20261101");
+    assert!(!state.can_go_back("1.0.0", "2.0.0"));
+    state.record_schema("1.0.0", "20261001");
+    assert!(!state.can_go_back("1.0.0", "2.0.0"));
+    state.record_schema("1.0.0", "20261101");
+    assert!(state.can_go_back("1.0.0", "2.0.0"));
+    for n in 0..20 {
+        state.record_schema(&format!("3.0.{n}"), "x");
+    }
+    assert!(state.schemas.len() <= 8);
+}
+
+/// A version that can't be named is never recorded as failed.
+#[test]
+fn an_unnamed_version_is_not_recorded_as_failed() {
+    let mut state = State::default();
+    state.add_failed("");
+    assert!(state.failed.is_empty());
+}
+
+/// Boot file hashes are kept per version and bounded.
+#[test]
+fn boot_file_hashes_are_kept_per_version() {
+    let mut state = State::default();
+    state.record_boot_file("1.0.0", "aa");
+    state.record_boot_file("1.0.0", "bb");
+    assert_eq!(state.boot_file_hash("1.0.0"), Some("bb"));
+    for n in 0..10 {
+        state.record_boot_file(&format!("2.0.{n}"), "cc");
+    }
+    assert!(state.boot_files.len() <= 4);
 }

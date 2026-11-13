@@ -1,0 +1,12 @@
+# In the boot file's initrd: the system did not start, most often because it failed its seal check
+# (OS-VERITY.md). Says so in plain words on the screen and the serial port, instead of leaving only the
+# line about a locked root account. A counted start also restarts (medbrains-trial-reboot), so an update
+# that fails this way goes back to the old version by itself.
+[Unit]
+Description=Say why the system did not start
+DefaultDependencies=no
+Before=emergency.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/medbrains/boot-failed

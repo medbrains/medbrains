@@ -14,6 +14,12 @@ Type=exec
 User=medbrains
 Group=medbrains
 EnvironmentFile=/etc/medbrains/env
+# When a person last made a request, for the updater's quiet window (OS-UPDATES.md). Kept across a
+# restart of the server, gone at a restart of the machine; the server writes "nobody yet" at start.
+Environment=MEDBRAINS_ACTIVITY_FILE=/run/medbrains-server/last-person-request
+RuntimeDirectory=medbrains-server
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=restart
 WorkingDirectory=/var/lib/medbrains
 ExecStart=/usr/bin/medbrains-server
 Restart=on-failure

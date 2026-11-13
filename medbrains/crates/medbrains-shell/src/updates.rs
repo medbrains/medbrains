@@ -31,8 +31,16 @@ pub(crate) fn last_words(status: &UpdateStatus) -> String {
     words.join(" ")
 }
 
-/// What the top bar shows, if anything, and whether it is a warning. Nothing when all is well.
+/// What the top bar shows, if anything, and whether it is a warning. Nothing when all is well. An alarm
+/// comes first: a security fix waiting too long, or a system that failed its seal check.
 pub(crate) fn chip_words(status: &UpdateStatus) -> Option<(&'static str, bool)> {
+    if !status.alarm.is_empty() {
+        return Some(if status.stage == "waiting" && status.security {
+            ("Security fix overdue", true)
+        } else {
+            ("System damaged", true)
+        });
+    }
     if status.stage == "waiting" {
         return Some(if status.security {
             ("Security fix ready", true)
@@ -299,5 +307,11 @@ mod tests {
             ..UpdateLast::default()
         });
         assert_eq!(chip_words(&failed), None);
+        let mut overdue = status("waiting", true);
+        overdue.alarm = "A security fix has waited more than three days.".to_owned();
+        assert_eq!(chip_words(&overdue), Some(("Security fix overdue", true)));
+        let mut damaged = status("idle", false);
+        damaged.alarm = "The system partition failed its seal check.".to_owned();
+        assert_eq!(chip_words(&damaged), Some(("System damaged", true)));
     }
 }

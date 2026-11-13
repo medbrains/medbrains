@@ -9,10 +9,14 @@ use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const BOOT_TIMEOUT: Duration = Duration::from_secs(180);
+/// Long enough for a first start on a host shared with other machines: one at 180 s ran out while an
+/// emulated x86-64 machine shared the CPU, with the guest healthy.
+const BOOT_TIMEOUT: Duration = Duration::from_secs(300);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const BOOT_ID: &str = "cat /proc/sys/kernel/random/boot_id";
 const POLL: Duration = Duration::from_secs(2);
+/// How much of the serial port a failed wait reports, so a stuck start says where it stopped.
+const SERIAL_TAIL: usize = 600;
 /// The debug shell's prompt.
 const PROMPT: &str = "root@medbrains";
 /// Guest ports reachable through QEMU, as host name and guest port.
@@ -121,7 +125,7 @@ const RECOVERY_KEY_GROUPS: usize = 8;
 /// The question can reach the screen before the USB keyboard works, and keys sent then are lost.
 pub(crate) const KEYBOARD_READY: Duration = Duration::from_secs(10);
 const RECOVERY_KEY_PROMPT: &str = "write down this disk's recovery key";
-const GROUP_QUESTION: &str = "type group ";
+const WHOLE_KEY_QUESTION: &str = "type the whole recovery key";
 /// The rest of the bare kernel's command line; `root=` names the image's own slot, as its boot file does.
 const BARE_KERNEL_LINE: &str = "rw luks.crypttab=no quiet loglevel=1 audit=0 console=tty1 console=ttyS0 systemd.mask=serial-getty@ttyS0.service";
 const START_QUESTION: &str = "how should this machine start";
@@ -151,20 +155,6 @@ pub(crate) fn find_recovery_key(screen: &str) -> Option<String> {
                 .all(|g| !g.is_empty() && g.chars().all(|c| c.is_ascii_lowercase()));
         shaped.then(|| word.to_owned())
     })
-}
-
-/// The answer to the screen's question: the group of `key` it asks for, counting from one.
-fn asked_group(screen: &str, key: &str) -> Option<String> {
-    let (_, rest) = screen.split_once(GROUP_QUESTION)?;
-    let number: usize = rest
-        .split_whitespace()
-        .next()?
-        .trim_end_matches(',')
-        .parse()
-        .ok()?;
-    key.split('-')
-        .nth(number.checked_sub(1)?)
-        .map(str::to_owned)
 }
 
 /// QEMU's name for the key that types `c`, if it has one.
@@ -419,17 +409,15 @@ impl Vm {
         find_recovery_key(&shown).ok_or_else(|| "no recovery key on the screen".to_owned())
     }
 
-    /// Reads the recovery key off the screen and types back its last group, as a person does.
+    /// Reads the recovery key off the screen and types the whole of it back, as a person does.
     pub(crate) fn confirm_recovery_key(&mut self) -> Result<(), String> {
         let key = self.read_recovery_key()?;
         self.type_text("\n")?;
-        let shown = self.wait_for_screen(GROUP_QUESTION, scaled(COMMAND_TIMEOUT))?;
+        let shown = self.wait_for_screen(WHOLE_KEY_QUESTION, scaled(COMMAND_TIMEOUT))?;
         if shown.contains(&key) {
             return Err("the key stayed on the screen while being checked".to_owned());
         }
-        let answer =
-            asked_group(&shown, &key).ok_or_else(|| "no group was asked for".to_owned())?;
-        self.type_text(&format!("{answer}\n"))?;
+        self.type_text(&format!("{key}\n"))?;
         self.recovery_key = key;
         self.wait_for_screen(START_QUESTION, scaled(COMMAND_TIMEOUT))?;
         Ok(())
@@ -501,7 +489,9 @@ impl Vm {
         let firmware = platform().firmware_line.unwrap_or_default();
         while Instant::now() < deadline {
             if let Ok(count) = self.serial.read(&mut buffer) {
-                raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+                let got = buffer.get(..count).unwrap_or_default();
+                self.keep_serial(got);
+                raw.extend_from_slice(got);
             }
             let text = String::from_utf8_lossy(&raw);
             let shown = if restarting {
@@ -513,7 +503,13 @@ impl Vm {
                 return Ok(());
             }
         }
-        Err("the machine showed no prompt in time".to_owned())
+        let text = strip_terminal_codes(&String::from_utf8_lossy(&raw));
+        let skip = text.chars().count().saturating_sub(SERIAL_TAIL);
+        let tail: String = text.chars().skip(skip).collect();
+        Err(format!(
+            "the machine showed no prompt in time; its serial port ended: {}",
+            tail.trim()
+        ))
     }
 
     /// Waits for the machine to restart by itself and show a shell, sending nothing where the
@@ -536,6 +532,18 @@ impl Vm {
         Err("the machine did not restart".to_owned())
     }
 
+    /// Appends what the serial port said to `serial.log` beside the machine's disk, so a start that hangs
+    /// can be read afterwards even where a wait consumed it. Best effort: a test must not fail on its log.
+    fn keep_serial(&self, bytes: &[u8]) {
+        if let Ok(mut log) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.dir.join("serial.log"))
+        {
+            drop(log.write_all(bytes));
+        }
+    }
+
     /// Runs a command inside the machine with the usual time limit.
     pub(crate) fn run(&mut self, command: &str) -> Result<String, String> {
         self.run_for(command, scaled(COMMAND_TIMEOUT))
@@ -556,7 +564,9 @@ impl Vm {
         let (mut raw, mut buffer, deadline) = (Vec::new(), [0_u8; 16_384], Instant::now() + limit);
         while Instant::now() < deadline {
             if let Ok(count) = self.serial.read(&mut buffer) {
-                raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+                let got = buffer.get(..count).unwrap_or_default();
+                self.keep_serial(got);
+                raw.extend_from_slice(got);
             }
             let text = strip_terminal_codes(&String::from_utf8_lossy(&raw));
             if let Some(found) = between_markers(&text, &begin, &end) {
@@ -660,13 +670,49 @@ fn tpm_args(dir: &Path, name: &str) -> Result<Vec<String>, String> {
 }
 
 /// The version in an image's file name, `medbrains-os_<version>.raw`, which is also its slot's name.
-fn image_version(image: &Path) -> Result<String, String> {
+pub(crate) fn image_version(image: &Path) -> Result<String, String> {
     image
         .file_stem()
         .and_then(|stem| stem.to_str())
         .and_then(|stem| stem.rsplit_once('_'))
         .map(|(_, version)| version.to_owned())
         .ok_or_else(|| format!("no version in the image name {}", image.display()))
+}
+
+/// Boots `disk` with no TPM and records its serial port, sending nothing, until `stop_at` shows or `limit`
+/// passes. For a machine expected not to start: the caller judges the text. The debug shell's prompt is no
+/// end: it appears early, before a later stop.
+pub(crate) fn serial_of_boot(
+    disk: &Path,
+    stop_at: &str,
+    limit: Duration,
+) -> Result<String, String> {
+    let dir = disk
+        .parent()
+        .ok_or_else(|| "a disk with no folder".to_owned())?;
+    std::fs::copy(qemu_share()?.join(platform().vars), dir.join("vars.fd"))
+        .map_err(|e| e.to_string())?;
+    let mut ports = Vec::new();
+    for (name, _) in FORWARDS {
+        ports.push((name, free_port().map_err(|e| e.to_string())?));
+    }
+    let mut qemu = spawn_qemu(dir, disk, &ports, None, &[])?;
+    let mut serial = connect_socket(&dir.join("serial.sock"))?;
+    let (mut raw, mut buffer, deadline) =
+        (Vec::new(), [0_u8; 16_384], Instant::now() + scaled(limit));
+    while Instant::now() < deadline {
+        if let Ok(count) = serial.read(&mut buffer) {
+            raw.extend_from_slice(buffer.get(..count).unwrap_or_default());
+        }
+        let text = String::from_utf8_lossy(&raw);
+        if text.contains(stop_at) {
+            break;
+        }
+    }
+    // Best effort: the machine is thrown away either way.
+    drop(qemu.kill());
+    drop(qemu.wait());
+    Ok(strip_terminal_codes(&String::from_utf8_lossy(&raw)))
 }
 
 /// Creates an overlay on `image`, so the image itself is never written. `image` may be raw or qcow2.
@@ -788,7 +834,7 @@ fn connect_socket(path: &Path) -> Result<UnixStream, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{asked_group, between_markers, find_recovery_key, qemu_key, strip_terminal_codes};
+    use super::{between_markers, find_recovery_key, qemu_key, strip_terminal_codes};
 
     #[test]
     fn a_recovery_key_is_found_only_in_its_exact_shape() {
@@ -799,12 +845,6 @@ mod tests {
         );
         assert_eq!(find_recovery_key("a first-boot well-known aa-bb-cc"), None);
         assert_eq!(find_recovery_key("AA-bb-cc-dd-ee-ff-gg-hh"), None);
-        assert_eq!(
-            asked_group("type group 3, counting", key).as_deref(),
-            Some("cc")
-        );
-        assert_eq!(asked_group("type group 9, counting", key), None);
-        assert_eq!(asked_group("type group 0, counting", key), None);
     }
 
     #[test]

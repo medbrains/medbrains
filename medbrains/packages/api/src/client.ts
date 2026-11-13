@@ -2870,6 +2870,33 @@ export function setCsrfToken(token: string | null): void {
   persistCsrfToken(token);
 }
 
+/** How long after a person's last touch a request still counts as theirs. */
+const PERSON_INPUT_WINDOW_MS = 60_000;
+const PERSON_INPUT_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+let lastPersonInputAt: number | null = null;
+
+/**
+ * Starts noting a person's input on this page. Requests made when nobody has
+ * touched it for a minute are then marked `X-MedBrains-Background`, so the
+ * polling of an idle screen does not tell the OS updater someone is working
+ * (OS-UPDATES.md, quiet window). Web only; call once at start.
+ */
+export function trackPersonInput(target: Pick<Window, "addEventListener">): void {
+  lastPersonInputAt = Date.now();
+  /** Notes that a person touched the page just now. */
+  const note = (): void => {
+    lastPersonInputAt = Date.now();
+  };
+  for (const type of PERSON_INPUT_EVENTS) {
+    target.addEventListener(type, note, { capture: true, passive: true });
+  }
+}
+
+/** True if this page tracks input and nobody has touched it for a minute. */
+function isBackgroundRequest(): boolean {
+  return lastPersonInputAt !== null && Date.now() - lastPersonInputAt > PERSON_INPUT_WINDOW_MS;
+}
+
 // UI-provided step-up prompt: shows a re-auth modal, resolves true once the user
 // re-proves identity (POST /auth/step-up) so the original request can retry.
 let stepUpHandler: (() => Promise<boolean>) | null = null;
@@ -2994,6 +3021,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (nativeClientName) {
     headers["X-MedBrains-Client"] = nativeClientName;
+  }
+  if (isBackgroundRequest()) {
+    headers["X-MedBrains-Background"] = "1";
   }
 
   // An explicit Authorization from the caller wins. A portal call carries a

@@ -3,14 +3,19 @@
 //!     cargo run -p medbrains-os-test -- <image.raw> [disk]
 //!     cargo run -p medbrains-os-test -- <image.raw> updates <bundles folder>
 //!
-//! `disk` runs only the data disk scenarios, `pin` only the PIN ones. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
+//! `disk` runs only the data disk scenarios, `pin` only the PIN ones, `tamper` only the changed system partition. Needs `make os-image DEBUG=1`, QEMU and swtpm. Exits non-zero if any check fails. Budgets are in
 //! `budgets.json`: ratchets to lower as the numbers improve (targets: RFC-HOSPITAL-OS §3a).
 
 mod disk;
 mod front;
+mod setup;
+mod tamper;
 mod update_channel;
+mod update_power;
+mod update_seal;
 mod update_sealed;
 mod update_steps;
+mod update_verity;
 mod updates;
 mod vm;
 
@@ -33,8 +38,6 @@ const SYSCTLS: [(&str, &str); 6] = [
 ];
 const CLOSED_FROM_OUTSIDE: [&str; 4] = ["ssh", "server", "database", "edge"];
 const TIME_SYNC_LIMIT: Duration = Duration::from_secs(120);
-const SETUP_LIMIT: Duration = Duration::from_secs(150);
-const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const AGENT_API: &str = "http://127.0.0.1:3000/api/machine-agent";
 const AGENT_TOKEN: &str = "/var/lib/medbrains-agent/server-token";
 const TOKEN_HEADER: &str = "x-machine-agent-token";
@@ -78,6 +81,43 @@ fn within(what: &str, used: u64, limit: u64) -> Result<(), String> {
 fn no_failed_services(vm: &mut Vm, _: &Value) -> Result<(), String> {
     let failed = vm.run("systemctl --failed --no-legend --plain")?;
     ensure(failed.is_empty(), failed)
+}
+
+/// The root is the sealed, read-only system: dm-verity under `/`, writes refused, a remount refused.
+fn system_is_sealed_and_read_only(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let root = vm.run("findmnt -no SOURCE,OPTIONS /")?;
+    ensure(root.starts_with("/dev/mapper/root ro"), root)?;
+    let status = vm.run("veritysetup status root | sed -n 's/^ *status: *//p'")?;
+    ensure(status.contains("verified"), format!("verity says {status}"))?;
+    for path in ["/usr/os-test", "/etc/os-test"] {
+        let written = vm.run(&format!("touch {path} 2>/dev/null; echo $?"))?;
+        ensure(written != "0", format!("{path} could be written"))?;
+    }
+    let remounted = vm.run("mount -o remount,rw / 2>/dev/null; echo $?")?;
+    ensure(remounted != "0", "the root could be remounted writable")
+}
+
+/// The machine id is kept on the data partition, as its UUID, so it survives every start and update.
+fn machine_id_is_kept(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    let id = vm.run("cat /etc/machine-id")?;
+    let kept = vm.run("lsblk -nro PARTLABEL,PARTUUID /dev/vda | awk '$1 == \"medbrains-data\" { gsub(\"-\", \"\", $2); print $2 }'")?;
+    ensure(
+        id.len() == 32 && id == kept,
+        format!("machine id {id}, kept {kept}"),
+    )
+}
+
+/// The boot partition's file system was checked at this start, before it was mounted: systemd's own
+/// `systemd-fsck@` for the automounted boot partition, which runs `fsck.vfat -a` now that the image has it.
+fn boot_partition_checked(vm: &mut Vm, _: &Value) -> Result<(), String> {
+    vm.run("ls /boot >/dev/null")?;
+    let log = vm.run(
+        "journalctl -b --no-pager -o cat -u 'systemd-fsck@*' | grep -cE 'fsck.fat|files, '; true",
+    )?;
+    ensure(
+        log != "0",
+        "the boot partition was not checked before it was mounted",
+    )
 }
 
 /// The app answers through the front proxy.
@@ -361,6 +401,14 @@ fn database_memory_follows_the_machine(vm: &mut Vm, _: &Value) -> Result<(), Str
 fn checks() -> Vec<Check> {
     vec![
         ("no service has failed", no_failed_services),
+        (
+            "the system partition is sealed and read-only",
+            system_is_sealed_and_read_only,
+        ),
+        (
+            "the machine id is kept on the data disk",
+            machine_id_is_kept,
+        ),
         ("the app answers through the front proxy", app_answers),
         ("plain HTTP only redirects", http_only_redirects),
         (
@@ -406,6 +454,10 @@ fn checks() -> Vec<Check> {
         (
             "disk and priority settings hold",
             disk_and_priority_settings,
+        ),
+        (
+            "the boot partition is checked at start",
+            boot_partition_checked,
         ),
         ("idle memory is within budget", idle_memory),
         ("system disk is within budget", system_disk),
@@ -479,41 +531,11 @@ fn checks() -> Vec<Check> {
     ]
 }
 
-/// Makes this machine a main machine, as the screen's Review does: nothing runs before that. The
-/// password is made fresh, so none is written down, and the machine is thrown away. The username is
-/// not `admin`, which setup refuses because Kanidm keeps it, and the password is a phrase, because
-/// Kanidm's strength check is what setup applies.
-fn set_up_main(vm: &mut Vm) -> Result<(), String> {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-    let body = format!(
-        r#"{{"hospital":"Test Hospital","username":"os_test_admin","password":"Night porter {stamp} keeps blue lanterns"}}"#
-    );
-    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
-    while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
-        ensure(Instant::now() < deadline, "the setup service never started")?;
-        std::thread::sleep(Duration::from_secs(2));
-    }
-    let answer = vm.run_for(
-        // The shell can answer before the setup service has opened its socket.
-        &format!(
-            "for i in $(seq 60); do test -S {SETUP_SOCKET} && break; sleep 1; done; curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"
-        ),
-        SETUP_LIMIT,
-    )?;
-    ensure(
-        answer.contains("\"ok\":true"),
-        format!("setup answered {answer}"),
-    )
-}
-
 /// Boots the image and runs every check, then the data disk scenarios; returns how many failed.
 fn run_suite(image: &Path) -> Result<usize, String> {
     let budgets: Value = serde_json::from_str(BUDGETS).map_err(|e| e.to_string())?;
     let mut vm = Vm::start(image)?;
-    set_up_main(&mut vm)?;
+    setup::set_up_main(&mut vm)?;
     vm.wait_for_server()?;
     let mut failed = 0;
     for (name, check) in checks() {
@@ -532,13 +554,31 @@ fn run_suite(image: &Path) -> Result<usize, String> {
     let sealed = disk::run_sealed_disk(&mut vm, image)?;
     // One machine at a time: this one goes before the next starts.
     drop(vm);
-    Ok(failed + sealed + disk::run_without_sealed_disk(image))
+    Ok(failed + sealed + disk::run_without_sealed_disk(image) + run_tamper(image))
+}
+
+/// The changed-system scenario, on a machine of its own; 1 if it failed.
+fn run_tamper(image: &Path) -> usize {
+    let started = Instant::now();
+    let result = tamper::changed_system_does_not_start(image);
+    let line = match &result {
+        Ok(()) => format!(
+            "pass  a system partition changed offline does not start ({:.1}s)\n",
+            started.elapsed().as_secs_f32()
+        ),
+        Err(why) => format!("FAIL  a system partition changed offline does not start: {why}\n"),
+    };
+    drop(std::io::Write::write_all(
+        &mut std::io::stderr(),
+        line.as_bytes(),
+    ));
+    usize::from(result.is_err())
 }
 
 /// Only the data disk scenarios, on a new machine.
 fn run_disk_only(image: &Path) -> Result<usize, String> {
     let mut vm = Vm::start(image)?;
-    set_up_main(&mut vm)?;
+    setup::set_up_main(&mut vm)?;
     let sealed = disk::run_sealed_disk(&mut vm, image)?;
     // One machine at a time: this one goes before the next starts.
     drop(vm);
@@ -557,6 +597,7 @@ fn main() -> ExitCode {
     let result = match std::env::args().nth(2).as_deref() {
         Some("disk") => run_disk_only(image),
         Some("pin") => Ok(disk::run_pin_only(image)),
+        Some("tamper") => Ok(run_tamper(image)),
         Some("updates") => {
             let bundles = std::env::args().nth(3).unwrap_or_default();
             updates::run(image, Path::new(&bundles))

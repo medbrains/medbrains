@@ -1,0 +1,11 @@
+# In the boot file's initrd: the machine id from the data partition, before the system starts and reads it.
+[Unit]
+Description=Give the system this machine's id
+DefaultDependencies=no
+After=sysroot.mount
+Requires=sysroot.mount
+Before=initrd-root-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/medbrains/initrd-machine-id

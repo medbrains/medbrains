@@ -10,10 +10,9 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use crate::update_steps;
 use crate::vm::{self, Vm, make_overlay};
+use crate::{setup, update_steps};
 
-const SETUP_SOCKET: &str = "/run/medbrains-console/setup.sock";
 const SETUP_LIMIT: Duration = Duration::from_secs(180);
 const POLL: Duration = Duration::from_secs(3);
 /// How long a new version gets here: long enough for the server, short enough to test a failure.
@@ -23,6 +22,8 @@ const HEALTH_SECONDS: u64 = 120;
 /// change is what it holds.
 const KEPT: &str = "/var/lib/medbrains/config /var/lib/medbrains-settings /var/lib/medbrains/network /var/lib/medbrains/os-test-canary /var/lib/iwd /var/lib/kiosk";
 const CANARY_ROWS: u32 = 100_000;
+/// The set-up machine's firmware variables, which every scenario starts from, as it starts from its disk.
+const BASE_VARS: &str = "vars-base.fd";
 const READ_VERSION: &str = "sed -n 's/^IMAGE_VERSION=//p' /usr/lib/os-release | tr -d '\"'";
 /// Where the guest finds the host running this test.
 const HOST: &str = "10.0.2.2";
@@ -38,6 +39,8 @@ pub(crate) struct Bench {
     pub(crate) bundles: PathBuf,
     /// The version the image was built as.
     pub(crate) first: String,
+    /// The first administrator's password, for signing in as a person.
+    pub(crate) password: String,
     server: Child,
 }
 
@@ -106,31 +109,6 @@ fn start_server(bundles: &Path, work: &Path) -> Result<(u16, Child, String), Str
     sleep(Duration::from_secs(1));
     let pem = std::fs::read_to_string(&cert).map_err(|e| e.to_string())?;
     Ok((port, server, pem))
-}
-
-/// Makes this machine a main machine the way the screen's Review does. The password is made fresh, so
-/// none is written down, and the machine is thrown away.
-fn set_up_main(vm: &mut Vm) -> Result<(), String> {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-    let body =
-        format!(r#"{{"hospital":"Test Hospital","username":"admin","password":"Os-{stamp}-Aa!"}}"#);
-    let deadline = Instant::now() + vm::scaled(SETUP_LIMIT);
-    while vm.run(&format!("test -S {SETUP_SOCKET}; echo $?"))? != "0" {
-        ensure(Instant::now() < deadline, "the setup service never started")?;
-        sleep(POLL);
-    }
-    let answer = vm.run_for(
-        &format!("curl -s -m 80 --unix-socket {SETUP_SOCKET} -d '{body}' http://machine/hospital"),
-        SETUP_LIMIT,
-    )?;
-    ensure(
-        answer.contains("\"ok\":true"),
-        format!("setup answered {answer}"),
-    )?;
-    vm.wait_for_server()
 }
 
 /// Writes what the scenarios later prove survived: a settings tree, a file of random bytes and a table.
@@ -236,13 +214,19 @@ pub(crate) fn wait_version(
     let started = Instant::now();
     let limit = vm::scaled(limit);
     loop {
-        // A short wait: reading for longer could swallow the firmware line that `wait_for_restart` needs.
         let asked = vm.run_for(READ_VERSION, vm::scaled(Duration::from_secs(4)));
-        if asked.is_ok_and(|text| text == version) {
+        if asked.as_ref().is_ok_and(|text| text == version) {
             return Ok(started.elapsed());
         }
         let left = limit.saturating_sub(started.elapsed());
         ensure(!left.is_zero(), format!("never running {version}"))?;
+        // No answer: the machine is restarting, and a fast restart (a failed seal check takes under four
+        // seconds) can put its firmware line inside the read above, where a wait for the next one would
+        // never end. Ask again instead. A shell that answers another version waits for the next restart.
+        if asked.is_err() {
+            sleep(POLL);
+            continue;
+        }
         vm.wait_for_restart(left)
             .map_err(|e| format!("never running {version}: {e}"))?;
     }
@@ -275,15 +259,53 @@ pub(crate) fn wait_status(
     ))
 }
 
+/// Powers on a set-up machine from `disk` and waits for its shell and its server, printing how long each
+/// took and systemd's own count. Every scenario starts this way, so each run also measures a cold start
+/// with the seal on. On x86-64 the shell time includes the fixed wait that keeps keys out of the firmware.
+fn cold_start(vm: &mut Vm, disk: &Path) -> Result<(), String> {
+    let started = Instant::now();
+    vm.boot(disk, own_tpm())?;
+    let shell = started.elapsed();
+    vm.wait_for_server()?;
+    let server = started.elapsed();
+    let systemd = vm.run("systemd-analyze 2>&1 | head -1").unwrap_or_default();
+    say(&format!(
+        "      cold start: shell {:.1}s, server {:.1}s; {systemd}",
+        shell.as_secs_f32(),
+        server.as_secs_f32()
+    ));
+    Ok(())
+}
+
+/// What a failed scenario's machine says about itself, if its shell still answers: failed units, waiting
+/// jobs and this start's warnings, so a failure can be explained without running it again.
+fn failure_notes(vm: &mut Vm) -> String {
+    vm.run_for(
+        "systemctl --failed --no-legend --plain; echo RUNNING; systemctl list-jobs --no-legend | grep -v waiting | head -10; \
+         systemctl status --no-pager -n 5 medbrains-seal medbrains-disk-setup 2>&1 | cut -c1-200 | head -40; \
+         echo ENTRIES; bootctl list --no-pager 2>&1 | grep -E 'title|source|tries' | head -12; \
+         echo BEFORE; journalctl -b -1 --no-pager -p warning -n 20 -o short-monotonic 2>&1 | cut -c1-220; \
+         echo LOG; journalctl -b --no-pager -p warning -n 40 -o short-monotonic | cut -c1-220",
+        Duration::from_secs(60),
+    )
+    .unwrap_or_else(|why| format!("no shell: {why}"))
+}
+
 /// Plays one scenario on a copy of the set-up machine, and removes the copy.
 fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
     let started = Instant::now();
     let overlay = vm.scratch_path("scenario.qcow2");
-    let result = make_overlay(base, &overlay)
-        .and_then(|()| vm.boot(&overlay, own_tpm()))
-        .and_then(|()| vm.wait_for_server())
+    // The firmware's variables are part of the machine: a scenario that hung one must not choose what
+    // the next one boots.
+    let firmware = std::fs::copy(vm.scratch_path(BASE_VARS), vm.scratch_path("vars.fd"))
+        .map(|_| ())
+        .map_err(|e| format!("firmware variables: {e}"));
+    let result = firmware
+        .and_then(|()| make_overlay(base, &overlay))
+        .and_then(|()| cold_start(vm, &overlay))
         .and_then(|()| open_mirror(vm, bench))
         .and_then(|()| (scenario.1)(vm, bench));
+    let notes = result.as_ref().err().map(|_| failure_notes(vm));
     // Already off is the only way this fails.
     drop(vm.cut_power());
     drop(std::fs::remove_file(&overlay));
@@ -293,7 +315,11 @@ fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
             scenario.0,
             started.elapsed().as_secs_f32()
         )),
-        Err(why) => say(&format!("FAIL  {}: {why}", scenario.0)),
+        Err(why) => say(&format!(
+            "FAIL  {}: {why}\n      the machine said: {}",
+            scenario.0,
+            notes.unwrap_or_default()
+        )),
     }
     result.is_ok()
 }
@@ -307,15 +333,19 @@ pub(crate) fn run(image: &Path, bundles: &Path) -> Result<usize, String> {
     let only = std::env::var("MB_OS_TEST_ONLY").unwrap_or_default();
     let mut vm = Vm::start(image)?;
     let (port, server, pem) = start_server(bundles, &vm.scratch_path(""))?;
-    let bench = Bench {
+    let mut bench = Bench {
         port,
         bundles: bundles.to_owned(),
         first,
+        password: String::new(),
         server,
     };
-    set_up_main(&mut vm)?;
+    bench.password = setup::set_up_main(&mut vm)?;
+    vm.wait_for_server()?;
     write_canaries(&mut vm, &pem)?;
     vm.shut_down()?;
+    std::fs::copy(vm.scratch_path("vars.fd"), vm.scratch_path(BASE_VARS))
+        .map_err(|e| format!("firmware variables: {e}"))?;
     let base = vm.disk();
     let mut failed = 0;
     for scenario in update_steps::scenarios() {

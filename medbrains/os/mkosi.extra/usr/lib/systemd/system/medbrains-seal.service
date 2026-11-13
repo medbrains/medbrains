@@ -1,0 +1,19 @@
+# Acts on a system partition that failed its seal check at start (OS-VERITY.md): a new version on trial
+# goes back; a machine with an earlier version in its other slot leaves a note on the boot partition and
+# reconcile decides once the data disk is open; one with neither stops and says why. Runs at every start,
+# before the data disk is set up or opened. A bad block found later is medbrains-seal-running.service.
+# An intact seal does nothing.
+[Unit]
+Description=Check the system partition's seal
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=systemd-udevd.service boot.automount
+Wants=cryptsetup-pre.target
+Before=cryptsetup-pre.target medbrains-disk-setup.service sysinit.target shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/medbrains-os-update seal
+
+[Install]
+WantedBy=sysinit.target

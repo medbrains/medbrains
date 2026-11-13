@@ -1,0 +1,12 @@
+# In the boot file's initrd: a system with no init would be switched to anyway, and systemd then falls back
+# to a shell that waits on the console forever, past the initrd's own restart. Refusing here stops the start
+# in the initrd, where a counted start restarts (medbrains-trial-reboot) and goes back to the old version.
+[Unit]
+Description=Check the system has an init before starting it
+DefaultDependencies=no
+After=initrd-root-fs.target
+Before=initrd.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/test -x /sysroot/usr/lib/systemd/systemd

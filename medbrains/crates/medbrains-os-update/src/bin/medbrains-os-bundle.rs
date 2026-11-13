@@ -4,10 +4,15 @@
 //!
 //!     medbrains-os-bundle keygen <out prefix>
 //!     medbrains-os-bundle extract <image.raw> <partition name> <out file>
-//!     medbrains-os-bundle make <out dir> <version> <arch> <min version> <root image> <boot file>
-//!         [--upgrades-from V] [--expires-days N] [--security] [--summary TEXT]
+//!     medbrains-os-bundle make <out dir> <version> <arch> <min version> <root image> <verity image> <boot file>
+//!         [--upgrades-from V] [--expires-days N] [--security] [--summary TEXT] [--unchecked-seal]
+//!
+//! `make` refuses a boot file whose command line does not seal its system, and a system or tree that does
+//! not match the boot file's root hash, so a release built wrong is stopped here and not on every machine.
+//! `--unchecked-seal` skips that, for the test bundle that proves machines refuse such a release.
 //!     medbrains-os-bundle refresh <bundle dir> <days>    new expiry; the old signatures are removed
-//!     medbrains-os-bundle sign <bundle dir> <key id> <private key file>
+//!     medbrains-os-bundle sign <bundle dir> <key id> <private key file> <trusted keys dir>
+//!     medbrains-os-bundle verify <bundle dir> <trusted keys dir>    as a machine would; prints who signed
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -17,15 +22,14 @@ use std::process::{Command, ExitCode};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use ed25519_dalek::{Signer, SigningKey};
-use medbrains_os_update::disk;
 use medbrains_os_update::manifest::{
     BOOT_FILE, BootImage, MANIFEST_FILE, Manifest, ROOT_FILE, RootImage, SIGNATURE_FILE,
+    TrustedKey, VERITY_FILE, load_threshold, verify_signature,
 };
+use medbrains_os_update::{disk, gpt, pe, verity, verity_tree};
 
-const SECTOR: u64 = 512;
-const ENTRY_LABEL_AT: usize = 56;
 const NO_LIMIT: u64 = u64::MAX;
-const FORMAT: u32 = 1;
+const FORMAT: u32 = 2;
 const SEED_LEN: usize = 32;
 const ZSTD_LEVEL: &str = "-19";
 
@@ -47,54 +51,10 @@ fn keygen(prefix: &str) -> Result<(), String> {
     writeln!(file, "{}", STANDARD.encode(seed)).map_err(|e| e.to_string())
 }
 
-/// A partition's byte range, from a GPT in `header` and its `entries`, by the partition's name.
-fn find_partition(header: &[u8], entries: &[u8], wanted: &str) -> Option<(u64, u64)> {
-    let entry_size =
-        usize::try_from(u32::from_le_bytes(header.get(84..88)?.try_into().ok()?)).ok()?;
-    if entry_size < ENTRY_LABEL_AT || header.get(..8)? != b"EFI PART" {
-        return None;
-    }
-    entries.chunks_exact(entry_size).find_map(|entry| {
-        let label: Vec<u16> = entry
-            .get(ENTRY_LABEL_AT..)?
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pair| u16::from_le_bytes(*pair))
-            .take_while(|unit| *unit != 0)
-            .collect();
-        if String::from_utf16_lossy(&label) != wanted {
-            return None;
-        }
-        let first = u64::from_le_bytes(entry.get(32..40)?.try_into().ok()?);
-        let last = u64::from_le_bytes(entry.get(40..48)?.try_into().ok()?);
-        Some((first * SECTOR, (last - first + 1) * SECTOR))
-    })
-}
-
 /// Copies one partition out of a disk image, by its name.
 fn extract(image: &str, wanted: &str, out: &str) -> Result<(), String> {
+    let (start, size) = gpt::partition_range(Path::new(image), wanted)?;
     let mut file = File::open(image).map_err(|e| format!("{image}: {e}"))?;
-    let mut header = vec![0_u8; SECTOR as usize];
-    file.seek(SeekFrom::Start(SECTOR))
-        .map_err(|e| e.to_string())?;
-    file.read_exact(&mut header).map_err(|e| e.to_string())?;
-    let field = |at: usize| -> Result<u32, String> {
-        let raw = header.get(at..at + 4).and_then(|r| r.try_into().ok());
-        raw.map(u32::from_le_bytes)
-            .ok_or_else(|| "A short GPT header.".to_owned())
-    };
-    let table = u64::from(field(72)?) * SECTOR;
-    let mut entries = vec![
-        0_u8;
-        usize::try_from(u64::from(field(80)?) * u64::from(field(84)?))
-            .map_err(|e| e.to_string())?
-    ];
-    file.seek(SeekFrom::Start(table))
-        .map_err(|e| e.to_string())?;
-    file.read_exact(&mut entries).map_err(|e| e.to_string())?;
-    let (start, size) = find_partition(&header, &entries, wanted)
-        .ok_or_else(|| format!("{image} has no partition named {wanted}."))?;
     file.seek(SeekFrom::Start(start))
         .map_err(|e| e.to_string())?;
     let mut target = File::create(out).map_err(|e| format!("{out}: {e}"))?;
@@ -113,11 +73,13 @@ struct MakeArgs<'a> {
     arch: &'a str,
     min_version: &'a str,
     root: &'a str,
+    verity: &'a str,
     boot: &'a str,
     upgrades_from: &'a str,
     expires_days: u64,
     security: bool,
     summary: &'a str,
+    unchecked_seal: bool,
 }
 
 /// How long a signature counts unless `--expires-days` says otherwise.
@@ -162,22 +124,49 @@ fn refresh(bundle: &str, days: &str) -> Result<(), String> {
     }
 }
 
-/// Compresses the root image, hashes everything and writes the manifest. The signature comes after.
-fn make(args: &MakeArgs<'_>) -> Result<(), String> {
-    let dir = Path::new(args.out);
-    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    let compressed = dir.join(ROOT_FILE);
+/// Compresses a partition image into the bundle as `name` and describes both forms of it.
+fn pack(image: &str, dir: &Path, name: &str) -> Result<RootImage, String> {
+    let compressed = dir.join(name);
     let done = Command::new("zstd")
-        .args(["-q", "-f", "-T0", ZSTD_LEVEL, args.root, "-o"])
+        .args(["-q", "-f", "-T0", ZSTD_LEVEL, image, "-o"])
         .arg(&compressed)
         .status()
         .map_err(|e| format!("zstd could not start: {e}"))?;
     if !done.success() {
         return Err("zstd failed.".to_owned());
     }
-    fs::copy(args.boot, dir.join(BOOT_FILE)).map_err(|e| format!("{}: {e}", args.boot))?;
-    let (raw_sha256, raw_size) = disk::hash_file(Path::new(args.root), NO_LIMIT)?;
+    let (raw_sha256, raw_size) = disk::hash_file(Path::new(image), NO_LIMIT)?;
     let (sha256, size) = disk::hash_file(&compressed, NO_LIMIT)?;
+    Ok(RootImage {
+        sha256,
+        size,
+        raw_sha256,
+        raw_size,
+    })
+}
+
+/// Refuses a boot file that does not seal its system, and a system or tree that is not the one its root
+/// hash names: the same checks a machine makes before naming a slot, made once, before anything is signed.
+fn check_seal(args: &MakeArgs<'_>) -> Result<(), String> {
+    let boot = fs::read(args.boot).map_err(|e| format!("{}: {e}", args.boot))?;
+    let line = pe::section(&boot, ".cmdline")
+        .ok_or_else(|| format!("{} has no command line.", args.boot))?;
+    let line = String::from_utf8_lossy(line);
+    let roothash = verity::sealed_cmdline(&line).map_err(|why| format!("{}: {why}", args.boot))?;
+    verity_tree::verify_tree(Path::new(args.root), Path::new(args.verity), roothash)
+}
+
+/// Checks the seal, then compresses the root image and its tree, hashes everything and writes the
+/// manifest. The signature comes after.
+fn make(args: &MakeArgs<'_>) -> Result<(), String> {
+    if !args.unchecked_seal {
+        check_seal(args)?;
+    }
+    let dir = Path::new(args.out);
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let root = pack(args.root, dir, ROOT_FILE)?;
+    let verity = pack(args.verity, dir, VERITY_FILE)?;
+    fs::copy(args.boot, dir.join(BOOT_FILE)).map_err(|e| format!("{}: {e}", args.boot))?;
     let (boot_sha256, boot_size) = disk::hash_file(&dir.join(BOOT_FILE), NO_LIMIT)?;
     let manifest = Manifest {
         format: FORMAT,
@@ -188,12 +177,8 @@ fn make(args: &MakeArgs<'_>) -> Result<(), String> {
         expires: days_from_now(args.expires_days)?,
         security: args.security,
         summary: args.summary.to_owned(),
-        root: RootImage {
-            sha256,
-            size,
-            raw_sha256,
-            raw_size,
-        },
+        root,
+        verity,
         boot: BootImage {
             sha256: boot_sha256,
             size: boot_size,
@@ -203,22 +188,85 @@ fn make(args: &MakeArgs<'_>) -> Result<(), String> {
     fs::write(dir.join(MANIFEST_FILE), text).map_err(|e| e.to_string())
 }
 
-/// Adds one signature to a bundle, so during a rotation it can carry the old key's and the new one's.
-fn sign(bundle: &str, key_id: &str, key_file: &str) -> Result<(), String> {
-    let dir = Path::new(bundle);
+/// Reads a signing seed, refusing one that is not 32 bytes or is all zero: a zero seed is a file someone
+/// forgot to fill, and anyone can sign with it.
+fn read_seed(key_file: &str) -> Result<[u8; SEED_LEN], String> {
     let text = fs::read_to_string(key_file).map_err(|e| format!("{key_file}: {e}"))?;
     let seed = STANDARD.decode(text.trim()).map_err(|e| e.to_string())?;
     let seed: [u8; SEED_LEN] = seed
         .try_into()
         .map_err(|_| "A key has 32 bytes.".to_owned())?;
+    if seed == [0; SEED_LEN] {
+        return Err(format!("{key_file} is all zeros, which is not a key."));
+    }
+    Ok(seed)
+}
+
+/// The key the images trust under `key_id`, from `keys_dir`, the folder copied into every image.
+fn trusted_key(keys_dir: &str, key_id: &str) -> Result<TrustedKey, String> {
+    let path = Path::new(keys_dir).join(format!("{key_id}.pub"));
+    let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    TrustedKey::parse(key_id, &text)
+        .ok_or_else(|| format!("{} is not a usable public key.", path.display()))
+}
+
+/// Adds one signature to a bundle, so during a rotation it can carry the old key's and the new one's. The
+/// private key must be the one the images trust as `key_id` in `keys_dir`, and the line written is read
+/// back and checked, so a wrong key or a damaged write is found here and not on every machine.
+fn sign(bundle: &str, key_id: &str, key_file: &str, keys_dir: &str) -> Result<(), String> {
+    let dir = Path::new(bundle);
+    let signing = SigningKey::from_bytes(&read_seed(key_file)?);
+    let trusted = trusted_key(keys_dir, key_id)?;
+    if signing.verifying_key().to_bytes() != trusted.bytes() {
+        return Err(format!(
+            "{key_file} is not the key images trust as {key_id} ({keys_dir}/{key_id}.pub)."
+        ));
+    }
     let manifest = fs::read(dir.join(MANIFEST_FILE)).map_err(|e| e.to_string())?;
-    let signature = SigningKey::from_bytes(&seed).sign(&manifest);
+    let signature = signing.sign(&manifest);
     let mut file = File::options()
         .append(true)
         .create(true)
         .open(dir.join(SIGNATURE_FILE))
         .map_err(|e| e.to_string())?;
-    writeln!(file, "{key_id} {}", STANDARD.encode(signature.to_bytes())).map_err(|e| e.to_string())
+    writeln!(file, "{key_id} {}", STANDARD.encode(signature.to_bytes()))
+        .and_then(|()| file.sync_all())
+        .map_err(|e| e.to_string())?;
+    let written = fs::read_to_string(dir.join(SIGNATURE_FILE)).map_err(|e| e.to_string())?;
+    check_last_line(&manifest, &written, trusted)
+}
+
+/// Checks the last line of the signature file `written` is a valid signature of `manifest` by `trusted`.
+fn check_last_line(manifest: &[u8], written: &str, trusted: TrustedKey) -> Result<(), String> {
+    let last = written.lines().last().unwrap_or_default();
+    verify_signature(manifest, last, &[trusted], 1)
+        .map(|_| ())
+        .map_err(|why| format!("The signature just written does not check: {why}"))
+}
+
+/// Checks a bundle's signatures as a machine trusting the keys in `keys_dir` would, threshold included,
+/// and prints who signed it.
+fn verify(bundle: &str, keys_dir: &str) -> Result<(), String> {
+    let dir = Path::new(bundle);
+    let manifest = fs::read(dir.join(MANIFEST_FILE)).map_err(|e| e.to_string())?;
+    let signatures = fs::read_to_string(dir.join(SIGNATURE_FILE)).map_err(|e| e.to_string())?;
+    let keys_path = Path::new(keys_dir);
+    let keys: Vec<TrustedKey> = fs::read_dir(keys_path)
+        .map_err(|e| format!("{keys_dir}: {e}"))?
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let id = name.strip_suffix(".pub")?.to_owned();
+            TrustedKey::parse(&id, &fs::read_to_string(entry.path()).ok()?)
+        })
+        .collect();
+    let signed_by = verify_signature(&manifest, &signatures, &keys, load_threshold(keys_path))?;
+    drop(writeln!(
+        std::io::stdout(),
+        "signed by {}",
+        signed_by.join(", ")
+    ));
+    Ok(())
 }
 
 /// Picks the action.
@@ -234,6 +282,7 @@ fn run(args: &[String]) -> Result<(), String> {
             arch,
             min_version,
             root,
+            verity,
             boot,
             rest @ ..,
         ] => make(&MakeArgs {
@@ -242,6 +291,7 @@ fn run(args: &[String]) -> Result<(), String> {
             arch,
             min_version,
             root,
+            verity,
             boot,
             upgrades_from: flag(rest, "--upgrades-from").unwrap_or(FROM_ANY),
             expires_days: flag(rest, "--expires-days")
@@ -249,10 +299,15 @@ fn run(args: &[String]) -> Result<(), String> {
                 .map_err(|_| "--expires-days takes a number.".to_owned())?,
             security: rest.contains(&"--security"),
             summary: flag(rest, "--summary").unwrap_or(""),
+            unchecked_seal: rest.contains(&"--unchecked-seal"),
         }),
         ["refresh", bundle, days] => refresh(bundle, days),
-        ["sign", bundle, key_id, key_file] => sign(bundle, key_id, key_file),
-        _ => Err("usage: medbrains-os-bundle keygen|extract|make|sign (see the source)".to_owned()),
+        ["sign", bundle, key_id, key_file, keys_dir] => sign(bundle, key_id, key_file, keys_dir),
+        ["verify", bundle, keys_dir] => verify(bundle, keys_dir),
+        _ => Err(
+            "usage: medbrains-os-bundle keygen|extract|make|refresh|sign|verify (see the source)"
+                .to_owned(),
+        ),
     }
 }
 
@@ -270,31 +325,92 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::find_partition;
+    use std::fs;
+    use std::path::PathBuf;
 
-    /// A GPT with one partition, in the layout the UEFI specification gives.
-    fn gpt(label: &str) -> (Vec<u8>, Vec<u8>) {
-        let mut header = vec![0_u8; 512];
-        header[..8].copy_from_slice(b"EFI PART");
-        header[84..88].copy_from_slice(&128_u32.to_le_bytes());
-        let mut entry = vec![0_u8; 128];
-        entry[32..40].copy_from_slice(&100_u64.to_le_bytes());
-        entry[40..48].copy_from_slice(&199_u64.to_le_bytes());
-        for (index, unit) in label.encode_utf16().enumerate() {
-            entry[56 + index * 2..58 + index * 2].copy_from_slice(&unit.to_le_bytes());
-        }
-        (header, entry)
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD;
+    use ed25519_dalek::SigningKey;
+
+    use super::{check_last_line, read_seed, sign, trusted_key, verify};
+
+    /// A fresh folder holding a bundle's manifest, a key file for `seed` and the trusted keys.
+    fn bench(name: &str, seed: [u8; 32]) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("mb-bundle-{name}-{}", std::process::id()));
+        drop(fs::remove_dir_all(&dir));
+        let keys = dir.join("keys");
+        assert!(
+            fs::create_dir_all(dir.join("bundle")).is_ok() && fs::create_dir_all(&keys).is_ok()
+        );
+        assert!(fs::write(dir.join("bundle/manifest.json"), b"{\"version\":\"1\"}").is_ok());
+        assert!(fs::write(dir.join("key"), STANDARD.encode(seed)).is_ok());
+        let public = SigningKey::from_bytes(&[7; 32]).verifying_key().to_bytes();
+        assert!(fs::write(keys.join("rel-1.pub"), STANDARD.encode(public)).is_ok());
+        dir
     }
 
-    /// The partition is found by its whole name, so a similar one is never taken for it.
+    /// Text paths for the three places a test signs with.
+    fn paths(dir: &std::path::Path) -> (String, String, String) {
+        let text = |p: PathBuf| p.to_string_lossy().into_owned();
+        (
+            text(dir.join("bundle")),
+            text(dir.join("key")),
+            text(dir.join("keys")),
+        )
+    }
+
+    /// The trusted key signs, and the bundle then verifies as a machine would.
     #[test]
-    fn a_partition_is_found_by_its_exact_name() {
-        let (header, entries) = gpt("medbrains_1.0.0");
-        assert_eq!(
-            find_partition(&header, &entries, "medbrains_1.0.0"),
-            Some((51_200, 51_200))
-        );
-        assert_eq!(find_partition(&header, &entries, "medbrains_1.0"), None);
-        assert_eq!(find_partition(&[0; 512], &entries, "medbrains_1.0.0"), None);
+    fn the_trusted_key_signs_and_verifies() {
+        let dir = bench("good", [7; 32]);
+        let (bundle, key, keys) = paths(&dir);
+        assert_eq!(sign(&bundle, "rel-1", &key, &keys), Ok(()));
+        assert_eq!(verify(&bundle, &keys), Ok(()));
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// A key that is not the one images trust under that id signs nothing.
+    #[test]
+    fn another_key_is_refused_before_signing() {
+        let dir = bench("other", [8; 32]);
+        let (bundle, key, keys) = paths(&dir);
+        assert!(sign(&bundle, "rel-1", &key, &keys).is_err());
+        assert!(!dir.join("bundle/manifest.sig").exists());
+        assert!(verify(&bundle, &keys).is_err());
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// A signature line damaged on its way to the file is caught by the read-back.
+    #[test]
+    fn a_damaged_signature_line_is_caught() {
+        let dir = bench("damaged", [7; 32]);
+        let (bundle, key, keys) = paths(&dir);
+        assert_eq!(sign(&bundle, "rel-1", &key, &keys), Ok(()));
+        let manifest = fs::read(dir.join("bundle/manifest.json")).unwrap_or_default();
+        let written = fs::read_to_string(dir.join("bundle/manifest.sig")).unwrap_or_default();
+        let trusted = trusted_key(&keys, "rel-1");
+        assert!(trusted.is_ok());
+        let Ok(trusted) = trusted else {
+            return;
+        };
+        assert!(check_last_line(&manifest, &written, trusted.clone()).is_ok());
+        // The signature's first character, changed to another base64 character.
+        let at = written.find(' ').map_or(0, |space| space + 1);
+        let mut damaged = written.clone().into_bytes();
+        if let Some(byte) = damaged.get_mut(at) {
+            *byte = if *byte == b'A' { b'B' } else { b'A' };
+        }
+        let damaged = String::from_utf8_lossy(&damaged).into_owned();
+        assert!(check_last_line(&manifest, &damaged, trusted).is_err());
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// An all-zero seed is refused, however it got there.
+    #[test]
+    fn an_all_zero_seed_is_refused() {
+        let dir = bench("zero", [0; 32]);
+        let (_, key, _) = paths(&dir);
+        assert!(read_seed(&key).is_err());
+        drop(fs::remove_dir_all(&dir));
     }
 }

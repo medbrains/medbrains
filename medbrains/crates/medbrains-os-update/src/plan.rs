@@ -1,31 +1,44 @@
-//! The order of an update's writes, kept apart so the order itself can be tested. A boot entry may
-//! exist only while its partition is complete and carries its version: that is what makes a power cut
-//! at any step harmless, and `tests` checks it at every step.
+//! The order of an update's writes, kept apart so the order itself can be tested.
+//!
+//! A boot file finds its
+//! system by the two partition UUIDs its root hash gives (`OS-VERITY.md`), and the updater and the screen
+//! read a slot's version from its name. So a boot entry may exist only while the partitions it names are
+//! complete, and a slot may carry a version's name only once it is: that is what makes a power cut at any
+//! step harmless, and `tests` checks it at every step.
 
 /// One write to the disk, in `INSTALL_STEPS` order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
-    /// Remove the boot entry of the version in the other partition.
+    /// Remove the boot entry of the version in the other slot.
     RemoveOldBoot,
-    /// Mark the other partition as holding nothing.
+    /// Mark the other slot as holding nothing, and give its partitions UUIDs no boot file looks for.
     EmptySlot,
     /// Write the system image, and read it back from the disk.
     WriteSlot,
-    /// Give the new system this machine's identity, and check it agrees about who owns files.
-    AdoptIdentity,
-    /// Name the partition after the new version, which only now it fully is.
-    LabelSlot,
+    /// Write its hash tree, and read it back from the disk.
+    WriteHash,
+    /// Check every block of the system against the tree and the boot file's root hash.
+    VerifySlot,
+    /// Check the new system agrees about who owns files on the data disk.
+    CheckOwners,
+    /// Give the hash tree the UUID and name the new boot file looks for.
+    NameHash,
+    /// Give the system partition its UUID, then its version's name, which only now it fully is.
+    NameSlot,
     /// Put the boot file where the loader does not look: applying is a separate decision.
     StageBoot,
 }
 
 /// How an install runs. Changing this order is a class A change: the model below must still pass.
-pub const INSTALL_STEPS: [Step; 6] = [
+pub const INSTALL_STEPS: [Step; 9] = [
     Step::RemoveOldBoot,
     Step::EmptySlot,
     Step::WriteSlot,
-    Step::AdoptIdentity,
-    Step::LabelSlot,
+    Step::WriteHash,
+    Step::VerifySlot,
+    Step::CheckOwners,
+    Step::NameHash,
+    Step::NameSlot,
     Step::StageBoot,
 ];
 
@@ -36,11 +49,21 @@ pub const TRIES: u32 = 3;
 mod tests {
     use super::{INSTALL_STEPS, Step, TRIES};
 
-    /// A system partition in the model.
+    /// A slot in the model: what its two partitions hold, which version's UUIDs they carry, and its name.
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct Slot {
         label: Option<u32>,
-        complete: Option<u32>,
+        data: Option<u32>,
+        hash: Option<u32>,
+        data_uuid: Option<u32>,
+        hash_uuid: Option<u32>,
+    }
+
+    impl Slot {
+        /// True if both partitions hold version `v` and carry the UUIDs its boot file looks for.
+        fn is_whole(&self, v: u32) -> bool {
+            [self.data, self.hash, self.data_uuid, self.hash_uuid] == [Some(v); 4]
+        }
     }
 
     /// A boot entry in the model. `tries` is `None` once a version has proved good.
@@ -62,7 +85,10 @@ mod tests {
     fn machine() -> Disk {
         let slot = |v| Slot {
             label: Some(v),
-            complete: Some(v),
+            data: Some(v),
+            hash: Some(v),
+            data_uuid: Some(v),
+            hash_uuid: Some(v),
         };
         let entry = |version| Entry {
             version,
@@ -79,23 +105,33 @@ mod tests {
         /// One step of installing `new` to slot 1.
         fn apply(&mut self, step: Step, new: u32) {
             let old = self.slots[1].label;
+            let slot = &mut self.slots[1];
             match step {
                 Step::RemoveOldBoot => self.entries.retain(|e| Some(e.version) != old),
-                Step::EmptySlot => self.slots[1].label = None,
-                Step::WriteSlot => self.slots[1].complete = Some(new),
-                Step::AdoptIdentity => {}
-                Step::LabelSlot => self.slots[1].label = Some(new),
+                Step::EmptySlot => {
+                    (slot.label, slot.data_uuid, slot.hash_uuid) = (None, None, None);
+                }
+                Step::WriteSlot => slot.data = Some(new),
+                Step::WriteHash => slot.hash = Some(new),
+                Step::VerifySlot | Step::CheckOwners => {}
+                Step::NameHash => slot.hash_uuid = Some(new),
+                Step::NameSlot => (slot.data_uuid, slot.label) = (Some(new), Some(new)),
                 Step::StageBoot => self.staged = Some(new),
             }
         }
 
-        /// The invariant: every entry the loader can see boots a whole system of its own version.
+        /// The invariant: every entry the loader can see finds a whole system of its own version, and
+        /// every slot named after a version holds all of it.
         fn every_entry_is_whole(&self) -> bool {
-            self.entries.iter().all(|e| {
-                self.slots
-                    .iter()
-                    .any(|s| s.label == Some(e.version) && s.complete == Some(e.version))
-            })
+            let entries = self
+                .entries
+                .iter()
+                .all(|e| self.slots.iter().any(|s| s.is_whole(e.version)));
+            let names = self
+                .slots
+                .iter()
+                .all(|s| s.label.is_none_or(|v| s.is_whole(v)));
+            entries && names
         }
 
         /// What the loader picks: anything with tries left before anything without, newest first.
@@ -119,12 +155,27 @@ mod tests {
         }
     }
 
-    /// The model must catch a wrong order, or the test above proves nothing.
+    /// The model must catch a wrong order, or the test above proves nothing: emptying a slot its entry
+    /// still names, writing over a slot that still carries its name, or naming it before its tree is there.
     #[test]
     fn the_model_refuses_an_order_that_could_strand_the_machine() {
-        let mut disk = machine();
-        disk.apply(Step::EmptySlot, 3);
-        assert!(!disk.every_entry_is_whole());
+        let wrong: [&[Step]; 3] = [
+            &[Step::EmptySlot],
+            &[Step::RemoveOldBoot, Step::WriteSlot],
+            &[
+                Step::RemoveOldBoot,
+                Step::EmptySlot,
+                Step::WriteSlot,
+                Step::NameSlot,
+            ],
+        ];
+        for steps in wrong {
+            let mut disk = machine();
+            for step in steps {
+                disk.apply(*step, 3);
+            }
+            assert!(!disk.every_entry_is_whole(), "{steps:?}");
+        }
     }
 
     /// A staged boot file changes nothing about the next start, so applying stays a person's decision.

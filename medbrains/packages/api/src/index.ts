@@ -10,5 +10,6 @@ export {
   setNativeAuthSession,
   setStepUpHandler,
   setStrictResponseValidation,
+  trackPersonInput,
 } from "./client.js";
 export { getApiBase, setApiBase } from "./config.js";

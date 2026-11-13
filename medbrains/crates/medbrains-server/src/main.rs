@@ -132,6 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     tracing::info!(bind = %config.bind_addr(), "starting MedBrains server");
+    medbrains_server_core::middleware::activity::init();
 
     // Connect to PostgreSQL
     let pool_config = medbrains_db::pool::PoolConfig {
@@ -521,6 +522,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::AUTHORIZATION,
             HeaderName::from_static("x-csrf-token"),
             HeaderName::from_static("x-medbrains-client"),
+            HeaderName::from_static(medbrains_server_core::middleware::activity::BACKGROUND_HEADER),
         ])
         .allow_credentials(true);
 

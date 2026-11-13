@@ -21,7 +21,7 @@ has left the machine. Without a PIN it does not protect a stolen machine from so
 | Kernel command line edited | **Menu and editor off**, tested by file only; **not sealed:** PCR 12 changed between normal cold boots, so a machine stopped opening itself. Starting a firmware shell first changes PCR 4 | `boot_editor_off`, anomaly in DECISIONS |
 | Passive sniffing of the TPM bus | **Stopped.** Unseal runs in a salted HMAC session with response encryption, on by default | Below |
 | Active interposer on the TPM bus, no PIN | **Not stopped.** systemd says so in its source. A PIN closes it | Below |
-| System partition edited, then booted in this machine | **Not stopped without a PIN, tested.** Same loader and boot file, so PCR 4 matches and the TPM opens the disk for whatever runs. The same goes for those files copied to a USB stick with another system partition (reasoned, not run). **Only verity and Secure Boot close this. A PIN does, today** | `known_gap_system_partition_edit_opens` |
+| System partition edited, then booted in this machine | **Stopped since verity** (`OS-VERITY.md`): the changed block is refused and the start stops or goes back, tested on arm64 (`tamper`). **Still open without Secure Boot:** a boot entry added to the boot partition can start our boot file with another root hash, measured only into PCR 12, which the seal leaves out (reasoned). Before verity: **not stopped without a PIN, tested.** Same loader and boot file, so PCR 4 matches and the TPM opens the disk for whatever runs. The same goes for those files copied to a USB stick with another system partition (reasoned, not run). **Only verity and Secure Boot close this. A PIN does, today** | `system_partition_edit_stays_locked` (x86-64, not yet run), `tamper` (arm64) |
 | Cold boot, or DMA while running | Volume key is in kernel memory. IOMMU settings help against DMA; nothing here stops cold boot | Below |
 
 ### Sniffing the TPM, and the PIN trade-off
@@ -160,8 +160,9 @@ not about real chips; the real server was exercised on arm64's no-TPM path. Side
 
 ## Gaps, most serious first
 
-1. **A stolen machine without a PIN is not protected.** See the top: nothing measures the system partition, so changed files there run with the disk open.
-   Verity and Secure Boot remain open in plan T1, and no release signing key exists.
+1. **A stolen machine without a PIN or Secure Boot is not fully protected.** Verity now refuses a changed system partition
+   (`OS-VERITY.md`), but with Secure Boot off our boot file accepts a command line from a boot entry an attacker adds, and that
+   lands in PCR 12, outside the seal. Secure Boot and a release signing key remain open in plan T1.
 2. **No key rotation anywhere.** JWT, HMAC and every sealing key are forever. A stolen `env` is permanent
    until each is rotated, and rotation has no code. Plan T2.
 3. **Keys in one plaintext file once the disk is open.** Any root process or a read of `/var/lib/medbrains`
