@@ -17,6 +17,7 @@ import { IconCheck, IconStethoscope } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { joinRuns } from "@/lib/text-shape";
 import { adminAccessService } from "@/services/adminAccess.service";
 
 interface MiniCreateDoctorProps {
@@ -34,11 +35,7 @@ function inferUsername(name: string, email: string): string {
   if (emailUser) {
     return emailUser.toLowerCase().replace(/[^a-z0-9._-]+/g, "");
   }
-  const username = name
-    .toLowerCase()
-    .replace(/^dr\.?\s+/i, "")
-    .replace(/[^a-z0-9]+/g, ".")
-    .replace(/^\.+|\.+$/g, "");
+  const username = joinRuns(name.toLowerCase().replace(/^dr\.?\s+/i, ""), ".", /[a-z0-9]/);
   return username || "doctor";
 }
 

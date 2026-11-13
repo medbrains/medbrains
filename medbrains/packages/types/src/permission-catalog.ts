@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1255 permissions, one per constant in the Rust source. */
+/** 1256 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7386,6 +7386,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "nurse",
   },
   {
+    code: "nurse.mar.administer_high_alert",
+    label: "Give a high-alert dose",
+    description: "Checked on the giver of insulin, heparin, potassium and other high-alert drugs (IPSG.3), on top of `nurse.mar.administer` or `ipd.mar.update`. Held by nurses; a bypass role holds it only when granted it by name, so an administrator is never the recorded giver.",
+    module: "nurse",
+  },
+  {
     code: "nurse.prescriptions.draft",
     label: "Draft Prescriptions",
     description: "Draft OTC/protocol prescriptions for doctor countersign",
@@ -8413,6 +8419,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.INTAKE_OUTPUT.RECORD,
       P.NURSE.INTAKE_OUTPUT.VIEW,
       P.NURSE.MAR.ADMINISTER,
+      P.NURSE.MAR.ADMINISTER_HIGH_ALERT,
       P.NURSE.MAR.HOLD,
       P.NURSE.MAR.REFUSE,
       P.NURSE.MAR.VIEW,
