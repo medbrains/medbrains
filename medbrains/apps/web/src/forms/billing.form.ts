@@ -137,7 +137,6 @@ const tdsSectionLabels: Record<BillingTdsSectionFormValue, string> = {
 
 const gstrReturnTypeLabels: Record<BillingGstrReturnTypeFormValue, string> = {
   "GSTR-1": "GSTR-1",
-  "GSTR-2B": "GSTR-2B",
   "GSTR-3B": "GSTR-3B",
 };
 

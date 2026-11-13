@@ -150,6 +150,7 @@ mod grn_receiving_test;
 mod grn_scan_test;
 mod group_patient_identity_test;
 mod growth_test;
+mod gst_returns_test;
 mod hai_rate_report_test;
 mod hand_hygiene_report_test;
 mod handoff_access_test;

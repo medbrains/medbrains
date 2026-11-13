@@ -430,7 +430,8 @@ export const billingCreditPatientStatusValues = [
 ] as const;
 export const billingTdsSectionValues = ["194J", "194C", "194H", "194I", "194A", "194Q"] as const;
 export const billingTdsQuarterValues = ["Q1", "Q2", "Q3", "Q4"] as const;
-export const billingGstrReturnTypeValues = ["GSTR-1", "GSTR-2B", "GSTR-3B"] as const;
+// GSTR-2B is downloaded from the GST portal, not prepared from sales invoices.
+export const billingGstrReturnTypeValues = ["GSTR-1", "GSTR-3B"] as const;
 export const billingErpTargetSystemValues = ["tally", "sap", "odoo", "zoho"] as const;
 export const billingErpExportTypeValues = [
   "invoices",

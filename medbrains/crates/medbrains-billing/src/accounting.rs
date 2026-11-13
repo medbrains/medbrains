@@ -1126,12 +1126,42 @@ pub struct GenerateGstrRequest {
     pub period: String,
 }
 
+/// Refuse a return this hospital cannot compute from its own sales: a return type other than
+/// GSTR-1 or GSTR-3B (GSTR-2B is the portal's statement of input tax credit on purchases; it is
+/// downloaded, never built from sales invoices), or a period that is not a real `YYYY-MM`.
+///
+/// # Errors
+/// 400 saying which.
+fn validate_gstr_request(body: &GenerateGstrRequest) -> Result<(), AppError> {
+    if !matches!(body.return_type.as_str(), "GSTR-1" | "GSTR-3B") {
+        return Err(AppError::BadRequest(
+            "Only GSTR-1 and GSTR-3B are prepared from the hospital's invoices; GSTR-2B is \
+             downloaded from the GST portal."
+                .to_owned(),
+        ));
+    }
+    let is_month = body.period.len() == 7
+        && NaiveDate::parse_from_str(&format!("{}-01", body.period), "%Y-%m-%d").is_ok();
+    if !is_month {
+        return Err(AppError::BadRequest(
+            "The period is a month, written YYYY-MM.".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Prepare (or re-prepare) a draft GSTR-1 / GSTR-3B summary for one month from issued invoices.
+///
+/// A return already filed or accepted is the record of what was declared to the government and
+/// is never recomputed: changes after filing go in a later period's amendment, so a second
+/// generate for that month answers 409 and leaves the filed figures as they were.
 pub async fn generate_gstr_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<GenerateGstrRequest>,
 ) -> Result<Json<GstReturnSummary>, AppError> {
     require_permission(&claims, permissions::billing::gst_returns::MANAGE)?;
+    validate_gstr_request(&body)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1191,6 +1221,7 @@ pub async fn generate_gstr_summary(
          hsn_summary = EXCLUDED.hsn_summary, \
          invoice_count = EXCLUDED.invoice_count, \
          filing_status = 'draft' \
+         WHERE gst_return_summaries.filing_status NOT IN ('filed', 'accepted') \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1204,8 +1235,15 @@ pub async fn generate_gstr_summary(
     .bind(totals.total_tax)
     .bind(&hsn)
     .bind(totals.invoice_count)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::Conflict(format!(
+            "The {} for {} is already filed; record later changes as amendments in a later \
+             period's return.",
+            body.return_type, body.period
+        ))
+    })?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -1243,6 +1281,10 @@ pub async fn list_gstr_summaries(
     Ok(Json(rows))
 }
 
+/// Mark a draft or validated summary as filed, by whom and when.
+///
+/// # Errors
+/// 404 when there is no such summary; 409 when it is already filed or accepted.
 pub async fn file_gstr(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1262,8 +1304,22 @@ pub async fn file_gstr(
     .bind(id)
     .bind(claims.tenant_id)
     .bind(claims.sub)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+    let Some(row) = row else {
+        let status = sqlx::query_scalar::<_, String>(
+            "SELECT filing_status::text FROM gst_return_summaries \
+             WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        return Err(AppError::Conflict(format!(
+            "This return is {status}; only a draft or validated return can be filed."
+        )));
+    };
 
     tx.commit().await?;
     Ok(Json(row))
