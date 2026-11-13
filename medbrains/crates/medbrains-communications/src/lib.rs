@@ -19,12 +19,11 @@
 //! **What retires this:** any of these growing a read path that returns the
 //! patient's own record rather than the message about them.
 
-
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,put};
 use chrono::Utc;
 use medbrains_core::communications::{
     CommClinicalMessage, CommComplaint, CommCriticalAlert, CommFeedbackSurvey, CommMessage,
@@ -1057,18 +1056,12 @@ pub fn router() -> axum::Router<AppState> {
             "/api/communications/templates",
             get(list_templates).post(create_template),
         )
-        .route(
-            "/api/communications/templates/{id}",
-            put(update_template),
-        )
+        .route("/api/communications/templates/{id}", put(update_template))
         .route(
             "/api/communications/messages",
             get(list_messages).post(create_message),
         )
-        .route(
-            "/api/communications/messages/{id}",
-            get(get_message),
-        )
+        .route("/api/communications/messages/{id}", get(get_message))
         .route(
             "/api/communications/messages/{id}/status",
             put(update_message_status),
@@ -1101,10 +1094,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/communications/complaints",
             get(list_complaints).post(create_complaint),
         )
-        .route(
-            "/api/communications/complaints/{id}",
-            put(update_complaint),
-        )
+        .route("/api/communications/complaints/{id}", put(update_complaint))
         .route(
             "/api/communications/complaints/{id}/resolve",
             put(resolve_complaint),

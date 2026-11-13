@@ -79,15 +79,26 @@ mod tests {
     fn the_same_indian_mobile_written_four_ways_is_one_number() {
         // The whole point: these must collapse, or the returning caller gets
         // somebody else's screen-pop.
-        for raw in ["9840012345", "098400 12345", "+91 98400 12345", "0091-9840012345"] {
+        for raw in [
+            "9840012345",
+            "098400 12345",
+            "+91 98400 12345",
+            "0091-9840012345",
+        ] {
             assert_eq!(normalise(raw).as_deref(), Ok("+919840012345"), "{raw}");
         }
     }
 
     #[test]
     fn an_international_number_keeps_its_own_country_code() {
-        assert_eq!(normalise("+1 (415) 555-0100").as_deref(), Ok("+14155550100"));
-        assert_eq!(normalise("+971 50 123 4567").as_deref(), Ok("+971501234567"));
+        assert_eq!(
+            normalise("+1 (415) 555-0100").as_deref(),
+            Ok("+14155550100")
+        );
+        assert_eq!(
+            normalise("+971 50 123 4567").as_deref(),
+            Ok("+971501234567")
+        );
     }
 
     #[test]

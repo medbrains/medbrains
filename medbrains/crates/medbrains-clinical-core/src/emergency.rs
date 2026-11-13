@@ -15,12 +15,22 @@ pub struct TapOutcome {
 /// taps and a third do not count.
 #[must_use]
 pub fn register_tap(taps: &[i64], now_ms: i64) -> TapOutcome {
-    let mut recent: Vec<i64> = taps.iter().copied().filter(|t| now_ms - t < TRIPLE_TAP_WINDOW_MS).collect();
+    let mut recent: Vec<i64> = taps
+        .iter()
+        .copied()
+        .filter(|t| now_ms - t < TRIPLE_TAP_WINDOW_MS)
+        .collect();
     recent.push(now_ms);
     if recent.len() >= 3 {
-        TapOutcome { taps: Vec::new(), triple: true }
+        TapOutcome {
+            taps: Vec::new(),
+            triple: true,
+        }
     } else {
-        TapOutcome { taps: recent, triple: false }
+        TapOutcome {
+            taps: recent,
+            triple: false,
+        }
     }
 }
 
@@ -63,7 +73,11 @@ pub fn code_label(code_type: &str) -> String {
 /// Everything open that this phone has not silenced. A code blue comes first:
 /// it is the one with a heart behind it, and the one that can be answered here.
 #[must_use]
-pub fn open_codes(code_blues: &[CodeBlueRef], er_codes: &[EmergencyCodeRef], silenced: &[String]) -> Vec<OpenCode> {
+pub fn open_codes(
+    code_blues: &[CodeBlueRef],
+    er_codes: &[EmergencyCodeRef],
+    silenced: &[String],
+) -> Vec<OpenCode> {
     let mut out: Vec<OpenCode> = code_blues
         .iter()
         .map(|cb| OpenCode {
@@ -74,12 +88,17 @@ pub fn open_codes(code_blues: &[CodeBlueRef], er_codes: &[EmergencyCodeRef], sil
             code_blue_id: Some(cb.id.clone()),
         })
         .collect();
-    out.extend(er_codes.iter().map(|er| OpenCode {
-        key: format!("er:{}", er.id),
-        label: code_label(&er.code_type),
-        code_type: er.code_type.clone(),
-        location: er.location.clone().unwrap_or_else(|| "location not recorded".to_owned()),
-        code_blue_id: None,
+    out.extend(er_codes.iter().map(|er| {
+        OpenCode {
+            key: format!("er:{}", er.id),
+            label: code_label(&er.code_type),
+            code_type: er.code_type.clone(),
+            location: er
+                .location
+                .clone()
+                .unwrap_or_else(|| "location not recorded".to_owned()),
+            code_blue_id: None,
+        }
     }));
     out.retain(|c| !silenced.iter().any(|s| s == &c.key));
     out
@@ -90,10 +109,17 @@ mod tests {
     use super::{CodeBlueRef, EmergencyCodeRef, code_label, open_codes, register_tap};
 
     fn cb() -> CodeBlueRef {
-        CodeBlueRef { id: "cb1".into(), location: "Ward 1".into() }
+        CodeBlueRef {
+            id: "cb1".into(),
+            location: "Ward 1".into(),
+        }
     }
     fn fire() -> EmergencyCodeRef {
-        EmergencyCodeRef { id: "er1".into(), code_type: "code_red".into(), location: Some("Kitchen".into()) }
+        EmergencyCodeRef {
+            id: "er1".into(),
+            code_type: "code_red".into(),
+            location: Some("Kitchen".into()),
+        }
     }
 
     #[test]
@@ -113,7 +139,14 @@ mod tests {
     #[test]
     fn an_unknown_code_is_still_an_alarm_in_words() {
         assert_eq!(code_label("code_silver"), "CODE SILVER");
-        let open = open_codes(&[], &[EmergencyCodeRef { location: None, ..fire() }], &[]);
+        let open = open_codes(
+            &[],
+            &[EmergencyCodeRef {
+                location: None,
+                ..fire()
+            }],
+            &[],
+        );
         assert_eq!(open[0].location, "location not recorded");
     }
 

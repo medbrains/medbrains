@@ -9,10 +9,12 @@ use serde_json::json;
 
 /// Set the seeded admin's flag or counters, for one test.
 async fn set_admin(app: &common::TestApp, assignment: &str) {
-    sqlx::query(&format!("UPDATE users SET {assignment} WHERE username = 'admin'"))
-        .execute(&app.db)
-        .await
-        .expect("update admin");
+    sqlx::query(&format!(
+        "UPDATE users SET {assignment} WHERE username = 'admin'"
+    ))
+    .execute(&app.db)
+    .await
+    .expect("update admin");
 }
 
 #[tokio::test]
@@ -42,7 +44,10 @@ async fn one_wrong_password_after_a_lock_expires_does_not_lock_again() {
     .await;
 
     let wrong = json!({ "username": "admin", "password": "not-the-password" });
-    let status = app.post_json(&app.client, "/api/auth/login", &wrong).await.status();
+    let status = app
+        .post_json(&app.client, "/api/auth/login", &wrong)
+        .await
+        .status();
     let (attempts, locked): (i32, bool) = sqlx::query_as(
         "SELECT failed_login_attempts, locked_until IS NOT NULL FROM users \
          WHERE username = 'admin'",
@@ -54,5 +59,8 @@ async fn one_wrong_password_after_a_lock_expires_does_not_lock_again() {
 
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(attempts, 1, "the count restarts once the lock has expired");
-    assert!(!locked, "one wrong password must not lock the account again");
+    assert!(
+        !locked,
+        "one wrong password must not lock the account again"
+    );
 }

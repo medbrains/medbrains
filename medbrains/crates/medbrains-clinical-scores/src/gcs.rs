@@ -55,7 +55,15 @@ pub fn compute_gcs(eye: i32, verbal: i32, motor: i32) -> GcsResult {
             "Mild — continue observation and repeat GCS; escalate promptly on any deterioration.",
         )
     };
-    GcsResult { total, eye, verbal, motor, severity, airway_at_risk: total <= 8, response }
+    GcsResult {
+        total,
+        eye,
+        verbal,
+        motor,
+        severity,
+        airway_at_risk: total <= 8,
+        response,
+    }
 }
 
 /// `POST /api/clinical/gcs` — compute the Glasgow Coma Scale total + coma-severity band.
@@ -66,13 +74,19 @@ pub async fn gcs_score(
 ) -> Result<Json<GcsResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(1..=4).contains(&body.eye) {
-        return Err(AppError::BadRequest("eye response must be between 1 and 4".into()));
+        return Err(AppError::BadRequest(
+            "eye response must be between 1 and 4".into(),
+        ));
     }
     if !(1..=5).contains(&body.verbal) {
-        return Err(AppError::BadRequest("verbal response must be between 1 and 5".into()));
+        return Err(AppError::BadRequest(
+            "verbal response must be between 1 and 5".into(),
+        ));
     }
     if !(1..=6).contains(&body.motor) {
-        return Err(AppError::BadRequest("motor response must be between 1 and 6".into()));
+        return Err(AppError::BadRequest(
+            "motor response must be between 1 and 6".into(),
+        ));
     }
     Ok(Json(compute_gcs(body.eye, body.verbal, body.motor)))
 }

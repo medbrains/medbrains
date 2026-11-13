@@ -205,8 +205,17 @@ mod tests {
     /// The known set as of this test — extend when a new grant site lands.
     #[test]
     fn all_granted_object_types_are_registered() {
-        for t in ["patient", "encounter", "admission", "department", "access_group"] {
-            assert!(lookup(t).is_some(), "grant_raw object_type {t} not registered");
+        for t in [
+            "patient",
+            "encounter",
+            "admission",
+            "department",
+            "access_group",
+        ] {
+            assert!(
+                lookup(t).is_some(),
+                "grant_raw object_type {t} not registered"
+            );
         }
     }
 
@@ -216,7 +225,10 @@ mod tests {
     #[test]
     fn all_checked_object_types_are_registered() {
         for t in ["invoice", "radiology_order", "pharmacy_order", "lab_order"] {
-            assert!(lookup(t).is_some(), "checked object_type {t} not registered");
+            assert!(
+                lookup(t).is_some(),
+                "checked object_type {t} not registered"
+            );
         }
     }
 }

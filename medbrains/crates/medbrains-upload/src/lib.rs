@@ -9,7 +9,7 @@
 //! GET /api/upload/download-url?key= returns a presigned GET URL for reading
 //! back any object the caller has permission to access.
 
-use axum::routing::{get,post};
+use axum::routing::{get, post};
 use std::time::Duration;
 
 use axum::{

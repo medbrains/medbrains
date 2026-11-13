@@ -170,14 +170,23 @@ pub async fn sofa_score(
 ) -> Result<Json<SofaResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(0..=4).contains(&body.cardiovascular_score) {
-        return Err(AppError::BadRequest("cardiovascular_score must be between 0 and 4".to_owned()));
+        return Err(AppError::BadRequest(
+            "cardiovascular_score must be between 0 and 4".to_owned(),
+        ));
     }
     if !(3..=15).contains(&body.gcs) {
-        return Err(AppError::BadRequest("gcs must be between 3 and 15".to_owned()));
+        return Err(AppError::BadRequest(
+            "gcs must be between 3 and 15".to_owned(),
+        ));
     }
-    if body.pao2_fio2 < 0.0 || body.platelets < 0 || body.bilirubin_mg_dl < 0.0 || body.creatinine_mg_dl < 0.0
+    if body.pao2_fio2 < 0.0
+        || body.platelets < 0
+        || body.bilirubin_mg_dl < 0.0
+        || body.creatinine_mg_dl < 0.0
     {
-        return Err(AppError::BadRequest("values must not be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "values must not be negative".to_owned(),
+        ));
     }
     Ok(Json(compute_sofa(&body)))
 }

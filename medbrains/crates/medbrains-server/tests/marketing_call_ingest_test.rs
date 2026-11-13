@@ -20,7 +20,12 @@ async fn a_replayed_call_webhook_creates_nothing_further() {
     let csrf = app.login_admin().await;
 
     // A number nobody else in the test database will collide with.
-    let suffix: String = Uuid::new_v4().as_u128().to_string().chars().take(8).collect();
+    let suffix: String = Uuid::new_v4()
+        .as_u128()
+        .to_string()
+        .chars()
+        .take(8)
+        .collect();
     let caller = format!("98{suffix}");
     let call_id = format!("test-call-{}", Uuid::new_v4());
 
@@ -41,7 +46,11 @@ async fn a_replayed_call_webhook_creates_nothing_further() {
     };
 
     let first = post().await.expect("first webhook");
-    assert_eq!(first.status(), reqwest::StatusCode::ACCEPTED, "first delivery");
+    assert_eq!(
+        first.status(),
+        reqwest::StatusCode::ACCEPTED,
+        "first delivery"
+    );
     let first_id: Uuid = first
         .json::<serde_json::Value>()
         .await
@@ -101,7 +110,12 @@ async fn the_same_caller_dialling_in_two_formats_is_one_contact() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let suffix: String = Uuid::new_v4().as_u128().to_string().chars().take(8).collect();
+    let suffix: String = Uuid::new_v4()
+        .as_u128()
+        .to_string()
+        .chars()
+        .take(8)
+        .collect();
     let bare = format!("97{suffix}");
     let e164 = format!("+91{bare}");
     let with_zero = format!("0{bare}");
@@ -125,7 +139,11 @@ async fn the_same_caller_dialling_in_two_formats_is_one_contact() {
             .send()
             .await
             .expect("webhook");
-        assert_eq!(resp.status(), reqwest::StatusCode::ACCEPTED, "format {number}");
+        assert_eq!(
+            resp.status(),
+            reqwest::StatusCode::ACCEPTED,
+            "format {number}"
+        );
     }
 
     let contacts: i64 =
@@ -194,12 +212,18 @@ async fn a_missed_call_is_a_channel_and_calling_twice_is_still_one() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
-    let suffix: String = Uuid::new_v4().as_u128().to_string().chars().take(8).collect();
+    let suffix: String = Uuid::new_v4()
+        .as_u128()
+        .to_string()
+        .chars()
+        .take(8)
+        .collect();
     let caller = format!("97{suffix}");
 
     // Two distinct calls from one person — different call ids, so idempotency
@@ -219,7 +243,11 @@ async fn a_missed_call_is_a_channel_and_calling_twice_is_still_one() {
             .send()
             .await
             .expect("ingest call");
-        assert!(res.status().is_success(), "ingest rejected: {:?}", res.status());
+        assert!(
+            res.status().is_success(),
+            "ingest rejected: {:?}",
+            res.status()
+        );
     }
 
     let contact_id: Uuid = sqlx::query_scalar(
@@ -271,12 +299,18 @@ async fn an_outbound_call_is_not_an_acquisition_channel() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
-    let suffix: String = Uuid::new_v4().as_u128().to_string().chars().take(8).collect();
+    let suffix: String = Uuid::new_v4()
+        .as_u128()
+        .to_string()
+        .chars()
+        .take(8)
+        .collect();
     let called = format!("96{suffix}");
 
     let res = app
@@ -293,7 +327,11 @@ async fn an_outbound_call_is_not_an_acquisition_channel() {
         .send()
         .await
         .expect("ingest call");
-    assert!(res.status().is_success(), "ingest rejected: {:?}", res.status());
+    assert!(
+        res.status().is_success(),
+        "ingest rejected: {:?}",
+        res.status()
+    );
 
     let touchpoints: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM mkt_touchpoints t \

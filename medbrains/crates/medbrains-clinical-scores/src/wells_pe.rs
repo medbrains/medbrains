@@ -108,7 +108,13 @@ pub fn compute_wells_pe(r: &WellsPeRequest) -> WellsPeResult {
         "Low pre-test probability — apply the two-tier pathway or PERC rule; a negative D-dimer \
          safely excludes PE."
     };
-    WellsPeResult { score, risk_tier, pe_likely, recommended_workup, response }
+    WellsPeResult {
+        score,
+        risk_tier,
+        pe_likely,
+        recommended_workup,
+        response,
+    }
 }
 
 /// `POST /api/clinical/wells-pe` — Wells pre-test probability for suspected pulmonary embolism.

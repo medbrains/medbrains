@@ -98,7 +98,9 @@ pub async fn respond_to_code_blue(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(serde_json::json!({ "code_blue_id": id, "responded": true })))
+    Ok(Json(
+        serde_json::json!({ "code_blue_id": id, "responded": true }),
+    ))
 }
 
 /// `GET /api/nurse/code-blue/responders` — who has answered, for every arrest

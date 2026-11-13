@@ -84,7 +84,9 @@ pub struct CampaignFunnelRow {
 
 /// A campaign code as stored: trimmed, upper-case, none when blank.
 fn campaign_code(code: Option<&str>) -> Option<String> {
-    code.map(str::trim).filter(|c| !c.is_empty()).map(str::to_uppercase)
+    code.map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(str::to_uppercase)
 }
 
 /// Two campaigns can't share a code: a link would not know which it meant.

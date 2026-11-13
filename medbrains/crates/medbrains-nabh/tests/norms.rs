@@ -5,7 +5,12 @@
 //! "it depends on your accreditation level", the test pins the *mechanism* and
 //! leaves the interval configurable — see the note on `default_catalogue`.
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use medbrains_nabh::norms::{
@@ -85,7 +90,10 @@ fn a_daily_check_is_not_warned_about_a_week_ahead() {
     let daily = norm(Cadence::Daily);
     let done_an_hour_ago = at(NOW) - Duration::hours(1);
 
-    assert_eq!(assess(&daily, Some(done_an_hour_ago), at(NOW)).standing, Standing::Met);
+    assert_eq!(
+        assess(&daily, Some(done_an_hour_ago), at(NOW)).standing,
+        Standing::Met
+    );
 }
 
 #[test]
@@ -95,7 +103,10 @@ fn an_annual_obligation_is_warned_about_well_ahead() {
     let yearly = norm(Cadence::Yearly);
     let done = at(NOW) - Duration::days(320);
 
-    assert_eq!(assess(&yearly, Some(done), at(NOW)).standing, Standing::DueSoon);
+    assert_eq!(
+        assess(&yearly, Some(done), at(NOW)).standing,
+        Standing::DueSoon
+    );
 }
 
 #[test]
@@ -134,10 +145,26 @@ fn a_record_dated_in_the_future_does_not_buy_a_year_of_cover() {
 fn the_list_reads_as_a_work_queue_rather_than_an_index() {
     // Sorted alphabetically, a compliance screen is something nobody acts on.
     let norms = vec![
-        Norm { code: "MET", cadence: Cadence::Yearly, ..norm(Cadence::Yearly) },
-        Norm { code: "NEVER", cadence: Cadence::Yearly, ..norm(Cadence::Yearly) },
-        Norm { code: "SLIGHTLY_LATE", cadence: Cadence::Yearly, ..norm(Cadence::Yearly) },
-        Norm { code: "VERY_LATE", cadence: Cadence::Yearly, ..norm(Cadence::Yearly) },
+        Norm {
+            code: "MET",
+            cadence: Cadence::Yearly,
+            ..norm(Cadence::Yearly)
+        },
+        Norm {
+            code: "NEVER",
+            cadence: Cadence::Yearly,
+            ..norm(Cadence::Yearly)
+        },
+        Norm {
+            code: "SLIGHTLY_LATE",
+            cadence: Cadence::Yearly,
+            ..norm(Cadence::Yearly)
+        },
+        Norm {
+            code: "VERY_LATE",
+            cadence: Cadence::Yearly,
+            ..norm(Cadence::Yearly)
+        },
     ];
 
     let last_done = |n: &Norm| match n.code {
@@ -157,8 +184,16 @@ fn the_list_reads_as_a_work_queue_rather_than_an_index() {
 
 #[test]
 fn a_mandatory_lapse_outranks_an_advisory_one() {
-    let mandatory = Norm { code: "MANDATORY", mandatory: true, ..norm(Cadence::Yearly) };
-    let advisory = Norm { code: "ADVISORY", mandatory: false, ..norm(Cadence::Yearly) };
+    let mandatory = Norm {
+        code: "MANDATORY",
+        mandatory: true,
+        ..norm(Cadence::Yearly)
+    };
+    let advisory = Norm {
+        code: "ADVISORY",
+        mandatory: false,
+        ..norm(Cadence::Yearly)
+    };
     let norms = vec![advisory, mandatory];
 
     let order: Vec<&str> = assess_all(&norms, &|_| None, at(NOW))
@@ -185,10 +220,22 @@ fn needs_attention_covers_late_and_never_but_not_approaching() {
 fn the_financial_year_runs_april_to_march() {
     // Annual statutory returns are dated by it, and deriving it from the
     // calendar year is how a hospital files the wrong one every January.
-    assert_eq!(financial_year(NaiveDate::from_ymd_opt(2026, 4, 1).unwrap()), (2026, 2027));
-    assert_eq!(financial_year(NaiveDate::from_ymd_opt(2026, 12, 31).unwrap()), (2026, 2027));
-    assert_eq!(financial_year(NaiveDate::from_ymd_opt(2027, 3, 31).unwrap()), (2026, 2027));
-    assert_eq!(financial_year(NaiveDate::from_ymd_opt(2027, 4, 1).unwrap()), (2027, 2028));
+    assert_eq!(
+        financial_year(NaiveDate::from_ymd_opt(2026, 4, 1).unwrap()),
+        (2026, 2027)
+    );
+    assert_eq!(
+        financial_year(NaiveDate::from_ymd_opt(2026, 12, 31).unwrap()),
+        (2026, 2027)
+    );
+    assert_eq!(
+        financial_year(NaiveDate::from_ymd_opt(2027, 3, 31).unwrap()),
+        (2026, 2027)
+    );
+    assert_eq!(
+        financial_year(NaiveDate::from_ymd_opt(2027, 4, 1).unwrap()),
+        (2027, 2028)
+    );
 }
 
 // ================================================================ catalogue
@@ -197,9 +244,21 @@ fn the_financial_year_runs_april_to_march() {
 fn every_norm_points_at_a_register_that_could_prove_it() {
     // A norm with no evidence behind it can never be met, only asserted.
     for norm in default_catalogue() {
-        assert!(!norm.source_table.is_empty(), "{} has no register", norm.code);
-        assert!(!norm.source_date_column.is_empty(), "{} has no date", norm.code);
-        assert!(!norm.evidence.is_empty(), "{} says nothing about evidence", norm.code);
+        assert!(
+            !norm.source_table.is_empty(),
+            "{} has no register",
+            norm.code
+        );
+        assert!(
+            !norm.source_date_column.is_empty(),
+            "{} has no date",
+            norm.code
+        );
+        assert!(
+            !norm.evidence.is_empty(),
+            "{} says nothing about evidence",
+            norm.code
+        );
     }
 }
 
@@ -245,7 +304,11 @@ fn a_brand_new_hospital_sees_every_obligation_rather_than_a_clean_sheet() {
     let assessed = assess_all(&catalogue, &|_| None, at(NOW));
 
     assert_eq!(assessed.len(), catalogue.len());
-    assert!(assessed.iter().all(|a| a.standing == Standing::NeverRecorded));
+    assert!(
+        assessed
+            .iter()
+            .all(|a| a.standing == Standing::NeverRecorded)
+    );
     assert!(assessed.iter().all(|a| a.standing.needs_attention()));
 }
 
@@ -254,7 +317,10 @@ fn a_time_zone_does_not_change_whether_something_is_late() {
     // Records are written in local time and compared in UTC. A drill logged at
     // 23:00 IST must not read as tomorrow's.
     let daily = norm(Cadence::Daily);
-    let ist_evening = Utc.with_ymd_and_hms(2026, 8, 21, 17, 30, 0).single().expect("a time");
+    let ist_evening = Utc
+        .with_ymd_and_hms(2026, 8, 21, 17, 30, 0)
+        .single()
+        .expect("a time");
 
     let assessment = assess(&daily, Some(ist_evening), at(NOW));
 

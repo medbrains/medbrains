@@ -20,7 +20,9 @@ async fn main() -> anyhow::Result<()> {
     for _ in 0..count.parse::<usize>()? {
         let target = target.clone();
         dials.push(tokio::spawn(async move {
-            let endpoint = build_lan_endpoint(SecretKey::generate(), Vec::new(), None).await.ok()?;
+            let endpoint = build_lan_endpoint(SecretKey::generate(), Vec::new(), None)
+                .await
+                .ok()?;
             let conn = endpoint.connect(target, b"medbrains/join/1").await.ok()?;
             // Holds it open and says nothing, as a flood would.
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -31,6 +33,9 @@ async fn main() -> anyhow::Result<()> {
     for dial in dials {
         through += usize::from(matches!(dial.await, Ok(Some(_))));
     }
-    std::io::Write::write_all(&mut std::io::stderr(), format!("through the door: {through}\n").as_bytes())?;
+    std::io::Write::write_all(
+        &mut std::io::stderr(),
+        format!("through the door: {through}\n").as_bytes(),
+    )?;
     Ok(())
 }

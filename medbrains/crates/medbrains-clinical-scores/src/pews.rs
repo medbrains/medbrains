@@ -52,14 +52,15 @@ pub struct PewsResult {
 
 fn validate_domain(name: &str, value: i32) -> Result<(), AppError> {
     if !(0..=3).contains(&value) {
-        return Err(AppError::BadRequest(format!("{name} must be between 0 and 3")));
+        return Err(AppError::BadRequest(format!(
+            "{name} must be between 0 and 3"
+        )));
     }
     Ok(())
 }
 
 pub fn compute_pews(r: &PewsRequest) -> PewsResult {
-    let extra =
-        i32::from(r.quarter_hourly_nebuliser) * 2 + i32::from(r.persistent_vomiting) * 2;
+    let extra = i32::from(r.quarter_hourly_nebuliser) * 2 + i32::from(r.persistent_vomiting) * 2;
     let total = r.behaviour + r.cardiovascular + r.respiratory + extra;
     let max_domain = r.behaviour.max(r.cardiovascular).max(r.respiratory);
     // Any single domain at 3, or an aggregate >= 4, is a red trigger for urgent review.

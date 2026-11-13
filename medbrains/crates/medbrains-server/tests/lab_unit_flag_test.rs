@@ -38,8 +38,12 @@ async fn processed_order(app: &common::TestApp, csrf: &str) -> String {
     .await;
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();
     let uhid = patient["uhid"].as_str().expect("uhid").to_owned();
-    let depts: Value =
-        app.get(&app.client, "/api/setup/departments").await.json().await.expect("departments");
+    let depts: Value = app
+        .get(&app.client, "/api/setup/departments")
+        .await
+        .json()
+        .await
+        .expect("departments");
     let visit = send(
         app,
         csrf,
@@ -49,7 +53,12 @@ async fn processed_order(app: &common::TestApp, csrf: &str) -> String {
     )
     .await;
     let encounter_id = visit["encounter"]["id"].clone();
-    let tests: Value = app.get(&app.client, "/api/lab/catalog").await.json().await.expect("catalog");
+    let tests: Value = app
+        .get(&app.client, "/api/lab/catalog")
+        .await
+        .json()
+        .await
+        .expect("catalog");
     let order = send(
         app,
         csrf,
@@ -60,8 +69,22 @@ async fn processed_order(app: &common::TestApp, csrf: &str) -> String {
     .await;
     let order_id = order["id"].as_str().expect("order id").to_owned();
     let collect = format!("/api/lab/orders/{order_id}/collect");
-    send(app, csrf, true, &collect, json!({ "patient_identifier": uhid })).await;
-    send(app, csrf, true, &format!("/api/lab/orders/{order_id}/process"), json!({})).await;
+    send(
+        app,
+        csrf,
+        true,
+        &collect,
+        json!({ "patient_identifier": uhid }),
+    )
+    .await;
+    send(
+        app,
+        csrf,
+        true,
+        &format!("/api/lab/orders/{order_id}/process"),
+        json!({}),
+    )
+    .await;
     order_id
 }
 

@@ -32,14 +32,20 @@ async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_w
     let csrf = app.login_admin().await;
     let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
     let (ward_id, bed_id) = common::vacant_ward_bed(&app, tenant_id).await;
     let bed_id = bed_id.to_string();
 
-    let depts: Value = app.get(&app.client, "/api/setup/departments").await.json().await.expect("depts");
+    let depts: Value = app
+        .get(&app.client, "/api/setup/departments")
+        .await
+        .json()
+        .await
+        .expect("depts");
     let department_id = depts
         .as_array()
         .and_then(|a| a.first())
@@ -114,27 +120,40 @@ async fn admission_on_a_rostered_ward_raises_one_assessment_and_none_without_a_w
     let id_str = admission_id.to_string();
 
     let emitted = app.outbox_rows("ipd.admission.created", &id_str).await;
-    assert_eq!(emitted.len(), 1, "create_admission must queue exactly one event");
+    assert_eq!(
+        emitted.len(),
+        1,
+        "create_admission must queue exactly one event"
+    );
     // The outbox stores the whole envelope; the domain payload is nested. The
     // dispatcher unwraps it — this test hands over the envelope exactly as
     // the worker would, so that unwrapping is under test too.
     let envelope = &emitted[0];
     assert_eq!(
-        envelope["payload"]["ward_id"].as_str().and_then(|s| s.parse::<Uuid>().ok()),
+        envelope["payload"]["ward_id"]
+            .as_str()
+            .and_then(|s| s.parse::<Uuid>().ok()),
         Some(ward_id),
         "the event must carry the bed's ward, or the pipeline has nothing to roster against"
     );
 
     // Consume twice: one task, assigned to the rostered nurse.
-    app.dispatch(tenant_id, "ipd.admission.created", envelope).await;
-    app.dispatch(tenant_id, "ipd.admission.created", envelope).await;
+    app.dispatch(tenant_id, "ipd.admission.created", envelope)
+        .await;
+    app.dispatch(tenant_id, "ipd.admission.created", envelope)
+        .await;
     let tasks = assessment_tasks(&app, admission_id).await;
-    assert_eq!(tasks, vec![Some(nurse_user_id)], "exactly one assessment, assigned, after two deliveries");
+    assert_eq!(
+        tasks,
+        vec![Some(nurse_user_id)],
+        "exactly one assessment, assigned, after two deliveries"
+    );
 
     // No ward in the payload: nothing is written. An unassigned task would sit
     // on nobody's list and make the register look attended to.
     let wardless = json!({ "admission_id": admission_id, "patient_id": patient_id });
-    app.dispatch(tenant_id, "ipd.admission.created", &wardless).await;
+    app.dispatch(tenant_id, "ipd.admission.created", &wardless)
+        .await;
     assert_eq!(assessment_tasks(&app, admission_id).await.len(), 1);
 
     // Leave the shift as we found it.
