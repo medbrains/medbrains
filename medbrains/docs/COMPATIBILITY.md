@@ -23,6 +23,41 @@ and is repeated in `medbrains/package.json` and `medbrains/apps/web/package.json
 `make release` refuses a release where they differ. Pre-releases are `3.34.0-rc.1`,
 `-beta.N`, `-alpha.N` and carry no promise.
 
+### Release calendar
+
+Releases come on fixed dates, so a hospital can plan its update window. The owner set this rule on
+2026-11-13: releasing too often breaks trust. All dates fall on a **Tuesday**.
+
+| Kind | Version | When | Contains |
+|---|---|---|---|
+| **Patch day** | 3.33.**N** | The **2nd Tuesday of each month**. It is skipped when there is nothing to fix | Security fixes (medium and low, plus any high or critical already shipped early) and bug fixes. Nothing else changes |
+| **Urgent security patch** | 3.33.**N** | Outside the calendar, only for a **critical** fix (within 72 hours) or a **high** one (within 7 days), per [`SECURITY-RELEASE-PROCESS.md`](SECURITY-RELEASE-PROCESS.md). Anything being exploited uses the emergency path | That fix only |
+| **Feature release** | 3.**N**.0 | **Quarterly**, on the 2nd Tuesday of **February, May, August and November**. A release candidate (`-rc.1`) comes two weeks before, and features freeze on that day | New features and improvements, nothing that breaks a covered interface |
+| **Major release** | **N**.0.0 | **At most once a year**, announced at least **6 months** ahead, with a release candidate 3 months ahead | Changes that can break a covered interface, following §3 |
+
+The next dates:
+
+| Date | Release |
+|---|---|
+| 2026-12-08 | Patch day (3.33.1, if there are fixes) |
+| 2027-01-12 | Patch day |
+| 2027-01-26 | 3.34.0-rc.1, feature freeze |
+| 2027-02-09 | **3.34.0**, feature release |
+| 2027-03-09 | Patch day |
+| 2027-04-27 | 3.35.0-rc.1, feature freeze |
+| 2027-05-11 | **3.35.0**, feature release |
+
+**Branches.** `main` holds only released code. Each release date has its own branch, cut from `main`:
+
+| Branch | Takes | Merges into `main` |
+|---|---|---|
+| `release/3.33.N` | fixes for the next patch day | on that patch day |
+| `release/3.N.0` | features for the next feature release | on its release date, after its rc |
+| `release/N.0.0` | breaking changes, once a major is announced | on the major's date |
+| `hotfix/<name>` | one urgent critical or high security fix, cut from `main` | as soon as it is verified. It is then merged forward into every open release branch |
+
+Each release branch has a draft pull request into `main`, titled with its date, which shows what the release will contain. On the date, the draft is merged, the tag is pushed and the release published. The next branch for that kind is cut from `main` the same day, and the fixes just released are merged forward into the open feature branch. A pull request targets the branch of the release it belongs to, never `main`. Moving a release date needs the owner's decision, recorded in `docs/DECISIONS.md` and announced on the Releases page.
+
 ## 2. What is covered
 
 | Interface | Where it is defined | Versioned by |

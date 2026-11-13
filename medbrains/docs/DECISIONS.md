@@ -221,7 +221,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-09-13 | Native mobile and TV (SwiftUI, Compose) replace React Native | `RFCs/RFC-NATIVE-MOBILE.md` |
 | 2026-09-26 | Light and dark themes, both WCAG 2.2 AA | ENGINEERING.md |
 | 2026-10-24 | Website colours become the app's theme | ENGINEERING.md |
-
+| 2026-11-13 | **Fixed release calendar** (`docs/COMPATIBILITY.md` §1). Patch day is the 2nd Tuesday of each month, skipped if there is nothing to fix. Feature releases are quarterly, on the 2nd Tuesday of February, May, August and November, with an rc two weeks before (feature freeze). A major comes at most yearly, announced 6 months ahead. Only critical (72 h) and high (7 d) security fixes ship outside the calendar. A merge to main is not a release; main carries the next version number | Owner: releasing too often breaks trust; a hospital needs a known update window and time to validate. Proposing 3.33.1 on the day 3.33.0 shipped made the gap plain | Releasing on every merge or whenever a batch felt ready (unpredictable for hospital IT); monthly feature releases (too much validation work for each hospital); a fixed date for urgent security fixes (a critical fix cannot wait for a date) | Done |
 ## What went wrong, and the fix
 
 | Date | What happened | Cause | Fix |
