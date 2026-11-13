@@ -96,8 +96,16 @@ them on only when the key is present).
 
 The release sets the app version from the tag (`v3.33.0` → `3.33.0`) before
 building, and fails on a tag that is not semver, because the updater compares
-that version with `latest.json`. Each platform also uploads
-`SHA256SUMS-desktop-<os>` for its installers to the release.
+that version with `latest.json`. The release's one `SHA256SUMS` covers the
+installers too: the release workflow's last job adds them after this one uploads.
+
+Operating-system code signing is separate from the updater signature. macOS is
+signed and notarized only with `APPLE_CERTIFICATE` (a Developer ID Application
+certificate) and either the App Store Connect API key (`APPLE_API_KEY_ID`,
+`APPLE_API_ISSUER_ID`, `APPLE_API_KEY_P8`) or `APPLE_ID` + `APPLE_PASSWORD`.
+Windows is signed only with `WINDOWS_CERTIFICATE` (a base64 PFX) and its
+password. A release without them uploads that platform's installers with
+`-unsigned` in the name; Gatekeeper and SmartScreen warn before opening them.
 
 Clients that hold an old public key cannot update past a key rotation; they
 need a manual reinstall.

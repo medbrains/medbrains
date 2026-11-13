@@ -50,6 +50,9 @@ targets:
       path: MedBrainsStaff/Resources/Info.plist
       properties:
         CFBundleDisplayName: MedBrains Staff
+        # From the build settings, which scripts/app_version.sh fills (release.yml, make native-ios).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
@@ -61,6 +64,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.medbrains.staff
+        # Empty for local builds; the release job sets it for this target alone (release.yml ios).
+        PROVISIONING_PROFILE_SPECIFIER: "$(MB_APP_PROFILE)"
         SWIFT_VERSION: "5.10"
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
@@ -86,6 +91,9 @@ targets:
       path: MedBrainsPatient/Resources/Info.plist
       properties:
         CFBundleDisplayName: MedBrains
+        # From the build settings, which scripts/app_version.sh fills (release.yml, make native-ios).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
@@ -103,6 +111,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.medbrains.patient
+        # Empty for local builds; the release job sets it for this target alone (release.yml ios).
+        PROVISIONING_PROFILE_SPECIFIER: "$(MB_APP_PROFILE)"
         SWIFT_VERSION: "5.10"
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"

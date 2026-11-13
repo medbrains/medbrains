@@ -1,9 +1,10 @@
 // Fails the build when a page lacks a unique title or a 140-160 character
 // description: both feed search results and social cards.
+import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
-const DOCS = new URL("../docs/", import.meta.url).pathname;
+const DOCS = fileURLToPath(new URL("../docs/", import.meta.url));
 const GENERATED = new Set(["developer/reference/api.md", "developer/reference/env-vars.md"]);
 
 /** Every markdown page under docs/. */
@@ -25,8 +26,10 @@ function field(src, key) {
 const errors = [];
 const titles = new Map();
 for (const file of pages(DOCS)) {
-  const rel = relative(DOCS, file);
-  const src = readFileSync(file, "utf8");
+  // Forward slashes on every OS, so GENERATED and the messages match on Windows too.
+  const rel = relative(DOCS, file).split(sep).join("/");
+  // Windows checkouts may turn line endings into CRLF; the front matter is read as LF.
+  const src = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   const title = field(src, "title");
   const description = field(src, "description");
   if (!title) errors.push(`${rel}: no title`);
