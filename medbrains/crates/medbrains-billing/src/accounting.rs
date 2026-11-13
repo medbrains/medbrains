@@ -251,6 +251,8 @@ pub struct CreateJournalEntryRequest {
     pub lines: Vec<JournalLineInput>,
 }
 
+/// Record a manual journal entry as a draft, once its lines are one-sided, positive and
+/// balanced (`journal_rules`).
 pub async fn create_journal_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -258,20 +260,14 @@ pub async fn create_journal_entry(
 ) -> Result<Json<JournalEntryDetail>, AppError> {
     require_permission(&claims, permissions::billing::journal::CREATE)?;
 
-    if body.lines.is_empty() {
-        return Err(AppError::BadRequest(
-            "Journal entry must have at least one line".to_owned(),
-        ));
-    }
-
-    let total_debit: Decimal = body.lines.iter().map(|l| l.debit_amount).sum();
-    let total_credit: Decimal = body.lines.iter().map(|l| l.credit_amount).sum();
-
-    if total_debit != total_credit {
-        return Err(AppError::BadRequest(format!(
-            "Debits ({total_debit}) must equal credits ({total_credit})"
-        )));
-    }
+    let sides: Vec<(Decimal, Decimal)> = body
+        .lines
+        .iter()
+        .map(|l| (l.debit_amount, l.credit_amount))
+        .collect();
+    let total = crate::journal_rules::check_journal_lines(&sides)
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+    let (total_debit, total_credit) = (total, total);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -907,14 +903,69 @@ pub struct CreateTdsRequest {
     pub quarter: String,
 }
 
+/// The Indian financial year (`2026-27`) and TDS quarter (`Q1` April–June … `Q4` January–March)
+/// a deduction on `date` belongs to: the return (24Q/26Q) it is reported in.
+fn tds_period_of(date: NaiveDate) -> (String, &'static str) {
+    use chrono::Datelike;
+    let (start, quarter) = match date.month() {
+        4..=6 => (date.year(), "Q1"),
+        7..=9 => (date.year(), "Q2"),
+        10..=12 => (date.year(), "Q3"),
+        _ => (date.year() - 1, "Q4"),
+    };
+    (format!("{start}-{:02}", (start + 1) % 100), quarter)
+}
+
+/// A PAN is five letters, four digits and a letter (`ABCDE1234F`).
+fn is_pan(pan: &str) -> bool {
+    let b = pan.as_bytes();
+    b.len() == 10
+        && b[..5].iter().all(u8::is_ascii_uppercase)
+        && b[5..9].iter().all(u8::is_ascii_digit)
+        && b[9].is_ascii_uppercase()
+}
+
+/// Refuse a deduction that would misstate the TDS return: a malformed PAN, a base amount or
+/// rate that is not positive (or a rate over 100%), or a financial year and quarter that are
+/// not the ones the deduction date falls in.
+///
+/// # Errors
+/// 400 saying which.
+fn validate_tds_request(body: &CreateTdsRequest, pan: &str) -> Result<(), AppError> {
+    let bad = |msg: &str| Err(AppError::BadRequest(msg.to_owned()));
+    if body.deductee_name.trim().is_empty() {
+        return bad("The deductee's name is required.");
+    }
+    if !is_pan(pan) {
+        return bad("The PAN must be five letters, four digits and a letter (ABCDE1234F).");
+    }
+    if body.base_amount <= Decimal::ZERO {
+        return bad("The amount paid must be more than zero.");
+    }
+    if body.tds_rate <= Decimal::ZERO || body.tds_rate > Decimal::from(100) {
+        return bad("The TDS rate is a percentage above 0 and at most 100.");
+    }
+    let (year, quarter) = tds_period_of(body.deducted_date);
+    if body.financial_year != year || body.quarter != quarter {
+        return Err(AppError::BadRequest(format!(
+            "A deduction on {} belongs to {year} {quarter}.",
+            body.deducted_date
+        )));
+    }
+    Ok(())
+}
+
+/// Record tax deducted at source on a payment, as the deductor, for the quarter's TDS return.
 pub async fn create_tds_deduction(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateTdsRequest>,
 ) -> Result<Json<TdsDeduction>, AppError> {
     require_permission(&claims, permissions::billing::tds::MANAGE)?;
+    let pan = body.deductee_pan.trim().to_ascii_uppercase();
+    validate_tds_request(&body, &pan)?;
 
-    let tds_amount = body.base_amount * body.tds_rate / Decimal::from(100);
+    let tds_amount = (body.base_amount * body.tds_rate / Decimal::from(100)).round_dp(2);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -928,8 +979,8 @@ pub async fn create_tds_deduction(
     )
     .bind(claims.tenant_id)
     .bind(body.invoice_id)
-    .bind(&body.deductee_name)
-    .bind(&body.deductee_pan)
+    .bind(body.deductee_name.trim())
+    .bind(&pan)
     .bind(&body.tds_section)
     .bind(body.tds_rate)
     .bind(body.base_amount)
@@ -951,6 +1002,27 @@ pub struct DepositTdsRequest {
     pub challan_date: NaiveDate,
 }
 
+/// A deduction's status and deduction date, locked for the change about to be made.
+///
+/// # Errors
+/// 404 when there is no live deduction with this id.
+async fn tds_state(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    id: Uuid,
+) -> Result<(String, NaiveDate), AppError> {
+    sqlx::query_as::<_, (String, NaiveDate)>(
+        "SELECT status::text, deducted_date FROM tds_deductions \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)
+}
+
+/// Record the challan that deposited a deduction with the government.
 pub async fn deposit_tds(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -958,9 +1030,26 @@ pub async fn deposit_tds(
     Json(body): Json<DepositTdsRequest>,
 ) -> Result<Json<TdsDeduction>, AppError> {
     require_permission(&claims, permissions::billing::tds::MANAGE)?;
+    let challan = body.challan_number.trim();
+    if challan.is_empty() {
+        return Err(AppError::BadRequest(
+            "The challan number is required.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (status, deducted) = tds_state(&mut tx, claims.tenant_id, id).await?;
+    if status != "deducted" {
+        return Err(AppError::Conflict(format!(
+            "This deduction is already {status}; its challan cannot change."
+        )));
+    }
+    if body.challan_date < deducted {
+        return Err(AppError::BadRequest(
+            "Tax cannot be deposited before it was deducted.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, TdsDeduction>(
         "UPDATE tds_deductions SET \
@@ -970,7 +1059,7 @@ pub async fn deposit_tds(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .bind(&body.challan_number)
+    .bind(challan)
     .bind(body.challan_date)
     .fetch_one(&mut *tx)
     .await?;
@@ -985,6 +1074,7 @@ pub struct IssueTdsCertRequest {
     pub certificate_date: NaiveDate,
 }
 
+/// Record the Form 16A certificate given to the deductee for a deposited deduction.
 pub async fn issue_tds_certificate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -992,9 +1082,21 @@ pub async fn issue_tds_certificate(
     Json(body): Json<IssueTdsCertRequest>,
 ) -> Result<Json<TdsDeduction>, AppError> {
     require_permission(&claims, permissions::billing::tds::MANAGE)?;
+    if body.certificate_number.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "The certificate number is required.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (status, _) = tds_state(&mut tx, claims.tenant_id, id).await?;
+    if status != "deposited" {
+        return Err(AppError::Conflict(format!(
+            "A certificate (Form 16A) is issued only once the tax is deposited; this deduction \
+             is {status}."
+        )));
+    }
 
     let row = sqlx::query_as::<_, TdsDeduction>(
         "UPDATE tds_deductions SET \
@@ -1463,4 +1565,48 @@ pub async fn list_erp_exports(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod tds_period_tests {
+    use super::{is_pan, tds_period_of};
+    use chrono::NaiveDate;
+
+    /// The date of `y-m-d`, for tests.
+    fn day(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap_or_default()
+    }
+
+    #[test]
+    fn quarters_follow_the_april_financial_year() {
+        assert_eq!(tds_period_of(day(2026, 4, 1)), ("2026-27".to_owned(), "Q1"));
+        assert_eq!(
+            tds_period_of(day(2026, 9, 30)),
+            ("2026-27".to_owned(), "Q2")
+        );
+        assert_eq!(
+            tds_period_of(day(2026, 12, 31)),
+            ("2026-27".to_owned(), "Q3")
+        );
+        assert_eq!(
+            tds_period_of(day(2027, 3, 31)),
+            ("2026-27".to_owned(), "Q4")
+        );
+        assert_eq!(tds_period_of(day(2099, 1, 5)), ("2098-99".to_owned(), "Q4"));
+        assert_eq!(tds_period_of(day(2099, 4, 5)), ("2099-00".to_owned(), "Q1"));
+    }
+
+    #[test]
+    fn a_pan_is_five_letters_four_digits_a_letter() {
+        assert!(is_pan("ABCDE1234F"));
+        for bad in [
+            "ABCDE1234",
+            "abcde1234f",
+            "ABCD11234F",
+            "ABCDE12345",
+            "ABCDE1234FF",
+        ] {
+            assert!(!is_pan(bad), "{bad}");
+        }
+    }
 }

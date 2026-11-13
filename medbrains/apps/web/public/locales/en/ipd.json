@@ -345,6 +345,7 @@
   "bedDashboard.hold.confirm": "Hold bed",
   "bedDashboard.hold.cancel": "Cancel",
   "bedDashboard.hold.failedTitle": "The bed could not be held",
+  "bedDashboard.hold.releaseFailedTitle": "The hold could not be released",
   "bedDashboard.hold.readFailedTitle": "Bed holds could not be loaded",
   "bedDashboard.hold.readFailedBody": "Beds below may be held for an incoming patient without showing it here. Check with the ward before assigning one.",
   "bedDashboard.unknownWard": "Unknown ward",

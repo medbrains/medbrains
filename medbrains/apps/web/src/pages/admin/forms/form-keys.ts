@@ -1,12 +1,9 @@
 import type { FormFieldKind } from "@medbrains/types";
+import { joinRuns } from "@/lib/text-shape";
 
 /** A label turned into a key the server accepts: lower-case, a-z0-9_, starting with a letter. */
 export function toKey(label: string): string {
-  const key = label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 63);
+  const key = joinRuns(label.toLowerCase(), "_", /[a-z0-9]/).slice(0, 63);
   return /^[a-z]/.test(key) ? key : key ? `q_${key}`.slice(0, 63) : "";
 }
 

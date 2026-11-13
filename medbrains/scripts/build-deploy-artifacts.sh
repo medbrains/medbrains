@@ -31,7 +31,9 @@ cd "$REPO_ROOT"
 #
 # Only ever raises, never lowers, and a shell that refuses is not fatal —
 # the link may still fit under whatever limit is already in force.
-if [ "$(ulimit -Sn)" -lt 4096 ] 2>/dev/null; then
+# "unlimited" is not a number: leave it alone rather than compare it.
+soft_files="$(ulimit -Sn)"
+if [[ "$soft_files" =~ ^[0-9]+$ ]] && (( soft_files < 4096 )); then
     ulimit -n 8192 2>/dev/null || ulimit -n "$(ulimit -Hn)" 2>/dev/null || true
 fi
 
@@ -42,7 +44,7 @@ say() { printf '    %s\n' "$*"; }
 # bundle — the commit, "+local" when crates/apps/packages have uncommitted
 # changes — so a deploy's server and browser errors land on one release.
 MEDBRAINS_RELEASE="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
-if [ -n "$(git status --porcelain -- crates apps packages 2>/dev/null)" ]; then
+if [[ -n "$(git status --porcelain -- crates apps packages 2>/dev/null)" ]]; then
     MEDBRAINS_RELEASE="$MEDBRAINS_RELEASE+local"
 fi
 export MEDBRAINS_RELEASE
@@ -81,7 +83,7 @@ fi
 # source is present and skipped when it is not, exactly as medbrains-edge is:
 # a checkout without the sibling repository must still produce a deploy.
 RUSTENBERG_SRC="${RUSTENBERG_SRC:-$REPO_ROOT/../../rustenberg}"
-if [ -f "$RUSTENBERG_SRC/Cargo.toml" ]; then
+if [[ -f "$RUSTENBERG_SRC/Cargo.toml" ]]; then
     echo "==> building rustenberg (target=$TARGET)"
     say "source: $RUSTENBERG_SRC"
     ( cd "$RUSTENBERG_SRC" && cargo zigbuild --release --target="$TARGET" )
@@ -139,13 +141,13 @@ for f in "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-server" \
          "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-proxy" \
          "apps/web/dist/index.html" \
          "apps/web/dist/home.html"; do
-    if [ -e "$f" ]; then
+    if [[ -e "$f" ]]; then
         say "ok      $f"
     else
         say "MISSING $f"
         missing=1
     fi
 done
-[ "$missing" = "0" ] || { echo "ERROR: build finished but artefacts are missing."; exit 1; }
+[[ "$missing" == "0" ]] || { echo "ERROR: build finished but artefacts are missing."; exit 1; }
 
 echo "==> build OK"
