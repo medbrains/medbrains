@@ -91,6 +91,7 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod birth_rules;
 mod discharge_medicines;
 mod nursing_safety;
 pub mod room_eligibility;
@@ -512,6 +513,9 @@ pub struct CreateHandoverRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct InitDischargeChecklistRequest {
+    /// Empty or left out: the default items. `{}` asked for the defaults and
+    /// got a 422.
+    #[serde(default)]
     pub items: Vec<DischargeChecklistItem>,
 }
 
@@ -2569,6 +2573,10 @@ pub async fn create_nursing_task(
 //  PUT /api/ipd/admissions/{id}/tasks/{tid}
 // ══════════════════════════════════════════════════════════
 
+/// `PUT /api/ipd/admissions/{id}/tasks/{tid}` — edit or tick a nursing task.
+///
+/// Ticking a done task again keeps who did it and when; unticking clears both,
+/// so a reopened task never shows a completer.
 pub async fn update_nursing_task(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2615,8 +2623,12 @@ pub async fn update_nursing_task(
            is_completed = COALESCE($7, is_completed), \
            due_at = COALESCE($8, due_at), \
            notes = COALESCE($9, notes), \
-           completed_at = COALESCE($10, completed_at), \
-           completed_by = COALESCE($11, completed_by) \
+           completed_at = CASE WHEN $7 IS FALSE THEN NULL \
+                               WHEN $7 AND NOT is_completed THEN $10 \
+                               ELSE completed_at END, \
+           completed_by = CASE WHEN $7 IS FALSE THEN NULL \
+                               WHEN $7 AND NOT is_completed THEN $11 \
+                               ELSE completed_by END \
          WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
          RETURNING *",
     )
@@ -2880,10 +2892,44 @@ pub async fn create_mar(
 //  PUT /api/ipd/admissions/{id}/mar/{mar_id}
 // ══════════════════════════════════════════════════════════
 
+/// Whether `user` is an active user of this tenant whose resolved grant (role,
+/// access groups, `access_matrix` extra and temporary grants, less denied) holds
+/// `code` by name. Decides the giver and the witness of a high-alert dose.
+///
+/// Read inside the caller's transaction. A bypass role's row carries no codes,
+/// so an admin holds `code` here only when granted it by name.
+///
+/// # Errors
+/// The grant could not be read. That is neither a yes nor a no: the caller
+/// fails the request rather than refusing or allowing the dose.
+async fn holds_by_name(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user: Uuid,
+    code: &str,
+) -> Result<bool, AppError> {
+    let role = sqlx::query_scalar::<_, String>(
+        "SELECT role::text FROM users \
+         WHERE id = $1 AND tenant_id = $2 AND is_active = true AND deleted_at IS NULL",
+    )
+    .bind(user)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(role) = role else {
+        return Ok(false);
+    };
+    let granted = medbrains_server_core::permissions::resolve_granted_permissions_on(
+        tx, tenant_id, user, &role,
+    )
+    .await?;
+    Ok(granted.iter().any(|held| held == code))
+}
+
 /// Apply a MAR dose status transition with the full IPSG.3 medication-safety gate, shared by
 /// BOTH MAR update endpoints so neither can bypass the checks: an already-administered dose is
-/// immutable; a high-alert `given` requires an independent second-nurse witness (different, real,
-/// active) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
+/// immutable; a high-alert `given` requires a giver holding `nurse.mar.administer_high_alert`, an
+/// independent witness (a different, active user holding `nurse.mar.witness`) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
 /// `barcode_verified` is server-authoritative (never client-set). `admission_id` optionally scopes
 /// the dose to a specific admission (the admission-nested endpoint) — `None` matches by id alone.
 async fn administer_mar_dose_in_tx(
@@ -2924,6 +2970,21 @@ async fn administer_mar_dose_in_tx(
     match status {
         MarStatus::Given => {
             if existing.is_high_alert {
+                if !holds_by_name(
+                    tx,
+                    tenant_id,
+                    actor_sub,
+                    permissions::nurse::mar::ADMINISTER_HIGH_ALERT,
+                )
+                .await?
+                {
+                    return Err(AppError::ForbiddenReason(
+                        "You are not allowed to give high-alert doses. Ask an administrator to grant \
+                         'Give a high-alert dose' (nurse.mar.administer_high_alert), or hand this \
+                         dose to a nurse who holds it."
+                            .to_owned(),
+                    ));
+                }
                 let witness = body.witnessed_by.ok_or_else(|| {
                     AppError::BadRequest(
                         "A second-nurse witness is required to administer a high-alert drug."
@@ -2936,19 +2997,11 @@ async fn administer_mar_dose_in_tx(
                             .to_owned(),
                     ));
                 }
-                let witness_is_active = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS( \
-                         SELECT 1 FROM users \
-                         WHERE id = $1 AND tenant_id = $2 AND is_active = true \
-                     )",
-                )
-                .bind(witness)
-                .bind(tenant_id)
-                .fetch_one(&mut **tx)
-                .await?;
-                if !witness_is_active {
+                if !holds_by_name(tx, tenant_id, witness, permissions::nurse::mar::WITNESS).await? {
                     return Err(AppError::BadRequest(
-                        "The witness must be an active staff user for this tenant.".to_owned(),
+                        "The witness must be an active colleague allowed to witness high-alert \
+                         doses (nurse.mar.witness)."
+                            .to_owned(),
                     ));
                 }
                 if !existing.barcode_verified {
@@ -3461,6 +3514,9 @@ pub async fn list_intake_output(
 //  POST /api/ipd/admissions/{id}/io
 // ══════════════════════════════════════════════════════════
 
+/// `POST /api/ipd/admissions/{id}/io` — record one intake or output entry for
+/// the fluid balance. Intake must be above zero; output may be zero ("urine 0 ml
+/// this shift"); nothing may be negative.
 pub async fn create_intake_output(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3481,6 +3537,13 @@ pub async fn create_intake_output(
 
     let shift: NursingShift = serde_json::from_value(serde_json::Value::String(body.shift.clone()))
         .map_err(|_| AppError::BadRequest(format!("Invalid shift '{}'", body.shift)))?;
+    // A negative entry would flip the fluid balance. Zero output is a real
+    // finding (an anuric patient, a blocked catheter); zero intake is not.
+    if body.volume_ml < Decimal::ZERO || (body.is_intake && body.volume_ml.is_zero()) {
+        return Err(AppError::BadRequest(
+            "Volume cannot be negative, and intake must be more than zero.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, IpdIntakeOutput>(
         "INSERT INTO ipd_intake_output \
@@ -3646,6 +3709,7 @@ pub async fn create_infusion(
             "Volume must be greater than zero.".to_owned(),
         ));
     }
+    require_positive_rate(body.rate_ml_per_hr)?;
 
     // Setting up the pump starts the infusion; planned end = now + duration.
     let planned_end = body
@@ -3744,8 +3808,22 @@ pub async fn create_infusion(
     Ok(Json(row))
 }
 
+/// Refuse a pump rate of zero or less: a pump cannot run at it.
+fn require_positive_rate(rate: Option<Decimal>) -> Result<(), AppError> {
+    if rate.is_some_and(|r| r <= Decimal::ZERO) {
+        return Err(AppError::BadRequest(
+            "Rate must be greater than zero.".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 /// `PUT /api/ipd/admissions/{id}/infusions/{infusion_id}` — titrate (rate/site)
 /// or transition status (pause/resume/complete/discontinue).
+///
+/// A completed or discontinued infusion is final (409): resuming it would
+/// restart a bag the chart says has ended, and a second end would rewrite
+/// when it ended.
 pub async fn update_infusion(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3775,12 +3853,29 @@ pub async fn update_infusion(
         }
     }
 
+    require_positive_rate(body.rate_ml_per_hr)?;
     let discontinued_by =
         matches!(body.status.as_deref(), Some("discontinued")).then_some(claims.sub);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let current = sqlx::query_scalar::<_, String>(
+        "SELECT status FROM iv_fluid_orders \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 FOR UPDATE",
+    )
+    .bind(infusion_id)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if matches!(current.as_str(), "completed" | "discontinued") {
+        return Err(AppError::Conflict(format!(
+            "This infusion is {current} and cannot be changed. Start a new one."
+        )));
+    }
 
     let row = sqlx::query_as::<_, IvFluidOrder>(
         "UPDATE iv_fluid_orders SET \
@@ -4140,6 +4235,9 @@ pub async fn list_handovers(
 //  POST /api/ipd/admissions/{id}/handovers
 // ══════════════════════════════════════════════════════════
 
+/// `POST /api/ipd/admissions/{id}/handovers` — the outgoing nurse's ISBAR
+/// handover. The incoming nurse must be another active user of this hospital:
+/// a handover to oneself, or to nobody, hands nothing over.
 pub async fn create_handover(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4157,6 +4255,25 @@ pub async fn create_handover(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    if body.incoming_nurse == claims.sub {
+        return Err(AppError::BadRequest(
+            "Hand over to the nurse taking over, not to yourself.".to_owned(),
+        ));
+    }
+    let incoming_is_active = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2 \
+           AND is_active AND deleted_at IS NULL)",
+    )
+    .bind(body.incoming_nurse)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !incoming_is_active {
+        return Err(AppError::BadRequest(
+            "The incoming nurse must be an active user of this hospital.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, IpdHandoverReport>(
         "INSERT INTO ipd_handover_reports \
@@ -4193,6 +4310,10 @@ pub async fn create_handover(
 //  PUT /api/ipd/admissions/{id}/handovers/{hid}/acknowledge
 // ══════════════════════════════════════════════════════════
 
+/// `PUT /api/ipd/admissions/{id}/handovers/{hid}/acknowledge` — the incoming
+/// nurse confirms she has received the handover. Only she can: an outgoing
+/// nurse acknowledging her own handover would record a receipt nobody gave.
+/// Someone else gets 403; an already acknowledged or unknown handover, 404.
 pub async fn acknowledge_handover(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4209,6 +4330,7 @@ pub async fn acknowledge_handover(
         "UPDATE ipd_handover_reports SET \
            acknowledged_at = NOW() \
          WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 AND acknowledged_at IS NULL \
+           AND deleted_at IS NULL \
          RETURNING *",
     )
     .bind(hid)
@@ -4217,6 +4339,10 @@ pub async fn acknowledge_handover(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
+    if row.incoming_nurse != claims.sub {
+        // Dropping the transaction rolls the acknowledgement back.
+        return Err(AppError::Forbidden);
+    }
 
     tx.commit().await?;
 
@@ -4303,13 +4429,17 @@ fn default_discharge_checklist_items() -> Vec<DischargeChecklistItem> {
     .collect()
 }
 
+/// `POST /api/ipd/admissions/{id}/discharge-checklist` — start the admission's
+/// discharge checklist (the default items, or the ones sent). It writes rows,
+/// so it needs `ipd.discharge_checklist.update`, the code the screen's "Start
+/// checklist" button is gated on, not the list code.
 pub async fn init_discharge_checklist(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     body: Option<Json<InitDischargeChecklistRequest>>,
 ) -> Result<Json<Vec<IpdDischargeChecklist>>, AppError> {
-    require_permission(&claims, permissions::ipd::discharge_checklist::LIST)?;
+    require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
 
     // The route names an admission; holding the module permission is not the
     // same as being on this patient's care team. Without this, any holder of
@@ -4361,6 +4491,9 @@ pub async fn init_discharge_checklist(
 //  PUT /api/ipd/admissions/{id}/discharge-checklist/{cid}
 // ══════════════════════════════════════════════════════════
 
+/// `PUT /api/ipd/admissions/{id}/discharge-checklist/{cid}` — tick or untick
+/// one discharge item. Status is `pending` or `completed`; ticking a done item
+/// again keeps its first completer, and unticking clears who and when.
 pub async fn update_discharge_checklist_item(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4374,26 +4507,30 @@ pub async fn update_discharge_checklist_item(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let (completed_by, completed_at) = if body.status == "completed" {
-        (Some(claims.sub), Some(Utc::now()))
-    } else {
-        (None, None)
-    };
+    if !matches!(body.status.as_str(), "pending" | "completed") {
+        return Err(AppError::BadRequest(format!(
+            "Invalid checklist status '{}'.",
+            body.status
+        )));
+    }
 
+    // Ticked again: who ticked it first stands. Unticked: nobody did it.
     let row = sqlx::query_as::<_, IpdDischargeChecklist>(
         "UPDATE ipd_discharge_checklists SET \
-           status = $4, \
-           completed_by = COALESCE($5, completed_by), \
-           completed_at = COALESCE($6, completed_at) \
-         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
+           completed_by = CASE WHEN $4 = 'pending' THEN NULL \
+                               WHEN status = 'completed' THEN completed_by ELSE $5 END, \
+           completed_at = CASE WHEN $4 = 'pending' THEN NULL \
+                               WHEN status = 'completed' THEN completed_at ELSE $6 END, \
+           status = $4 \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 AND deleted_at IS NULL \
          RETURNING *",
     )
     .bind(cid)
     .bind(id)
     .bind(claims.tenant_id)
     .bind(&body.status)
-    .bind(completed_by)
-    .bind(completed_at)
+    .bind(claims.sub)
+    .bind(Utc::now())
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
@@ -5610,6 +5747,9 @@ pub struct IssueNoDuesRequest {
     pub notes: Option<String>,
 }
 
+/// `GET /api/ipd/admissions/{id}/no-dues` — the admission's No-Dues certificate,
+/// if issued. A financial read: the care team or billing (through the patient)
+/// may see it.
 pub async fn get_no_dues_certificate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5621,7 +5761,7 @@ pub async fn get_no_dues_certificate(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_billing_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5643,6 +5783,10 @@ pub async fn get_no_dues_certificate(
 /// admission. Blocked while a balance remains — the certificate IS the
 /// proof that billing reconciled and settled the stay. Idempotent per
 /// admission so re-issuing after a late payment refreshes the snapshot.
+/// `POST /api/ipd/admissions/{id}/no-dues` — issue the No-Dues certificate once
+/// the admission's live invoices are paid in full (409 otherwise). Billing staff
+/// issue it, so they reach the admission through the patient's billing access,
+/// not the care team.
 pub async fn issue_no_dues_certificate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5655,7 +5799,7 @@ pub async fn issue_no_dues_certificate(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_billing_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6458,6 +6602,10 @@ pub async fn list_bed_reservations(
     Ok(Json(rows))
 }
 
+/// `POST /api/ipd/bed-reservations` — hold a vacant bed for a patient until a
+/// future time. One live hold per bed: a second is refused 409, as is a bed
+/// that is occupied or out of service. A bed with no state row yet is given its
+/// vacant one first, so beds set up before state rows existed can still be held.
 pub async fn create_bed_reservation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6477,6 +6625,52 @@ pub async fn create_bed_reservation(
         .reserved_until
         .parse::<chrono::DateTime<Utc>>()
         .map_err(|_| AppError::BadRequest("Invalid reserved_until datetime".to_owned()))?;
+    if reserved_until <= Utc::now() {
+        return Err(AppError::BadRequest(
+            "Hold the bed until a time that has not passed yet.".to_owned(),
+        ));
+    }
+    // A bed mapped before state rows existed has none; give it its vacant row
+    // rather than refuse a bed that could always be held.
+    sqlx::query(
+        "INSERT INTO bed_states (tenant_id, location_id) \
+         SELECT tenant_id, id FROM locations \
+          WHERE id = $1 AND tenant_id = $2 AND level = 'bed' AND deleted_at IS NULL \
+         ON CONFLICT (tenant_id, location_id) DO NOTHING",
+    )
+    .bind(body.bed_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    // Locking the bed's state row serialises two people holding the same bed.
+    let bed_status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM bed_states WHERE location_id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(body.bed_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("This bed is not configured.".to_owned()))?;
+    if !matches!(bed_status.as_str(), "vacant_clean" | "vacant_dirty") {
+        return Err(AppError::Conflict(format!(
+            "This bed is {} and cannot be held.",
+            bed_status.replace('_', " ")
+        )));
+    }
+    let held = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM bed_reservations \
+           WHERE tenant_id = $1 AND bed_id = $2 AND deleted_at IS NULL \
+             AND status IN ('active', 'confirmed') AND reserved_until > NOW())",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.bed_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if held {
+        return Err(AppError::Conflict(
+            "This bed is already held. Release that hold first.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, BedReservation>(
         "INSERT INTO bed_reservations \
@@ -6497,6 +6691,8 @@ pub async fn create_bed_reservation(
     Ok(Json(row))
 }
 
+/// `PUT /api/ipd/bed-reservations/{id}/status` — confirm, release or expire a
+/// live bed hold. A hold that is cancelled, expired or fulfilled is final (409).
 pub async fn update_reservation_status(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6508,6 +6704,32 @@ pub async fn update_reservation_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // Only a live hold changes, and "fulfilled" is set by the admission that
+    // takes the bed, never by hand.
+    if !matches!(
+        body.status.as_str(),
+        "active" | "confirmed" | "cancelled" | "expired"
+    ) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid reservation status '{}'.",
+            body.status
+        )));
+    }
+    let current = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM bed_reservations \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if !matches!(current.as_str(), "active" | "confirmed") {
+        return Err(AppError::Conflict(format!(
+            "This hold is already {current} and cannot be changed."
+        )));
+    }
 
     let cancelled_by = if body.status == "cancelled" {
         Some(claims.sub)
@@ -6915,6 +7137,9 @@ pub async fn list_restraint_checks(
     Ok(Json(rows))
 }
 
+/// `POST /api/ipd/admissions/{id}/restraint-checks` — a nurse's periodic check
+/// on a restrained patient. It must name an open restraint order on this same
+/// admission (404 otherwise, 409 once the order is closed).
 pub async fn create_restraint_check(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -6932,6 +7157,25 @@ pub async fn create_restraint_check(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // The check belongs to a live restraint order on this admission, not to
+    // another patient's order or to a wound-care note.
+    let order = sqlx::query_scalar::<_, bool>(
+        "SELECT is_resolved FROM ipd_clinical_documentations \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
+           AND doc_type = 'restraint' AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(body.clinical_doc_id)
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if order {
+        return Err(AppError::Conflict(
+            "This restraint order is closed. Open a new order to restrain again.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, RestraintMonitoringLog>(
         "INSERT INTO restraint_monitoring_logs \
@@ -7285,6 +7529,16 @@ pub async fn list_birth_records(
     Ok(Json(rows))
 }
 
+/// Today's date in the timezone furthest ahead (UTC+14), so a birth keyed just
+/// after local midnight anywhere is never "in the future".
+fn latest_local_date() -> NaiveDate {
+    // ponytail: widest offset, not the tenant's own zone; read tenants.timezone if a day matters.
+    (Utc::now() + chrono::Duration::hours(14)).date_naive()
+}
+
+/// `POST /api/ipd/admissions/{id}/birth-records` — record a birth on the
+/// mother's admission. Measurements and identity are checked by
+/// [`birth_rules`] before anything is stored.
 pub async fn create_birth_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -7311,6 +7565,22 @@ pub async fn create_birth_record(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
+    birth_rules::check_measures(&birth_rules::BirthMeasures {
+        apgar_1min: body.apgar_1min,
+        apgar_5min: body.apgar_5min,
+        weight_grams: body.weight_grams,
+        length_cm: body.length_cm,
+        head_circumference_cm: body.head_circumference_cm,
+    })
+    .and_then(|()| {
+        birth_rules::check_identity(
+            Some(body.date_of_birth),
+            latest_local_date(),
+            body.baby_patient_id,
+            mother_patient_id,
+        )
+    })
+    .map_err(AppError::BadRequest)?;
 
     let row = sqlx::query_as::<_, IpdBirthRecord>(
         "INSERT INTO ipd_birth_records \
@@ -7345,6 +7615,9 @@ pub async fn create_birth_record(
     Ok(Json(row))
 }
 
+/// `PUT /api/ipd/admissions/{id}/birth-records/{rec_id}` — correct a birth
+/// record's measurements or link the baby's own patient record, under the same
+/// rules as creating one.
 pub async fn update_birth_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -7359,6 +7632,31 @@ pub async fn update_birth_record(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    birth_rules::check_measures(&birth_rules::BirthMeasures {
+        apgar_1min: body.apgar_1min,
+        apgar_5min: body.apgar_5min,
+        weight_grams: body.weight_grams,
+        length_cm: body.length_cm,
+        head_circumference_cm: body.head_circumference_cm,
+    })
+    .map_err(AppError::BadRequest)?;
+    if let Some(baby) = body.baby_patient_id {
+        let is_mother = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM ipd_birth_records \
+               WHERE id = $1 AND tenant_id = $2 AND mother_patient_id = $3)",
+        )
+        .bind(rec_id)
+        .bind(claims.tenant_id)
+        .bind(baby)
+        .fetch_one(&mut *tx)
+        .await?;
+        if is_mother {
+            return Err(AppError::BadRequest(
+                "The baby's record cannot be the mother's.".to_owned(),
+            ));
+        }
+    }
 
     let row = sqlx::query_as::<_, IpdBirthRecord>(
         "UPDATE ipd_birth_records SET \
@@ -8710,36 +9008,6 @@ pub async fn expected_discharges(
     tx.commit().await?;
     Ok(Json(rows))
 }
-
-#[cfg(test)]
-mod discharge_summary_tests {
-    use super::missing_discharge_summary_fields;
-
-    #[test]
-    fn complete_summary_has_no_missing() {
-        let missing = missing_discharge_summary_fields(
-            Some("Community-acquired pneumonia"),
-            Some("Stable, afebrile"),
-            Some("IV antibiotics, improved"),
-            Some("Review in 1 week"),
-        );
-        assert!(missing.is_empty());
-    }
-
-    #[test]
-    fn blank_and_missing_fields_are_reported() {
-        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
-        assert_eq!(
-            missing,
-            vec![
-                "condition at discharge",
-                "course in hospital",
-                "follow-up instructions"
-            ]
-        );
-    }
-}
-
 /// Inpatient department (admissions, wards, MAR, rounds, discharge, nursing) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -8998,4 +9266,33 @@ pub fn router() -> axum::Router<AppState> {
             get(get_admission_consents),
         )
         .route("/api/ipd/discharges/expected", get(expected_discharges))
+}
+
+#[cfg(test)]
+mod discharge_summary_tests {
+    use super::missing_discharge_summary_fields;
+
+    #[test]
+    fn complete_summary_has_no_missing() {
+        let missing = missing_discharge_summary_fields(
+            Some("Community-acquired pneumonia"),
+            Some("Stable, afebrile"),
+            Some("IV antibiotics, improved"),
+            Some("Review in 1 week"),
+        );
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn blank_and_missing_fields_are_reported() {
+        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
+        assert_eq!(
+            missing,
+            vec![
+                "condition at discharge",
+                "course in hospital",
+                "follow-up instructions"
+            ]
+        );
+    }
 }

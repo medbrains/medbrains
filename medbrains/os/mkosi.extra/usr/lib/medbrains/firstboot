@@ -117,4 +117,4 @@ systemd-tmpfiles --create /usr/lib/tmpfiles.d/medbrains.conf
 [[ -f "/etc/postgresql/$PG_VERSION/main/postgresql.conf" ]] || create_cluster
 /usr/lib/medbrains/front-certs
 ensure_agent_token
-touch "$CONF/.firstboot-done"
+/usr/lib/medbrains/mark-done "$CONF/.firstboot-done"

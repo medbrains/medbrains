@@ -57,6 +57,11 @@ From another computer the same box answers at `https://<address>` with a certifi
 
 `make os-image DEBUG=1`, then `make os-test IMAGE=<image.raw>` boots a fresh machine, makes it a main machine, and checks firewall, kernel hardening, time, memory, disk and the main machine's half of joining (one VM cannot join itself: `tests/two-machines.sh` is the rest). Limits are in `crates/medbrains-os-test/budgets.json`: lower them as numbers improve, and never raise one without a reason in the PR. It needs QEMU, and doesn't run in CI yet.
 
+`cargo run -p medbrains-os-test -- <release image> release` checks a release image from outside, since it has no
+shell to check from: SSH does not answer, and its serial port shows no login and runs no command. Set
+`MB_OS_TEST_BROWSER=1` to also sign in through a real browser and open Patients (`tests/patients-journey.mjs`;
+needs the web app's Playwright on the test computer).
+
 `make os-test-updates IMAGE=<image> BUNDLES=<folder>` proves updates on real QEMU machines: tampered bundles, power cuts, rollback. `os/tests/make-update-bundles.py` makes the folder. `MB_OS_TEST_ARCH=x86-64` on a merged T1 image runs the sealed-disk scenarios instead.
 
 ## Boot in UTM
@@ -84,6 +89,118 @@ sudo dd if=medbrains-os_<commit>.raw of=/dev/sdX bs=4M conv=fsync status=progres
 **NVMe only.** SD cards are unsupported for data (§8a, §8o): a database wears them out, and a worn
 card corrupts clinical records. Active cooling is required too. The Debian kernel's Pi 5 support is
 partial, so expect gaps; that is what D2 is for.
+
+## Install and run
+
+A release carries the one system image in every format below (`os/release-files.md`, which also goes into
+the release notes). All are UEFI only. **Every one needs a TPM 2.0, real or virtual, for the sealed data
+disk**; without one, setup stops and asks before it stores anything unencrypted ([Data disk](#data-disk)).
+The image is not Secure Boot signed yet (T1): turn Secure Boot off, or build with `OS_SB_KEY` /
+`OS_SB_CERT` and enrol that certificate in the firmware. Secure Boot changes PCR 7, so turn it on or off
+before first boot, not after: the disk is sealed to PCRs 4+7 at first boot.
+
+```sh
+os/build-iso.sh --arch x86-64 --image <name>.raw.zst --out <name>.iso   # the installer
+os/formats.sh <image.raw> <name> x86-64 <out-dir>                       # qcow2, vmdk, ova, vhdx, Azure vhd
+```
+
+### Installer (.iso), on a physical machine
+
+Write the `.iso` to a USB stick (`dd if=<name>.iso of=/dev/sdX bs=4M conv=fsync` on Linux, or an image
+writer in disk-image mode, such as Rufus's DD mode), or burn it to a DVD, and start the machine from it (UEFI boot menu). The installer runs from
+memory. It first reads the whole image on the medium and checks its SHA-256; a damaged stick or DVD
+is refused there, before any disk is offered, so it can never leave a disk erased and empty. That check (the
+hash in `medbrains/image.info` on the medium) proves integrity only, not where the image came from: anyone
+can make a medium with a matching file. Authenticity is the signed `SHA256SUMS` (and its `.sigstore.json`) that
+the `.iso` itself is checked against before it is written to a stick. Then it lists the machine's disks, with size, model and how many partitions each holds. To install:
+
+1. type the disk's name (for example `nvme0n1`);
+2. type `ERASE nvme0n1` exactly. Any other answer writes nothing and goes back to the list;
+3. it writes the image, reads the whole of it back past the cache, and compares the SHA-256 with the one on
+   the medium. On a match it makes the disk the firmware's first boot entry ("MedBrains OS", replacing an
+   earlier one), ejects a DVD and restarts in 15 seconds. Take the stick out.
+
+The stick or DVD it started from, and any other MedBrains installer, is never listed, and typing its name is
+refused. A disk in use (mounted, or part of RAID, LVM or dm-crypt) is not listed either. The list shows each disk's
+bus (usb, nvme, sata) and serial number. The disk named is pinned by its major:minor, serial, WWN and size;
+just before writing the installer checks them again and opens the disk once, so a disk swapped or replugged after
+it was named is refused, and one pulled out mid-write fails the write instead of it landing on another disk. A read-only disk and one smaller than the image (4.5 GB) are not listed. The same installer runs on the
+screen and on the serial console (`ttyS0`, `ttyAMA0` on arm64); only one of them can write at a time. The disk
+then holds the release `.raw` byte for byte, so its signed boot file and PCR 11 signature are the ones released;
+first boot grows the data partition into the rest of the disk. Built by `os/installer/` (mkosi, `Format=uki`)
+and wrapped by xorriso as a hybrid ISO: El Torito for a DVD, a GPT with an EFI partition for a stick.
+`os/tests/installer-test.py <iso> <raw>` proves it in QEMU.
+
+### Proxmox, KVM, libvirt (.qcow2)
+
+Proxmox: create a VM with **BIOS OVMF (UEFI)**, machine q35, an EFI disk **without pre-enrolled keys** (or with
+yours, if the image was built with `OS_SB_KEY`), **TPM state v2.0**, 4 cores, 4 GB, and no disk. Then
+`qm disk import <vmid> <name>.qcow2 <storage>`, attach it as `virtio0` or `scsi0`, make it the boot disk,
+and grow it (`qm disk resize <vmid> virtio0 +60G`): first boot puts the data partition in the free space.
+libvirt: `virt-install --boot uefi --tpm emulator,model=tpm-crb,version=2.0 --disk <name>.qcow2,bus=virtio ...`.
+
+### VMware (.ova)
+
+The OVA asks for UEFI firmware, 4 vCPU, 4 GB, a SATA disk and a VMXNET3 card. Its virtual hardware is version 19, which needs
+ESXi 7.0 U2 or later (Workstation 16.2 or Fusion 12.2). Deploy it (vSphere: *Deploy
+OVF Template*; Workstation / Fusion: *File > Open*), then grow the disk before first boot. **A virtual TPM**
+needs, on vSphere, a key provider (the Native Key Provider is enough) and VM encryption; on Workstation and
+Fusion, the VM's *Encryption* setting first. Turn **Secure Boot** off in *VM Options > Boot Options* unless the
+image was signed with your key. The `.vmdk` inside is stream-optimised; to attach it on its own, convert it
+first (`vmkfstools -i <name>.vmdk -d thin new.vmdk` on ESXi).
+
+### Hyper-V (.vhdx)
+
+**Generation 2** only (UEFI). Turn Secure Boot off, or pick the *Microsoft UEFI Certificate Authority*
+template only if the image is signed with a key that chains to it (it is not today). Add the **trusted platform
+module** under *Security*. Then:
+
+```powershell
+New-VM -Name MedBrains -Generation 2 -MemoryStartupBytes 4GB -VHDPath .\<name>.vhdx -SwitchName <switch>
+Set-VMProcessor MedBrains -Count 4
+Set-VMFirmware MedBrains -EnableSecureBoot Off
+Set-VMKeyProtector MedBrains -NewLocalKeyProtector; Enable-VMTPM MedBrains
+Resize-VHD .\<name>.vhdx -SizeBytes 64GB
+```
+
+### Amazon Web Services (.vmdk, or .raw for arm64)
+
+The files are built, never uploaded by the release. Import the disk as a snapshot, then register it as a UEFI
+image with NitroTPM, which the sealed disk needs: use a Nitro instance type that offers NitroTPM (for
+example `m6i` on x86-64, `m7g` on arm64). x86-64 uses the `.vmdk`; arm64 uses the `.raw` (`zstd -d` the
+`.raw.zst`), with `Format=RAW` and `--architecture arm64`.
+
+```sh
+aws s3 cp <name>.vmdk s3://<bucket>/<name>.vmdk
+aws ec2 import-snapshot --description <name> \
+  --disk-container "Format=VMDK,UserBucket={S3Bucket=<bucket>,S3Key=<name>.vmdk}"
+aws ec2 describe-import-snapshot-tasks --import-task-ids <task>        # wait for "completed", note SnapshotId
+aws ec2 register-image --name <name> --architecture x86_64 --boot-mode uefi --tpm-support v2.0 \
+  --ena-support --virtualization-type hvm --root-device-name /dev/xvda \
+  --block-device-mappings "DeviceName=/dev/xvda,Ebs={SnapshotId=<snap>,VolumeSize=64,VolumeType=gp3}"
+```
+
+Do not use `aws ec2 import-image`: it inspects and rewrites the system inside, rejects a custom Linux it does
+not recognise, and does not set UEFI or NitroTPM. If the image was built with your own Secure Boot key
+(`OS_SB_KEY`), add `--uefi-data <file>` to `register-image` to enrol it. AWS's `uefivars.py` tool makes
+that file from your PK, KEK and db certificates. Finish setup through the instance's serial console or the web
+address: the appliance has no SSH.
+
+### Microsoft Azure (-azure.vhd.zst)
+
+Unpack it (`zstd -d <name>-azure.vhd.zst`): Azure takes only an uncompressed, fixed-size VHD whose size is a
+whole number of MiB, which this is. Upload it as a page blob and make a **generation 2** image; use
+**Trusted Launch** for the vTPM, with Secure Boot off until the image is signed:
+
+```sh
+azcopy copy <name>-azure.vhd "https://<account>.blob.core.windows.net/<container>/<name>.vhd?<sas>" --blob-type PageBlob
+az disk create -g <rg> -n <name> --hyper-v-generation V2 --security-type TrustedLaunch \
+  --source "https://<account>.blob.core.windows.net/<container>/<name>.vhd"
+az vm create -g <rg> -n medbrains --attach-os-disk <name> --os-type linux --size Standard_D4s_v5 \
+  --security-type TrustedLaunch --enable-vtpm true --enable-secure-boot false
+```
+
+Grow the disk (`az disk update --size-gb 64`) before first boot.
 
 ## What a person sees
 
@@ -480,9 +597,46 @@ uses only those, with square corners, bottom-rule fields, MedBrains Sans and IBM
 
 ## Linux hardening
 
-Task T1.1, all with settings Linux already has: `/etc/sysctl.d/90-medbrains.conf`, unused kernel modules blocked
-in `/etc/modprobe.d/medbrains-blocklist.conf`, and `lockdown=integrity` with memory protections on the kernel
-command line. Unprivileged user namespaces stay on because WebKit's sandbox needs them.
+Task T1.1, all with settings Linux already has, adopted from Kicksecure's
+[security-misc](https://github.com/Kicksecure/security-misc) (Debian-based, read at commit `9535bf8`) and the CIS
+Debian benchmark where they fit an appliance. Every entry carries a one-line reason in its file:
+
+- **Kernel command line** (`mkosi.conf`, `mkosi.conf.d/x86-64.conf`): `lockdown=confidentiality` (not even root reads
+  kernel memory or loads unsigned kernel code), `module.sig_enforce=1`, `init_on_alloc=1 init_on_free=1`, `slab_nomerge`,
+  `page_alloc.shuffle=1`, `randomize_kstack_offset=on`, `kfence.sample_interval=100`, `debugfs=off`,
+  `efi_pstore.pstore_disable=1`, `proc_mem.force_override=ptrace`, `random.trust_cpu=off random.trust_bootloader=off`,
+  strict IOMMU, and `systemd.getty_auto=no`. On x86-64 also `vsyscall=none ia32_emulation=0 iommu=force erst_disable tsx=off`.
+- **sysctls** (`/etc/sysctl.d/90-medbrains.conf`): kernel pointers, dmesg, perf, BPF, kexec, ptrace, SysRq,
+  userfaultfd, TIOCSTI and core dumps closed; protected links, FIFOs and files; an end host's network settings
+  (no redirects, forwarding, source routes or kernel router advertisements; reverse-path filter; martians logged).
+- **Kernel modules** (`/etc/modprobe.d/medbrains-blocklist.conf`): rare protocols, CAN, unused and network file
+  systems, FireWire and Thunderbolt (DMA, X6), Bluetooth (OS-THREATS H16), RNDIS, GNSS, floppy and CD.
+- **systemd sandboxing** on every MedBrains unit, measured with `systemd-analyze security` (below) and held under
+  a per-unit ceiling in `crates/medbrains-os-test/budgets.json`.
+- **No login anywhere** (X6): no SSH server; every getty, serial getty, autovt, container getty and
+  `debug-shell.service` masked; root locked; plain banners. A debug image keeps its own root shell on the serial port.
+
+**What we did not take from Kicksecure, and why:**
+
+| Setting | Why not |
+|---|---|
+| `mitigations=auto,nosmt` and the per-flaw `=force` flags | `nosmt` halves the CPUs of a hospital's only server; it runs only our signed code, no tenants or guest VMs. Debian's `mitigations=auto` stays. `tsx=off` is taken: it costs nothing |
+| `slab_debug=FZ` | Debug checks on every allocation cost measurable speed; `init_on_free`, `slab_nomerge` and KFENCE cover most of it |
+| `kernel.unprivileged_userns_clone=0`, `user.max_user_namespaces=0` | WebKit's sandbox (bubblewrap) needs user namespaces; without them the web view runs unsandboxed, a bigger hole |
+| `kernel.yama.ptrace_scope=3` | Setup reads which program opened its socket, which needs `CAP_SYS_PTRACE`; 2 still refuses every other trace |
+| `kernel.io_uring_disabled=2` | We use 1 with a group (977) so a service can be allowed it where it measurably helps; none is today |
+| `net.ipv4.icmp_echo_ignore_all=1` | IT staff find the machine with ping; broadcast pings are still ignored |
+| `net.ipv4.tcp_timestamps=0` | Hurts throughput and PAWS on busy links; the uptime it leaks is not secret on a LAN appliance |
+| `net.ipv4.conf.*.arp_ignore=2` | Ignores conflict probes sent from 0.0.0.0, so another device could take this machine's address unseen; 1 is used |
+| `kernel.panic=-1`, `oops=panic` | `panic=10` restarts a dead kernel so a bad update uses up its boot tries (U1) |
+| `usb-storage` off | USB sticks carry signed updates (OS-UPDATES.md); they mount read-only, `noexec,nosuid,nodev` |
+
+**Units whose score stays high, and why.** The disk units (`medbrains-disk-*`) run before `/var` exists, create
+the data partition, load `dm-crypt`, talk to the TPM and ask a person for keys on tty1; the updater (`medbrains-os-update@`, `medbrains-update-*`)
+writes a whole system partition and the boot partition and mounts the other slot or a USB stick. A read-only
+system, a device list or a capability limit would break the job, and a broken updater cannot be fixed by an
+update. They get every setting that cannot get in the way. `cage-console` keeps the gaps WebKit's own sandbox needs
+(see its unit). All are still below their ceiling, which a test enforces.
 
 ## Apps on the desktop
 
@@ -843,13 +997,16 @@ verity are the rest of T1. Any new boot file needs a re-seal until then.
 - `mkosi.build.chroot`: compiles `crates/medbrains-shell` and installs its fonts.
 - `tests/`: `check-units.sh` and `console-status.sh` run alone; `vm.py` drives a booted debug image with real input;
   `two-machines.sh` boots a main machine and a node on one LAN; `nodes-screen.mjs` drives the Machines page.
+- `tests/patients-journey.mjs`: sign in and open Patients in a real browser.
 - `mkosi.splash.bmp`, `ukify-splash.py`, `install-ukify-splash.sh`: the boot logo.
 - `build.sh`: runs mkosi. `builder.Dockerfile`: the Mac fallback. `qemu-run.sh`: boot it.
+- `build-iso.sh`, `installer/`: the installer `.iso`. `formats.sh`, `medbrains-os.ovf`: the VM and cloud disks. `release-files.md`: which file is for what, in the release notes. `tests/installer-test.py`: the installer in QEMU.
 - `build-kanidm.sh`: compiles the identity provider from its pinned release. `kanidm-override.css`: its colours.
 - `tests/kanidm-acceptance.py`, `tests/kanidm-softkey`: the owner's acceptance test and the hardware key test, against a booted debug image.
 - `tests/kanidm-one-login-test.py`, `tests/kanidm-limit-test.py`: one login from setup, and the limit by address.
 - `tests/kanidm-attacks.py`, `tests/kanidm-upgrade-test.py`, `tests/sso-entra-fixture.py`: the published crashes, a real upgrade and the Entra-shaped sign-in, each against a booted debug image.
 - `tests/kanidm-pin-test.sh`, `tests/kanidm-disk-guard-test.sh`: the build's pins and the encryption guard, with no VM.
+- `tests/disk-setup-lockout-test.sh`: how `disk-setup` sets the TPM's lockout password, against stubbed tpm2-tools, with no VM.
 - `tests/webauthn-probe.html`, `tests/webauthn-probe.js`: what a browser offers for hardware keys, shown on the page. Copy them to a test VM's `/usr/share/kanidm/ui/hpkg/` and open `/pkg/webauthn-probe.html`.
 
 ## Measured

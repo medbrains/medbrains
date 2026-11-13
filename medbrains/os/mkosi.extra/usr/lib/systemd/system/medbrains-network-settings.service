@@ -11,5 +11,31 @@ ConditionDirectoryNotEmpty=/var/lib/medbrains/network
 Type=oneshot
 ExecStart=/bin/sh -c 'install -d /run/systemd/network && cp /var/lib/medbrains/network/*.network /run/systemd/network/'
 
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Copies the confirmed network files into /run before networkd starts; reads and writes nothing else.
+ProtectSystem=strict
+ReadWritePaths=/run
+PrivateNetwork=yes
+PrivateDevices=yes
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+RestrictAddressFamilies=AF_UNIX
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+ProtectKernelModules=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0022
+
 [Install]
 WantedBy=systemd-networkd.service

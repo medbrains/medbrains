@@ -1,26 +1,30 @@
-//! Device-code pairing for surfaces that cannot scan a QR.
+//! Device-code pairing for screens that cannot scan a QR.
 //!
 //! The flow in the parent module is admin-first: an administrator mints a
 //! token and the device redeems it. That works when the device has a camera to
 //! read the administrator's QR with. A TV does not, so the direction reverses:
 //!
-//!   1. Display → `POST /api/device-pairing/device-code`
-//!      Asks for a code. Returns a short `user_code` to put on screen and a
-//!      long secret `device_code` to poll with.
+//!   1. Screen → `POST /api/device-pairing/device-code`
+//!      Names its hospital by code and asks for a pairing code. Returns a
+//!      short `user_code` to put on screen and a long secret `device_code` to
+//!      poll with. The request belongs to that hospital from the start.
 //!
 //!   2. Administrator → `POST /api/admin/device-pairing/approve`
-//!      Reads the code off the screen and approves it, choosing which user the
-//!      display will act as.
+//!      Picks the waiting screen from the list (which never shows the code)
+//!      and types the code the screen shows. A wrong code counts; the fifth
+//!      refuses the request.
 //!
-//!   3. Display → `POST /api/device-pairing/device-token`
-//!      Polls with `device_code`. Once approved this issues the JWT and records
-//!      the device, exactly as `pair_device` does for the QR flow.
+//!   3. Screen → `POST /api/device-pairing/device-token`
+//!      Polls with `device_code`. Once approved this issues a display token —
+//!      the hospital's display account, `display.board.read` and nothing else.
+//!
+//! Only screens pair this way. A phone or tablet acts as a person, so it pairs
+//! through the admin-minted token or the hospital binding QR, where the
+//! administrator chooses who it acts as before anything is issued.
 //!
 //! Approving deliberately does not mint the JWT. It is issued to whoever polls
-//! holding `device_code`, which is never displayed — so a `user_code` read off
-//! a screen by a passer-by is not enough to take the session.
+//! holding `device_code`, which is never displayed.
 
-use axum::extract::rejection::JsonRejection;
 use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
@@ -28,7 +32,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::{Claims, encode_jwt};
+use medbrains_server_core::middleware::auth::{Claims, encode_jwt, is_display_variant};
+use medbrains_server_core::middleware::client_ip::ClientIp;
 use medbrains_server_core::state::AppState;
 
 use crate::{DEVICE_JWT_DAYS, sha256_hex};
@@ -50,61 +55,201 @@ const MAX_POLLS: i32 = 400;
 const CODE_ALPHABET: &[u8] = b"2346789BCDFGHJKMNPQRTVWXYZ";
 const USER_CODE_LEN: usize = 8;
 
+/// The one app variant that pairs by code: a screen, which acts as the
+/// hospital's display account and never as a person.
+const SCREEN_VARIANT: &str = "tv";
+
+/// Screens one hospital may have waiting at once. A ward fitting out a floor
+/// stays well under it. Past it, the newest request pushes out a waiting one
+/// from the most crowded address, so one source cannot hold the list.
+const MAX_WAITING_PER_HOSPITAL: i64 = 50;
+/// Screens one address may have waiting for one hospital. A hospital behind
+/// one public address switching on a floor of screens stays under it; past
+/// it, the address's own oldest request is pushed out, not anyone else's.
+const MAX_WAITING_PER_ADDRESS: i64 = 10;
+/// Why a waiting screen was pushed out, kept on the row.
+const DROPPED_BY_ADDRESS: &str = "too many screens waiting from one address";
+const DROPPED_LIST_FULL: &str = "too many screens waiting for this hospital";
+
+/// What every screen is called on the administrator's list. Never what the
+/// screen sent: a name a caller chose could carry a code that is not the one
+/// on the wall, and the person approving must read the wall.
+const SCREEN_LABEL: &str = "Waiting-room screen";
+/// A public key PEM is a few hundred bytes; anything far larger is not one.
+const MAX_PUBLIC_KEY_PEM_BYTES: usize = 4096;
+
 // ──────────────────────────────────────────────────────────────────
 //  POST /api/device-pairing/device-code   (no auth — this is the start)
 // ──────────────────────────────────────────────────────────────────
 
+/// A screen asking to be paired. Any name it sends is ignored (see
+/// [`SCREEN_LABEL`]).
 #[derive(Debug, Deserialize)]
 pub struct DeviceCodeRequest {
+    /// The hospital's code (`tenants.code`), from the address the screen was
+    /// opened at or typed on it. The request belongs to this hospital only.
+    pub hospital_code: String,
     pub app_variant: String,
-    pub label: String,
     /// Bound to the pairing when supplied, so the JWT is tied to this device.
     pub public_key_pem: Option<String>,
 }
 
+/// What a screen shows, and the secret it polls with.
 #[derive(Debug, Serialize)]
 pub struct DeviceCodeResponse {
     /// Shown on the display. Formatted `XXXX-XXXX` for reading aloud.
     pub user_code: String,
+    /// Shown on the display and on the administrator's list, so a person can
+    /// tell which row is which screen. Not secret, and not enough to approve.
+    pub reference: String,
     /// Secret. Never displayed; the only thing that can claim the approval.
     pub device_code: String,
     pub expires_at: DateTime<Utc>,
     pub poll_interval_seconds: i64,
 }
 
-pub async fn request_device_code(
-    State(state): State<AppState>,
-    Json(body): Json<DeviceCodeRequest>,
-) -> Result<Json<DeviceCodeResponse>, AppError> {
-    if !matches!(body.app_variant.as_str(), "staff" | "tv" | "vendor") {
+/// Refuses what a screen may not ask for: anything but a screen, or a key too
+/// large to be one.
+fn check_request(body: &DeviceCodeRequest) -> Result<(), AppError> {
+    if body.app_variant != SCREEN_VARIANT {
         return Err(AppError::BadRequest(
-            "app_variant must be staff, tv or vendor".to_owned(),
+            "Only a screen pairs with a code. A phone or tablet pairs by scanning the \
+             hospital's QR on Admin → Paired devices."
+                .to_owned(),
         ));
     }
-    if body.label.trim().is_empty() {
-        return Err(AppError::BadRequest("label is required".to_owned()));
+    if body
+        .public_key_pem
+        .as_ref()
+        .is_some_and(|pem| pem.len() > MAX_PUBLIC_KEY_PEM_BYTES)
+    {
+        return Err(AppError::BadRequest(
+            "public_key_pem is too large".to_owned(),
+        ));
     }
+    Ok(())
+}
 
+/// The active hospital a screen named, by its code. An unknown code is a 400
+/// the screen shows, so whoever set it up can correct the address.
+async fn hospital_by_code(state: &AppState, code: &str) -> Result<Uuid, AppError> {
+    sqlx::query_scalar("SELECT id FROM tenants WHERE code = $1 AND is_active")
+        .bind(code.trim().to_ascii_uppercase())
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "No hospital has that code. Check the address on Admin → Paired devices."
+                    .to_owned(),
+            )
+        })
+}
+
+/// Keeps one hospital's waiting screens bounded before a new one is filed,
+/// under a per-hospital lock so concurrent requests cannot race past it.
+/// Expired screen requests that were never collected are deleted (an hour
+/// late, so a screen still polling one reads "expired"); then this address's
+/// oldest waiting requests beyond its share, then the most crowded address's
+/// beyond the hospital's, are refused.
+async fn make_room(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    address: Option<&str>,
+) -> Result<(), AppError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('screen-pairing:' || $1::text))")
+        .bind(tenant_id)
+        .execute(&mut **tx)
+        .await?;
+    sqlx::query(
+        "DELETE FROM device_pairing_requests \
+          WHERE tenant_id = $1 AND node_id IS NULL AND status <> 'claimed' \
+            AND expires_at < now() - interval '1 hour'",
+    )
+    .bind(tenant_id)
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query(
+        "UPDATE device_pairing_requests SET status = 'denied', drop_reason = $4 WHERE id IN ( \
+           SELECT id FROM device_pairing_requests \
+            WHERE tenant_id = $1 AND node_id IS NULL AND status = 'pending' \
+              AND expires_at > now() AND source_address IS NOT DISTINCT FROM $2 \
+            ORDER BY created_at DESC OFFSET $3)",
+    )
+    .bind(tenant_id)
+    .bind(address)
+    .bind(MAX_WAITING_PER_ADDRESS - 1)
+    .bind(DROPPED_BY_ADDRESS)
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query(
+        // The most crowded address loses first, so a real screen, alone on its
+        // address, is the last to go.
+        "UPDATE device_pairing_requests SET status = 'denied', drop_reason = $3 WHERE id IN ( \
+           SELECT id FROM ( \
+             SELECT id, created_at, count(*) OVER (PARTITION BY source_address) AS crowd \
+               FROM device_pairing_requests \
+              WHERE tenant_id = $1 AND node_id IS NULL AND status = 'pending' \
+                AND expires_at > now()) waiting \
+            ORDER BY crowd ASC, created_at DESC OFFSET $2)",
+    )
+    .bind(tenant_id)
+    .bind(MAX_WAITING_PER_HOSPITAL - 1)
+    .bind(DROPPED_LIST_FULL)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// `POST /api/device-pairing/device-code`: a screen asks one hospital to pair it.
+///
+/// Opens the request under that hospital's context, so only its
+/// administrators ever see it, after making room within the hospital's and
+/// the address's share of waiting screens.
+pub async fn request_device_code(
+    State(state): State<AppState>,
+    client: Option<Extension<ClientIp>>,
+    Json(body): Json<DeviceCodeRequest>,
+) -> Result<Json<DeviceCodeResponse>, AppError> {
+    check_request(&body)?;
+    let tenant_id = hospital_by_code(&state, &body.hospital_code).await?;
+    let address = client.map(|Extension(ClientIp(ip))| ip.to_string());
+    let id = Uuid::new_v4();
+    let reference = id
+        .simple()
+        .to_string()
+        .to_ascii_uppercase()
+        .chars()
+        .take(6)
+        .collect::<String>();
     let user_code = generate_user_code();
     let device_code = sha256_hex(Uuid::new_v4().as_bytes());
     let expires_at = Utc::now() + Duration::minutes(REQUEST_TTL_MINUTES);
 
-    // No tenant context: the display does not know its tenant yet, which is
-    // exactly what it is asking to be told. Row level security refuses a row
-    // with no tenant, so through `app_open_device_pairing_request`
-    // (migration 1206), which inserts this one pending request and nothing else.
-    sqlx::query("SELECT app_open_device_pairing_request($1, $2, $3, $4, $5, $6)")
-        .bind(&device_code)
-        .bind(&user_code)
-        .bind(&body.app_variant)
-        .bind(body.label.trim())
-        .bind(body.public_key_pem.as_deref().map(str::trim))
-        .bind(expires_at)
-        .execute(&state.db)
-        .await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    make_room(&mut tx, tenant_id, address.as_deref()).await?;
+    sqlx::query(
+        "INSERT INTO device_pairing_requests \
+           (id, tenant_id, device_code, user_code, app_variant, requested_label, public_key_pem, \
+            expires_at, source_address) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .bind(&device_code)
+    .bind(&user_code)
+    .bind(SCREEN_VARIANT)
+    .bind(format!("{SCREEN_LABEL} {reference}"))
+    .bind(body.public_key_pem.as_deref().map(str::trim))
+    .bind(expires_at)
+    .bind(address.as_deref())
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
 
     Ok(Json(DeviceCodeResponse {
         user_code: format_user_code(&user_code),
+        reference,
         device_code,
         expires_at,
         poll_interval_seconds: POLL_INTERVAL_SECONDS,
@@ -151,6 +296,8 @@ type RequestRow = (
     i32,
 );
 
+/// `POST /api/device-pairing/device-token`: a waiting screen polls with its
+/// secret; once approved it is recorded as a paired device and given its token.
 pub async fn poll_device_token(
     State(state): State<AppState>,
     Json(body): Json<DeviceTokenRequest>,
@@ -158,8 +305,8 @@ pub async fn poll_device_token(
     let mut tx = state.db.begin().await?;
 
     // Counts the poll and locks the row until this transaction ends, through
-    // `app_poll_device_pairing_request` (migration 1206): a pending request
-    // has no tenant yet, and the device code is how its tenant is found.
+    // `app_poll_device_pairing_request` (migration 1206): the screen has no
+    // credentials, and the device code is how its tenant is found.
     let row: Option<RequestRow> = sqlx::query_as(
         "SELECT id, tenant_id, status, app_variant, public_key_pem, \
                 approved_for_user_id, expires_at, poll_count \
@@ -181,21 +328,16 @@ pub async fn poll_device_token(
         return Ok(still_waiting("expired"));
     }
 
-    match status.as_str() {
-        "pending" => {
-            tx.commit().await?;
-            return Ok(still_waiting("pending"));
-        }
-        "denied" => {
-            tx.commit().await?;
-            return Ok(still_waiting("denied"));
-        }
-        // Already claimed: the JWT was handed out once and is not reissued.
-        "claimed" => {
-            tx.commit().await?;
-            return Ok(still_waiting("expired"));
-        }
-        _ => {}
+    // Already claimed: the JWT was handed out once and is not reissued.
+    let waiting = match status.as_str() {
+        "pending" => Some("pending"),
+        "denied" => Some("denied"),
+        "claimed" => Some("expired"),
+        _ => None,
+    };
+    if let Some(answer) = waiting {
+        tx.commit().await?;
+        return Ok(still_waiting(answer));
     }
 
     let (Some(tenant_id), Some(user_id)) = (tenant_id, approved_for) else {
@@ -223,14 +365,10 @@ pub async fn poll_device_token(
             "the approved user no longer exists".to_owned(),
         ));
     };
-
-    // The same resolver login uses, so a paired device carries exactly the
-    // permissions its user would get by signing in — including the bypass-role
-    // convention of an empty set.
-    let permissions = medbrains_server_core::permissions::resolve_permissions(
-        &state.db, tenant_id, user_id, &role,
-    )
-    .await?;
+    // Approval guarantees both; checked again so no other row issues a token.
+    if !is_display_variant(&app_variant) || role != "service_account" {
+        return Err(AppError::Forbidden);
+    }
 
     // A display that sent no key still pairs; the fingerprint then identifies
     // the pairing rather than the hardware.
@@ -270,7 +408,8 @@ pub async fn poll_device_token(
         sub: user_id,
         tenant_id,
         role,
-        permissions,
+        // Not in the wire token: the middleware gives a screen display.board.read.
+        permissions: Vec::new(),
         department_ids,
         perm_version,
         // The other pairing flow. Same reasoning as `pair_device`: without the
@@ -295,249 +434,50 @@ pub async fn poll_device_token(
 //  GET /api/admin/device-pairing/requests
 // ──────────────────────────────────────────────────────────────────
 
+/// A screen waiting to be paired, as an administrator sees it. Deliberately
+/// without its code: the code is what proves the person approving can see the
+/// screen, so the server never hands it out.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct PendingRequest {
     pub id: Uuid,
-    pub user_code: String,
+    /// The short reference the screen shows beside its code (see
+    /// [`DeviceCodeResponse::reference`]).
+    pub reference: String,
     pub app_variant: String,
     pub requested_label: String,
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
 
+/// `GET /api/admin/device-pairing/requests`: the screens waiting to be paired
+/// with this hospital, newest first.
 pub async fn list_pairing_requests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PendingRequest>>, AppError> {
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
-
-    // Pending requests carry no tenant yet, so this is deliberately global —
-    // it is the queue of displays asking to be claimed by someone. Only the
-    // code is shown; approving is what binds one to this tenant.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, PendingRequest>(
-        "SELECT id, user_code, app_variant, requested_label, expires_at, created_at \
+        "SELECT id, upper(left(id::text, 6)) AS reference, app_variant, requested_label, \
+                expires_at, created_at \
          FROM device_pairing_requests \
-         WHERE status = 'pending' AND expires_at > now() AND node_id IS NULL \
+         WHERE tenant_id = $1 AND status = 'pending' AND expires_at > now() \
+           AND node_id IS NULL \
          ORDER BY created_at DESC LIMIT 100",
     )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *conn)
     .await?;
-
-    Ok(Json(
-        rows.into_iter()
-            .map(|mut row| {
-                row.user_code = format_user_code(&row.user_code);
-                row
-            })
-            .collect(),
-    ))
-}
-
-// ──────────────────────────────────────────────────────────────────
-//  POST /api/admin/device-pairing/approve
-// ──────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Deserialize)]
-pub struct ApproveRequest {
-    pub user_code: String,
-    /// Who the display acts as. Defaults to the approving administrator, which
-    /// is rarely what you want for a ward board — pass a service account.
-    pub approved_for_user_id: Option<Uuid>,
-    #[serde(default)]
-    pub deny: bool,
-    /// For a waiting-room screen: the department whose board it shows.
-    pub department_id: Option<Uuid>,
-    /// For a waiting-room screen: which board (`opd`, `pharmacy`, …).
-    pub board_module: Option<String>,
-    /// For a customer display (`board_module = counter_display`): its counter.
-    pub station_id: Option<Uuid>,
-}
-
-/// `flow` is the MedBrains Flow floor map (#4901): it shows the floor the
-/// chosen department's zone is on, and answers only while the add-on is on.
-const BOARD_MODULES: [&str; 7] = [
-    "registration",
-    "opd",
-    "lab",
-    "radiology",
-    "pharmacy",
-    "billing",
-    "flow",
-];
-
-/// A customer display: bound to one billing or pharmacy counter, not a
-/// department (#4883).
-pub const COUNTER_DISPLAY: &str = "counter_display";
-
-/// The counter a customer display is approved for: an active billing or
-/// pharmacy counter of this hospital. Returns the counter's department, which
-/// the device row carries like a board's.
-async fn counter_of(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    station_id: Option<Uuid>,
-) -> Result<(Uuid, Option<Uuid>), AppError> {
-    let refuse = || AppError::BadRequest("Choose the counter this display shows".to_owned());
-    let station_id = station_id.ok_or_else(refuse)?;
-    let row: Option<(Option<Uuid>,)> = sqlx::query_as(
-        "SELECT department_id FROM stations \
-          WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL \
-            AND station_type IN ('billing_counter', 'pharmacy_counter')",
-    )
-    .bind(station_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    let (department_id,) = row.ok_or_else(refuse)?;
-    Ok((station_id, department_id))
-}
-
-/// The hospital's display account: a service account, so it cannot sign in
-/// and holds no grants. What a screen may do comes from its pairing (the auth
-/// middleware gives a display exactly `display.board.read`). Created on first
-/// use.
-async fn display_account(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-) -> Result<Uuid, AppError> {
-    if let Some(id) = sqlx::query_scalar!(
-        "SELECT id FROM users WHERE tenant_id = $1 AND username = 'display_boards' \
-           AND is_service_account",
-        tenant_id,
-    )
-    .fetch_optional(&mut **tx)
-    .await?
-    {
-        return Ok(id);
-    }
-    Ok(sqlx::query_scalar!(
-        "INSERT INTO users (tenant_id, username, email, full_name, role, is_service_account, \
-           is_active, email_verified) \
-         VALUES ($1, 'display_boards', $2, 'Waiting-room screens', 'service_account', true, \
-           true, false) \
-         RETURNING id",
-        tenant_id,
-        // `.invalid` is reserved (RFC 2606): mail to it fails loudly.
-        format!("display_boards.{tenant_id}@service.invalid"),
-    )
-    .fetch_one(&mut **tx)
-    .await?)
-}
-
-pub async fn approve_pairing_request(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    body: Result<Json<ApproveRequest>, JsonRejection>,
-) -> Result<Json<PendingRequest>, AppError> {
-    require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
-    let Json(body) = body?;
-
-    let normalized = normalize_user_code(&body.user_code);
-    let status = if body.deny { "denied" } else { "approved" };
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let app_variant = sqlx::query_scalar!(
-        "SELECT app_variant FROM device_pairing_requests \
-          WHERE user_code = $1 AND status = 'pending' AND expires_at > now() FOR UPDATE",
-        normalized,
-    )
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    // A screen, not a person: it acts as the hospital's display account.
-    let display = medbrains_server_core::middleware::auth::is_display_variant(&app_variant);
-    // A screen on a wall never acts as the person who approved it: that put
-    // an administrator's session — every record, every action — on a device
-    // anyone in the corridor can reach.
-    let approved_for = if display && !body.deny {
-        display_account(&mut tx, claims.tenant_id).await?
-    } else {
-        body.approved_for_user_id.unwrap_or(claims.sub)
-    };
-    let is_counter = display && !body.deny && body.board_module.as_deref() == Some(COUNTER_DISPLAY);
-    let (station_id, department_id) = if is_counter {
-        let (station, department) = counter_of(&mut tx, claims.tenant_id, body.station_id).await?;
-        (Some(station), department)
-    } else {
-        (None, body.department_id)
-    };
-    if display && !body.deny && !is_counter {
-        let module_ok = body
-            .board_module
-            .as_deref()
-            .is_some_and(|m| BOARD_MODULES.contains(&m));
-        let Some(department_id) = body.department_id.filter(|_| module_ok) else {
-            return Err(AppError::BadRequest(
-                "Choose the board and the department this screen shows".to_owned(),
-            ));
-        };
-        let active = sqlx::query_scalar!(
-            r#"SELECT EXISTS(SELECT 1 FROM departments
-                              WHERE id = $1 AND tenant_id = $2 AND is_active) AS "ok!""#,
-            department_id,
-            claims.tenant_id,
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        if !active {
-            return Err(AppError::BadRequest(
-                "Choose an active department".to_owned(),
-            ));
-        }
-    }
-
-    if !body.deny {
-        // The display will act as this user, so it has to be one of ours.
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2 AND is_active)",
-        )
-        .bind(approved_for)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        if !exists {
-            return Err(AppError::BadRequest(
-                "approved_for_user_id is not an active user in this tenant".to_owned(),
-            ));
-        }
-    }
-
-    let row = sqlx::query_as::<_, PendingRequest>(
-        "UPDATE device_pairing_requests SET \
-           status = $1, tenant_id = $2, approved_by_user_id = $3, \
-           approved_for_user_id = $4, approved_at = now(), department_id = $6, \
-           board_module = $7, station_id = $8 \
-         WHERE user_code = $5 AND status = 'pending' AND expires_at > now() \
-         RETURNING id, user_code, app_variant, requested_label, expires_at, created_at",
-    )
-    .bind(status)
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .bind(if body.deny { None } else { Some(approved_for) })
-    .bind(&normalized)
-    .bind(if display { department_id } else { None })
-    .bind(if display {
-        body.board_module.as_deref()
-    } else {
-        None
-    })
-    .bind(station_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(rows))
 }
 
 // ──────────────────────────────────────────────────────────────────
 //  Codes
 // ──────────────────────────────────────────────────────────────────
 
-fn generate_user_code() -> String {
+/// A fresh code for a screen to show: `USER_CODE_LEN` characters of
+/// [`CODE_ALPHABET`], from a CSPRNG.
+pub(crate) fn generate_user_code() -> String {
     let mut out = String::with_capacity(USER_CODE_LEN);
     // Uuid is a CSPRNG source here and avoids taking a `rand` dependency that
     // conflicts with ed25519-dalek's.
@@ -554,7 +494,7 @@ fn generate_user_code() -> String {
 }
 
 /// `ABCD-EFGH` — grouped for reading aloud across a ward.
-fn format_user_code(code: &str) -> String {
+pub(crate) fn format_user_code(code: &str) -> String {
     if code.len() != USER_CODE_LEN || code.contains('-') {
         return code.to_owned();
     }
@@ -563,10 +503,10 @@ fn format_user_code(code: &str) -> String {
 }
 
 /// Accepts what someone actually types: lower case, spaces, the dash we added.
-fn normalize_user_code(input: &str) -> String {
+pub(crate) fn normalize_user_code(input: &str) -> String {
     input
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .map(|c| c.to_ascii_uppercase())
         .collect()
 }
@@ -633,6 +573,22 @@ mod tests {
         assert_eq!(normalize_user_code(&shown), code);
         assert_eq!(normalize_user_code(&shown.to_lowercase()), code);
         assert_eq!(normalize_user_code(&format!(" {shown} ")), code);
+    }
+
+    #[test]
+    fn only_a_screen_may_ask_for_a_code() {
+        let ask = |variant: &str| DeviceCodeRequest {
+            hospital_code: "DEFAULT".to_owned(),
+            app_variant: variant.to_owned(),
+            public_key_pem: None,
+        };
+        assert!(check_request(&ask("tv")).is_ok());
+        for variant in ["staff", "vendor", "Mobile-Doctor", "TV-Ward", ""] {
+            assert!(
+                check_request(&ask(variant)).is_err(),
+                "{variant} was let in"
+            );
+        }
     }
 
     #[test]

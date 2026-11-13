@@ -11,7 +11,7 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type { CreateDayCloseRequest, DayEndClose } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCheck, IconPlus } from "@tabler/icons-react";
@@ -84,6 +84,8 @@ function DenominationGrid({
 export function DayCloseTab() {
   const queryClient = useQueryClient();
   const canVerify = useHasPermission(P.BILLING.DAY_CLOSE_VERIFY);
+  // The cashier who counted the drawer cannot sign off their own count; the server refuses it.
+  const myUserId = useAuthStore((s) => s.user?.id);
   const [showForm, setShowForm] = useState(false);
   const [closeDate, setCloseDate] = useState(todayIso());
   const [counterId, setCounterId] = useState("");
@@ -154,6 +156,7 @@ export function DayCloseTab() {
         toast.warning("Variance recorded for follow-up.", { title: "Logged as discrepancy" });
       }
     },
+    onError: (error: Error) => toast.error(error.message, { title: "Could not verify" }),
   });
 
   const varianceText = (value: string) => {
@@ -235,7 +238,7 @@ export function DayCloseTab() {
       key: "actions",
       label: "",
       render: (row: DayEndClose) =>
-        row.status === "open" && canVerify ? (
+        row.status === "open" && canVerify && row.cashier_id !== myUserId ? (
           <Button
             tone="secondary"
             size="compact-xs"

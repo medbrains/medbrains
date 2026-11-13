@@ -251,6 +251,8 @@ pub struct CreateJournalEntryRequest {
     pub lines: Vec<JournalLineInput>,
 }
 
+/// Record a manual journal entry as a draft, once its lines are one-sided, positive and
+/// balanced (`journal_rules`).
 pub async fn create_journal_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -258,20 +260,14 @@ pub async fn create_journal_entry(
 ) -> Result<Json<JournalEntryDetail>, AppError> {
     require_permission(&claims, permissions::billing::journal::CREATE)?;
 
-    if body.lines.is_empty() {
-        return Err(AppError::BadRequest(
-            "Journal entry must have at least one line".to_owned(),
-        ));
-    }
-
-    let total_debit: Decimal = body.lines.iter().map(|l| l.debit_amount).sum();
-    let total_credit: Decimal = body.lines.iter().map(|l| l.credit_amount).sum();
-
-    if total_debit != total_credit {
-        return Err(AppError::BadRequest(format!(
-            "Debits ({total_debit}) must equal credits ({total_credit})"
-        )));
-    }
+    let sides: Vec<(Decimal, Decimal)> = body
+        .lines
+        .iter()
+        .map(|l| (l.debit_amount, l.credit_amount))
+        .collect();
+    let total = crate::journal_rules::check_journal_lines(&sides)
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+    let (total_debit, total_credit) = (total, total);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -537,12 +533,38 @@ pub struct ImportBankTransactionsResponse {
     pub import_batch: String,
 }
 
+/// A statement line is money in or money out, never both, never neither, never negative; an
+/// empty import is refused rather than recorded as a batch of nothing.
+///
+/// # Errors
+/// 400 naming the first bad line (1-based, as on the statement).
+fn validate_statement_lines(rows: &[ImportBankTransactionRow]) -> Result<(), AppError> {
+    if rows.is_empty() {
+        return Err(AppError::BadRequest(
+            "The statement has no lines.".to_owned(),
+        ));
+    }
+    for (index, row) in rows.iter().enumerate() {
+        let (debit, credit) = (row.debit_amount, row.credit_amount);
+        let one_sided = (debit > Decimal::ZERO) != (credit > Decimal::ZERO);
+        if debit < Decimal::ZERO || credit < Decimal::ZERO || !one_sided {
+            return Err(AppError::BadRequest(format!(
+                "Line {}: give either a debit or a credit, as a positive amount.",
+                index + 1
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Load a bank statement's lines as one import batch, all or none, each line unmatched.
 pub async fn import_bank_transactions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<ImportBankTransactionsRequest>,
 ) -> Result<Json<ImportBankTransactionsResponse>, AppError> {
     require_permission(&claims, permissions::billing::bank_recon::MANAGE)?;
+    validate_statement_lines(&body.transactions)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -590,6 +612,109 @@ pub struct MatchBankTransactionRequest {
     pub notes: Option<String>,
 }
 
+/// Serialise reconciliation for one tenant inside the caller's transaction, so a manual match
+/// and an auto-reconcile run cannot both claim the same payment.
+async fn lock_reconciliation(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('bank_recon:' || $1::text))")
+        .bind(tenant_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// What a bank line is matched to: money in matches a payment, money out a refund.
+enum ReconTarget {
+    Payment(Uuid),
+    Refund(Uuid),
+}
+
+impl ReconTarget {
+    /// Exactly one of `payment_id` and `refund_id`.
+    fn from_request(body: &MatchBankTransactionRequest) -> Result<Self, AppError> {
+        match (body.payment_id, body.refund_id) {
+            (Some(id), None) => Ok(Self::Payment(id)),
+            (None, Some(id)) => Ok(Self::Refund(id)),
+            _ => Err(AppError::BadRequest(
+                "Match a bank line to one payment or one refund.".to_owned(),
+            )),
+        }
+    }
+}
+
+/// The amount of the completed payment or refund `target`, if it exists and no other live bank
+/// line already holds it.
+///
+/// # Errors
+/// 400 when it is not a live completed payment or refund of this tenant; 409 when another bank
+/// line is already matched to it.
+async fn target_amount(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    line_id: Uuid,
+    target: &ReconTarget,
+) -> Result<Decimal, AppError> {
+    let (amount, taken) = match target {
+        ReconTarget::Payment(id) => {
+            let amount = sqlx::query_scalar::<_, Decimal>(
+                "SELECT amount FROM payments WHERE id = $1 AND tenant_id = $2 \
+                 AND deleted_at IS NULL AND status = 'completed'",
+            )
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+            let taken = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM bank_transactions WHERE tenant_id = $1 \
+                 AND matched_payment_id = $2 AND id <> $3 AND deleted_at IS NULL)",
+            )
+            .bind(tenant_id)
+            .bind(id)
+            .bind(line_id)
+            .fetch_one(&mut **tx)
+            .await?;
+            (amount, taken)
+        }
+        ReconTarget::Refund(id) => {
+            let amount = sqlx::query_scalar::<_, Decimal>(
+                "SELECT amount FROM refunds WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+            )
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+            let taken = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM bank_transactions WHERE tenant_id = $1 \
+                 AND matched_refund_id = $2 AND id <> $3 AND deleted_at IS NULL)",
+            )
+            .bind(tenant_id)
+            .bind(id)
+            .bind(line_id)
+            .fetch_one(&mut **tx)
+            .await?;
+            (amount, taken)
+        }
+    };
+    let amount = amount.ok_or_else(|| {
+        AppError::BadRequest(
+            "That is not a completed payment or refund of this hospital.".to_owned(),
+        )
+    })?;
+    if taken {
+        return Err(AppError::Conflict(
+            "Another bank line is already matched to that payment or refund.".to_owned(),
+        ));
+    }
+    Ok(amount)
+}
+
+/// Match one statement line to one payment (money in) or one refund (money out) by hand.
+///
+/// A line is matched once; a payment or refund backs one line. A difference between the bank
+/// amount and the receipt (card fees, short credit) is kept as `variance_amount` and the line
+/// is marked `discrepancy` for review, never `matched`.
 pub async fn match_bank_transaction(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -597,16 +722,47 @@ pub async fn match_bank_transaction(
     Json(body): Json<MatchBankTransactionRequest>,
 ) -> Result<Json<BankTransaction>, AppError> {
     require_permission(&claims, permissions::billing::bank_recon::MANAGE)?;
+    let target = ReconTarget::from_request(&body)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    lock_reconciliation(&mut tx, claims.tenant_id).await?;
+
+    let (status, credit, debit) = sqlx::query_as::<_, (String, Decimal, Decimal)>(
+        "SELECT recon_status::text, credit_amount, debit_amount FROM bank_transactions \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if status != "unmatched" {
+        return Err(AppError::Conflict(format!(
+            "This bank line is already {status}; it cannot be matched again."
+        )));
+    }
+    let bank_amount = match target {
+        ReconTarget::Payment(_) if credit > Decimal::ZERO => credit,
+        ReconTarget::Refund(_) if debit > Decimal::ZERO => debit,
+        ReconTarget::Payment(_) => {
+            return Err(AppError::BadRequest(
+                "A payment matches money received; this line is money paid out.".to_owned(),
+            ));
+        }
+        ReconTarget::Refund(_) => {
+            return Err(AppError::BadRequest(
+                "A refund matches money paid out; this line is money received.".to_owned(),
+            ));
+        }
+    };
+    let variance = bank_amount - target_amount(&mut tx, claims.tenant_id, id, &target).await?;
 
     let row = sqlx::query_as::<_, BankTransaction>(
         "UPDATE bank_transactions SET \
-         recon_status = 'matched', \
-         matched_payment_id = COALESCE($3, matched_payment_id), \
-         matched_refund_id = COALESCE($4, matched_refund_id), \
-         matched_by = $5, matched_at = now(), \
+         recon_status = CASE WHEN $7 = 0 THEN 'matched' ELSE 'discrepancy' END::recon_status, \
+         matched_payment_id = $3, matched_refund_id = $4, \
+         matched_by = $5, matched_at = now(), variance_amount = $7, \
          notes = COALESCE($6, notes) \
          WHERE id = $1 AND tenant_id = $2 RETURNING *",
     )
@@ -616,6 +772,7 @@ pub async fn match_bank_transaction(
     .bind(body.refund_id)
     .bind(claims.sub)
     .bind(body.notes.as_deref())
+    .bind(variance)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -629,6 +786,7 @@ pub struct AutoReconcileResponse {
     pub unmatched_count: i64,
 }
 
+/// Match unmatched bank credits to completed payments one-to-one and report what is left.
 pub async fn auto_reconcile(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -638,35 +796,48 @@ pub async fn auto_reconcile(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Match bank credits to payments by amount + date ± 1 day + reference_number
-    let matched = sqlx::query_scalar::<_, i64>(
-        "WITH matches AS ( \
-           SELECT bt.id AS bt_id, p.id AS pay_id \
+    lock_reconciliation(&mut tx, claims.tenant_id).await?;
+
+    // Match bank credits to completed payments of the same amount within a day, by reference
+    // when the bank gives one. One-to-one: each line takes its best payment and each payment its
+    // best line; a pair is matched only when both agree, so two equal credits never claim the
+    // same receipt. Ambiguous lines stay unmatched for a person (or the next run) to decide.
+    let matched = sqlx::query_scalar::<_, Uuid>(
+        "WITH candidates AS ( \
+           SELECT bt.id AS bt_id, p.id AS pay_id, \
+             ROW_NUMBER() OVER (PARTITION BY bt.id \
+               ORDER BY ABS(p.paid_at::date - bt.transaction_date), p.paid_at, p.id) AS bt_rank, \
+             ROW_NUMBER() OVER (PARTITION BY p.id \
+               ORDER BY ABS(p.paid_at::date - bt.transaction_date), bt.transaction_date, bt.id) \
+               AS pay_rank \
            FROM bank_transactions bt \
            JOIN payments p ON p.tenant_id = bt.tenant_id \
              AND p.amount = bt.credit_amount \
-             AND ABS(EXTRACT(DAY FROM p.paid_at - bt.transaction_date::timestamp)) <= 1 \
+             AND p.deleted_at IS NULL AND p.status = 'completed' \
+             AND ABS(p.paid_at::date - bt.transaction_date) <= 1 \
              AND (bt.reference_number IS NULL OR p.reference_number = bt.reference_number) \
            WHERE bt.tenant_id = $1 AND bt.recon_status = 'unmatched' \
-             AND bt.credit_amount > 0 \
-             AND p.id NOT IN (SELECT matched_payment_id FROM bank_transactions \
-                              WHERE matched_payment_id IS NOT NULL AND tenant_id = $1) \
+             AND bt.deleted_at IS NULL AND bt.credit_amount > 0 \
+             AND NOT EXISTS (SELECT 1 FROM bank_transactions o \
+                             WHERE o.tenant_id = $1 AND o.matched_payment_id = p.id \
+                               AND o.deleted_at IS NULL) \
          ) \
          UPDATE bank_transactions SET \
-           recon_status = 'matched', matched_payment_id = m.pay_id, \
+           recon_status = 'matched', matched_payment_id = m.pay_id, variance_amount = 0, \
            matched_by = $2, matched_at = now() \
-         FROM matches m WHERE bank_transactions.id = m.bt_id \
+         FROM candidates m \
+         WHERE bank_transactions.id = m.bt_id AND m.bt_rank = 1 AND m.pay_rank = 1 \
          RETURNING bank_transactions.id",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
     .fetch_all(&mut *tx)
     .await?
-    .len() as i64;
+    .len();
 
     let unmatched = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM bank_transactions \
-         WHERE tenant_id = $1 AND recon_status = 'unmatched'",
+         WHERE tenant_id = $1 AND recon_status = 'unmatched' AND deleted_at IS NULL",
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
@@ -732,14 +903,69 @@ pub struct CreateTdsRequest {
     pub quarter: String,
 }
 
+/// The Indian financial year (`2026-27`) and TDS quarter (`Q1` April–June … `Q4` January–March)
+/// a deduction on `date` belongs to: the return (24Q/26Q) it is reported in.
+fn tds_period_of(date: NaiveDate) -> (String, &'static str) {
+    use chrono::Datelike;
+    let (start, quarter) = match date.month() {
+        4..=6 => (date.year(), "Q1"),
+        7..=9 => (date.year(), "Q2"),
+        10..=12 => (date.year(), "Q3"),
+        _ => (date.year() - 1, "Q4"),
+    };
+    (format!("{start}-{:02}", (start + 1) % 100), quarter)
+}
+
+/// A PAN is five letters, four digits and a letter (`ABCDE1234F`).
+fn is_pan(pan: &str) -> bool {
+    let b = pan.as_bytes();
+    b.len() == 10
+        && b[..5].iter().all(u8::is_ascii_uppercase)
+        && b[5..9].iter().all(u8::is_ascii_digit)
+        && b[9].is_ascii_uppercase()
+}
+
+/// Refuse a deduction that would misstate the TDS return: a malformed PAN, a base amount or
+/// rate that is not positive (or a rate over 100%), or a financial year and quarter that are
+/// not the ones the deduction date falls in.
+///
+/// # Errors
+/// 400 saying which.
+fn validate_tds_request(body: &CreateTdsRequest, pan: &str) -> Result<(), AppError> {
+    let bad = |msg: &str| Err(AppError::BadRequest(msg.to_owned()));
+    if body.deductee_name.trim().is_empty() {
+        return bad("The deductee's name is required.");
+    }
+    if !is_pan(pan) {
+        return bad("The PAN must be five letters, four digits and a letter (ABCDE1234F).");
+    }
+    if body.base_amount <= Decimal::ZERO {
+        return bad("The amount paid must be more than zero.");
+    }
+    if body.tds_rate <= Decimal::ZERO || body.tds_rate > Decimal::from(100) {
+        return bad("The TDS rate is a percentage above 0 and at most 100.");
+    }
+    let (year, quarter) = tds_period_of(body.deducted_date);
+    if body.financial_year != year || body.quarter != quarter {
+        return Err(AppError::BadRequest(format!(
+            "A deduction on {} belongs to {year} {quarter}.",
+            body.deducted_date
+        )));
+    }
+    Ok(())
+}
+
+/// Record tax deducted at source on a payment, as the deductor, for the quarter's TDS return.
 pub async fn create_tds_deduction(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateTdsRequest>,
 ) -> Result<Json<TdsDeduction>, AppError> {
     require_permission(&claims, permissions::billing::tds::MANAGE)?;
+    let pan = body.deductee_pan.trim().to_ascii_uppercase();
+    validate_tds_request(&body, &pan)?;
 
-    let tds_amount = body.base_amount * body.tds_rate / Decimal::from(100);
+    let tds_amount = (body.base_amount * body.tds_rate / Decimal::from(100)).round_dp(2);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -753,8 +979,8 @@ pub async fn create_tds_deduction(
     )
     .bind(claims.tenant_id)
     .bind(body.invoice_id)
-    .bind(&body.deductee_name)
-    .bind(&body.deductee_pan)
+    .bind(body.deductee_name.trim())
+    .bind(&pan)
     .bind(&body.tds_section)
     .bind(body.tds_rate)
     .bind(body.base_amount)
@@ -776,6 +1002,27 @@ pub struct DepositTdsRequest {
     pub challan_date: NaiveDate,
 }
 
+/// A deduction's status and deduction date, locked for the change about to be made.
+///
+/// # Errors
+/// 404 when there is no live deduction with this id.
+async fn tds_state(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    id: Uuid,
+) -> Result<(String, NaiveDate), AppError> {
+    sqlx::query_as::<_, (String, NaiveDate)>(
+        "SELECT status::text, deducted_date FROM tds_deductions \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)
+}
+
+/// Record the challan that deposited a deduction with the government.
 pub async fn deposit_tds(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -783,9 +1030,26 @@ pub async fn deposit_tds(
     Json(body): Json<DepositTdsRequest>,
 ) -> Result<Json<TdsDeduction>, AppError> {
     require_permission(&claims, permissions::billing::tds::MANAGE)?;
+    let challan = body.challan_number.trim();
+    if challan.is_empty() {
+        return Err(AppError::BadRequest(
+            "The challan number is required.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (status, deducted) = tds_state(&mut tx, claims.tenant_id, id).await?;
+    if status != "deducted" {
+        return Err(AppError::Conflict(format!(
+            "This deduction is already {status}; its challan cannot change."
+        )));
+    }
+    if body.challan_date < deducted {
+        return Err(AppError::BadRequest(
+            "Tax cannot be deposited before it was deducted.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, TdsDeduction>(
         "UPDATE tds_deductions SET \
@@ -795,7 +1059,7 @@ pub async fn deposit_tds(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .bind(&body.challan_number)
+    .bind(challan)
     .bind(body.challan_date)
     .fetch_one(&mut *tx)
     .await?;
@@ -810,6 +1074,7 @@ pub struct IssueTdsCertRequest {
     pub certificate_date: NaiveDate,
 }
 
+/// Record the Form 16A certificate given to the deductee for a deposited deduction.
 pub async fn issue_tds_certificate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -817,9 +1082,21 @@ pub async fn issue_tds_certificate(
     Json(body): Json<IssueTdsCertRequest>,
 ) -> Result<Json<TdsDeduction>, AppError> {
     require_permission(&claims, permissions::billing::tds::MANAGE)?;
+    if body.certificate_number.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "The certificate number is required.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (status, _) = tds_state(&mut tx, claims.tenant_id, id).await?;
+    if status != "deposited" {
+        return Err(AppError::Conflict(format!(
+            "A certificate (Form 16A) is issued only once the tax is deposited; this deduction \
+             is {status}."
+        )));
+    }
 
     let row = sqlx::query_as::<_, TdsDeduction>(
         "UPDATE tds_deductions SET \
@@ -849,12 +1126,42 @@ pub struct GenerateGstrRequest {
     pub period: String,
 }
 
+/// Refuse a return this hospital cannot compute from its own sales: a return type other than
+/// GSTR-1 or GSTR-3B (GSTR-2B is the portal's statement of input tax credit on purchases; it is
+/// downloaded, never built from sales invoices), or a period that is not a real `YYYY-MM`.
+///
+/// # Errors
+/// 400 saying which.
+fn validate_gstr_request(body: &GenerateGstrRequest) -> Result<(), AppError> {
+    if !matches!(body.return_type.as_str(), "GSTR-1" | "GSTR-3B") {
+        return Err(AppError::BadRequest(
+            "Only GSTR-1 and GSTR-3B are prepared from the hospital's invoices; GSTR-2B is \
+             downloaded from the GST portal."
+                .to_owned(),
+        ));
+    }
+    let is_month = body.period.len() == 7
+        && NaiveDate::parse_from_str(&format!("{}-01", body.period), "%Y-%m-%d").is_ok();
+    if !is_month {
+        return Err(AppError::BadRequest(
+            "The period is a month, written YYYY-MM.".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Prepare (or re-prepare) a draft GSTR-1 / GSTR-3B summary for one month from issued invoices.
+///
+/// A return already filed or accepted is the record of what was declared to the government and
+/// is never recomputed: changes after filing go in a later period's amendment, so a second
+/// generate for that month answers 409 and leaves the filed figures as they were.
 pub async fn generate_gstr_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<GenerateGstrRequest>,
 ) -> Result<Json<GstReturnSummary>, AppError> {
     require_permission(&claims, permissions::billing::gst_returns::MANAGE)?;
+    validate_gstr_request(&body)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -914,6 +1221,7 @@ pub async fn generate_gstr_summary(
          hsn_summary = EXCLUDED.hsn_summary, \
          invoice_count = EXCLUDED.invoice_count, \
          filing_status = 'draft' \
+         WHERE gst_return_summaries.filing_status NOT IN ('filed', 'accepted') \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -927,8 +1235,15 @@ pub async fn generate_gstr_summary(
     .bind(totals.total_tax)
     .bind(&hsn)
     .bind(totals.invoice_count)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::Conflict(format!(
+            "The {} for {} is already filed; record later changes as amendments in a later \
+             period's return.",
+            body.return_type, body.period
+        ))
+    })?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -966,6 +1281,10 @@ pub async fn list_gstr_summaries(
     Ok(Json(rows))
 }
 
+/// Mark a draft or validated summary as filed, by whom and when.
+///
+/// # Errors
+/// 404 when there is no such summary; 409 when it is already filed or accepted.
 pub async fn file_gstr(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -985,8 +1304,22 @@ pub async fn file_gstr(
     .bind(id)
     .bind(claims.tenant_id)
     .bind(claims.sub)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+    let Some(row) = row else {
+        let status = sqlx::query_scalar::<_, String>(
+            "SELECT filing_status::text FROM gst_return_summaries \
+             WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        return Err(AppError::Conflict(format!(
+            "This return is {status}; only a draft or validated return can be filed."
+        )));
+    };
 
     tx.commit().await?;
     Ok(Json(row))
@@ -1288,4 +1621,48 @@ pub async fn list_erp_exports(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod tds_period_tests {
+    use super::{is_pan, tds_period_of};
+    use chrono::NaiveDate;
+
+    /// The date of `y-m-d`, for tests.
+    fn day(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap_or_default()
+    }
+
+    #[test]
+    fn quarters_follow_the_april_financial_year() {
+        assert_eq!(tds_period_of(day(2026, 4, 1)), ("2026-27".to_owned(), "Q1"));
+        assert_eq!(
+            tds_period_of(day(2026, 9, 30)),
+            ("2026-27".to_owned(), "Q2")
+        );
+        assert_eq!(
+            tds_period_of(day(2026, 12, 31)),
+            ("2026-27".to_owned(), "Q3")
+        );
+        assert_eq!(
+            tds_period_of(day(2027, 3, 31)),
+            ("2026-27".to_owned(), "Q4")
+        );
+        assert_eq!(tds_period_of(day(2099, 1, 5)), ("2098-99".to_owned(), "Q4"));
+        assert_eq!(tds_period_of(day(2099, 4, 5)), ("2099-00".to_owned(), "Q1"));
+    }
+
+    #[test]
+    fn a_pan_is_five_letters_four_digits_a_letter() {
+        assert!(is_pan("ABCDE1234F"));
+        for bad in [
+            "ABCDE1234",
+            "abcde1234f",
+            "ABCD11234F",
+            "ABCDE12345",
+            "ABCDE1234FF",
+        ] {
+            assert!(!is_pan(bad), "{bad}");
+        }
+    }
 }

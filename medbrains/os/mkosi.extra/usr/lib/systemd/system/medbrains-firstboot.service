@@ -17,7 +17,6 @@ ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
 ProtectKernelTunables=yes
-ProtectKernelModules=yes
 ProtectKernelLogs=yes
 ProtectControlGroups=yes
 ProtectClock=yes
@@ -26,3 +25,13 @@ RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
+# Sandbox (T1.1): `systemd-analyze security` scores are in os/README.md "Linux hardening".
+# Makes secrets, the database cluster and the front's certificates on the data disk. /usr and /etc
+# stay read-only; /etc/postgresql and /etc/medbrains are links onto /var.
+ProtectSystem=full
+PrivateDevices=yes
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER CAP_FSETID CAP_SETUID CAP_SETGID
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+ProtectKernelModules=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service

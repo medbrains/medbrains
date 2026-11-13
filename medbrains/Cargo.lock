@@ -3294,16 +3294,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fs2"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3442,15 +3432,6 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
-]
-
-[[package]]
-name = "fxhash"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
-dependencies = [
- "byteorder",
 ]
 
 [[package]]
@@ -4613,15 +4594,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "instant"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
-dependencies = [
- "cfg-if",
-]
-
-[[package]]
 name = "ipconfig"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5563,7 +5535,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-abdm"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "reqwest",
@@ -5575,7 +5547,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-adapter-sdk"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "serde",
@@ -5602,7 +5574,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-agent"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6013,7 +5985,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-bridge"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6134,7 +6106,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-clinical-core"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -6296,7 +6268,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-core"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6389,7 +6361,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-db"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "hex",
@@ -6431,7 +6403,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-desktop"
-version = "0.1.0"
+version = "3.33.0"
 dependencies = [
  "base64 0.22.1",
  "reqwest",
@@ -6620,7 +6592,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6645,7 +6617,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-app"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -6669,7 +6641,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-rn"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "getrandom 0.4.3",
  "hex",
@@ -6773,7 +6745,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-fhir-api"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "axum",
  "chrono",
@@ -6844,7 +6816,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-health-services"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "medbrains-authz-gate",
  "medbrains-kernel",
@@ -6912,7 +6884,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-hrms-gateway"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "axum",
  "chrono",
@@ -7028,7 +7000,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-integration-hub"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -7120,7 +7092,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-kernel"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "medbrains-authz",
@@ -7207,7 +7179,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-loadtest"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "goose",
@@ -7468,14 +7440,14 @@ dependencies = [
 
 [[package]]
 name = "medbrains-offline-core"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "chrono",
  "ed25519-dalek",
  "lru",
+ "redb",
  "serde",
  "serde_json",
- "sled",
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
@@ -7578,7 +7550,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-setup"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "argon2",
  "data-encoding",
@@ -7593,14 +7565,14 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-test"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "medbrains-os-update"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -8022,7 +7994,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-printing"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "printers",
  "serde",
@@ -8032,7 +8004,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-proxy"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8199,7 +8171,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-security-intel"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "argon2",
  "async-trait",
@@ -8238,7 +8210,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-server"
-version = "1.0.0"
+version = "3.33.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -10065,17 +10037,6 @@ checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
 
 [[package]]
 name = "parking_lot"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
-dependencies = [
- "instant",
- "lock_api 0.4.14",
- "parking_lot_core 0.8.6",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
@@ -10092,20 +10053,6 @@ checksum = "a9cf937ca4e1d0b7578784559063422fc39ae7c5a00f02471f2614d5486fd226"
 dependencies = [
  "lock_api 0.5.0",
  "parking_lot_core 0.10.0",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
-dependencies = [
- "cfg-if",
- "instant",
- "libc",
- "redox_syscall 0.2.16",
- "smallvec",
- "winapi",
 ]
 
 [[package]]
@@ -11176,12 +11123,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_syscall"
-version = "0.2.16"
+name = "redb"
+version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
+checksum = "8b317ef681e18f6091efbfab532eaf924a135c492d9d0299d0fbfae07e92a39b"
 dependencies = [
- "bitflags 1.3.2",
+ "libc",
 ]
 
 [[package]]
@@ -11569,9 +11516,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags 2.13.2",
  "errno",
@@ -12445,22 +12392,6 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
-
-[[package]]
-name = "sled"
-version = "0.34.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f96b4737c2ce5987354855aed3797279def4ebf734436c6aa4552cf8e169935"
-dependencies = [
- "crc32fast",
- "crossbeam-epoch",
- "crossbeam-utils",
- "fs2",
- "fxhash",
- "libc",
- "log",
- "parking_lot 0.11.2",
-]
 
 [[package]]
 name = "slotmap"

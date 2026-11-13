@@ -94,7 +94,6 @@ export * from "./care-view";
 export type { ClinicalScoreRow, RecordScoreRequest } from "./care-view-scores";
 export * from "./cath-lab";
 export * from "./charge-attention";
-export * from "./mrd-file-requests";
 export * from "./chronic-care";
 export * from "./claim-settlements";
 export * from "./clinical-identity-forms";
@@ -196,6 +195,7 @@ export * from "./maternity-obgyn";
 export * from "./medication-timing";
 export * from "./message-simulator";
 export * from "./mrd";
+export * from "./mrd-file-requests";
 export * from "./nhcx";
 export * from "./notes";
 export * from "./nurse-calls";
@@ -6008,6 +6008,8 @@ export interface UpsertBlogInput {
 export interface DeviceCodeResponse {
   /** Shown on the display, grouped as `XXXX-XXXX` for reading aloud. */
   user_code: string;
+  /** Shown beside the code and on the administrator's list; not secret. */
+  reference: string;
   /** Secret. Never displayed; the only thing that can claim the approval. */
   device_code: string;
   expires_at: string;
@@ -6031,9 +6033,11 @@ export interface DeviceBoard {
   department_name: string | null;
 }
 
+/** A screen waiting to be paired. Never carries its code: the approver types it. */
 export interface DevicePairingRequest {
   id: string;
-  user_code: string;
+  /** The short reference the screen shows beside its code. */
+  reference: string;
   app_variant: string;
   requested_label: string;
   expires_at: string;

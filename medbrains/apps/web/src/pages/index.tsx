@@ -60,7 +60,7 @@ export function IndexPage() {
           </Card>
 
           <Text size="xs" c="dimmed">
-            v0.1.0 &middot; Example Group of Institutions
+            v{__APP_VERSION__} &middot; Example Group of Institutions
           </Text>
         </Stack>
       </Container>

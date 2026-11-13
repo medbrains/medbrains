@@ -245,6 +245,13 @@ impl Vm {
 
     /// Boots `image` on a new overlay and waits for a shell; nothing is typed on its screen.
     pub(crate) fn start_waiting(image: &Path, tpm: Option<&str>) -> Result<Self, String> {
+        let mut vm = Self::spawn(image, tpm)?;
+        vm.wait_for_shell()?;
+        Ok(vm)
+    }
+
+    /// Boots `image` on a new overlay and returns at once: for a release image, which has no shell.
+    pub(crate) fn spawn(image: &Path, tpm: Option<&str>) -> Result<Self, String> {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| e.to_string())?
@@ -266,7 +273,7 @@ impl Vm {
         monitor
             .set_read_timeout(Some(Duration::from_millis(5)))
             .map_err(|e| e.to_string())?;
-        let mut vm = Self {
+        Ok(Self {
             dir,
             disk,
             ports,
@@ -275,9 +282,12 @@ impl Vm {
             monitor,
             marker: 0,
             recovery_key: String::new(),
-        };
-        vm.wait_for_shell()?;
-        Ok(vm)
+        })
+    }
+
+    /// The machine's serial port, raw: for checking what it offers someone with a cable.
+    pub(crate) const fn serial_port(&mut self) -> &mut UnixStream {
+        &mut self.serial
     }
 
     /// The overlay this machine was created with.
@@ -548,7 +558,14 @@ impl Vm {
             format!("BEGIN{}X", self.marker),
             format!("END{}X", self.marker),
         );
-        // The bare `echo` ends a last line with no newline, which would hide the marker.
+        // The bare `echo` ends a last line with no newline, which would hide the marker. One line only: a
+        // second would echo a prompt inside the markers. `cmd &;` is a syntax error, so a command that
+        // backgrounds itself gets a no-op after it.
+        let command = if command.trim_end().ends_with('&') {
+            format!("{command} :")
+        } else {
+            command.to_owned()
+        };
         let line = format!("echo {begin}; {command}; echo; echo {end}\n");
         self.serial
             .write_all(line.as_bytes())

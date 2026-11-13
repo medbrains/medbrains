@@ -10,15 +10,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # The pnpm on PATH may be older than package.json's engines (>=10).
-PNPM=${PNPM:-$([ -x "$HOME/Library/pnpm/pnpm" ] && echo "$HOME/Library/pnpm/pnpm" || echo pnpm)}
+PNPM=${PNPM:-$([[ -x "$HOME/Library/pnpm/pnpm" ]] && echo "$HOME/Library/pnpm/pnpm" || echo pnpm)}
 step() { printf '\n== %s\n' "$1"; }
 
 base=$(git merge-base HEAD origin/master)
 changed=$(git diff --name-only --relative "$base"; git ls-files --others --exclude-standard)
 
 step "biome (changed files)"
-web_files=$(echo "$changed" | grep -E '\.(ts|tsx|json)$' | grep -v tsbuildinfo | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
-if [ -n "$web_files" ]; then npx biome check $web_files; else echo "no web files changed"; fi
+web_files=$(echo "$changed" | grep -E '\.(ts|tsx|json)$' | grep -v tsbuildinfo | while read -r f; do [[ -f "$f" ]] && echo "$f"; done || true)
+if [[ -n "$web_files" ]]; then npx biome check $web_files; else echo "no web files changed"; fi
 
 step "packages build + web typecheck"
 # Committed tsbuildinfo makes tsc -b skip packages whose dist is missing.
@@ -34,7 +34,7 @@ make check-all
 
 crates=${CRATES:-$(echo "$changed" | sed -n 's#^crates/\([^/]*\)/.*#\1#p' | sort -u | tr '\n' ' ')}
 export SQLX_OFFLINE=true
-if [ -n "${crates// /}" ]; then
+if [[ -n "${crates// /}" ]]; then
   pkgs=$(for c in $crates; do printf -- '-p %s ' "$c"; done)
   step "clippy: $crates"
   bash scripts/build_guard.sh --wait

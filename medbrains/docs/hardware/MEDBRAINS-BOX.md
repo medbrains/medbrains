@@ -5,6 +5,8 @@
 **Status: a design proposal.** There is no schematic yet, and nothing here has been built or measured.
 Costs other than the module and SSD prices are estimates, not quotes. A review against the repo
 follows at the end ([Review notes](#review-notes-10-nov-2026)).
+The owner's typeset original, with the carrier-board block diagram, is
+[MEDBRAINS-BOX-v0.1.pdf](MEDBRAINS-BOX-v0.1.pdf).
 
 ## Summary
 
