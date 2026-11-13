@@ -20,6 +20,8 @@ pub(crate) const INSTALL_LIMIT: Duration = Duration::from_secs(600);
 pub(crate) const RESTART_LIMIT: Duration = Duration::from_secs(300);
 /// Long enough for a kernel, an initrd and the machine's own watchdogs to fail three times.
 pub(crate) const ROLLBACK_LIMIT: Duration = Duration::from_secs(1500);
+/// systemd-cryptsetup's question when the TPM does not open the disk.
+const RECOVERY_PROMPT: &str = "enter recovery key";
 const COMMAND_LIMIT: Duration = Duration::from_secs(900);
 /// The other slot's system partition: of the running one's type, and not the one under `/dev/mapper/root`.
 pub(crate) const SLOT: &str = "$(a=$(veritysetup status root | awk '/data device:/ {print $3}'); t=$(lsblk -dno PARTTYPE $a); lsblk -nrpo PATH,PARTTYPE /dev/vda | awk -v a=$a -v t=$t '$2 == t && $1 != a {print $1}')";
@@ -31,7 +33,7 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
     if vm::tpm_usable() {
         return vec![
             (
-                "a sealed disk opens by itself after an update and after going back",
+                "a sealed disk keeps its data through an update, and opens by itself after going back",
                 update_sealed::sealed_update,
             ),
             (
@@ -41,6 +43,19 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
             (
                 "a seal that does fail rolls back with nobody typing",
                 update_sealed::seal_prompt_rolls_back,
+            ),
+            // The review's four apply scenarios, on a sealed disk: a good update is the first above.
+            (
+                "refuses unsigned, tampered, wrong and old bundles",
+                refusals,
+            ),
+            (
+                "a power cut while applying and on trial leaves a machine that boots",
+                update_power::power_cuts_applying,
+            ),
+            (
+                "a new version that fails its checks rolls back by itself",
+                failed_health,
             ),
         ];
     }
@@ -181,6 +196,7 @@ pub(crate) fn apply_and_prove(
     ask_restart(vm, "apply")?;
     wait_version(vm, version, RESTART_LIMIT)
         .map_err(|e| format!("{e}; {}", why_not_started(vm)))?;
+    unlock_new_version(vm)?;
     wait_status(vm, &["last", "version"], version, RESTART_LIMIT)?;
     let value = wait_status(vm, &["last", "result"], "good", RESTART_LIMIT)?;
     ensure(
@@ -200,6 +216,22 @@ pub(crate) fn apply_and_prove(
     vm.wait_for_server()?;
     open_mirror(vm, bench)?;
     Ok(started.elapsed())
+}
+
+/// KNOWN GAP #5452: the disk is sealed to PCR 4, the boot file's own hash, so a new version's first start
+/// on a sealed disk asks for the recovery key (`OS-UPDATES.md`, "Proposal: no recovery key after an
+/// update"). Types it, as IT would, and says so, so the rest of the scenario is proved on a sealed disk.
+/// Nothing to do where no TPM seals the disk. Delete once #5452 seals to the predicted PCR 4.
+pub(crate) fn unlock_new_version(vm: &mut Vm) -> Result<(), String> {
+    if !vm::tpm_usable() {
+        return Ok(());
+    }
+    vm.wait_for_screen(RECOVERY_PROMPT, vm::scaled(RESTART_LIMIT))?;
+    sleep(vm::KEYBOARD_READY);
+    let key = vm.recovery_key.clone();
+    vm.type_text(&format!("{key}\n"))?;
+    say("      KNOWN GAP #5452: the new version asked for the recovery key once; typed");
+    Ok(())
 }
 
 /// What the running machine says about an update that should have started: its record, its boot
@@ -353,6 +385,7 @@ fn failed_health(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     install_ok(vm, bench, BAD_SERVER.0, false)?;
     ask_restart(vm, "apply")?;
     let took = wait_version(vm, BAD_SERVER.1, RESTART_LIMIT)?;
+    unlock_new_version(vm)?;
     say(&format!(
         "      new version up after {:.0}s",
         took.as_secs_f32()

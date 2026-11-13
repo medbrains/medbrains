@@ -304,7 +304,38 @@ pub fn check(at_start: bool) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Response, respond};
+    use super::{Marker, Response, record_marker, respond};
+    use crate::state::{Ending, State};
+
+    /// The note a seal check at start leaves for `reconcile`.
+    fn marker(proven: bool) -> Marker {
+        Marker {
+            version: "1.0.2".to_owned(),
+            uuid: "0123456789abcdef0123456789abcdef".to_owned(),
+            at: 1,
+            proven,
+            boot_id: "b".to_owned(),
+        }
+    }
+
+    /// A trial's note becomes the reason its rollback reports; a proven version's is recorded as a seal
+    /// failure. Neither marks this machine's slot damaged when the note names another slot.
+    #[test]
+    fn a_note_from_the_start_is_recorded_once_read() {
+        let mut state = State::default();
+        assert!(!record_marker(&mut state, &marker(false), "1.0.1"));
+        assert!(
+            state
+                .health_reason
+                .as_deref()
+                .is_some_and(|r| r.contains("seal check"))
+        );
+        assert!(state.last.is_none());
+        let mut state = State::default();
+        assert!(!record_marker(&mut state, &marker(true), "1.0.2"));
+        assert_eq!(state.last.map(|last| last.result), Some(Ending::SealFailed));
+        assert!(state.damaged.is_none());
+    }
 
     /// A broken seal never carries on; an unreadable one never stops a working machine; a machine in
     /// use is never restarted by it; and only a start with nowhere to go stops.

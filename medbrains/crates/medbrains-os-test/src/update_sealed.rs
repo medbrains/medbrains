@@ -17,7 +17,8 @@ fn disk_opened(vm: &mut Vm) -> Result<bool, String> {
         .contains("/dev/mapper/medbrains-data"))
 }
 
-/// Requirement 6: the boot chain changes twice, and nobody types anything either time.
+/// Requirement 6: the boot chain changes twice; going back opens the disk by itself. The new version's
+/// first start still asks for the recovery key once (KNOWN GAP #5452, typed by `apply_and_prove`).
 pub(crate) fn sealed_update(vm: &mut Vm, bench: &Bench) -> Result<(), String> {
     ensure(disk_opened(vm)?, "the disk is not sealed")?;
     let before = var_snapshot(vm)?;

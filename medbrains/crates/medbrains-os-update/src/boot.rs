@@ -59,13 +59,10 @@ fn health_problem() -> Option<String> {
             "The system partition failed its seal check, or it could not be read.".to_owned(),
         );
     }
-    let Ok(root) = disk::run_text("findmnt", &["-no", "SOURCE", "/"], USUAL_LIMIT) else {
-        return Some("findmnt did not answer.".to_owned());
-    };
-    let var =
-        disk::run_text("findmnt", &["-no", "SOURCE", "/var"], USUAL_LIMIT).unwrap_or_default();
-    if var.is_empty() || var == root {
-        return Some("The data disk is not mounted.".to_owned());
+    let root = disk::run_text("findmnt", &["-no", "SOURCE", "/"], USUAL_LIMIT);
+    let var = disk::run_text("findmnt", &["-no", "SOURCE", "/var"], USUAL_LIMIT);
+    if let Some(problem) = mount_problem(root, var) {
+        return Some(problem);
     }
     if let Some(unit) = stopped_enabled_unit(&ALWAYS_UNITS) {
         return Some(format!("{unit} is not running."));
@@ -83,6 +80,16 @@ fn health_problem() -> Option<String> {
         return server_problem();
     }
     None
+}
+
+/// Why the data disk does not count as mounted, from findmnt's answers for `/` and `/var`. An answer
+/// that could not be had is a problem, never a pass: a trial must not be blessed on a guess.
+fn mount_problem(root: Result<String, String>, var: Result<String, String>) -> Option<String> {
+    let Ok(root) = root else {
+        return Some("findmnt did not answer.".to_owned());
+    };
+    let var = var.unwrap_or_default();
+    (var.is_empty() || var == root).then(|| "The data disk is not mounted.".to_owned())
 }
 
 /// The first of `units` that is enabled and not running.
@@ -469,7 +476,7 @@ pub fn tick() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{health_says_ok, in_window, is_idle};
+    use super::{health_says_ok, in_window, is_idle, mount_problem};
 
     /// The window is what decides a restart with nobody asking, so a bad setting must mean no.
     #[test]
@@ -497,6 +504,21 @@ mod tests {
         assert!(!is_idle(Some("soon"), 2800, 1800));
         assert!(!is_idle(Some(""), 2800, 1800));
         assert!(!is_idle(None, 2800, 1800));
+    }
+
+    /// A findmnt that fails, or a `/var` that is missing or the root itself, never passes a trial.
+    #[test]
+    fn a_failed_findmnt_is_not_healthy() {
+        let ok = |text: &str| Ok::<String, String>(text.to_owned());
+        assert_eq!(
+            mount_problem(ok("/dev/mapper/root"), ok("/dev/mapper/medbrains-data")),
+            None
+        );
+        let failed = || Err::<String, String>("findmnt did not answer in time.".to_owned());
+        assert!(mount_problem(failed(), ok("/dev/mapper/medbrains-data")).is_some());
+        assert!(mount_problem(ok("/dev/mapper/root"), failed()).is_some());
+        assert!(mount_problem(ok("/dev/mapper/root"), ok("")).is_some());
+        assert!(mount_problem(ok("/dev/mapper/root"), ok("/dev/mapper/root")).is_some());
     }
 
     /// The health answer is 200 even with the database down, so its status field is what counts.
