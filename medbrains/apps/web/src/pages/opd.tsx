@@ -324,7 +324,7 @@ export function OpdVitalsPage() {
         }),
         { title: t("vitals.notify.recorded") },
       );
-      navigate("/opd");
+      void navigate("/opd");
     },
     onError: () => {
       toast.error(t("vitals.notify.permissionCheck"), {
