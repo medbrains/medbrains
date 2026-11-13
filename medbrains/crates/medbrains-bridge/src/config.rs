@@ -103,6 +103,7 @@ fn default_deployment_mode() -> String {
 }
 
 impl BridgeConfig {
+    /// Reads the bridge's TOML config from `path`, naming the file in the error.
     pub(crate) fn load(path: &str) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("failed to read config {path}: {e}"))?;
