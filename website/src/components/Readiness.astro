@@ -1,0 +1,81 @@
+---
+// Readiness meters, measured from medbrains/docs/readiness.json (see src/data/readiness.ts).
+// `detail` lists every item; the landing page shows only the bars and links to /readiness.
+import { CHECKLIST_URL, METERS, STATUS_LABEL } from "../data/readiness";
+
+interface Props { detail?: boolean; heading?: "h1" | "h2" }
+const { detail = false, heading = "h2" } = Astro.props;
+const Heading = heading;
+const count = (items: { status: string }[], s: string) => items.filter((i) => i.status === s).length;
+---
+
+<section id="readiness" class="section readiness" aria-labelledby="readiness-title">
+  <div class="wrap">
+    <p class="eyebrow">Readiness, measured</p>
+    <Heading id="readiness-title" class="section-title">How far along each part is.</Heading>
+    <p class="section-lede">Measured from a public checklist: an item counts only when its work is merged with evidence. Partial counts half. These are build progress, not a certification.</p>
+
+    <div class="meters">
+      {METERS.map((m) => (
+        <article class="meter reveal" aria-labelledby={`meter-${m.id}`}>
+          <div class="head">
+            <h3 id={`meter-${m.id}`}>{m.title}</h3>
+            <strong>{m.percent}%</strong>
+          </div>
+          <div class="bar" aria-hidden="true"><span style={`width: ${m.percent}%`}></span></div>
+          <p class="counts">
+            {count(m.items, "done")} done · {count(m.items, "partial")} partial · {count(m.items, "not-started")} not started
+          </p>
+          <p class="summary">{m.summary}</p>
+          {detail && (
+            <ul class="items">
+              {m.items.map((i) => (
+                <li class={i.status}>
+                  <span class="state">{STATUS_LABEL[i.status]}</span>
+                  <span>{i.title}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      ))}
+    </div>
+
+    <p class="links">
+      {!detail && <a class="btn btn-primary" href="/readiness">See every item</a>}
+      <a class="btn btn-ghost" href={CHECKLIST_URL}>The checklist and its evidence on GitHub</a>
+    </p>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .readiness {
+    color: #fff;
+    background: radial-gradient(900px 500px at 0% 0%, var(--glow-blue), transparent 60%), var(--night);
+  }
+  .readiness .eyebrow { color: var(--pulse); }
+  .meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 48px; align-items: start; }
+  .meter { background: var(--night-2); border: 1px solid var(--night-line); border-radius: var(--radius-lg); padding: 28px; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  h3 { font: 800 1.2rem var(--display); letter-spacing: -.02em; margin: 0; }
+  .head strong { font: 900 2.4rem var(--display); letter-spacing: -.03em; }
+  .bar { height: 10px; margin: 14px 0 12px; border-radius: 999px; background: var(--night-3); overflow: hidden; }
+  .bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--pulse)); border-radius: inherit; }
+  .counts { margin: 0 0 8px; font: 600 .78rem var(--mono); letter-spacing: .04em; color: var(--night-text); }
+  .summary { margin: 0; color: var(--night-text); font-size: .96rem; }
+
+  .items { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 10px; }
+  .items li { display: grid; gap: 4px; padding: 10px 0 10px 14px; border-left: 3px solid var(--night-line); font-size: .94rem; color: var(--night-text); }
+  .items li.done { border-left-color: var(--pulse); color: #fff; }
+  .items li.partial { border-left-color: var(--sky); border-left-style: dashed; color: #fff; }
+  .state { font: 600 .7rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .done .state { color: var(--pulse); }
+  .partial .state { color: var(--sky); }
+  .not-started .state { color: var(--night-text); }
+
+  .links { display: flex; flex-wrap: wrap; gap: 12px; margin: 36px 0 0; }
+  .btn-ghost { color: #fff; border-color: var(--night-line); }
+  @include below(lg) { .meters { grid-template-columns: 1fr; } }
+</style>

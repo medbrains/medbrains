@@ -10,7 +10,7 @@
 //! # Design
 //!
 //! - Two-tier store: an in-memory LRU (hot path) backed by an embedded
-//!   sled KV store (cold path / replay-on-boot). Replay filters out
+//!   redb store (cold path / replay-on-boot). Replay filters out
 //!   already-expired entries so a flaky cache never resurrects on
 //!   restart.
 //! - A small fixed list of high-risk actions
@@ -40,6 +40,8 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use thiserror::Error;
 use uuid::Uuid;
+
+use crate::store::{Store, StoreError};
 
 /// Actions that MUST go to cloud `SpiceDB` for evaluation. Even if a
 /// cached `allow` exists, we deny offline. Each entry is
@@ -158,8 +160,8 @@ pub struct CacheMetrics {
 
 #[derive(Debug, Error)]
 pub enum AuthzCacheError {
-    #[error("sled: {0}")]
-    Sled(#[from] sled::Error),
+    #[error("store: {0}")]
+    Store(#[from] StoreError),
 
     #[error("serde_json: {0}")]
     Serde(#[from] serde_json::Error),
@@ -175,7 +177,7 @@ pub enum AuthzCacheError {
 #[derive(Clone)]
 pub struct AuthzCache {
     inner: Arc<RwLock<LruCache<CacheKey, CacheEntry>>>,
-    persist: sled::Db,
+    persist: Store,
     default_ttl: Duration,
     counters: Arc<Counters>,
 }
@@ -189,9 +191,9 @@ impl std::fmt::Debug for AuthzCache {
 }
 
 impl AuthzCache {
-    /// Open a cache backed by `persist_path` (sled DB). Replays
+    /// Open a cache backed by the store in directory `persist_path`. Replays
     /// non-expired entries into the LRU so post-reboot the cache
-    /// is warm. Capacity bounds the LRU; sled is unbounded but
+    /// is warm. Capacity bounds the LRU; the store is unbounded but
     /// pruned via [`Self::prune_older_than`].
     pub fn new(
         persist_path: &Path,
@@ -199,7 +201,7 @@ impl AuthzCache {
         default_ttl: Duration,
     ) -> Result<Self, AuthzCacheError> {
         let cap = NonZeroUsize::new(capacity).ok_or(AuthzCacheError::InvalidCapacity)?;
-        let persist = sled::open(persist_path)?;
+        let persist = Store::open(persist_path)?;
         let mut lru = LruCache::new(cap);
         let now = SystemTime::now();
         Self::replay_into(&persist, &mut lru, now)?;
@@ -212,13 +214,12 @@ impl AuthzCache {
     }
 
     fn replay_into(
-        persist: &sled::Db,
+        persist: &Store,
         lru: &mut LruCache<CacheKey, CacheEntry>,
         now: SystemTime,
     ) -> Result<(), AuthzCacheError> {
-        let mut to_drop: Vec<sled::IVec> = Vec::new();
-        for kv in persist.iter() {
-            let (k, v) = kv?;
+        let mut to_drop: Vec<Vec<u8>> = Vec::new();
+        for (k, v) in persist.entries()? {
             let Ok(key) = serde_json::from_slice::<CacheKey>(&k) else {
                 to_drop.push(k);
                 continue;
@@ -233,9 +234,7 @@ impl AuthzCache {
             }
             lru.put(key, entry);
         }
-        for k in to_drop {
-            persist.remove(k)?;
-        }
+        persist.remove_all(&to_drop)?;
         Ok(())
     }
 
@@ -315,7 +314,7 @@ impl AuthzCache {
     }
 
     /// Insert or overwrite a cache entry. Writes both the LRU and
-    /// the sled persist layer so a reboot doesn't lose it.
+    /// the persistent store so a reboot doesn't lose it.
     pub fn record(&self, key: CacheKey, allowed: bool, source: CacheSource) {
         let now = SystemTime::now();
         let entry = CacheEntry {
@@ -335,7 +334,7 @@ impl AuthzCache {
     fn persist_entry(&self, key: &CacheKey, entry: &CacheEntry) -> Result<(), AuthzCacheError> {
         let k = serde_json::to_vec(key)?;
         let v = serde_json::to_vec(entry)?;
-        self.persist.insert(k, v)?;
+        self.persist.insert(&k, &v)?;
         Ok(())
     }
 
@@ -347,22 +346,28 @@ impl AuthzCache {
                 guard.pop(key);
             }
         }
-        for key in keys {
-            if let Ok(k) = serde_json::to_vec(key)
-                && let Err(err) = self.persist.remove(k)
-            {
-                tracing::warn!(?err, "authz cache invalidate persist failed");
-            }
+        let encoded: Vec<Vec<u8>> = keys
+            .iter()
+            .filter_map(|key| serde_json::to_vec(key).ok())
+            .collect();
+        if let Err(err) = self.persist.remove_all(&encoded) {
+            tracing::warn!(?err, "authz cache invalidate persist failed");
         }
     }
 
     /// Drop entries with `fetched_at < cutoff`. Used by a periodic
-    /// task to keep sled bounded. Returns the number dropped.
+    /// task to keep the store bounded. Returns the number dropped.
     pub fn prune_older_than(&self, cutoff: SystemTime) -> usize {
         let mut dropped = 0usize;
-        let mut to_drop: Vec<(sled::IVec, CacheKey)> = Vec::new();
-        for kv in self.persist.iter() {
-            let Ok((k, v)) = kv else { continue };
+        let entries = match self.persist.entries() {
+            Ok(entries) => entries,
+            Err(err) => {
+                tracing::warn!(?err, "authz cache prune could not read the store");
+                return 0;
+            }
+        };
+        let mut to_drop: Vec<(Vec<u8>, CacheKey)> = Vec::new();
+        for (k, v) in entries {
             let Ok(entry) = serde_json::from_slice::<CacheEntry>(&v) else {
                 continue;
             };
@@ -373,11 +378,13 @@ impl AuthzCache {
             }
         }
         if let Ok(mut guard) = self.inner.write() {
-            for (sled_key, lru_key) in &to_drop {
+            for (_, lru_key) in &to_drop {
                 guard.pop(lru_key);
-                if self.persist.remove(sled_key).is_ok() {
-                    dropped += 1;
-                }
+            }
+            let stored: Vec<&[u8]> = to_drop.iter().map(|(k, _)| k.as_slice()).collect();
+            match self.persist.remove_all(&stored) {
+                Ok(()) => dropped = to_drop.len(),
+                Err(err) => tracing::warn!(?err, "authz cache prune could not delete"),
             }
         }
         dropped
