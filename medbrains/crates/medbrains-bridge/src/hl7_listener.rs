@@ -9,13 +9,14 @@ use crate::buffer::MessageBuffer;
 use crate::config::BridgeConfig;
 use crate::ingest;
 
-/// Listen for HL7 v2 messages over MLLP (TCP with start/end framing).
+/// Listen for HL7 v2 messages over MLLP (TCP with start/end framing). Returns `Result<!>`: it
+/// only ends when binding or accepting fails, never by finishing.
 pub(crate) async fn listen(
     addr: &str,
     buffer: MessageBuffer,
     client: &reqwest::Client,
     cfg: &BridgeConfig,
-) -> Result<()> {
+) -> Result<!> {
     let listener = TcpListener::bind(addr).await?;
     info!(addr = %addr, "HL7 MLLP listener started");
 

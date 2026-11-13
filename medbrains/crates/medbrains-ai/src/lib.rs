@@ -390,10 +390,7 @@ impl rig::tool::Tool for DrugSafetyTool {
         _context: &mut rig::tool::ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
-        let out = match self.answer(args).await {
-            Ok(out) => out,
-            Err(never) => match never {},
-        };
+        let Ok(out) = self.answer(args).await;
         Ok(redaction::for_model(
             &self.session,
             &serde_json::to_string(&out).unwrap_or_default(),
@@ -403,8 +400,9 @@ impl rig::tool::Tool for DrugSafetyTool {
 
 impl DrugSafetyTool {
     /// The check's status is always stated (`checked`), never left for the
-    /// model to infer from an empty warning list.
-    async fn answer(&self, args: DrugSafetyArgs) -> Result<DrugCheck, std::convert::Infallible> {
+    /// model to infer from an empty warning list. The error type is `!`: every failure becomes a
+    /// stated `failed` check, never an error the model could read as "no warnings".
+    async fn answer(&self, args: DrugSafetyArgs) -> Result<DrugCheck, !> {
         let Some(patient_id) = self.patient_id else {
             return Ok(DrugCheck::no_chart(args.drug));
         };
@@ -548,10 +546,7 @@ impl rig::tool::Tool for DraftPrescriptionTool {
         _context: &mut rig::tool::ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
-        let out = match self.answer(args).await {
-            Ok(out) => out,
-            Err(never) => match never {},
-        };
+        let Ok(out) = self.answer(args).await;
         Ok(redaction::for_model(
             &self.session,
             &serde_json::to_string(&out).unwrap_or_default(),
@@ -560,10 +555,9 @@ impl rig::tool::Tool for DraftPrescriptionTool {
 }
 
 impl DraftPrescriptionTool {
-    async fn answer(
-        &self,
-        args: DraftPrescriptionArgs,
-    ) -> Result<DraftPrescriptionResult, std::convert::Infallible> {
+    /// Drafts the prescription. The error type is `!`: every failure is reported inside the
+    /// result, so the tool always answers the model.
+    async fn answer(&self, args: DraftPrescriptionArgs) -> Result<DraftPrescriptionResult, !> {
         let Some(patient_id) = self.patient_id else {
             return Ok(DraftPrescriptionResult {
                 decision: "no_patient".to_owned(),
@@ -711,16 +705,15 @@ impl rig::tool::Tool for PatientOverviewTool {
         _context: &mut rig::tool::ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
-        let out = match self.answer(args).await {
-            Ok(out) => out,
-            Err(never) => match never {},
-        };
+        let Ok(out) = self.answer(args).await;
         Ok(redaction::for_model(&self.session, &out))
     }
 }
 
 impl PatientOverviewTool {
-    async fn answer(&self, args: PatientOverviewArgs) -> Result<String, std::convert::Infallible> {
+    /// Summarises the patient. The error type is `!`: every failure is stated in the text, so
+    /// the tool always answers the model.
+    async fn answer(&self, args: PatientOverviewArgs) -> Result<String, !> {
         let Ok(pid) = Uuid::parse_str(&args.patient_id) else {
             return Ok(
                 "No valid patient id was provided. If no patient is in the screen context, \
@@ -971,16 +964,15 @@ impl rig::tool::Tool for CallApiTool {
         _context: &mut rig::tool::ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
-        let out = match self.answer(args).await {
-            Ok(out) => out,
-            Err(never) => match never {},
-        };
+        let Ok(out) = self.answer(args).await;
         Ok(redaction::for_model(&self.session, &out))
     }
 }
 
 impl CallApiTool {
-    async fn answer(&self, args: CallApiArgs) -> Result<String, std::convert::Infallible> {
+    /// Makes the API call. The error type is `!`: every failure is stated in the text, so the
+    /// tool always answers the model.
+    async fn answer(&self, args: CallApiArgs) -> Result<String, !> {
         Ok(match self.get(&args.path).await {
             Ok(text) => self.shelve_compact(&args.path, text),
             Err(e) => {

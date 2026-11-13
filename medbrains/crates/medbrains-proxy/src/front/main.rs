@@ -148,9 +148,11 @@ async fn serve(config: Config) -> anyhow::Result<()> {
         let site = Site::new(site_config, names.clone())?;
         ports.open(&site_config.listen, &Arc::new(http_proxy(&conf, site)))?;
     }
-    ports
-        .tasks
-        .spawn(systemd::watchdog_loop(ports.gates.clone(), shutdown));
+    let gates = ports.gates.clone();
+    // The task set is `JoinSet<()>`; the `;` turns the loop's `!` into that `()`.
+    ports.tasks.spawn(async move {
+        systemd::watchdog_loop(gates, shutdown).await;
+    });
     systemd::notify("READY=1");
     tracing::info!(ports = ports.gates.len(), "the front is listening");
     let mut terminate = signal(SignalKind::terminate())?;

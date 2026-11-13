@@ -18,8 +18,9 @@ const PASS_INTERVAL_SECS: u64 = 3600;
 /// How far ahead of expiry the patient is told.
 pub const NOTICE_DAYS: i32 = 3;
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(async move {
         loop {
             match scan_once(&pool).await {
                 Ok(raised) if raised > 0 => {

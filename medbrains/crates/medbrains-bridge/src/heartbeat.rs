@@ -35,8 +35,13 @@ pub(crate) async fn register(client: &reqwest::Client, cfg: &BridgeConfig) -> Re
     Ok(Uuid::parse_str(agent_id)?)
 }
 
-/// Send heartbeats at the configured interval.
-pub(crate) async fn heartbeat_loop(client: &reqwest::Client, cfg: &BridgeConfig, agent_id: Uuid) {
+/// Send heartbeats at the configured interval. Returns `!`: the server marks a silent bridge
+/// offline, so the heartbeat must outlive every failed send.
+pub(crate) async fn heartbeat_loop(
+    client: &reqwest::Client,
+    cfg: &BridgeConfig,
+    agent_id: Uuid,
+) -> ! {
     let url = format!("{}/api/bridge/heartbeat", cfg.api_base);
     let interval = tokio::time::Duration::from_secs(cfg.heartbeat_interval_secs);
 

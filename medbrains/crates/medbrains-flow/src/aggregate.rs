@@ -40,9 +40,10 @@ pub fn tick_secs() -> u64 {
 }
 
 /// Start the pass. Call once at boot with the worker pool.
+/// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
     let every = Duration::from_secs(tick_secs());
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(async move {
         loop {
             if let Err(error) = pass(&pool).await {
                 tracing::error!(%error, "flow aggregation pass failed");

@@ -18,8 +18,9 @@ use crate::error::AppError;
 const PASS_INTERVAL_SECS: u64 = 60;
 const OBSERVATION_INTERVAL_MINS: i32 = 30;
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(async move {
         loop {
             match escalate_missed_checks(&pool).await {
                 Ok(alerted) if alerted > 0 => {

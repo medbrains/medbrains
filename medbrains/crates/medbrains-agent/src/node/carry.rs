@@ -33,8 +33,9 @@ impl Node {
     }
 
     /// Relays chrony's packets to the main machine for as long as the agent runs; one at a time,
-    /// which is plenty at chrony's rate, and each with a time limit.
-    async fn relay_time_forever(self: Arc<Self>, socket: UdpSocket) {
+    /// which is plenty at chrony's rate, and each with a time limit. Returns `!`: a node whose clock
+    /// relay stopped would drift unseen, so no path may end it.
+    async fn relay_time_forever(self: Arc<Self>, socket: UdpSocket) -> ! {
         let mut buffer = [0_u8; 1024];
         let mut held: Option<Connection> = None;
         loop {
@@ -66,7 +67,8 @@ impl Node {
 
     /// Carries each connection from the screen over one iroh connection, which is dialled again
     /// when it has dropped. Knows nothing about what it carries: TLS ends at the main machine.
-    async fn carry_forever(self: Arc<Self>, listener: TcpListener) {
+    /// Returns `!`: a failed accept is skipped, so the screen never loses its path by the loop ending.
+    async fn carry_forever(self: Arc<Self>, listener: TcpListener) -> ! {
         let conn: Arc<tokio::sync::Mutex<Option<Connection>>> = Arc::default();
         let limit = Arc::new(Semaphore::new(MAX_STREAMS));
         loop {

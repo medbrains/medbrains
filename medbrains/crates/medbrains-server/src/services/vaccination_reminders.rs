@@ -9,8 +9,9 @@ use sqlx::PgPool;
 
 const PASS_INTERVAL_SECS: u64 = 3600;
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(async move {
         loop {
             match medbrains_patients::immunization_schedule::send_due_reminders(&pool).await {
                 Ok(n) if n > 0 => {

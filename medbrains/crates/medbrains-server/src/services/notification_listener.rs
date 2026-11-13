@@ -40,23 +40,25 @@ struct Payload {
 }
 
 /// Spawn the supervised LISTEN bridge. Call once at startup.
+/// Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool, hub: NotificationHub) {
     let http = reqwest::Client::new();
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(async move {
         loop {
-            if let Err(error) = run(&pool, &hub, &http).await {
-                tracing::warn!(%error, "notification listener stopped; reconnecting");
-            }
+            let Err(error) = run(&pool, &hub, &http).await;
+            tracing::warn!(%error, "notification listener stopped; reconnecting");
             tokio::time::sleep(RECONNECT_DELAY).await;
         }
     });
 }
 
+/// One LISTEN connection, relaying each notification to the hub and push. Returns
+/// `Result<!, _>`: it only ends when the connection fails, and the caller reconnects.
 async fn run(
     pool: &PgPool,
     hub: &NotificationHub,
     http: &reqwest::Client,
-) -> Result<(), sqlx::Error> {
+) -> Result<!, sqlx::Error> {
     let mut listener = PgListener::connect_with(pool).await?;
     listener.listen(CHANNEL).await?;
     tracing::info!("notification listener connected");

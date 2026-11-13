@@ -47,12 +47,13 @@ pub(crate) async fn deliver(
     }
 }
 
-/// Background loop that drains the SQLite buffer — retries failed messages.
+/// Background loop that drains the SQLite buffer — retries failed messages. Returns `!`: a
+/// buffered result must keep being retried until delivered, so the loop has no way out.
 pub(crate) async fn drain_loop(
     buffer: MessageBuffer,
     client: &reqwest::Client,
     cfg: &BridgeConfig,
-) {
+) -> ! {
     let interval = tokio::time::Duration::from_secs(cfg.drain_interval_secs);
 
     loop {

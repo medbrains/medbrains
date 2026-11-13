@@ -23,10 +23,11 @@ pub(crate) fn notify(state: &str) {
 
 /// Pings the watchdog, and logs refused connections once a period rather than once each. This task
 /// shares the runtime with every connection, so it stops running when they stop being served.
+/// Returns `!`: a finished task reads as a listener having stopped, so even shutdown parks it.
 pub(crate) async fn watchdog_loop(
     gates: Vec<Arc<ConnectionGate>>,
     mut shutdown: watch::Receiver<bool>,
-) {
+) -> ! {
     loop {
         notify("WATCHDOG=1");
         let refused: u64 = gates.iter().map(|gate| gate.take_refused()).sum();

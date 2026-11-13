@@ -79,11 +79,9 @@ async fn main() -> Result<()> {
         let addr = hl7.clone();
         info!(listen = %addr, "starting HL7 MLLP listener");
         tokio::spawn(async move {
-            if let Err(e) =
-                hl7_listener::listen(&addr, listener_db, &listener_client, &listener_cfg).await
-            {
-                tracing::error!(error = %e, "HL7 listener failed");
-            }
+            let Err(e) =
+                hl7_listener::listen(&addr, listener_db, &listener_client, &listener_cfg).await;
+            tracing::error!(error = %e, "HL7 listener failed");
         });
     }
 
@@ -91,9 +89,8 @@ async fn main() -> Result<()> {
     if let Some(addr) = cfg.astm_listen.clone() {
         let (astm_db, astm_client, astm_cfg) = (db.clone(), client.clone(), cfg.clone());
         tokio::spawn(async move {
-            if let Err(e) = astm::listen(&addr, astm_db, &astm_client, &astm_cfg).await {
-                tracing::error!(error = %e, "ASTM listener failed");
-            }
+            let Err(e) = astm::listen(&addr, astm_db, &astm_client, &astm_cfg).await;
+            tracing::error!(error = %e, "ASTM listener failed");
         });
     }
 

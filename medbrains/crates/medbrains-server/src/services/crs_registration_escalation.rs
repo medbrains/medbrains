@@ -22,8 +22,9 @@ const RECIPIENT_LIMIT: i64 = 50;
 /// The roles that keep the hospital's statutory registers.
 const REGISTER_ROLES: [&str; 2] = ["hospital_admin", "mrd_officer"];
 
+/// Starts the pass. Runs on `spawn_forever`: the loop cannot return and stop the pass unseen.
 pub fn spawn(pool: PgPool) {
-    tokio::spawn(async move {
+    medbrains_server_core::background::spawn_forever(async move {
         loop {
             match escalate_overdue(&pool).await {
                 Ok(escalated) if escalated > 0 => {
