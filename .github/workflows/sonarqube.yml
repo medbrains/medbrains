@@ -168,7 +168,7 @@ jobs:
       - name: Skip until SonarQube Cloud is set up
         if: env.SONAR_TOKEN == ''
         run: echo "::notice::SONAR_TOKEN is not set; SonarQube analysis skipped."
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: env.SONAR_TOKEN != ''
         with:
           persist-credentials: false
@@ -240,7 +240,7 @@ jobs:
             extra="$extra -Dsonar.coverage.jacoco.xmlReportPaths=android-coverage/report.xml"
           fi
           echo "rust=$extra" >> "$GITHUB_OUTPUT"
-      - uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+      - uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
         if: env.SONAR_TOKEN != ''
         with:
           args: -Dsonar.projectVersion=${{ steps.version.outputs.version }} ${{ steps.version.outputs.rust }}
