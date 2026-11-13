@@ -308,12 +308,22 @@ edge tier design already written in `medbrains-edge`.
     administrator who approved it. Approving a screen without choosing its
     board is refused.
 
-39. **Given** a TV with nobody signed in, **when** it opens `/screen`, **then**
-    it shows a code big enough to read across the room; **when** an
-    administrator approves it, **then** it opens its own board within one poll,
-    number only; **when** the screen is revoked, **then** it goes back to
-    showing a code — never a dead board. A code that expires or is refused is
-    replaced by itself.
+39. **Given** a TV with nobody signed in, **when** it opens
+    `/screen?hospital=<code>` (the address and QR on Admin → Paired devices;
+    without the code it asks for it once), **then** it shows a reference and a
+    code big enough to read across the room; **when** an administrator finds
+    the reference, types the code and approves it, **then** it opens its own
+    board within one poll, number only; **when** the screen is revoked,
+    **then** it goes back to showing a code — never a dead board. A code that
+    expires or is refused is replaced by itself.
+39a. *(2026-11-13)* **Given** a screen waiting to be paired, **then** only the
+    hospital it named sees it, and the list shows its reference, label, kind
+    and time but never its code; **when** the administrator approves with a
+    wrong code, **then** nothing is issued, and the fifth wrong code refuses
+    the request. **Given** a phone or vendor tablet, **when** it asks to pair
+    by code, **then** it is refused — those pair by the administrator's QR.
+    The token a screen gets carries `display.board.read` only. Asking for
+    codes is limited per address (20 a minute) and per hospital (50 waiting).
 40. **Given** a camp's Doctor step with two rooms, **when** the doctor in room
     2 presses *Call next*, **then** they get the next patient from the one
     Doctor queue and the call names room 2 — neither room has its own line, so

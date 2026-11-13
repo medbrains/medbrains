@@ -21,14 +21,16 @@ test("a TV shows a code, is approved, and opens its own board", async ({ hospita
   const tvContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   const tv = await tvContext.newPage();
   await routeApiDirect(tv);
-  await tv.goto("/screen");
+  const tenant = await api<{ code: string }>(hospital.admin, "GET", "/api/setup/tenant");
+  await tv.goto(`/screen?hospital=${tenant.code}`);
   const shown = tv.getByTestId("screen-pairing-code");
   await expect(shown).toBeVisible({ timeout: 20_000 });
   const code = (await shown.innerText()).trim();
+  const reference = (await tv.getByTestId("screen-pairing-ref").innerText()).replace("Screen", "");
 
   const admin = new DevicesAdmin(await hospital.asAdmin());
   await admin.open();
-  await admin.approveScreen(code, dept.name);
+  await admin.approveScreen(reference.trim(), code, dept.name);
 
   // The TV opens its own board — nobody touched it.
   await expect(tv.getByText(`OPD · ${dept.name}`).first()).toBeVisible({ timeout: 20_000 });
