@@ -17,7 +17,8 @@
 # It never merges, never pushes to main, and never acts for anyone without write
 # access. Fork PRs are skipped on every trigger: a read-only gate job resolves the
 # PR's head repository first, and only PRs from this repository reach the agent,
-# which gets an explicit tool list (no arbitrary shell). Its commits go through the same required checks
+# which gets an explicit tool list (no arbitrary shell, no git push, no writes to
+# .git/ or .github/). A plain step pushes its commits to the PR branch. Its commits go through the same required checks
 # and independent review as any other. It follows CLAUDE.md / ENGINEERING.md.
 #
 # Off until the owner sets up auth. Preferred: workload identity federation, with no
@@ -69,6 +70,8 @@ jobs:
       pull-requests: read
     outputs:
       same_repo: ${{ steps.head.outputs.same_repo }}
+      head_sha: ${{ steps.head.outputs.head_sha }}
+      head_ref: ${{ steps.head.outputs.head_ref }}
     steps:
       - name: Resolve the PR's head repository
         id: head
@@ -78,9 +81,15 @@ jobs:
         run: |
           set -euo pipefail
           # A deleted fork gives null, which never matches.
-          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.repo.full_name // ""')
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+          head=$(jq -r '.head.repo.full_name // ""' <<<"$pr")
           if [ "$head" = "$GITHUB_REPOSITORY" ]; then
-            echo "same_repo=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "same_repo=true"
+              # The exact commit and branch the agent works on, from the API, never from the agent.
+              echo "head_sha=$(jq -r '.head.sha' <<<"$pr")"
+              echo "head_ref=$(jq -r '.head.ref' <<<"$pr")"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "same_repo=false" >> "$GITHUB_OUTPUT"
             echo "::notice::PR head is '$head', not this repository; skipped."
@@ -101,6 +110,15 @@ jobs:
       id-token: write
     env:
       HAS_TOKEN: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      # Git runs no repository-supplied code in this job: no hooks, no fsmonitor,
+      # no external diff, no pager. Environment config outranks .git/config.
+      GIT_CONFIG_COUNT: "2"
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.fsmonitor
+      GIT_CONFIG_VALUE_1: "false"
+      GIT_EXTERNAL_DIFF: ""
+      GIT_PAGER: cat
     steps:
       - name: Skip until a Claude token is set
         if: env.HAS_TOKEN != 'true'
@@ -108,9 +126,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: env.HAS_TOKEN == 'true'
         with:
+          ref: ${{ needs.gate.outputs.head_sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
+        id: agent
         if: env.HAS_TOKEN == 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -122,11 +142,34 @@ jobs:
           anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           trigger_phrase: "@claude"
           track_progress: true
-          # No arbitrary shell: edit files, commit to the PR branch, read PRs and CI runs.
-          # Pushing to main is refused by branch protection, not by this list.
+          # No arbitrary shell and no push: the agent edits and commits locally, and
+          # reads PRs and CI runs. The step below pushes with a fixed refspec.
+          # .git/ and .github/ are never writable, so it cannot plant hooks, git
+          # config or workflows.
           claude_args: >-
             --model claude-sonnet-5-5 --max-turns 30
-            --allowedTools "Read,Edit,MultiEdit,Write,Glob,Grep,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git rm:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh run list:*),Bash(gh issue view:*)"
+            --allowedTools "Read,Edit,MultiEdit,Write,Glob,Grep,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git rm:*),Bash(git commit:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh run list:*),Bash(gh issue view:*)"
+            --disallowedTools "Bash(git push:*),Edit(.git/**),Write(.git/**),MultiEdit(.git/**),Edit(.github/**),Write(.github/**),MultiEdit(.github/**)"
+      # The only push. Branch and base commit come from the gate's API lookup; the
+      # agent's output never names a ref. Plain fast-forward (no force), so a branch
+      # that moved meanwhile is refused. GITHUB_TOKEN pushes do not start workflows,
+      # so the PR's checks must be re-run before it can merge (fails closed).
+      - name: Push the agent's commits to the PR branch
+        if: env.HAS_TOKEN == 'true' && steps.agent.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ needs.gate.outputs.head_sha }}
+          HEAD_REF: ${{ needs.gate.outputs.head_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-list --count "$HEAD_SHA..HEAD")" = "0" ]; then
+            echo "::notice::No new commits; nothing pushed."; exit 0
+          fi
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          # The empty extraheader first drops any header the action left in .git/config.
+          git -c credential.helper= -c http.https://github.com/.extraheader= -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            push "https://github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$HEAD_REF"
 
   daily-review:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
