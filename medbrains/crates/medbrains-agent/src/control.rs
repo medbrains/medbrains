@@ -31,7 +31,11 @@ enum Request {
     /// Ask a typed address who it is.
     Find { address: String },
     /// Ask to join a main machine on the list.
-    Join { id: String, name: String, kind: Kind },
+    Join {
+        id: String,
+        name: String,
+        kind: Kind,
+    },
     /// How the join stands.
     Status,
     /// The digits a person read off the main machine's screen.
@@ -63,7 +67,9 @@ async fn answer(node: &Arc<Node>, request: Request) -> Value {
             Err(error) => json!({ "error": error.to_string() }),
         },
         Request::Main => match node.joined() {
-            Ok(Some(joined)) => json!({ "hospital": joined.hospital, "addresses": joined.addresses }),
+            Ok(Some(joined)) => {
+                json!({ "hospital": joined.hospital, "addresses": joined.addresses })
+            }
             Ok(None) => json!({ "error": "This machine has not joined." }),
             Err(error) => json!({ "error": error.to_string() }),
         },
@@ -90,9 +96,9 @@ async fn serve(node: Arc<Node>, stream: UnixStream) -> anyhow::Result<()> {
 
 /// Serves the screen for as long as the agent runs.
 pub(crate) async fn serve_forever(node: Arc<Node>, path: &Path) -> anyhow::Result<()> {
-    drop(std::fs::remove_file(path));
+    drop(tokio::fs::remove_file(path).await);
     let listener = UnixListener::bind(path)?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(SOCKET_MODE))?;
+    tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(SOCKET_MODE)).await?;
     let limit = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     // A loop meant never to end: a failed accept, such as too many open files, must not stop the
     // agent carrying the screen.

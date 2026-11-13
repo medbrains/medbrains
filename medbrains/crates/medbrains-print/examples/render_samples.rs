@@ -15,7 +15,7 @@ use medbrains_print::templates::SYSTEM_TEMPLATES;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = std::env::var("GOTENBERG_URL").unwrap_or_else(|_| "http://127.0.0.1:3005".to_owned());
     let client = GotenbergClient::new(&url, reqwest::Client::new());
-    std::fs::create_dir_all("/tmp/medbrains-docs")?;
+    tokio::fs::create_dir_all("/tmp/medbrains-docs").await?;
 
     let branding = serde_json::json!({
         "hospital_name": "Example Medical College & Hospital",
@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .html_to_pdf(&html, template.paper, template.margins)
             .await?;
         let path = format!("/tmp/medbrains-docs/{}.pdf", template.code);
-        std::fs::write(&path, &pdf)?;
+        tokio::fs::write(&path, &pdf).await?;
         println!("{:<28} {:>7} bytes  {}", template.code, pdf.len(), path);
     }
 
