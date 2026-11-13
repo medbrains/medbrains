@@ -39,7 +39,7 @@ encrypted session, and just forward everything to the real TPM". Binding the ses
 |---|---|---|
 | Power cut | **Comes back by itself** | Waits for a person at the screen, however long that is |
 | Stolen machine, edited system partition | **Opens** | Needs the PIN |
-| Active interposer on the TPM bus | Can get the key | Needs the PIN too. Wrong PINs and power cuts both count towards the TPM's lockout; setup sets 16, one forgiven every 5 minutes switched on (below). The recovery key still works, tested |
+| Active interposer on the TPM bus | Can get the key | Needs the PIN too. Wrong PINs count towards the TPM's lockout, and on real chips power cuts do too; setup sets 16, one forgiven every 5 minutes switched on (below). The recovery key still works, tested |
 
 Setup asks once, at first boot; Enter means no PIN. Recorded as `encrypted-tpm2` or `encrypted-tpm2-pin`. A ward
 with no system until someone types a PIN carries its own patient risk, so no PIN is the default.
@@ -49,14 +49,15 @@ with no system until someone types a PIN carries its own patient risk, so no PIN
 ### TPM lockout
 
 A PIN-sealed key is protected against guessing by the TPM's dictionary-attack counter; a key without a PIN is
-exempt (systemd marks it `NODA`), so only the PIN option is affected. Two things raise the counter: each wrong
-PIN, and each power cut after the key was used that boot (the TPM 2.0 reference code adds one at the next start
-after any non-orderly shutdown). At its limit the TPM refuses even the right PIN until it has forgiven enough
+exempt (systemd marks it `NODA`), so only the PIN option is affected. Each wrong PIN raises the counter. Real
+TPM 2.0 chips also count a non-orderly shutdown while a DA-protected key is in use (TPM 2.0 Part 1, `DAStartup`);
+swtpm does not model this (measured: no rise over three cuts with forgiveness held off), so that part is tested
+only on a real chip (`MB_OS_TEST_REAL_TPM`). At its limit the TPM refuses even the right PIN until it has forgiven enough
 failures, one per interval of powered-on time, and a power cut restarts that clock. A hospital with an unsteady
 supply can therefore lock out a machine nobody attacked.
 
-Measured on swtpm, whose defaults are 3 failures and 1000 s: the PIN tests drove it into lockout as a side effect,
-and whether a run passed depended on timing.
+Measured on swtpm, whose defaults are 3 failures and 1000 s: the PIN tests' wrong PINs drove it into lockout as a
+side effect, and whether a run passed depended on timing.
 
 | Setting | Value | Why |
 |---|---|---|
