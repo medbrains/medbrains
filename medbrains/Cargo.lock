@@ -5535,7 +5535,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-abdm"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "chrono",
  "reqwest",
@@ -5547,7 +5547,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-adapter-sdk"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "chrono",
  "serde",
@@ -5574,7 +5574,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-agent"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5985,7 +5985,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-bridge"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6106,7 +6106,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-clinical-core"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -6268,7 +6268,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-core"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6361,7 +6361,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-db"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "chrono",
  "hex",
@@ -6403,7 +6403,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-desktop"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "base64 0.22.1",
  "reqwest",
@@ -6592,7 +6592,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6617,7 +6617,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-app"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -6641,7 +6641,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-rn"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "getrandom 0.4.3",
  "hex",
@@ -6745,7 +6745,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-fhir-api"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "axum",
  "chrono",
@@ -6816,7 +6816,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-health-services"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "medbrains-authz-gate",
  "medbrains-kernel",
@@ -6884,7 +6884,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-hrms-gateway"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "axum",
  "chrono",
@@ -7000,7 +7000,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-integration-hub"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -7092,7 +7092,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-kernel"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "chrono",
  "medbrains-authz",
@@ -7179,7 +7179,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-loadtest"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "chrono",
  "goose",
@@ -7440,7 +7440,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-offline-core"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "chrono",
  "ed25519-dalek",
@@ -7550,7 +7550,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-setup"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "argon2",
  "data-encoding",
@@ -7565,14 +7565,14 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-test"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "medbrains-os-update"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -7994,7 +7994,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-printing"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "printers",
  "serde",
@@ -8004,7 +8004,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-proxy"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8171,7 +8171,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-security-intel"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "argon2",
  "async-trait",
@@ -8210,7 +8210,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-server"
-version = "3.33.0"
+version = "3.33.1"
 dependencies = [
  "anyhow",
  "argon2",
