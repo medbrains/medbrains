@@ -35,6 +35,9 @@ systemctl enable nftables chrony systemd-networkd systemd-resolved \
     medbrains-agent medbrains-time-role cage-console medbrains-update-reconcile medbrains-update-health \
     medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer medbrains-boot-health@tty2
 systemctl mask systemd-boot-update.service
+# A kiosk keyboard must not reboot a ward machine: Ctrl+Alt+Del reaches systemd from any console, tty2 included.
+# Masked here; the burst of seven in two seconds is turned off in system.conf.d.
+systemctl mask ctrl-alt-del.target
 # AppArmor's decisions reach the journal through the audit socket. Without it the kernel prints them, rate
 # limited, and a burst of denials is lost (seen in the VM as "callbacks suppressed").
 systemctl enable systemd-journald-audit.socket

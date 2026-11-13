@@ -385,6 +385,10 @@ fn checks() -> Vec<Check> {
         ),
         ("nothing offers a login", hardening::no_login_anywhere),
         (
+            "Ctrl+Alt+Del restarts nothing",
+            hardening::ctrl_alt_del_does_nothing,
+        ),
+        (
             "sandboxed helpers still read their markers",
             hardening::sandboxed_helpers_still_read,
         ),
