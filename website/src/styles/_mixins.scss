@@ -6,6 +6,8 @@ $breakpoints: (
   md: 720px,
   lg: 900px,
   xl: 980px,
+  // The header folds into the menu button below this: its links need about 1180px.
+  nav: 1200px,
 );
 
 // Styles for screens narrower than a named breakpoint.

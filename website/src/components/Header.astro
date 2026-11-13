@@ -58,6 +58,7 @@ const SOLUTIONS = [
       <a href="/#modules">Modules</a>
       <a href="/#trust">Compliance</a>
       <a href="/pricing">Pricing</a>
+      <a href="/download">Download</a>
       <a href="/partners">Partners</a>
       <a href="/blog">Blog</a>
       <a class="nav-signin" href={SITE.signIn}>Sign in</a>
@@ -71,7 +72,7 @@ const SOLUTIONS = [
 </header>
 
 <script>
-  // Solutions dropdown (desktop) and the whole menu (below 980px): a button with
+  // Solutions dropdown (desktop) and the whole menu (below 1200px): a button with
   // aria-expanded, Escape closes and returns focus, a click outside closes.
   const pairs = [".sol-btn", ".menu-btn"].map((sel) => {
     const btn = document.querySelector<HTMLButtonElement>(sel);
@@ -164,7 +165,7 @@ const SOLUTIONS = [
   }
   /* ponytail: the narrowest phones (≤360px) can't fit word, Sign in and the CTA; keep the mark (the link keeps its aria-label). */
   @media (max-width: 360px) { .brand span { display: none; } }
-  @include below(xl) {
+  @include below(nav) {
     .signin { margin-left: auto; }
     .menu-btn { display: grid; }
     /* The whole menu drops down under the bar; Solutions are listed open in it. */
@@ -183,9 +184,9 @@ const SOLUTIONS = [
     }
     .group a { padding: 6px 0; }
   }
-  .light .nav { @include below(xl) { background: var(--paper); border-bottom-color: var(--line); } }
+  .light .nav { @include below(nav) { background: var(--paper); border-bottom-color: var(--line); } }
   .light .sol-panel { background: #fff; border-color: var(--line); }
-  @include below(xl) { .light .sol-panel, .light .nav > a { border-color: var(--line); } }
+  @include below(nav) { .light .sol-panel, .light .nav > a { border-color: var(--line); } }
   .light .group p { color: var(--blue-deep); }
   /* Below 400px Sign in moves into the menu, so the bar stays on one line. */
   @media (max-width: 400px) {
