@@ -21,6 +21,7 @@ pub(crate) struct HeadscaleTransport {
 }
 
 impl HeadscaleTransport {
+    /// A transport that reaches the cloud over the Headscale tailnet at `login_server`.
     pub(crate) fn new(login_server: String, cloud_hostname_override: Option<String>) -> Self {
         Self {
             login_server,
@@ -29,6 +30,7 @@ impl HeadscaleTransport {
         }
     }
 
+    /// Points the transport at another `tailscale` binary, so tests can use a stand-in.
     #[cfg(test)]
     pub(crate) fn with_tailscale_bin(mut self, bin: impl Into<String>) -> Self {
         self.tailscale_bin = bin.into();

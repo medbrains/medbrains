@@ -10,6 +10,8 @@ pub(crate) struct MessageBuffer {
 }
 
 impl MessageBuffer {
+    /// Opens the SQLite buffer at `path`, creating its table, so results survive a restart
+    /// while the server is unreachable.
     pub(crate) fn open(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch(

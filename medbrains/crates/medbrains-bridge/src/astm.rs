@@ -46,6 +46,8 @@ pub(crate) struct Session {
 }
 
 impl Session {
+    /// Feeds bytes read from the analyzer and returns what they complete: a byte to send back,
+    /// or a whole message. Bytes that end mid-frame wait for the next read.
     pub(crate) fn feed(&mut self, bytes: &[u8]) -> Vec<Event> {
         self.pending.extend_from_slice(bytes);
         let mut events = Vec::new();

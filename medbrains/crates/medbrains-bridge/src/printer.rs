@@ -124,6 +124,7 @@ pub(crate) async fn deliver_pending(client: &reqwest::Client, cfg: &BridgeConfig
     Ok(printed)
 }
 
+/// Prints pending jobs every `every` for as long as the bridge runs; a failed poll is retried.
 pub(crate) async fn poll_loop(client: &reqwest::Client, cfg: &BridgeConfig, every: Duration) {
     loop {
         match deliver_pending(client, cfg).await {

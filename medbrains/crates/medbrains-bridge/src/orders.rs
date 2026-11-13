@@ -188,6 +188,7 @@ pub(crate) async fn send_pending(
     Ok(accepted_count)
 }
 
+/// Loads pending orders onto the analyzer every `every`; a failed send is retried.
 pub(crate) async fn poll_loop(
     client: &reqwest::Client,
     cfg: &BridgeConfig,
