@@ -152,7 +152,7 @@ if [[ "$DEBUG" == 1 ]]; then
     # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
     # a test Wi-Fi network with mac80211_hwsim.
     DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service systemd.mask=serial-getty@ttyS0.service"
-                --package strace --package tpm2-tools --package wtype --package grim --package hostapd --package iw)
+                --package strace --package xz-utils --package wtype --package grim --package hostapd --package iw)
 fi
 
 # A debug image gets a throwaway signing key, so the signed path is what gets tested. Never for release.
