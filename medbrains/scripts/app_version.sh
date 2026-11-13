@@ -32,10 +32,10 @@ build_number() {
   echo $(( 10#$major * 10000 + minor * 100 + patch ))
 }
 
-if [ "${1:-}" = --self-test ]; then
-  [ "$(build_number 3.33.0)" = 33300 ]
-  [ "$(build_number 3.33.1)" = 33301 ]
-  [ "$(build_number 4.0.0)" -gt "$(build_number 3.99.99)" ]
+if [[ "${1:-}" == --self-test ]]; then
+  [[ "$(build_number 3.33.0)" == 33300 ]]
+  [[ "$(build_number 3.33.1)" == 33301 ]]
+  [[ "$(build_number 4.0.0)" -gt "$(build_number 3.99.99)" ]]
   "$0" v"$(workspace_version "$cargo_toml")"-rc1 >/dev/null
   build_number 3.100.0 2>/dev/null && exit 1
   build_number 3.33.0-rc1 2>/dev/null && exit 1
@@ -44,7 +44,7 @@ fi
 
 version=$(workspace_version "$cargo_toml")
 # A pre-release tag (v3.33.0-rc1) builds the version it leads up to.
-if [ -n "${1:-}" ] && [ "$1" != "v$version" ] && [[ "$1" != "v$version-"* ]]; then
+if [[ -n "${1:-}" && "$1" != "v$version" ]] && [[ "$1" != "v$version-"* ]]; then
   echo "app_version: tag $1 does not match the workspace version $version" >&2; exit 1
 fi
 echo "$version $(build_number "$version")"
