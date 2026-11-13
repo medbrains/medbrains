@@ -2573,6 +2573,10 @@ pub async fn create_nursing_task(
 //  PUT /api/ipd/admissions/{id}/tasks/{tid}
 // ══════════════════════════════════════════════════════════
 
+/// `PUT /api/ipd/admissions/{id}/tasks/{tid}` — edit or tick a nursing task.
+///
+/// Ticking a done task again keeps who did it and when; unticking clears both,
+/// so a reopened task never shows a completer.
 pub async fn update_nursing_task(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2619,8 +2623,12 @@ pub async fn update_nursing_task(
            is_completed = COALESCE($7, is_completed), \
            due_at = COALESCE($8, due_at), \
            notes = COALESCE($9, notes), \
-           completed_at = COALESCE($10, completed_at), \
-           completed_by = COALESCE($11, completed_by) \
+           completed_at = CASE WHEN $7 IS FALSE THEN NULL \
+                               WHEN $7 AND NOT is_completed THEN $10 \
+                               ELSE completed_at END, \
+           completed_by = CASE WHEN $7 IS FALSE THEN NULL \
+                               WHEN $7 AND NOT is_completed THEN $11 \
+                               ELSE completed_by END \
          WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
          RETURNING *",
     )
@@ -3506,6 +3514,9 @@ pub async fn list_intake_output(
 //  POST /api/ipd/admissions/{id}/io
 // ══════════════════════════════════════════════════════════
 
+/// `POST /api/ipd/admissions/{id}/io` — record one intake or output entry for
+/// the fluid balance. Intake must be above zero; output may be zero ("urine 0 ml
+/// this shift"); nothing may be negative.
 pub async fn create_intake_output(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3526,6 +3537,13 @@ pub async fn create_intake_output(
 
     let shift: NursingShift = serde_json::from_value(serde_json::Value::String(body.shift.clone()))
         .map_err(|_| AppError::BadRequest(format!("Invalid shift '{}'", body.shift)))?;
+    // A negative entry would flip the fluid balance. Zero output is a real
+    // finding (an anuric patient, a blocked catheter); zero intake is not.
+    if body.volume_ml < Decimal::ZERO || (body.is_intake && body.volume_ml.is_zero()) {
+        return Err(AppError::BadRequest(
+            "Volume cannot be negative, and intake must be more than zero.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, IpdIntakeOutput>(
         "INSERT INTO ipd_intake_output \
@@ -3691,6 +3709,7 @@ pub async fn create_infusion(
             "Volume must be greater than zero.".to_owned(),
         ));
     }
+    require_positive_rate(body.rate_ml_per_hr)?;
 
     // Setting up the pump starts the infusion; planned end = now + duration.
     let planned_end = body
@@ -3789,8 +3808,22 @@ pub async fn create_infusion(
     Ok(Json(row))
 }
 
+/// Refuse a pump rate of zero or less: a pump cannot run at it.
+fn require_positive_rate(rate: Option<Decimal>) -> Result<(), AppError> {
+    if rate.is_some_and(|r| r <= Decimal::ZERO) {
+        return Err(AppError::BadRequest(
+            "Rate must be greater than zero.".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 /// `PUT /api/ipd/admissions/{id}/infusions/{infusion_id}` — titrate (rate/site)
 /// or transition status (pause/resume/complete/discontinue).
+///
+/// A completed or discontinued infusion is final (409): resuming it would
+/// restart a bag the chart says has ended, and a second end would rewrite
+/// when it ended.
 pub async fn update_infusion(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3820,12 +3853,29 @@ pub async fn update_infusion(
         }
     }
 
+    require_positive_rate(body.rate_ml_per_hr)?;
     let discontinued_by =
         matches!(body.status.as_deref(), Some("discontinued")).then_some(claims.sub);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let current = sqlx::query_scalar::<_, String>(
+        "SELECT status FROM iv_fluid_orders \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 FOR UPDATE",
+    )
+    .bind(infusion_id)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if matches!(current.as_str(), "completed" | "discontinued") {
+        return Err(AppError::Conflict(format!(
+            "This infusion is {current} and cannot be changed. Start a new one."
+        )));
+    }
 
     let row = sqlx::query_as::<_, IvFluidOrder>(
         "UPDATE iv_fluid_orders SET \
@@ -4185,6 +4235,9 @@ pub async fn list_handovers(
 //  POST /api/ipd/admissions/{id}/handovers
 // ══════════════════════════════════════════════════════════
 
+/// `POST /api/ipd/admissions/{id}/handovers` — the outgoing nurse's ISBAR
+/// handover. The incoming nurse must be another active user of this hospital:
+/// a handover to oneself, or to nobody, hands nothing over.
 pub async fn create_handover(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4202,6 +4255,25 @@ pub async fn create_handover(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    if body.incoming_nurse == claims.sub {
+        return Err(AppError::BadRequest(
+            "Hand over to the nurse taking over, not to yourself.".to_owned(),
+        ));
+    }
+    let incoming_is_active = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND tenant_id = $2 \
+           AND is_active AND deleted_at IS NULL)",
+    )
+    .bind(body.incoming_nurse)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !incoming_is_active {
+        return Err(AppError::BadRequest(
+            "The incoming nurse must be an active user of this hospital.".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, IpdHandoverReport>(
         "INSERT INTO ipd_handover_reports \
@@ -4238,6 +4310,10 @@ pub async fn create_handover(
 //  PUT /api/ipd/admissions/{id}/handovers/{hid}/acknowledge
 // ══════════════════════════════════════════════════════════
 
+/// `PUT /api/ipd/admissions/{id}/handovers/{hid}/acknowledge` — the incoming
+/// nurse confirms she has received the handover. Only she can: an outgoing
+/// nurse acknowledging her own handover would record a receipt nobody gave.
+/// Someone else gets 403; an already acknowledged or unknown handover, 404.
 pub async fn acknowledge_handover(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4254,6 +4330,7 @@ pub async fn acknowledge_handover(
         "UPDATE ipd_handover_reports SET \
            acknowledged_at = NOW() \
          WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 AND acknowledged_at IS NULL \
+           AND deleted_at IS NULL \
          RETURNING *",
     )
     .bind(hid)
@@ -4262,6 +4339,10 @@ pub async fn acknowledge_handover(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
+    if row.incoming_nurse != claims.sub {
+        // Dropping the transaction rolls the acknowledgement back.
+        return Err(AppError::Forbidden);
+    }
 
     tx.commit().await?;
 

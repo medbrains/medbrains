@@ -159,13 +159,9 @@ pub async fn record_reading(
         spo2: body.spo2,
     };
     let obs = crate::nurse_ews::observation(&observed, sc);
-    let (ews, outgoing) = crate::nurse_ews::score_reading(
-        tx,
-        (tenant_id, actor),
-        (body.encounter_id, row.id),
-        &obs,
-    )
-    .await?;
+    let (ews, outgoing) =
+        crate::nurse_ews::score_reading(tx, (tenant_id, actor), (body.encounter_id, row.id), &obs)
+            .await?;
 
     Ok((row, ews, outgoing))
 }
@@ -179,8 +175,13 @@ pub async fn create_vitals_reading(
     require_encounter_access(&state, &claims, body.encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let (row, ews, outgoing) =
-        record_reading(&mut tx, (claims.tenant_id, claims.sub), &body, Origin::Typed).await?;
+    let (row, ews, outgoing) = record_reading(
+        &mut tx,
+        (claims.tenant_id, claims.sub),
+        &body,
+        Origin::Typed,
+    )
+    .await?;
 
     tx.commit().await?;
     for (id, n) in &outgoing {
@@ -357,6 +358,9 @@ pub struct CreateIoEntryRequest {
     pub notes: Option<String>,
 }
 
+/// `POST /api/nurse/io-entries` — one intake or output entry on an encounter's
+/// fluid chart. Intake must be above zero; output may be zero ("urine 0 ml this
+/// shift" for an anuric patient); nothing may be negative.
 pub async fn create_io_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -364,8 +368,10 @@ pub async fn create_io_entry(
 ) -> Result<Json<IoEntry>, AppError> {
     require_permission(&claims, permissions::nurse::intake_output::RECORD)?;
     require_encounter_access(&state, &claims, body.encounter_id).await?;
-    if body.volume_ml <= 0 {
-        return Err(AppError::BadRequest("volume_ml must be > 0".to_owned()));
+    if body.volume_ml < 0 || (body.direction != "output" && body.volume_ml == 0) {
+        return Err(AppError::BadRequest(
+            "Volume cannot be negative, and intake must be more than zero.".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

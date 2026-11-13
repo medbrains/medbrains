@@ -166,6 +166,7 @@ mod ihip_line_list_test;
 mod immunization_schedule_test;
 mod insurance_claim_money_test;
 mod ipd_admission_guard_test;
+mod ipd_nursing_chart_test;
 mod ipd_discharge_clearance_test;
 mod ipd_bed_transfer_test;
 mod ipd_holds_restraints_births_test;
