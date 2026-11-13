@@ -32,6 +32,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
+import { joinRuns } from "@/lib/text-shape";
 
 type ValueIcon = ComponentType<{ className?: string; size?: number; stroke?: number }>;
 
@@ -255,11 +256,7 @@ const kindIconMaps: Record<TableValueKind, Record<string, ValueIcon>> = {
 };
 
 export function normalizeTableValue(value: string | null | undefined): string {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+  return joinRuns((value ?? "").toLowerCase(), "_", /[a-z0-9]/);
 }
 
 export function labelTableValue(value: string | null | undefined): string {

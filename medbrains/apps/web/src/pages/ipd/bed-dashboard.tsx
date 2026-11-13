@@ -23,7 +23,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { OperationalSignal, PatientSearchSelect, useProtectedFieldAccess } from "@/components";
 import { loadFailedTitle, QueryError } from "@/components/QueryError";
-import { Alert, Button, Input, Modal } from "@/components/ui";
+import { Alert, Button, Input, Modal, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import { ipdAdmissionWorkspaceTabRoute } from "../ipd-workspace";
 import { BedTransferModal } from "./bed-transfer-modal";
@@ -191,6 +191,12 @@ export function BedDashboardTab() {
     mutationFn: (reservationId: string) =>
       ipdService.updateBedReservationStatus(reservationId, { status: "cancelled" }),
     onSuccess: invalidateBoard,
+    // A hold another user already released or that a ward admission used is
+    // refused (409); say so and redraw, rather than leave a stale Release button.
+    onError: (error: Error) => {
+      toast.error(error.message, { title: t("bedDashboard.hold.releaseFailedTitle") });
+      invalidateBoard();
+    },
   });
 
   const summaryRows = (summaryData ?? []) as BedDashboardSummary[];

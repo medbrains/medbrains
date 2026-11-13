@@ -81,9 +81,10 @@ import {
   billingGstrReturnTypeOptions,
   billingNumberOrFallback,
   billingOptionalText,
-  billingTdsQuarterOptions,
   billingTdsSectionOptions,
+  tdsPeriodOf,
 } from "@/forms/billing.form";
+import { todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { billingService } from "@/services/billing.service";
 
@@ -171,7 +172,8 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       reset(gstrDefaults);
       toast.success("GSTR summary created", { title: "Generated" });
     },
-    onError: () => toast.error("Failed to generate", { title: "Error" }),
+    // The server says why (a filed month, a bad period); a bare "failed" hides it.
+    onError: (e: Error) => toast.error(e.message, { title: "Return not prepared" }),
   });
 
   const fileMut = useMutation({
@@ -180,7 +182,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["gstr-summaries"] });
       toast.success("GSTR marked as filed", { title: "Filed" });
     },
-    onError: () => toast.error("Filing failed", { title: "Error" }),
+    onError: (e: Error) => toast.error(e.message, { title: "Return not filed" }),
   });
 
   const gstrStatusColors: Record<string, BadgeTone> = {
@@ -329,6 +331,8 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [opened, { open, close }] = useDisclosure(false);
+  // Local date: at 00:30 IST the UTC date is still yesterday.
+  const today = todayDateString();
   const tdsDefaults: BillingTdsFormInput = {
     invoice_id: "",
     deductee_name: "",
@@ -336,9 +340,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     tds_section: "194J",
     tds_rate: 10,
     base_amount: 0,
-    deducted_date: new Date().toISOString().slice(0, 10),
-    financial_year: "2025-26",
-    quarter: "Q4",
+    deducted_date: today,
   };
   const {
     control,
@@ -352,6 +354,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     defaultValues: tdsDefaults,
   });
   const watchedTds = watch();
+  const reportedIn = watchedTds.deducted_date ? tdsPeriodOf(watchedTds.deducted_date) : null;
   const estimatedTds = Math.round(
     (billingNumberOrFallback(watchedTds.base_amount, 0) *
       billingNumberOrFallback(watchedTds.tds_rate, 0)) /
@@ -371,7 +374,8 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       reset(tdsDefaults);
       toast.success("TDS deduction recorded", { title: "Created" });
     },
-    onError: () => toast.error("Failed", { title: "Error" }),
+    // The server names the rule (PAN, quarter of the date); a bare "failed" hides it.
+    onError: (e: Error) => toast.error(e.message, { title: "TDS not recorded" }),
   });
 
   const depositMut = useMutation({
@@ -384,6 +388,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       toast.success("TDS challan recorded", { title: "Deposited" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Challan not recorded" }),
   });
 
   const certMut = useMutation({
@@ -396,6 +401,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       toast.success("Certificate recorded", { title: "Issued" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Certificate not recorded" }),
   });
 
   const columns = [
@@ -504,8 +510,8 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       tds_rate: billingNumberOrFallback(values.tds_rate, 0),
       base_amount: billingNumberOrFallback(values.base_amount, 0),
       deducted_date: values.deducted_date.trim(),
-      financial_year: values.financial_year.trim(),
-      quarter: values.quarter,
+      // The return a deduction is reported in follows its date; nobody types it.
+      ...tdsPeriodOf(values.deducted_date.trim()),
     };
     createMut.mutate(payload);
   };
@@ -616,23 +622,10 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
             required
           />
           <TextInput
-            label="Financial Year"
-            placeholder="2025-26"
-            error={errors.financial_year?.message}
-            {...register("financial_year")}
-          />
-          <Controller
-            control={control}
-            name="quarter"
-            render={({ field }) => (
-              <Select
-                label="Quarter"
-                data={billingTdsQuarterOptions}
-                value={field.value}
-                onChange={(value) => field.onChange(value ?? "Q4")}
-                error={errors.quarter?.message}
-              />
-            )}
+            label="Reported in"
+            description="Financial year and quarter follow the deducted date"
+            value={reportedIn ? `${reportedIn.financial_year} ${reportedIn.quarter}` : ""}
+            readOnly
           />
           <Button tone="primary" type="submit" loading={createMut.isPending}>
             Record
@@ -804,7 +797,8 @@ export function JournalEntriesTab() {
       reset(journalDefaults);
       toast.success("Journal entry created", { title: "Created" });
     },
-    onError: () => toast.error("Failed — ensure debits equal credits", { title: "Error" }),
+    // The server names the line and the rule it broke; show that, not a guess.
+    onError: (error: Error) => toast.error(error.message, { title: "Journal entry not saved" }),
   });
 
   const postMut = useMutation({

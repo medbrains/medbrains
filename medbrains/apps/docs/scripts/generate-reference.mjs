@@ -2,11 +2,12 @@
 // - docs/developer/reference/api.md from docs/openapi.json (scripts/generate_openapi.py)
 // - docs/developer/reference/env-vars.md from the crates' env reads and .env.example
 // Both are gitignored: the source of truth is the code, so they cannot drift.
+import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const ROOT = new URL("../../..", import.meta.url).pathname; // medbrains/
-const OUT = new URL("../docs/developer/reference/", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("../../..", import.meta.url)); // medbrains/
+const OUT = fileURLToPath(new URL("../docs/developer/reference/", import.meta.url));
 const SECRET = /(SECRET|PASSWORD|PRIVATE_KEY|TOKEN|API_KEY|ACCESS_KEY|_KEY$|DSN|SALT|PEPPER)/;
 // ponytail: regex over source, not a Rust parser; catches env::var("X") and the env_* helpers.
 const READ = /\b(?:var|var_os|env_str|env_or|env_bytes|env_u64|env_usize|env_bool|env_parse)\w*\(\s*"([A-Z][A-Z0-9_]{2,})"/g;
@@ -55,7 +56,7 @@ function apiReference() {
 function envExample() {
   const vars = new Map();
   let comment = [];
-  for (const line of readFileSync(join(ROOT, ".env.example"), "utf8").split("\n")) {
+  for (const line of readFileSync(join(ROOT, ".env.example"), "utf8").split(/\r?\n/)) {
     const m = line.match(/^#?\s*([A-Z][A-Z0-9_]{2,})=(.*)$/);
     if (m) {
       vars.set(m[1], { example: m[2].trim(), note: comment.join(" ").trim() });
@@ -79,7 +80,7 @@ function envVars() {
   }
   const example = envExample();
   const names = [...new Set([...reads.keys(), ...example.keys()])].sort();
-  const cell = (s) => s.replace(/\|/g, "\\|").replace(/[{}<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const cell = (s) => s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/[{}<>]/g, (c) => `&#${c.charCodeAt(0)};`);
   const rows = names.map((name) => {
     const ex = example.get(name);
     const value = SECRET.test(name) ? "**secret:** set in your secret store, never commit" : ex?.example ? `\`${cell(ex.example)}\`` : "";

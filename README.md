@@ -28,6 +28,10 @@
 [![Rust](https://img.shields.io/badge/Rust-2024_·_1.95+-0F62FE?logo=rust&logoColor=white)](#why-rust)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-0F62FE.svg)](./CONTRIBUTING.md)
 
+[![OS strength](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-os.json)](#readiness)
+[![Paperless](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-paperless.json)](#readiness)
+[![AI clinical flows](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-ai.json)](#readiness)
+
 [Website](https://www.medbrains.in) · [Features](#features) · [Releases](#release-status) · [Quick start](#quick-start) · [MedBrains OS](#medbrains-os-a-hospital-in-a-box) · [Roadmap](#roadmap) · [Sponsor](#sponsor-the-work) · [Contribute](#contributing)
 
 </div>
@@ -55,6 +59,81 @@
 Until then, build from source with the [quick start](#quick-start). Beta means the features listed
 below work end to end, but please test with your own sample data before you put real patients on it,
 and tell us what breaks.
+
+## Readiness
+
+Measured from the checklist in [`medbrains/docs/readiness.json`](medbrains/docs/readiness.json); an item counts only when merged with evidence.
+Done counts in full and partial counts half, by each item's weight. `scripts/readiness.py` writes the badges and this table, and CI refuses an item without evidence or a stale table.
+
+<!-- readiness:start -->
+| Meter | Measured | Done | Partial | Not started |
+|---|---|---|---|---|
+| OS strength | **45%** | 9 | 0 | 9 |
+| Paperless | **38%** | 4 | 1 | 7 |
+| AI clinical flows | **38%** | 4 | 0 | 7 |
+
+<details><summary>OS strength: 45%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| A bootable OS image built from source, checked by tests that boot it | 2 | Done | #5211, #5219, #5315, `medbrains/os/qemu-run.sh` |
+| Default-deny firewall, authenticated time and first Linux hardening | 2 | Done | #5217 |
+| Data disk encrypted, with every key accounted for | 3 | Done | #5230, `medbrains/os/tests/disk-setup.sh` |
+| Signed A/B updates with trial boots and rollback; tampered and rolled-back updates refused | 3 | Done | #5279, `medbrains/os/tests/make-update-bundles.py` |
+| Built-in identity provider (Kanidm); the first administrator enrols an authenticator at setup | 2 | Done | #5242, #5316, #5317, `medbrains/os/tests/kanidm-attacks.py` |
+| A machine joins the main machine only by approval, over encrypted links | 2 | Done | #5226, `medbrains/os/tests/two-machines.sh` |
+| Memory-safe front proxy (Pingora) in place of Caddy | 1 | Done | #5234, `medbrains/os/tests/front-attacks.py` |
+| Append-only, hash-chained audit log of every change and record opened | 2 | Done | #4771, `medbrains/crates/medbrains-db-migrations/src/migrations/1082_audit_append_only.sql` |
+| Backups sealed to an offline key, with a restore drill that proves they restore | 2 | Done | #5066, #5132, `medbrains/deploy/standalone/medbrains-restore-drill` |
+| Wipe an OS machine's data disk, restore it and verify (ransomware test) | 2 | Not started | open: medbrains/docs/architecture/OS-THREATS.md row 3 |
+| Sealed, read-only system partition (dm-verity) | 3 | Not started | open: #5451 |
+| Kernel, service sandbox and AppArmor hardening, scored against CIS | 3 | Not started | open: #5449, #5453 |
+| Release signing keys kept offline before the update feed opens | 3 | Not started | open: #5498 |
+| Secure Boot with our own key and a signed boot image | 3 | Not started | open: medbrains/docs/architecture/OS-THREATS.md H2 |
+| Room to grow on the system partition (8 MB left today) | 1 | Not started | open: #5519 |
+| Release shipped as an installer ISO, VM and cloud disks | 2 | Not started | open: #5525 |
+| Tests passed on real hardware, not only virtual machines | 3 | Not started | - |
+| External penetration test report | 3 | Not started | open: medbrains/docs/architecture/OS-THREATS.md row 10 |
+
+</details>
+
+<details><summary>Paperless: 38%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| One case sheet per visit: written, signed and filed to the medical record | 3 | Done | #4715, #4717, #4718 |
+| Medical records custodian: opens every chart, each opening logged | 2 | Done | #4719 |
+| Signed prints carry a QR that lets an outsider check the record is unchanged; signing needs a fresh step-up | 3 | Done | #5241 |
+| A meter of how paperless the hospital is, by department and day | 1 | Done | #5269, `medbrains/crates/medbrains-analytics/src/paperless.rs`, `medbrains/crates/medbrains-db-migrations/src/migrations/1424_paperless_meter.sql` |
+| Every clinical record type signable by its author (21 types); partial because signing keys still sit on the server | 3 | Partial | #5259, `medbrains/crates/medbrains-documents/src/signable.rs` |
+| Each doctor signs with their own hardware key (badge or FIDO2); the server cannot sign as them | 3 | Not started | open: RFCs/modules/RFC-MODULE-paperless-records.md 4.1 |
+| Legal electronic signatures (remote DSC, eSign) through providers | 3 | Not started | open: RFCs/modules/RFC-MODULE-paperless-records.md 4.2 |
+| Patient e-consent with capacity, witness and separate purposes | 2 | Not started | open: RFCs/modules/RFC-MODULE-paperless-records.md 4.3 |
+| One-click court certificate from the seal chain and audit log | 1 | Not started | open: RFCs/modules/RFC-MODULE-paperless-records.md 4.4 |
+| Transfer to another hospital with signatures kept and checkable | 2 | Not started | open: RFCs/modules/RFC-MODULE-paperless-records.md 4.5 |
+| Downtime mode: a read-only snapshot and offline entry when the server is down | 2 | Not started | - |
+| Connector that runs beside another hospital system (HL7 and FHIR in) | 3 | Not started | open: RFCs/modules/RFC-MODULE-paperless-records.md 8.5 |
+
+</details>
+
+<details><summary>AI clinical flows: 38%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| Doctor records or uploads dictation; it becomes note sections and medicines, each reviewed before saving | 3 | Done | #5258, `medbrains/apps/web/src/components/Clinical/dictation/DictationPanel.test.tsx` |
+| Every model call goes through one pseudonymising redaction layer | 2 | Done | #5030, `medbrains/crates/medbrains-ai/src/redaction.rs` |
+| Every AI answer is labelled, and reaches a record only when a clinician accepts it (audited) | 2 | Done | #4907, #5258 |
+| Dictated medicines become a prescription only through the allergy, interaction and dose checks | 2 | Done | #5258, #5244, `medbrains/apps/web/src/components/Clinical/dictation/dictated-rx-store.ts` |
+| Local speech and language models shipped as an OS service on the appliance | 3 | Not started | - |
+| Kernel AI interface with permissions, consent and audit on every call | 3 | Not started | open: medbrains/RFCs/RFC-HOSPITAL-OS.md 8h |
+| MCP server so outside assistants work under the same permissions | 2 | Not started | open: medbrains/RFCs/RFC-HOSPITAL-OS.md 8f |
+| Voice capture in the native iOS and Android apps | 2 | Not started | - |
+| Speech in local languages and mixed-language dictation | 2 | Not started | - |
+| Patient consent captured before a consultation is recorded | 2 | Not started | - |
+| Dictation that works with no network | 1 | Not started | - |
+
+</details>
+<!-- readiness:end -->
 
 ## Why is it free?
 

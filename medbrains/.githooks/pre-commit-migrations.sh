@@ -8,7 +8,9 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# The repo root from this script's own place (medbrains/.githooks/), not from git: inside a hook
+# git sets GIT_DIR, and run from medbrains/ in a worktree --show-toplevel answers medbrains/.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPTS_DIR="$REPO_ROOT/scripts"
 
 # Only run if any staged file is a migration

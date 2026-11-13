@@ -16,6 +16,7 @@ function storeFor(opts: UseCrdtDocOptions): CrdtStore {
   let s = stores.get(key);
   if (!s) {
     s = new CrdtStore(opts);
+    s.start();
     stores.set(key, s);
   }
   return s;

@@ -3,6 +3,7 @@ import type { PatientConsultationHistoryRow } from "@medbrains/types";
 import { IconCalendarStats } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { RichTextEditor } from "@/components/ui";
+import { htmlToPlainText } from "@/lib/text-shape";
 import styles from "./soap-notes.module.scss";
 import { SOAP_SECTIONS, type SoapSection, type SoapSectionKey } from "./soap-sections";
 
@@ -22,12 +23,8 @@ interface SoapSectionTimeline {
 
 function textValue(value: string | null | undefined): string {
   if (!value) return "";
-  // Notes are now rich-text HTML — strip tags for plain-text previews/timeline.
-  return value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&[a-z]+;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  // Notes are rich-text HTML: parsed, not tag-stripped by regex, for plain-text previews.
+  return htmlToPlainText(value);
 }
 
 function formatNoteDate(value: string | null | undefined): string {

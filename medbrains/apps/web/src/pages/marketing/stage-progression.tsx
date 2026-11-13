@@ -50,8 +50,9 @@ export function StageProgression() {
       (r): r is MarketingFunnelStageRow & { median_seconds: number } =>
         r.median_seconds !== null && !r.is_won && !r.is_lost,
     );
-    if (measured.length === 0) return null;
-    return measured.reduce((a, b) => (b.median_seconds > a.median_seconds ? b : a));
+    const [first, ...rest] = measured;
+    if (!first) return null;
+    return rest.reduce((a, b) => (b.median_seconds > a.median_seconds ? b : a), first);
   }, [rows]);
 
   const waiting = useMemo(

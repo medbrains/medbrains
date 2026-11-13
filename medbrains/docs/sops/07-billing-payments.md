@@ -118,10 +118,10 @@ The Billing module handles revenue cycle management for OPD, IPD, Emergency, and
 
 **Setting up the display (once per counter)**:
 1. Hardware: any Android tablet (₹6–8k) or a second monitor on a mini-PC, facing the patient, on mains power.
-2. Browser in kiosk mode, opening `https://<hospital-host>/screen`:
-   - **Fully Kiosk Browser** (Android): Start URL = `/screen`; *Keep screen on*; *Launch on boot*; *Disable screensaver*; *Autoplay audio* on (so the chime and voice play); lock the tablet to the app (Kiosk mode PIN).
-   - **Chrome** (desktop): `chrome --kiosk --autoplay-policy=no-user-gesture-required https://<hospital-host>/screen`, started at login; OS sleep and screen blanking off.
-3. The screen shows a code. An administrator opens Admin → Paired devices (needs `devices.pairing.token.create`), finds it under "Screens waiting to be paired", chooses board **Customer display (counter)** and the counter, and approves. The screen opens on that counter by itself. It acts as the hospital's display account, never a staff login.
+2. Browser in kiosk mode, opening the screen address shown on Admin → Paired devices (`https://<hospital-host>/screen?hospital=<hospital code>`):
+   - **Fully Kiosk Browser** (Android): Start URL = that address; *Keep screen on*; *Launch on boot*; *Disable screensaver*; *Autoplay audio* on (so the chime and voice play); lock the tablet to the app (Kiosk mode PIN).
+   - **Chrome** (desktop): `chrome --kiosk --autoplay-policy=no-user-gesture-required "https://<hospital-host>/screen?hospital=<hospital code>"`, started at login; OS sleep and screen blanking off.
+3. The screen shows a reference ("Screen AB12CD") and a code. An administrator opens Admin → Paired devices (needs `devices.pairing.token.create`), finds the reference under "Screens waiting to be paired", types the code shown on the screen, chooses board **Customer display (counter)** and the counter, and approves. The list never shows the code; five wrong codes refuse the request and the screen shows a new one. The screen opens on that counter by itself. It acts as the hospital's display account, never a staff login.
 4. If the browser blocks sound, the display says "Sound is off until someone taps this screen once": tap it once after setting up.
 5. To retire a display: Admin → Paired devices → Revoke. It is refused at once and goes back to showing a code.
 
