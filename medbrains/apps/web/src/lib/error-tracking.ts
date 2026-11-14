@@ -35,7 +35,7 @@ export async function startErrorTracking(): Promise<void> {
   Sentry.init({
     dsn: config.dsn,
     tunnel: config.tunnel,
-    release: __APP_COMMIT__,
+    release: __APP_RELEASE__,
     environment: config.environment ?? undefined,
     // Collect nothing about the person or the request: v11's replacement for
     // sendDefaultPii, whose defaults collect most of it.
