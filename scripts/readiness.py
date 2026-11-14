@@ -5,7 +5,10 @@ Each meter is a weighted checklist: done counts in full, partial counts half,
 not-started counts nothing. An item counts only with evidence: a PR squash-merged
 on main, a file that exists, or a named test in a file. This writes the
 shields.io endpoint badges (.github/badges/readiness-<id>.json) and the README
-table between the readiness markers, so no percentage is ever typed by hand.
+tables between the readiness and regulation markers, so no percentage is ever
+typed by hand. A meter with "assessed": false shows "not assessed" in grey and
+no percentage; "accent": true colours a measured badge purple, not blue; a meter
+with "group": "regulation" goes in the regulation table.
 
     python3 scripts/readiness.py            # regenerate badges + README table
     python3 scripts/readiness.py --check    # CI: fail on missing evidence or stale files
@@ -24,7 +27,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "medbrains/docs/readiness.json"
 BADGES = ROOT / ".github/badges"
 README = ROOT / "README.md"
-START, END = "<!-- readiness:start -->", "<!-- readiness:end -->"
+GROUPS = {None: "readiness", "regulation": "regulation"}  # meter group -> README marker name
+COLOR = {"measured": "0F62FE", "accent": "851B7F", "unassessed": "5D677A"}
 CREDIT = {"done": 1.0, "partial": 0.5, "not-started": 0.0}
 LABEL = {"done": "Done", "partial": "Partial", "not-started": "Not started"}
 
@@ -37,6 +41,16 @@ def percent(meter):
     total = sum(i["weight"] for i in meter["items"])
     got = sum(i["weight"] * CREDIT[i["status"]] for i in meter["items"])
     return int(100 * got / total + 0.5) if total else 0
+
+
+def is_assessed(meter):
+    """Whether the meter has been assessed against evidence; an unassessed one shows no number."""
+    return meter.get("assessed", True)
+
+
+def shown(meter):
+    """The meter's reading as text: its percentage, or "not assessed"."""
+    return f"{percent(meter)}%" if is_assessed(meter) else "not assessed"
 
 
 def merged_prs():
@@ -81,8 +95,9 @@ def check_one(ev, merged, root):
 
 def badge(meter):
     """The shields.io endpoint JSON for one meter."""
-    return json.dumps({"schemaVersion": 1, "label": meter["title"],
-                       "message": f"{percent(meter)}%", "color": "0F62FE"}, indent=2) + "\n"
+    color = COLOR["accent" if meter.get("accent") else "measured"]
+    return json.dumps({"schemaVersion": 1, "label": meter["title"], "message": shown(meter),
+                       "color": color if is_assessed(meter) else COLOR["unassessed"]}, indent=2) + "\n"
 
 
 def evidence_text(item):
@@ -93,14 +108,17 @@ def evidence_text(item):
     return ", ".join(parts) or "-"
 
 
-def table(data):
-    """The README section: a summary row per meter and its item list."""
+def table(meters):
+    """One README section: a summary row per meter and the item list of each assessed one."""
     lines = ["| Meter | Measured | Done | Partial | Not started |", "|---|---|---|---|---|"]
-    for m in data["meters"]:
+    for m in meters:
         n = {s: sum(i["status"] == s for i in m["items"]) for s in CREDIT}
-        lines.append(f"| {m['title']} | **{percent(m)}%** | {n['done']} | {n['partial']} | {n['not-started']} |")
-    for m in data["meters"]:
-        lines += ["", f"<details><summary>{m['title']}: {percent(m)}%</summary>", "",
+        if is_assessed(m):
+            lines.append(f"| {m['title']} | **{shown(m)}** | {n['done']} | {n['partial']} | {n['not-started']} |")
+        else:
+            lines.append(f"| {m['title']} | {shown(m)} | - | - | - |")
+    for m in filter(is_assessed, meters):
+        lines += ["", f"<details><summary>{m['title']}: {shown(m)}</summary>", "",
                   "| Item | Weight | State | Evidence |", "|---|---|---|---|"]
         lines += [f"| {i['title']} | {i['weight']} | {LABEL[i['status']]} | {evidence_text(i)} |"
                   for i in m["items"]]
@@ -111,11 +129,14 @@ def table(data):
 def outputs(data, readme_text):
     """Every generated file and its expected content, keyed by path."""
     files = {BADGES / f"readiness-{m['id']}.json": badge(m) for m in data["meters"]}
-    head, sep, rest = readme_text.partition(START)
-    tail = rest.partition(END)[2]
-    if not sep:
-        raise SystemExit(f"README.md has no {START} marker")
-    files[README] = f"{head}{START}\n{table(data)}\n{END}{tail}"
+    for group, name in GROUPS.items():
+        start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"
+        head, sep, rest = readme_text.partition(start)
+        if not sep or end not in rest:
+            raise SystemExit(f"README.md has no {start} ... {end} markers")
+        meters = [m for m in data["meters"] if m.get("group") == group]
+        readme_text = f"{head}{start}\n{table(meters)}\n{end}{rest.partition(end)[2]}"
+    files[README] = readme_text
     return files
 
 
@@ -137,8 +158,19 @@ def self_test():
     assert "not found" in evidence_errors(data, {1})[0]
     meter["items"][1]["evidence"] = [{"path": "nope/missing.txt"}]
     assert "does not exist" in evidence_errors(data, {1})[0]
-    assert "| T | **88%** | 2 | 1 | 0 |" in table(data)
-    assert '"message": "88%"' in badge(meter)
+    assert "| T | **88%** | 2 | 1 | 0 |" in table(data["meters"])
+    assert '"message": "88%"' in badge(meter) and '"0F62FE"' in badge(meter)
+    assert '"851B7F"' in badge({**meter, "accent": True})
+    # Not assessed: grey even when accented, no number, no item list; evidence rules still hold.
+    blank = {"id": "u", "title": "U", "assessed": False, "items": []}
+    assert '"message": "not assessed"' in badge(blank) and '"5D677A"' in badge(blank)
+    assert '"5D677A"' in badge({**blank, "accent": True})
+    assert "| U | not assessed | - | - | - |" in table([blank])
+    assert "<details>" not in table([blank])
+    assert evidence_errors({"meters": [blank]}, set()) == []
+    readme = "a <!-- readiness:start -->x<!-- readiness:end --> b <!-- regulation:start -->y<!-- regulation:end -->"
+    out = outputs({"meters": [meter, {**blank, "group": "regulation"}]}, readme)[README]
+    assert out.index("| T |") < out.index("regulation:start") < out.index("| U |")
     real = json.loads(SOURCE.read_text(encoding="utf-8"))
     assert all(0 <= percent(m) <= 100 for m in real["meters"])
     print("readiness self-test: ok")
@@ -163,7 +195,7 @@ def main():
     for path, body in files.items():
         path.write_text(body, encoding="utf-8")
     for m in data["meters"]:
-        print(f"{m['title']}: {percent(m)}%")
+        print(f"{m['title']}: {shown(m)}")
 
 
 if __name__ == "__main__":

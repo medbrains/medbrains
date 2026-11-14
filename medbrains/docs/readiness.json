@@ -301,6 +301,689 @@
           "status": "not-started"
         }
       ]
+    },
+    {
+      "id": "hipaa",
+      "group": "regulation",
+      "title": "HIPAA readiness",
+      "summary": "US HIPAA Security, Privacy and Breach Notification Rules, as they apply to the software. Not a certification: none exists for HIPAA.",
+      "items": [
+        {
+          "id": "unique-user",
+          "title": "Unique user identification: one login per person, unique within the hospital (164.312(a)(2)(i))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "path": "medbrains/crates/medbrains-db-migrations/src/migrations/0040_auth.sql" }]
+        },
+        {
+          "id": "emergency-access",
+          "title": "Emergency access: break the glass with a reason, reviewed afterwards (164.312(a)(2)(ii))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4772 }]
+        },
+        {
+          "id": "auto-logoff",
+          "title": "Automatic logoff after inactivity (164.312(a)(2)(iii)); today a 7-day refresh token keeps an idle session alive",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "encryption-rest",
+          "title": "Encryption at rest (164.312(a)(2)(iv)); partial because only the OS appliance encrypts its own disk, other installs rely on the host",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 5230 }]
+        },
+        {
+          "id": "audit-controls",
+          "title": "Audit controls: append-only, hash-chained log of changes, refusals and failed sign-ins (164.312(b))",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4771 }, { "path": "medbrains/crates/medbrains-db-migrations/src/migrations/1082_audit_append_only.sql" }]
+        },
+        {
+          "id": "integrity",
+          "title": "Integrity: signed records an outsider can check are unchanged (164.312(c))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5241 }]
+        },
+        {
+          "id": "authentication",
+          "title": "Person authentication: TOTP second factor and a fresh step-up before signing (164.312(d))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "path": "medbrains/crates/medbrains-mfa/src/lib.rs" }, { "pr": 5241 }]
+        },
+        {
+          "id": "transmission",
+          "title": "Transmission security: TLS at the front and between database nodes (164.312(e))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5234 }, { "pr": 5495 }]
+        },
+        {
+          "id": "minimum-necessary",
+          "title": "Minimum necessary access: role permissions plus per-patient checks; partial until every module passes the authorization ledger",
+          "weight": 3,
+          "status": "partial",
+          "evidence": [{ "path": "medbrains/crates/medbrains-authz-gate/src/lib.rs" }]
+        },
+        {
+          "id": "contingency",
+          "title": "Contingency plan: sealed backups with a restore drill (164.308(a)(7))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5066 }, { "pr": 5132 }]
+        },
+        {
+          "id": "right-of-access",
+          "title": "Patient right of access: a copy of their record, downloadable from the portal (164.524)",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 4779 }, { "pr": 4773 }]
+        },
+        {
+          "id": "disclosures",
+          "title": "Accounting of disclosures (164.528); partial: who opened the record and which insurers received it, not every disclosure",
+          "weight": 1,
+          "status": "partial",
+          "evidence": [{ "pr": 4773 }]
+        },
+        {
+          "id": "breach-notice",
+          "title": "Breach notification within 60 days (164.404-410); partial: a breach register with clocks, but for the DPDP and CERT-In deadlines, not HIPAA's",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4758 }, { "path": "medbrains/crates/medbrains-security/src/breach.rs" }]
+        },
+        {
+          "id": "risk-analysis",
+          "title": "Security risk analysis (164.308(a)(1)); partial: an OS threat model, no HIPAA risk analysis",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "path": "medbrains/docs/architecture/OS-THREATS.md" }]
+        },
+        {
+          "id": "baa",
+          "title": "Business associate agreement template for hosted installs (164.308(b))",
+          "weight": 1,
+          "status": "not-started"
+        }
+      ]
+    },
+    {
+      "id": "gdpr",
+      "group": "regulation",
+      "title": "GDPR readiness",
+      "summary": "EU GDPR duties a hospital system has to support. Much of the evidence is shared with DPDP; EU-specific parts are mostly open.",
+      "items": [
+        {
+          "id": "lawful-basis",
+          "title": "Lawful basis per purpose for health data (Art. 6, 9); partial: consent per purpose and care as a legitimate use, not an Art. 9(2) basis per processing",
+          "weight": 3,
+          "status": "partial",
+          "evidence": [{ "pr": 4769 }]
+        },
+        {
+          "id": "notice",
+          "title": "Transparent notice at collection (Art. 13); partial: a versioned notice in English, Hindi and Tamil, none in EU languages",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4769 }]
+        },
+        {
+          "id": "withdrawal",
+          "title": "Withdraw consent as easily as giving it, by the patient (Art. 7(3))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4777 }, { "pr": 4778 }]
+        },
+        {
+          "id": "access",
+          "title": "Right of access: what the hospital holds and who received it (Art. 15)",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4773 }, { "pr": 4777 }]
+        },
+        {
+          "id": "rectify-erase",
+          "title": "Rectification, erasure and restriction (Art. 16-18); partial: requests recorded and answered with a reason, changes made by hand, no restriction request",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4773 }]
+        },
+        {
+          "id": "portability",
+          "title": "Portability: the patient downloads their record as FHIR (Art. 20)",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 4779 }]
+        },
+        {
+          "id": "breach",
+          "title": "Breach notice to the authority within 72 hours and to the people affected (Art. 33-34); partial: the clocks name India's Board, not an EU supervisory authority",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4758 }]
+        },
+        {
+          "id": "processors",
+          "title": "Processor register with the agreement, data and country of each (Art. 28)",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4775 }]
+        },
+        {
+          "id": "ropa",
+          "title": "Records of processing activities (Art. 30); partial: processors are registered, the hospital's own processing is not",
+          "weight": 1,
+          "status": "partial",
+          "evidence": [{ "pr": 4775 }]
+        },
+        {
+          "id": "dpo",
+          "title": "Data protection officer named and published (Art. 37-39)",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 5095 }]
+        },
+        {
+          "id": "dpia",
+          "title": "Data protection impact assessment record (Art. 35)",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "transfers",
+          "title": "International transfers under safeguards (Chapter V); partial: processor countries recorded and AI calls pseudonymised, no transfer mechanism record",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4775 }, { "pr": 5030 }]
+        },
+        {
+          "id": "security",
+          "title": "Security and privacy by design: encryption, pseudonymisation, audit (Art. 25, 32)",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5230 }, { "pr": 5030 }, { "pr": 4771 }]
+        }
+      ]
+    },
+    {
+      "id": "dpdp",
+      "group": "regulation",
+      "title": "DPDP readiness",
+      "summary": "India's Digital Personal Data Protection Act 2023 and Rules 2025, for a hospital as Data Fiduciary.",
+      "items": [
+        {
+          "id": "notice-consent",
+          "title": "Itemised notice at registration and consent recorded purpose by purpose (s.5-6, r.3)",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4769 }, { "test": "the_desk_records_the_notice_and_the_patient_can_withdraw", "path": "medbrains/crates/medbrains-server/tests/dpdp_consent_test.rs" }]
+        },
+        {
+          "id": "languages",
+          "title": "Notice in English and any Eighth Schedule language (s.5(3)); partial: Hindi and Tamil only",
+          "weight": 1,
+          "status": "partial",
+          "evidence": [{ "pr": 4769 }]
+        },
+        {
+          "id": "withdrawal",
+          "title": "Withdrawal as easy as consent, by the patient from the portal and apps (s.6(4))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4777 }, { "pr": 4778 }]
+        },
+        {
+          "id": "rights",
+          "title": "Rights requests (access, correction, erasure, nominee, grievance) answered within 90 days (s.11-14, r.14)",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4773 }, { "pr": 4777 }, { "test": "a_rights_request_is_recorded_answered_once_and_summarised", "path": "medbrains/crates/medbrains-server/tests/privacy_requests_test.rs" }]
+        },
+        {
+          "id": "contact",
+          "title": "DPO and grievance officer named and published to patients (r.9)",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 5095 }]
+        },
+        {
+          "id": "breach",
+          "title": "Breach intimation to the Board and each person affected, with the 72-hour report clock (s.8(6), r.7)",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4758 }, { "test": "a_breach_starts_its_clocks_and_each_notice_is_recorded_once", "path": "medbrains/crates/medbrains-server/tests/security_breach_register_test.rs" }]
+        },
+        {
+          "id": "processors",
+          "title": "Register of processors with their agreement (s.8(2))",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 4775 }]
+        },
+        {
+          "id": "children",
+          "title": "Verifiable guardian consent for children and no tracking of them (s.9, r.10); partial: a guardian is named, but age does not force it and marketing does not exclude minors",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4769 }]
+        },
+        {
+          "id": "erasure",
+          "title": "Erase when the purpose ends, with 48 hours' notice to the person (s.8(7), r.8)",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "safeguards",
+          "title": "Security safeguards and access logs kept a year (r.6); partial: encryption and the audit log, but log retention differs by install",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4771 }, { "pr": 5230 }]
+        },
+        {
+          "id": "consent-manager",
+          "title": "Consent Manager integration (s.6(7-9), r.4); partial: ABDM consent artefacts are kept, no DPDP Consent Manager",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4836 }]
+        },
+        {
+          "id": "transfers",
+          "title": "Cross-border transfers only where allowed (s.16); partial: processor countries recorded and AI calls pseudonymised, no transfer log",
+          "weight": 1,
+          "status": "partial",
+          "evidence": [{ "pr": 4775 }, { "pr": 5030 }]
+        }
+      ]
+    },
+    {
+      "id": "abdm",
+      "group": "regulation",
+      "title": "ABDM readiness",
+      "summary": "India's Ayushman Bharat Digital Mission milestones M1-M3, Scan & Share and NHCX. Built in code; not yet through the ABDM sandbox test or certification.",
+      "items": [
+        {
+          "id": "m1-create",
+          "title": "M1: create an ABHA by Aadhaar OTP, with the Aadhaar number sent encrypted and never kept",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4831 }, { "pr": 4966 }, { "path": "medbrains/crates/medbrains-abdm/src/enrol.rs" }]
+        },
+        {
+          "id": "m1-verify",
+          "title": "M1: find and verify an ABHA, show its QR and card, link it to the patient",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4833 }, { "pr": 4974 }]
+        },
+        {
+          "id": "scan-share",
+          "title": "Scan & Share: counter QR, token on profile share, desk queue, on web and the staff app",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4840 }, { "pr": 4869 }]
+        },
+        {
+          "id": "m2-hip",
+          "title": "M2: link each visit's records to the ABHA and share them under consent, Fidelius-encrypted",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4836 }, { "path": "medbrains/crates/medbrains-crypto/src/fidelius.rs" }]
+        },
+        {
+          "id": "m3-hiu",
+          "title": "M3: request and view a patient's records from other hospitals, with consent",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4837 }, { "pr": 4853 }]
+        },
+        {
+          "id": "bundles",
+          "title": "NRCeS IG 6.5.0 record bundles passing the official validator; partial: HealthDocument and Invoice records held until the terminology run passes",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 4962 }, { "pr": 4988 }, { "pr": 5078 }]
+        },
+        {
+          "id": "callbacks",
+          "title": "Gateway callbacks open only with the gateway's token, each hospital seeing only its own",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4780 }, { "pr": 4966 }, { "path": "medbrains/crates/medbrains-server/tests/abdm_callback_auth_test.rs" }]
+        },
+        {
+          "id": "hfr-hpr",
+          "title": "Facility (HFR) and professional (HPR) registry identities",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 4831 }, { "path": "medbrains/crates/medbrains-server/tests/abdm_hfr_hpr_test.rs" }]
+        },
+        {
+          "id": "nhcx",
+          "title": "NHCX: eligibility, pre-auth and final claims sent and followed up",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4835 }, { "pr": 4838 }, { "pr": 4965 }]
+        },
+        {
+          "id": "sandbox",
+          "title": "Passed the ABDM sandbox functional test for M1-M3",
+          "weight": 3,
+          "status": "not-started"
+        },
+        {
+          "id": "certification",
+          "title": "ABDM certification and production keys",
+          "weight": 3,
+          "status": "not-started"
+        }
+      ]
+    },
+    {
+      "id": "nabh",
+      "group": "regulation",
+      "title": "NABH readiness",
+      "assessed": false,
+      "summary": "Not assessed yet: the NABH hospital and digital-health standards have over a thousand objective elements, and this pass did not map them to evidence.",
+      "items": []
+    },
+    {
+      "id": "cert-in",
+      "group": "regulation",
+      "title": "CERT-In readiness",
+      "summary": "India's CERT-In Directions of 28 April 2022 under the IT Act, s.70B.",
+      "items": [
+        {
+          "id": "six-hours",
+          "title": "An incident assessed as reportable starts a 6-hour clock from discovery, escalated when overdue (direction ii)",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 4758 }, { "test": "a_breach_starts_its_clocks_and_each_notice_is_recorded_once", "path": "medbrains/crates/medbrains-server/tests/security_breach_register_test.rs" }]
+        },
+        {
+          "id": "report-record",
+          "title": "The CERT-In report is recorded once, with its date and reference",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 4758 }, { "path": "medbrains/apps/web/src/pages/security/breach-notices.tsx" }]
+        },
+        {
+          "id": "poc",
+          "title": "Point of contact named (direction vi)",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 5095 }]
+        },
+        {
+          "id": "logs",
+          "title": "ICT logs kept 180 days in India (direction iv); partial: standalone installs keep 180 days, the OS image keeps 3 months",
+          "weight": 3,
+          "status": "partial",
+          "evidence": [{ "path": "medbrains/deploy/standalone/medbrains-log-archive.service" }, { "path": "medbrains/os/mkosi.extra/etc/systemd/journald.conf.d/10-medbrains.conf" }]
+        },
+        {
+          "id": "clock",
+          "title": "Clocks synced to NIC or NPL time (direction i); partial: authenticated NTS time, but from other national and public servers",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 5217 }, { "path": "medbrains/os/mkosi.extra/usr/lib/medbrains/time-role" }]
+        },
+        {
+          "id": "plan-drills",
+          "title": "Incident response plan, with breach drills recorded",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5095 }, { "path": "medbrains/docs/compliance/INCIDENT-RESPONSE.md" }]
+        },
+        {
+          "id": "empanelled-audit",
+          "title": "Security audit by a CERT-In empanelled auditor",
+          "weight": 2,
+          "status": "not-started"
+        }
+      ]
+    },
+    {
+      "id": "eu-cra",
+      "group": "regulation",
+      "title": "EU CRA readiness",
+      "summary": "EU Cyber Resilience Act essential requirements (Annex I) and vulnerability handling, for MedBrains as a product with digital elements.",
+      "items": [
+        {
+          "id": "sbom",
+          "title": "Software bill of materials for every build (Annex I part II(1))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5285 }]
+        },
+        {
+          "id": "disclosure",
+          "title": "Coordinated vulnerability disclosure policy and a published contact (Annex I part II(5-6))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "path": "SECURITY.md" }, { "path": "medbrains/docs/SECURITY-RELEASE-PROCESS.md" }]
+        },
+        {
+          "id": "no-known-vulns",
+          "title": "No known exploitable vulnerabilities: locked builds and dependency audits as gates (Annex I part I(2)(a))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4972 }, { "pr": 5512 }]
+        },
+        {
+          "id": "updates",
+          "title": "Security updates signed, with rollback, and tampered updates refused (Annex I part I(2)(c))",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 5279 }]
+        },
+        {
+          "id": "support-period",
+          "title": "Support period declared (Art. 13(8))",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "path": "medbrains/docs/COMPATIBILITY.md" }]
+        },
+        {
+          "id": "secure-default",
+          "title": "Secure by default configuration (Annex I part I(2)(b)): default-deny firewall, integrations off without their keys",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5217 }, { "pr": 4970 }]
+        },
+        {
+          "id": "attack-surface",
+          "title": "Limit attack surface (Annex I part I(2)(j)); partial: kernel and service hardening merged, CIS scoring open",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 5449 }],
+          "tracking": "#5453"
+        },
+        {
+          "id": "confidentiality",
+          "title": "Confidentiality and integrity of stored data (Annex I part I(2)(e-f))",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5230 }, { "pr": 4771 }]
+        },
+        {
+          "id": "risk-assessment",
+          "title": "Cybersecurity risk assessment in the technical file (Art. 13(2-3)); partial: a threat model for the OS only",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "path": "medbrains/docs/architecture/OS-THREATS.md" }]
+        },
+        {
+          "id": "reporting",
+          "title": "Report actively exploited vulnerabilities and severe incidents within 24 hours (Art. 14)",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "conformity",
+          "title": "Conformity assessment, EU declaration of conformity and CE marking (Art. 28-32)",
+          "weight": 3,
+          "status": "not-started"
+        }
+      ]
+    },
+    {
+      "id": "ehds",
+      "group": "regulation",
+      "title": "EHDS readiness",
+      "assessed": false,
+      "summary": "Not assessed yet: the European Health Data Space requirements for EHR systems (the European exchange format and the harmonised components) were not mapped to evidence in this pass.",
+      "items": []
+    },
+    {
+      "id": "fhir",
+      "group": "regulation",
+      "title": "FHIR readiness",
+      "summary": "HL7 FHIR R4 as a server other systems can rely on.",
+      "items": [
+        {
+          "id": "capability",
+          "title": "A CapabilityStatement that says what the server supports",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 5092 }]
+        },
+        {
+          "id": "read",
+          "title": "Read core resources; partial: Patient, Encounter, Observation and DiagnosticReport, not Condition, MedicationRequest, AllergyIntolerance or Practitioner",
+          "weight": 3,
+          "status": "partial",
+          "evidence": [{ "pr": 4785 }, { "path": "medbrains/crates/medbrains-fhir-api/src/lib.rs" }]
+        },
+        {
+          "id": "documents",
+          "title": "Document bundles (Composition) for case sheets and ABDM records",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4716 }, { "pr": 4962 }]
+        },
+        {
+          "id": "validator",
+          "title": "Bundles gated on the official HL7 validator, and checked again at send time",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5078 }, { "pr": 5084 }]
+        },
+        {
+          "id": "patient-export",
+          "title": "A patient's whole record as a FHIR bundle ($everything and the portal download)",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "pr": 4779 }]
+        },
+        {
+          "id": "terminology",
+          "title": "Coded with SNOMED CT, LOINC and UCUM; partial: membership is proven only by a nightly terminology run not yet seen green",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "pr": 5078 }]
+        },
+        {
+          "id": "search",
+          "title": "Search interactions on the REST API",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "write",
+          "title": "Create and update through the REST API",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "smart",
+          "title": "SMART on FHIR authorization for outside apps",
+          "weight": 2,
+          "status": "not-started"
+        },
+        {
+          "id": "bulk",
+          "title": "Bulk data export ($export)",
+          "weight": 1,
+          "status": "not-started"
+        },
+        {
+          "id": "ips",
+          "title": "Conformance to an international profile set (IPS or US Core)",
+          "weight": 2,
+          "status": "not-started"
+        }
+      ]
+    },
+    {
+      "id": "samd",
+      "group": "regulation",
+      "title": "Medical device (SaMD) controls",
+      "accent": true,
+      "summary": "Classification meter: no MedBrains feature is meant to be a regulated medical device. Each item is a control that keeps AI and decision features assistive, so a clinician decides.",
+      "items": [
+        {
+          "id": "per-item-accept",
+          "title": "AI text reaches a record only when a clinician accepts, edits or rejects each item",
+          "weight": 3,
+          "status": "done",
+          "evidence": [{ "pr": 5258 }, { "test": "saves only accepted (and edited) sections into the note, and hands accepted medicines to the pad", "path": "medbrains/apps/web/src/components/Clinical/dictation/DictationPanel.test.tsx" }]
+        },
+        {
+          "id": "labels",
+          "title": "Every screen that shows AI output labels it, checked in CI",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 4907 }, { "path": "medbrains/scripts/check_ai_label.py" }]
+        },
+        {
+          "id": "governance-record",
+          "title": "Every accept, edit or reject is kept as an AI-governance record",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5258 }, { "path": "medbrains/crates/medbrains-dictation/src/review.rs" }]
+        },
+        {
+          "id": "rx-checks",
+          "title": "AI-suggested medicines become a prescription only through the clinician and the allergy, interaction and dose checks",
+          "weight": 2,
+          "status": "done",
+          "evidence": [{ "pr": 5258 }, { "pr": 5244 }]
+        },
+        {
+          "id": "intended-use",
+          "title": "Intended use written per AI capability; partial: dictation is written down as a documentation aid, not yet signed off by a regulatory adviser",
+          "weight": 2,
+          "status": "partial",
+          "evidence": [{ "path": "medbrains/RFCs/modules/RFC-MODULE-ai-dictation.md" }]
+        },
+        {
+          "id": "ai-seam",
+          "title": "One strict AI component seam (draft cards, flags, never pre-selected, override needs a reason), enforced by a CI check and the server",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "medbrains/docs/DECISIONS.md 2026-11-12, RFCs/RFC-AI-CLINICAL-FLOWS.md 10.0"
+        },
+        {
+          "id": "claim-gate",
+          "title": "Claim gate: intended-use statement and risk register before any diagnostic, triage or monitoring claim",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "scripts/check_cert_readiness.py (samd-intended-use.md, samd-risk-register.md)"
+        },
+        {
+          "id": "classification",
+          "title": "Written classification under CDSCO, EU MDR and US FDA before any device-like feature is built",
+          "weight": 2,
+          "status": "not-started"
+        }
+      ]
     }
   ]
 }
