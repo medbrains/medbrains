@@ -79,7 +79,7 @@ test("pharmacist cannot dispense Schedule X without a duplicate record", {
 }, async ({ page }) => { /* ... */ });
 ```
 
-In Vitest, use `allure.tms("5123")` or `allure.feature("pharmacy")` from `allure-js-commons` inside the test.
+Vitest tests are grouped the same way, from the file name and the `describe` block; issue links are for the Playwright journeys.
 
 To look at a PR's report, download its `test-report` artifact and run `pnpm exec allure open <folder>` from `medbrains/apps/web`.
 
