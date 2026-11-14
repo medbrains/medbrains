@@ -237,6 +237,9 @@ jobs:
           python3 -I medbrains/tools/fonts/check_glyph_collisions.py
       # The TypeScript SDK and its conformance suite run under `pnpm run test`
       # (web job); the Python SDK has no other runner.
+      # The test report's labelling, JUnit conversion and theme contrast (e2e.yml uses it).
+      - name: Test report script
+        run: python3 medbrains/scripts/test_report.py --self-test
       - name: Python SDK speaks the extension protocol
         working-directory: medbrains/sdks/python
         run: python3 -m unittest discover -s tests
@@ -302,6 +305,10 @@ jobs:
     if: needs.changes.outputs.web == 'true'
     name: Web typecheck, lint, test, build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The per-test summary check run.
+      checks: write
     defaults:
       run:
         working-directory: medbrains
@@ -335,8 +342,25 @@ jobs:
       # MedBrains web and the packages it uses. The outgoing React Native apps
       # are reference only, and desktop, docs and storybook are not this gate.
       - run: pnpm turbo run build typecheck test --filter=@medbrains/web...
+        env:
+          # vitest.config.ts adds a JUnit reporter when this is set.
+          VITEST_REPORT_DIR: test-results
       - name: Web first-load JS stays under its ceiling
         run: python3 scripts/check_size_budgets.py
+      - name: Publish the per-test summary
+        if: ${{ !cancelled() }}
+        uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
+        with:
+          check_name: Vitest results
+          files: medbrains/apps/web/test-results/vitest.xml
+          comment_mode: off
+      # For the test report e2e.yml builds (tests.medbrains.in).
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: vitest-junit
+          path: medbrains/apps/web/test-results/vitest.xml
+          retention-days: 30
 
   web-lint:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -441,6 +465,10 @@ jobs:
     name: "Rust tests"
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      contents: read
+      # The per-test summary check run.
+      checks: write
     defaults:
       run:
         working-directory: medbrains
@@ -461,7 +489,36 @@ jobs:
       # CUPS headers and PostgreSQL 17 for the integration suite (no Docker, per the OS rule).
       - name: System packages and PostgreSQL
         run: bash scripts/ci_postgres.sh
-      # Report every failing test, not just the first binary's.
-      - run: cargo test --locked --workspace --exclude medbrains-desktop --no-fail-fast
+      # nextest for the JUnit file the PR's per-test summary reads; doc tests separately,
+      # since nextest does not run them. Pinned binary + sha256, as sonarqube.yml pins llvm-cov.
+      - name: Install cargo-nextest
+        env:
+          NEXTEST_VERSION: 0.9.150
+          # sha256 of cargo-nextest-0.9.150-x86_64-unknown-linux-gnu.tar.gz, from the release.
+          NEXTEST_SHA256: b0959bc64232974224cf9fb22c915845398c0e8668fa7831eb5b43fb1eef781f
+        run: |
+          tgz="cargo-nextest-$NEXTEST_VERSION-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSLO "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-$NEXTEST_VERSION/$tgz"
+          echo "$NEXTEST_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$HOME/.cargo/bin" cargo-nextest
+          rm "$tgz"
+      # Report every failing test, not just the first binary's (profile in .config/nextest.toml).
+      - run: cargo nextest run --locked --workspace --exclude medbrains-desktop --profile ci
         env:
           DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
+      - if: ${{ !cancelled() }}
+        run: cargo test --locked --workspace --exclude medbrains-desktop --doc --no-fail-fast
+      - name: Publish the per-test summary
+        if: ${{ !cancelled() }}
+        uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
+        with:
+          check_name: Rust test results
+          files: medbrains/target/nextest/ci/junit.xml
+          # The check run lists every test; one PR comment (Playwright's) is enough noise.
+          comment_mode: off
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: rust-junit
+          path: medbrains/target/nextest/ci/junit.xml
+          retention-days: 30
