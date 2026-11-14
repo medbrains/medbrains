@@ -7,6 +7,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_updater::UpdaterExt;
 
 mod commands;
+mod error_tracking;
 
 use commands::server::{self, ChosenServer, MAIN_WINDOW, SETUP_PAGE};
 
@@ -48,6 +49,9 @@ fn main() -> tauri::Result<()> {
         .menu(app_menu)
         .on_menu_event(|app, event| on_menu_event(app, &event))
         .setup(|app| {
+            if let Some(origin) = server::configured(app.handle()) {
+                tauri::async_runtime::spawn(error_tracking::start(origin));
+            }
             open_main_window(app)?;
             if !cfg!(debug_assertions) {
                 let handle = app.handle().clone();

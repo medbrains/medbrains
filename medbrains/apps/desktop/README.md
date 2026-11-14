@@ -42,6 +42,24 @@ web app code that calls it.
   `tauri.dev.conf.json`. The hospital server's pages run under the CSP that
   server sends, not this one.
 
+## Error tracking
+
+Off unless the hospital server turns it on. At launch, with a server already
+chosen, the shell asks `/api/public/error-tracking/config?app=desktop`. If that
+says it is on and gives a DSN, the Sentry SDK starts in the shell's Rust code
+(`src-tauri/src/error_tracking.rs`) and reports panics. It never sends to the
+error tracker itself: it reports to the hospital server's tunnel
+(`https://medbrains@<server>/api/public/error-tracking/desktop/1`). The tunnel
+scrubs patient data from every report and forwards it to `SENTRY_DESKTOP_DSN`,
+or else `SENTRY_DSN` (`deploy/standalone/README.md`). Before a report leaves
+the PC, the shell strips the user, the machine's name, request details, extras,
+tags and breadcrumbs. Default PII, sessions and traces are off.
+
+The pages in the window are the server's own web app, and they report through
+the web module (`apps/web/src/lib/error-tracking.ts`) to the web project. A
+server chosen on the setup screen is used for error tracking from the next
+launch.
+
 ## Develop
 
 ```sh

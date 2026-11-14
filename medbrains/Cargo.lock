@@ -6407,6 +6407,7 @@ version = "3.33.0"
 dependencies = [
  "base64 0.22.1",
  "reqwest",
+ "sentry",
  "serde",
  "serde_json",
  "tauri",
