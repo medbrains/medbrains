@@ -162,7 +162,9 @@ fi
 signing=()
 [[ -e pcr.key ]] && signing=(--pcr-private-key pcr.key --pcr-public-key pcr.pub)
 # Signed for Secure Boot with the image's key, as a release is, or the firmware would refuse to start it.
-[[ -e sb.key ]] && signing+=(--secureboot-private-key sb.key --secureboot-certificate sb.crt)
+# The kernel too: it already carries Debian's signature, so ukify would leave it, and the stub has the
+# firmware check it against our db (found by test: the new version never started).
+[[ -e sb.key ]] && signing+=(--secureboot-private-key sb.key --secureboot-certificate sb.crt --sign-kernel)
 ukify build --stub "$stub" --linux vmlinuz --initrd initrd --cmdline "@cmdline" \
     --os-release @os-release ${signing[@]+"${signing[@]}"} --output boot.efi >/dev/null
 """
