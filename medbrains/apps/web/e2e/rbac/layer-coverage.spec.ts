@@ -16,7 +16,7 @@
  */
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { getE2EIdentity } from "../helpers/e2e-identities";
+import { getE2EIdentity, loginForSession as login } from "../helpers/e2e-identities";
 
 const BASE = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
@@ -25,24 +25,7 @@ interface AuthSession {
   cookieHeader: string;
 }
 
-async function login(
-  request: APIRequestContext,
-  username: string,
-  password: string,
-): Promise<AuthSession> {
-  const resp = await request.post(`${BASE}/api/auth/login`, {
-    data: { username, password },
-  });
-  expect(resp.status(), `login ${username}`).toBe(200);
-  const body = await resp.json();
-  const cookieHeader = resp
-    .headersArray()
-    .filter((h) => h.name.toLowerCase() === "set-cookie")
-    .map((h) => h.value.split(";")[0])
-    .join("; ");
-  return { csrf: body.csrf_token ?? "", cookieHeader };
-}
-
+/** Signs in as a seeded role, waiting out the sign-in rate limit (loginForSession). */
 async function loginRole(request: APIRequestContext, role: string): Promise<AuthSession> {
   const identity = getE2EIdentity(role);
   return login(request, identity.username, identity.password);
