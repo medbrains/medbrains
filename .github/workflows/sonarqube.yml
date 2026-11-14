@@ -105,8 +105,7 @@ jobs:
 
   # Android: JaCoCo over the kit's JVM unit tests, on every run including PRs, so Kotlin new
   # code is measured instead of counting as uncovered. The UniFFI Kotlin is generated, not
-  # committed, so the Rust core is built first (debug, host only) to generate it. iOS coverage
-  # needs a macOS runner, which this workflow does not have yet; it is a follow-up.
+  # committed, so the Rust core is built first (debug, host only) to generate it.
   android-coverage:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Android coverage
@@ -148,10 +147,36 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # iOS: XCTest coverage of MedBrainsKit, the one Swift package with tests (the others have none
+  # yet, so they rightly count as uncovered). It builds for macOS, so no simulator is needed.
+  # SonarCloud reads Swift coverage only in its generic XML, which swift_cov_to_sonar.py writes.
+  ios-coverage:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: iOS coverage
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # A failing Swift test fails this job, as on Android: nothing else runs these tests.
+      - name: Kit tests with coverage
+        working-directory: medbrains/apps/ios/Packages/MedBrainsKit
+        run: |
+          swift test --enable-code-coverage
+          python3 "$GITHUB_WORKSPACE/medbrains/scripts/swift_cov_to_sonar.py" \
+            "$(swift test --show-codecov-path)" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/ios-coverage.xml"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-coverage
+          path: ios-coverage.xml
+          if-no-files-found: error
+          retention-days: 14
+
   sonarqube:
     # Runs after the coverage jobs when they ran, and without them if they were skipped (Rust
     # on a PR) or failed: the analysis then carries whatever coverage did arrive.
-    needs: [rust-coverage, android-coverage]
+    needs: [rust-coverage, android-coverage, ios-coverage]
     # A draft PR spends no build; marking it ready for review runs everything.
     if: >-
       !cancelled() &&
@@ -195,6 +220,13 @@ jobs:
           pnpm --filter @medbrains/web exec vitest run --coverage --coverage.reporter=lcov --coverage.reportOnFailure=true
           # LCOV paths are relative to apps/web; SonarQube resolves them from the repo root.
           sed -i 's#^SF:src/#SF:medbrains/apps/web/src/#' apps/web/coverage/lcov.info
+          # The shared packages' Vitest coverage, appended to the same LCOV (concatenated LCOV is
+          # valid), so any change to the report paths keeps them. A failing package still reports.
+          for pkg in packages/*/; do
+            grep -q '"test": "vitest run' "$pkg/package.json" 2>/dev/null || continue
+            (cd "$pkg" && pnpm exec vitest run --coverage --coverage.reporter=lcov --coverage.reportOnFailure=true) || true
+            [ -f "$pkg/coverage/lcov.info" ] && sed "s#^SF:#SF:medbrains/${pkg}#" "$pkg/coverage/lcov.info" >> apps/web/coverage/lcov.info
+          done
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: env.SONAR_TOKEN != '' && needs.rust-coverage.result == 'success'
         with:
@@ -225,6 +257,12 @@ jobs:
         with:
           name: android-jacoco
           path: android-coverage
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.SONAR_TOKEN != '' && needs.ios-coverage.result == 'success'
+        continue-on-error: true
+        with:
+          name: ios-coverage
+          path: ios-coverage
       - name: Read the release version
         id: version
         if: env.SONAR_TOKEN != ''
@@ -238,6 +276,10 @@ jobs:
           # Kotlin coverage from the Android job, when it produced a report.
           if [ -f android-coverage/report.xml ]; then
             extra="$extra -Dsonar.coverage.jacoco.xmlReportPaths=android-coverage/report.xml"
+          fi
+          # Swift coverage from the iOS job, in SonarQube's generic format.
+          if [ -f ios-coverage/ios-coverage.xml ]; then
+            extra="$extra -Dsonar.coverageReportPaths=ios-coverage/ios-coverage.xml"
           fi
           echo "rust=$extra" >> "$GITHUB_OUTPUT"
       - uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
