@@ -257,8 +257,13 @@ simpler.
 ## Optional error tracking (Rustrak)
 
 The server and the browser report crashes with the Sentry SDKs to a
-self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host —
-never to sentry.io. Every report is scrubbed of patient data before it
+self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host,
+the default for every hospital install. A `SENTRY_DSN` that points off
+this host, such as sentry.io, turns error tracking off unless
+`SENTRY_ALLOW_EXTERNAL=1` is also set; the preflight warns either way.
+That opt-in is for the project's own servers only: use an EU-region
+Sentry project, sign Sentry's data processing agreement, and never turn
+on `send_default_pii`. Every report is scrubbed of patient data before it
 leaves the HMS process (`crates/medbrains-error-tracking`); the browser's
 reports go through the server's tunnel to get the same scrubbing.
 It is off until `SENTRY_DSN` is set: without it the server and the

@@ -4,7 +4,8 @@
 //! Patient data never goes in a report. The server's own envelopes are scrubbed
 //! by [`envelope::scrub_envelope`] in its transport; the browser's reach Rustrak
 //! through [`tunnel`] and are scrubbed item by item in [`browser`] — both with
-//! the same `scrub_event`. Off unless `SENTRY_DSN` is set.
+//! the same `scrub_event`. Off unless `SENTRY_DSN` is set; a DSN off this host
+//! (the project's own servers on sentry.io) also needs `SENTRY_ALLOW_EXTERNAL=1`.
 
 // `unreachable_pub` is denied workspace-wide, so items shared between this
 // crate's private modules are `pub(crate)`, which this nursery lint dislikes.
@@ -32,7 +33,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 
-pub use config::{Settings, settings};
+pub use config::{ALLOW_EXTERNAL, Settings, settings};
 pub use sdk::{HttpLayer, dsn_host_is_own, http_layer, init, tag_scope, tracing_layer};
 pub use sentry::types::Dsn;
 pub use summary::ErrorTrackingSummary;
