@@ -839,6 +839,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
     medbrains_server::services::retention::spawn(db_pool.clone());
     medbrains_server::services::queue_rollover::spawn(db_pool.clone());
+    // Form friction — refused saves counted in memory, written once a minute.
+    medbrains_server_core::form_friction::spawn(worker_pool.clone());
 
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;
@@ -857,6 +859,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;
+    // The last minute of refusal counts, so a restart loses none.
+    medbrains_server_core::form_friction::flush(&worker_pool).await;
 
     tracing::info!("shutdown complete — all in-flight requests drained");
     Ok(())

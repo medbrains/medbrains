@@ -862,6 +862,9 @@ pub fn build_router(state: AppState) -> Router {
         // device exchanges for JWT + cert fingerprint
         // S3 presigned upload / download URL endpoints
         .merge(medbrains_upload::router())
+        // Counts every 400/422 against its route template, hospital and role
+        // for the form friction report — in memory, never per person.
+        .layer(from_fn(medbrains_server_core::form_friction::record_refusals))
         // Innermost: tags the request's error scope with the user hash,
         // tenant and role, which the auth layer outside it has resolved.
         .layer(from_fn(medbrains_error_tracking::tag_scope))
@@ -1090,6 +1093,9 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/appointments/reminder-config",
             get(appointments::get_reminder_config).put(appointments::update_reminder_config),
         )
+        .layer(from_fn(
+            medbrains_server_core::form_friction::record_refusals,
+        ))
         .layer(from_fn_with_state(state.clone(), audit_layer))
         .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))

@@ -1593,6 +1593,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "admin.kernel.view",
           },
           {
+            i18nKey: "formFriction",
+            path: "/admin/form-friction",
+            icon: "IconForms",
+            requiredPermission: "admin.form_friction.view",
+          },
+          {
             i18nKey: "researchExports",
             path: "/admin/research-exports",
             icon: "IconFileAnalytics",

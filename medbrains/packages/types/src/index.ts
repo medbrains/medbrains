@@ -168,6 +168,7 @@ export * from "./field-access-catalogue";
 export * from "./field-mapping";
 export * from "./flow";
 export * from "./form-builder";
+export * from "./form-friction";
 export * from "./form-master";
 export * from "./form-runtime";
 export * from "./form-templates";

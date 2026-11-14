@@ -8,6 +8,7 @@ use axum::{
 use medbrains_server_core::state::AppState;
 
 pub mod admin_db_topology;
+pub mod admin_form_friction;
 pub mod admin_kernel;
 pub mod admin_system_state;
 pub mod blog;
@@ -167,6 +168,10 @@ pub fn router() -> Router<AppState> {
                 .delete(multi_hospital::delete_group_template),
         )
         .route("/api/admin/kernel", get(admin_kernel::get_kernel_health))
+        .route(
+            "/api/admin/form-friction",
+            get(admin_form_friction::get_form_friction),
+        )
         .route(
             "/api/admin/system_state",
             get(admin_system_state::get_system_state)

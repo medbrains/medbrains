@@ -489,6 +489,9 @@ const OnboardingWorkbookPage = lazy(() =>
 const KernelPage = lazy(() =>
   import("./pages/admin/kernel").then((m) => ({ default: m.KernelPage })),
 );
+const FormFrictionPage = lazy(() =>
+  import("./pages/admin/form-friction").then((m) => ({ default: m.FormFrictionPage })),
+);
 const HistoryImportPage = lazy(() =>
   import("./pages/admin/history-import").then((m) => ({ default: m.HistoryImportPage })),
 );
@@ -715,6 +718,7 @@ export function AuthedRoutes() {
           <Route path="workbook" element={<OnboardingWorkbookPage />} />
           <Route path="history-import" element={<HistoryImportPage />} />
           <Route path="kernel" element={<KernelPage />} />
+          <Route path="form-friction" element={<FormFrictionPage />} />
           <Route path="research-exports" element={<ResearchExportsPage />} />
           <Route path="knowledge-changes" element={<KnowledgeChangesPage />} />
           <Route path="flows" element={<FlowsPage />} />
