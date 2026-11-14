@@ -54,6 +54,7 @@ describe("Admin → Form friction", () => {
     expect(await screen.findByText("Specialty › Ophthalmology › Exams")).toBeInTheDocument();
     expect(screen.getByText("Right eye axis given without a cylinder")).toBeInTheDocument();
     expect(screen.getByText("+250%")).toBeInTheDocument();
+    expect(screen.getByText(/· Doctor$/)).toBeInTheDocument();
     expect(screen.getByTestId("friction-totals")).toHaveTextContent("7 refused in the last 30");
     expect(api.getFormFriction).toHaveBeenCalledWith(30);
   });

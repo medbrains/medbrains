@@ -1,5 +1,6 @@
 import { Stack, Text } from "@mantine/core";
 import type { FrictionRoute } from "@medbrains/types";
+import { roleName } from "./labels";
 
 interface ReasonListProps {
   route: FrictionRoute;
@@ -20,7 +21,7 @@ export function ReasonList({ route }: ReasonListProps) {
         <Text key={m.message} size="sm">
           {m.message}{" "}
           <Text span size="xs" c="dimmed">
-            ×{m.count.toLocaleString("en-IN")} · {m.roles.join(", ")}
+            ×{m.count.toLocaleString("en-IN")} · {m.roles.map(roleName).join(", ")}
           </Text>
         </Text>
       ))}

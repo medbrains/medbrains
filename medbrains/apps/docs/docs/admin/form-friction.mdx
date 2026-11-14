@@ -15,7 +15,7 @@ import useBaseUrl from "@docusaurus/useBaseUrl";
 
 When a member of staff presses **Save** and the server refuses the entry (for example "Right eye
 axis given without a cylinder"), the form let a bad entry through. Form friction counts those
-refusals per screen, so you can find the forms that need a check of their own, or a server rule
+refused saves per screen (a refused search or report query is not counted), so you can find the forms that need a check of their own, or a server rule
 that is wrong.
 
 The report counts screens, never people. It keeps the screen, the day, the role of the person
@@ -31,7 +31,7 @@ who saved and the reason with every typed value removed: numbers become `#`, quo
 ## 2. Read a row
 
 <ThemedImage
-  alt="The form friction report: the ophthalmology exam screen refused three times for a right eye axis given without a cylinder."
+  alt="The form friction report: the ophthalmology exam screen refused three saves for a right eye axis given without a cylinder."
   sources={{
     light: useBaseUrl("/img/guide/admin-form-friction-light.webp"),
     dark: useBaseUrl("/img/guide/admin-form-friction-dark.webp"),
@@ -45,7 +45,7 @@ Each row is one screen, most refused first:
 | **Screen** | A readable name built from the server route, with the route under it (for example `POST /api/specialty/ophthalmology/exams`). |
 | **Refused** | Saves refused in this period. |
 | **Against the period before** | **New** (none before), a rise in amber, a fall in green, or **Same**. |
-| **Most common reasons** | Up to five reasons, how often each came up, and the roles that met it. |
+| **Most common reasons** | Up to five reasons, how often each came up, and the roles that met it, by role name. |
 
 ## 3. Act on a row
 

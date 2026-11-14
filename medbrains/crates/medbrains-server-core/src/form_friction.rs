@@ -1,8 +1,9 @@
 //! Form friction: refused saves counted per screen, never per person.
 //!
-//! A 400 or 422 usually means a form let a bad entry through — the server
-//! knew a rule the screen did not check. One middleware ([`record_refusals`])
-//! counts every such answer from the protected API in a bounded in-memory map
+//! A 400 or 422 on a save usually means a form let a bad entry through — the
+//! server knew a rule the screen did not check. One middleware
+//! ([`record_refusals`]) counts every such answer to a save (POST, PUT, PATCH,
+//! DELETE) from the protected API in a bounded in-memory map
 //! keyed by hospital, day, method, route template, status, role and the
 //! refusal reason with every value scrubbed out ([`normalise`]). A background
 //! task ([`spawn`]) adds the counts to `form_friction_daily` once a minute;
@@ -19,7 +20,7 @@ use std::sync::{LazyLock, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use axum::extract::{MatchedPath, Request};
-use axum::http::StatusCode;
+use axum::http::{Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
 use chrono::NaiveDate;
@@ -120,11 +121,14 @@ pub fn record(key: Key) {
     counter().add(key, 1);
 }
 
-/// Middleware: count a 400 or 422 against its route, hospital and role.
+/// Middleware: count a refused save (400 or 422) against its route, hospital and role.
 ///
 /// Requests with no signed-in caller or no matched route are not counted.
 /// Never changes the response.
 pub async fn record_refusals(request: Request, next: Next) -> Response {
+    if !is_save(request.method()) {
+        return next.run(request).await;
+    }
     let route = request
         .extensions()
         .get::<MatchedPath>()
@@ -155,6 +159,16 @@ pub async fn record_refusals(request: Request, next: Next) -> Response {
         });
     }
     response
+}
+
+/// Whether `method` saves something. A refused GET is a bad query from code,
+/// not a form a person filled in, so it would only crowd the ranking.
+#[must_use]
+pub const fn is_save(method: &Method) -> bool {
+    matches!(
+        *method,
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    )
 }
 
 /// A refusal reason with nothing typed left in it, so it can be kept and shown.
@@ -270,7 +284,8 @@ async fn write_tenant(
 
 #[cfg(test)]
 mod tests {
-    use super::{Counter, Key, MAX_ENTRIES, MAX_MESSAGE, OTHER, normalise};
+    use super::{Counter, Key, MAX_ENTRIES, MAX_MESSAGE, OTHER, is_save, normalise};
+    use axum::http::Method;
     use uuid::Uuid;
 
     /// A key differing only in its message.
@@ -332,6 +347,17 @@ mod tests {
         assert_eq!(normalise(&"a ".repeat(500)).chars().count(), MAX_MESSAGE);
         assert_eq!(normalise(""), OTHER);
         assert_eq!(normalise("कुछ गलत"), OTHER);
+    }
+
+    /// Only saves are counted: a refused query is code, not a form.
+    #[test]
+    fn only_saves_are_counted() {
+        for method in [Method::POST, Method::PUT, Method::PATCH, Method::DELETE] {
+            assert!(is_save(&method), "{method}");
+        }
+        for method in [Method::GET, Method::HEAD, Method::OPTIONS] {
+            assert!(!is_save(&method), "{method}");
+        }
     }
 
     /// The same refusal adds up; a new one past the cap is counted as dropped.
