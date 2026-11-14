@@ -28,7 +28,6 @@ const TASKS = [
 const CHAPTERS = [
   { to: "/overview/", label: "Overview" },
   { to: "/get-started/", label: "Get started" },
-  { to: "/install/", label: "Install" },
   { to: "/user-guides/", label: "User guides" },
   { to: "/admin/", label: "Admin guide" },
   { to: "/compliance/", label: "Compliance" },
