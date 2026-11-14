@@ -340,7 +340,14 @@ fn system_partition_edit_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), Strin
     ))?;
     vm.reboot()?;
     ensure(!data_open(vm)?, "the disk opened under a changed system")?;
-    let state = vm.run("systemctl is-system-running")?;
+    // The shell answers while the start is still stopping; the state settles a little later.
+    let deadline = Instant::now() + scaled(SETTLE);
+    let mut state = vm.run("systemctl is-system-running; true")?;
+    while !state.contains("maintenance") && Instant::now() < deadline {
+        sleep(Duration::from_secs(5));
+        state = vm.run("systemctl is-system-running; true")?;
+    }
+    ensure(!data_open(vm)?, "the disk opened under a changed system")?;
     ensure(
         state.contains("maintenance"),
         format!("the system is {state}"),
