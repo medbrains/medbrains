@@ -7,7 +7,9 @@
 //! is a kind we can make safe:
 //!
 //! - `event` — normalised, read into the protocol type and put through the
-//!   same [`scrub_event`] as the server's own reports;
+//!   same [`scrub_event`] as the server's own reports. Its debug images, which
+//!   symbolicate a phone's native crash, are kept as addresses and build ids
+//!   only, because the protocol type has no `macho` or `elf` image;
 //! - `session` — counts only: an id, timestamps, status, error count, release
 //!   and environment. No user, IP address or user agent;
 //!
@@ -71,9 +73,44 @@ fn scrub_event_json(mut value: Value) -> Option<Vec<u8>> {
             *list = json!({ "values": list.take() });
         }
     }
+    let images = value
+        .as_object_mut()
+        .and_then(|o| o.remove("debug_meta"))
+        .and_then(|meta| meta.get("images").cloned())
+        .and_then(|images| images.as_array().map(|list| keep_image_ids(list)));
     let mut event: sentry::protocol::Event<'static> = serde_json::from_value(value).ok()?;
     scrub_event(&mut event);
-    serde_json::to_vec(&event).ok()
+    let mut clean = serde_json::to_value(&event).ok()?;
+    if let (Some(images), Some(object)) = (images, clean.as_object_mut()) {
+        object.insert("debug_meta".to_owned(), json!({ "images": images }));
+    }
+    serde_json::to_vec(&clean).ok()
+}
+
+/// Of each debug image, what symbolication needs: its kind, build ids and
+/// load addresses. The file paths and anything else are dropped.
+fn keep_image_ids(images: &[Value]) -> Vec<Value> {
+    const KEPT: [&str; 8] = [
+        "type",
+        "uuid",
+        "debug_id",
+        "code_id",
+        "arch",
+        "image_addr",
+        "image_size",
+        "image_vmaddr",
+    ];
+    images
+        .iter()
+        .filter_map(Value::as_object)
+        .map(|image| {
+            let kept: Map<String, Value> = KEPT
+                .into_iter()
+                .filter_map(|key| image.get(key).map(|v| (key.to_owned(), v.clone())))
+                .collect();
+            Value::Object(kept)
+        })
+        .collect()
 }
 
 /// The fields release health counts with, and nothing else.

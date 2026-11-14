@@ -6,7 +6,8 @@
 
 pub(crate) use medbrains_server_core::scrub::scrub_text;
 use sentry::protocol::{
-    Breadcrumb, Context, Event, Exception, Map, Request, Span, Transaction, Url, User,
+    Breadcrumb, Context, Event, Exception, Frame, Map, Request, Span, Thread, Transaction, Url,
+    User,
 };
 
 /// A URL or path with its query, fragment and record ids removed.
@@ -44,9 +45,10 @@ pub(crate) fn scrub_event(event: &mut Event<'static>) {
     event.transaction = event.transaction.as_deref().map(scrub_value);
     event.exception.values.iter_mut().for_each(scrub_exception);
     if let Some(trace) = event.stacktrace.as_mut() {
-        trace.frames.iter_mut().for_each(|f| f.vars.clear());
+        trace.frames.iter_mut().for_each(scrub_frame);
     }
-    event.threads.values.clear();
+    // A native crash keeps its stack in the crashed thread, not the exception.
+    event.threads.values.iter_mut().for_each(scrub_thread);
     event
         .breadcrumbs
         .values
@@ -56,6 +58,8 @@ pub(crate) fn scrub_event(event: &mut Event<'static>) {
     event.request = event.request.take().map(scrub_request);
     event.extra.clear();
     event.modules.clear();
+    // A machine name is often its owner's: "Dr-Sharma-PC", "Ramesh's iPhone".
+    event.server_name = None;
     scrub_tags(&mut event.tags);
     keep_safe_contexts(&mut event.contexts);
 }
@@ -70,6 +74,26 @@ pub(crate) fn scrub_transaction(tx: &mut Transaction<'static>) {
     tx.spans.iter_mut().for_each(scrub_span);
 }
 
+/// A frame keeps where it is (function, module, file, line); its variables
+/// and the source lines around it, which can hold literal values, go.
+fn scrub_frame(frame: &mut Frame) {
+    frame.vars.clear();
+    frame.context_line = None;
+    frame.pre_context.clear();
+    frame.post_context.clear();
+}
+
+/// A thread keeps its id, flags and frames; its name and frame variables go.
+fn scrub_thread(thread: &mut Thread) {
+    thread.name = thread.name.as_deref().map(scrub_value);
+    for trace in [thread.stacktrace.as_mut(), thread.raw_stacktrace.as_mut()]
+        .into_iter()
+        .flatten()
+    {
+        trace.frames.iter_mut().for_each(scrub_frame);
+    }
+}
+
 fn scrub_exception(exception: &mut Exception) {
     exception.value = exception.value.as_deref().map(scrub_text);
     for trace in [
@@ -79,7 +103,7 @@ fn scrub_exception(exception: &mut Exception) {
     .into_iter()
     .flatten()
     {
-        trace.frames.iter_mut().for_each(|f| f.vars.clear());
+        trace.frames.iter_mut().for_each(scrub_frame);
     }
 }
 
@@ -158,6 +182,7 @@ fn keep_safe_contexts(contexts: &mut Map<String, Context>) {
                 trace.description = trace.description.as_deref().map(scrub_value);
             }
             Context::App(app) => app.other.clear(),
+            Context::Device(device) => device.name = None,
             _ => {}
         }
     }
