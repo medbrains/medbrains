@@ -145,6 +145,9 @@ if [[ "$DEBUG" == 1 ]]; then
     # Lets a test make the rollback floor check fail, to prove the data disk then stays locked.
     install -d "$EXTRA/usr/lib/systemd/system/medbrains-disk-floor.service.d"
     install -m 0644 "$HERE/debug/90-medbrains-debug-floor.conf" "$EXTRA/usr/lib/systemd/system/medbrains-disk-floor.service.d/"
+    # ...and still reach the machine over the serial port once that start has fallen to emergency mode.
+    install -d "$EXTRA/usr/lib/systemd/system/emergency.service.d"
+    install -m 0644 "$HERE/debug/90-medbrains-debug-sulogin.conf" "$EXTRA/usr/lib/systemd/system/emergency.service.d/"
     # A clearly marked sign-in for trying the Identity app. Never in a release image.
     install -m 0755 "$HERE/debug/kanidm-debug-account" "$EXTRA/usr/lib/medbrains/kanidm-debug-account"
     install -m 0644 "$HERE/debug/kanidm-debug-account.service" "$EXTRA/usr/lib/systemd/system/"
