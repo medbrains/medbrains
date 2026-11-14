@@ -56,13 +56,18 @@ signature (`.pcrsig`) and public key (`.pcrpkey`), and the stub puts them in `/r
 **PCR 11 alone protects nothing with Secure Boot off**, as the attack above shows: someone's own system extends PCR 11 to
 the published values and replays the signature. Beside it the seal needs a value that system cannot produce:
 
-- **Secure Boot enforced** (`SecureBoot=1`, `SetupMode=0`): PCR 7, which records that the firmware enforced our db key.
-  `build.sh` signs the loader and the boot file with `OS_SB_KEY`; mkosi puts the key files on the boot partition, and
+- **Secure Boot enforced, and our certificate the only one trusted:** PCR 7 alone. The exact condition
+  (`medbrains-os-update seal-pcrs`, `secure_boot.rs`, unit-tested): `SecureBoot` is 1, `SetupMode` is 0, `AuditMode` is 0
+  or absent (`DeployedMode` may be either), and **PK, KEK and db are each well-formed signature lists holding only X.509
+  entries equal to our certificate**, read from the sealed system partition (`/usr/share/medbrains/secure-boot-db.der`),
+  never from the boot partition. dbx may hold anything: it only removes trust. Any other trusted entry, a vendor's or
+  Microsoft's certificate or a hash, keeps PCR 4: any of them could have signed a boot chain that leaves PCR 7 as it is.
+  Anything missing, malformed or unreadable keeps PCR 4 too. `build.sh` signs the loader and the boot file with `OS_SB_KEY`; mkosi puts the key files on the boot partition, and
   systemd-boot enrols them only where that is safe, a virtual machine in setup mode (`secure-boot-enroll if-safe`). PCR 7
   does not change when a new boot file is signed with the same key, so **updates open by themselves**. A real machine gets
   the keys at installation (plan X2); until then it takes the next line.
-- **Secure Boot off:** PCR 4, the loader and boot file the firmware started, as before. Every new boot file asks for the
-  recovery key once, then `disk-setup reseal`.
+- **Otherwise** (Secure Boot off, or a firmware that also trusts others, as most PCs' db does): PCR 4, the loader and boot
+  file the firmware started, as before. Every new boot file asks for the recovery key once, then `disk-setup reseal`.
 
 `disk-setup` chooses when it seals, at first boot or at `reseal`, from the firmware's variables. Turning Secure Boot on
 later changes PCR 7: the recovery key once, then `disk-setup reseal` seals the new way. That is the one-time step for a
@@ -86,13 +91,22 @@ it and must rise with every release (debug: the version's last number plus one).
 - **Raised** at first boot, before the partition exists, to the image's number, and by the updater before each install to
   the running version's number (`disk-setup floor-raise`). The version in use and newer ones open by themselves, so going
   back to the version just left still works; the one before it no longer does.
+- **Steps:** each release raises `OS_ROLLBACK` by one, so an install is normally one TPM increment, a machine that skipped
+  releases a few. `MAX_FLOOR_STEPS` is 64 (a year of weekly releases skipped at once); a larger gap is a release numbered
+  wrongly and stops the install. Each step is one NV write. Real TPMs rate-limit NV writes and are rated for roughly
+  100,000 or more of them, so a few per release is negligible wear; at a slow chip's ~100 ms per write, 64 steps fit the
+  updater's 120 s `FLOOR_LIMIT`. Not measured on a real TPM.
 - **A counter, not an ordinary index:** anyone with the owner authorisation (empty, as on most machines) can delete an
-  index and define it again, but a new counter starts above every counter that TPM ever deleted, and a missing one is
-  refused. Anyone can raise it, which locks the machine to its recovery key: damage, not access.
+  index and define it again. By the TPM 2.0 specification a counter defined again starts no lower than the highest any
+  counter on that TPM has reached, and a missing one is refused. On swtpm (`floor_counter_cannot_be_lowered`): deleting it
+  is refused by the check; defining it again started at or above the old value; clearing the TPM left a disk that does not
+  open by itself (the clear also discards the seal). **Not verified on a real TPM.** Anyone with OS access can raise it,
+  which locks the machine to its recovery key: damage, not access (owner decision on owner authorisation, DECISIONS).
 - **Adopted** by a disk sealed before the floor existed: once it opens, with its recovery key that once, as every update on
-  such a disk needed, `disk-setup floor-adopt` defines the counter at its lowest; the next install raises it.
+  such a disk needed, `medbrains-disk-floor-adopt.service` (`disk-setup floor-adopt`) defines the counter at its lowest; the
+  next install raises it. A failure is a failed unit with a plain reason in the journal and on the console.
 - **Reinstalling an older image** on a machine that ran a newer one starts below its floor and asks for the recovery key at
-  every start: install the current release. Clearing the TPM does not lower a counter.
+  every start: install the current release.
 
 Chosen over `systemd-pcrlock` (predicted PCR 4 values from the firmware event log in an NV policy: experimental in systemd
 257, and once found sealing the disk to a file on that disk) and over a key per release (a restored old LUKS header with
@@ -269,8 +283,10 @@ disk to a file on that disk. A test found this: the disk would not open.
 | A new boot file signed with our keys, Secure Boot on | PCR 7 and signed 11 still match | | Opens by itself, at every start | `sealed_update`, `power_cuts_applying` (x86-64 swtpm) |
 | A system below the rollback floor starts | Older signed code | `floor-check`, before the unlock | PCR 11 extended: asks for the recovery key; a trial nobody answers rolls back | `floor_refuses_older_system`; `os/tests/disk-setup.sh` |
 | Floor counter missing, deleted or unreadable | Old can't be told from new | `floor-check` | Treated as below the floor. A disk sealed before the floor adopts one once open | `os/tests/disk-setup.sh` |
-| Floor can't be raised: TPM fault, or a gap over 1000 | Older versions would keep opening | `floor-raise` exit status | First boot stops before any data; an install stops before writing | `os/tests/disk-setup.sh` |
-| The floor check can't extend PCR 11 | Could open for an older system | `systemd-pcrextend` exit status | The unit fails, so the unlock that requires it does not run | reasoned |
+| Floor can't be raised: TPM fault, or a gap over 64 | Older versions would keep opening | `floor-raise` exit status | First boot stops before any data; an install stops before writing | `os/tests/disk-setup.sh` |
+| The floor check fails, including when it can't extend PCR 11 | Could open for an older system | Unit exit status | The unit fails, so the unlock that requires it does not run: the disk stays locked | `failed_floor_check_keeps_disk_locked` (x86-64 swtpm), `os/tests/disk-setup.sh` |
+| Firmware also trusts a certificate other than ours | PCR 7 would not prove our boot chain | `seal-pcrs` reads PK, KEK, db | Sealed with PCR 4 + 7 | `seal_matches_trusted_keys` with a vendor db (x86-64), `secure_boot_tests.rs` |
+| Floor adopt fails | The next start asks for the recovery key | Unit exit status | Failed unit, reason in the journal and on the console | `os/tests/disk-setup.sh` |
 | Recovery key leaks into logs | Full data access | `grep` of journal and raw disk | Never written: stderr discarded, stdout captured in the shell only | `recovery_key_not_logged`, `raw_disk_shows_nothing` |
 
 Tests are in `crates/medbrains-os-test/src/disk.rs`.

@@ -16,6 +16,7 @@ pub mod paths;
 pub mod pe;
 pub mod plan;
 pub mod seal;
+pub mod secure_boot;
 pub mod source;
 pub mod state;
 pub mod steps;

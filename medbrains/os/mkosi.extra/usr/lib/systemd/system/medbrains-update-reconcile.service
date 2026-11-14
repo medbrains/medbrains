@@ -1,5 +1,5 @@
 # At each start: says truthfully how the last update ended, clears what a power cut left behind, and notes
-# what a person could go back to. First gives a disk sealed before the rollback floor existed its floor.
+# what a person could go back to.
 [Unit]
 Description=MedBrains OS update record
 RequiresMountsFor=/var
@@ -8,7 +8,6 @@ After=local-fs.target systemd-tmpfiles-setup.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStartPre=-/usr/lib/medbrains/disk-setup floor-adopt
 ExecStart=/usr/bin/medbrains-os-update reconcile
 
 [Install]

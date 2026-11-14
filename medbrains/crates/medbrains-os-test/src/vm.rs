@@ -254,8 +254,7 @@ impl Vm {
             ports.push((name, free_port().map_err(|e| e.to_string())?));
         }
         let share = qemu_share()?;
-        std::fs::copy(share.join(platform().vars), dir.join("vars.fd"))
-            .map_err(|e| e.to_string())?;
+        std::fs::copy(firmware_vars(&share), dir.join("vars.fd")).map_err(|e| e.to_string())?;
         let disk = dir.join("disk.qcow2");
         make_overlay(image, &disk)?;
         let qemu = spawn_qemu(&dir, &disk, &ports, tpm, &[])?;
@@ -804,6 +803,18 @@ fn spawn_qemu(
         .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("could not start QEMU: {e}"))
+}
+
+/// The firmware variables a new machine starts with: QEMU's empty ones (setup mode, so the image enrols
+/// its own keys), or `MB_OS_TEST_VARS`, a file with keys already enrolled, such as a db that also trusts a
+/// vendor.
+fn firmware_vars(share: &Path) -> PathBuf {
+    std::env::var_os("MB_OS_TEST_VARS").map_or_else(|| share.join(platform().vars), PathBuf::from)
+}
+
+/// True if the machines start with `MB_OS_TEST_VARS` instead of empty firmware variables.
+pub(crate) fn preset_vars() -> bool {
+    std::env::var_os("MB_OS_TEST_VARS").is_some()
 }
 
 /// QEMU's firmware folder, found from where its binary lives.

@@ -17,16 +17,14 @@ CONFIG="${MEDBRAINS_DISK_CONFIG:-/var/lib/medbrains/config}"
 RECORD="$CONFIG/disk-protection"
 # Written once the person has shown they saved the recovery key. Holds no secret.
 KEY_SAVED="$CONFIG/.recovery-key-saved"
-# With Secure Boot enforced, 7 holds our key in the firmware's db, so only boot files signed with it can
-# have run, and a new boot file signed with the same key leaves it unchanged: updates open by themselves.
-# With Secure Boot off, 7 is the same under any system and proves nothing; 4, the boot loader and boot
-# file the firmware started, is then the one value an attacker's own system cannot produce, and every new
-# boot file asks for the recovery key once. A proven attack: OS-KEYS.md.
+# PCR 7 alone only when the firmware enforces Secure Boot and trusts our certificate and nothing else in
+# PK, KEK and db: then only boot files we signed can have run, and a new one leaves 7 unchanged, so updates
+# open by themselves. Any other trusted certificate, a mode that does not enforce, or anything unreadable
+# keeps 4, the boot loader and boot file the firmware started, and every new boot file asks for the
+# recovery key once. The decision is `medbrains-os-update seal-pcrs` (secure_boot.rs, unit-tested).
 # Not 12: it changed between normal cold boots under test, so the machine stopped opening itself.
-SEAL_PCRS_SECURE_BOOT=7
-SEAL_PCRS_NO_SECURE_BOOT=4+7
-EFIVARS="${MEDBRAINS_EFIVARS:-/sys/firmware/efi/efivars}"
-EFI_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
+SEAL_PCRS_KEEP_4=4+7
+SEAL_DECIDER="${MEDBRAINS_SEAL_DECIDER:-/usr/bin/medbrains-os-update}"
 # Put here by the boot file when the image was signed. 11 alone protects nothing without 4 or Secure
 # Boot: an attacker's system can extend it to the published values and replay this signature.
 PCR_PUBLIC_KEY=/run/systemd/tpm2-pcr-public-key.pem
@@ -38,8 +36,11 @@ TPM_DEVICE="${MEDBRAINS_TPM_DEVICE:-/dev/tpmrm0}"
 export TPM2TOOLS_TCTI="device:$TPM_DEVICE"
 PCR_EXTEND="${MEDBRAINS_PCR_EXTEND:-/usr/lib/systemd/systemd-pcrextend}"
 OS_RELEASE="${MEDBRAINS_OS_RELEASE:-/usr/lib/os-release}"
-# One TPM increment per step; a larger gap is a release numbered wrongly, not a step.
-MAX_FLOOR_STEPS=1000
+# Each release raises OS_ROLLBACK by one, so an install normally takes one TPM increment, and a machine
+# that skipped releases a few. 64 covers a year of weekly releases skipped at once; more is a release
+# numbered wrongly. Each step is one NV write: real TPMs rate-limit those and rate them for about 100,000
+# or more writes, so 64 is far inside both, and at a slow chip's ~100 ms each, inside the updater's 120 s.
+MAX_FLOOR_STEPS=64
 MIN_PIN_LENGTH=6
 SETTLE_S=30
 NOTICE_AFTER_S=20
@@ -53,20 +54,21 @@ KEY_DIR="${MEDBRAINS_KEY_DIR:-/run}"
 # Clears the machine's screen and shows the cursor, which the kernel command line hides.
 clear_screen() { printf '\033c\033[?25h'; }
 
-# Prints the value byte of EFI global variable $1, after its 4 attribute bytes; nothing if it is missing.
-efi_byte() {
-    od -An -tu1 -j4 -N1 "$EFIVARS/$1-$EFI_GLOBAL" 2>/dev/null | tr -d ' '
-}
-
-# Succeeds if the firmware enforces Secure Boot: on, and out of setup mode, so its keys are set.
-secure_boot_on() {
-    [[ "$(efi_byte SecureBoot)" == 1 && "$(efi_byte SetupMode)" == 0 ]]
+# Prints the PCRs to seal to. Only the two answers the decider can give are taken; anything else, or a
+# decider that fails, keeps PCR 4.
+seal_pcrs() {
+    local answer
+    answer="$("$SEAL_DECIDER" seal-pcrs 2>/dev/null)" || answer=""
+    case "$answer" in
+        7) echo 7 ;;
+        *) echo "$SEAL_PCRS_KEEP_4" ;;
+    esac
 }
 
 # Sets SEAL_ARGS: what to seal to, the same for first boot and for a later re-seal.
 set_seal_args() {
-    local pcrs="$SEAL_PCRS_NO_SECURE_BOOT"
-    if secure_boot_on; then pcrs="$SEAL_PCRS_SECURE_BOOT"; fi
+    local pcrs
+    pcrs="$(seal_pcrs)"
     SEAL_ARGS=(--tpm2-device=auto --tpm2-pcrs="$pcrs")
     if [[ -e "$PCR_PUBLIC_KEY" ]]; then
         SEAL_ARGS+=(--tpm2-public-key="$PCR_PUBLIC_KEY" --tpm2-public-key-pcrs="$SIGNED_PCRS")
@@ -425,7 +427,10 @@ floor_check() {
 # this version, which may be a trial that must still be able to go back. Installs raise it.
 floor_adopt() {
     [[ -e "$TPM_DEVICE" ]] || return 0
-    floor_define
+    floor_define && return 0
+    echo 'MedBrains: the rollback floor could not be set in the security chip, so the next start will ask' \
+        'for the data disk recovery key. Call your system administrator.' >&2
+    return 1
 }
 
 # Sourced by its tests, which call the functions above; run, it does what it is asked.

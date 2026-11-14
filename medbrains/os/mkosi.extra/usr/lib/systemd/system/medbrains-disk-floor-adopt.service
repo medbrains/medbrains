@@ -1,0 +1,18 @@
+# After the data disk opened: a disk sealed before the rollback floor existed gets one (disk-setup
+# floor-adopt, OS-KEYS.md). Its own unit, so a failure shows as a failed unit with its reason in the
+# journal and on the support console, instead of an unexplained recovery-key prompt at the next start.
+[Unit]
+Description=MedBrains rollback floor for an older disk
+RequiresMountsFor=/var
+After=local-fs.target tpm2.target
+Before=medbrains-update-reconcile.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/disk-setup floor-adopt
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

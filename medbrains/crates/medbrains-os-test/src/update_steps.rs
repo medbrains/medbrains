@@ -9,7 +9,9 @@ use crate::updates::{
     wait_version,
 };
 use crate::vm::{self, Vm};
-use crate::{update_channel, update_power, update_seal, update_sealed, update_verity};
+use crate::{
+    update_channel, update_power, update_seal, update_seal_locks, update_sealed, update_verity,
+};
 
 /// Bundle folders, as `make-update-bundles.py` names them. `NEXT` is a real second image build.
 pub(crate) const NEXT: (&str, &str) = ("next", "1.0.2");
@@ -30,6 +32,18 @@ pub(crate) const FINGERPRINT: &str = "lsblk -nro PARTLABEL /dev/vda; ls -1 /boot
 pub(crate) fn scenarios() -> Vec<Scenario> {
     if vm::tpm_usable() {
         return vec![
+            (
+                "the seal keeps PCR 4 unless the firmware trusts our key alone",
+                update_seal_locks::seal_matches_trusted_keys,
+            ),
+            (
+                "the rollback floor can't be lowered by deleting the counter or clearing the TPM",
+                update_seal_locks::floor_counter_cannot_be_lowered,
+            ),
+            (
+                "a floor check that fails keeps the disk locked",
+                update_seal_locks::failed_floor_check_keeps_disk_locked,
+            ),
             (
                 "a sealed disk keeps its data through an update, and opens by itself after going back",
                 update_sealed::sealed_update,

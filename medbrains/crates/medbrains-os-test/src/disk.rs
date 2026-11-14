@@ -211,13 +211,43 @@ fn boot_editor_off(vm: &mut Vm, _: &Path) -> Result<(), String> {
     )
 }
 
-/// A changed boot file does not open the disk, where the image is signed; restored, it opens again.
+/// True if the firmware enforces Secure Boot, as `bootctl` reads it.
+fn secure_boot(vm: &mut Vm) -> Result<bool, String> {
+    Ok(vm.run("bootctl status 2>/dev/null | grep -c 'Secure Boot: enabled (user)'; true")? == "1")
+}
+
+/// With Secure Boot: a changed copy of the boot file, made the next start's one-shot entry, never runs.
+/// The firmware refuses its signature, so the start that follows is the genuine entry, which opens the
+/// disk. The copy is removed after.
+fn changed_boot_file_never_starts(vm: &mut Vm) -> Result<(), String> {
+    let copy = "/boot/EFI/Linux/medbrains-os_0.0.1-changed.efi";
+    vm.run(&format!(
+        "f=$(ls /boot/EFI/Linux/*.efi | head -1); cp \"$f\" {copy}; o=$(grep -abo -m1 loglevel=3 {copy} | head -1 | cut -d: -f1); \
+         printf %s loglevel=4 | dd of={copy} bs=1 seek=\"$o\" conv=notrunc 2>/dev/null; sync; bootctl set-oneshot medbrains-os_0.0.1-changed.efi"
+    ))?;
+    vm.reboot()?;
+    let selected = vm.run(
+        "tail -c +5 /sys/firmware/efi/efivars/LoaderEntrySelected-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f | tr -d '\\0'",
+    )?;
+    ensure(
+        !selected.contains("changed"),
+        format!("the changed boot file started: {selected}"),
+    )?;
+    wait_open(vm)?;
+    vm.run(&format!("rm -f {copy}; sync")).map(drop)
+}
+
+/// A changed boot file does not open the disk, where the image is signed; restored, it opens again. With
+/// Secure Boot it does not even start (`changed_boot_file_never_starts`).
 fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
     let signed = vm.run("test -e /run/systemd/tpm2-pcr-public-key.pem; echo $?")?;
     ensure(
         signed == "0",
         "the image is not signed, so this cannot be tested: debug images are",
     )?;
+    if secure_boot(vm)? {
+        return changed_boot_file_never_starts(vm);
+    }
     let (from, to) = ("loglevel=3", "loglevel=4");
     let patch = |text: &str| {
         format!(

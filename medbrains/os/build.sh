@@ -142,6 +142,9 @@ if [[ "$DEBUG" == 1 ]]; then
     make_debug_update_key "$OS_WORK/update-test.key" "$KEYS/test-1.pub"
     : > "$KEYS/THIS-IS-A-DEBUG-IMAGE"
     install -m 0755 "$HERE/debug/pcr11-replay" "$EXTRA/usr/lib/medbrains/pcr11-replay"
+    # Lets a test make the rollback floor check fail, to prove the data disk then stays locked.
+    install -d "$EXTRA/usr/lib/systemd/system/medbrains-disk-floor.service.d"
+    install -m 0644 "$HERE/debug/90-medbrains-debug-floor.conf" "$EXTRA/usr/lib/systemd/system/medbrains-disk-floor.service.d/"
     # A clearly marked sign-in for trying the Identity app. Never in a release image.
     install -m 0755 "$HERE/debug/kanidm-debug-account" "$EXTRA/usr/lib/medbrains/kanidm-debug-account"
     install -m 0644 "$HERE/debug/kanidm-debug-account.service" "$EXTRA/usr/lib/systemd/system/"
@@ -175,6 +178,10 @@ check_pcr_key_matches "$OS_SB_KEY" "${OS_SB_CERT:-}"
 SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT"
            --secure-boot yes --secure-boot-key "$OS_SB_KEY" --secure-boot-certificate "$OS_SB_CERT"
            --secure-boot-auto-enroll yes --environment "MEDBRAINS_ROLLBACK=$OS_ROLLBACK")
+# The certificate the seal compares the firmware's PK, KEK and db with (secure_boot.rs), on the sealed
+# system partition, so nothing on the boot partition can change what "ours" means.
+openssl x509 -in "$OS_SB_CERT" -outform DER -out "$EXTRA/usr/share/medbrains/secure-boot-db.der" \
+    || key_fail "OS_SB_CERT $OS_SB_CERT can't be written as DER."
 SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro"
              -v "$OS_SB_KEY:$OS_SB_KEY:ro" -v "$OS_SB_CERT:$OS_SB_CERT:ro")
 
