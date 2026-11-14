@@ -19,7 +19,7 @@ name: E2E
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: ['release/**']
+    branches: [main, 'release/**', 'hotfix/**']
   schedule:
     # Nightly on the default branch.
     - cron: "0 2 * * *"
@@ -115,9 +115,10 @@ jobs:
         run: pnpm --filter @medbrains/web exec playwright install --with-deps chromium
 
       # Migrates, seeds the default tenant and its administrator, then serves on :3000.
+      # No CORS_ORIGIN: the server refuses a plain-HTTP one, and none is needed, since the
+      # browser reaches the API through the Vite proxy and Playwright's own requests.
       - name: Start the server
         env:
-          CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173
           TRUSTED_PROXIES: 127.0.0.1/32,::1/128
           RUST_LOG: info
         run: |
