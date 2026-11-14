@@ -1,0 +1,2267 @@
+{
+  "_doc": "React (Mantine 9 and the components/ui seam) to Slint 1.18. Each rule: `slint` is the element written; `props` maps a JSX prop to the Slint property it sets (a trailing ! negates a bool); every value is converted with the type the Slint element declares (src/slint-types.mjs). `values` lists fixed conversions for a prop's literal values; `fixed` is always written; `gaps` names props with no Slint equivalent and why; `handled` names props the converter turns into structure rather than a property (grid cells, tab state); `text` is the property that takes the element's children as text; `iconChild` takes an icon child as an image property; `wrapping` and `grid` select the flex layouts; `mountWhen` mounts the element only while that prop is true (an `if`); `rust` marks logic for the view model. Mantine's default props (mantine-defaults.json) apply before the source's own. `own` lets a rule replace our own component of that name (otherwise our component converts from its own source). A rule keyed `seam:Tag` or `mantine:Tag` applies only to that import. docs/CONVERSIONS.md is generated from this file.",
+  "version": 9,
+  "styleProps": {
+    "_doc": "Mantine style props (https://mantine.dev/styles/style-props/), on every component with a root element.",
+    "w": "width",
+    "h": "height",
+    "miw": "min-width",
+    "maw": "max-width",
+    "mih": "min-height",
+    "mah": "max-height",
+    "p": "padding",
+    "px": [
+      "padding-left",
+      "padding-right"
+    ],
+    "py": [
+      "padding-top",
+      "padding-bottom"
+    ],
+    "pt": "padding-top",
+    "pb": "padding-bottom",
+    "pl": "padding-left",
+    "pr": "padding-right",
+    "m": {
+      "margin": [
+        "padding-top",
+        "padding-bottom",
+        "padding-left",
+        "padding-right"
+      ]
+    },
+    "mx": {
+      "margin": [
+        "padding-left",
+        "padding-right"
+      ]
+    },
+    "my": {
+      "margin": [
+        "padding-top",
+        "padding-bottom"
+      ]
+    },
+    "mt": {
+      "margin": [
+        "padding-top"
+      ]
+    },
+    "mb": {
+      "margin": [
+        "padding-bottom"
+      ]
+    },
+    "ml": {
+      "margin": [
+        "padding-left"
+      ]
+    },
+    "mr": {
+      "margin": [
+        "padding-right"
+      ]
+    },
+    "c": {
+      "to": "color",
+      "kind": "color"
+    },
+    "bg": {
+      "background": true
+    },
+    "fw": {
+      "to": "font-weight",
+      "kind": "weight"
+    },
+    "fz": "font-size",
+    "ff": {
+      "to": "font-family",
+      "kind": "font"
+    },
+    "fs": {
+      "to": "font-italic",
+      "kind": "italic"
+    },
+    "lh": {
+      "to": "line-height-factor",
+      "kind": "line-height"
+    },
+    "ta": "horizontal-alignment",
+    "tt": {
+      "transform": true
+    },
+    "opacity": "opacity",
+    "hiddenFrom": {
+      "hiddenFrom": true
+    },
+    "visibleFrom": {
+      "visibleFrom": true
+    },
+    "lineClamp": {
+      "clamp": true
+    },
+    "truncate": {
+      "clamp": true
+    }
+  },
+  "commonProps": {
+    "_doc": "Props every element may carry. A key starting with _ is the reason a prop is not converted.",
+    "data-testid": "accessible-id",
+    "aria-label": "accessible-label",
+    "title": "accessible-description",
+    "_key": "React list identity; Slint `for` tracks model rows itself",
+    "_className": "CSS module class: its layout declarations convert (docs/CONVERSIONS.md, Layouts), every other declaration is noted in the file",
+    "_classNames": "Styles API: styling comes from the kit and Tokens",
+    "_styles": "Styles API: styling comes from the kit and Tokens",
+    "_style": "inline CSS has no Slint equivalent",
+    "_ref": "DOM ref: moves to the Rust view model",
+    "_id": "DOM id: Slint addresses elements by name",
+    "_component": "polymorphic element swap: the kit decides the element",
+    "_role": "ARIA role: the kit sets accessible-role",
+    "_aria-hidden": "decorative: Slint exposes only elements with an accessible role",
+    "_aria-live": "Slint 1.18 sets live regions per element with accessible-live-region in the kit",
+    "_td": "Slint 1.18 Text has no text decoration",
+    "_flex": "CSS flex shorthand: use horizontal-stretch or vertical-stretch in the kit",
+    "_display": "CSS display: use hiddenFrom/visibleFrom or a condition",
+    "_pos": "CSS positioning: Slint lays out by layouts, not offsets",
+    "_onSubmit": "form submission moves to the Rust view model",
+    "_type": "HTML input or button type: the view model decides what submit does",
+    "_size": "this component has no size variants in the kit",
+    "_variant": "this component has no variants in the kit",
+    "_radius": "Carbon corners are 0 in the theme (tokens.ts radius), so radius has no effect",
+    "_shadow": "elevation comes from the kit's surface tokens",
+    "_withinPortal": "portals are web-only: Slint draws popups in the window",
+    "_autoComplete": "browser autofill is web-only",
+    "_inputMode": "virtual keyboard hint: set input-type in the kit",
+    "_onBlur": "focus-out handling moves to the Rust view model",
+    "_onFocus": "focus handling moves to the Rust view model",
+    "_onKeyDown": "keyboard handling: FocusScope key-pressed in the kit",
+    "_required": "validation moves to the Rust view model",
+    "_withAsterisk": "required marker: the kit's label shows it from the view model",
+    "_maxLength": "input length limits move to the Rust view model"
+  },
+  "layout": {
+    "Stack": {
+      "slint": "VerticalLayout",
+      "mantine": "core/stack",
+      "props": {
+        "gap": "spacing",
+        "justify": "alignment",
+        "align": "cross-axis-alignment"
+      },
+      "fixed": {}
+    },
+    "Group": {
+      "slint": "HorizontalLayout",
+      "mantine": "core/group",
+      "props": {
+        "gap": "spacing",
+        "justify": "alignment",
+        "align": "cross-axis-alignment",
+        "grow": "alignment"
+      },
+      "values": {
+        "grow": {
+          "true": "LayoutAlignment.stretch",
+          "false": "LayoutAlignment.start"
+        }
+      },
+      "handled": {
+        "wrap": "wrap=\"nowrap\" and the default both become a HorizontalLayout: Slint FlexboxLayout reports a one-column preferred width inside a row, so it wraps where the web does not; a Group that overflows its row is the one case that differs",
+        "preventGrowOverflow": "grow shares space evenly in FlexboxLayout alignment: stretch"
+      }
+    },
+    "Flex": {
+      "slint": "FlexboxLayout",
+      "mantine": "core/flex",
+      "wrapping": "nowrap",
+      "props": {
+        "gap": "spacing",
+        "justify": "alignment",
+        "align": "cross-axis-alignment",
+        "direction": "flex-direction"
+      },
+      "handled": {
+        "wrap": "selects FlexboxLayout (wrap) or HorizontalLayout (nowrap)"
+      }
+    },
+    "SimpleGrid": {
+      "slint": "FlexboxLayout",
+      "mantine": "core/simple-grid",
+      "grid": "cols",
+      "props": {
+        "spacing": "spacing-horizontal",
+        "verticalSpacing": "spacing-vertical"
+      },
+      "gaps": {
+        "type": "container queries have no Slint equivalent; media breakpoints are used"
+      },
+      "handled": {
+        "cols": "sets each child's width, responsive objects read the window width"
+      }
+    },
+    "Grid": {
+      "slint": "FlexboxLayout",
+      "mantine": "core/grid",
+      "grid": "span",
+      "props": {
+        "gap": "spacing-horizontal",
+        "align": "cross-axis-alignment",
+        "justify": "alignment"
+      },
+      "gaps": {
+        "grow": "Grid.Col spans fix each width"
+      },
+      "handled": {
+        "columns": "sets each Grid.Col width"
+      }
+    },
+    "Grid.Col": {
+      "slint": "VerticalLayout",
+      "mantine": "core/grid",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      },
+      "gaps": {
+        "offset": "column offsets have no Slint equivalent"
+      },
+      "handled": {
+        "span": "becomes the cell width (see Grid)"
+      }
+    },
+    "Box": {
+      "slint": "VerticalLayout",
+      "mantine": "core/box",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "Center": {
+      "slint": "VerticalLayout",
+      "mantine": "core/center",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.center",
+        "cross-axis-alignment": "CrossAxisAlignment.center"
+      },
+      "gaps": {
+        "inline": "Slint layouts have no inline mode"
+      }
+    },
+    "Container": {
+      "slint": "VerticalLayout",
+      "mantine": "core/container",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      },
+      "values": {
+        "size": {
+          "xs": "540px",
+          "sm": "720px",
+          "md": "960px",
+          "lg": "1140px",
+          "xl": "1320px"
+        }
+      },
+      "gaps": {
+        "fluid": "a Slint layout fills its parent unless max-width is set"
+      }
+    },
+    "ScrollArea": {
+      "slint": "ScrollView",
+      "mantine": "core/scroll-area",
+      "props": {},
+      "gaps": {
+        "type": "scrollbar visibility follows the Slint style",
+        "scrollbarSize": "scrollbar size follows the Slint style",
+        "viewportRef": "moves to the Rust view model"
+      }
+    },
+    "Divider": {
+      "slint": "MbDivider",
+      "mantine": "core/divider",
+      "uses": [
+        "Rectangle",
+        "Text"
+      ],
+      "props": {
+        "label": "label",
+        "orientation": "orientation",
+        "size": "thickness"
+      },
+      "values": {
+        "size": {
+          "xs": "1px",
+          "sm": "1px",
+          "md": "2px",
+          "lg": "3px",
+          "xl": "4px"
+        }
+      },
+      "gaps": {
+        "labelPosition": "the label is centred",
+        "color": "the divider colour is the border token",
+        "variant": "dashed and dotted rules have no Slint stroke style"
+      }
+    },
+    "Space": {
+      "slint": "Rectangle",
+      "mantine": "core/space",
+      "props": {}
+    },
+    "AppShell": {
+      "slint": "_passthrough",
+      "mantine": "core/app-shell",
+      "props": {}
+    },
+    "Paper": {
+      "slint": "MbCard",
+      "mantine": "core/paper",
+      "uses": [
+        "Rectangle",
+        "VerticalLayout"
+      ],
+      "props": {
+        "withBorder": "with-border",
+        "p": "inner-padding",
+        "onClick": "clicked"
+      },
+      "gaps": {
+        "radius": "Carbon corners are 0 (tokens.ts radius)",
+        "shadow": "elevation comes from the kit's surface tokens"
+      }
+    },
+    "Card": {
+      "slint": "MbCard",
+      "mantine": "core/card",
+      "uses": [
+        "Rectangle",
+        "VerticalLayout",
+        "TouchArea"
+      ],
+      "props": {
+        "withBorder": "with-border",
+        "padding": "inner-padding",
+        "p": "inner-padding",
+        "pattern": "pattern",
+        "onClick": "clicked",
+        "bg": "background"
+      },
+      "gaps": {
+        "radius": "Carbon corners are 0 (tokens.ts radius)",
+        "shadow": "elevation comes from the kit's surface tokens",
+        "orientation": "horizontal cards are composed with a Group inside"
+      }
+    },
+    "Card.Section": {
+      "slint": "VerticalLayout",
+      "mantine": "core/card",
+      "props": {}
+    }
+  },
+  "text": {
+    "Text": {
+      "slint": "Text",
+      "mantine": "core/text",
+      "props": {
+        "size": "font-size"
+      },
+      "fixed": {
+        "wrap": "word-wrap"
+      },
+      "default": {
+        "font-size": "Tokens.font-md"
+      },
+      "values": {
+        "size": {
+          "xs": "Tokens.font-xs",
+          "sm": "Tokens.font-sm",
+          "md": "Tokens.font-md",
+          "lg": "Tokens.font-lg",
+          "xl": "Tokens.font-xl"
+        }
+      },
+      "gaps": {
+        "span": "inline runs inside text: Slint Text holds one string",
+        "inherit": "Slint Text does not inherit font from its parent",
+        "inline": "Slint Text has no inline line-height mode",
+        "gradient": "text gradients are not in the design system"
+      }
+    },
+    "Title": {
+      "slint": "Text",
+      "mantine": "core/title",
+      "props": {
+        "order": "font-size",
+        "size": "font-size"
+      },
+      "fixed": {
+        "wrap": "word-wrap"
+      },
+      "values": {
+        "order": {
+          "1": "Tokens.heading-1-size",
+          "2": "Tokens.heading-2-size",
+          "3": "Tokens.heading-3-size",
+          "4": "Tokens.heading-4-size",
+          "5": "Tokens.heading-5-size",
+          "6": "Tokens.heading-6-size"
+        },
+        "size": {
+          "h1": "Tokens.heading-1-size",
+          "h2": "Tokens.heading-2-size",
+          "h3": "Tokens.heading-3-size",
+          "h4": "Tokens.heading-4-size",
+          "h5": "Tokens.heading-5-size",
+          "h6": "Tokens.heading-6-size",
+          "xs": "Tokens.font-xs",
+          "sm": "Tokens.font-sm",
+          "md": "Tokens.font-md",
+          "lg": "Tokens.font-lg",
+          "xl": "Tokens.font-xl"
+        }
+      },
+      "headingWeight": true
+    },
+    "Anchor": {
+      "slint": "MbLink",
+      "mantine": "core/anchor",
+      "uses": [
+        "Text",
+        "TouchArea"
+      ],
+      "props": {
+        "href": "url",
+        "to": "url",
+        "onClick": "clicked",
+        "size": "font-size"
+      },
+      "text": "text",
+      "values": {
+        "size": {
+          "xs": "Tokens.font-xs",
+          "sm": "Tokens.font-sm",
+          "md": "Tokens.font-md",
+          "lg": "Tokens.font-lg",
+          "xl": "Tokens.font-xl"
+        }
+      },
+      "gaps": {
+        "target": "new browser tabs are web-only; the view model opens links",
+        "rel": "link relations are web-only",
+        "underline": "Slint 1.18 Text has no underline",
+        "download": "downloads move to the Rust view model"
+      }
+    },
+    "Code": {
+      "slint": "Text",
+      "mantine": "core/code",
+      "props": {},
+      "fixed": {
+        "font-family": "Metrics.mono",
+        "font-size": "Tokens.font-xs",
+        "wrap": "word-wrap"
+      },
+      "gaps": {
+        "block": "block code is the same Text with wrapping",
+        "color": "code colour is the text token"
+      }
+    },
+    "Kbd": {
+      "slint": "Text",
+      "mantine": "core/kbd",
+      "props": {},
+      "fixed": {
+        "font-family": "Metrics.mono",
+        "font-size": "Tokens.font-xs"
+      }
+    },
+    "Highlight": {
+      "slint": "Text",
+      "mantine": "core/highlight",
+      "props": {},
+      "fixed": {
+        "wrap": "word-wrap"
+      },
+      "gaps": {
+        "highlight": "marked substrings need StyledText; the plain text is shown"
+      }
+    },
+    "Mark": {
+      "slint": "Text",
+      "mantine": "core/mark",
+      "props": {}
+    },
+    "Blockquote": {
+      "slint": "Text",
+      "mantine": "core/blockquote",
+      "props": {},
+      "fixed": {
+        "wrap": "word-wrap"
+      },
+      "gaps": {
+        "cite": "citations are shown as part of the text by the screen",
+        "icon": "decorative icon"
+      }
+    },
+    "VisuallyHidden": {
+      "slint": "Text",
+      "mantine": "core/visually-hidden",
+      "props": {},
+      "fixed": {
+        "visible": "false"
+      }
+    },
+    "List": {
+      "slint": "VerticalLayout",
+      "mantine": "core/list",
+      "props": {
+        "spacing": "spacing"
+      },
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      },
+      "gaps": {
+        "type": "list markers are drawn by List.Item",
+        "listStyleType": "list markers are drawn by List.Item",
+        "icon": "custom bullets"
+      }
+    },
+    "List.Item": {
+      "slint": "MbListItem",
+      "mantine": "core/list",
+      "uses": [
+        "HorizontalLayout",
+        "Text"
+      ],
+      "props": {},
+      "gaps": {
+        "icon": "custom bullets"
+      }
+    }
+  },
+  "input": {
+    "Button": {
+      "slint": "MbButton",
+      "mantine": "core/button",
+      "uses": [
+        "Rectangle",
+        "Text",
+        "Image",
+        "TouchArea",
+        "FocusScope"
+      ],
+      "props": {
+        "tone": "tone",
+        "variant": "variant",
+        "color": "tone",
+        "size": "size",
+        "onClick": "clicked",
+        "disabled": "enabled!",
+        "loading": "busy",
+        "leftSection": "icon",
+        "rightSection": "trailing-icon",
+        "fullWidth": "full-width",
+        "aria-label": "accessible-label"
+      },
+      "text": "text",
+      "gaps": {
+        "type": "submit and reset are form semantics: the view model handles clicked",
+        "href": "links open from the view model",
+        "target": "new tabs are web-only",
+        "justify": "the label is centred as Carbon buttons are",
+        "gradient": "gradients are not in the design system",
+        "radius": "Carbon corners are 0 (tokens.ts radius)"
+      }
+    },
+    "IconButton": {
+      "slint": "MbIconButton",
+      "mantine": "core/action-icon",
+      "uses": [
+        "Rectangle",
+        "Image",
+        "TouchArea",
+        "FocusScope"
+      ],
+      "props": {
+        "aria-label": "accessible-label",
+        "onClick": "clicked",
+        "tone": "tone",
+        "size": "size",
+        "disabled": "enabled!",
+        "loading": "busy"
+      },
+      "iconChild": "icon"
+    },
+    "ActionIcon": {
+      "slint": "MbIconButton",
+      "mantine": "core/action-icon",
+      "uses": [
+        "Rectangle",
+        "Image",
+        "TouchArea",
+        "FocusScope"
+      ],
+      "props": {
+        "aria-label": "accessible-label",
+        "onClick": "clicked",
+        "variant": "variant",
+        "color": "tone",
+        "size": "size",
+        "disabled": "enabled!",
+        "loading": "busy"
+      },
+      "iconChild": "icon"
+    },
+    "CloseButton": {
+      "slint": "MbIconButton",
+      "mantine": "core/close-button",
+      "props": {
+        "onClick": "clicked",
+        "aria-label": "accessible-label",
+        "size": "size"
+      },
+      "fixed": {
+        "icon": "@image-url(\"@medbrains-gui-kit/icons/x.svg\")"
+      }
+    },
+    "UnstyledButton": {
+      "slint": "MbPressable",
+      "mantine": "core/unstyled-button",
+      "uses": [
+        "TouchArea",
+        "FocusScope"
+      ],
+      "props": {
+        "onClick": "clicked",
+        "aria-label": "accessible-label",
+        "disabled": "enabled!"
+      }
+    },
+    "TextInput": {
+      "slint": "MbTextInput",
+      "mantine": "core/text-input",
+      "uses": [
+        "TextInput",
+        "Text",
+        "Image",
+        "Rectangle"
+      ],
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "defaultValue": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "readOnly": "read-only",
+        "size": "size",
+        "leftSection": "icon",
+        "rightSection": "trailing-icon",
+        "type": "input-type",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "variant": "Carbon fields have one look",
+        "radius": "Carbon corners are 0 (tokens.ts radius)"
+      }
+    },
+    "Input": {
+      "slint": "MbTextInput",
+      "mantine": "core/input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "readOnly": "read-only",
+        "size": "size",
+        "leftSection": "icon",
+        "rightSection": "trailing-icon",
+        "type": "input-type",
+        "required": "required",
+        "withAsterisk": "required"
+      }
+    },
+    "InputBase": {
+      "slint": "MbTextInput",
+      "mantine": "core/input",
+      "props": {
+        "label": "label",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "size": "size",
+        "leftSection": "icon"
+      }
+    },
+    "PasswordInput": {
+      "slint": "MbTextInput",
+      "mantine": "core/password-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "size": "size",
+        "leftSection": "icon",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "fixed": {
+        "input-type": "password"
+      },
+      "gaps": {
+        "visibilityToggleButtonProps": "the kit's field shows no reveal button yet"
+      }
+    },
+    "PasswordField": {
+      "slint": "MbTextInput",
+      "mantine": "core/password-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "size": "size",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "fixed": {
+        "input-type": "password"
+      }
+    },
+    "NumberInput": {
+      "slint": "MbNumberInput",
+      "mantine": "core/number-input",
+      "uses": [
+        "TextInput",
+        "Text",
+        "Rectangle",
+        "TouchArea"
+      ],
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "value",
+        "onChange": "edited",
+        "min": "minimum",
+        "max": "maximum",
+        "step": "step",
+        "decimalScale": "decimals",
+        "prefix": "prefix",
+        "suffix": "suffix",
+        "disabled": "enabled!",
+        "readOnly": "read-only",
+        "size": "size",
+        "hideControls": "hide-controls",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "allowDecimal": "decimals sets the precision",
+        "allowNegative": "minimum sets the lower bound",
+        "thousandSeparator": "number formatting moves to the view model",
+        "clampBehavior": "values are clamped to minimum and maximum on edit",
+        "fixedDecimalScale": "decimals sets the precision"
+      }
+    },
+    "NumberField": {
+      "slint": "MbNumberInput",
+      "mantine": "core/number-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "value",
+        "onChange": "edited",
+        "min": "minimum",
+        "max": "maximum",
+        "step": "step",
+        "decimalScale": "decimals",
+        "prefix": "prefix",
+        "suffix": "suffix",
+        "disabled": "enabled!",
+        "readOnly": "read-only",
+        "size": "size",
+        "hideControls": "hide-controls",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "allowDecimal": "decimals sets the precision",
+        "allowNegative": "minimum sets the lower bound",
+        "clampBehavior": "values are clamped to minimum and maximum on edit"
+      }
+    },
+    "Textarea": {
+      "slint": "MbTextArea",
+      "mantine": "core/textarea",
+      "uses": [
+        "TextInput",
+        "Text",
+        "Rectangle"
+      ],
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "minRows": "min-rows",
+        "maxRows": "max-rows",
+        "rows": "min-rows",
+        "disabled": "enabled!",
+        "readOnly": "read-only",
+        "size": "size",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "autosize": "the field grows with its text between min-rows and max-rows"
+      }
+    },
+    "TextArea": {
+      "slint": "MbTextArea",
+      "mantine": "core/textarea",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "minRows": "min-rows",
+        "maxRows": "max-rows",
+        "disabled": "enabled!",
+        "readOnly": "read-only",
+        "size": "size",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "autosize": "the field grows with its text between min-rows and max-rows"
+      }
+    },
+    "JsonInput": {
+      "slint": "MbTextArea",
+      "mantine": "core/json-input",
+      "props": {
+        "label": "label",
+        "value": "text",
+        "onChange": "edited",
+        "minRows": "min-rows",
+        "maxRows": "max-rows"
+      },
+      "fixed": {
+        "monospace": "true"
+      },
+      "gaps": {
+        "formatOnBlur": "JSON formatting moves to the view model",
+        "autosize": "the field grows with its text"
+      }
+    },
+    "Select": {
+      "slint": "MbSelect",
+      "mantine": "core/select",
+      "uses": [
+        "ComboBox",
+        "Text"
+      ],
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "data": "model",
+        "value": "current-value",
+        "onChange": "selected",
+        "disabled": "enabled!",
+        "size": "size",
+        "clearable": "clearable",
+        "searchable": "searchable",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "nothingFoundMessage": "search results move to the view model",
+        "allowDeselect": "clearable decides deselection",
+        "comboboxProps": "dropdown placement follows Slint ComboBox",
+        "maxDropdownHeight": "the popup height follows Slint ComboBox",
+        "checkIconPosition": "Slint ComboBox marks the current item",
+        "filter": "search filtering moves to the view model",
+        "searchValue": "search text moves to the view model",
+        "onSearchChange": "search text moves to the view model",
+        "renderOption": "option rendering is the kit's",
+        "limit": "the model passed in is already limited"
+      }
+    },
+    "MantineSelect": {
+      "slint": "MbSelect",
+      "mantine": "core/select",
+      "props": {
+        "label": "label",
+        "data": "model",
+        "value": "current-value",
+        "onChange": "selected"
+      }
+    },
+    "MultiSelect": {
+      "slint": "MbMultiSelect",
+      "mantine": "core/multi-select",
+      "uses": [
+        "ComboBox",
+        "Text",
+        "Rectangle"
+      ],
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "data": "model",
+        "value": "selected-values",
+        "onChange": "changed",
+        "disabled": "enabled!",
+        "size": "size",
+        "clearable": "clearable",
+        "searchable": "searchable",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "nothingFoundMessage": "search results move to the view model",
+        "maxDropdownHeight": "the popup height follows the kit",
+        "checkIconPosition": "the kit marks chosen items"
+      }
+    },
+    "TagsInput": {
+      "slint": "MbMultiSelect",
+      "mantine": "core/tags-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "data": "model",
+        "value": "selected-values",
+        "onChange": "changed",
+        "clearable": "clearable"
+      },
+      "gaps": {
+        "maxTags": "tag limits move to the view model",
+        "splitChars": "tag parsing moves to the view model",
+        "acceptValueOnBlur": "tag parsing moves to the view model"
+      }
+    },
+    "Autocomplete": {
+      "slint": "MbTextInput",
+      "mantine": "core/autocomplete",
+      "props": {
+        "label": "label",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "size": "size"
+      },
+      "gaps": {
+        "data": "suggestions move to the view model",
+        "limit": "suggestions move to the view model",
+        "comboboxProps": "suggestion popup is the view model's"
+      }
+    },
+    "Combobox": {
+      "slint": "_passthrough",
+      "mantine": "core/combobox",
+      "props": {},
+      "rust": "combobox"
+    },
+    "Checkbox": {
+      "slint": "MbCheckbox",
+      "mantine": "core/checkbox",
+      "uses": [
+        "Rectangle",
+        "Text",
+        "Image",
+        "TouchArea",
+        "FocusScope"
+      ],
+      "props": {
+        "label": "text",
+        "description": "description",
+        "error": "error",
+        "checked": "checked",
+        "onChange": "toggled",
+        "disabled": "enabled!",
+        "indeterminate": "indeterminate",
+        "size": "size"
+      },
+      "gaps": {
+        "value": "a checkbox group's value moves to the view model",
+        "readOnly": "read-only checkboxes are disabled ones",
+        "color": "the checked colour is the primary token"
+      }
+    },
+    "Checkbox.Group": {
+      "slint": "VerticalLayout",
+      "mantine": "core/checkbox",
+      "props": {},
+      "fixed": {
+        "spacing": "Tokens.space-xs"
+      }
+    },
+    "CheckboxGroup": {
+      "slint": "VerticalLayout",
+      "mantine": "core/checkbox",
+      "props": {},
+      "fixed": {
+        "spacing": "Tokens.space-xs"
+      }
+    },
+    "Switch": {
+      "slint": "MbSwitch",
+      "mantine": "core/switch",
+      "uses": [
+        "Rectangle",
+        "Text",
+        "TouchArea",
+        "FocusScope"
+      ],
+      "props": {
+        "label": "text",
+        "description": "description",
+        "error": "error",
+        "checked": "checked",
+        "onChange": "toggled",
+        "disabled": "enabled!",
+        "size": "size"
+      },
+      "gaps": {
+        "onLabel": "track labels are not in the Carbon toggle",
+        "offLabel": "track labels are not in the Carbon toggle",
+        "color": "the on colour is the primary token"
+      }
+    },
+    "Radio": {
+      "slint": "MbRadio",
+      "mantine": "core/radio",
+      "props": {
+        "label": "text",
+        "description": "description",
+        "value": "value",
+        "checked": "checked",
+        "onChange": "toggled",
+        "disabled": "enabled!"
+      }
+    },
+    "Radio.Group": {
+      "slint": "MbRadioGroup",
+      "mantine": "core/radio",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "value": "current-value",
+        "onChange": "selected"
+      }
+    },
+    "SegmentedControl": {
+      "slint": "MbSegmented",
+      "mantine": "core/segmented-control",
+      "uses": [
+        "Rectangle",
+        "Text",
+        "TouchArea"
+      ],
+      "props": {
+        "data": "model",
+        "value": "current-value",
+        "onChange": "selected",
+        "disabled": "enabled!",
+        "fullWidth": "full-width",
+        "size": "size"
+      }
+    },
+    "Slider": {
+      "slint": "Slider",
+      "mantine": "core/slider",
+      "props": {
+        "value": "value",
+        "min": "minimum",
+        "max": "maximum",
+        "step": "step",
+        "onChange": "changed",
+        "disabled": "enabled!"
+      },
+      "gaps": {
+        "marks": "tick marks are not drawn by Slint Slider",
+        "label": "the value bubble is not drawn by Slint Slider",
+        "color": "the track colour follows the Slint style"
+      }
+    },
+    "Chip": {
+      "slint": "MbChip",
+      "mantine": "core/chip",
+      "props": {
+        "checked": "checked",
+        "onChange": "toggled",
+        "disabled": "enabled!",
+        "value": "value"
+      },
+      "text": "text"
+    },
+    "Chip.Group": {
+      "slint": "FlexboxLayout",
+      "mantine": "core/chip",
+      "props": {},
+      "fixed": {
+        "spacing": "Tokens.space-xs"
+      },
+      "gaps": {
+        "multiple": "single or multiple selection moves to the view model"
+      }
+    },
+    "ChipGroup": {
+      "slint": "FlexboxLayout",
+      "mantine": "core/chip",
+      "props": {},
+      "fixed": {
+        "spacing": "Tokens.space-xs"
+      },
+      "gaps": {
+        "multiple": "single or multiple selection moves to the view model"
+      }
+    },
+    "FileInput": {
+      "slint": "MbFileInput",
+      "mantine": "core/file-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "onChange": "picked",
+        "leftSection": "icon",
+        "disabled": "enabled!"
+      },
+      "gaps": {
+        "accept": "file type filters go to the native file dialog in the view model",
+        "value": "the chosen file lives in the view model",
+        "clearable": "clearing moves to the view model"
+      },
+      "rust": "file"
+    },
+    "FileButton": {
+      "slint": "_passthrough",
+      "mantine": "core/file-button",
+      "props": {},
+      "rust": "file"
+    },
+    "ColorInput": {
+      "slint": "MbTextInput",
+      "mantine": "core/color-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "value": "text",
+        "onChange": "edited"
+      },
+      "gaps": {
+        "format": "colour formats move to the view model",
+        "swatches": "swatches are not in the kit"
+      }
+    },
+    "PinInput": {
+      "slint": "MbTextInput",
+      "mantine": "core/pin-input",
+      "props": {
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "Rating": {
+      "slint": "MbRating",
+      "mantine": "core/rating",
+      "props": {
+        "value": "value",
+        "onChange": "changed"
+      }
+    },
+    "DateInput": {
+      "slint": "MbDateInput",
+      "mantine": "dates/date-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "size": "size",
+        "leftSection": "icon",
+        "clearable": "clearable",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "valueFormat": "date formatting moves to the view model",
+        "minDate": "date bounds move to the view model",
+        "maxDate": "date bounds move to the view model",
+        "popoverProps": "the calendar popup is Slint's DatePickerPopup"
+      }
+    },
+    "DatePickerInput": {
+      "slint": "MbDateInput",
+      "mantine": "dates/date-picker-input",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "size": "size",
+        "leftSection": "icon",
+        "clearable": "clearable",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "gaps": {
+        "valueFormat": "date formatting moves to the view model",
+        "minDate": "date bounds move to the view model",
+        "maxDate": "date bounds move to the view model",
+        "type": "range selection moves to the view model"
+      }
+    },
+    "DateTimePicker": {
+      "slint": "MbDateInput",
+      "mantine": "dates/date-time-picker",
+      "props": {
+        "label": "label",
+        "description": "description",
+        "error": "error",
+        "placeholder": "placeholder-text",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!",
+        "leftSection": "icon",
+        "clearable": "clearable",
+        "required": "required",
+        "withAsterisk": "required"
+      },
+      "fixed": {
+        "with-time": "true"
+      },
+      "gaps": {
+        "minDate": "date bounds move to the view model",
+        "maxDate": "date bounds move to the view model"
+      }
+    },
+    "DatePicker": {
+      "slint": "MbDateInput",
+      "mantine": "dates/date-picker",
+      "props": {
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "MonthPicker": {
+      "slint": "MbDateInput",
+      "mantine": "dates/month-picker",
+      "props": {
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "YearPicker": {
+      "slint": "MbDateInput",
+      "mantine": "dates/year-picker",
+      "props": {
+        "value": "text",
+        "onChange": "edited"
+      }
+    },
+    "TimeInput": {
+      "slint": "MbTextInput",
+      "mantine": "dates/time-input",
+      "props": {
+        "label": "label",
+        "error": "error",
+        "value": "text",
+        "onChange": "edited",
+        "disabled": "enabled!"
+      },
+      "fixed": {
+        "placeholder-text": "\"HH:MM\""
+      }
+    }
+  },
+  "display": {
+    "Badge": {
+      "slint": "MbBadge",
+      "mantine": "core/badge",
+      "uses": [
+        "Rectangle",
+        "Text",
+        "Image"
+      ],
+      "props": {
+        "tone": "tone",
+        "color": "tone",
+        "variant": "variant",
+        "size": "size",
+        "leftSection": "icon"
+      },
+      "text": "text",
+      "gaps": {
+        "rightSection": "badges carry one icon, on the left",
+        "circle": "circular badges are not in the Carbon tag set",
+        "fullWidth": "tags take their text width",
+        "autoContrast": "tone tokens already pair a text colour with each fill",
+        "radius": "Carbon corners are 0 (tokens.ts radius)"
+      }
+    },
+    "MantineBadge": {
+      "slint": "MbBadge",
+      "mantine": "core/badge",
+      "props": {
+        "color": "tone",
+        "variant": "variant",
+        "size": "size"
+      },
+      "text": "text"
+    },
+    "Alert": {
+      "slint": "MbAlert",
+      "mantine": "core/alert",
+      "uses": [
+        "Rectangle",
+        "Text",
+        "Image"
+      ],
+      "props": {
+        "tone": "tone",
+        "color": "tone",
+        "title": "title",
+        "variant": "variant",
+        "icon": "icon",
+        "onClose": "closed",
+        "withCloseButton": "closable"
+      }
+    },
+    "Notification": {
+      "slint": "MbAlert",
+      "mantine": "core/notification",
+      "props": {
+        "title": "title",
+        "color": "tone",
+        "icon": "icon",
+        "onClose": "closed"
+      }
+    },
+    "ThemeIcon": {
+      "slint": "MbThemeIcon",
+      "mantine": "core/theme-icon",
+      "uses": [
+        "Rectangle",
+        "Image"
+      ],
+      "props": {
+        "tone": "tone",
+        "color": "tone",
+        "variant": "variant",
+        "size": "size"
+      },
+      "iconChild": "icon",
+      "values": {
+        "size": {
+          "xs": "16px",
+          "sm": "20px",
+          "md": "28px",
+          "lg": "34px",
+          "xl": "44px"
+        }
+      }
+    },
+    "Image": {
+      "slint": "Image",
+      "mantine": "core/image",
+      "props": {
+        "alt": "accessible-label",
+        "fit": "image-fit"
+      },
+      "fixed": {
+        "accessible-role": "image"
+      },
+      "gaps": {
+        "src": "image files are loaded by the view model (Slint @image-url needs a compile-time path)",
+        "loading": "Slint loads images itself",
+        "decoding": "Slint decodes images itself",
+        "fallbackSrc": "fallback images move to the view model"
+      }
+    },
+    "Avatar": {
+      "slint": "MbAvatar",
+      "mantine": "core/avatar",
+      "props": {
+        "name": "name",
+        "alt": "accessible-label",
+        "color": "tone",
+        "size": "size"
+      },
+      "gaps": {
+        "src": "photos are loaded by the view model"
+      }
+    },
+    "Loader": {
+      "slint": "Spinner",
+      "mantine": "core/loader",
+      "props": {},
+      "fixed": {
+        "indeterminate": "true"
+      },
+      "values": {
+        "size": {
+          "xs": "18px",
+          "sm": "22px",
+          "md": "36px",
+          "lg": "44px",
+          "xl": "58px"
+        }
+      },
+      "gaps": {
+        "size": "Spinner draws at its preferred size",
+        "type": "the loader shape follows the Slint style",
+        "color": "the loader colour follows the Slint style"
+      }
+    },
+    "Skeleton": {
+      "slint": "MbSkeleton",
+      "mantine": "core/skeleton",
+      "props": {
+        "height": "height",
+        "width": "width"
+      },
+      "gaps": {
+        "animate": "the kit's skeleton is static (reduced motion)",
+        "circle": "circular skeletons are not in the Carbon set"
+      }
+    },
+    "Progress": {
+      "slint": "MbProgress",
+      "mantine": "core/progress",
+      "props": {
+        "value": "value",
+        "color": "tone",
+        "size": "thickness"
+      },
+      "values": {
+        "size": {
+          "xs": "3px",
+          "sm": "5px",
+          "md": "8px",
+          "lg": "12px",
+          "xl": "16px"
+        }
+      },
+      "gaps": {
+        "striped": "stripes are not in the Carbon progress bar",
+        "animated": "animation follows reduced motion"
+      }
+    },
+    "RingProgress": {
+      "slint": "ProgressIndicator",
+      "mantine": "core/ring-progress",
+      "props": {},
+      "gaps": {
+        "sections": "ring sections move to the view model's progress value",
+        "label": "the label is shown beside the bar"
+      }
+    },
+    "SemiCircleProgress": {
+      "slint": "ProgressIndicator",
+      "mantine": "core/semi-circle-progress",
+      "props": {}
+    },
+    "Tooltip": {
+      "slint": "_passthrough",
+      "mantine": "core/tooltip",
+      "props": {},
+      "rust": "tooltip"
+    },
+    "Indicator": {
+      "slint": "_passthrough",
+      "mantine": "core/indicator",
+      "props": {}
+    },
+    "Popover": {
+      "slint": "_passthrough",
+      "mantine": "core/popover",
+      "props": {},
+      "rust": "popup"
+    },
+    "HoverCard": {
+      "slint": "_passthrough",
+      "mantine": "core/hover-card",
+      "props": {},
+      "rust": "popup"
+    },
+    "Menu": {
+      "slint": "_passthrough",
+      "mantine": "core/menu",
+      "props": {},
+      "rust": "menu"
+    },
+    "Collapse": {
+      "slint": "_passthrough",
+      "mantine": "core/collapse",
+      "props": {}
+    },
+    "Affix": {
+      "slint": "_passthrough",
+      "mantine": "core/affix",
+      "props": {}
+    },
+    "CopyButton": {
+      "slint": "_passthrough",
+      "mantine": "core/copy-button",
+      "props": {},
+      "rust": "clipboard"
+    },
+    "Spoiler": {
+      "slint": "_passthrough",
+      "mantine": "core/spoiler",
+      "props": {}
+    },
+    "LoadingOverlay": {
+      "slint": "_passthrough",
+      "mantine": "core/loading-overlay",
+      "props": {}
+    },
+    "Table": {
+      "slint": "StandardTableView",
+      "mantine": "core/table",
+      "props": {
+        "aria-label": "accessible-label"
+      },
+      "gaps": {
+        "striped": "row striping follows the Slint style",
+        "highlightOnHover": "row hover follows the Slint style",
+        "withTableBorder": "the table border follows the Slint style",
+        "withColumnBorders": "column borders follow the Slint style",
+        "withRowBorders": "row borders follow the Slint style",
+        "verticalSpacing": "row height follows the Slint style",
+        "horizontalSpacing": "cell padding follows the Slint style",
+        "stickyHeader": "the header is always visible in StandardTableView",
+        "fz": "cell text size follows the Slint style",
+        "data": "rows come from the view model",
+        "captionSide": "captions are not part of StandardTableView"
+      }
+    },
+    "DataTable": {
+      "slint": "StandardTableView",
+      "mantine": "core/table",
+      "props": {},
+      "gaps": {
+        "records": "rows come from the view model",
+        "columns": "columns are written from the header cells"
+      }
+    },
+    "Tabs": {
+      "slint": "VerticalLayout",
+      "mantine": "core/tabs",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      },
+      "gaps": {
+        "keepMounted": "Slint `if` mounts only the selected panel",
+        "variant": "Carbon line tabs",
+        "orientation": "vertical tabs are not in the kit",
+        "radius": "Carbon corners are 0 (tokens.ts radius)"
+      },
+      "handled": {
+        "value": "a state value: tabs switch reactively",
+        "onChange": "a state setter: tabs switch reactively"
+      }
+    },
+    "Tabs.List": {
+      "slint": "HorizontalLayout",
+      "mantine": "core/tabs",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      },
+      "gaps": {
+        "grow": "tabs take their text width"
+      }
+    },
+    "Tabs.Tab": {
+      "slint": "MbTab",
+      "mantine": "core/tabs",
+      "props": {
+        "leftSection": "icon",
+        "disabled": "enabled!"
+      },
+      "text": "text",
+      "handled": {
+        "value": "selects the tab state on click"
+      }
+    },
+    "Tabs.Panel": {
+      "slint": "VerticalLayout",
+      "mantine": "core/tabs",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      },
+      "handled": {
+        "value": "the panel shows when the tab state equals its value",
+        "pt": "padding-top inside the panel"
+      }
+    },
+    "Modal": {
+      "slint": "MbModal",
+      "mantine": "core/modal",
+      "uses": [
+        "PopupWindow",
+        "Rectangle",
+        "Text"
+      ],
+      "props": {
+        "opened": "open",
+        "onClose": "closed",
+        "title": "title",
+        "fullScreen": "full-screen",
+        "size": "size"
+      },
+      "gaps": {
+        "centered": "the dialog is centred in the window",
+        "closeButtonProps": "the close button is the kit's",
+        "overlayProps": "the overlay is the kit's scrim token",
+        "padding": "dialog padding is the kit's",
+        "keepMounted": "the dialog content is mounted while open",
+        "zIndex": "Slint popups stack in order",
+        "withCloseButton": "the kit always shows a close button",
+        "onTransitionEnd": "motion events move to the view model",
+        "primaryAction": "the action row is written by the screen",
+        "secondaryAction": "the action row is written by the screen",
+        "danger": "the action tone is written by the screen"
+      },
+      "mountWhen": "opened"
+    },
+    "Drawer": {
+      "slint": "MbModal",
+      "mantine": "core/drawer",
+      "props": {
+        "opened": "open",
+        "onClose": "closed",
+        "title": "title"
+      },
+      "fixed": {
+        "full-screen": "true"
+      },
+      "mountWhen": "opened"
+    },
+    "Breadcrumbs": {
+      "slint": "MbBreadcrumb",
+      "mantine": "core/breadcrumbs",
+      "props": {}
+    },
+    "Breadcrumb": {
+      "slint": "MbBreadcrumb",
+      "mantine": "core/breadcrumbs",
+      "props": {
+        "items": "model"
+      }
+    },
+    "NavLink": {
+      "slint": "MbNavLink",
+      "mantine": "core/nav-link",
+      "props": {
+        "label": "text",
+        "onClick": "clicked",
+        "active": "active",
+        "leftSection": "icon",
+        "description": "description"
+      },
+      "gaps": {
+        "to": "routes are view-model state",
+        "opened": "nested links open from the view model"
+      }
+    },
+    "Pagination": {
+      "slint": "MbPagination",
+      "mantine": "core/pagination",
+      "props": {
+        "total": "total",
+        "value": "page",
+        "onChange": "changed"
+      }
+    },
+    "Stepper": {
+      "slint": "MbStepper",
+      "mantine": "core/stepper",
+      "props": {
+        "active": "current-index"
+      },
+      "gaps": {
+        "onStepClick": "step navigation moves to the view model",
+        "allowNextStepsSelect": "step navigation moves to the view model",
+        "orientation": "vertical steppers are not in the kit"
+      }
+    },
+    "Stepper.Step": {
+      "slint": "MbStep",
+      "mantine": "core/stepper",
+      "props": {
+        "label": "text",
+        "description": "description"
+      }
+    },
+    "Stepper.Completed": {
+      "slint": "VerticalLayout",
+      "mantine": "core/stepper",
+      "props": {}
+    },
+    "Timeline": {
+      "slint": "VerticalLayout",
+      "mantine": "core/timeline",
+      "props": {},
+      "fixed": {
+        "spacing": "Tokens.space-md",
+        "alignment": "LayoutAlignment.start"
+      },
+      "gaps": {
+        "active": "the active item is drawn by the screen",
+        "bulletSize": "bullets are the kit's",
+        "lineWidth": "the line is the kit's"
+      }
+    },
+    "Timeline.Item": {
+      "slint": "MbTimelineItem",
+      "mantine": "core/timeline",
+      "props": {
+        "title": "title"
+      },
+      "gaps": {
+        "bullet": "bullets are the kit's"
+      }
+    },
+    "Accordion": {
+      "slint": "VerticalLayout",
+      "mantine": "core/accordion",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      },
+      "gaps": {
+        "multiple": "open items move to the view model",
+        "variant": "Carbon accordion look"
+      }
+    },
+    "Accordion.Item": {
+      "slint": "VerticalLayout",
+      "mantine": "core/accordion",
+      "props": {}
+    },
+    "Accordion.Control": {
+      "slint": "MbAccordionControl",
+      "mantine": "core/accordion",
+      "props": {
+        "icon": "icon"
+      },
+      "text": "text"
+    },
+    "Accordion.Panel": {
+      "slint": "VerticalLayout",
+      "mantine": "core/accordion",
+      "props": {}
+    },
+    "Crab": {
+      "slint": "MbCrab",
+      "props": {
+        "variant": "variant",
+        "size": "size"
+      }
+    },
+    "SignatureHero": {
+      "slint": "MbHero",
+      "props": {
+        "title": "title"
+      }
+    },
+    "PageHeader": {
+      "slint": "MbPageHeader",
+      "props": {
+        "title": "title",
+        "subtitle": "subtitle",
+        "description": "description"
+      },
+      "gaps": {
+        "icon": "the module badge comes from the route (Shell global), as matchModuleBadge does on the web",
+        "color": "the module colour comes from the route",
+        "actions": "actions are written by the screen next to the header"
+      },
+      "own": true
+    },
+    "Panel": {
+      "slint": "MbPanel",
+      "props": {
+        "title": "title",
+        "description": "description"
+      },
+      "gaps": {
+        "actions": "actions are written by the screen",
+        "bare": "panels always draw their surface"
+      }
+    },
+    "ModuleBadge": {
+      "slint": "MbModuleBadge",
+      "props": {
+        "abbr": "abbr",
+        "size": "size"
+      },
+      "gaps": {
+        "color": "module colours come from navigation.ts, passed by the shell"
+      }
+    },
+    "QRCodeSVG": {
+      "slint": "MbQrCode",
+      "props": {
+        "value": "value"
+      }
+    },
+    "BarChart": {
+      "slint": "MbChart",
+      "mantine": "charts/bar-chart",
+      "props": {},
+      "fixed": {
+        "kind": "\"bar\""
+      },
+      "rust": "chart"
+    },
+    "LineChart": {
+      "slint": "MbChart",
+      "mantine": "charts/line-chart",
+      "props": {},
+      "fixed": {
+        "kind": "\"line\""
+      },
+      "rust": "chart"
+    },
+    "AreaChart": {
+      "slint": "MbChart",
+      "mantine": "charts/area-chart",
+      "props": {},
+      "fixed": {
+        "kind": "\"area\""
+      },
+      "rust": "chart"
+    },
+    "DonutChart": {
+      "slint": "MbChart",
+      "mantine": "charts/donut-chart",
+      "props": {},
+      "fixed": {
+        "kind": "\"donut\""
+      },
+      "rust": "chart"
+    },
+    "PieChart": {
+      "slint": "MbChart",
+      "mantine": "charts/pie-chart",
+      "props": {},
+      "fixed": {
+        "kind": "\"pie\""
+      },
+      "rust": "chart"
+    },
+    "Sparkline": {
+      "slint": "MbChart",
+      "mantine": "charts/sparkline",
+      "props": {},
+      "fixed": {
+        "kind": "\"sparkline\""
+      },
+      "rust": "chart"
+    },
+    "MantineRichTextEditor": {
+      "slint": "MbTextArea",
+      "mantine": "x/tiptap",
+      "props": {},
+      "rust": "rich-text"
+    },
+    "RichTextEditor": {
+      "slint": "MbTextArea",
+      "mantine": "x/tiptap",
+      "props": {
+        "value": "text",
+        "onChange": "edited"
+      },
+      "rust": "rich-text"
+    },
+    "Markdown": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "wrap": "word-wrap"
+      }
+    },
+    "MantineButton": {
+      "slint": "MbButton",
+      "mantine": "core/button",
+      "props": {
+        "onClick": "clicked",
+        "variant": "variant",
+        "color": "tone"
+      },
+      "text": "text"
+    },
+    "Link": {
+      "slint": "MbLink",
+      "props": {
+        "onClick": "clicked"
+      },
+      "text": "text",
+      "gaps": {
+        "to": "routes are view-model state: the shell's route property"
+      }
+    },
+    "DndContext": {
+      "slint": "_passthrough",
+      "props": {},
+      "rust": "drag-drop"
+    },
+    "SortableContext": {
+      "slint": "_passthrough",
+      "props": {},
+      "rust": "drag-drop"
+    },
+    "DragOverlay": {
+      "slint": "_passthrough",
+      "props": {},
+      "rust": "drag-drop"
+    },
+    "Icon": {
+      "slint": "MbIcon",
+      "props": {}
+    }
+  },
+  "html": {
+    "div": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "section": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "form": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "span": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "wrap": "word-wrap"
+      }
+    },
+    "p": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "wrap": "word-wrap"
+      }
+    },
+    "b": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "strong": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-weight": "700"
+      }
+    },
+    "em": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-italic": "true"
+      }
+    },
+    "small": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-size": "Tokens.font-xs"
+      }
+    },
+    "ul": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "ol": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "li": {
+      "slint": "HorizontalLayout",
+      "props": {}
+    },
+    "a": {
+      "slint": "MbLink",
+      "props": {
+        "href": "url",
+        "onClick": "clicked"
+      },
+      "text": "text"
+    },
+    "img": {
+      "slint": "Image",
+      "props": {
+        "alt": "accessible-label"
+      },
+      "fixed": {
+        "accessible-role": "image"
+      }
+    },
+    "table": {
+      "slint": "StandardTableView",
+      "props": {}
+    },
+    "thead": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "tbody": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "tr": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "td": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "th": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "input": {
+      "slint": "MbTextInput",
+      "props": {
+        "value": "text",
+        "placeholder": "placeholder-text",
+        "onChange": "edited"
+      }
+    },
+    "button": {
+      "slint": "MbButton",
+      "props": {
+        "onClick": "clicked",
+        "disabled": "enabled!",
+        "aria-label": "accessible-label"
+      },
+      "text": "text"
+    },
+    "label": {
+      "slint": "Text",
+      "props": {}
+    },
+    "h1": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-size": "Tokens.heading-1-size",
+        "font-weight": "Tokens.heading-1-weight",
+        "wrap": "word-wrap"
+      }
+    },
+    "h2": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-size": "Tokens.heading-2-size",
+        "font-weight": "Tokens.heading-2-weight",
+        "wrap": "word-wrap"
+      }
+    },
+    "h3": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-size": "Tokens.heading-3-size",
+        "font-weight": "Tokens.heading-3-weight",
+        "wrap": "word-wrap"
+      }
+    },
+    "h4": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-size": "Tokens.heading-4-size",
+        "font-weight": "Tokens.heading-4-weight",
+        "wrap": "word-wrap"
+      }
+    },
+    "header": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "footer": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "nav": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "main": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "aside": {
+      "slint": "VerticalLayout",
+      "props": {},
+      "fixed": {
+        "alignment": "LayoutAlignment.start"
+      }
+    },
+    "pre": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-family": "Metrics.mono"
+      }
+    },
+    "code": {
+      "slint": "Text",
+      "props": {},
+      "fixed": {
+        "font-family": "Metrics.mono"
+      }
+    },
+    "hr": {
+      "slint": "MbDivider",
+      "props": {}
+    },
+    "svg": {
+      "slint": "_passthrough",
+      "props": {}
+    },
+    "path": {
+      "slint": "_passthrough",
+      "props": {}
+    }
+  },
+  "rust": {
+    "_doc": "Calls that move into the Rust view model: each is marked `// rust: <kind>` in the generated file and counted in the report.",
+    "useQuery|useSuspenseQuery|useInfiniteQuery|useQueries": "query",
+    "useMutation|useQueryClient": "mutation",
+    "fetch|axios\\.\\w+|api\\.\\w+": "fetch",
+    "useRef": "ref",
+    "useContext": "context",
+    "useMemo|useCallback": "derived",
+    "useForm|useFormContext|useFieldArray|useWatch": "form",
+    "useNavigate|useParams|useLocation|useSearchParams|navigate": "route",
+    "localStorage\\.\\w+|sessionStorage\\.\\w+": "storage",
+    "navigator\\.clipboard\\.\\w+|document\\.execCommand": "clipboard",
+    "window\\.print|print": "print",
+    "window\\.open|URL\\.createObjectURL": "download",
+    "\\w+\\.addEventListener|window\\.addEventListener|document\\.addEventListener": "event",
+    "window\\.matchMedia|useMediaQuery|useViewportSize": "media",
+    "useHotkeys|useHotkey": "shortcut",
+    "notifications\\.show|toast|toast\\.\\w+|showNotification": "notification",
+    "requestAnimationFrame": "animation",
+    "useReducedMotion": "media"
+  },
+  "dropped": [
+    "AppErrorBoundaryInner",
+    "BrowserRouter",
+    "ErrorBoundary",
+    "Fragment",
+    "Navigate",
+    "Outlet",
+    "Portal",
+    "ReactFlowProvider",
+    "Route",
+    "Routes",
+    "SpotlightRoot",
+    "Suspense",
+    "Trans",
+    "Transition",
+    "br",
+    "FocusTrap",
+    "MantineProvider",
+    "DirectionProvider",
+    "ModalsProvider",
+    "Notifications"
+  ],
+  "webOnly": [
+    "Handle",
+    "ReactFlow",
+    "Background",
+    "Controls",
+    "MiniMap"
+  ]
+}

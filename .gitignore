@@ -53,3 +53,8 @@ AGENTS.md
 .claude/
 .mcp.json
 .cocoindex_code/
+
+# Turborepo cache, anywhere in the tree
+.turbo/
+# Dependencies, anywhere in the tree
+node_modules/
