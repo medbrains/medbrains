@@ -10,7 +10,39 @@ GitHub release notes, so write each section for a hospital IT team.
 
 ## [Unreleased]
 
-## [3.33.1] - 2026-11-14
+## [3.33.2] - 2026-11-14
+
+**This release contains everything in 3.33.1, plus the fixes below.** 3.33.1 was
+tagged but never published: its desktop builds failed, so it was replaced by this
+release rather than re-tagged. If you are updating from 3.33.0, also read the
+[3.33.1 notes](https://github.com/medbrains/medbrains/blob/v3.33.2/CHANGELOG.md). They include a backup-key step that installs set up with a kit
+older than 3.33.1 must do.
+
+### Fixed
+- **The desktop apps build again.** The desktop notification plugin's Rust and
+  JavaScript parts had drifted to different versions, and the build refuses that.
+  They now match (#5677).
+- **The eye exam form checks the axis and cylinder together.** An axis without a
+  cylinder, or a cylinder without an axis, is now marked on the form before saving,
+  instead of being refused by the server after the doctor pressed Save (#5663).
+
+### Added
+- **Documentation home page.** docs.medbrains.in now opens on a page that starts
+  from your role (front office, doctor, nurse, pharmacy, lab, billing, hospital IT,
+  developer), with common tasks and every chapter one click away (#5675).
+- **Public test report** at [tests.medbrains.in](https://tests.medbrains.in), with a
+  live test-count badge in the README (#5681).
+- **Propose a test scenario without writing code.** A new issue form lets anyone,
+  clinicians included, describe a hospital situation MedBrains must handle (#5665).
+- **Acknowledgements.** `ACKNOWLEDGEMENTS.md` thanks the open-source projects
+  MedBrains is built on and the standards and ideas that shaped it (#5666).
+
+### Changed
+- The docs site footer names the GNU AGPL-3.0 licence (it still said Apache 2.0) (#5679).
+- The docs, website and test report link to each other, and the README shows the
+  error-tracking badge (#5667, #5664).
+
+## [3.33.1] - 2026-11-14 (tagged, not released; replaced by 3.33.2)
 
 A security update to 3.33.0, released early under the 7-day rule for high-severity
 fixes in [`SECURITY-RELEASE-PROCESS.md`](https://github.com/medbrains/medbrains/blob/v3.33.1/medbrains/docs/SECURITY-RELEASE-PROCESS.md).
