@@ -28,6 +28,7 @@ overrides:
   uuid@<11.1.1: 11.1.1
   stream-json@<3.7.0: 3.7.0
   deepmerge@>=4.2.0 <=4.3.1: 4.1.1
+  dompurify@<3.4.17: 3.4.17
 
 importers:
 
@@ -955,9 +956,6 @@ importers:
       allure-playwright:
         specifier: 3.14.0
         version: 3.14.0(@playwright/test@1.64.1)
-      allure-vitest:
-        specifier: 3.14.0
-        version: 3.14.0(@vitest/runner@4.1.12)(allure-playwright@3.14.0(@playwright/test@1.64.1))(vitest@5.0.5)
       axe-core:
         specifier: 4.11.4
         version: 4.11.4
@@ -6803,12 +6801,6 @@ packages:
     peerDependencies:
       '@playwright/test': '>=1.62.0'
 
-  allure-vitest@3.14.0:
-    resolution: {integrity: sha512-Lb1ongcInedW0sDMOm4gGAx6vOqJaVX2no2QK6hEfRvn5X0pb1M0gBwo5h0Wfmzh8eOMggG9iElAE5Mk1FLStg==}
-    peerDependencies:
-      '@vitest/runner': '>=1.3.0'
-      vitest: '>=1.3.0'
-
   allure@3.22.1:
     resolution: {integrity: sha512-Ovi6E9Th9XdnCVSCOPO/cPCeU2uAj3qc33gnqO2cUzit3hEDFqnQJDPyRJYgsc1eWaqumE4MJsQuwyyfjCk5YA==}
     hasBin: true
@@ -8155,8 +8147,8 @@ packages:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
     engines: {node: '>= 4'}
 
-  dompurify@3.4.16:
-    resolution: {integrity: sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ==}
+  dompurify@3.4.17:
+    resolution: {integrity: sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==}
 
   domutils@2.8.0:
     resolution: {integrity: sha512-w96Cjofp72M5IIhpjgobBimYEfoPjx1Vx0BSX9P30WBdZW2WIKU0T1Bd0kz2eNZ9ikjKgHbEyKx8BB6H1L3h3A==}
@@ -14715,7 +14707,7 @@ snapshots:
       d3-interpolate: 3.0.1
       d3-scale: 4.0.2
       d3-shape: 3.2.0
-      dompurify: 3.4.16
+      dompurify: 3.4.17
       nanoid: 5.1.16
     transitivePeerDependencies:
       - bare-abort-controller
@@ -21275,7 +21267,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@22.20.5)(typescript@7.0.2))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4))
+      vitest: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@24.19.2)(typescript@5.9.3))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4))
     optional: true
 
   '@vitest/coverage-v8@5.0.5(vitest@5.0.5)':
@@ -21649,14 +21641,6 @@ snapshots:
     dependencies:
       '@playwright/test': 1.64.1
       allure-js-commons: 3.14.0(allure-playwright@3.14.0(@playwright/test@1.64.1))
-
-  allure-vitest@3.14.0(@vitest/runner@4.1.12)(allure-playwright@3.14.0(@playwright/test@1.64.1))(vitest@5.0.5):
-    dependencies:
-      '@vitest/runner': 4.1.12
-      allure-js-commons: 3.14.0(allure-playwright@3.14.0(@playwright/test@1.64.1))
-      vitest: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@24.19.2)(typescript@7.0.2))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.106.1)(sass@1.106.1)(sugarss@5.0.2(postcss@8.5.31))(terser@5.51.2)(yaml@2.8.4))
-    transitivePeerDependencies:
-      - allure-playwright
 
   allure@3.22.1(preact@10.29.8):
     dependencies:
@@ -23250,7 +23234,7 @@ snapshots:
     dependencies:
       domelementtype: 2.3.0
 
-  dompurify@3.4.16:
+  dompurify@3.4.17:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
