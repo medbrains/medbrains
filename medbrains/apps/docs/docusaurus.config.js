@@ -57,6 +57,7 @@ module.exports = {
       logo: { alt: "MedBrains", src: "img/favicon.svg" },
       items: [
         { to: "/get-started/", label: "Get started", position: "left" },
+        { to: "/install/", label: "Install", position: "left" },
         { to: "/user-guides/", label: "User guides", position: "left" },
         { to: "/admin/", label: "Admin", position: "left" },
         { to: "/compliance/", label: "Compliance", position: "left" },

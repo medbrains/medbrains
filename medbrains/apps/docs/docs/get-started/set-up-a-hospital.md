@@ -7,7 +7,7 @@ description: "Set up a new hospital in MedBrains in about 30 minutes, from first
 # Set up a hospital in 30 minutes
 
 **Who:** the person setting up the hospital, usually IT or the administrator.
-**You need:** the MedBrains OS box (or a server already running MedBrains),
+**You need:** the MedBrains OS box, [installed](/install/os/) (or a server already running MedBrains),
 a network cable, and a phone with an authenticator app.
 
 ## 1. Start the box (10 minutes)
