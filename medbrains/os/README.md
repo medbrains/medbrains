@@ -83,7 +83,8 @@ on a small SD card or the EEPROM, with the image on NVMe:
 
 ```sh
 # from a Linux machine, with the NVMe in a USB enclosure; check the device name first
-sudo dd if=medbrains-os_<commit>.raw of=/dev/sdX bs=4M conv=fsync status=progress
+zstd -d medbrains-os-<ver>-arm64.raw.zst   # a release file; a local build is medbrains-os_<commit>.raw
+sudo dd if=medbrains-os-<ver>-arm64.raw of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 **NVMe only.** SD cards are unsupported for data (§8a, §8o): a database wears them out, and a worn

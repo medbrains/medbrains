@@ -1,16 +1,51 @@
 ---
-title: First boot and the authenticator
+title: First boot, the recovery key and the authenticator
+sidebar_label: First boot and recovery key
 sidebar_position: 3
-description: "Set up MedBrains OS on first boot: network, time zone, new hospital, the first administrator, and scanning the authenticator QR code to finish starting the box."
+description: "First start of MedBrains OS: save the disk recovery key, set the network and time zone, create the hospital and first admin, then scan the QR code."
 ---
 
-# First boot and the authenticator
+# First boot, the recovery key and the authenticator
 
 **Who:** the person who will be the hospital's first administrator.
+**You need:** the machine installed (see [install MedBrains OS](/install/os/)),
+paper and a pen, and a phone with an authenticator app (Google
+Authenticator, Microsoft Authenticator or FreeOTP).
 
 The first time the box starts, it sets itself up on its own screen. Every step
 has **Back**, and everything works from the keyboard. Nothing is final until
 the last step.
+
+## 0. The data disk and its recovery key
+
+Before anything is stored, the machine encrypts the patient-data part of its
+disk with the TPM security chip.
+
+1. It shows a **recovery key** once: 64 letters in 8 groups. Write it on
+   paper. Never photograph it or type it into another computer.
+2. It asks you to type one group back, to prove you saved it.
+3. It asks whether to start by itself (press **Enter**, the default) or to ask
+   for a **PIN** at every start. A PIN also protects a stolen machine; without
+   one, the encryption protects a disk taken out of the machine.
+
+Keep the paper in a locked place away from the machine. It is the only way in
+if the disk is moved, the board or TPM is changed, or a firmware update
+changes the boot settings. See [recovery](/operate/recovery/) and
+[keys and secrets](/operate/keys/).
+
+### If the machine has no security chip
+
+A machine without a working TPM stops before storing anything and asks what
+to do.
+
+![The no-TPM question on a black screen](/img/os/no-tpm-question.webp "The machine stops and explains before it stores any data.")
+
+- **Recommended:** type `OFF` and press Enter. Turn on the TPM in the
+  firmware settings, or fit a TPM 2.0 module, and start again.
+- To carry on **without encryption**, type `STORE UNENCRYPTED` and press
+  Enter. Do this only if your hospital accepts that anyone who takes or copies
+  the disk can read every patient record. The choice is recorded, and the top
+  bar then always says **This disk is not encrypted**.
 
 ## 1. Network
 

@@ -410,10 +410,10 @@ else
 fi
 
 echo "==> [5/9] Installing binaries to /usr/local/bin"
-# medbrains-edge is optional: the crate is a library in the workspace and no
-# such binary is produced today. Requiring it here failed the whole install
-# over a service that cannot be built, so it is installed when present and
-# skipped - loudly - when it is not.
+# medbrains-edge is optional: a source build may not include it (the release
+# tarball does). Requiring it once failed the whole install over a service
+# that could not be built, so it is installed when present and skipped -
+# loudly - when it is not.
 HAVE_EDGE=0
 if [[ -f /tmp/medbrains-edge ]]; then
     HAVE_EDGE=1
@@ -440,7 +440,7 @@ for bin in "${BINARIES[@]}"; do
 done
 
 # Host-side rollback helper — swaps every .prev binary and the previous
-# SPA back into place and restarts services. Invoked via `make rollback`.
+# SPA back into place and restarts services. Run it as `sudo medbrains-rollback`.
 cat > /usr/local/bin/medbrains-rollback <<'ROLLBACK'
 #!/usr/bin/env bash
 set -euo pipefail

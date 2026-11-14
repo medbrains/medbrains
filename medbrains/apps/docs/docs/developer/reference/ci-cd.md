@@ -63,7 +63,7 @@ draft; marking it ready for review runs everything.
    desktop client for macOS (universal `.dmg`), Windows (`.msi`, `.exe`) and
    Linux (`.AppImage`, `.deb`, `.rpm`).
 3. It writes the notes from the version's section of `CHANGELOG.md`, makes a
-   source SBOM, the tarballs `medbrains-server-linux-x64.tar.gz` and
+   source SBOM, the tarballs `medbrains-server-bins-linux-{x86-64,arm64}.tar.gz` and
    `medbrains-web-dist.tar.gz`, and a signed `SHA256SUMS`.
 4. It creates a **draft** GitHub release (a pre-release for `-alpha`, `-beta`
    or `-rc` tags). The desktop job then uploads its installers, updater
