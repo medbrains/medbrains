@@ -11,7 +11,7 @@ const ROLES = [
   { to: "/user-guides/pharmacist/", title: "Pharmacy", text: "Dispense, sell at the counter, controlled drugs." },
   { to: "/user-guides/lab/", title: "Lab", text: "From sample to verified report." },
   { to: "/user-guides/billing/", title: "Billing", text: "Bills, payments, refunds and closing the day." },
-  { to: "/admin/", title: "Hospital IT and admin", text: "Set up the box, add staff, join PCs, back it up." },
+  { to: "/admin/", title: "Hospital IT and admin", text: "Set up the box, add staff and join ward PCs." },
   { to: "/developer/", title: "Developer", text: "Architecture, running it locally and contributing." },
 ];
 
@@ -44,7 +44,7 @@ const APP_SCHEMA = {
   operatingSystem: "Linux, Windows, macOS, iOS, Android",
   description: "Open-source hospital management software: registration, OPD, wards, pharmacy, lab, billing, and a hospital OS appliance.",
   url: "https://docs.medbrains.in/",
-  license: "https://www.apache.org/licenses/LICENSE-2.0",
+  license: "https://www.gnu.org/licenses/agpl-3.0.html",
   offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
 };
 
