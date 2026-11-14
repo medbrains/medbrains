@@ -253,6 +253,9 @@ jobs:
           pnpm exec allure generate --config allurerc.mjs
           python3 ../../scripts/test_report.py theme allure-report
           cp allure-history/history.jsonl allure-report/
+          # The README's test-count badge (shields.io endpoint at tests.medbrains.in/badge.json).
+          python3 ../../scripts/test_report.py badge allure-report/badge.json \
+            allure-results/playwright allure-results/vitest allure-results/rust
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-report
