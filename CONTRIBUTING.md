@@ -93,4 +93,4 @@ MedBrains is dual-licensed (AGPL-3.0-only and commercial). Pull requests are mer
 
 ## Contribute a test scenario, no code needed
 
-Know how a hospital task should go? Open a [test scenario](https://github.com/medbrains/medbrains/issues/new?template=test_scenario.yml): who does it, the starting situation, what they do and what MedBrains must do. Each accepted scenario becomes an automated test that runs on every change. Scenarios labelled `test-scenario` are also good first issues for anyone who wants to write the test.
+Know how a hospital task should go? Open a [test scenario](https://github.com/medbrains/medbrains/issues/new?template=test_scenario.yml): who does it, the starting situation, what they do and what MedBrains must do. Each accepted scenario becomes an automated test on every app it names (web, Android, iPhone, desktop, TV, kiosk, the OS box or the API) and runs on every change. Scenarios labelled `test-scenario` are also good first issues for anyone who wants to write the test.
