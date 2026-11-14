@@ -2246,6 +2246,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Can cut a suspect machine off at once, and cannot let a new one in.
             permissions::devices::machines::VIEW,
             permissions::devices::machines::REMOVE,
+            // Watches that backups run and are sealed to the hospital's key
+            // (System health backup card). The one backup code covers view.
+            permissions::admin::BACKUP,
             // Not LINK_IDENTITY or admin.sso.providers.manage: identity management is administrators only.
             permissions::dashboard::VIEW,
         ],
@@ -2378,5 +2381,18 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The owner's decision (3.33.1): the IT security officer watches backups,
+    /// so it holds the backup code that the System health card and
+    /// `GET /api/backups` require.
+    #[test]
+    fn the_it_security_officer_sees_backups() {
+        let officer = BUILT_IN_ROLES.iter().find(|r| r.code == "it_security_officer");
+        assert!(
+            officer.is_some_and(|r| r.permissions.contains(&permissions::admin::BACKUP)),
+            "it_security_officer lacks {}",
+            permissions::admin::BACKUP
+        );
     }
 }
