@@ -571,3 +571,27 @@ date = "2026-11-14"
 why = "transitive dependency of allure 3 / allure-js reporters, dev-only, never shipped to a browser or server"
 checked = "zip-stream@7.0.5: maintainers ctalkington; repository git+https://github.com/archiverjs/node-zip-stream.git; install scripts: none"
 
+[[review]]
+ecosystem = "npm"
+name = "@sec-ant/readable-stream"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-14"
+why = "stream helper inside get-stream (via execa), used by the journey coverage tooling"
+checked = "@sec-ant/readable-stream@0.4.1: maintainers sec-ant; repository git+https://github.com/Sec-ant/readable-stream.git; install scripts: none; published 2024-03-16"
+
+[[review]]
+ecosystem = "npm"
+name = "@sindresorhus/merge-streams"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-14"
+why = "stream merging inside execa, used by the journey coverage tooling"
+checked = "@sindresorhus/merge-streams@4.0.0: maintainers sindresorhus; repository git+https://github.com/sindresorhus/merge-streams.git; install scripts: none; published 2024-05-04"
+
+[[review]]
+ecosystem = "npm"
+name = "acorn-loose"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-14"
+why = "tolerant JavaScript parser inside monocart-coverage-reports, which turns the journeys' browser coverage into LCOV"
+checked = "acorn-loose@8.5.2: maintainers marijn, adrianheine, rreverser; repository git+https://github.com/acornjs/acorn.git; install scripts: none; published 2025-07-01"
+
