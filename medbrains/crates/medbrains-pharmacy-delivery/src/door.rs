@@ -171,7 +171,11 @@ pub async fn complete(
             ));
         }
         let given = body.code.as_deref().map(hash_code);
-        if given.is_none() || given != delivery.otp_hash {
+        let matches = given
+            .as_deref()
+            .zip(delivery.otp_hash.as_deref())
+            .is_some_and(|(given, held)| medbrains_server_core::codes::constant_time_eq(given, held));
+        if !matches {
             sqlx::query(
                 "UPDATE pharmacy_deliveries SET otp_attempts = otp_attempts + 1 WHERE id = $1",
             )
