@@ -46,8 +46,14 @@ async fn an_authenticator_code_signs_in_only_once() {
     let body = json!({ "username": username, "password": staff.password, "mfa_code": code });
 
     let client = reqwest::Client::new();
-    let first = app.post_json(&client, "/api/auth/login", &body).await.status();
-    let again = app.post_json(&client, "/api/auth/login", &body).await.status();
+    let first = app
+        .post_json(&client, "/api/auth/login", &body)
+        .await
+        .status();
+    let again = app
+        .post_json(&client, "/api/auth/login", &body)
+        .await
+        .status();
 
     assert_eq!(first, StatusCode::OK);
     assert_eq!(again, StatusCode::UNAUTHORIZED, "a used code is spent");
@@ -60,7 +66,11 @@ async fn wrong_codes_to_turn_mfa_off_lock_the_account() {
     let app = common::spawn_app().await;
     let (staff, _, totp) = staff_with_mfa(&app).await;
     let right = totp.generate_current().expect("code");
-    let wrong = if right == "000000" { "111111" } else { "000000" };
+    let wrong = if right == "000000" {
+        "111111"
+    } else {
+        "000000"
+    };
 
     let disable = |code: &str| {
         staff

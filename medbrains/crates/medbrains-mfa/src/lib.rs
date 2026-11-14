@@ -19,8 +19,7 @@ use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    codes::constant_time_eq, error::AppError, lockout, middleware::auth::Claims,
-    state::AppState,
+    codes::constant_time_eq, error::AppError, lockout, middleware::auth::Claims, state::AppState,
 };
 
 const RECOVERY_CODE_COUNT: usize = 8;

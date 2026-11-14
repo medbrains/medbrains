@@ -27,7 +27,10 @@ async fn one_pairing_token_pairs_one_device_under_a_race() {
         .await
         .expect("mint json");
     let token = minted["token"].as_str().expect("token").to_owned();
-    let token_id: Uuid = minted["id"].as_str().and_then(|id| id.parse().ok()).expect("id");
+    let token_id: Uuid = minted["id"]
+        .as_str()
+        .and_then(|id| id.parse().ok())
+        .expect("id");
 
     let pair = |n: usize| {
         let client = reqwest::Client::new();
@@ -37,7 +40,15 @@ async fn one_pairing_token_pairs_one_device_under_a_race() {
             "label": format!("race-{n}"),
             "public_key_pem": format!("-----BEGIN PUBLIC KEY-----\nrace{n}{token_id}\n-----END PUBLIC KEY-----"),
         });
-        async move { client.post(url).json(&body).send().await.expect("pair").status() }
+        async move {
+            client
+                .post(url)
+                .json(&body)
+                .send()
+                .await
+                .expect("pair")
+                .status()
+        }
     };
     let statuses = futures::future::join_all((0..8).map(pair)).await;
 
