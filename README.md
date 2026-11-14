@@ -468,6 +468,6 @@ MedBrains is dual-licensed: the [GNU Affero General Public License, version 3 on
 
 Created by **Domnic Amalan S** ([@DomnicAmalan](https://github.com/DomnicAmalan)), with thanks to everyone who contributes.
 
-Built on the shoulders of open source: Rust, Axum, SQLx, PostgreSQL, React, Mantine, Orthanc, SpiceDB, Gotenberg, and many more.
+Built on the shoulders of open source: Rust, PostgreSQL, React, Mantine, Kanidm, Pingora and many more, and shaped by the work of the WHO, HL7, openEHR and many others. Thank you. The full list is in [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).
 
 Website: [medbrains.in](https://www.medbrains.in) · [Health blog](https://www.medbrains.in/blog) · [Partners](https://www.medbrains.in/partners) · [Sponsor](https://www.medbrains.in/sponsors)
