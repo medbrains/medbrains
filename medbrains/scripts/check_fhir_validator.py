@@ -35,9 +35,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent  # medbrains/
 VALIDATOR = {
-    "name": "validator_cli-6.3.11.jar",
-    "url": "https://github.com/hapifhir/org.hl7.fhir.core/releases/download/6.3.11/validator_cli.jar",
-    "sha256": "7c676c0e9d317d1790b5a72b888a7b49d93692180d9ad6cf943d4652fce7d2e6",
+    "name": "validator_cli-7.0.4.jar",
+    "url": "https://github.com/hapifhir/org.hl7.fhir.core/releases/download/7.0.4/validator_cli.jar",
+    "sha256": "43e29fa8822d670740a909c395ca5b70a3d07fbaa8936f8dedc6a98b007f555b",
 }
 # The same package `scripts/nrces_profile_fixture.py` extracted profiles.json
 # from. NRCeS serves only its current release at this URL (packages.fhir.org
