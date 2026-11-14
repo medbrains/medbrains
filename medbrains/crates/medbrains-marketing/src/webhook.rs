@@ -163,13 +163,25 @@ mod tests {
     #[test]
     fn the_words_providers_actually_send_all_map() {
         for answered in ["answered", "Completed", "BRIDGED"] {
-            assert_eq!(parse_outcome(answered).ok(), Some(CallOutcome::Answered), "{answered}");
+            assert_eq!(
+                parse_outcome(answered).ok(),
+                Some(CallOutcome::Answered),
+                "{answered}"
+            );
         }
         for missed in ["no_answer", "no-answer", "NoAnswer", "missed"] {
-            assert_eq!(parse_outcome(missed).ok(), Some(CallOutcome::NoAnswer), "{missed}");
+            assert_eq!(
+                parse_outcome(missed).ok(),
+                Some(CallOutcome::NoAnswer),
+                "{missed}"
+            );
         }
         for busy in ["busy", "failed", "congestion", "rejected"] {
-            assert_eq!(parse_outcome(busy).ok(), Some(CallOutcome::Rejected), "{busy}");
+            assert_eq!(
+                parse_outcome(busy).ok(),
+                Some(CallOutcome::Rejected),
+                "{busy}"
+            );
         }
     }
 
@@ -177,8 +189,14 @@ mod tests {
     fn direction_is_refused_rather_than_defaulted() {
         // Guessing sorts the call out of the inbound partial index, which is
         // where the missed-call number is computed.
-        assert_eq!(parse_direction("incoming").ok(), Some(CallDirection::Inbound));
-        assert_eq!(parse_direction("Outgoing").ok(), Some(CallDirection::Outbound));
+        assert_eq!(
+            parse_direction("incoming").ok(),
+            Some(CallDirection::Inbound)
+        );
+        assert_eq!(
+            parse_direction("Outgoing").ok(),
+            Some(CallDirection::Outbound)
+        );
         assert!(parse_direction("internal").is_err());
     }
 }

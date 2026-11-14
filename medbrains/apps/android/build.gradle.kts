@@ -37,4 +37,16 @@ allprojects {
         // configuration any task resolves (androidApis, lint, R8), which would break each task
         // nobody has run with --write-locks yet. Every configuration that has a lock is enforced.
     }
+    // Build tools only (lint, Kotlin plugin): raise Bouncy Castle to the app's 1.86 for
+    // GHSA-9pwp-9qqc-pr26, GHSA-qp49-qgx5-5m26 and GHSA-cj8j-37rh-8475, and lint's guava to
+    // 33.7.2-jre for GHSA-xxph-c9ww-hj94. The app's -android guava pin is left alone.
+    configurations.configureEach {
+        val isLintTool = name == "androidLintTool"
+        resolutionStrategy.eachDependency {
+            if (requested.group == "org.bouncycastle") useVersion("1.86")
+            if (isLintTool && requested.group == "com.google.guava" && requested.name == "guava") {
+                useVersion("33.7.2-jre")
+            }
+        }
+    }
 }

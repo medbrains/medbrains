@@ -229,7 +229,10 @@ pub async fn ingest_message_webhook(
     let interaction_id = ingest_message(&mut tx, claims.tenant_id, &event).await?;
     tx.commit().await?;
 
-    Ok((StatusCode::ACCEPTED, Json(MessageAccepted { interaction_id })))
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(MessageAccepted { interaction_id }),
+    ))
 }
 
 #[cfg(test)]
@@ -243,7 +246,10 @@ mod tests {
         // Same digits, different identity. Somebody reachable by SMS is not
         // thereby reachable on WhatsApp, and collapsing the two would claim a
         // reachability the hospital has never verified.
-        assert_eq!(MessageChannel::Whatsapp.identity_channel(), CHANNEL_WHATSAPP);
+        assert_eq!(
+            MessageChannel::Whatsapp.identity_channel(),
+            CHANNEL_WHATSAPP
+        );
         assert_eq!(MessageChannel::Sms.identity_channel(), CHANNEL_PHONE);
         assert_ne!(
             MessageChannel::Whatsapp.identity_channel(),
@@ -263,10 +269,18 @@ mod tests {
     #[test]
     fn the_words_providers_send_for_direction_all_map() {
         for inbound in ["inbound", "Incoming", "received"] {
-            assert_eq!(parse_direction(inbound).ok(), Some(CallDirection::Inbound), "{inbound}");
+            assert_eq!(
+                parse_direction(inbound).ok(),
+                Some(CallDirection::Inbound),
+                "{inbound}"
+            );
         }
         for outbound in ["outbound", "Outgoing", "sent"] {
-            assert_eq!(parse_direction(outbound).ok(), Some(CallDirection::Outbound), "{outbound}");
+            assert_eq!(
+                parse_direction(outbound).ok(),
+                Some(CallDirection::Outbound),
+                "{outbound}"
+            );
         }
         assert!(parse_direction("internal").is_err());
     }

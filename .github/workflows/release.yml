@@ -84,14 +84,14 @@ jobs:
           -p medbrains-server --bin medbrains-server --bin medbrains-archive
           -p medbrains-os-setup --bin medbrains-os-setup
           -p medbrains-agent --bin medbrains-agent
-          -p medbrains-proxy --bin medbrains-front
+          -p medbrains-proxy --bin medbrains-front --bin medbrains-proxy
           -p medbrains-bridge --bin medbrains-bridge
           -p medbrains-edge-app --bin medbrains-edge
           -p medbrains-os-update --bin medbrains-os-update
       - name: Collect
         run: |
           mkdir -p ../bins
-          for b in medbrains-server medbrains-archive medbrains-os-setup medbrains-agent medbrains-front medbrains-bridge medbrains-edge medbrains-os-update; do
+          for b in medbrains-server medbrains-archive medbrains-os-setup medbrains-agent medbrains-front medbrains-proxy medbrains-bridge medbrains-edge medbrains-os-update; do
             cp "target/${{ matrix.triple }}/release/$b" ../bins/
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -652,6 +652,7 @@ jobs:
         run: |
           for a in x86-64 arm64; do
             tar -czf "dist/medbrains-server-bins-linux-$a.tar.gz" -C "artifacts/bins-$a" .
+            python3 medbrains/scripts/check_release_bins.py --tarball "dist/medbrains-server-bins-linux-$a.tar.gz"
           done
           tar -czf dist/medbrains-web-dist.tar.gz -C artifacts web-dist
           find artifacts/android artifacts/ios artifacts/os-* -type f -exec cp {} dist/ \;

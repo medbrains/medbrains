@@ -54,7 +54,9 @@ pub struct CiwaArResult {
 
 fn validate(name: &str, value: i32, max: i32) -> Result<(), AppError> {
     if !(0..=max).contains(&value) {
-        return Err(AppError::BadRequest(format!("{name} must be between 0 and {max}")));
+        return Err(AppError::BadRequest(format!(
+            "{name} must be between 0 and {max}"
+        )));
     }
     Ok(())
 }
@@ -92,7 +94,12 @@ pub fn compute_ciwa_ar(r: &CiwaArRequest) -> CiwaArResult {
              symptom-triggered monitoring at the charted interval and give thiamine.",
         )
     };
-    CiwaArResult { total, severity, medication_indicated, response }
+    CiwaArResult {
+        total,
+        severity,
+        medication_indicated,
+        response,
+    }
 }
 
 /// `POST /api/clinical/ciwa-ar` — alcohol-withdrawal severity + medication threshold.

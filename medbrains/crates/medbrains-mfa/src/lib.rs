@@ -11,14 +11,16 @@
 //! array of role names). /auth/me reports `mfa_enrollment_required`
 //! and the frontend blocks the app until enrollment completes.
 
+use axum::routing::post;
 use axum::{Extension, Json, extract::State};
-use axum::routing::{post};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
-use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{
+    codes::constant_time_eq, error::AppError, lockout, middleware::auth::Claims, state::AppState,
+};
 
 const RECOVERY_CODE_COUNT: usize = 8;
 
@@ -42,6 +44,23 @@ fn hash_recovery_code(code: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(code.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+/// The time step `code` was made for, among the ones `check_current` accepts
+/// (now and one either side), or `None` when it is none of them. The step is
+/// what lets a used code be refused a second time inside its window.
+fn matched_step(totp: &TOTP, code: &str) -> Result<Option<i64>, AppError> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| AppError::Internal(format!("mfa time error: {e}")))?
+        .as_secs();
+    let current = now / totp.step;
+    let step = [current.saturating_sub(1), current, current + 1]
+        .into_iter()
+        .find(|step| constant_time_eq(&totp.generate(step * totp.step), code));
+    step.map(i64::try_from)
+        .transpose()
+        .map_err(|e| AppError::Internal(format!("mfa time error: {e}")))
 }
 
 /// Verify a TOTP code or consume a recovery code for `user_id`.
@@ -74,17 +93,28 @@ pub async fn verify_mfa_code(
 
     let code = code.trim();
     let totp = build_totp(&secret, &username)?;
-    if totp
-        .check_current(code)
-        .map_err(|e| AppError::Internal(format!("mfa time error: {e}")))?
-    {
-        return Ok(true);
+    if let Some(step) = matched_step(&totp, code)? {
+        // A code is good once: its step is recorded, and a code from that step
+        // or an earlier one is refused. The row was read above on this scoped
+        // connection, so no update means a replay, not a hidden row.
+        let fresh = sqlx::query(
+            "UPDATE users SET mfa_last_totp_step = $1 \
+             WHERE id = $2 AND tenant_id = $3 \
+               AND (mfa_last_totp_step IS NULL OR mfa_last_totp_step < $1)",
+        )
+        .bind(step)
+        .bind(user_id)
+        .bind(tenant_id)
+        .execute(&mut *conn)
+        .await?
+        .rows_affected();
+        return Ok(fresh == 1);
     }
 
     // Recovery code: single-use, removed on match.
     let code_hash = hash_recovery_code(code);
     let hashes: Vec<String> = serde_json::from_value(recovery).unwrap_or_default();
-    if hashes.contains(&code_hash) {
+    if hashes.iter().any(|hash| constant_time_eq(hash, &code_hash)) {
         let remaining: Vec<&String> = hashes.iter().filter(|h| **h != code_hash).collect();
         let spent = sqlx::query(
             "UPDATE users SET mfa_recovery_codes = $1 WHERE id = $2 AND tenant_id = $3",
@@ -253,13 +283,24 @@ pub async fn activate(
     })))
 }
 
-/// POST /api/auth/mfa/disable — requires a valid current code.
+/// POST /api/auth/mfa/disable — requires a valid current code. Wrong codes
+/// count toward the account lockout.
 pub async fn disable(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<MfaCodeBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Wrong codes count against the account's lockout, as at sign-in: an open
+    // session must not be a way to guess codes without limit.
+    let account = (claims.sub, claims.tenant_id);
+    if lockout::is_locked(&state, account).await? {
+        return Err(AppError::BadRequest(
+            "Account temporarily locked after repeated failed attempts. Try again later."
+                .to_owned(),
+        ));
+    }
     if !verify_mfa_code(&state.db, claims.tenant_id, claims.sub, &body.code).await? {
+        lockout::record_failed_password(&state, account, None, "mfa_disable_failed").await?;
         return Err(AppError::BadRequest("Invalid code".to_owned()));
     }
 

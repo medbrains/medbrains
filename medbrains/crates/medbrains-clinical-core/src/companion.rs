@@ -13,7 +13,11 @@
 /// tenant that never licensed it. Hospital first because that is the answer a
 /// support call needs.
 #[must_use]
-pub fn companion_access(licensed_by_hospital: Option<bool>, band_paired: Option<bool>, purchased: Option<bool>) -> Option<&'static str> {
+pub fn companion_access(
+    licensed_by_hospital: Option<bool>,
+    band_paired: Option<bool>,
+    purchased: Option<bool>,
+) -> Option<&'static str> {
     if licensed_by_hospital == Some(true) {
         Some("hospital")
     } else if band_paired == Some(true) {
@@ -179,14 +183,22 @@ pub fn streak_ending_yesterday(adherence: &[AdherenceEvent], now_unix: i64) -> u
 
 /// Days between the earliest thing known and now, in words the person can trust.
 #[must_use]
-pub fn confidence_from(adherence: &[AdherenceEvent], observation_days: &[String], now_unix: i64) -> String {
+pub fn confidence_from(
+    adherence: &[AdherenceEvent],
+    observation_days: &[String],
+    now_unix: i64,
+) -> String {
     let earliest = adherence
         .iter()
         .map(|e| day_key(&e.scheduled_for).to_owned())
         .chain(observation_days.iter().map(|d| day_key(d).to_owned()))
         .min();
-    let Some(earliest) = earliest else { return "calibrating".to_owned() };
-    let Some(start) = days_from_civil(&earliest) else { return "calibrating".to_owned() };
+    let Some(earliest) = earliest else {
+        return "calibrating".to_owned();
+    };
+    let Some(start) = days_from_civil(&earliest) else {
+        return "calibrating".to_owned();
+    };
     let days = now_unix.div_euclid(DAY) - start;
     if days < CALIBRATING_BELOW_DAYS {
         "calibrating".to_owned()
@@ -208,24 +220,59 @@ fn verdict_for(slots: &[DoseSlot], adherence: Option<u32>) -> String {
     if let Some(a) = adherence.filter(|&a| a >= 80) {
         return format!("{remaining} left today. You are at {a}% this week.");
     }
-    if remaining == 1 { "1 dose left today.".to_owned() } else { format!("{remaining} doses left today.") }
+    if remaining == 1 {
+        "1 dose left today.".to_owned()
+    } else {
+        format!("{remaining} doses left today.")
+    }
 }
 
 /// The brief for the day `now_unix` falls on (UTC civil day, as the phone stores slots).
 #[must_use]
-pub fn daily_brief(medications: &[MedicationPlan], adherence: &[AdherenceEvent], observation_days: &[String], now_unix: i64) -> DailyBrief {
+pub fn daily_brief(
+    medications: &[MedicationPlan],
+    adherence: &[AdherenceEvent],
+    observation_days: &[String],
+    now_unix: i64,
+) -> DailyBrief {
     let today = today_of(now_unix);
-    let answered: std::collections::HashMap<String, &str> =
-        adherence.iter().map(|e| (format!("{}@{}", e.plan_id, e.scheduled_for), e.status.as_str())).collect();
+    let answered: std::collections::HashMap<String, &str> = adherence
+        .iter()
+        .map(|e| {
+            (
+                format!("{}@{}", e.plan_id, e.scheduled_for),
+                e.status.as_str(),
+            )
+        })
+        .collect();
     let mut slots = Vec::new();
     for plan in medications {
-        if day_key(&plan.started_on) > today.as_str() || plan.ends_on.as_deref().is_some_and(|e| day_key(e) < today.as_str()) {
+        if day_key(&plan.started_on) > today.as_str()
+            || plan
+                .ends_on
+                .as_deref()
+                .is_some_and(|e| day_key(e) < today.as_str())
+        {
             continue;
         }
         for time in &plan.times {
-            let scheduled_for = format!("{today}T{}{}.000Z", time, if time.len() == 5 { ":00" } else { "" });
-            let status = answered.get(&format!("{}@{scheduled_for}", plan.id)).map_or("due", |s| s).to_owned();
-            slots.push(DoseSlot { plan_id: plan.id.clone(), name: plan.name.clone(), instructions: plan.instructions.clone(), time: time.clone(), scheduled_for, status });
+            let scheduled_for = format!(
+                "{today}T{}{}.000Z",
+                time,
+                if time.len() == 5 { ":00" } else { "" }
+            );
+            let status = answered
+                .get(&format!("{}@{scheduled_for}", plan.id))
+                .map_or("due", |s| s)
+                .to_owned();
+            slots.push(DoseSlot {
+                plan_id: plan.id.clone(),
+                name: plan.name.clone(),
+                instructions: plan.instructions.clone(),
+                time: time.clone(),
+                scheduled_for,
+                status,
+            });
         }
     }
     slots.sort_by(|a, b| a.time.cmp(&b.time));
@@ -243,25 +290,48 @@ pub fn daily_brief(medications: &[MedicationPlan], adherence: &[AdherenceEvent],
 
 #[cfg(test)]
 mod tests {
-    use super::{AdherenceEvent, MedicationPlan, adherence_over, band_state, companion_access, confidence_from, daily_brief, streak_ending_yesterday};
+    use super::{
+        AdherenceEvent, MedicationPlan, adherence_over, band_state, companion_access,
+        confidence_from, daily_brief, streak_ending_yesterday,
+    };
 
     const NOW: i64 = 1_781_514_000; // 2026-06-15T09:00:00Z
 
     fn plan() -> MedicationPlan {
-        MedicationPlan { id: "p1".into(), name: "Metformin 500".into(), instructions: "after food".into(), times: vec!["08:00".into(), "20:00".into()], started_on: "2026-01-01".into(), ends_on: None }
+        MedicationPlan {
+            id: "p1".into(),
+            name: "Metformin 500".into(),
+            instructions: "after food".into(),
+            times: vec!["08:00".into(), "20:00".into()],
+            started_on: "2026-01-01".into(),
+            ends_on: None,
+        }
     }
     fn dose(day: &str, time: &str, status: &str) -> AdherenceEvent {
-        AdherenceEvent { plan_id: "p1".into(), scheduled_for: format!("{day}T{time}:00.000Z"), status: status.into() }
+        AdherenceEvent {
+            plan_id: "p1".into(),
+            scheduled_for: format!("{day}T{time}:00.000Z"),
+            status: status.into(),
+        }
     }
 
     #[test]
     fn hidden_unless_somebody_said_yes() {
         assert_eq!(companion_access(None, None, None), None);
-        assert_eq!(companion_access(Some(false), Some(false), Some(false)), None);
+        assert_eq!(
+            companion_access(Some(false), Some(false), Some(false)),
+            None
+        );
         assert_eq!(companion_access(Some(true), None, None), Some("hospital"));
-        assert_eq!(companion_access(Some(false), Some(true), None), Some("band"));
+        assert_eq!(
+            companion_access(Some(false), Some(true), None),
+            Some("band")
+        );
         assert_eq!(companion_access(None, None, Some(true)), Some("purchase"));
-        assert_eq!(companion_access(Some(true), Some(true), Some(true)), Some("hospital"));
+        assert_eq!(
+            companion_access(Some(true), Some(true), Some(true)),
+            Some("hospital")
+        );
     }
 
     #[test]
@@ -274,7 +344,10 @@ mod tests {
     #[test]
     fn lists_todays_doses_in_time_order_marking_unanswered_due() {
         let b = daily_brief(&[plan()], &[], &[], NOW);
-        assert_eq!(b.slots.iter().map(|s| s.time.as_str()).collect::<Vec<_>>(), vec!["08:00", "20:00"]);
+        assert_eq!(
+            b.slots.iter().map(|s| s.time.as_str()).collect::<Vec<_>>(),
+            vec!["08:00", "20:00"]
+        );
         assert!(b.slots.iter().all(|s| s.status == "due"));
     }
 
@@ -287,9 +360,21 @@ mod tests {
 
     #[test]
     fn omits_a_plan_not_started_or_ended() {
-        let future = MedicationPlan { id: "later".into(), started_on: "2026-12-01".into(), ..plan() };
-        let finished = MedicationPlan { id: "done".into(), ends_on: Some("2026-02-01".into()), ..plan() };
-        assert!(daily_brief(&[future, finished], &[], &[], NOW).slots.is_empty());
+        let future = MedicationPlan {
+            id: "later".into(),
+            started_on: "2026-12-01".into(),
+            ..plan()
+        };
+        let finished = MedicationPlan {
+            id: "done".into(),
+            ends_on: Some("2026-02-01".into()),
+            ..plan()
+        };
+        assert!(
+            daily_brief(&[future, finished], &[], &[], NOW)
+                .slots
+                .is_empty()
+        );
     }
 
     #[test]
@@ -302,15 +387,26 @@ mod tests {
 
     #[test]
     fn adherence_counts_inside_the_window_only() {
-        let a = [dose("2026-06-14", "08:00", "taken"), dose("2026-06-14", "20:00", "missed"), dose("2026-01-01", "08:00", "missed")];
+        let a = [
+            dose("2026-06-14", "08:00", "taken"),
+            dose("2026-06-14", "20:00", "missed"),
+            dose("2026-01-01", "08:00", "missed"),
+        ];
         assert_eq!(adherence_over(&a, NOW, 7), Some(50));
     }
 
     #[test]
     fn streak_counts_back_from_yesterday_not_today() {
-        let a = [dose("2026-06-14", "08:00", "taken"), dose("2026-06-13", "08:00", "taken"), dose("2026-06-12", "08:00", "missed")];
+        let a = [
+            dose("2026-06-14", "08:00", "taken"),
+            dose("2026-06-13", "08:00", "taken"),
+            dose("2026-06-12", "08:00", "missed"),
+        ];
         assert_eq!(streak_ending_yesterday(&a, NOW), 2);
-        let b = [dose("2026-06-15", "08:00", "due"), dose("2026-06-14", "08:00", "taken")];
+        let b = [
+            dose("2026-06-15", "08:00", "due"),
+            dose("2026-06-14", "08:00", "taken"),
+        ];
         assert_eq!(streak_ending_yesterday(&b, NOW), 1);
         assert_eq!(streak_ending_yesterday(&[], NOW), 0);
     }
@@ -318,9 +414,18 @@ mod tests {
     #[test]
     fn confidence_is_stated() {
         assert_eq!(confidence_from(&[], &[], NOW), "calibrating");
-        assert_eq!(confidence_from(&[dose("2026-06-13", "08:00", "taken")], &[], NOW), "calibrating");
-        assert_eq!(confidence_from(&[dose("2026-06-01", "08:00", "taken")], &[], NOW), "building");
-        assert_eq!(confidence_from(&[dose("2026-04-01", "08:00", "taken")], &[], NOW), "established");
+        assert_eq!(
+            confidence_from(&[dose("2026-06-13", "08:00", "taken")], &[], NOW),
+            "calibrating"
+        );
+        assert_eq!(
+            confidence_from(&[dose("2026-06-01", "08:00", "taken")], &[], NOW),
+            "building"
+        );
+        assert_eq!(
+            confidence_from(&[dose("2026-04-01", "08:00", "taken")], &[], NOW),
+            "established"
+        );
     }
 
     #[test]
@@ -328,7 +433,15 @@ mod tests {
         let briefs = [
             daily_brief(&[], &[], &[], NOW),
             daily_brief(&[plan()], &[], &[], NOW),
-            daily_brief(&[plan()], &[dose("2026-06-15", "08:00", "taken"), dose("2026-06-15", "20:00", "taken")], &[], NOW),
+            daily_brief(
+                &[plan()],
+                &[
+                    dose("2026-06-15", "08:00", "taken"),
+                    dose("2026-06-15", "20:00", "taken"),
+                ],
+                &[],
+                NOW,
+            ),
         ];
         for b in briefs {
             let v = b.verdict.to_lowercase();

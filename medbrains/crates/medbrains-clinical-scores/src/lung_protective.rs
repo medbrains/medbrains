@@ -97,14 +97,24 @@ pub async fn lung_protective(
 ) -> Result<Json<LungProtectiveResult>, AppError> {
     require_permission(&claims, permissions::icu::ventilator::LIST)?;
     if !(100.0..=250.0).contains(&body.height_cm) {
-        return Err(AppError::BadRequest("height_cm must be between 100 and 250".into()));
+        return Err(AppError::BadRequest(
+            "height_cm must be between 100 and 250".into(),
+        ));
     }
     let is_male = match body.sex.to_lowercase().as_str() {
         "male" | "m" => true,
         "female" | "f" => false,
-        _ => return Err(AppError::BadRequest("sex must be 'male' or 'female'".into())),
+        _ => {
+            return Err(AppError::BadRequest(
+                "sex must be 'male' or 'female'".into(),
+            ));
+        }
     };
-    Ok(Json(compute_lung_protective(body.height_cm, is_male, body.tidal_volume_ml)))
+    Ok(Json(compute_lung_protective(
+        body.height_cm,
+        is_male,
+        body.tidal_volume_ml,
+    )))
 }
 
 #[cfg(test)]

@@ -21,7 +21,6 @@
 //! that also treats patients. The surveillance register then becomes a way to
 //! ask whether a named person is carrying a resistant organism.
 
-
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -593,8 +592,7 @@ pub async fn review_stewardship(
     Ok(Json(row))
 }
 
-const TIMEOUT_DECISIONS: [&str; 5] =
-    ["continue", "de_escalate", "stop", "switch_oral", "change"];
+const TIMEOUT_DECISIONS: [&str; 5] = ["continue", "de_escalate", "stop", "switch_oral", "change"];
 
 #[derive(Debug, serde::Deserialize)]
 pub struct AntibioticTimeoutReviewBody {
@@ -612,7 +610,10 @@ pub async fn timeout_review_stewardship(
 ) -> Result<Json<AntibioticStewardshipRequest>, AppError> {
     require_permission(&claims, permissions::infection_control::stewardship::CREATE)?;
     if !TIMEOUT_DECISIONS.contains(&body.decision.as_str()) {
-        return Err(AppError::BadRequest(format!("invalid decision '{}'", body.decision)));
+        return Err(AppError::BadRequest(format!(
+            "invalid decision '{}'",
+            body.decision
+        )));
     }
 
     let mut tx = state.db.begin().await?;
@@ -1987,8 +1988,13 @@ pub struct ListIndwellingDevicesQuery {
     pub active: Option<bool>,
 }
 
-const INDWELLING_DEVICE_TYPES: [&str; 5] =
-    ["central_line", "urinary_catheter", "ventilator", "peripheral_iv", "other"];
+const INDWELLING_DEVICE_TYPES: [&str; 5] = [
+    "central_line",
+    "urinary_catheter",
+    "ventilator",
+    "peripheral_iv",
+    "other",
+];
 
 pub async fn list_indwelling_devices(
     State(state): State<AppState>,
@@ -2019,7 +2025,10 @@ pub async fn create_indwelling_device(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateIndwellingDeviceRequest>,
 ) -> Result<Json<IndwellingDevice>, AppError> {
-    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::infection_control::surveillance::CREATE,
+    )?;
     if !INDWELLING_DEVICE_TYPES.contains(&body.device_type.as_str()) {
         return Err(AppError::BadRequest(format!(
             "device_type must be one of: {}",
@@ -2058,7 +2067,10 @@ pub async fn review_indwelling_device(
     Path(id): Path<Uuid>,
     Json(body): Json<ReviewIndwellingDeviceRequest>,
 ) -> Result<Json<IndwellingDevice>, AppError> {
-    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::infection_control::surveillance::CREATE,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, IndwellingDevice>(
@@ -2083,9 +2095,14 @@ pub async fn remove_indwelling_device(
     Path(id): Path<Uuid>,
     Json(body): Json<RemoveIndwellingDeviceRequest>,
 ) -> Result<Json<IndwellingDevice>, AppError> {
-    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::infection_control::surveillance::CREATE,
+    )?;
     if body.removal_reason.trim().is_empty() {
-        return Err(AppError::BadRequest("A removal reason is required.".to_owned()));
+        return Err(AppError::BadRequest(
+            "A removal reason is required.".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

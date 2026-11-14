@@ -1,6 +1,9 @@
 //! Care management leaf crate: chronic care, bedside patient portal, case management.
 
-use axum::{Router, routing::{get, post, put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod bedside_portal;
@@ -158,14 +161,8 @@ pub fn router() -> Router<AppState> {
             "/api/case-mgmt/assignments/{id}",
             get(case_mgmt::get_assignment).put(case_mgmt::update_assignment),
         )
-        .route(
-            "/api/case-mgmt/caseload",
-            get(case_mgmt::caseload_summary),
-        )
-        .route(
-            "/api/case-mgmt/auto-assign",
-            post(case_mgmt::auto_assign),
-        )
+        .route("/api/case-mgmt/caseload", get(case_mgmt::caseload_summary))
+        .route("/api/case-mgmt/auto-assign", post(case_mgmt::auto_assign))
         .route(
             "/api/case-mgmt/barriers",
             get(case_mgmt::list_barriers).post(case_mgmt::create_barrier),

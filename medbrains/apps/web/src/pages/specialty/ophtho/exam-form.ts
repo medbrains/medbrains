@@ -24,33 +24,55 @@ export const LENS_TYPES = [
   { value: "none", label: "No glasses needed" },
 ] as const;
 
-export const examSchema = z.object({
-  patient_id: z.string().min(1, "Choose the patient"),
-  visual_acuity_od: acuity,
-  visual_acuity_os: acuity,
-  bcva_od: acuity,
-  bcva_os: acuity,
-  near_va_od: acuity,
-  near_va_os: acuity,
-  sphere_od: quarter(-30, 30, "Sphere"),
-  sphere_os: quarter(-30, 30, "Sphere"),
-  cylinder_od: quarter(-10, 10, "Cylinder"),
-  cylinder_os: quarter(-10, 10, "Cylinder"),
-  axis_od: axis,
-  axis_os: axis,
-  add_od: quarter(0.25, 4, "Add"),
-  add_os: quarter(0.25, 4, "Add"),
-  iop_od: z.number().min(0).max(80, "IOP 0 to 80 mmHg").nullable(),
-  iop_os: z.number().min(0).max(80, "IOP 0 to 80 mmHg").nullable(),
-  pd_mm: z.number().min(40, "PD 40 to 80 mm").max(80, "PD 40 to 80 mm").nullable(),
-  lens_type: z.enum(["single_vision", "bifocal", "progressive", "none"]).nullable(),
-  lens_advice: z.string(),
-  review_after_months: z.number().int().min(1).max(60, "Review 1 to 60 months").nullable(),
-  slit_lamp: z.string(),
-  fundus: z.string(),
-  diagnosis: z.string(),
-  plan: z.string(),
-});
+export const examSchema = z
+  .object({
+    patient_id: z.string().min(1, "Choose the patient"),
+    visual_acuity_od: acuity,
+    visual_acuity_os: acuity,
+    bcva_od: acuity,
+    bcva_os: acuity,
+    near_va_od: acuity,
+    near_va_os: acuity,
+    sphere_od: quarter(-30, 30, "Sphere"),
+    sphere_os: quarter(-30, 30, "Sphere"),
+    cylinder_od: quarter(-10, 10, "Cylinder"),
+    cylinder_os: quarter(-10, 10, "Cylinder"),
+    axis_od: axis,
+    axis_os: axis,
+    add_od: quarter(0.25, 4, "Add"),
+    add_os: quarter(0.25, 4, "Add"),
+    iop_od: z.number().min(0).max(80, "IOP 0 to 80 mmHg").nullable(),
+    iop_os: z.number().min(0).max(80, "IOP 0 to 80 mmHg").nullable(),
+    pd_mm: z.number().min(40, "PD 40 to 80 mm").max(80, "PD 40 to 80 mm").nullable(),
+    lens_type: z.enum(["single_vision", "bifocal", "progressive", "none"]).nullable(),
+    lens_advice: z.string(),
+    review_after_months: z.number().int().min(1).max(60, "Review 1 to 60 months").nullable(),
+    slit_lamp: z.string(),
+    fundus: z.string(),
+    diagnosis: z.string(),
+    plan: z.string(),
+  })
+  .superRefine((v, ctx) => {
+    // The server's rule (ophtho_refraction.rs): an axis only means something with a cylinder.
+    for (const eye of ["od", "os"] as const) {
+      const hasCyl = (v[`cylinder_${eye}`] ?? 0) !== 0;
+      const axisSet = v[`axis_${eye}`] != null;
+      if (hasCyl && !axisSet) {
+        ctx.addIssue({
+          code: "custom",
+          path: [`axis_${eye}`],
+          message: "Axis is needed with a cylinder",
+        });
+      }
+      if (!hasCyl && axisSet) {
+        ctx.addIssue({
+          code: "custom",
+          path: [`axis_${eye}`],
+          message: "Clear the axis or enter a cylinder",
+        });
+      }
+    }
+  });
 export type ExamForm = z.infer<typeof examSchema>;
 
 const TEXT = [

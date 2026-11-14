@@ -146,7 +146,9 @@ pub async fn glasgow_blatchford_score(
 ) -> Result<Json<GlasgowBlatchfordResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if body.urea_mmol_l < 0.0 || body.hemoglobin_g_dl < 0.0 || body.systolic_bp < 0 {
-        return Err(AppError::BadRequest("values must not be negative".to_owned()));
+        return Err(AppError::BadRequest(
+            "values must not be negative".to_owned(),
+        ));
     }
     Ok(Json(compute_glasgow_blatchford(&body)))
 }

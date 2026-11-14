@@ -31,7 +31,11 @@ pub fn clinic_order(start_times: &[Option<String>]) -> Vec<u32> {
 /// as an index into the caller's list; `None` when the clinic is finished.
 #[must_use]
 pub fn next_patient(start_times: &[Option<String>], statuses: &[String]) -> Option<u32> {
-    clinic_order(start_times).into_iter().find(|&i| statuses.get(i as usize).is_some_and(|s| is_still_to_come(s)))
+    clinic_order(start_times).into_iter().find(|&i| {
+        statuses
+            .get(i as usize)
+            .is_some_and(|s| is_still_to_come(s))
+    })
 }
 
 #[must_use]
@@ -49,7 +53,10 @@ mod tests {
 
     #[test]
     fn orders_by_clock_time() {
-        assert_eq!(clinic_order(&[t("14:00"), t("09:00"), t("11:30")]), vec![1, 2, 0]);
+        assert_eq!(
+            clinic_order(&[t("14:00"), t("09:00"), t("11:30")]),
+            vec![1, 2, 0]
+        );
     }
 
     #[test]
@@ -69,7 +76,11 @@ mod tests {
     #[test]
     fn next_skips_completed_and_cancelled() {
         let times = [t("09:00"), t("09:30"), t("10:00")];
-        let statuses = ["completed".to_owned(), "scheduled".to_owned(), "scheduled".to_owned()];
+        let statuses = [
+            "completed".to_owned(),
+            "scheduled".to_owned(),
+            "scheduled".to_owned(),
+        ];
         assert_eq!(next_patient(&times, &statuses), Some(1));
         let statuses = ["cancelled".to_owned(), "scheduled".to_owned()];
         assert_eq!(next_patient(&[t("09:00"), t("09:15")], &statuses), Some(1));

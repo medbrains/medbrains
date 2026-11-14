@@ -34,6 +34,11 @@
   --mb-line: #dde2ea;
   --mb-link: #0043ce;
   --mb-accent-text: #851b7f;
+  /* The home hero is a dark band in both themes. */
+  --mb-hero-bg: #17191c;
+  --mb-hero-ink: #e6e8eb;
+  --mb-hero-muted: #a9afb7;
+  --mb-hero-link: #78a9ff;
 
   --ifm-font-family-base: "MedBrains Sans", "MedBrains Sans Fallback", system-ui, sans-serif;
   --ifm-font-weight-base: 440;
@@ -80,6 +85,8 @@
   --mb-success: #96d69a;
   --mb-warning: #ffb94e;
   --mb-danger: #ffb4ab;
+  /* Lifted one step so the hero does not merge with the raised navbar. */
+  --mb-hero-bg: #1c1f23;
 
   --ifm-color-primary: #78a9ff;
   --ifm-color-primary-dark: #5a95ff;

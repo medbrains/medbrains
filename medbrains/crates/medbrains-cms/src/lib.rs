@@ -11,12 +11,12 @@
 //! - Site settings
 //! - Public API
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use axum::routing::{get,post};
 use medbrains_core::cms::{
     CmsAuthor, CmsCategory, CmsCategoryWithChildren, CmsDashboardStats, CmsMedia, CmsMenu, CmsPage,
     CmsPost, CmsPostAnalytics, CmsPostDetail, CmsPostList, CmsPostRevision, CmsPostSummary,
@@ -704,7 +704,12 @@ pub async fn public_record_view(
     )
     .fetch_one(&state.db)
     .await
-    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Could not look up the post".to_string()))?;
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not look up the post".to_string(),
+        )
+    })?;
     if !exists {
         return Err((StatusCode::NOT_FOUND, "Post not found".to_string()));
     }
@@ -730,11 +735,20 @@ pub fn public_router() -> axum::Router<AppState> {
         .route("/api/public/cms/posts", get(public_list_posts))
         .route("/api/public/cms/posts/featured", get(public_featured_posts))
         .route("/api/public/cms/posts/{slug}", get(public_get_post))
-        .route("/api/public/cms/posts/{post_id}/view", post(public_record_view))
+        .route(
+            "/api/public/cms/posts/{post_id}/view",
+            post(public_record_view),
+        )
         .route("/api/public/cms/pages/{slug}", get(public_get_page))
         .route("/api/public/cms/subscribe", post(public_subscribe))
-        .route("/api/public/cms/confirm/{token}", get(public_confirm_subscription))
-        .route("/api/public/cms/unsubscribe/{token}", get(public_unsubscribe))
+        .route(
+            "/api/public/cms/confirm/{token}",
+            get(public_confirm_subscription),
+        )
+        .route(
+            "/api/public/cms/unsubscribe/{token}",
+            get(public_unsubscribe),
+        )
 }
 
 /// The authoring half — everything that writes or reads editorial state.
@@ -745,96 +759,52 @@ pub fn public_router() -> axum::Router<AppState> {
 /// service for authenticated administrators as much as for anyone else.
 pub fn admin_router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/cms/dashboard",
-            get(get_dashboard_stats),
-        )
+        .route("/api/cms/dashboard", get(get_dashboard_stats))
         .route(
             "/api/cms/categories",
             get(list_categories).post(create_category),
         )
-        .route(
-            "/api/cms/categories/tree",
-            get(list_categories_tree),
-        )
+        .route("/api/cms/categories/tree", get(list_categories_tree))
         .route(
             "/api/cms/categories/{id}",
             get(get_category)
                 .put(update_category)
                 .delete(delete_category),
         )
-        .route(
-            "/api/cms/tags",
-            get(list_tags).post(create_tag),
-        )
+        .route("/api/cms/tags", get(list_tags).post(create_tag))
         .route(
             "/api/cms/tags/{id}",
-            get(get_tag)
-                .put(update_tag)
-                .delete(delete_tag),
+            get(get_tag).put(update_tag).delete(delete_tag),
         )
-        .route(
-            "/api/cms/tags/bulk-delete",
-            post(bulk_delete_tags),
-        )
-        .route(
-            "/api/cms/authors",
-            get(list_authors).post(create_author),
-        )
+        .route("/api/cms/tags/bulk-delete", post(bulk_delete_tags))
+        .route("/api/cms/authors", get(list_authors).post(create_author))
         .route(
             "/api/cms/authors/{id}",
-            get(get_author)
-                .put(update_author)
-                .delete(delete_author),
+            get(get_author).put(update_author).delete(delete_author),
         )
-        .route(
-            "/api/cms/media",
-            get(list_media).post(create_media),
-        )
+        .route("/api/cms/media", get(list_media).post(create_media))
         .route(
             "/api/cms/media/{id}",
-            get(get_media)
-                .put(update_media)
-                .delete(delete_media),
+            get(get_media).put(update_media).delete(delete_media),
         )
-        .route(
-            "/api/cms/posts",
-            get(list_posts).post(create_post),
-        )
+        .route("/api/cms/posts", get(list_posts).post(create_post))
         .route(
             "/api/cms/posts/{id}",
-            get(get_post)
-                .put(update_post)
-                .delete(delete_post),
+            get(get_post).put(update_post).delete(delete_post),
         )
         .route(
             "/api/cms/posts/{id}/submit-review",
             post(submit_post_for_review),
         )
-        .route(
-            "/api/cms/posts/{id}/review",
-            post(review_post),
-        )
+        .route("/api/cms/posts/{id}/review", post(review_post))
         .route(
             "/api/cms/posts/{id}/medical-review",
             post(medical_review_post),
         )
-        .route(
-            "/api/cms/posts/{id}/publish",
-            post(publish_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/schedule",
-            post(schedule_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/archive",
-            post(archive_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/unarchive",
-            post(unarchive_post),
-        )
+        .route("/api/cms/posts/{id}/publish", post(publish_post))
+        .route("/api/cms/posts/{id}/schedule", post(schedule_post))
+        .route("/api/cms/posts/{id}/archive", post(archive_post))
+        .route("/api/cms/posts/{id}/unarchive", post(unarchive_post))
         .route(
             "/api/cms/posts/{post_id}/revisions",
             get(list_post_revisions),
@@ -847,46 +817,20 @@ pub fn admin_router() -> axum::Router<AppState> {
             "/api/cms/posts/{post_id}/revisions/{revision_number}/restore",
             post(restore_post_revision),
         )
-        .route(
-            "/api/cms/posts/{id}/analytics",
-            get(get_post_analytics),
-        )
-        .route(
-            "/api/cms/analytics/top-posts",
-            get(list_top_posts),
-        )
-        .route(
-            "/api/cms/subscribers",
-            get(list_subscribers),
-        )
+        .route("/api/cms/posts/{id}/analytics", get(get_post_analytics))
+        .route("/api/cms/analytics/top-posts", get(list_top_posts))
+        .route("/api/cms/subscribers", get(list_subscribers))
         .route(
             "/api/cms/subscribers/{id}",
             get(get_subscriber).delete(delete_subscriber),
         )
-        .route(
-            "/api/cms/subscribers/export",
-            get(export_subscribers),
-        )
-        .route(
-            "/api/cms/pages",
-            get(list_pages).post(create_page),
-        )
+        .route("/api/cms/subscribers/export", get(export_subscribers))
+        .route("/api/cms/pages", get(list_pages).post(create_page))
         .route(
             "/api/cms/pages/{id}",
-            get(get_page)
-                .put(update_page)
-                .delete(delete_page),
+            get(get_page).put(update_page).delete(delete_page),
         )
-        .route(
-            "/api/cms/settings",
-            get(get_settings).put(update_settings),
-        )
-        .route(
-            "/api/cms/menus",
-            get(list_menus),
-        )
-        .route(
-            "/api/cms/menus/{location}",
-            get(get_menu).put(update_menu),
-        )
+        .route("/api/cms/settings", get(get_settings).put(update_settings))
+        .route("/api/cms/menus", get(list_menus))
+        .route("/api/cms/menus/{location}", get(get_menu).put(update_menu))
 }

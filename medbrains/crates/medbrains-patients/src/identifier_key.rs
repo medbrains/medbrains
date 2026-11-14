@@ -20,7 +20,9 @@ const DEV_KEY: &[u8] = b"medbrains-dev-identifier-hmac-key";
 
 /// The fingerprint key. A wrong one would silently stop duplicates matching, so a fault is an error.
 pub(crate) async fn identifier_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), KEY_NAME, DEV_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), KEY_NAME, DEV_KEY)
+        .await
+        .map_err(AppError::from)
 }
 
 /// HMAC-SHA256 of `tenant:kind:value`, hex.

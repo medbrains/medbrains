@@ -10,10 +10,12 @@ static ONE_LIST: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// Takes the list's turn and empties it.
 async fn own_the_list(db: &sqlx::PgPool) -> tokio::sync::MutexGuard<'static, ()> {
     let turn = ONE_LIST.lock().await;
-    sqlx::query("DELETE FROM device_pairing_requests WHERE node_id IS NOT NULL AND status = 'pending'")
-        .execute(db)
-        .await
-        .expect("empty the list");
+    sqlx::query(
+        "DELETE FROM device_pairing_requests WHERE node_id IS NOT NULL AND status = 'pending'",
+    )
+    .execute(db)
+    .await
+    .expect("empty the list");
     turn
 }
 
@@ -41,11 +43,13 @@ async fn waiting_machine(db: &sqlx::PgPool, tenant_id: Uuid, code: &str) -> (Uui
 
 /// How many live keys this machine has: the only thing the agent admits.
 async fn live_keys(db: &sqlx::PgPool, node_id: &str) -> i64 {
-    sqlx::query_scalar("SELECT count(*) FROM device_node_keys WHERE node_id = $1 AND revoked_at IS NULL")
-        .bind(node_id)
-        .fetch_one(db)
-        .await
-        .expect("count keys")
+    sqlx::query_scalar(
+        "SELECT count(*) FROM device_node_keys WHERE node_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(node_id)
+    .fetch_one(db)
+    .await
+    .expect("count keys")
 }
 
 async fn admin_tenant(db: &sqlx::PgPool) -> Uuid {
@@ -76,7 +80,11 @@ async fn a_wrong_code_admits_nothing_and_the_third_refuses_the_request() {
     assert_eq!(try_code("000001").await, 403);
     assert_eq!(live_keys(&app.db, &node_id).await, 0);
     assert_eq!(try_code("000002").await, 403);
-    assert_eq!(try_code("123456").await, 404, "refused by now, even with the right code");
+    assert_eq!(
+        try_code("123456").await,
+        404,
+        "refused by now, even with the right code"
+    );
     assert_eq!(live_keys(&app.db, &node_id).await, 0);
 }
 
@@ -100,7 +108,10 @@ async fn approving_writes_the_key_and_removing_retires_it() {
         .await
         .expect("json");
     assert_eq!(live_keys(&app.db, &node_id).await, 1);
-    assert_eq!(approved["confirm_code"], "246810", "the second code goes back to the person");
+    assert_eq!(
+        approved["confirm_code"], "246810",
+        "the second code goes back to the person"
+    );
     let device = approved["id"].as_str().expect("the machine's id");
     let removed = app
         .client
@@ -119,7 +130,10 @@ async fn approving_writes_the_key_and_removing_retires_it() {
 async fn the_agent_routes_refuse_anyone_without_the_token() {
     let app = common::spawn_app().await;
     let _turn = own_the_list(&app.db).await;
-    let sync = app.client.post(app.url("/api/machine-agent/sync")).json(&serde_json::json!({}));
+    let sync = app
+        .client
+        .post(app.url("/api/machine-agent/sync"))
+        .json(&serde_json::json!({}));
     assert_eq!(sync.send().await.expect("sends").status().as_u16(), 404);
     let guessed = app
         .client
@@ -139,14 +153,24 @@ async fn each_duty_needs_its_own_permission() {
     let (id, node_id) = waiting_machine(&app.db, tenant, "111222").await;
 
     let front_desk = common::provision_staff(&app, &csrf, "receptionist", &[]).await;
-    let list = front_desk.client.get(app.url("/api/admin/machines")).send().await.expect("sends");
+    let list = front_desk
+        .client
+        .get(app.url("/api/admin/machines"))
+        .send()
+        .await
+        .expect("sends");
     assert_eq!(list.status().as_u16(), 403, "no permission, no list");
 
     // What the IT security officer's role grants: may look and cut off, may not let in.
     let view_and_remove = ["devices.machines.view", "devices.machines.remove"];
     let security =
         common::provision_staff_with(&app, &csrf, "receptionist", &view_and_remove, &[]).await;
-    let list = security.client.get(app.url("/api/admin/machines")).send().await.expect("sends");
+    let list = security
+        .client
+        .get(app.url("/api/admin/machines"))
+        .send()
+        .await
+        .expect("sends");
     assert_eq!(list.status().as_u16(), 200, "may view");
     let approve = security
         .client
@@ -156,7 +180,11 @@ async fn each_duty_needs_its_own_permission() {
         .send()
         .await
         .expect("sends");
-    assert_eq!(approve.status().as_u16(), 403, "removing a machine is not letting one in");
+    assert_eq!(
+        approve.status().as_u16(),
+        403,
+        "removing a machine is not letting one in"
+    );
     assert_eq!(live_keys(&app.db, &node_id).await, 0);
 }
 
@@ -170,7 +198,9 @@ async fn file(db: &sqlx::PgPool, tenant: Uuid, key: &str, address: &str) -> Join
         code: "123456".to_owned(),
         confirm_code: "654321".to_owned(),
     };
-    file_request(db, tenant, &filing).await.expect("a filing is never refused")
+    file_request(db, tenant, &filing)
+        .await
+        .expect("a filing is never refused")
 }
 
 /// How many requests from `address` are waiting, and how many were pushed out.
@@ -194,15 +224,28 @@ async fn one_address_flooding_cannot_block_or_push_out_another() {
     let tenant = admin_tenant(&app.db).await;
     let tag = Uuid::new_v4().simple().to_string();
     let (stranger, real) = (format!("s-{tag}"), format!("r-{tag}"));
-    assert_eq!(file(&app.db, tenant, &format!("real-{tag}"), &real).await, JoinState::Pending);
+    assert_eq!(
+        file(&app.db, tenant, &format!("real-{tag}"), &real).await,
+        JoinState::Pending
+    );
     for i in 0..40 {
         let key = format!("flood-{tag}-{i}");
-        assert_eq!(file(&app.db, tenant, &key, &stranger).await, JoinState::Pending);
+        assert_eq!(
+            file(&app.db, tenant, &key, &stranger).await,
+            JoinState::Pending
+        );
     }
     let (waiting, dropped) = counts(&app.db, &stranger).await;
     assert_eq!(waiting, 3, "one address holds three places at most");
-    assert!(dropped > 0, "what went must be there for the administrator to see");
-    assert_eq!(counts(&app.db, &real).await, (1, 0), "the real machine is untouched");
+    assert!(
+        dropped > 0,
+        "what went must be there for the administrator to see"
+    );
+    assert_eq!(
+        counts(&app.db, &real).await,
+        (1, 0),
+        "the real machine is untouched"
+    );
 }
 
 /// A flood from several addresses must go before a real machine with one request, which is why the
@@ -214,12 +257,22 @@ async fn a_real_machine_outlasts_a_flood_from_several_addresses() {
     let tenant = admin_tenant(&app.db).await;
     let tag = Uuid::new_v4().simple().to_string();
     let real = format!("real-{tag}");
-    assert_eq!(file(&app.db, tenant, &format!("key-{tag}"), &real).await, JoinState::Pending);
+    assert_eq!(
+        file(&app.db, tenant, &format!("key-{tag}"), &real).await,
+        JoinState::Pending
+    );
     for i in 0..140 {
         let (key, address) = (format!("s-{tag}-{i}"), format!("a-{tag}-{}", i % 7));
-        assert_eq!(file(&app.db, tenant, &key, &address).await, JoinState::Pending);
+        assert_eq!(
+            file(&app.db, tenant, &key, &address).await,
+            JoinState::Pending
+        );
     }
-    assert_eq!(counts(&app.db, &real).await, (1, 0), "seven addresses must not push it out");
+    assert_eq!(
+        counts(&app.db, &real).await,
+        (1, 0),
+        "seven addresses must not push it out"
+    );
 }
 
 /// Asking again must not grow the table, or one key could fill the disk.
@@ -233,11 +286,12 @@ async fn asking_again_replaces_a_machines_own_request() {
     for _ in 0..5 {
         file(&app.db, tenant, &key, &address).await;
     }
-    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM device_pairing_requests WHERE node_id = $1")
-        .bind(&key)
-        .fetch_one(&app.db)
-        .await
-        .expect("count");
+    let rows: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM device_pairing_requests WHERE node_id = $1")
+            .bind(&key)
+            .fetch_one(&app.db)
+            .await
+            .expect("count");
     assert_eq!(rows, 1);
 }
 
@@ -290,10 +344,13 @@ async fn the_list_does_not_show_the_code_to_type() {
         .json()
         .await
         .expect("json");
-    assert!(!list.to_string().contains("987654"), "the code is on the machine's own screen only");
-    let row = list["waiting"].as_array().and_then(|rows| {
-        rows.iter().find(|row| row["id"] == id.to_string())
-    });
+    assert!(
+        !list.to_string().contains("987654"),
+        "the code is on the machine's own screen only"
+    );
+    let row = list["waiting"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["id"] == id.to_string()));
     assert!(row.is_some(), "the machine itself is listed");
 }
 
@@ -306,7 +363,10 @@ async fn a_full_list_lets_the_newest_in_and_stays_bounded() {
     let tag = Uuid::new_v4().simple().to_string();
     for i in 0..60 {
         let (key, address) = (format!("wide-{tag}-{i}"), format!("a-{tag}-{i}"));
-        assert_eq!(file(&app.db, tenant, &key, &address).await, JoinState::Pending);
+        assert_eq!(
+            file(&app.db, tenant, &key, &address).await,
+            JoinState::Pending
+        );
     }
     let waiting: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM device_pairing_requests \
@@ -356,7 +416,10 @@ async fn a_machine_key_stays_off_the_peer_roster() {
         .json()
         .await
         .expect("json");
-    assert!(!roster.to_string().contains(&node_id), "a machine's key must not be listed");
+    assert!(
+        !roster.to_string().contains(&node_id),
+        "a machine's key must not be listed"
+    );
 }
 
 /// Seeing the second code is a step in letting a machine in, so it leaves a trail.
@@ -378,7 +441,10 @@ async fn showing_the_second_code_is_audited() {
         .json()
         .await
         .expect("json");
-    let device: Uuid = approved["id"].as_str().and_then(|v| v.parse().ok()).expect("the machine's id");
+    let device: Uuid = approved["id"]
+        .as_str()
+        .and_then(|v| v.parse().ok())
+        .expect("the machine's id");
     let shown = app
         .client
         .post(app.url(&format!("/api/admin/machines/{device}/confirm-code")))

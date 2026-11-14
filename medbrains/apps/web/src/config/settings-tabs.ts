@@ -429,7 +429,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     value: "system-health",
     i18nKey: "settings.systemHealth",
     icon: "IconHeartRateMonitor",
-    requiredPermission: "admin.settings.general.manage",
+    requiredPermissions: ["admin.settings.general.manage", "admin.backup.manage"],
     component: SystemHealthSettings,
   },
   {

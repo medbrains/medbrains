@@ -256,7 +256,10 @@ pub async fn create_request(
             "Your request is already with your doctor".to_owned(),
         ));
     }
-    if !awaiting_supply(tx, tenant_id, &[prescription_id]).await?.is_empty() {
+    if !awaiting_supply(tx, tenant_id, &[prescription_id])
+        .await?
+        .is_empty()
+    {
         return Err(AppError::Conflict(AWAITING_SUPPLY.to_owned()));
     }
     let lines = line_policies(tx, tenant_id, &[prescription_id]).await?;
