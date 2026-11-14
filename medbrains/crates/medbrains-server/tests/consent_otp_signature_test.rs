@@ -32,13 +32,12 @@ async fn an_otp_signature_without_a_verified_code_is_refused() {
         .expect("signature")
         .status();
 
-    let stored: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM consent_signature_metadata WHERE consent_id = $1",
-    )
-    .bind(consent_id)
-    .fetch_one(&app.db)
-    .await
-    .expect("count");
+    let stored: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM consent_signature_metadata WHERE consent_id = $1")
+            .bind(consent_id)
+            .fetch_one(&app.db)
+            .await
+            .expect("count");
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(stored, 0);
 }
