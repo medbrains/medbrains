@@ -5,7 +5,7 @@ The nightly E2E run (.github/workflows/e2e.yml) calls it between the test runs a
 `allure generate` (config: apps/web/allurerc.mjs):
 
   label  <results-dir> <app>     fill epic/feature/story where a test set none
-  junit  <junit.xml> <out-dir>   turn the Rust tests' nextest JUnit into Allure results
+  junit  <xml> <out-dir> <app>   turn nextest (server) or Vitest (web) JUnit into Allure results
   badge  <out.json> <dir>...     the shields.io endpoint JSON for the README badge
   theme  <report-dir>            MedBrains colours, fonts, logo and header links; drops
                                  the report's built-in Google Analytics tag
@@ -109,14 +109,38 @@ def label_dir(results_dir: Path, app: str) -> int:
     return count
 
 
-def junit_case_to_allure(case: ET.Element, suite_name: str, start_ms: int) -> dict:
-    """One nextest JUnit testcase as an Allure result. The crate is the module and the
-    test's module path the scenario: `medbrains-pharmacy::dispense` `tests::refuses_x`."""
-    binary = case.get("classname") or suite_name
+def junit_grouping(case: ET.Element, suite_name: str, app: str) -> tuple[str, str, list[dict]]:
+    """Full name, display name and grouping labels of a JUnit testcase.
+
+    server (nextest): the crate is the module, the test's module path the scenario
+    (`medbrains-pharmacy::dispense` `tests::refuses_x`). web (Vitest): the module comes from
+    the file name, the scenario is the describe block (`Describe > test`)."""
+    owner = case.get("classname") or suite_name
     name = case.get("name", "")
-    crate = binary.split("::")[0].removeprefix("medbrains-")
-    scenario = name.rsplit("::", 1)[0] if "::" in name else binary
-    full_name = f"{binary}::{name}"
+    if app == "server":
+        module = owner.split("::")[0].removeprefix("medbrains-")
+        scenario = name.rsplit("::", 1)[0] if "::" in name else owner
+        title, framework, language = name.rsplit("::", 1)[-1], "cargo-nextest", "rust"
+        full_name = f"{owner}::{name}"
+    else:
+        parts = name.split(" > ")
+        module = module_of(owner)
+        scenario = parts[0] if len(parts) > 1 else Path(owner).name.split(".")[0]
+        title, framework, language = parts[-1], "vitest", "javascript"
+        full_name = f"{owner}#{name}"
+    labels = [
+        {"name": "epic", "value": app},
+        {"name": "feature", "value": module},
+        {"name": "story", "value": scenario},
+        {"name": "framework", "value": framework},
+        {"name": "language", "value": language},
+    ]
+    return full_name, title, labels
+
+
+def junit_case_to_allure(case: ET.Element, suite_name: str, start_ms: int, app: str) -> dict:
+    """One JUnit testcase (nextest or Vitest) as an Allure result."""
+    full_name, title, labels = junit_grouping(case, suite_name, app)
     failure = case.find("failure")
     if failure is None:
         failure = case.find("error")
@@ -127,31 +151,25 @@ def junit_case_to_allure(case: ET.Element, suite_name: str, start_ms: int) -> di
     elif failure is not None:
         status = "failed" if failure.tag == "failure" else "broken"
         details = {"message": failure.get("message", ""), "trace": failure.text or ""}
-    # nextest records a run's start and each test's length, not each test's start.
+    # JUnit records a run's start and each test's length, not each test's start.
     duration_ms = int(float(case.get("time", "0")) * 1000)
     history_id = hashlib.md5(full_name.encode(), usedforsecurity=False).hexdigest()
     return {
         "uuid": str(uuid.uuid4()),
         "historyId": history_id,
         "testCaseId": history_id,
-        "name": name.rsplit("::", 1)[-1],
+        "name": title,
         "fullName": full_name,
         "status": status,
         "statusDetails": details,
         "stage": "finished",
         "start": start_ms,
         "stop": start_ms + duration_ms,
-        "labels": [
-            {"name": "epic", "value": "server"},
-            {"name": "feature", "value": crate},
-            {"name": "story", "value": scenario},
-            {"name": "framework", "value": "cargo-nextest"},
-            {"name": "language", "value": "rust"},
-        ],
+        "labels": labels,
     }
 
 
-def junit_to_allure(junit: Path, out_dir: Path) -> int:
+def junit_to_allure(junit: Path, out_dir: Path, app: str) -> int:
     """Writes one Allure result file per JUnit testcase; returns how many."""
     out_dir.mkdir(parents=True, exist_ok=True)
     count = 0
@@ -160,7 +178,7 @@ def junit_to_allure(junit: Path, out_dir: Path) -> int:
         stamp = suite.get("timestamp") or root.get("timestamp")
         start_ms = int((datetime.fromisoformat(stamp) if stamp else datetime.now(UTC)).timestamp() * 1000)
         for case in suite.iter("testcase"):
-            result = junit_case_to_allure(case, suite.get("name", ""), start_ms)
+            result = junit_case_to_allure(case, suite.get("name", ""), start_ms, app)
             (out_dir / f"{result['uuid']}-result.json").write_text(json.dumps(result))
             count += 1
     return count
@@ -403,11 +421,24 @@ def self_test() -> None:
             "</testsuite></testsuites>"
         )
         out = Path(tmp) / "rust"
-        assert junit_to_allure(junit, out) == 3
+        assert junit_to_allure(junit, out, "server") == 3
         results = [json.loads(p.read_text()) for p in out.glob("*-result.json")]
         first = next(r for r in results if r["name"] == "refuses_schedule_x")
         assert labels_of(first)["feature"] == "pharmacy" and labels_of(first)["story"] == "tests"
         assert first["start"] == 1_794_621_600_000 and first["stop"] == first["start"] + 500, first
+        vitest = Path(tmp) / "vitest.xml"
+        vitest.write_text(
+            '<testsuites><testsuite name="src/pages/pharmacy-queue.test.tsx">'
+            '<testcase classname="src/pages/pharmacy-queue.test.tsx" '
+            'name="Pharmacy queue &gt; shows an outage, not an empty queue" time="0.2"/>'
+            "</testsuite></testsuites>"
+        )
+        web = Path(tmp) / "web"
+        assert junit_to_allure(vitest, web, "web") == 1
+        only = json.loads(next(web.glob("*-result.json")).read_text())
+        assert only["name"] == "shows an outage, not an empty queue", only
+        assert labels_of(only)["epic"] == "web"
+        assert labels_of(only)["feature"] == "pharmacy" and labels_of(only)["story"] == "Pharmacy queue"
         assert final_statuses([out]) == Counter(passed=1, failed=1, skipped=1)
         # A retry that passed counts once, as passed.
         retry = Path(tmp) / "retry"
@@ -444,8 +475,8 @@ def main(argv: list[str]) -> int:
             self_test()
         case ["label", results_dir, app]:
             print(f"labelled {label_dir(Path(results_dir), app)} results in {results_dir}")
-        case ["junit", junit, out_dir]:
-            print(f"converted {junit_to_allure(Path(junit), Path(out_dir))} Rust tests")
+        case ["junit", junit, out_dir, ("server" | "web") as app]:
+            print(f"converted {junit_to_allure(Path(junit), Path(out_dir), app)} {app} tests")
         case ["badge", out, *dirs] if dirs:
             body = badge_json(final_statuses([Path(d) for d in dirs]))
             Path(out).write_text(json.dumps(body))

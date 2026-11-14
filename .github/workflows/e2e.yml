@@ -247,17 +247,17 @@ jobs:
             gh api "repos/$REPO/actions/artifacts?name=$1&per_page=50" --jq \
               "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BRANCH\")][0].workflow_run.id // empty"
           }
-          run=$(latest_run vitest-allure)
+          run=$(latest_run vitest-junit)
           if [ -n "$run" ]; then
-            gh run download "$run" -R "$REPO" -n vitest-allure -D allure-results/vitest
-            python3 ../../scripts/test_report.py label allure-results/vitest web
+            gh run download "$run" -R "$REPO" -n vitest-junit -D vitest-junit
+            python3 ../../scripts/test_report.py junit vitest-junit/vitest.xml allure-results/vitest web
           else
             echo "::notice::No Vitest results saved for $BRANCH; the report shows Playwright and Rust."
           fi
           run=$(latest_run rust-junit)
           if [ -n "$run" ]; then
             gh run download "$run" -R "$REPO" -n rust-junit -D rust-junit
-            python3 ../../scripts/test_report.py junit rust-junit/junit.xml allure-results/rust
+            python3 ../../scripts/test_report.py junit rust-junit/junit.xml allure-results/rust server
           else
             echo "::notice::No Rust results saved for $BRANCH; the report shows Playwright and Vitest."
           fi
