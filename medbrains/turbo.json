@@ -3,6 +3,10 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "outputs": ["lib/**", "dist/**"]
+    },
+    "@medbrains/web#build": {
+      "dependsOn": ["^build"],
       "outputs": ["lib/**", "dist/**"],
       "env": ["MEDBRAINS_RELEASE", "SENTRY_URL", "SENTRY_PROJECT"],
       "passThroughEnv": ["SENTRY_AUTH_TOKEN"]
