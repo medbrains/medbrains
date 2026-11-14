@@ -899,9 +899,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/public/appointments/book",
             post(appointments::public_book_appointment),
         )
+        // Each request may send an SMS: bounded per address.
         .route(
             "/api/public/appointments/otp",
-            post(appointments::request_public_booking_otp),
+            post(appointments::request_public_booking_otp)
+                .layer(from_fn_with_state(RateLimiter::new(), rate_limit_middleware)),
         )
         .route(
             "/api/public/appointments/directory",
