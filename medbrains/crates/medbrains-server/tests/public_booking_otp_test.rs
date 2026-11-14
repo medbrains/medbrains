@@ -102,7 +102,11 @@ async fn wrong_booking_codes_are_counted_and_burn_the_code() {
             StatusCode::BAD_REQUEST
         );
     }
-    assert_eq!(codes(&app, &hospital).await, vec![5], "every wrong code counts");
+    assert_eq!(
+        codes(&app, &hospital).await,
+        vec![5],
+        "every wrong code counts"
+    );
     assert_eq!(
         book_with(&app, &hospital, "123456").await,
         StatusCode::BAD_REQUEST,
