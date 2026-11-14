@@ -16,7 +16,11 @@
  */
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { E2E_ROLE_DEFINITIONS, getE2EIdentity } from "../helpers/e2e-identities";
+import {
+  E2E_ROLE_DEFINITIONS,
+  getE2EIdentity,
+  loginForSession as login,
+} from "../helpers/e2e-identities";
 
 const BASE = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
@@ -54,24 +58,6 @@ const MATRIX: MatrixEntry[] = [
 interface AuthSession {
   csrf: string;
   cookieHeader: string;
-}
-
-async function login(
-  request: APIRequestContext,
-  username: string,
-  password: string,
-): Promise<AuthSession> {
-  const resp = await request.post(`${BASE}/api/auth/login`, {
-    data: { username, password },
-  });
-  expect(resp.status(), `login ${username}`).toBe(200);
-  const body = await resp.json();
-  const headers = resp.headersArray();
-  const cookieHeader = headers
-    .filter((h) => h.name.toLowerCase() === "set-cookie")
-    .map((h) => h.value.split(";")[0])
-    .join("; ");
-  return { csrf: body.csrf_token ?? "", cookieHeader };
 }
 
 async function callApi(
