@@ -4,7 +4,8 @@
 //! Patient data never goes in a report. The server's own envelopes are scrubbed
 //! by [`envelope::scrub_envelope`] in its transport; the browser's reach Rustrak
 //! through [`tunnel`] and are scrubbed item by item in [`browser`] — both with
-//! the same `scrub_event`. Off unless `SENTRY_DSN` is set.
+//! the same `scrub_event`. Off unless `SENTRY_DSN` is set; a DSN off this host
+//! (the project's own servers on sentry.io) also needs `SENTRY_ALLOW_EXTERNAL=1`.
 
 // `unreachable_pub` is denied workspace-wide, so items shared between this
 // crate's private modules are `pub(crate)`, which this nursery lint dislikes.
@@ -23,16 +24,20 @@ mod phi_tests;
 
 use std::sync::OnceLock;
 
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, Query};
+use axum::middleware::from_fn_with_state;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use medbrains_core::permissions;
 use medbrains_kernel::{Claims, require_permission};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::rate_limit::{
+    RateLimiter, error_report_rate_limit_middleware,
+};
 use medbrains_server_core::state::AppState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-pub use config::{Settings, settings};
+pub use config::{ALLOW_EXTERNAL, ClientApp, Settings, settings};
 pub use sdk::{HttpLayer, dsn_host_is_own, http_layer, init, tag_scope, tracing_layer};
 pub use sentry::types::Dsn;
 pub use summary::ErrorTrackingSummary;
@@ -40,23 +45,56 @@ pub use summary::ErrorTrackingSummary;
 /// Where the browser SDK sends its envelopes.
 pub const TUNNEL_PATH: &str = "/api/public/error-tracking/envelope";
 
-/// What the browser needs to start its SDK. Its release is its own build's
-/// commit, so it is not sent from here.
+/// The tunnel for the native SDKs, which have no `tunnel` option. They are given
+/// a DSN on this server, `https://medbrains@<server><tunnel_dsn_path>`, and post
+/// to `<tunnel_dsn_path minus the project>/api/<project>/envelope/`, which is this.
+const APP_TUNNEL_ROUTE: &str = "/api/public/error-tracking/{app}/api/{project}/envelope/";
+
+/// What an app needs to start its SDK. Its release is its own build's commit
+/// or version, so it is not sent from here.
 #[derive(Debug, Serialize)]
 pub struct ClientConfig {
     pub enabled: bool,
+    /// The app's project, `SENTRY_<APP>_DSN` or else `SENTRY_DSN`.
     pub dsn: Option<String>,
     pub environment: Option<String>,
+    /// The browser SDK's `tunnel`.
     pub tunnel: &'static str,
+    /// For a native app: the path of the DSN it starts its SDK with, so that
+    /// its reports come through this server too. `None` for the web.
+    pub tunnel_dsn_path: Option<String>,
+}
+
+/// `?app=android`; the web when absent.
+#[derive(Debug, Default, Deserialize)]
+struct ConfigQuery {
+    #[serde(default)]
+    app: ClientApp,
 }
 
 /// Answers before sign-in: errors on the sign-in page count too.
 pub fn public_router() -> Router<AppState> {
     Router::new()
         .route("/api/public/error-tracking/config", get(get_client_config))
+        .merge(tunnel_router())
+}
+
+/// The browser's and the native apps' tunnels, sharing one per-IP limit.
+fn tunnel_router<S: Clone + Send + Sync + 'static>() -> Router<S> {
+    let limiter = RateLimiter::new();
+    let with_limits = |route: axum::routing::MethodRouter<S>| {
+        route
+            .layer(DefaultBodyLimit::max(tunnel::MAX_ENVELOPE_BYTES))
+            .layer(from_fn_with_state(
+                limiter.clone(),
+                error_report_rate_limit_middleware,
+            ))
+    };
+    Router::new()
+        .route(TUNNEL_PATH, with_limits(post(tunnel::post_envelope)))
         .route(
-            TUNNEL_PATH,
-            post(tunnel::post_envelope).layer(DefaultBodyLimit::max(tunnel::MAX_ENVELOPE_BYTES)),
+            APP_TUNNEL_ROUTE,
+            with_limits(post(tunnel::post_app_envelope)),
         )
 }
 
@@ -64,14 +102,21 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/api/admin/error-tracking/summary", get(get_summary))
 }
 
-async fn get_client_config() -> Json<ClientConfig> {
-    let current = settings();
-    Json(ClientConfig {
+/// `GET /api/public/error-tracking/config?app=…`, before sign-in.
+async fn get_client_config(Query(query): Query<ConfigQuery>) -> Json<ClientConfig> {
+    Json(client_config(settings(), query.app))
+}
+
+/// Off without settings; otherwise the app's own project and its tunnel.
+fn client_config(current: Option<&Settings>, app: ClientApp) -> ClientConfig {
+    ClientConfig {
         enabled: current.is_some(),
-        dsn: current.map(|s| s.dsn.to_string()),
+        dsn: current.map(|s| s.client_dsn(app).to_string()),
         environment: current.map(|s| s.environment.clone()),
         tunnel: TUNNEL_PATH,
-    })
+        tunnel_dsn_path: (app != ClientApp::Web)
+            .then(|| format!("/api/public/error-tracking/{}/1", app.as_str())),
+    }
 }
 
 #[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
@@ -93,4 +138,91 @@ fn http_client() -> Result<&'static reqwest::Client, String> {
         })
         .as_ref()
         .map_err(Clone::clone)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use medbrains_server_core::middleware::client_ip::ClientIp;
+    use tower::ServiceExt;
+
+    use super::{ClientApp, Settings, TUNNEL_PATH, client_config, tunnel_router};
+
+    /// One envelope post from `ip`, as the server's client-IP layer marks it.
+    async fn post_from(router: axum::Router, ip: IpAddr) -> Result<StatusCode, String> {
+        let mut request = Request::post(TUNNEL_PATH)
+            .body(Body::from("{}"))
+            .map_err(|e| e.to_string())?;
+        request.extensions_mut().insert(ClientIp(ip));
+        let response = router.oneshot(request).await.map_err(|e| e.to_string())?;
+        Ok(response.status())
+    }
+
+    #[tokio::test]
+    async fn one_address_may_send_sixty_reports_a_minute_and_no_more() -> Result<(), String> {
+        let router = tunnel_router::<()>();
+        let flooder = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7));
+        for _ in 0..60 {
+            assert_ne!(
+                post_from(router.clone(), flooder).await?,
+                StatusCode::TOO_MANY_REQUESTS
+            );
+        }
+        assert_eq!(
+            post_from(router.clone(), flooder).await?,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        let neighbour = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 8));
+        assert_ne!(
+            post_from(router, neighbour).await?,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        Ok(())
+    }
+
+    fn settings() -> Result<Settings, String> {
+        let lookup = |key: &str| match key {
+            "SENTRY_DSN" => Some("http://s@127.0.0.1:8180/1".to_owned()),
+            "SENTRY_WEB_DSN" => Some("http://w@127.0.0.1:8180/2".to_owned()),
+            _ => None,
+        };
+        Settings::from_lookup(lookup)?.ok_or_else(|| "expected settings".to_owned())
+    }
+
+    #[test]
+    fn off_without_settings_for_every_app() {
+        for app in [
+            ClientApp::Web,
+            ClientApp::Android,
+            ClientApp::Ios,
+            ClientApp::Desktop,
+        ] {
+            let config = client_config(None, app);
+            assert!(!config.enabled);
+            assert!(config.dsn.is_none());
+        }
+    }
+
+    #[test]
+    fn the_browser_is_given_the_web_dsn_and_no_dsn_path() -> Result<(), String> {
+        let config = client_config(Some(&settings()?), ClientApp::Web);
+        assert_eq!(config.dsn.as_deref(), Some("http://w:@127.0.0.1:8180/2"));
+        assert_eq!(config.tunnel, TUNNEL_PATH);
+        assert!(config.tunnel_dsn_path.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn a_phone_is_given_a_dsn_path_on_this_server() -> Result<(), String> {
+        let config = client_config(Some(&settings()?), ClientApp::Android);
+        assert_eq!(config.dsn.as_deref(), Some("http://s:@127.0.0.1:8180/1"));
+        assert_eq!(
+            config.tunnel_dsn_path.as_deref(),
+            Some("/api/public/error-tracking/android/1")
+        );
+        Ok(())
+    }
 }

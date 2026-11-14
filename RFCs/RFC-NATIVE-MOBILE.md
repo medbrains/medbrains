@@ -79,6 +79,22 @@ areas everywhere, size-class-driven layout, Dynamic Type, accessibility labels o
 icon-only control, reduced motion honoured. Xcode 26.6 ships no iPhone Duo simulator;
 adaptivity is verified on iPad split view and large-phone landscape until one exists.
 
+**iOS error reports.** sentry-cocoa (`Sentry`, pinned exact in
+`Packages/MedBrainsKit/Package.swift`, 7-day cooldown checked by hand because
+`scripts/check_supply_chain.py` does not read `Package.resolved`) lives in MedBrainsKit
+(`ErrorTracking.swift`), so every app gets it once. Each app calls
+`ErrorTracking.configure(client:)` beside `hydrate()`; the staff app again after a new hospital
+binding. It reads `GET /api/public/error-tracking/config?app=ios` and starts only when
+`enabled`, `dsn` and `tunnel_dsn_path` are all set; a failed fetch is off. The SDK is given a DSN
+on the hospital server, `{scheme}://medbrains@{host}[:port]{tunnel_dsn_path}`, never the real
+DSN host, so the server's Rust scrubber sees every report. On the phone: no default PII,
+screenshots, view hierarchy, replay, tracing, profiling or failed-request capture; console and
+typed-text breadcrumbs dropped, `ui.*` messages dropped, breadcrumb data cut to
+method/status/url/from/to, URLs without query or fragment and with record ids as `:id`; events
+lose extras, server name, device name and all request fields but method and URL. The user is
+`sha256(userId)` (first 32 hex, as the web), tagged with `tenant_id` and `role`. Tests:
+`swift test --filter ErrorTrackingTests` in MedBrainsKit.
+
 **Android.** `MaterialExpressiveTheme` fed from the tokens, `NavigationSuiteScaffold` and
 `WindowSizeClass` for foldables, edge-to-edge with IME insets on forms, 48dp targets,
 expressive components (button groups, FAB menu, loading indicator) where Paper equivalents

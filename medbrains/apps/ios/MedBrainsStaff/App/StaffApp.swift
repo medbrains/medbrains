@@ -22,8 +22,14 @@ struct StaffApp: App {
                 .environment(shell)
                 .environment(\.apiClient, shell.client)
                 .tint(MedBrainsTheme.interactive)
-                // A new hospital binding brings a new store: hydrate it too.
-                .task(id: ObjectIdentifier(shell.auth)) { await shell.auth.hydrate() }
+                // A new hospital binding brings a new store: hydrate it too,
+                // and take that hospital's error-tracking setting.
+                .task(id: ObjectIdentifier(shell.auth)) {
+                    let client = shell.client
+                    async let tracking: Void = ErrorTracking.configure(client: client)
+                    await shell.auth.hydrate()
+                    await tracking
+                }
         }
     }
 }
