@@ -41,7 +41,10 @@ pub async fn build_secret_resolver() -> Arc<dyn SecretResolver> {
             Arc::new(EnvSecretResolver::new())
         }
         other => {
-            tracing::warn!(backend = other, "unknown MEDBRAINS_SECRETS_BACKEND; using env");
+            tracing::warn!(
+                backend = other,
+                "unknown MEDBRAINS_SECRETS_BACKEND; using env"
+            );
             Arc::new(EnvSecretResolver::new())
         }
     }
@@ -64,7 +67,9 @@ async fn build_aws() -> Arc<dyn SecretResolver> {
 #[cfg(not(feature = "aws-secrets"))]
 #[allow(clippy::unused_async)] // async to match the feature-on signature at the call site
 async fn build_aws() -> Arc<dyn SecretResolver> {
-    tracing::warn!("secrets backend 'aws' requested but built without the 'aws-secrets' feature; using env");
+    tracing::warn!(
+        "secrets backend 'aws' requested but built without the 'aws-secrets' feature; using env"
+    );
     Arc::new(EnvSecretResolver::new())
 }
 

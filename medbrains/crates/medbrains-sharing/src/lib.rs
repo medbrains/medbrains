@@ -190,7 +190,10 @@ pub async fn create_grant(
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
         match medbrains_server_core::middleware::authorization::outcome_of(
-            state.authz.check(&ctx, Relation::Owner, &body.object_type, body.object_id).await,
+            state
+                .authz
+                .check(&ctx, Relation::Owner, &body.object_type, body.object_id)
+                .await,
             &body.object_type,
         ) {
             medbrains_authz::decision::Outcome::Allow => {}
@@ -282,7 +285,10 @@ pub async fn revoke_grant(
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
         match medbrains_server_core::middleware::authorization::outcome_of(
-            state.authz.check(&ctx, Relation::Owner, &body.object_type, body.object_id).await,
+            state
+                .authz
+                .check(&ctx, Relation::Owner, &body.object_type, body.object_id)
+                .await,
             &body.object_type,
         ) {
             medbrains_authz::decision::Outcome::Allow => {}
@@ -339,7 +345,12 @@ pub async fn list_grants(
             medbrains_server_core::middleware::authorization::outcome_of(
                 state
                     .authz
-                    .check(&ctx, Relation::Viewer, &params.object_type, params.object_id)
+                    .check(
+                        &ctx,
+                        Relation::Viewer,
+                        &params.object_type,
+                        params.object_id,
+                    )
                     .await,
                 &params.object_type,
             ),

@@ -124,7 +124,9 @@ pub(crate) fn to_reference_unit(
     let (Some(src), Some(dst)) = (scale_of(from), scale_of(to)) else {
         return Converted::Incomparable;
     };
-    let charge_one = MONOVALENT.iter().any(|ion| analyte.to_lowercase().contains(ion));
+    let charge_one = MONOVALENT
+        .iter()
+        .any(|ion| analyte.to_lowercase().contains(ion));
     let same_kind = src.kind == dst.kind
         || (charge_one
             && matches!(
@@ -155,14 +157,26 @@ mod tests {
     #[test]
     fn a_platelet_count_in_thousands_becomes_lakhs() {
         // The defect: 250 x10^3/uL is 2.5 lakh, not 250 lakh.
-        assert!(close(conv(250.0, "10^3/uL", "lakh/cumm", "platelet count"), 2.5));
-        assert!(close(conv(16.0, "10³/µL", "lakh/cumm", "platelet count"), 0.16));
-        assert!(close(conv(250.0, "x10^9/L", "lakh/cumm", "platelet count"), 2.5));
+        assert!(close(
+            conv(250.0, "10^3/uL", "lakh/cumm", "platelet count"),
+            2.5
+        ));
+        assert!(close(
+            conv(16.0, "10³/µL", "lakh/cumm", "platelet count"),
+            0.16
+        ));
+        assert!(close(
+            conv(250.0, "x10^9/L", "lakh/cumm", "platelet count"),
+            2.5
+        ));
     }
 
     #[test]
     fn a_wbc_count_in_thousands_becomes_cells_per_cumm() {
-        assert!(close(conv(7.5, "10^3/uL", "cells/cumm", "total wbc"), 7500.0));
+        assert!(close(
+            conv(7.5, "10^3/uL", "cells/cumm", "total wbc"),
+            7500.0
+        ));
     }
 
     #[test]
@@ -198,8 +212,17 @@ mod tests {
 
     #[test]
     fn a_missing_unit_is_read_as_the_reference_unit() {
-        assert_eq!(to_reference_unit(4.0, None, Some("g/dL"), "albumin"), Converted::Value(4.0));
-        assert_eq!(to_reference_unit(4.0, Some(" "), Some("g/dL"), "albumin"), Converted::Value(4.0));
-        assert_eq!(to_reference_unit(4.0, Some("g/dL"), None, "albumin"), Converted::Value(4.0));
+        assert_eq!(
+            to_reference_unit(4.0, None, Some("g/dL"), "albumin"),
+            Converted::Value(4.0)
+        );
+        assert_eq!(
+            to_reference_unit(4.0, Some(" "), Some("g/dL"), "albumin"),
+            Converted::Value(4.0)
+        );
+        assert_eq!(
+            to_reference_unit(4.0, Some("g/dL"), None, "albumin"),
+            Converted::Value(4.0)
+        );
     }
 }

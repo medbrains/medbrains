@@ -415,7 +415,10 @@ fn stamp_signature_qr(context: &mut serde_json::Value) -> Result<(), AppError> {
     else {
         return Ok(());
     };
-    let Some(url) = signature.get("verify_url").and_then(serde_json::Value::as_str) else {
+    let Some(url) = signature
+        .get("verify_url")
+        .and_then(serde_json::Value::as_str)
+    else {
         return Ok(());
     };
     let svg = medbrains_print::codes::qr_svg(url)
@@ -682,7 +685,9 @@ mod signature_tests {
         ] } });
         super::stamp_signature_qr(&mut ctx).expect("qr");
         assert_eq!(ctx["signature"]["verify_ref"], "abc");
-        let svg = ctx["signature"]["verify_qr_svg"].as_str().unwrap_or_default();
+        let svg = ctx["signature"]["verify_qr_svg"]
+            .as_str()
+            .unwrap_or_default();
         assert!(svg.contains("<svg"), "the QR is drawn: {svg}");
     }
 

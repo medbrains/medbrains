@@ -1,14 +1,17 @@
 //! Documents/records leaf crate: document management, ingestion, ROI, storage
 //! lifecycle, signatures. Mounted via router().
 
-use axum::{Router, routing::{delete,get,post,put}};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod document_ingestion;
 pub mod documents;
 pub mod roi;
-pub mod signature_verify;
 pub mod signable;
+pub mod signature_verify;
 pub mod signatures;
 pub mod storage;
 
@@ -48,22 +51,13 @@ pub fn router() -> Router<AppState> {
             "/api/documents/generate/batch",
             post(documents::batch_generate),
         )
-        .route(
-            "/api/documents/outputs",
-            get(documents::list_outputs),
-        )
-        .route(
-            "/api/documents/outputs/stats",
-            get(documents::output_stats),
-        )
+        .route("/api/documents/outputs", get(documents::list_outputs))
+        .route("/api/documents/outputs/stats", get(documents::output_stats))
         .route(
             "/api/documents/outputs/patient/{patient_id}",
             get(documents::list_patient_outputs),
         )
-        .route(
-            "/api/documents/outputs/{id}",
-            get(documents::get_output),
-        )
+        .route("/api/documents/outputs/{id}", get(documents::get_output))
         .route(
             "/api/documents/outputs/{id}/print",
             post(documents::record_print),
@@ -74,8 +68,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/documents/outputs/{id}/signatures",
-            get(documents::list_output_signatures)
-                .post(documents::add_output_signature),
+            get(documents::list_output_signatures).post(documents::add_output_signature),
         )
         .route(
             "/api/documents/outputs/{id}/signatures/{sig_id}",
@@ -83,8 +76,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/documents/review-schedule",
-            get(documents::list_review_schedule)
-                .post(documents::create_review_schedule),
+            get(documents::list_review_schedule).post(documents::create_review_schedule),
         )
         .route(
             "/api/documents/review-schedule/{id}",
@@ -106,10 +98,7 @@ pub fn router() -> Router<AppState> {
             "/api/documents/print-editor/mock-render",
             post(documents::mock_render_print_template),
         )
-        .route(
-            "/api/documents/print-jobs",
-            get(documents::list_print_jobs),
-        )
+        .route("/api/documents/print-jobs", get(documents::list_print_jobs))
         .route(
             "/api/documents/print-jobs/{id}",
             put(documents::update_print_job),
@@ -142,16 +131,19 @@ pub fn router() -> Router<AppState> {
             "/api/roi-requests",
             get(roi::list_roi_requests).post(roi::create_roi_request),
         )
-        .route("/api/roi-requests/{id}/review", put(roi::review_roi_request))
-        .route("/api/roi-requests/{id}/access", post(roi::record_roi_access))
+        .route(
+            "/api/roi-requests/{id}/review",
+            put(roi::review_roi_request),
+        )
+        .route(
+            "/api/roi-requests/{id}/access",
+            post(roi::record_roi_access),
+        )
         .route(
             "/api/roi-requests/{id}/access-log",
             get(roi::list_roi_access_log),
         )
-        .route(
-            "/api/admin/storage/policies",
-            get(storage::list_policies),
-        )
+        .route("/api/admin/storage/policies", get(storage::list_policies))
         .route(
             "/api/admin/storage/policies/{category}",
             put(storage::update_policy),
@@ -165,10 +157,7 @@ pub fn router() -> Router<AppState> {
             "/api/admin/storage/restore/{doc_id}",
             post(storage::request_restore),
         )
-        .route(
-            "/api/admin/storage/sweep-now",
-            post(storage::trigger_sweep),
-        )
+        .route("/api/admin/storage/sweep-now", post(storage::trigger_sweep))
         .route(
             "/api/admin/signature-credentials",
             get(signatures::list_credentials).post(signatures::issue_credential),
@@ -181,26 +170,11 @@ pub fn router() -> Router<AppState> {
             "/api/signatures/my-credentials",
             get(signatures::list_my_credentials),
         )
-        .route(
-            "/api/signatures/review",
-            post(signatures::review_record),
-        )
-        .route(
-            "/api/signatures/types",
-            get(signable::list_signable_types),
-        )
-        .route(
-            "/api/signatures/sign",
-            post(signatures::sign_record),
-        )
-        .route(
-            "/api/signatures/list",
-            get(signatures::list_signatures),
-        )
-        .route(
-            "/api/signatures/verify",
-            post(signatures::verify_signature),
-        )
+        .route("/api/signatures/review", post(signatures::review_record))
+        .route("/api/signatures/types", get(signable::list_signable_types))
+        .route("/api/signatures/sign", post(signatures::sign_record))
+        .route("/api/signatures/list", get(signatures::list_signatures))
+        .route("/api/signatures/verify", post(signatures::verify_signature))
         .route(
             "/api/signatures/{id}/verify-link",
             post(signature_verify::issue_verify_link),

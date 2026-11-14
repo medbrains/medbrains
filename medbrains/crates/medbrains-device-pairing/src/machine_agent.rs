@@ -2,10 +2,10 @@
 //! holds. A filing grants nothing, and a tenant is never taken from what a machine sent: the
 //! hospital is the one this box serves.
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::routing::{get, post};
-use axum::Json;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_kernel::{Actor, Tx, begin};
 use medbrains_server_core::error::AppError;
@@ -105,7 +105,10 @@ pub(crate) async fn this_hospital(db: &sqlx::PgPool) -> Result<(Uuid, String), A
 
 /// Who the agent's work runs as: this hospital, and no person.
 pub(crate) const fn agent_actor(tenant_id: Uuid) -> Actor {
-    Actor { tenant_id, user_id: Uuid::nil() }
+    Actor {
+        tenant_id,
+        user_id: Uuid::nil(),
+    }
 }
 
 /// `POST /api/machine-agent/join`'s body. The key and the address come from the iroh connection, as
@@ -130,10 +133,7 @@ pub struct JoinAnswer {
 
 /// Makes room for one more request. This machine's own waiting request is replaced; past the limits,
 /// the oldest goes, from this address first. Keeps a bounded record of what went.
-async fn make_room(
-    tx: &mut Tx,
-    filing: &JoinFiling,
-) -> Result<(), AppError> {
+async fn make_room(tx: &mut Tx, filing: &JoinFiling) -> Result<(), AppError> {
     // This machine's own waiting request, and anything long expired: gone, so refiling cannot grow
     // the table. An hour keeps an expiry readable by the machine that is still waiting on it.
     sqlx::query!(
@@ -282,7 +282,10 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/machine-agent/join", post(file_join))
         .route("/api/machine-agent/join/{node_id}", get(get_join_state))
-        .route("/api/machine-agent/sync", post(crate::machine_sync::agent_sync))
+        .route(
+            "/api/machine-agent/sync",
+            post(crate::machine_sync::agent_sync),
+        )
 }
 
 #[cfg(test)]
@@ -306,7 +309,10 @@ mod tests {
     #[test]
     fn an_unknown_status_grants_nothing() {
         let now = Utc::now();
-        assert_eq!(join_state("anything", false, now + Duration::days(1), now), JoinState::Rejected);
+        assert_eq!(
+            join_state("anything", false, now + Duration::days(1), now),
+            JoinState::Rejected
+        );
     }
 
     /// A machine pushed out by a flood must be told to ask again, not that a person refused it.

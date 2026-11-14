@@ -43,7 +43,11 @@ pub fn pass_actions(state: &str, inside: bool) -> Vec<&'static str> {
     if !matches!(state, "active" | "overdue") {
         return Vec::new();
     }
-    let mut actions = if inside { vec!["check_out"] } else { vec!["check_in"] };
+    let mut actions = if inside {
+        vec!["check_out"]
+    } else {
+        vec!["check_in"]
+    };
     actions.push("revoke");
     actions
 }
@@ -62,8 +66,14 @@ mod tests {
     fn a_pass_past_its_hours_is_overdue_not_expired() {
         assert_eq!(pass_state("active", "2026-09-16T18:00:00Z", NOW), "active");
         assert_eq!(pass_state("active", "2026-09-16T13:00:00Z", NOW), "overdue");
-        assert_eq!(pass_state("expired", "2026-09-16T13:00:00Z", NOW), "expired");
-        assert_eq!(pass_state("revoked", "2026-09-16T18:00:00Z", NOW), "revoked");
+        assert_eq!(
+            pass_state("expired", "2026-09-16T13:00:00Z", NOW),
+            "expired"
+        );
+        assert_eq!(
+            pass_state("revoked", "2026-09-16T18:00:00Z", NOW),
+            "revoked"
+        );
     }
 
     #[test]
@@ -78,7 +88,11 @@ mod tests {
     fn a_dead_pass_offers_nothing() {
         assert_eq!(pass_actions("active", false), vec!["check_in", "revoke"]);
         assert_eq!(pass_actions("active", true), vec!["check_out", "revoke"]);
-        assert_eq!(pass_actions("overdue", true), vec!["check_out", "revoke"], "the way to end an overdue visit is to sign them out");
+        assert_eq!(
+            pass_actions("overdue", true),
+            vec!["check_out", "revoke"],
+            "the way to end an overdue visit is to sign them out"
+        );
         assert!(pass_actions("revoked", false).is_empty());
         assert!(pass_actions("expired", false).is_empty());
     }

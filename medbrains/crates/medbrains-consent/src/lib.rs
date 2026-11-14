@@ -1,10 +1,10 @@
 #![allow(clippy::too_many_lines)]
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post};
 use chrono::Utc;
 use medbrains_core::consent::{
     ConsentAuditEntry, ConsentSignatureMetadata, ConsentTemplate, ConsentTemplateListItem,
@@ -716,12 +716,21 @@ pub async fn get_signature(
     Ok(Json(row))
 }
 
+/// `POST /api/consent/signatures`: records how a consent was signed. Refuses
+/// the OTP method, which this service has no code check to back.
 pub async fn create_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSignatureRequest>,
 ) -> Result<Json<ConsentSignatureMetadata>, AppError> {
     require_permission(&claims, permissions::consent::signatures::MANAGE)?;
+    if medbrains_core::consent::claims_unverified_check(&body.signature_type) {
+        return Err(AppError::BadRequest(
+            "An OTP signature needs a verified code, and none can be verified here. \
+             Record the consent another way."
+                .to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -799,26 +808,17 @@ pub fn router() -> axum::Router<AppState> {
                 .put(update_template)
                 .delete(delete_template),
         )
-        .route(
-            "/api/consent/audit",
-            get(list_audit),
-        )
+        .route("/api/consent/audit", get(list_audit))
         .route(
             "/api/consent/audit/patient/{patient_id}",
             get(patient_audit),
         )
-        .route(
-            "/api/consent/verify",
-            post(verify_consent),
-        )
+        .route("/api/consent/verify", post(verify_consent))
         .route(
             "/api/consent/verify/patient/{patient_id}",
             get(patient_summary),
         )
-        .route(
-            "/api/consent/revoke",
-            post(revoke_consent),
-        )
+        .route("/api/consent/revoke", post(revoke_consent))
         .route(
             "/api/consent/signatures",
             get(list_signatures).post(create_signature),
@@ -857,20 +857,17 @@ mod consent_template_enforcement_tests {
         ];
 
         for flag in UNENFORCED {
-            let used_outside_sql = SRC
-                .lines()
-                .filter(|line| line.contains(flag))
-                .any(|line| {
-                    let l = line.trim();
-                    // Struct fields, binds and SQL column lists are storage,
-                    // not enforcement. Anything else reads the flag to decide.
-                    !(l.starts_with("pub ")
-                        || l.starts_with("//")
-                        || l.contains(".bind(")
-                        || l.contains("COALESCE")
-                        || l.contains(',')
-                        || l.contains('"'))
-                });
+            let used_outside_sql = SRC.lines().filter(|line| line.contains(flag)).any(|line| {
+                let l = line.trim();
+                // Struct fields, binds and SQL column lists are storage,
+                // not enforcement. Anything else reads the flag to decide.
+                !(l.starts_with("pub ")
+                    || l.starts_with("//")
+                    || l.contains(".bind(")
+                    || l.contains("COALESCE")
+                    || l.contains(',')
+                    || l.contains('"'))
+            });
             assert!(
                 !used_outside_sql,
                 "{flag} now appears outside a SQL column list — if it is being enforced, \

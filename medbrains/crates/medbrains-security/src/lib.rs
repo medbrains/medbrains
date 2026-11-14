@@ -1180,7 +1180,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/data-processors",
             get(processors::list_processors).post(processors::create_processor),
         )
-        .route("/api/data-processors/{id}", put(processors::update_processor))
+        .route(
+            "/api/data-processors/{id}",
+            put(processors::update_processor),
+        )
         .route(
             "/api/security/incidents/{id}/breach",
             put(breach::assess_breach),

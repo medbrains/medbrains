@@ -31,10 +31,11 @@ async fn discharge_summary_report_counts_missing_summaries() {
         .expect("a seeded department")
         .to_owned();
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
     let doctor_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE tenant_id = $1 LIMIT 1")
         .bind(tenant_id)
         .fetch_one(&app.db)

@@ -204,12 +204,12 @@ mod tests {
     #[test]
     fn deteriorating_is_high() {
         let req = News2Request {
-            respiratory_rate: 26, // 3
-            spo2: 91,             // 3
-            on_oxygen: true,      // 2
-            temperature: 39.5,    // 2
-            systolic_bp: 88,      // 3
-            pulse: 135,           // 3
+            respiratory_rate: 26,    // 3
+            spo2: 91,                // 3
+            on_oxygen: true,         // 2
+            temperature: 39.5,       // 2
+            systolic_bp: 88,         // 3
+            pulse: 135,              // 3
             confused_or_worse: true, // 3
         };
         let r = compute_news2(&req);

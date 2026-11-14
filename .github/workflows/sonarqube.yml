@@ -185,6 +185,12 @@ jobs:
         with:
           node-version-file: medbrains/.nvmrc
           package-manager-cache: false
+      # The website's tsconfig extends `astro/tsconfigs/strict`; without its packages the
+      # TypeScript analysis of website/src runs without that config and warns.
+      - name: Install website packages for analysis
+        if: env.SONAR_TOKEN != ''
+        working-directory: website
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Web test coverage
         if: env.SONAR_TOKEN != ''
         continue-on-error: true

@@ -42,7 +42,9 @@ pub struct AldreteResult {
 
 fn validate(name: &str, value: i32) -> Result<(), AppError> {
     if !(0..=2).contains(&value) {
-        return Err(AppError::BadRequest(format!("{name} must be between 0 and 2")));
+        return Err(AppError::BadRequest(format!(
+            "{name} must be between 0 and 2"
+        )));
     }
     Ok(())
 }

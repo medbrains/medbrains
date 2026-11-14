@@ -352,6 +352,7 @@ export function matchModuleBadge(pathname: string): ModuleBadge | undefined {
 
 const SETTINGS_NAV_PERMISSIONS = [
   "admin.settings.general.manage",
+  "admin.backup.manage",
   "terminology.snomed.manage",
   "terminology.coding.configure",
   "admin.settings.facilities.list",

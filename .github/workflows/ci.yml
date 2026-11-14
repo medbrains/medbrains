@@ -22,10 +22,10 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'release/**', 'hotfix/**']
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master, main]
+    branches: [master, main, 'release/**', 'hotfix/**']
     # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
     # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
 
@@ -103,6 +103,8 @@ jobs:
       - run: python3 scripts/check_no_card_logging.py
       - run: python3 scripts/check_egress_allowlist.py
       - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
+      # The server tarball carries every binary install.sh installs.
+      - run: python3 medbrains/scripts/check_release_bins.py --self-test && python3 medbrains/scripts/check_release_bins.py
 
   readiness:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -266,9 +268,8 @@ jobs:
     # A draft PR spends no build; marking it ready for review runs everything.
     needs: changes
     if: needs.changes.outputs.rust == 'true'
-    name: "Rust format (TODO: 1053 diffs on master)"
+    name: "Rust format"
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: medbrains
@@ -276,12 +277,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-        with:
-          components: rustfmt
-      # Not blocking: `cargo fmt --check` reports 1053 diffs across the tree.
-      # Reformatting in bulk would bury real changes in review noise for weeks,
-      # so this is measured while files are tidied as they are touched.
+      # rust-toolchain.toml pins the version (and lists rustfmt), so CI formats
+      # with the same rustfmt as a local `cargo fmt`; `stable` could disagree.
+      - name: Rust toolchain
+        run: rustup toolchain install
       - run: cargo fmt --all -- --check
 
   web:

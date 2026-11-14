@@ -240,8 +240,13 @@ impl AbdmGatewayClient {
     /// # Errors
     /// [`AbdmError`] as for every call.
     pub async fn certs(&self, session: &str) -> Result<Value, AbdmError> {
-        self.call(reqwest::Method::GET, GATEWAY_CERTS_PATH, Some(session), None)
-            .await
+        self.call(
+            reqwest::Method::GET,
+            GATEWAY_CERTS_PATH,
+            Some(session),
+            None,
+        )
+        .await
     }
 
     /// Point the gateway at our callback base URL (`<cb>`).
@@ -250,9 +255,14 @@ impl AbdmGatewayClient {
     /// [`AbdmError`] when the gateway refuses or is unreachable.
     pub async fn update_bridge_url(&self, session: &str, url: &str) -> Result<(), AbdmError> {
         let body = serde_json::json!({ "url": url });
-        self.call(reqwest::Method::PATCH, BRIDGE_URL_PATH, Some(session), Some(&body))
-            .await
-            .map(|_| ())
+        self.call(
+            reqwest::Method::PATCH,
+            BRIDGE_URL_PATH,
+            Some(session),
+            Some(&body),
+        )
+        .await
+        .map(|_| ())
     }
 
     /// Our bridge as the gateway holds it: `{bridge{id,url,active,…}, services[…]}`.
@@ -260,8 +270,13 @@ impl AbdmGatewayClient {
     /// # Errors
     /// [`AbdmError`] when the gateway refuses or is unreachable.
     pub async fn bridge_services(&self, session: &str) -> Result<Value, AbdmError> {
-        self.call(reqwest::Method::GET, BRIDGE_SERVICES_PATH, Some(session), None)
-            .await
+        self.call(
+            reqwest::Method::GET,
+            BRIDGE_SERVICES_PATH,
+            Some(session),
+            None,
+        )
+        .await
     }
 
     /// A gateway call without `X-HIP-ID`/`X-HIU-ID`. An empty answer (202,

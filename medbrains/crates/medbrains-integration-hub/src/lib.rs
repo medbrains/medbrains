@@ -119,7 +119,11 @@ pub fn resolve_route(cfg: &RoutingConfig, op: OpKind) -> Result<ResolvedRoute, R
             })
         }
         RoutingMode::PrimaryFallback => {
-            let primary = require(cfg.primary.as_ref(), RoutingMode::PrimaryFallback, "primary")?;
+            let primary = require(
+                cfg.primary.as_ref(),
+                RoutingMode::PrimaryFallback,
+                "primary",
+            )?;
             let secondary = require(
                 cfg.secondary.as_ref(),
                 RoutingMode::PrimaryFallback,

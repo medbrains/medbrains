@@ -290,7 +290,9 @@ pub enum ProviderEvent {
         reason: String,
     },
     /// A payment link stopped taking money without being paid in full.
-    LinkClosed { expired: bool },
+    LinkClosed {
+        expired: bool,
+    },
     /// Verified, but nothing MedBrains acts on.
     Ignored(String),
 }
