@@ -943,8 +943,13 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Patient portal sign-in. Unauthenticated by necessity — this is how a
         // patient gets a token in the first place.
-        .route("/api/portal/auth/request-otp", post(portal::request_portal_otp))
-        .route("/api/portal/auth/verify", post(portal::verify_portal_otp))
+        // Bounded per address: each code asked for is an SMS, each tried a guess.
+        .merge(
+            Router::new()
+                .route("/api/portal/auth/request-otp", post(portal::request_portal_otp))
+                .route("/api/portal/auth/verify", post(portal::verify_portal_otp))
+                .layer(from_fn_with_state(RateLimiter::new(), rate_limit_middleware)),
+        )
         // The QR checks on paper: a prescription (scanned by a pharmacist) and
         // a signed document (by an insurer, a court, another hospital). None
         // of them is a user of this system, so the token in the URL is the
