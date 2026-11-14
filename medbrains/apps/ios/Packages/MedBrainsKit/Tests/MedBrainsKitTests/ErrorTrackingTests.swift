@@ -56,6 +56,14 @@ final class ErrorTrackingTests: XCTestCase {
         )
     }
 
+    func testDsnKeepsTheServersPathPrefix() {
+        let config = ErrorTrackingConfig(enabled: true, dsn: "x", environment: nil, tunnelDsnPath: path)
+        XCTAssertEqual(
+            config.tunnelDSN(serverBase: URL(string: "https://hims.example.in/hims/")!),
+            "https://medbrains@hims.example.in/hims/api/public/error-tracking/ios/1"
+        )
+    }
+
     // MARK: scrub
 
     func testUrlLosesQueryFragmentAndRecordIds() {

@@ -26,13 +26,16 @@ public struct ErrorTrackingConfig: Decodable, Sendable, Equatable {
 
     /// The DSN the SDK starts with: on the hospital server, never the real
     /// DSN host. Nil — tracking off — unless the server named a project and a
-    /// tunnel path and the server URL has a scheme and host.
+    /// tunnel path and the server URL has a scheme and host. A server behind a
+    /// path prefix (`https://host/hims`) keeps it, as on Android.
     public func tunnelDSN(serverBase: URL) -> String? {
-        guard enabled, dsn != nil, let path = tunnelDsnPath,
+        guard enabled, dsn != nil, let path = tunnelDsnPath, path.hasPrefix("/"),
               let scheme = serverBase.scheme, let host = serverBase.host(percentEncoded: false)
         else { return nil }
         let port = serverBase.port.map { ":\($0)" } ?? ""
-        return "\(scheme)://medbrains@\(host)\(port)\(path)"
+        var prefix = serverBase.path(percentEncoded: true)
+        while prefix.hasSuffix("/") { prefix.removeLast() }
+        return "\(scheme)://medbrains@\(host)\(port)\(prefix)\(path)"
     }
 }
 
