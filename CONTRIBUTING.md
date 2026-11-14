@@ -50,6 +50,20 @@ pnpm dev:web         # web app on http://localhost:5173
 
 The workspace has about 119 Rust crates. The first build is slow and uses a lot of disk. Run only one cargo build at a time, and build just the crate you changed (`cargo clippy -p <crate>`). SQL metadata is committed in `.sqlx/`, so builds work offline with `SQLX_OFFLINE=true`.
 
+## Running the end-to-end tests
+
+The Playwright journeys live in `medbrains/apps/web/e2e/`. They need the server and the web app running, as in the setup above, against a development database (they sign in as the dev seed's `admin` and create their own temporary staff).
+
+```bash
+cd medbrains/apps/web
+pnpm exec playwright install chromium   # once
+pnpm exec playwright test --project=journeys            # one layer
+pnpm exec playwright test e2e/journeys/access-alerts.spec.ts  # one file
+pnpm exec playwright test --ui           # watch them run
+```
+
+CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into a `release/**` branch and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
+
 ## Code style
 
 The full rules are in [`ENGINEERING.md`](./ENGINEERING.md). The essentials:
