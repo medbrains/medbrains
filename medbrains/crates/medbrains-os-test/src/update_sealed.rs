@@ -8,7 +8,7 @@ use crate::update_steps::{
     FINGERPRINT, NEXT, RESTART_LIMIT, ROLLBACK_LIMIT, SLOT, apply_and_prove, ask_restart,
     install_from, install_ok,
 };
-use crate::updates::{Bench, ensure, same_var, say, url, var_snapshot, wait_version};
+use crate::updates::{Bench, ensure, open_mirror, same_var, say, url, var_snapshot, wait_version};
 use crate::vm::Vm;
 
 /// A bundle whose system carries a rollback number below the first image's, as `make-update-bundles.py`
@@ -132,6 +132,7 @@ pub(crate) fn added_entry_is_ignored(vm: &mut Vm, bench: &Bench) -> Result<(), S
     )?;
     vm.wait_for_server()?;
     ensure(disk_opened(vm)?, "the genuine system did not open the disk")?;
+    open_mirror(vm, bench)?;
     let (text, code) = install_from(vm, bench, NEXT.0, false)?;
     ensure(
         code != 0 && text.contains("not the one this machine put there"),

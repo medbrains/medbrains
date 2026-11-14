@@ -317,3 +317,9 @@ installed anything; and scenarios shared one set of firmware variables.
 
 The three apply failures share one symptom and are not yet explained; the update cycle's own apply passes. Until they are, a
 release must not ship on this branch. x86-64 with swtpm (`update_sealed.rs`, the disk scenarios) was not run.
+
+**Sealed disk with Secure Boot enforced (#5452), x86-64 swtpm, 2026-11-14.** QEMU's Secure Boot firmware in setup mode;
+systemd-boot enrolled the image's throwaway keys on the first start; `bootctl status` said "enabled (user)"; the disk sealed
+to PCR 7 and signed PCR 11. Nobody typed a recovery key in any of these (`unlock_new_version` is gone):
+
+RESULTS_TABLE
