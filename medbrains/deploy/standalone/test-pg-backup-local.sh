@@ -25,11 +25,15 @@ cat > "$TMP/bin/docker" <<'STUB'
 exit 1
 STUB
 chmod +x "$TMP/bin/docker"
+# Every dump is sealed: no recipients is a refusal on both destinations.
+ln -s "$(command -v age)" "$TMP/bin/age"
+age-keygen 2>/dev/null | age-keygen -y > "$TMP/recipients.txt"
 
 run() { # run <BACKUP_DIR> [extra env assignments...]
     env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$TMP" \
         POSTGRES_USER=medbrains POSTGRES_DB=medbrains \
         DATABASE_URL="postgres://u:p@127.0.0.1:5432/medbrains" \
+        BACKUP_AGE_RECIPIENTS_FILE="$TMP/recipients.txt" BACKUP_SECRETS_DIR="$TMP/nosecrets" \
         BACKUP_DIR="$1" "${@:2}" bash "$SCRIPT" 2>&1
 }
 
@@ -54,11 +58,11 @@ else bad "no destination fails loudly (rc=$rc)"; fi
 # 4. Happy path writes exactly one dump and leaves no .partial behind.
 DIR="$TMP/backups/medbrains"
 out="$(run "$DIR")"; rc=$?
-dumps=$(find "$DIR" -maxdepth 1 -name '*.dump' 2>/dev/null | wc -l | tr -d ' ')
+dumps=$(find "$DIR" -maxdepth 1 -name '*.dump.age' 2>/dev/null | wc -l | tr -d ' ')
 parts=$(find "$DIR" -maxdepth 1 -name '*.partial' 2>/dev/null | wc -l | tr -d ' ')
 if [[ $rc -eq 0 && "$dumps" == "1" && "$parts" == "0" ]]; then
-    ok "writes one dump, no .partial left"
-else bad "writes one dump, no .partial left (rc=$rc dumps=$dumps partial=$parts): $out"; fi
+    ok "writes one sealed dump, no .partial left"
+else bad "writes one sealed dump, no .partial left (rc=$rc dumps=$dumps partial=$parts): $out"; fi
 
 # 5. The directory is not world-readable — these are patient records.
 mode=$(stat -f '%Lp' "$DIR" 2>/dev/null || stat -c '%a' "$DIR")
@@ -77,8 +81,35 @@ run "$DIR" > /dev/null
 [[ ! -f "$DIR/dead.dump.partial" ]] && ok "clears a stale .partial" || bad "clears a stale .partial"
 
 # 8. Local branch copies no files: a second copy on the same disk is not a backup.
-files=$(find "$DIR" -type f ! -name '*.dump' 2>/dev/null | wc -l | tr -d ' ')
+files=$(find "$DIR" -type f ! -name '*.dump' ! -name '*.dump.age' 2>/dev/null | wc -l | tr -d ' ')
 [[ "$files" == "0" ]] && ok "local branch writes only dumps" || bad "local branch writes only dumps ($files other files)"
+
+# 8b. No recipients: refused on the local destination too, nothing written.
+NOKEY="$TMP/nokey/medbrains"
+out="$(run "$NOKEY" BACKUP_AGE_RECIPIENTS_FILE="$TMP/none.txt")"; rc=$?
+if [[ $rc -ne 0 && "$out" == *"refusing to write an unencrypted dump"* && ! -d "$NOKEY" ]]; then
+    ok "local without a public key: refused, nothing written"
+else bad "local without a public key (rc=$rc): $out"; fi
+
+# 8c. The project's own key: still sealed, but warned and recorded on the row
+# System health reads; the project's own server opts out of the warning.
+printf '%s\n' age108rvm8yeaxq7my9mx33d8k5ee8cfr9k5p2q4q5kr5qpfanyex4qsjgnmjs > "$TMP/project.txt"
+cat > "$TMP/bin/psql" <<STUB
+#!/bin/sh
+echo "\$*" >> "$TMP/psql-local.log"; cat > /dev/null
+STUB
+chmod +x "$TMP/bin/psql"
+out="$(run "$DIR" BACKUP_AGE_RECIPIENTS_FILE="$TMP/project.txt")"; rc=$?
+if [[ $rc -eq 0 && "$out" == *"WARNING: Sealed to the MedBrains project key"* ]] \
+    && grep -q "err=Sealed to the MedBrains project key" "$TMP/psql-local.log"; then
+    ok "project key: warned in the log and on the backup_history row"
+else bad "project key warning (rc=$rc): $out"; fi
+: > "$TMP/psql-local.log"
+out="$(run "$DIR" BACKUP_AGE_RECIPIENTS_FILE="$TMP/project.txt" BACKUP_PROJECT_KEY_IS_OURS=1)"; rc=$?
+if [[ $rc -eq 0 && "$out" != *"project key"* ]] && grep -q "err= " "$TMP/psql-local.log"; then
+    ok "project key on the project's own server: no warning"
+else bad "project key opt-out (rc=$rc): $out"; fi
+rm -f "$TMP/bin/psql"
 
 # 9-11. S3 branch: dump streams to pg-backups/, each file root syncs to
 # file-backups/<host><root>/ with pgdata excluded, and an absent root is skipped.
@@ -96,9 +127,6 @@ cat > "$TMP/bin/psql" <<STUB
 echo "\$*" >> "$TMP/psql.log"; cat >> "$TMP/psql.log"
 STUB
 chmod +x "$TMP/bin/psql"
-# S3 refuses to run without a public key to seal to.
-ln -s "$(command -v age)" "$TMP/bin/age"
-age-keygen 2>/dev/null | age-keygen -y > "$TMP/recipients.txt"
 mkdir -p "$TMP/files/objects" "$TMP/files/pgdata"
 out="$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$TMP" \
         POSTGRES_USER=medbrains POSTGRES_DB=medbrains \
