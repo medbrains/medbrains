@@ -58,15 +58,19 @@ fn an_unexpected_layout_is_a_fault() {
     assert!(parse_slots("not json", &uuid(0, 0), &uuid(0, 1), "/dev/vda").is_err());
 }
 
-/// Only entries with a boot file count, and a counted one reports its starts left.
+/// Only entries with a boot file count, and a counted one reports its starts left. One with a file and no
+/// version, as an added loader entry has, is kept, so the boot partition check refuses it.
 #[test]
 fn boot_entries_are_read_from_bootctl() {
     let json = r#"[
         {"id":"a.efi","path":"/boot//EFI/Linux/a+2-1.efi","version":"1.0.1","isSelected":true,"triesLeft":2,"triesDone":1},
         {"id":"b.efi","path":"/boot//EFI/Linux/b.efi","version":"1.0.0","isSelected":false},
+        {"id":"x.conf","path":"/boot//loader/entries/x.conf","isSelected":false},
+        {"id":"auto-reboot-to-firmware-setup","title":"Reboot Into Firmware Interface","path":"/sys/firmware/efi/efivars/LoaderEntries-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"},
         {"id":"auto-reboot-to-firmware-setup","title":"Firmware"}]"#;
     let entries = parse_entries(json).unwrap_or_default();
-    assert_eq!(entries.len(), 2);
+    assert_eq!(entries.len(), 3);
+    assert_eq!(entries[2].version, "");
     assert_eq!(entries[0].tries_left, Some(2));
     assert!(entries[0].selected);
     assert_eq!(entries[1].tries_left, None);

@@ -809,12 +809,15 @@ Task T1, disk half. Every key, what happens if it is lost or stolen, and the fai
 |---|---|
 | First boot, TPM works | Prepares the disk, shows the recovery key once, and waits until its last group is typed back. Then asks: start by itself (Enter), or a PIN at every start |
 | Every later boot | Nothing, opens with no typing; or the PIN, if one was chosen |
-| Disk copied to another machine, board or TPM changed, or the signed boot file changed | Asks for the recovery key, and after 20 seconds says in plain words why. `/var` stays locked and no service starts |
+| Disk copied to another machine, board or TPM changed, the signed boot file changed, or a system older than the rollback floor started | Asks for the recovery key, and after 20 seconds says in plain words why. `/var` stays locked and no service starts |
+| An update signed with our keys, Secure Boot on | Nothing: opens with no typing, at every start |
 | First boot, no TPM | Stops. Nothing is stored until someone types `OFF` or `STORE UNENCRYPTED`. The choice is recorded in `/var/lib/medbrains/config/disk-protection`. The top bar then says "This disk is not encrypted" |
 
 **What this protects:** a disk that has left the machine, and since verity a system partition changed and booted in it
-(`docs/architecture/OS-VERITY.md`). **What it does not, without a PIN or Secure Boot:** someone who adds a boot entry handing our
-boot file another command line. Any new boot file needs a re-seal until Secure Boot.
+(`docs/architecture/OS-VERITY.md`), and an older signed system (the rollback floor). **What it does not, without a PIN or Secure
+Boot:** someone who adds a boot entry handing our boot file another command line; and without Secure Boot every new boot file
+asks for the recovery key once. Images are Secure Boot signed, and a VM enrols the keys itself; a real machine needs them
+enrolled at installation, not built yet (`docs/architecture/OS-KEYS.md`).
 
 ## What is in D1, and what is not
 

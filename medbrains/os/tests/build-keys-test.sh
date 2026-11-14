@@ -37,9 +37,14 @@ case_ "a seed that is not 32 bytes is refused" refused make_debug_update_key "$W
 head -c 48 /dev/urandom > "$WORK/random.der"
 case_ "DER of the right length but wrong structure is refused" refused python3 -I "$HERE/../ed25519_der.py" private "$WORK/random.der"
 
-case_ "a release image without a PCR key is refused" refused require_release_pcr_key 0 ""
-case_ "a release image with a PCR key goes on" ok require_release_pcr_key 0 "$WORK/k.pem"
-case_ "a debug image may go on without one" ok require_release_pcr_key 1 ""
+case_ "a release image without a PCR key is refused" refused require_release_keys 0 "" "$WORK/s.pem" 3
+case_ "a release image without a Secure Boot key is refused" refused require_release_keys 0 "$WORK/k.pem" "" 3
+case_ "a release image without a rollback number is refused" refused require_release_keys 0 "$WORK/k.pem" "$WORK/s.pem" ""
+case_ "a release image with a rollback number of 0 is refused" refused require_release_keys 0 "$WORK/k.pem" "$WORK/s.pem" 0
+case_ "a release image with both keys and a number goes on" ok require_release_keys 0 "$WORK/k.pem" "$WORK/s.pem" 3
+case_ "a debug image may go on without them" ok require_release_keys 1 "" "" ""
+case_ "a throwaway key is made with its certificate" ok make_throwaway_key "$WORK/t.pem" "$WORK/t.crt"
+case_ "a throwaway key matches its certificate" ok check_pcr_key_matches "$WORK/t.pem" "$WORK/t.crt"
 
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=a -keyout "$WORK/a.pem" -out "$WORK/a.crt" 2>/dev/null
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=b -keyout "$WORK/b.pem" -out "$WORK/b.crt" 2>/dev/null

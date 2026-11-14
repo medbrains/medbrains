@@ -130,9 +130,11 @@ def later_bundles(next_bundle, after, bad_server):
 
 SCRIPT = r"""
 set -euo pipefail
-version="$1" broken="$2" arch="$3"
+version="$1" broken="$2" arch="$3" rollback="$4"
 cd /w
 debugfs -R 'cat /usr/lib/os-release' root.img | sed "s/^IMAGE_VERSION=.*/IMAGE_VERSION=\"$version\"/" > os-release
+# A new system carries its own rollback number (OS-KEYS.md); a new boot file for a system as it is keeps it.
+if [[ "$broken" != same-system ]]; then sed -i "s/^MEDBRAINS_ROLLBACK=.*/MEDBRAINS_ROLLBACK=$rollback/" os-release; fi
 # same-system: only a new boot file for a system as it is, so its root hash and tree stay.
 if [[ "$broken" != same-system ]]; then
     if [[ "$broken" == server ]]; then debugfs -w -R 'rm /usr/bin/medbrains-server' root.img; fi
@@ -159,6 +161,8 @@ else
 fi
 signing=()
 [[ -e pcr.key ]] && signing=(--pcr-private-key pcr.key --pcr-public-key pcr.pub)
+# Signed for Secure Boot with the image's key, as a release is, or the firmware would refuse to start it.
+[[ -e sb.key ]] && signing+=(--secureboot-private-key sb.key --secureboot-certificate sb.crt)
 ukify build --stub "$stub" --linux vmlinuz --initrd initrd --cmdline "@cmdline" \
     --os-release @os-release ${signing[@]+"${signing[@]}"} --output boot.efi >/dev/null
 """
@@ -180,10 +184,16 @@ def pe_section(path, name):
     raise SystemExit(f"{path} has no {name}")
 
 
-def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0", system=None):
+def rollback_of(version):
+    """A debug image's rollback number, the rule build.sh uses: the version's last number plus one."""
+    return int(version.rsplit(".", 1)[-1]) + 1
+
+
+def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0", system=None, rollback=None):
     """Makes a bundle from the first image's root and kernel, under a new version. A real second image
     build proves more, and costs 5 GB and 8 minutes: pass its version as NEXT once one is built. With
-    `system`, a bundle folder, only the boot file is new: that bundle's system, tree and root hash are kept."""
+    `system`, a bundle folder, only the boot file is new: that bundle's system, tree and root hash are kept.
+    `rollback` overrides the system's rollback number, which otherwise follows the version."""
     work = os.path.join(OUT, f"derive-{name}")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work)
@@ -204,8 +214,13 @@ def derived(name, version, min_version, broken="", key=None, upgrades_from="0.0"
     if os.path.exists(pcr_key):
         run("cp", pcr_key, os.path.join(work, "pcr.key"))
         run("openssl", "pkey", "-in", pcr_key, "-pubout", "-out", os.path.join(work, "pcr.pub"))
+    for part in ("key", "crt"):
+        sb = os.path.join(WORK, f"throwaway-sb.{part}")
+        if os.path.exists(sb):
+            run("cp", sb, os.path.join(work, f"sb.{part}"))
+    number = str(rollback or rollback_of(version))
     run("docker", "run", "--rm", "--platform", "linux/arm64", "-v", f"{work}:/w", BUILDER,
-        "bash", "-c", SCRIPT, "_", version, broken, ARCH)
+        "bash", "-c", SCRIPT, "_", version, broken, ARCH, number)
     folder = make(name, version, min_version, root, os.path.join(work, "verity.img"),
                   os.path.join(work, BOOT_FILE), upgrades_from)
     shutil.rmtree(work)
@@ -265,6 +280,8 @@ def main():
         run("openssl", "genrsa", "-out", other_key, "2048")
         # NEXT's own system, so the slot it is installed over verifies and only the seal can fail.
         derived("other-seal", NEXT, "1.0.0", key=other_key, system=next_bundle)
+        # A newer version whose system is numbered below the first image's: only the rollback floor stops it.
+        derived("low-rollback", NEXT, "1.0.0", rollback=rollback_of(FIRST) - 1)
 
 
 main()

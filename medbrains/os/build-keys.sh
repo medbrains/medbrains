@@ -36,12 +36,21 @@ make_debug_update_key() {
     rm -f "$der" "$der.pkcs8"
 }
 
-# A release image ($1 is not 1) must sign its expected PCR 11: without a key it would seal the data disk
-# to PCR 4 and 7 alone and say nothing.
-require_release_pcr_key() {
-    if [[ "$1" != 1 && -z "${2:-}" ]]; then
-        key_fail 'a release image needs OS_PCR_KEY and OS_PCR_CERT, to sign its expected PCR 11 (OS-KEYS.md).'
-    fi
+# Makes a throwaway RSA key $1 and its certificate $2 for a debug image, unless they are there.
+make_throwaway_key() {
+    refuse_empty_key "$1"
+    [[ -f "$1" ]] || openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=throwaway \
+        -keyout "$1" -out "$2" 2>/dev/null || key_fail 'openssl could not make a throwaway key.'
+}
+
+# A release image ($1 is not 1) needs its PCR key $2, its Secure Boot key $3 and its rollback number $4.
+# Without the PCR key it would seal the data disk to PCR 4 and 7 alone; without Secure Boot every update
+# asks for the recovery key; without a rollback number an older release would open the disk.
+require_release_keys() {
+    [[ "$1" == 1 ]] && return 0
+    [[ -n "${2:-}" ]] || key_fail 'a release image needs OS_PCR_KEY and OS_PCR_CERT, to sign its expected PCR 11 (OS-KEYS.md).'
+    [[ -n "${3:-}" ]] || key_fail 'a release image needs OS_SB_KEY and OS_SB_CERT, to sign for Secure Boot (OS-KEYS.md).'
+    [[ "${4:-}" =~ ^[1-9][0-9]{0,8}$ ]] || key_fail 'a release image needs OS_ROLLBACK, a positive integer raised every release (OS-KEYS.md).'
 }
 
 # Succeeds only if the private key $1 and the certificate $2 hold the same public key.
@@ -49,7 +58,7 @@ check_pcr_key_matches() {
     local from_key from_cert
     refuse_empty_key "$1"
     refuse_empty_key "$2"
-    from_key="$(openssl pkey -in "$1" -pubout 2>/dev/null)" || key_fail "OS_PCR_KEY $1 can't be read."
-    from_cert="$(openssl x509 -in "$2" -pubkey -noout 2>/dev/null)" || key_fail "OS_PCR_CERT $2 can't be read."
-    [[ -n "$from_key" && "$from_key" == "$from_cert" ]] || key_fail "OS_PCR_KEY $1 is not the key of OS_PCR_CERT $2."
+    from_key="$(openssl pkey -in "$1" -pubout 2>/dev/null)" || key_fail "key $1 can't be read."
+    from_cert="$(openssl x509 -in "$2" -pubkey -noout 2>/dev/null)" || key_fail "certificate $2 can't be read."
+    [[ -n "$from_key" && "$from_key" == "$from_cert" ]] || key_fail "key $1 is not the key of certificate $2."
 }

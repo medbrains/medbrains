@@ -80,4 +80,45 @@ if grep -nE "^ +local .*KEY_FILE|trap .*key_file" "$SCRIPT"; then
 else
     echo "pass  the key file's trap does not use a local variable"
 fi
+
+# The rollback floor, with a stand-in TPM: the counter is a number in a file, tpm2_nvread prints it as 8
+# bytes, most significant first, and the PCR extension is recorded. "missing" means no counter defined.
+floor() {
+    local name="$1" counter="$2" own="$3" action="$4" want_code="$5" want_counter="$6" want_refused="$7"
+    local tpm="$WORK/floor" got=0 left refused=no
+    rm -rf "$tpm" && mkdir -p "$tpm/bin" && : > "$tpm/device"
+    [[ "$counter" == missing ]] || echo "$counter" > "$tpm/counter"
+    printf 'NAME=x\nMEDBRAINS_ROLLBACK=%s\n' "$own" > "$tpm/os-release"
+    cat > "$tpm/bin/tpm2_nvread" <<STUB
+#!/bin/bash
+[[ -f "$tpm/counter" ]] || exit 1
+printf '%016x' "\$(cat "$tpm/counter")" | xxd -r -p
+STUB
+    printf '#!/bin/bash\n[[ -f "%s/counter" ]]\n' "$tpm" > "$tpm/bin/tpm2_nvreadpublic"
+    printf '#!/bin/bash\necho 0 > "%s/counter"\n' "$tpm" > "$tpm/bin/tpm2_nvdefine"
+    printf '#!/bin/bash\necho $(( $(cat "%s/counter") + 1 )) > "%s/counter"\n' "$tpm" "$tpm" > "$tpm/bin/tpm2_nvincrement"
+    printf '#!/bin/bash\necho "$@" > "%s/extended"\n' "$tpm" > "$tpm/bin/pcrextend"
+    chmod +x "$tpm"/bin/*
+    PATH="$tpm/bin:$PATH" MEDBRAINS_TPM_DEVICE="$tpm/device" MEDBRAINS_OS_RELEASE="$tpm/os-release" \
+        MEDBRAINS_PCR_EXTEND="$tpm/bin/pcrextend" bash "$SCRIPT" "$action" >/dev/null 2>&1 || got=$?
+    left="$(cat "$tpm/counter" 2>/dev/null || echo missing)"
+    [[ -f "$tpm/extended" ]] && grep -q -- '--pcr=11' "$tpm/extended" && refused=yes
+    if [[ "$got" == "$want_code" && "$left" == "$want_counter" && "$refused" == "$want_refused" ]]; then
+        echo "pass  $name"
+    else
+        echo "FAIL  $name: exit $got, counter $left, refused $refused"
+        FAILED=1
+    fi
+}
+floor "a version at the floor opens" 3 3 floor-check 0 3 no
+floor "a version above the floor opens" 3 5 floor-check 0 3 no
+floor "a version below the floor gets no TPM unlock" 3 2 floor-check 0 3 yes
+floor "a missing floor gets no TPM unlock" missing 3 floor-check 0 missing yes
+floor "a system with no rollback number gets no TPM unlock" 3 "" floor-check 0 3 yes
+floor "a raise counts up to this version" 2 5 floor-raise 0 5 no
+floor "a raise never lowers the floor" 7 5 floor-raise 0 7 no
+floor "a raise defines a missing floor" missing 4 floor-raise 0 4 no
+floor "a raise far beyond the floor is refused, not counted forever" 1 5000 floor-raise 1 1001 no
+floor "adopting defines a missing floor at its lowest" missing 9 floor-adopt 0 1 no
+floor "adopting leaves a floor alone" 6 9 floor-adopt 0 6 no
 exit "$FAILED"

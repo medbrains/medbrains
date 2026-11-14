@@ -241,12 +241,26 @@ fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
 
 /// The attack in OS-KEYS.md: the stolen machine, its own TPM, an attacker's kernel with no boot file,
 /// and PCR 11 extended by hand to the published values with the signature replayed. It must fail, and
-/// the control proves why: the same replay opens a slot that leaves out PCR 4.
+/// the control proves why: the same replay opens a slot that leaves out PCR 4. With Secure Boot enforced
+/// the firmware refuses that kernel before it runs and goes on to the machine's own boot file, which is
+/// the stronger result, so then only that is checked.
 fn stolen_machine_replay_refused(vm: &mut Vm, image: &Path) -> Result<(), String> {
     vm.shut_down()?;
     let copy = vm.scratch_path("stolen.qcow2");
     std::fs::copy(vm.disk(), &copy).map_err(|e| e.to_string())?;
     vm.boot_bare_kernel(&copy, Some(OWN_TPM), image)?;
+    if !vm.run("cat /proc/cmdline")?.contains("root=PARTLABEL=") {
+        let secure =
+            vm.run("bootctl status 2>/dev/null | grep -c 'Secure Boot: enabled (user)'; true")?;
+        ensure(
+            secure == "1",
+            "the attacker's kernel did not start, and Secure Boot is not why",
+        )?;
+        vm.cut_power()?;
+        let disk = vm.disk();
+        vm.boot(&disk, Some(OWN_TPM))?;
+        return wait_open(vm);
+    }
     vm.run("mkdir -p /mnt/esp; mount -o ro /dev/disk/by-partlabel/esp /mnt/esp")?;
     let limit = scaled(REPLAY_LIMIT);
     let attack = vm.run_for(

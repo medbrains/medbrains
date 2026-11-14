@@ -13,6 +13,10 @@
 #
 #   OS_PCR_KEY, OS_PCR_CERT  RSA key and certificate signing the boot file's expected PCR 11. Required for a
 #                         release image, and checked to match. --debug makes a throwaway.
+#   OS_SB_KEY, OS_SB_CERT  RSA key and certificate signing the loader and boot file for Secure Boot, the
+#                         firmware's db key. Required for a release image, checked; --debug makes a throwaway.
+#   OS_ROLLBACK           the rollback number, a positive integer raised on every release (OS-KEYS.md).
+#                         Required for a release image; --debug derives it from the version.
 #
 # --debug adds a root shell on the serial console, for verification only.
 set -euo pipefail
@@ -23,6 +27,7 @@ REPO="$(cd "$HERE/.." && pwd)"
 source "$HERE/build-keys.sh"
 ARCH=arm64
 DEBUG=0
+MAX_DEBUG_ROLLBACK=1000
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --arch) ARCH="$2"; shift 2 ;;
@@ -144,25 +149,34 @@ if [[ "$DEBUG" == 1 ]]; then
     # a test type and take screenshots under Apple Virtualization, which has no QMP. hostapd and iw make
     # a test Wi-Fi network with mac80211_hwsim.
     DEBUG_ARGS=(--kernel-command-line "systemd.mask=serial-getty@ttyAMA0.service systemd.mask=serial-getty@hvc0.service systemd.mask=serial-getty@ttyS0.service"
-                --package strace --package tpm2-tools --package wtype --package grim --package hostapd --package iw)
+                --package strace --package wtype --package grim --package hostapd --package iw)
 fi
 
-# A debug image gets a throwaway signing key, so the signed path is what gets tested. Never for release.
+# A debug image gets throwaway signing keys, so the signed path is what gets tested. Never for release.
 if [[ "$DEBUG" == 1 && -z "${OS_PCR_KEY:-}" ]]; then
-    OS_PCR_KEY="$OS_WORK/throwaway-pcr.key"
-    OS_PCR_CERT="$OS_WORK/throwaway-pcr.crt"
-    refuse_empty_key "$OS_PCR_KEY"
-    [[ -f "$OS_PCR_KEY" ]] || openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=throwaway \
-        -keyout "$OS_PCR_KEY" -out "$OS_PCR_CERT" 2>/dev/null
+    OS_PCR_KEY="$OS_WORK/throwaway-pcr.key" OS_PCR_CERT="$OS_WORK/throwaway-pcr.crt"
+    make_throwaway_key "$OS_PCR_KEY" "$OS_PCR_CERT"
 fi
-require_release_pcr_key "$DEBUG" "${OS_PCR_KEY:-}"
+if [[ "$DEBUG" == 1 && -z "${OS_SB_KEY:-}" ]]; then
+    OS_SB_KEY="$OS_WORK/throwaway-sb.key" OS_SB_CERT="$OS_WORK/throwaway-sb.crt"
+    make_throwaway_key "$OS_SB_KEY" "$OS_SB_CERT"
+fi
+# A debug image's rollback number is its version's last number plus one, so test versions order the same
+# way; 1 for a commit-time version, whose last number is far too big to count up to.
+if [[ "$DEBUG" == 1 && -z "${OS_ROLLBACK:-}" ]]; then
+    OS_ROLLBACK=1
+    if (( ${VERSION##*.} < MAX_DEBUG_ROLLBACK )); then OS_ROLLBACK="$(( ${VERSION##*.} + 1 ))"; fi
+fi
+require_release_keys "$DEBUG" "${OS_PCR_KEY:-}" "${OS_SB_KEY:-}" "${OS_ROLLBACK:-}"
 check_pcr_key_matches "$OS_PCR_KEY" "${OS_PCR_CERT:-}"
-SIGN_ARGS=()
-SIGN_MOUNTS=()
-if [[ -n "${OS_PCR_KEY:-}" ]]; then
-    SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT")
-    SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro")
-fi
+check_pcr_key_matches "$OS_SB_KEY" "${OS_SB_CERT:-}"
+# Secure Boot (OS-KEYS.md): mkosi signs the loader and the boot file and puts the key files on the boot
+# partition; the loader enrols them only where that is safe, a virtual machine in setup mode (loader.conf).
+SIGN_ARGS=(--sign-expected-pcr yes --sign-expected-pcr-key "$OS_PCR_KEY" --sign-expected-pcr-certificate "$OS_PCR_CERT"
+           --secure-boot yes --secure-boot-key "$OS_SB_KEY" --secure-boot-certificate "$OS_SB_CERT"
+           --secure-boot-auto-enroll yes --environment "MEDBRAINS_ROLLBACK=$OS_ROLLBACK")
+SIGN_MOUNTS=(-v "$OS_PCR_KEY:$OS_PCR_KEY:ro" -v "$OS_PCR_CERT:$OS_PCR_CERT:ro"
+             -v "$OS_SB_KEY:$OS_SB_KEY:ro" -v "$OS_SB_CERT:$OS_SB_CERT:ro")
 
 # Runs mkosi on this Linux machine: a CI runner or a hospital's own build box. Needs root.
 build_on_linux() {

@@ -36,7 +36,7 @@ struct Platform {
     code: &'static str,
     vars: &'static str,
     tpm_device: &'static str,
-    extra_devices: [&'static str; 2],
+    extra_devices: &'static [&'static str],
     /// False where the guest kernel cannot drive any TPM QEMU can offer: Debian's arm64 kernel has no
     /// MMIO TIS driver (`CONFIG_TCG_TIS` is off) and QEMU has no other TPM for `virt`. Tested on x86-64.
     has_usable_tpm: bool,
@@ -69,7 +69,7 @@ const ARM64: Platform = Platform {
     code: "edk2-aarch64-code.fd",
     vars: "edk2-arm-vars.fd",
     tpm_device: "tpm-tis-device,tpmdev=tpm0,ppi=off",
-    extra_devices: ["-device", "i6300esb"],
+    extra_devices: &["-device", "i6300esb"],
     has_usable_tpm: false,
     slowness: 1,
     firmware: Duration::ZERO,
@@ -80,7 +80,8 @@ const X86_64: Platform = Platform {
     qemu: "qemu-system-x86_64",
     machine: [
         "-machine",
-        "q35",
+        // SMM: the Secure Boot firmware keeps its variables where the system cannot write them.
+        "q35,smm=on",
         "-accel",
         "tcg,thread=multi",
         "-cpu",
@@ -88,10 +89,17 @@ const X86_64: Platform = Platform {
         "-smp",
         "4",
     ],
-    code: "edk2-x86_64-code.fd",
+    // Secure Boot firmware, starting in setup mode: the image's loader enrols the image's keys on the
+    // first start, as it would in any virtual machine, so sealed scenarios run with Secure Boot enforced.
+    code: "edk2-x86_64-secure-code.fd",
     vars: "edk2-i386-vars.fd",
     tpm_device: "tpm-tis,tpmdev=tpm0",
-    extra_devices: ["-device", "i6300esb"],
+    extra_devices: &[
+        "-device",
+        "i6300esb",
+        "-global",
+        "driver=cfi.pflash01,property=secure,value=on",
+    ],
     has_usable_tpm: true,
     slowness: 8,
     firmware: Duration::from_secs(45),
