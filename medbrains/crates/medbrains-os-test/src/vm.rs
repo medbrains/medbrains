@@ -458,6 +458,25 @@ impl Vm {
         self.wait_for_shell()
     }
 
+    /// Powers on from `disk`, handing the firmware the boot file `uki` to start first, as a boot option of
+    /// its own; the machine must be off. With Secure Boot the firmware checks its signature, and if it
+    /// refuses it, goes on to the disk's own loader.
+    pub(crate) fn boot_firmware_image(
+        &mut self,
+        disk: &Path,
+        tpm: Option<&str>,
+        uki: &Path,
+    ) -> Result<(), String> {
+        let extra = vec!["-kernel".to_owned(), uki.display().to_string()];
+        self.qemu = spawn_qemu(&self.dir, disk, &self.ports, tpm, &extra)?;
+        self.serial = connect_socket(&self.dir.join("serial.sock"))?;
+        self.monitor = connect_socket(&self.dir.join("monitor.sock"))?;
+        self.monitor
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .map_err(|e| e.to_string())?;
+        self.wait_for_shell()
+    }
+
     /// Gives a command to QEMU's monitor, such as plugging in a USB stick.
     pub(crate) fn monitor(&mut self, command: &str) -> Result<(), String> {
         self.monitor
