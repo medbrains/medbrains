@@ -239,6 +239,31 @@ pub async fn public_verify_rate_limit_middleware(
     next.run(request).await
 }
 
+/// Error reports one address may send through the public tunnels per minute.
+/// An SDK sends one envelope per error plus a session update; a crash loop or
+/// a script sends far more. Inferred, not from a spec.
+const ERROR_REPORTS_PER_MINUTE: usize = 60;
+
+/// The public error-report tunnels: they forward to a paid Sentry quota and
+/// hold an outbound connection each, so no one address may send fast.
+pub async fn error_report_rate_limit_middleware(
+    State(limiter): State<RateLimiter>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if let Some(ip) = extract_client_ip(&request)
+        && !limiter.check_and_record_class(
+            ip,
+            "error_report",
+            ERROR_REPORTS_PER_MINUTE,
+            WINDOW_SECS,
+        )
+    {
+        return StatusCode::TOO_MANY_REQUESTS.into_response();
+    }
+    next.run(request).await
+}
+
 /// Pairing codes a screen may ask for, per IP per minute. A screen asks once
 /// every 15 minutes while it waits; a hospital switching on a new floor of
 /// screens behind one address stays under it. Inferred, not from a spec.

@@ -6,7 +6,8 @@
 
 pub(crate) use medbrains_server_core::scrub::scrub_text;
 use sentry::protocol::{
-    Breadcrumb, Context, Event, Exception, Map, Request, Span, Thread, Transaction, Url, User,
+    Breadcrumb, Context, Event, Exception, Frame, Map, Request, Span, Thread, Transaction, Url,
+    User,
 };
 
 /// A URL or path with its query, fragment and record ids removed.
@@ -44,7 +45,7 @@ pub(crate) fn scrub_event(event: &mut Event<'static>) {
     event.transaction = event.transaction.as_deref().map(scrub_value);
     event.exception.values.iter_mut().for_each(scrub_exception);
     if let Some(trace) = event.stacktrace.as_mut() {
-        trace.frames.iter_mut().for_each(|f| f.vars.clear());
+        trace.frames.iter_mut().for_each(scrub_frame);
     }
     // A native crash keeps its stack in the crashed thread, not the exception.
     event.threads.values.iter_mut().for_each(scrub_thread);
@@ -73,6 +74,15 @@ pub(crate) fn scrub_transaction(tx: &mut Transaction<'static>) {
     tx.spans.iter_mut().for_each(scrub_span);
 }
 
+/// A frame keeps where it is (function, module, file, line); its variables
+/// and the source lines around it, which can hold literal values, go.
+fn scrub_frame(frame: &mut Frame) {
+    frame.vars.clear();
+    frame.context_line = None;
+    frame.pre_context.clear();
+    frame.post_context.clear();
+}
+
 /// A thread keeps its id, flags and frames; its name and frame variables go.
 fn scrub_thread(thread: &mut Thread) {
     thread.name = thread.name.as_deref().map(scrub_value);
@@ -80,7 +90,7 @@ fn scrub_thread(thread: &mut Thread) {
         .into_iter()
         .flatten()
     {
-        trace.frames.iter_mut().for_each(|f| f.vars.clear());
+        trace.frames.iter_mut().for_each(scrub_frame);
     }
 }
 
@@ -93,7 +103,7 @@ fn scrub_exception(exception: &mut Exception) {
     .into_iter()
     .flatten()
     {
-        trace.frames.iter_mut().for_each(|f| f.vars.clear());
+        trace.frames.iter_mut().for_each(scrub_frame);
     }
 }
 
