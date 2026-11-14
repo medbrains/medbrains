@@ -62,7 +62,7 @@ pnpm exec playwright test e2e/journeys/access-alerts.spec.ts  # one file
 pnpm exec playwright test --ui           # watch them run
 ```
 
-CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into a `release/**` branch and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
+CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into `main`, a `release/**` or a `hotfix/**` branch, and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
 
 ## Code style
 
