@@ -716,12 +716,21 @@ pub async fn get_signature(
     Ok(Json(row))
 }
 
+/// `POST /api/consent/signatures`: records how a consent was signed. Refuses
+/// the OTP method, which this service has no code check to back.
 pub async fn create_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSignatureRequest>,
 ) -> Result<Json<ConsentSignatureMetadata>, AppError> {
     require_permission(&claims, permissions::consent::signatures::MANAGE)?;
+    if medbrains_core::consent::claims_unverified_check(&body.signature_type) {
+        return Err(AppError::BadRequest(
+            "An OTP signature needs a verified code, and none can be verified here. \
+             Record the consent another way."
+                .to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

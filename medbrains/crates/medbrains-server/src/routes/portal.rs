@@ -257,7 +257,7 @@ pub(crate) async fn check_code(
         spend_code(tx, otp_id).await?;
         return Ok(None);
     }
-    if hash_otp(code.trim()) != otp_hash {
+    if !medbrains_server_core::codes::constant_time_eq(&hash_otp(code.trim()), &otp_hash) {
         sqlx::query("UPDATE patient_portal_otps SET attempts = attempts + 1 WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
             .bind(otp_id)
             .execute(&mut **tx)
