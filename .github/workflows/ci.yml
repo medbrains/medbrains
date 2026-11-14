@@ -103,6 +103,8 @@ jobs:
       - run: python3 scripts/check_no_card_logging.py
       - run: python3 scripts/check_egress_allowlist.py
       - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
+      # The server tarball carries every binary install.sh installs.
+      - run: python3 medbrains/scripts/check_release_bins.py --self-test && python3 medbrains/scripts/check_release_bins.py
 
   readiness:
     # A draft PR spends no build; marking it ready for review runs everything.
