@@ -332,6 +332,10 @@ to PCR 7 and signed PCR 11. Nobody typed a recovery key in any of these (`unlock
 | refuses unsigned, tampered, wrong and old bundles | pass, 160 s |
 | a power cut while applying and on trial, and after proving good, leaves a machine that boots | pass, 951 s |
 | a new version that fails its checks rolls back by itself | pass, 1,442 s |
+| review of #5680: our key alone in PK/KEK/db → the enrolled token is PCR 7 | pass, 79 s |
+| review: db holding our key and a vendor's → the enrolled token is PCR 4+7 | pass, 80 s (firmware variables preset with `virt-fw-vars`) |
+| review: the floor counter deleted, defined again (started at 3 over a floor of 2), TPM cleared → refused / not lower / disk locked | pass, 166 s, swtpm only |
+| review: a failed floor check keeps the disk locked | not observed: the start falls to emergency mode and the serial shell is gone (open) |
 
 Found on the way, fixed: the EFI global GUID was missing a byte, so every machine read as Secure Boot off and sealed to
 PCR 4 again; the test bundles' kernels kept only Debian's signature, so the stub's firmware check refused them; bootctl
