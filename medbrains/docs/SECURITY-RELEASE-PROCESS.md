@@ -88,8 +88,8 @@ cosign verify ghcr.io/medbrains/medbrains:X.Y.Z \
   --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISSUER"
 cosign verify-blob SHA256SUMS --bundle SHA256SUMS.sigstore.json \
   --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISSUER"
-sha256sum -c SHA256SUMS
-gh attestation verify medbrains-server-linux-x64.tar.gz --repo medbrains/medbrains
+sha256sum --check --ignore-missing SHA256SUMS
+gh attestation verify medbrains-server-bins-linux-x86-64.tar.gz --repo medbrains/medbrains
 ```
 
 ## 5. Accepted risks
@@ -118,7 +118,7 @@ A release reaches hospitals in rings, so a bad update hurts a few sites, not all
 
 - **Halt on regression.** A failed health check, error-rate rise, failed migration or a clinical
   report from a canary stops the rollout. Nothing moves to the next ring until it is understood.
-- **Roll back.** Today a standalone host rolls back with `make rollback` (the previous binaries
+- **Roll back.** Today a standalone host rolls back with `sudo medbrains-rollback` (the previous binaries
   and web app are kept as `.prev`). On MedBrains OS images, A/B updates roll back by themselves
   when the new slot fails its health check (RFC-HOSPITAL-OS §8b, D4). A release whose migration
   cannot be reversed says so in its notes and is held longer in canary.
