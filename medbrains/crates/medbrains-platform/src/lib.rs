@@ -87,7 +87,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/ckb/ihip/line-list", get(ihip::line_list))
         .route("/api/ckb/ihip/submit", post(ihip::submit_line_list))
         .route("/api/ckb/nikshay", get(nikshay::list_cases))
-        .route("/api/ckb/nikshay/sheet", get(nikshay_sheet::notification_sheet))
+        .route(
+            "/api/ckb/nikshay/sheet",
+            get(nikshay_sheet::notification_sheet),
+        )
         .route("/api/ckb/nikshay/{report_id}", put(nikshay::save_details))
         .route(
             "/api/ckb/facility-codes",

@@ -76,8 +76,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "patients.find",
     label: "Find any patient at the desk",
-    description:
-      "A desk lookup, not a browse. It searches every patient in the tenant by UHID, phone or name and returns identity only — name, UHID, phone, date of birth, sex — never a chart, never a diagnosis. `patients.list` is relationship-scoped, so a receptionist could not find a patient a colleague had registered and the returning patient was registered a second time, which is how a hospital ends up with two records and half a history in each. Widening `list` would have handed a tenant-wide browse to everyone already holding it; this is the narrower grant, and the lookup is audited like every other read under `/api/patients`.",
+    description: "A desk lookup, not a browse. It searches every patient in the tenant by UHID, phone or name and returns identity only — name, UHID, phone, date of birth, sex — never a chart, never a diagnosis. `patients.list` is relationship-scoped, so a receptionist could not find a patient a colleague had registered and the returning patient was registered a second time, which is how a hospital ends up with two records and half a history in each. Widening `list` would have handed a tenant-wide browse to everyone already holding it; this is the narrower grant, and the lookup is audited like every other read under `/api/patients`.",
     module: "patients",
   },
   {
@@ -107,92 +106,79 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "patients.card.reprint",
     label: "Reprint any patient's card at the desk",
-    description:
-      "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows. Never the address, the email or the chart.",
+    description: "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows. Never the address, the email or the chart.",
     module: "patients",
   },
   {
     code: "patients.group_identity.view",
     label: "See a patient's records at other group hospitals",
-    description:
-      "Which hospitals in the same group hold a record linked to this patient — hospital, masked UHID and name, how the link was made — and the matches waiting for review. Identity only: never a chart. Clinical records at another hospital are reached only through the existing consent paths (ABDM, transfers).",
+    description: "Which hospitals in the same group hold a record linked to this patient — hospital, masked UHID and name, how the link was made — and the matches waiting for review. Identity only: never a chart. Clinical records at another hospital are reached only through the existing consent paths (ABDM, transfers).",
     module: "patients",
   },
   {
     code: "patients.group_identity.link",
     label: "Link a patient's records across the group",
-    description:
-      "Run the group match for a patient, approve or reject a probable match from the review queue, and unlink a wrong link, each with a reason on the record. Records are linked, never merged, and only in a group whose management declared that it shares records.",
+    description: "Run the group match for a patient, approve or reject a probable match from the review queue, and unlink a wrong link, each with a reason on the record. Records are linked, never merged, and only in a group whose management declared that it shares records.",
     module: "patients",
   },
   {
     code: "patients.growth.view",
     label: "View a child's growth charts",
-    description:
-      "WHO 0-5 year standards and IAP 2015 5-18 year charts, with z-scores and centiles computed from the weights, lengths and head circumferences charted at visits, and flags for values beyond -2/+2 SD or crossing centile lines.",
+    description: "WHO 0-5 year standards and IAP 2015 5-18 year charts, with z-scores and centiles computed from the weights, lengths and head circumferences charted at visits, and flags for values beyond -2/+2 SD or crossing centile lines.",
     module: "patients",
   },
   {
     code: "patients.growth.record_gestation",
     label: "Record a child's gestation at birth",
-    description:
-      "The completed weeks of gestation, which correct a preterm child's age on the growth charts until two years. A clinical history fact the charts depend on, so it is kept apart from demographic edits.",
+    description: "The completed weeks of gestation, which correct a preterm child's age on the growth charts until two years. A clinical history fact the charts depend on, so it is kept apart from demographic edits.",
     module: "patients",
   },
   {
     code: "patients.privacy_requests.list",
     label: "See patients' privacy requests",
-    description:
-      "The DPDP Act rights register: requests to see, correct or erase personal data, to name a nominee, and privacy grievances, with the 90-day answer due date of each.",
+    description: "The DPDP Act rights register: requests to see, correct or erase personal data, to name a nominee, and privacy grievances, with the 90-day answer due date of each.",
     module: "patients",
   },
   {
     code: "patients.privacy_requests.create",
     label: "Record a patient's privacy request",
-    description:
-      "Take down a request the patient makes at the desk, by email or by phone, so it starts its 90-day clock the day it arrives.",
+    description: "Take down a request the patient makes at the desk, by email or by phone, so it starts its 90-day clock the day it arrives.",
     module: "patients",
   },
   {
     code: "patients.privacy_requests.decide",
     label: "Answer a patient's privacy request",
-    description:
-      "Close a request as done or refused. A refusal states its reason — an erasure refused because the law requires the medical record to be kept, for example.",
+    description: "Close a request as done or refused. A refusal states its reason — an erasure refused because the law requires the medical record to be kept, for example.",
     module: "patients",
   },
   {
     code: "patients.acquisition.update",
     label: "Correct where a patient came from",
-    description:
-      "Set or change the campaign a registered patient is attributed to; every change is audited.",
+    description: "Set or change the campaign a registered patient is attributed to; every change is audited.",
     module: "patients",
   },
   {
     code: "patients.immunizations.record",
     label: "Record or correct a patient's vaccine doses",
-    description:
-      "A dose given here — vaccine, dose number, date, lot number and route — or one read off the patient's card, recorded as given elsewhere. A wrong entry is struck off with a reason, never erased. Each dose is shared with the patient's ABHA as an immunisation record.",
+    description: "A dose given here — vaccine, dose number, date, lot number and route — or one read off the patient's card, recorded as given elsewhere. A wrong entry is struck off with a reason, never erased. Each dose is shared with the patient's ABHA as an immunisation record.",
     module: "patients",
   },
   {
     code: "patients.immunizations.due_list",
     label: "See the immunisation clinic's due list",
-    description:
-      "Every child with a dose on record here whose next vaccine is due or overdue by the hospital's schedule, with the parent's phone, so the clinic can plan the day and call the ones who missed it.",
+    description: "Every child with a dose on record here whose next vaccine is due or overdue by the hospital's schedule, with the parent's phone, so the clinic can plan the day and call the ones who missed it.",
     module: "patients",
   },
   {
     code: "patients.immunizations.configure",
     label: "Choose the hospital's immunisation schedule",
-    description:
-      "UIP or the IAP schedule, whether JE is given (endemic districts), and whether parents are sent SMS reminders before a dose is due. A hospital-wide clinical decision, kept apart from giving doses.",
+    description: "UIP or the IAP schedule, whether JE is given (endemic districts), and whether parents are sent SMS reminders before a dose is due. A hospital-wide clinical decision, kept apart from giving doses.",
     module: "patients",
   },
   {
     code: "patients.allergies.verify",
     label: "Mark a recorded allergy as wrong",
-    description:
-      'Retires an allergy as "entered in error" or "refuted" (not allergic, e.g. after testing) with a recorded reason. The allergy stops alerting and stays on the chart struck through, with who, when and why — a clinical record is corrected, never erased. A wrong penicillin label pushes patients onto broader antibiotics, so this is a doctor\'s call.',
+    description: "Retires an allergy as \"entered in error\" or \"refuted\" (not allergic, e.g. after testing) with a recorded reason. The allergy stops alerting and stays on the chart struck through, with who, when and why — a clinical record is corrected, never erased. A wrong penicillin label pushes patients onto broader antibiotics, so this is a doctor's call.",
     module: "patients",
   },
   {
@@ -217,15 +203,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "clinical_notes.write",
     label: "Write your own notes",
-    description:
-      "Start a note or addendum and keep its draft; nurses write nursing notes, doctors the physician notes.",
+    description: "Start a note or addendum and keep its draft; nurses write nursing notes, doctors the physician notes.",
     module: "clinical_notes",
   },
   {
     code: "clinical_notes.sign",
     label: "Sign your own notes",
-    description:
-      "Signing stamps your name and time and locks the note after the hospital's grace period; revising within it keeps the old version.",
+    description: "Signing stamps your name and time and locks the note after the hospital's grace period; revising within it keeps the old version.",
     module: "clinical_notes",
   },
   {
@@ -237,37 +221,32 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "clinical_notes.cosign",
     label: "Countersign a resident's note",
-    description:
-      "Notes signed by the doctors you supervise; return one with a comment and it goes back to its author to revise.",
+    description: "Notes signed by the doctors you supervise; return one with a comment and it goes back to its author to revise.",
     module: "clinical_notes",
   },
   {
     code: "clinical_notes.print",
     label: "Print a visit's case-sheet notes",
-    description:
-      "Every signed note with its author, time and signature, as the paper sheet reads; the print is filed to the visit's medical record.",
+    description: "Every signed note with its author, time and signature, as the paper sheet reads; the print is filed to the visit's medical record.",
     module: "clinical_notes",
   },
   {
     code: "clinical_notes.export",
     label: "Export a visit's notes as FHIR",
-    description:
-      "The signed notes as FHIR R4 Compositions, for another hospital, ABDM or an integration; drafts are never exported.",
+    description: "The signed notes as FHIR R4 Compositions, for another hospital, ABDM or an integration; drafts are never exported.",
     module: "clinical_notes",
   },
   // home_health
   {
     code: "home_health.list",
     label: "View home care",
-    description:
-      "Home visits, home medication schedules, escalations, remote vitals, care packages, hospice, advance directives and bereavement follow-up.",
+    description: "Home visits, home medication schedules, escalations, remote vitals, care packages, hospice, advance directives and bereavement follow-up.",
     module: "home_health",
   },
   {
     code: "home_health.manage",
     label: "Run home care",
-    description:
-      "Schedule and document home visits, record home doses, raise and close escalations, and keep hospice and advance-directive records.",
+    description: "Schedule and document home visits, record home doses, raise and close escalations, and keep hospice and advance-directive records.",
     module: "home_health",
   },
   // opd
@@ -298,8 +277,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "opd.visit.transfer",
     label: "Move a waiting visit to another department",
-    description:
-      "For a patient registered to the wrong department, before any doctor has called them: the visit, its queue place and its token move together, and the new department's doctor gains access.",
+    description: "For a patient registered to the wrong department, before any doctor has called them: the visit, its queue place and its token move together, and the new department's doctor gains access.",
     module: "opd",
   },
   {
@@ -371,8 +349,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "opd.referrals.respond",
     label: "Accept, decline or answer a referral",
-    description:
-      "Only referrals addressed to the caller, or to their department when no doctor is named. Accepting puts the patient in the caller's queue.",
+    description: "Only referrals addressed to the caller, or to their department when no doctor is named. Accepting puts the patient in the caller's queue.",
     module: "opd",
   },
   {
@@ -522,8 +499,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "opd.dictation.use",
     label: "Dictate a consultation note",
-    description:
-      "Record or upload the doctor's own voice on an OPD visit they can see. It is transcribed on the hospital's machine and drafted into the consultation note for the doctor to accept, edit or reject section by section; nothing is filed until they save, and medicines still go through the prescription safety checks.",
+    description: "Record or upload the doctor's own voice on an OPD visit they can see. It is transcribed on the hospital's machine and drafted into the consultation note for the doctor to accept, edit or reject section by section; nothing is filed until they save, and medicines still go through the prescription safety checks.",
     module: "opd",
   },
   // lab
@@ -548,22 +524,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "lab.orders.direct",
     label: "Register a walk-in lab order",
-    description:
-      "For a patient who comes to the laboratory without a doctor's order in this hospital — self-referred, or carrying an outside prescription. Opens the lab visit, records who referred them (a hospital doctor, an outside doctor, or self) and raises the bill, in one step at the lab counter.",
+    description: "For a patient who comes to the laboratory without a doctor's order in this hospital — self-referred, or carrying an outside prescription. Opens the lab visit, records who referred them (a hospital doctor, an outside doctor, or self) and raises the bill, in one step at the lab counter.",
     module: "lab",
   },
   {
     code: "lab.orders.cancel_any",
     label: "Cancel any lab order, not only your own",
-    description:
-      "A doctor cancels the tests they ordered. Cancelling somebody else's order is the laboratory's call — a duplicate, a rejected sample, a test the lab cannot run — so it is held by the lab desk, not by every doctor who can see the patient.",
+    description: "A doctor cancels the tests they ordered. Cancelling somebody else's order is the laboratory's call — a duplicate, a rejected sample, a test the lab cannot run — so it is held by the lab desk, not by every doctor who can see the patient.",
     module: "lab",
   },
   {
     code: "lab.catalog.manage",
     label: "Edit the laboratory test catalogue and panels",
-    description:
-      "Covers reference ranges, critical values, LOINC codes and turnaround times. Master data, held by the laboratory manager rather than by everyone who can order a test.",
+    description: "Covers reference ranges, critical values, LOINC codes and turnaround times. Master data, held by the laboratory manager rather than by everyone who can order a test.",
     module: "lab",
   },
   {
@@ -587,22 +560,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "lab.results.verify",
     label: "Release lab results to the treating team",
-    description:
-      "Verification is the clinical signature on a result, not another edit of it, and it was gated on `lab.results.update` — the same code that types the value in. One account could therefore enter a result and release it, which NABL and ISO 15189 both write rules against. Splitting the code does not by itself split the duty: this system has a single lab role, and a night shift with one technologist still has to be able to report, so `lab_technician` holds this too and the hard four-eyes rule stays where the harm is — a critical value may not be released by the person who entered it. What the separate code buys is the ability to grant release to a supervisor role without also granting result entry, which could not be expressed at all before.",
+    description: "Verification is the clinical signature on a result, not another edit of it, and it was gated on `lab.results.update` — the same code that types the value in. One account could therefore enter a result and release it, which NABL and ISO 15189 both write rules against. Splitting the code does not by itself split the duty: this system has a single lab role, and a night shift with one technologist still has to be able to report, so `lab_technician` holds this too and the hard four-eyes rule stays where the harm is — a critical value may not be released by the person who entered it. What the separate code buys is the ability to grant release to a supervisor role without also granting result entry, which could not be expressed at all before.",
     module: "lab",
   },
   {
     code: "lab.results.analyser_review",
     label: "Resolve analyser results held for review",
-    description:
-      "Results an analyser sends that cannot be matched to exactly one order -- no barcode, a barcode on two orders, a different patient, a value conflicting with one recorded -- are held rather than guessed. This lets a technologist read them, attach them to the right order, or dismiss them with a reason.",
+    description: "Results an analyser sends that cannot be matched to exactly one order -- no barcode, a barcode on two orders, a different patient, a value conflicting with one recorded -- are held rather than guessed. This lets a technologist read them, attach them to the right order, or dismiss them with a reason.",
     module: "lab",
   },
   {
     code: "lab.results.critical_call",
     label: "Record the critical-value phone call",
-    description:
-      "NABL and NABH ask for the lab-to-clinician call to be documented: who called, who took the call, when, how many attempts, and that the value was read back. A technologist makes the call, so this is separate from acknowledging, which the clinician does.",
+    description: "NABL and NABH ask for the lab-to-clinician call to be documented: who called, who took the call, when, how many attempts, and that the value was read back. A technologist makes the call, so this is separate from acknowledging, which the clinician does.",
     module: "lab",
   },
   {
@@ -668,15 +638,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "lab.samples.collect",
     label: "Collect a sample for a lab order",
-    description:
-      "Drawing blood is the phlebotomist's or the ward nurse's job, and it was gated on `lab.results.create` — so the only way to let a nurse record a draw was to let her type results in too. This is the draw alone: positive patient identification and the tube's barcode, nothing that touches a result.",
+    description: "Drawing blood is the phlebotomist's or the ward nurse's job, and it was gated on `lab.results.create` — so the only way to let a nurse record a draw was to let her type results in too. This is the draw alone: positive patient identification and the tube's barcode, nothing that touches a result.",
     module: "lab",
   },
   {
     code: "lab.report_delivery.manage",
     label: "Configure how lab reports reach patients",
-    description:
-      "Turns SMS, WhatsApp and email delivery on or off and sets the default channel for the whole hospital. It was gated on `lab.orders.list`, so anyone who could see the order list could start sending patients' reports over a new channel.",
+    description: "Turns SMS, WhatsApp and email delivery on or off and sets the default channel for the whole hospital. It was gated on `lab.orders.list`, so anyone who could see the order list could start sending patients' reports over a new channel.",
     module: "lab",
   },
   {
@@ -719,15 +687,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "pharmacy.catalog.lookup",
     label: "Look up drugs by name in the formulary",
-    description:
-      "Read-only names, generics and schedules — enough to record what a patient is allergic to at registration without the pharmacy's prescription or dispensing access.",
+    description: "Read-only names, generics and schedules — enough to record what a patient is allergic to at registration without the pharmacy's prescription or dispensing access.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.catalog.merge",
     label: "Merge duplicate drugs in the catalogue",
-    description:
-      "See likely duplicate drugs and merge one into another: batches, orders, prescriptions and every other reference move to the drug that stays. Drugs that differ in schedule or NDPS control are never merged.",
+    description: "See likely duplicate drugs and merge one into another: batches, orders, prescriptions and every other reference move to the drug that stays. Drugs that differ in schedule or NDPS control are never merged.",
     module: "pharmacy",
   },
   {
@@ -769,8 +735,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "pharmacy.dispensing.unpaid_override",
     label: "Hand over an unpaid bill's medicines on a reason",
-    description:
-      "Credit patients, scheme beneficiaries and staff are served before they pay. The reason is written with the dispense, against the patient, for the cashier and the auditor to see. Without this grant an open bill means payment first.",
+    description: "Credit patients, scheme beneficiaries and staff are served before they pay. The reason is written with the dispense, against the patient, for the cashier and the auditor to see. Without this grant an open bill means payment first.",
     module: "pharmacy",
   },
   {
@@ -782,71 +747,61 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "pharmacy.deliveries.view",
     label: "View home deliveries",
-    description:
-      "The deliveries list and each delivery's address, status and payment. A runner sees the ones assigned to them.",
+    description: "The deliveries list and each delivery's address, status and payment. A runner sees the ones assigned to them.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.deliveries.arrange",
     label: "Arrange home deliveries",
-    description:
-      "Send an order out for delivery: address, runner or courier, payment, dispatch — and record a failed attempt.",
+    description: "Send an order out for delivery: address, runner or courier, payment, dispatch — and record a failed attempt.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.deliveries.complete",
     label: "Complete deliveries at the door",
-    description:
-      "Hand the medicines over against the patient's one-time code and record cash collected on delivery.",
+    description: "Hand the medicines over against the patient's one-time code and record cash collected on delivery.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.storefront.verify",
     label: "Verify online orders' prescriptions",
-    description:
-      "Read the prescription a patient uploaded beside the order lines, then approve it, approve some lines, or reject it with a reason. Approval sends the order to fulfilment.",
+    description: "Read the prescription a patient uploaded beside the order lines, then approve it, approve some lines, or reject it with a reason. Approval sends the order to fulfilment.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.storefront.manage",
     label: "Run the online storefront",
-    description:
-      "Choose which catalogue items patients may order online and set the online discount off MRP.",
+    description: "Choose which catalogue items patients may order online and set the online discount off MRP.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.storefront.substitute",
     label: "Propose substitutes on online orders",
-    description:
-      "Offer a same-salt, same-strength substitute for a line the pharmacy can't fill; the prescribing doctor and the patient must both agree before it goes out.",
+    description: "Offer a same-salt, same-strength substitute for a line the pharmacy can't fill; the prescribing doctor and the patient must both agree before it goes out.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.storefront.returns",
     label: "Take back online orders and issue refunds",
-    description:
-      "Acknowledge and receive returns of online orders, which the law sends back to stock or to quarantine, and issue the refunds owed.",
+    description: "Acknowledge and receive returns of online orders, which the law sends back to stock or to quarantine, and issue the refunds owed.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.quarantine.manage",
     label: "Destroy quarantined returns",
-    description:
-      "See returned packs that may not go back on the shelf and destroy them on a destruction certificate: through the biomedical waste facility, or for controlled drugs before a witness in the NDPS register.",
+    description: "See returned packs that may not go back on the shelf and destroy them on a destruction certificate: through the biomedical waste facility, or for controlled drugs before a witness in the NDPS register.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.nppa.manage",
     label: "Keep NPPA ceiling prices",
-    description:
-      "Record or import the NPPA ceiling price of scheduled formulations; no sale, online or at the counter, goes above it.",
+    description: "Record or import the NPPA ceiling price of scheduled formulations; no sale, online or at the counter, goes above it.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.h1_register.view",
     label: "View the Schedule H1 register",
-    description:
-      "Every H1 supply — prescriber, patient and address, drug, batch, expiry, quantity and bill — as Rule 65 requires it be kept and shown to an inspector.",
+    description: "Every H1 supply — prescriber, patient and address, drug, batch, expiry, quantity and bill — as Rule 65 requires it be kept and shown to an inspector.",
     module: "pharmacy",
   },
   {
@@ -864,8 +819,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "pharmacy.ndps.witness_override",
     label: "Dispense a controlled drug with no witness",
-    description:
-      "The NDPS dual lock may be bypassed only on a recorded reason, and only by someone the hospital names for it: the medication-safety override every pharmacist holds no longer covers it. Granted to no built-in role. Never covers Schedule X, which always needs a witness.",
+    description: "The NDPS dual lock may be bypassed only on a recorded reason, and only by someone the hospital names for it: the medication-safety override every pharmacist holds no longer covers it. Granted to no built-in role. Never covers Schedule X, which always needs a witness.",
     module: "pharmacy",
   },
   {
@@ -985,50 +939,43 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "pharmacy.returns.override_window",
     label: "Take a counter return after the return window",
-    description:
-      "A sale older than the hospital's return window (15 days unless set) is locked for return and refund. This takes it back anyway, with a reason recorded against the credit note.",
+    description: "A sale older than the hospital's return window (15 days unless set) is locked for return and refund. This takes it back anyway, with a reason recorded against the credit note.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.returns.controlled",
     label: "Take back a controlled or Schedule X drug",
-    description:
-      "NDPS and Schedule X medicines are not returnable at the counter. The pharmacist-in-charge may accept one with a recorded reason.",
+    description: "NDPS and Schedule X medicines are not returnable at the counter. The pharmacist-in-charge may accept one with a recorded reason.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.day_close.view",
     label: "See a counter's business day and Z-report",
-    description:
-      "Totals by tender, counted against expected cash, for any counter day, open or closed.",
+    description: "Totals by tender, counted against expected cash, for any counter day, open or closed.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.day_close.close",
     label: "Close a counter's business day",
-    description:
-      "Count the cash, explain any variance and lock the day: no sale, return or void is dated to it afterwards. Only a cashier who worked that counter that day.",
+    description: "Count the cash, explain any variance and lock the day: no sale, return or void is dated to it afterwards. Only a cashier who worked that counter that day.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.day_close.reopen",
     label: "Reopen a closed counter day",
-    description:
-      "Unlocks a closed day for correction, with a reason that is audited. Also closes a counter day the closer did not work.",
+    description: "Unlocks a closed day for correction, with a reason that is audited. Also closes a counter day the closer did not work.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.formulary.approve",
     label: "Dispense a non-formulary medicine",
-    description:
-      "Lets a pharmacist approve or dispense a medicine that is not on the hospital formulary, with a recorded reason that is audited.",
+    description: "Lets a pharmacist approve or dispense a medicine that is not on the hospital formulary, with a recorded reason that is audited.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.stewardship.approve",
     label: "Dispense a Reserve antibiotic before approval",
-    description:
-      "Lets a pharmacist approve or dispense an AWaRe Reserve antibiotic whose stewardship request is not yet approved — e.g. a first dose in sepsis — with a recorded reason that is audited.",
+    description: "Lets a pharmacist approve or dispense an AWaRe Reserve antibiotic whose stewardship request is not yet approved — e.g. a first dose in sepsis — with a recorded reason that is audited.",
     module: "pharmacy",
   },
   {
@@ -1076,22 +1023,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "pharmacy.pos.discount_approve",
     label: "Approve a counter discount above the limit",
-    description:
-      "A counter sale discounted beyond the hospital's configured limit needs a reason and an approver who holds this. The approval is recorded against the sale.",
+    description: "A counter sale discounted beyond the hospital's configured limit needs a reason and an approver who holds this. The approval is recorded against the sale.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.patients.search",
     label: "Find a patient at the pharmacy counter",
-    description:
-      "Name, UHID or phone to a patient's name, age and sex — enough to link a counter sale to the right person and nothing more of the record.",
+    description: "Name, UHID or phone to a patient's name, age and sex — enough to link a counter sale to the right person and nothing more of the record.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.bills.print",
     label: "Print a pharmacy GST bill",
-    description:
-      "The tax invoice for a counter sale posted to a registered patient, without access to the rest of billing.",
+    description: "The tax invoice for a counter sale posted to a registered patient, without access to the rest of billing.",
     module: "pharmacy",
   },
   {
@@ -1109,15 +1053,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "pharmacy.safety.override",
     label: "Override a medication safety block",
-    description:
-      "Lets a pharmacist proceed past a documented drug allergy, a serious drug-drug interaction or another medication safety block, with a recorded clinical reason that is audited.",
+    description: "Lets a pharmacist proceed past a documented drug allergy, a serious drug-drug interaction or another medication safety block, with a recorded clinical reason that is audited.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.interactions.manage",
     label: "Propose changes to drug interaction rules",
-    description:
-      "Draft additions, edits and removals of drug-drug interaction rules as knowledge change sets. A change goes live only after a second person approves it; this does not open the direct editor.",
+    description: "Draft additions, edits and removals of drug-drug interaction rules as knowledge change sets. A change goes live only after a second person approves it; this does not open the direct editor.",
     module: "pharmacy",
   },
   {
@@ -1166,8 +1108,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "billing.exchange_rates.manage",
     label: "Set currency exchange rates",
-    description:
-      "A rate decides what a foreign-currency patient is billed in rupees, so setting one is tariff work, kept apart from reading reports. Reading the rates only needs `billing.invoices.list`.",
+    description: "A rate decides what a foreign-currency patient is billed in rupees, so setting one is tariff work, kept apart from reading reports. Reading the rates only needs `billing.invoices.list`.",
     module: "billing",
   },
   {
@@ -1185,22 +1126,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "billing.payments.reconcile",
     label: "Reconcile online payments",
-    description:
-      "See money a gateway took that could not be posted to a bill — a captured amount other than the one asked for, more than the bill owed, a method with no payment mode, a refund that failed — and mark each resolved once finance has put it right.",
+    description: "See money a gateway took that could not be posted to a bill — a captured amount other than the one asked for, more than the bill owed, a method with no payment mode, a refund that failed — and mark each resolved once finance has put it right.",
     module: "billing",
   },
   {
     code: "billing.payments.configure",
     label: "Configure online payment providers",
-    description:
-      "Choose the hospital's online payment provider (Razorpay, Cashfree, PhonePe, PayU), a fallback for when it is down, a different one for a counter, set its keys and test that it answers. Keys are write-only: no screen ever shows a stored secret.",
+    description: "Choose the hospital's online payment provider (Razorpay, Cashfree, PhonePe, PayU), a fallback for when it is down, a different one for a counter, set its keys and test that it answers. Keys are write-only: no screen ever shows a stored secret.",
     module: "billing",
   },
   {
     code: "billing.payment_settings.view",
     label: "View billing payment settings",
-    description:
-      "See the hospital's UPI ID and its payment-link terms (part payments, least part, days a link stays open, reminders).",
+    description: "See the hospital's UPI ID and its payment-link terms (part payments, least part, days a link stays open, reminders).",
     module: "billing",
   },
   {
@@ -1212,15 +1150,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "billing.payment_settings.notified",
     label: "Told of payment settings changes",
-    description:
-      "Receive a notification, and an email where one is on file, each time the UPI ID or the payment-link terms change: what changed, who changed it and when. Hospital administrators are always told.",
+    description: "Receive a notification, and an email where one is on file, each time the UPI ID or the payment-link terms change: what changed, who changed it and when. Hospital administrators are always told.",
     module: "billing",
   },
   {
     code: "billing.preauth_alerts.configure",
     label: "Set the pre-auth alert threshold",
-    description:
-      "Choose the share of a pre-auth's approved amount, 1 to 100%, at which the insurance desk is warned that an inpatient's running bill is nearing it (80% until set). Hospital-wide.",
+    description: "Choose the share of a pre-auth's approved amount, 1 to 100%, at which the insurance desk is warned that an inpatient's running bill is nearing it (80% until set). Hospital-wide.",
     module: "billing",
   },
   {
@@ -1268,29 +1204,25 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "billing.collect.cross",
     label: "Collect any department's dues",
-    description:
-      "Collect every department's dues at this desk — the central cashier's grant. Without it a desk collects only its own lanes.",
+    description: "Collect every department's dues at this desk — the central cashier's grant. Without it a desk collects only its own lanes.",
     module: "billing",
   },
   {
     code: "billing.counter_display.publish",
     label: "Show payments on the customer display",
-    description:
-      "Mirror the collection in progress on the screen paired to your counter: the patient's first name and initial, department totals, the UPI QR and the result. Also shows whether that screen is connected.",
+    description: "Mirror the collection in progress on the screen paired to your counter: the patient's first name and initial, department totals, the UPI QR and the result. Also shows whether that screen is connected.",
     module: "billing",
   },
   {
     code: "billing.bill_groups.manage",
     label: "Bill a patient's charges together or separately",
-    description:
-      "Group a patient's department bills into one statement, or split them back; items never move between bills.",
+    description: "Group a patient's department bills into one statement, or split them back; items never move between bills.",
     module: "billing",
   },
   {
     code: "billing.lanes.manage",
     label: "Configure billing entities and lanes",
-    description:
-      "Set up the hospital's legal billing entities (GSTIN, receipt series) and, per department lane, which entity bills it, whether it bills separately, and when registration and consultation fees are charged.",
+    description: "Set up the hospital's legal billing entities (GSTIN, receipt series) and, per department lane, which entity bills it, whether it bills separately, and when registration and consultation fees are charged.",
     module: "billing",
   },
   {
@@ -1302,15 +1234,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "billing.terminals.manage",
     label: "Manage card machines at counters",
-    description:
-      "Register the card machines (POS terminals) at billing and pharmacy counters, bind each to its counter, test that it answers, and retire one that is replaced. In test hospitals, also act as the person at a simulated machine.",
+    description: "Register the card machines (POS terminals) at billing and pharmacy counters, bind each to its counter, test that it answers, and retire one that is replaced. In test hospitals, also act as the person at a simulated machine.",
     module: "billing",
   },
   {
     code: "billing.terminals.drive",
     label: "Drive counter card machines from a bridge",
-    description:
-      "Lets a site bridge take card sales queued for the machines wired to its counter PCs, run them on the machine and report each approved, declined or timed out — which posts the money to the bill. Grant it to the bridge's API key, not to people.",
+    description: "Lets a site bridge take card sales queued for the machines wired to its counter PCs, run them on the machine and report each approved, declined or timed out — which posts the money to the bill. Grant it to the bridge's API key, not to people.",
     module: "billing",
   },
   {
@@ -1352,8 +1282,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "billing.payer_split.manage",
     label: "Split a bill between insurer and patient",
-    description:
-      "Assign each bill line to the insurer, scheme or corporate, or to the patient, overriding the automatic non-payables list; and write the insurer's share onto the claim as the amount claimed.",
+    description: "Assign each bill line to the insurer, scheme or corporate, or to the patient, overriding the automatic non-payables list; and write the insurer's share onto the claim as the amount claimed.",
     module: "billing",
   },
   {
@@ -1419,64 +1348,55 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "billing.charge_attention.view",
     label: "See charges needing attention",
-    description:
-      "Open the billing desk's queue of automatic charges — a diet order, an OT completion, an ER registration — that could not be posted, with why, so nothing done for a patient goes unbilled unseen.",
+    description: "Open the billing desk's queue of automatic charges — a diet order, an OT completion, an ER registration — that could not be posted, with why, so nothing done for a patient goes unbilled unseen.",
     module: "billing",
   },
   {
     code: "billing.charge_attention.resolve",
     label: "Post or dismiss charges needing attention",
-    description:
-      "Post a queued charge onto the patient's bill, or dismiss it with a reason when it should not be billed. Who and when is recorded.",
+    description: "Post a queued charge onto the patient's bill, or dismiss it with a reason when it should not be billed. Who and when is recorded.",
     module: "billing",
   },
   {
     code: "billing.leakage.view",
     label: "See done-but-unbilled orders",
-    description:
-      "See lab tests, imaging and procedures that were completed for a patient but have no charge on any bill, with the tariff amount and how many days each has waited.",
+    description: "See lab tests, imaging and procedures that were completed for a patient but have no charge on any bill, with the tariff amount and how many days each has waited.",
     module: "billing",
   },
   {
     code: "billing.leakage.resolve",
     label: "Post, dismiss or rescan unbilled orders",
-    description:
-      "Post an unbilled order's charge onto the patient's bill, dismiss it with a reason (package-included, free by policy, duplicate), or run the unbilled-orders check now. Who and when is recorded.",
+    description: "Post an unbilled order's charge onto the patient's bill, dismiss it with a reason (package-included, free by policy, duplicate), or run the unbilled-orders check now. Who and when is recorded.",
     module: "billing",
   },
   {
     code: "billing.leakage.name_implant_recipient",
     label: "Name the patient on an unnamed implant",
-    description:
-      "Name or change the patient a consignment implant was used on when the store recorded it on no one. This rewrites the store's consignment usage record, which the vendor is paid from, so it is kept apart from posting and dismissing. Every naming is audited.",
+    description: "Name or change the patient a consignment implant was used on when the store recorded it on no one. This rewrites the store's consignment usage record, which the vendor is paid from, so it is kept apart from posting and dismissing. Every naming is audited.",
     module: "billing",
   },
   {
     code: "billing.claims.settlement.record",
     label: "See and record insurer settlements",
-    description:
-      "Open the insurance settlements queue and file a settlement the insurer paid — amount, deductions, TDS and UTR — as a pending posting for finance to approve.",
+    description: "Open the insurance settlements queue and file a settlement the insurer paid — amount, deductions, TDS and UTR — as a pending posting for finance to approve.",
     module: "billing",
   },
   {
     code: "billing.claims.settlement.approve",
     label: "Approve or reject insurer settlements",
-    description:
-      "Post a pending insurer settlement onto its bill as a payment, with its write-off, or reject it with a reason. Never a settlement the same person recorded.",
+    description: "Post a pending insurer settlement onto its bill as a payment, with its write-off, or reject it with a reason. Never a settlement the same person recorded.",
     module: "billing",
   },
   {
     code: "billing.claims.settlement.reverse",
     label: "Reverse an approved insurer settlement",
-    description:
-      "Undo a settlement wrongly posted to a bill: its payment and write-off are taken back off and the bill owes again.",
+    description: "Undo a settlement wrongly posted to a bill: its payment and write-off are taken back off and the bill owes again.",
     module: "billing",
   },
   {
     code: "billing.claims.settlement.backfill",
     label: "File pending postings for past settlements",
-    description:
-      "One-time catch-up: claims already settled before postings existed get a pending posting each, still to be approved.",
+    description: "One-time catch-up: claims already settled before postings existed get a pending posting each, still to be approved.",
     module: "billing",
   },
   {
@@ -1585,15 +1505,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "doctor_payouts.agreements.manage",
     label: "Manage doctor payout agreements",
-    description:
-      "Set how each doctor is engaged and paid: earning basis, discount sharing, TDS section, PAN, bank or UPI.",
+    description: "Set how each doctor is engaged and paid: earning basis, discount sharing, TDS section, PAN, bank or UPI.",
     module: "doctor_payouts",
   },
   {
     code: "doctor_payouts.rate_cards.manage",
     label: "Manage payout rate cards",
-    description:
-      "Write the versioned rates: per service, category or package, fixed or percentage, by payer class and role.",
+    description: "Write the versioned rates: per service, category or package, fixed or percentage, by payer class and role.",
     module: "doctor_payouts",
   },
   {
@@ -1605,8 +1523,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "doctor_payouts.statements.prepare",
     label: "Prepare doctor payout statements",
-    description:
-      "Gather a doctor's earnings for a period into a statement, adjust it with a reason, record disputes.",
+    description: "Gather a doctor's earnings for a period into a statement, adjust it with a reason, record disputes.",
     module: "doctor_payouts",
   },
   {
@@ -1624,15 +1541,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "doctor_payouts.day_settlement.execute",
     label: "Settle a day doctor's session",
-    description:
-      "At session close, pay a visiting or day doctor what the day earned, by cash, UPI or bank.",
+    description: "At session close, pay a visiting or day doctor what the day earned, by cash, UPI or bank.",
     module: "doctor_payouts",
   },
   {
     code: "doctor_payouts.reports.view",
     label: "View doctor payout reports",
-    description:
-      "Doctor-wise earnings and payouts, the TDS register and the referral compliance report.",
+    description: "Doctor-wise earnings and payouts, the TDS register and the referral compliance report.",
     module: "doctor_payouts",
   },
   {
@@ -1644,8 +1559,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "doctor_payouts.policy.manage",
     label: "Set the hospital's payout policy",
-    description:
-      "Hospital defaults, TDS settings and the referral switches, which need a recorded acknowledgement.",
+    description: "Hospital defaults, TDS settings and the referral switches, which need a recorded acknowledgement.",
     module: "doctor_payouts",
   },
   // ipd
@@ -1712,8 +1626,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "ipd.discharge.physio_clearance",
     label: "Clear a patient from physiotherapy",
-    description:
-      'Record that physiotherapy has seen the patient and cleared them for discharge, at a flow\'s "Physiotherapy clearance" station.',
+    description: "Record that physiotherapy has seen the patient and cleared them for discharge, at a flow's \"Physiotherapy clearance\" station.",
     module: "ipd",
   },
   {
@@ -2074,8 +1987,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "ot.consent.emergency_override",
     label: "Certify emergency implied consent for surgery",
-    description:
-      "For an emergency booking only, when the patient cannot consent and no relative can be reached in time. Two different doctors must each certify, in their own session after re-entering their password, with a reason. Recorded, audited, and printed on the operation notes.",
+    description: "For an emergency booking only, when the patient cannot consent and no relative can be reached in time. Two different doctors must each certify, in their own session after re-entering their password, with a reason. Recorded, audited, and printed on the operation notes.",
     module: "ot",
   },
   // radiology
@@ -2106,15 +2018,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "radiology.orders.cancel_any",
     label: "Cancel any imaging order, not only your own",
-    description:
-      "A doctor cancels the studies they ordered. Cancelling somebody else's order is the radiology department's call — a duplicate, a contraindication, a study the modality cannot perform — so it is held by the radiology desk, not by every doctor on the case.",
+    description: "A doctor cancels the studies they ordered. Cancelling somebody else's order is the radiology department's call — a duplicate, a contraindication, a study the modality cannot perform — so it is held by the radiology desk, not by every doctor on the case.",
     module: "radiology",
   },
   {
     code: "radiology.orders.pregnancy_check",
     label: "Record the pregnancy check before an exposure",
-    description:
-      "For a woman aged 12 to 50 having an X-ray, CT, fluoroscopy, mammography or nuclear medicine exam: whether she is or may be pregnant, how that was established, and — if she may be — why the exam still goes ahead. The exam cannot start without it.",
+    description: "For a woman aged 12 to 50 having an X-ray, CT, fluoroscopy, mammography or nuclear medicine exam: whether she is or may be pregnant, how that was established, and — if she may be — why the exam still goes ahead. The exam cannot start without it.",
     module: "radiology",
   },
   {
@@ -2138,36 +2048,31 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "radiology.studies.reconcile",
     label: "Match unmatched PACS studies to their orders",
-    description:
-      "A walk-in X-ray, a mistyped accession or a study from another site reaches the PACS with no order. This sees that queue — which shows the names and IDs the modality wrote — files a study under the order a person has confirmed it belongs to, or dismisses it with a reason. Filing images under the wrong patient is a patient-safety event, so it is held by the radiology desk.",
+    description: "A walk-in X-ray, a mistyped accession or a study from another site reaches the PACS with no order. This sees that queue — which shows the names and IDs the modality wrote — files a study under the order a person has confirmed it belongs to, or dismisses it with a reason. Filing images under the wrong patient is a patient-safety event, so it is held by the radiology desk.",
     module: "radiology",
   },
   {
     code: "radiology.studies.share",
     label: "Share a patient's images by an expiring link",
-    description:
-      "Makes a link that opens one study in the viewer without signing in — for a referring doctor outside the hospital, a second opinion, or the patient. It is a disclosure of the record: the link is scoped to that study, expires, can be revoked, and every open is audited.",
+    description: "Makes a link that opens one study in the viewer without signing in — for a referring doctor outside the hospital, a second opinion, or the patient. It is a disclosure of the record: the link is scoped to that study, expires, can be revoked, and every open is audited.",
     module: "radiology",
   },
   {
     code: "radiology.radiation_safety.manage",
     label: "Keep the radiation safety register",
-    description:
-      "The Radiological Safety Officer's records: each X-ray, CT, fluoroscopy or mammography unit's AERB licence, eLORA ID, RSO and QA due dates, and every staff member's TLD badge readings against the occupational dose limits. Staff doses are personal health data, so they are not shown to everyone who reads imaging.",
+    description: "The Radiological Safety Officer's records: each X-ray, CT, fluoroscopy or mammography unit's AERB licence, eLORA ID, RSO and QA due dates, and every staff member's TLD badge readings against the occupational dose limits. Staff doses are personal health data, so they are not shown to everyone who reads imaging.",
     module: "radiology",
   },
   {
     code: "radiology.dose.record",
     label: "Record radiation dose on an imaging order",
-    description:
-      "CTDIvol and DLP for CT, dose-area product and screening time for fluoroscopy, exposures and technique for radiographs — entered by the radiographer who ran the exam, or marked as entered in error. It feeds the patient's cumulative dose, which every new ionising order is checked against.",
+    description: "CTDIvol and DLP for CT, dose-area product and screening time for fluoroscopy, exposures and technique for radiographs — entered by the radiographer who ran the exam, or marked as entered in error. It feeds the patient's cumulative dose, which every new ionising order is checked against.",
     module: "radiology",
   },
   {
     code: "radiology.exams.manage",
     label: "Edit the radiology exam catalogue",
-    description:
-      "Which exams each modality performs, their body part, contrast and the charge code they are billed under. Master data, held by the radiology department rather than by everyone who orders.",
+    description: "Which exams each modality performs, their body part, contrast and the charge code they are billed under. Master data, held by the radiology department rather than by everyone who orders.",
     module: "radiology",
   },
   // icu
@@ -2411,8 +2316,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "camp.queue.manage",
     label: "Call patients through a camp's stations",
-    description:
-      "Call, recall and complete tokens at a camp's registration, vitals, doctor and pharmacy stations; completing one sends the patient to the next station with the same number.",
+    description: "Call, recall and complete tokens at a camp's registration, vitals, doctor and pharmacy stations; completing one sends the patient to the next station with the same number.",
     module: "camp",
   },
   {
@@ -2496,15 +2400,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "camp.billing.list",
     label: "View Camp Billing",
-    description:
-      "View camp billing records, patient-pay totals, sponsor or free split, and invoice sync status",
+    description: "View camp billing records, patient-pay totals, sponsor or free split, and invoice sync status",
     module: "camp",
   },
   {
     code: "camp.billing.create",
     label: "Create Camp Billing",
-    description:
-      "Record camp services, medicines, concessions, tax, sponsor cover, and payment rows",
+    description: "Record camp services, medicines, concessions, tax, sponsor cover, and payment rows",
     module: "camp",
   },
   {
@@ -2541,29 +2443,25 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "forms.templates.list",
     label: "See the hospital's forms",
-    description:
-      "The list of forms the hospital has built or customised, with each one's drafts and published versions.",
+    description: "The list of forms the hospital has built or customised, with each one's drafts and published versions.",
     module: "forms",
   },
   {
     code: "forms.templates.manage",
     label: "Build and edit form drafts",
-    description:
-      "Create a form, change its draft, and retire it. A draft is never what staff fill in; only a published version is.",
+    description: "Create a form, change its draft, and retire it. A draft is never what staff fill in; only a published version is.",
     module: "forms",
   },
   {
     code: "forms.templates.publish",
     label: "Publish a form version",
-    description:
-      "Makes the current draft the version staff fill in from now on. A published version never changes, so every record keeps the exact questions it was answered against.",
+    description: "Makes the current draft the version staff fill in from now on. A published version never changes, so every record keeps the exact questions it was answered against.",
     module: "forms",
   },
   {
     code: "forms.definitions.read",
     label: "Load the live version of a form",
-    description:
-      "Needed by anyone who fills in a configurable form, such as a procedure consent. It reveals the questions, never any answers.",
+    description: "Needed by anyone who fills in a configurable form, such as a procedure consent. It reveals the questions, never any answers.",
     module: "forms",
   },
   // consent
@@ -2625,15 +2523,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "flow.view",
     label: "See the live crowd and wait map",
-    description:
-      "Open the Flow floor map: estimated people, queue lengths and waits per zone, and the recommendations.",
+    description: "Open the Flow floor map: estimated people, queue lengths and waits per zone, and the recommendations.",
     module: "flow",
   },
   {
     code: "flow.manage",
     label: "Set up Flow zones and their limits",
-    description:
-      "Set each zone's capacity, comfort limit, attendant factor and wait goal, and map departments and counters to zones.",
+    description: "Set each zone's capacity, comfort limit, attendant factor and wait goal, and map departments and counters to zones.",
     module: "flow",
   },
   {
@@ -2645,15 +2541,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "flow.alerts.ack",
     label: "Acknowledge crowding alerts",
-    description:
-      "Receive and acknowledge the alert raised when a zone passes its comfort limit or capacity.",
+    description: "Receive and acknowledge the alert raised when a zone passes its comfort limit or capacity.",
     module: "flow",
   },
   {
     code: "flow.recommendations.act",
     label: "Accept or snooze crowd recommendations",
-    description:
-      "Record a decision on a recommendation such as opening another counter. Advisory only: accepting records the decision and changes nothing else.",
+    description: "Record a decision on a recommendation such as opening another counter. Advisory only: accepting records the decision and changes nothing else.",
     module: "flow",
   },
   // blood_bank
@@ -2672,8 +2566,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "blood_bank.donors.defer",
     label: "Defer or reinstate a blood donor",
-    description:
-      "Sets a temporary deferral with an end date, a permanent one, or lifts it, always with a reason and an audit row. A donor deferred for a reactive TTI result cannot be reinstated here.",
+    description: "Sets a temporary deferral with an end date, a permanent one, or lifts it, always with a reason and an audit row. A donor deferred for a reactive TTI result cannot be reinstated here.",
     module: "blood_bank",
   },
   {
@@ -2715,30 +2608,26 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "blood_bank.transfusion.emergency_release",
     label: "Emergency Release Transfusion",
-    description:
-      "Release uncrossmatched O-negative in an emergency. Issues a red-cell unit with no compatible crossmatch for the patient, which every other issue is refused. Only an O-negative unit, only with a written reason, and every use is written to the audit log.",
+    description: "Release uncrossmatched O-negative in an emergency. Issues a red-cell unit with no compatible crossmatch for the patient, which every other issue is refused. Only an O-negative unit, only with a written reason, and every use is written to the audit log.",
     module: "blood_bank",
   },
   {
     code: "blood_bank.tti.view",
     label: "View donor TTI screening results",
-    description:
-      "The per-marker HIV, HBsAg, HCV, syphilis and malaria results of a donation. A donor's infection status, so not part of inventory read.",
+    description: "The per-marker HIV, HBsAg, HCV, syphilis and malaria results of a donation. A donor's infection status, so not part of inventory read.",
     module: "blood_bank",
   },
   {
     code: "blood_bank.tti.record",
     label: "Record donor TTI screening results",
-    description:
-      "Enters the per-marker screening result for a donation. A reactive result quarantines the donation's units and defers the donor, and cannot later be changed.",
+    description: "Enters the per-marker screening result for a donation. A reactive result quarantines the donation's units and defers the donor, and cannot later be changed.",
     module: "blood_bank",
   },
   // display
   {
     code: "display.board.read",
     label: "Read Board",
-    description:
-      "Read a wall board's live contents on a paired display. Only counts when the request carries a paired device: the role that holds this exists for screens bolted to walls, and a credential lifted off one should not become a way to read every ward board from a laptop. Operators keep reaching the same boards through `admin.tv_displays.board`, which carries no such condition.",
+    description: "Read a wall board's live contents on a paired display. Only counts when the request carries a paired device: the role that holds this exists for screens bolted to walls, and a credential lifted off one should not become a way to read every ward board from a laptop. Operators keep reaching the same boards through `admin.tv_displays.board`, which carries no such condition.",
     module: "display",
   },
   // bedside
@@ -2793,8 +2682,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "bedside.calls.board",
     label: "See every open call in the ward",
-    description:
-      "`bedside.view` answers \"may I read this admission's bedside data\", which is the question a patient's own tablet asks and the only question the bedside module could answer. A ward call board asks a different one — every patient waiting right now, across admissions the caller may hold no relationship to — and answering it is what makes a call button worth pressing. Separate rather than folded into `bedside.view`, because widening that would have handed the whole ward to every holder of a per-admission read, silently and retroactively.",
+    description: "`bedside.view` answers \"may I read this admission's bedside data\", which is the question a patient's own tablet asks and the only question the bedside module could answer. A ward call board asks a different one — every patient waiting right now, across admissions the caller may hold no relationship to — and answering it is what makes a call button worth pressing. Separate rather than folded into `bedside.view`, because widening that would have handed the whole ward to every holder of a per-admission read, silently and retroactively.",
     module: "bedside",
   },
   // diet
@@ -2898,8 +2786,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "cssd.sterilization.recall",
     label: "Recall a sterilisation load or an issued pack",
-    description:
-      "Recalling a load bars every pack of it from issue and flags every pack already issued from it so it can be fetched back from the ward or theatre — the response to a failed biological indicator. A single issued pack can be recalled too. Always with a reason; audited.",
+    description: "Recalling a load bars every pack of it from issue and flags every pack already issued from it so it can be fetched back from the ward or theatre — the response to a failed biological indicator. A single issued pack can be recalled too. Always with a reason; audited.",
     module: "cssd",
   },
   {
@@ -3020,22 +2907,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "emergency.mlc.amend",
     label: "Amend a certified or closed MLC",
-    description:
-      "Changes what a medico-legal case records after the opinion is given, while it is in court, or once it is closed. MLC records are legal evidence: every amendment needs a written reason and is written to the audit trail with the old and new values.",
+    description: "Changes what a medico-legal case records after the opinion is given, while it is in court, or once it is closed. MLC records are legal evidence: every amendment needs a written reason and is written to the audit trail with the old and new values.",
     module: "emergency",
   },
   {
     code: "emergency.mlc_injuries.list",
     label: "View the injuries on an MLC",
-    description:
-      "Each injury on a medico-legal case by site, type, size and the examining doctor's opinion of its nature — what the injury certificate lists.",
+    description: "Each injury on a medico-legal case by site, type, size and the examining doctor's opinion of its nature — what the injury certificate lists.",
     module: "emergency",
   },
   {
     code: "emergency.mlc_injuries.create",
     label: "Record an injury on an MLC",
-    description:
-      "Appends an injury (site picked on the body, type, size, nature). A legal record: injuries are never edited, a correction is a new entry, and the examining doctor is recorded.",
+    description: "Appends an injury (site picked on the body, type, size, nature). A legal record: injuries are never edited, a correction is a new entry, and the examining doctor is recorded.",
     module: "emergency",
   },
   {
@@ -3205,8 +3089,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "housekeeping.tasks.perform",
     label: "Start and complete your own cleaning tasks",
-    description:
-      "The housekeeper's right. Starting an unassigned task claims it; completing needs the task to be assigned to you. Verifying, rejecting and reassigning stay with `housekeeping.cleaning.manage`, which before this was the only way to mark any task done.",
+    description: "The housekeeper's right. Starting an unassigned task claims it; completing needs the task to be assigned to you. Verifying, rejecting and reassigning stay with `housekeeping.cleaning.manage`, which before this was the only way to mark any task done.",
     module: "housekeeping",
   },
   {
@@ -3333,8 +3216,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "hr.attendance.geofence.manage",
     label: "Set where staff may clock in from",
-    description:
-      "Each facility's location and fence radius, and whether a punch from outside is flagged for HR or refused. Decides whether a nurse can start their shift, so it is held apart from marking attendance.",
+    description: "Each facility's location and fence radius, and whether a punch from outside is flagged for HR or refused. Decides whether a nurse can start their shift, so it is held apart from marking attendance.",
     module: "hr",
   },
   {
@@ -3358,15 +3240,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "hr.leave.manage",
     label: "File and view leave for any employee",
-    description:
-      "HR's reach. Without it a caller files leave only for themselves and sees only their own leave and, as a department head, their department's. Nobody approves their own leave, with or without it.",
+    description: "HR's reach. Without it a caller files leave only for themselves and sees only their own leave and, as a department head, their department's. Nobody approves their own leave, with or without it.",
     module: "hr",
   },
   {
     code: "hr.holiday.manage",
     label: "Keep the holiday list and weekly offs",
-    description:
-      "Adds, edits and removes the hospital's holidays and sets which weekdays are weekly offs. Leave days are counted from these, so changing them changes how much leave every later request takes.",
+    description: "Adds, edits and removes the hospital's holidays and sets which weekdays are weekly offs. Leave days are counted from these, so changing them changes how much leave every later request takes.",
     module: "hr",
   },
   {
@@ -3536,22 +3416,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "procurement.grn.post",
     label: "Post a GRN to stock",
-    description:
-      "Completing a goods receipt is the moment stock moves: batches are created, store and pharmacy stock rise, and the purchase order is marked received. A draft GRN moves nothing.",
+    description: "Completing a goods receipt is the moment stock moves: batches are created, store and pharmacy stock rise, and the purchase order is marked received. A draft GRN moves nothing.",
     module: "procurement",
   },
   {
     code: "procurement.grn.scan",
     label: "Scan supplier bills into draft GRNs",
-    description:
-      "Upload a photographed or PDF distributor bill, review the draft the reader produced against the image, correct it, and match the supplier's item names to the catalogue.",
+    description: "Upload a photographed or PDF distributor bill, review the draft the reader produced against the image, correct it, and match the supplier's item names to the catalogue.",
     module: "procurement",
   },
   {
     code: "procurement.grn.scan_worker",
     label: "Read supplier bills as the parsing worker",
-    description:
-      "A machine permission for the on-prem bill reader: claim a queued scan, fetch its image, and post the extracted draft back. Grant it to the worker's service account, never to a person.",
+    description: "A machine permission for the on-prem bill reader: claim a queued scan, fetch its image, and post the extracted draft back. Grant it to the worker's service account, never to a person.",
     module: "procurement",
   },
   {
@@ -3835,8 +3712,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.contacts.list",
     label: "List enquiry contacts",
-    description:
-      "The enquiry record — name, number, what they asked about, which campaign produced them. Not the clinical record.",
+    description: "The enquiry record — name, number, what they asked about, which campaign produced them. Not the clinical record.",
     module: "marketing",
   },
   {
@@ -3860,8 +3736,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.contacts.merge",
     label: "Merge duplicate enquiry contacts",
-    description:
-      "Merging is destructive to the losing record's identity, so it is separate from ordinary editing.",
+    description: "Merging is destructive to the losing record's identity, so it is separate from ordinary editing.",
     module: "marketing",
   },
   {
@@ -3891,8 +3766,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.interactions.play_recording",
     label: "Play back a call recording",
-    description:
-      "A recording carries whatever the caller said, including symptoms they were told not to describe. Held apart from reading the interaction timeline, which carries only the disposition.",
+    description: "A recording carries whatever the caller said, including symptoms they were told not to describe. Held apart from reading the interaction timeline, which carries only the disposition.",
     module: "marketing",
   },
   {
@@ -3910,43 +3784,37 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.campaigns.lookup",
     label: "Pick a campaign when registering",
-    description:
-      "The active campaigns' names and codes only — enough for the desk to record where a new patient heard of the hospital, without spend or results.",
+    description: "The active campaigns' names and codes only — enough for the desk to record where a new patient heard of the hospital, without spend or results.",
     module: "marketing",
   },
   {
     code: "marketing.consent.view",
     label: "View a contact's consent history",
-    description:
-      "What they agreed to, on which channel, and when they changed their mind. Reading it is how the desk knows whether it may ring.",
+    description: "What they agreed to, on which channel, and when they changed their mind. Reading it is how the desk knows whether it may ring.",
     module: "marketing",
   },
   {
     code: "marketing.consent.capture",
     label: "Record a consent grant",
-    description:
-      "A legal act, not an edit: it asserts a notice was shown and a person agreed. Separate from editing the enquiry so that whoever can fix a misspelt name cannot also manufacture a grant.",
+    description: "A legal act, not an edit: it asserts a notice was shown and a person agreed. Separate from editing the enquiry so that whoever can fix a misspelt name cannot also manufacture a grant.",
     module: "marketing",
   },
   {
     code: "marketing.consent.withdraw",
     label: "Withdraw consent on a contact's behalf",
-    description:
-      "The patient told somebody to stop. Whoever they told must be able to record it without waiting for a campaign manager.",
+    description: "The patient told somebody to stop. Whoever they told must be able to record it without waiting for a campaign manager.",
     module: "marketing",
   },
   {
     code: "marketing.suppression.manage",
     label: "Add or lift a do-not-contact suppression",
-    description:
-      "Suppression is keyed on the number rather than the enquiry record, so it outlives the record and survives the person being created again. Lifting one is why this is a single permission and not a read: the people who run campaigns may see that somebody is unreachable, and may not make them reachable.",
+    description: "Suppression is keyed on the number rather than the enquiry record, so it outlives the record and survives the person being created again. Lifting one is why this is a single permission and not a read: the people who run campaigns may see that somebody is unreachable, and may not make them reachable.",
     module: "marketing",
   },
   {
     code: "marketing.cohorts.view",
     label: "View cohort names and sizes",
-    description:
-      "A cohort is a list of people to contact. Marketing sees its name, its size and when it was built — never why any individual is in it.",
+    description: "A cohort is a list of people to contact. Marketing sees its name, its size and when it was built — never why any individual is in it.",
     module: "marketing",
   },
   {
@@ -3958,64 +3826,55 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.cohorts.clinical_define",
     label: "Build a cohort from clinical criteria",
-    description:
-      "Recall lists — due for a screen, dormant after a procedure. The query runs with clinical authority and returns contactable identities; the diagnosis never crosses into the marketing tables. A clinical act wearing a marketing name, so it is held by clinicians and not by the people who run the campaign.",
+    description: "Recall lists — due for a screen, dormant after a procedure. The query runs with clinical authority and returns contactable identities; the diagnosis never crosses into the marketing tables. A clinical act wearing a marketing name, so it is held by clinicians and not by the people who run the campaign.",
     module: "marketing",
   },
   {
     code: "marketing.outreach.send",
     label: "Send a campaign to a cohort",
-    description:
-      "Calls, SMS and WhatsApp alike. Separate from building the cohort, because the mistake that reaches thousands of people is the send, not the query.",
+    description: "Calls, SMS and WhatsApp alike. Separate from building the cohort, because the mistake that reaches thousands of people is the send, not the query.",
     module: "marketing",
   },
   {
     code: "marketing.outreach.approve",
     label: "Approve campaign content before it sends",
-    description:
-      "NMC advertising rules and the Drugs and Magic Remedies Act bind what a hospital may say. Automation scales a wording error to the whole list, so approval is a second pair of eyes and deliberately not held by whoever wrote the campaign.",
+    description: "NMC advertising rules and the Drugs and Magic Remedies Act bind what a hospital may say. Automation scales a wording error to the whole list, so approval is a second pair of eyes and deliberately not held by whoever wrote the campaign.",
     module: "marketing",
   },
   {
     code: "marketing.outreach.dispatch",
     label: "Start an approved outreach run",
-    description:
-      "Approval says the words are lawful; dispatch is the act of sending them to four thousand people. Separate, so that whoever signs off the content is not thereby the person who fires it, and so the button can be withheld from a run whose DLT template has lapsed.",
+    description: "Approval says the words are lawful; dispatch is the act of sending them to four thousand people. Separate, so that whoever signs off the content is not thereby the person who fires it, and so the button can be withheld from a run whose DLT template has lapsed.",
     module: "marketing",
   },
   {
     code: "marketing.messages.view",
     label: "View who an outreach run actually reached",
-    description:
-      "Names the individuals in a cohort, which cohort membership itself never does — `cohorts.view` promises marketing a cohort's name and size and never who is in it, so a recipient ledger cannot reuse it. A clinical recall run's recipient list is a patient list.",
+    description: "Names the individuals in a cohort, which cohort membership itself never does — `cohorts.view` promises marketing a cohort's name and size and never who is in it, so a recipient ledger cannot reuse it. A clinical recall run's recipient list is a patient list.",
     module: "marketing",
   },
   {
     code: "marketing.messages.ingest_receipt",
     label: "Ingest Receipt Messages",
-    description:
-      "Accept delivery receipts from the messaging provider. Held by no built-in role. A machine identity with an API key and an explicit permission list, for the same reason telephony ingest is: the caller is a provider's webhook, not a person.",
+    description: "Accept delivery receipts from the messaging provider. Held by no built-in role. A machine identity with an API key and an explicit permission list, for the same reason telephony ingest is: the caller is a provider's webhook, not a person.",
     module: "marketing",
   },
   {
     code: "marketing.reports.view",
     label: "View acquisition funnel reports",
-    description:
-      "Conversion by source, specialty and agent. Doctor-level conversion is deliberately NOT part of this code — see the module RFC.",
+    description: "Conversion by source, specialty and agent. Doctor-level conversion is deliberately NOT part of this code — see the module RFC.",
     module: "marketing",
   },
   {
     code: "marketing.messaging.ingest",
     label: "Accept WhatsApp and SMS events from the provider",
-    description:
-      "A sibling of `telephony.ingest` and deliberately a separate code. The two are usually different vendors — a telephony provider and a WhatsApp business solution provider — and a key that can write call history should not thereby be able to write message history. One code for both would mean a leaked BSP key could forge the record of what a hospital said to a patient. **Held by no built-in role**, for the same reason: this is machine identity, authenticated with an API key carrying an explicit permission list.",
+    description: "A sibling of `telephony.ingest` and deliberately a separate code. The two are usually different vendors — a telephony provider and a WhatsApp business solution provider — and a key that can write call history should not thereby be able to write message history. One code for both would mean a leaked BSP key could forge the record of what a hospital said to a patient. **Held by no built-in role**, for the same reason: this is machine identity, authenticated with an API key carrying an explicit permission list.",
     module: "marketing",
   },
   {
     code: "marketing.telephony.ingest",
     label: "Accept call events from the phone system",
-    description:
-      "A machine endpoint. The switch — FreePBX over AMI, or a provider webhook — posts what happened to a call, and the module turns it into an interaction and, if it was missed, a callback task. **Held by no built-in role, deliberately.** Nothing a human does in a browser should reach this: it is authenticated with an API key carrying an explicit permission list, which is what machine identity is for. A role holding it would let any of that role's holders fabricate call history, and call history is what the missed-call number and every conversion report are computed from.",
+    description: "A machine endpoint. The switch — FreePBX over AMI, or a provider webhook — posts what happened to a call, and the module turns it into an interaction and, if it was missed, a callback task. **Held by no built-in role, deliberately.** Nothing a human does in a browser should reach this: it is authenticated with an API key carrying an explicit permission list, which is what machine identity is for. A role holding it would let any of that role's holders fabricate call history, and call history is what the missed-call number and every conversion report are computed from.",
     module: "marketing",
   },
   {
@@ -4028,15 +3887,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "research.triage_export",
     label: "Export a de-identified research dataset",
-    description:
-      "The triage research endpoints return aggregate performance and a 5,000-row de-identified extract — age banded, timing truncated to the ISO week, no name and no UHID. They ran on `opd.queue.view`, which the front desk holds to call the next patient, so anyone working a queue could pull the hospital's research corpus. Research use is a different act from care use even when the rows carry no direct identifier: free text and rare combinations re-identify.",
+    description: "The triage research endpoints return aggregate performance and a 5,000-row de-identified extract — age banded, timing truncated to the ISO week, no name and no UHID. They ran on `opd.queue.view`, which the front desk holds to call the next patient, so anyone working a queue could pull the hospital's research corpus. Research use is a different act from care use even when the rows carry no direct identifier: free text and rare combinations re-identify.",
     module: "research",
   },
   {
     code: "research.dataset.export",
     label: "Request, approve and download research datasets",
-    description:
-      "A de-identified extract for an ethics-approved study: pseudonymous per-export patient keys, banded ages, month-level dates, rare values and small groups suppressed, restricted classes left out. Every export names its purpose and IEC approval and needs a second holder to approve it; the requester cannot approve their own. Held by no built-in role — grant it to a research or MRD officer.",
+    description: "A de-identified extract for an ethics-approved study: pseudonymous per-export patient keys, banded ages, month-level dates, rare values and small groups suppressed, restricted classes left out. Every export names its purpose and IEC approval and needs a second holder to approve it; the requester cannot approve their own. Held by no built-in role — grant it to a research or MRD officer.",
     module: "research",
   },
   // front_office
@@ -4073,15 +3930,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "front_office.passes.verify",
     label: "Check a visitor pass at the gate",
-    description:
-      "Scan a pass's QR to see whether it is valid now, who it was issued to and which ward it opens. Read-only: it cannot issue or revoke.",
+    description: "Scan a pass's QR to see whether it is valid now, who it was issued to and which ward it opens. Read-only: it cannot issue or revoke.",
     module: "front_office",
   },
   {
     code: "front_office.visitor_logs.record",
     label: "Record a visitor entering or leaving",
-    description:
-      "The gate guard's right: check a valid pass in and out. Issuing and revoking passes stay with `front_office.passes.manage`, which until this was the only way to log a visitor's entry at all.",
+    description: "The gate guard's right: check a valid pass in and out. Issuing and revoking passes stay with `front_office.passes.manage`, which until this was the only way to log a visitor's entry at all.",
     module: "front_office",
   },
   {
@@ -4099,15 +3954,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "front_office.queue.config.view",
     label: "See how the hospital's queues are set up",
-    description:
-      "Read-only: each queue's numbering, daily limit, status and dates, and the places a queue can serve. The desk sees why a queue is paused or full without being able to change it.",
+    description: "Read-only: each queue's numbering, daily limit, status and dates, and the places a queue can serve. The desk sees why a queue is paused or full without being able to change it.",
     module: "front_office",
   },
   {
     code: "front_office.queue.config.manage",
     label: "Create, change, pause and close queues",
-    description:
-      "Numbering, daily limits, temporary camp queues and their dates. Changes what every desk and board in that place does, so it is held by hospital administrators unless granted.",
+    description: "Numbering, daily limits, temporary camp queues and their dates. Changes what every desk and board in that place does, so it is held by hospital administrators unless granted.",
     module: "front_office",
   },
   {
@@ -4260,8 +4113,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "mrd.records.view_all",
     label: "Open every patient's medical record",
-    description:
-      "For medical records staff, who file, issue and complete every chart — not only those of patients in their care. Each record opened this way is written to the patient's access log.",
+    description: "For medical records staff, who file, issue and complete every chart — not only those of patients in their care. Each record opened this way is written to the patient's access log.",
     module: "mrd",
   },
   {
@@ -4291,8 +4143,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "mrd.crs.list",
     label: "See births and deaths due for civil registration",
-    description:
-      "Every birth and death in the hospital, with the 21-day date by which the hospital must report it on the CRS portal, and the registrar's report laid out from what the hospital recorded.",
+    description: "Every birth and death in the hospital, with the 21-day date by which the hospital must report it on the CRS portal, and the registrar's report laid out from what the hospital recorded.",
     module: "mrd",
   },
   {
@@ -4340,50 +4191,43 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "mrd.file_request.view",
     label: "See the paper-file requests queue",
-    description:
-      "Every open request for a patient's physical file — who it is for, where it is shelved, where it must go and how long is left — plus the night-before pull list, the back-scanning order and the delivery times.",
+    description: "Every open request for a patient's physical file — who it is for, where it is shelved, where it must go and how long is left — plus the night-before pull list, the back-scanning order and the delivery times.",
     module: "mrd",
   },
   {
     code: "mrd.file_request.fulfil",
     label: "Pick up and deliver requested paper files",
-    description:
-      'The runner\'s scans: the file barcode at the shelf ("picked") and at the clinic ("delivered"), each written as a record movement; marking a file not found; and building the pull list on demand.',
+    description: "The runner's scans: the file barcode at the shelf (\"picked\") and at the clinic (\"delivered\"), each written as a record movement; marking a file not found; and building the pull list on demand.",
     module: "mrd",
   },
   {
     code: "mrd.file_request.supervise",
     label: "Be told when a requested file is late or missing",
-    description:
-      "Receives the escalation when a file request passes its due time or a runner cannot find the file.",
+    description: "Receives the escalation when a file request passes its due time or a runner cannot find the file.",
     module: "mrd",
   },
   {
     code: "mrd.file_request.status",
     label: "See whether a visit's paper file has arrived",
-    description:
-      "The consultation's file chip (requested, on the way, arrived), for visits the caller can open. Nothing clinical: the summary beside it needs `opd.diagnoses.list` and `patients.view`.",
+    description: "The consultation's file chip (requested, on the way, arrived), for visits the caller can open. Nothing clinical: the summary beside it needs `opd.diagnoses.list` and `patients.view`.",
     module: "mrd",
   },
   {
     code: "mrd.file_request.create",
     label: "Ask for a visit's paper file by hand",
-    description:
-      'The remedy when a visit reads "File: not requested" (the automatic request failed or the file was shelved after the visit was created): writes the request the visit would have written, for a visit the caller can open.',
+    description: "The remedy when a visit reads \"File: not requested\" (the automatic request failed or the file was shelved after the visit was created): writes the request the visit would have written, for a visit the caller can open.",
     module: "mrd",
   },
   {
     code: "mrd.verify_links.issue",
     label: "Show a signed record's public check link",
-    description:
-      "Gives the link an outsider (an insurer, a court, another hospital) opens from the QR on the paper, minting a new one when the last was withdrawn. The page it opens names the document type, the signer and whether it is unchanged, never the patient.",
+    description: "Gives the link an outsider (an insurer, a court, another hospital) opens from the QR on the paper, minting a new one when the last was withdrawn. The page it opens names the document type, the signer and whether it is unchanged, never the patient.",
     module: "mrd",
   },
   {
     code: "mrd.verify_links.revoke",
     label: "Withdraw a signed record's public check link",
-    description:
-      "The QR on every copy already printed then answers that the hospital withdrew it, and on which date. The signature itself is untouched.",
+    description: "The QR on every copy already printed then answers that the hospital withdrew it, and on which date. The signature itself is untouched.",
     module: "mrd",
   },
   // facilities
@@ -4456,8 +4300,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "facilities.work_orders.perform",
     label: "Work on and complete work orders assigned to you",
-    description:
-      "The technician's right: move your own work order to in progress, on hold or completed and record findings, actions and costs. Assigning, reassigning, choosing a vendor and cancelling stay with `facilities.work_orders.manage`.",
+    description: "The technician's right: move your own work order to in progress, on hold or completed and record findings, actions and costs. Assigning, reassigning, choosing a vendor and cancelling stay with `facilities.work_orders.manage`.",
     module: "facilities",
   },
   {
@@ -4524,8 +4367,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "security.breach.manage",
     label: "Assess breaches and record regulatory notices",
-    description:
-      "Marks an incident as CERT-In reportable or as a DPDP personal-data breach, sets when it was noticed (which starts the 6-hour CERT-In and 72-hour Board clocks), and records the CERT-In report, the Board intimation and detailed report, and the notice to affected Data Principals. The incident response plan gives these to the DPO / incident commander, so no built-in role holds it.",
+    description: "Marks an incident as CERT-In reportable or as a DPDP personal-data breach, sets when it was noticed (which starts the 6-hour CERT-In and 72-hour Board clocks), and records the CERT-In report, the Board intimation and detailed report, and the notice to affected Data Principals. The incident response plan gives these to the DPO / incident commander, so no built-in role holds it.",
     module: "security",
   },
   {
@@ -4543,15 +4385,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "security.patient_safety.verify_match",
     label: "Verify a mother–baby ID band match",
-    description:
-      "Scanning both bands before a baby is handed to its mother, taken out of the nursery or discharged. A mismatch is refused, raised as a tag alert and audited. Held by nurses and security, who do the handover, without the right to create or retire tags.",
+    description: "Scanning both bands before a baby is handed to its mother, taken out of the nursery or discharged. A mismatch is refused, raised as a tag alert and audited. Held by nurses and security, who do the handover, without the right to create or retire tags.",
     module: "security",
   },
   {
     code: "security.patient_safety.report_event",
     label: "Report an infant or wander tag event",
-    description:
-      "A tag leaving its zone, a cut or tampered band. An infant tag leaving its zone or tampered with raises Code Pink at once. Used by the tag reader's machine identity and by staff who find a cut band.",
+    description: "A tag leaving its zone, a cut or tampered band. An infant tag leaving its zone or tampered with raises Code Pink at once. Used by the tag reader's machine identity and by staff who find a cut band.",
     module: "security",
   },
   {
@@ -4569,36 +4409,31 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "security.intel.view",
     label: "View security intelligence findings",
-    description:
-      "Security → Intelligence: the posture checklist, vulnerable packages, honeytoken alarms and each continuous check's last and next run (RFC-OSINT §5). Read-only.",
+    description: "Security → Intelligence: the posture checklist, vulnerable packages, honeytoken alarms and each continuous check's last and next run (RFC-OSINT §5). Read-only.",
     module: "security",
   },
   {
     code: "security.intel.manage",
     label: "Assign, close and escalate security findings",
-    description:
-      "Takes ownership of a finding, changes its status (in progress, resolved, risk accepted) and opens an incident from it in the breach register (opening also needs security.incidents.create).",
+    description: "Takes ownership of a finding, changes its status (in progress, resolved, risk accepted) and opens an incident from it in the breach register (opening also needs security.incidents.create).",
     module: "security",
   },
   {
     code: "security.vendor_access.view",
     label: "See MedBrains access grants and their actions",
-    description:
-      "Security → MedBrains access: every grant this hospital gave MedBrains support or engineering staff, active and past, and every request made under each one.",
+    description: "Security → MedBrains access: every grant this hospital gave MedBrains support or engineering staff, active and past, and every request made under each one.",
     module: "security",
   },
   {
     code: "security.vendor_access.grant",
     label: "Give MedBrains staff time-limited access",
-    description:
-      "Names the MedBrains person, the reason, the modules (or configuration only) and an expiry of at most 72 hours. Patient data stays masked unless a second person approves unmasked access.",
+    description: "Names the MedBrains person, the reason, the modules (or configuration only) and an expiry of at most 72 hours. Patient data stays masked unless a second person approves unmasked access.",
     module: "security",
   },
   {
     code: "security.vendor_access.approve_unmasked",
     label: "Approve unmasked MedBrains access",
-    description:
-      "The second approval an unmasked grant needs before it opens. The approver must be a different person from the one who asked for it.",
+    description: "The second approval an unmasked grant needs before it opens. The approver must be a different person from the one who asked for it.",
     module: "security",
   },
   {
@@ -4653,15 +4488,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "integration.hl7_adt.view",
     label: "See the hospital's HL7 ADT feeds",
-    description:
-      "Where the ADT messages go (MLLP host and port), which triggers each destination takes, and every message sent with whether the receiver acknowledged it. The messages name patients, so the list shows triggers and results, not message contents.",
+    description: "Where the ADT messages go (MLLP host and port), which triggers each destination takes, and every message sent with whether the receiver acknowledged it. The messages name patients, so the list shows triggers and results, not message contents.",
     module: "integration",
   },
   {
     code: "integration.hl7_adt.manage",
     label: "Add, change or remove an HL7 ADT feed",
-    description:
-      "Pointing a feed at a system sends it every admission, transfer, discharge and demographic change from then on, so it is kept apart from the general integration permissions.",
+    description: "Pointing a feed at a system sends it every admission, transfer, discharge and demographic change from then on, so it is kept apart from the general integration permissions.",
     module: "integration",
   },
   // specialty
@@ -4812,15 +4645,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.psychiatry.admissions.list",
     label: "View Mental Healthcare Act admissions",
-    description:
-      "The legal episodes — independent (s.86), minor (s.87), supported (s.89, s.90), emergency (s.94) — with their examinations, time limits and Board reporting.",
+    description: "The legal episodes — independent (s.86), minor (s.87), supported (s.89, s.90), emergency (s.94) — with their examinations, time limits and Board reporting.",
     module: "specialty",
   },
   {
     code: "specialty.psychiatry.admissions.create",
     label: "Admit under a Mental Healthcare Act section",
-    description:
-      "The server checks what the section requires — age, the applicant, the two examinations within seven days, the nominated representative — before the admission exists.",
+    description: "The server checks what the section requires — age, the applicant, the two examinations within seven days, the nominated representative — before the admission exists.",
     module: "specialty",
   },
   {
@@ -4832,43 +4663,37 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.psychiatry.legal.manage",
     label: "Record representatives and advance directives",
-    description:
-      "Nominated representatives (MHCA s.14) and advance directives (s.5): who speaks for the patient, and how the patient asked to be treated — or not treated.",
+    description: "Nominated representatives (MHCA s.14) and advance directives (s.5): who speaks for the patient, and how the patient asked to be treated — or not treated.",
     module: "specialty",
   },
   {
     code: "specialty.psychiatry.directives.challenge",
     label: "Apply to the Board against an advance directive",
-    description:
-      "MHCA s.11: the only lawful way not to follow a valid directive is an application to the Mental Health Review Board on one of the five statutory grounds.",
+    description: "MHCA s.11: the only lawful way not to follow a valid directive is an application to the Mental Health Review Board on one of the five statutory grounds.",
     module: "specialty",
   },
   {
     code: "specialty.psychiatry.safety.review",
     label: "Complete a suicide-risk review",
-    description:
-      "A PHQ-9 with any answer above zero on item 9 opens a review that stays pending until a clinician records the outcome.",
+    description: "A PHQ-9 with any answer above zero on item 9 opens a review that stays pending until a clinician records the outcome.",
     module: "specialty",
   },
   {
     code: "specialty.psychiatry.abdm_consent.manage",
     label: "Record consent to share mental-health records",
-    description:
-      "Psychiatric care contexts are withheld from ABDM unless the hospital allows it and the patient consents to that category.",
+    description: "Psychiatric care contexts are withheld from ABDM unless the hospital allows it and the patient consents to that category.",
     module: "specialty",
   },
   {
     code: "specialty.psychiatry.restricted.view",
     label: "Open restricted mental-health records",
-    description:
-      "A psychiatric record marked restricted is visible to its treating psychiatrist, to someone in an active break-glass session for that patient that names psychiatry, and to holders of this permission. The same rule withholds mental-health diagnoses from the patient timeline, diagnosis lists, prints and the assistant. Mental Healthcare Act 2017 s.23 — grant it to named roles only, never to every doctor.",
+    description: "A psychiatric record marked restricted is visible to its treating psychiatrist, to someone in an active break-glass session for that patient that names psychiatry, and to holders of this permission. The same rule withholds mental-health diagnoses from the patient timeline, diagnosis lists, prints and the assistant. Mental Healthcare Act 2017 s.23 — grant it to named roles only, never to every doctor.",
     module: "specialty",
   },
   {
     code: "specialty.ltc.mds.list",
     label: "View MDS assessments",
-    description:
-      "The Minimum Data Set — the standardised functional, cognitive and clinical assessment of a long-term care resident.",
+    description: "The Minimum Data Set — the standardised functional, cognitive and clinical assessment of a long-term care resident.",
     module: "specialty",
   },
   {
@@ -4880,8 +4705,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.ltc.mds.complete",
     label: "Complete an MDS assessment",
-    description:
-      "Signs the assessment off; it drives the resident's care plan and reimbursement category, so completing is not editing.",
+    description: "Signs the assessment off; it drives the resident's care plan and reimbursement category, so completing is not editing.",
     module: "specialty",
   },
   {
@@ -4917,8 +4741,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.ltc.family.list",
     label: "View family messages",
-    description:
-      "Correspondence between a resident's relatives and the care team — read by families, so treated as resident-identifying.",
+    description: "Correspondence between a resident's relatives and the care team — read by families, so treated as resident-identifying.",
     module: "specialty",
   },
   {
@@ -4996,22 +4819,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.clinical_trials.unblind",
     label: "Break a randomisation blind",
-    description:
-      "Unblinding is a controlled act: it ends the masking for that participant and must be justified and auditable. It was gated on `create` — the same code as scheduling a visit.",
+    description: "Unblinding is a controlled act: it ends the masking for that participant and must be justified and auditable. It was gated on `create` — the same code as scheduling a visit.",
     module: "specialty",
   },
   {
     code: "specialty.clinical_trials.screen",
     label: "Screen Clinical Trials",
-    description:
-      "Screen the patient population for trial candidates. Screening is not listing. It searches every patient in the tenant by diagnosis code and returns their names, so running it against a trial's ICD codes produces a named list of the people who carry that diagnosis — the disclosure is the diagnosis, not the trial. It was gated on `list`, which every trial user holds.",
+    description: "Screen the patient population for trial candidates. Screening is not listing. It searches every patient in the tenant by diagnosis code and returns their names, so running it against a trial's ICD codes produces a named list of the people who carry that diagnosis — the disclosure is the diagnosis, not the trial. It was gated on `list`, which every trial user holds.",
     module: "specialty",
   },
   {
     code: "specialty.clinical_trials.export",
     label: "Send a trial's data to its sponsor",
-    description:
-      "The export leaves the hospital, so it is not listing. It was gated on `list`, and returned every participant's name. It is now pseudonymised (subject keys and trial numbers, never names or identifiers) and each export is audited with its subject count. Held by no built-in role: grant it to the trial coordinator.",
+    description: "The export leaves the hospital, so it is not listing. It was gated on `list`, and returned every participant's name. It is now pseudonymised (subject keys and trial numbers, never names or identifiers) and each export is audited with its subject count. Held by no built-in role: grant it to the trial coordinator.",
     module: "specialty",
   },
   {
@@ -5179,8 +4999,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.maternity.postnatal.list",
     label: "View postnatal records",
-    description:
-      "The mother's recovery after delivery — fundal height, lochia, perineal healing, breastfeeding and mood observations.",
+    description: "The mother's recovery after delivery — fundal height, lochia, perineal healing, breastfeeding and mood observations.",
     module: "specialty",
   },
   {
@@ -5210,8 +5029,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.ophthalmology.exams.sign",
     label: "Sign a spectacle prescription",
-    description:
-      "Completes the eye exam under the signer's name and registration number and locks its refraction; only a signed exam prints as a spectacle prescription without the DRAFT mark. Recording the workup does not need it.",
+    description: "Completes the eye exam under the signer's name and registration number and locks its refraction; only a signed exam prints as a spectacle prescription without the DRAFT mark. Recording the workup does not need it.",
     module: "specialty",
   },
   {
@@ -5235,8 +5053,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.dental.perio.list",
     label: "See periodontal charts",
-    description:
-      "Probing depths at six sites per tooth, recession, bleeding, mobility and furcation, and how each chart compares with the patient's earlier ones.",
+    description: "Probing depths at six sites per tooth, recession, bleeding, mobility and furcation, and how each chart compares with the patient's earlier ones.",
     module: "specialty",
   },
   {
@@ -5272,8 +5089,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.dental.treatment.manage",
     label: "Plan or cancel dental procedures",
-    description:
-      "Adds procedures to a patient's dental plan with their price, or cancels one that has not been done.",
+    description: "Adds procedures to a patient's dental plan with their price, or cancels one that has not been done.",
     module: "specialty",
   },
   {
@@ -5321,22 +5137,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.other.oncology.registry.list",
     label: "See the cancer registry worklist",
-    description:
-      "Every staged cancer and its NCDIR hospital-based cancer registry abstract: due, in progress, complete or submitted.",
+    description: "Every staged cancer and its NCDIR hospital-based cancer registry abstract: due, in progress, complete or submitted.",
     module: "specialty",
   },
   {
     code: "specialty.other.oncology.registry.abstract",
     label: "Complete cancer registry abstracts",
-    description:
-      "Codes the HBCR core form for a case — ICD-O-3, extent, staging system, treatment — as the NCDIR manual sets out.",
+    description: "Codes the HBCR core form for a case — ICD-O-3, extent, staging system, treatment — as the NCDIR manual sets out.",
     module: "specialty",
   },
   {
     code: "specialty.other.oncology.registry.export",
     label: "Export Registry",
-    description:
-      "Export abstracts and record their submission to NCDIR. Builds the HBCR sheet with patients' names, addresses and identifiers for the registry, and records the NCDIR registration once submitted. Every sheet is a disclosure.",
+    description: "Export abstracts and record their submission to NCDIR. Builds the HBCR sheet with patients' names, addresses and identifiers for the registry, and records the NCDIR registration once submitted. Every sheet is a disclosure.",
     module: "specialty",
   },
   {
@@ -5354,8 +5167,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.other.dialysis.configure",
     label: "Set up dialysis machines and dialyzer reuse",
-    description:
-      "The unit's machines, the serology each is dedicated to, which are under maintenance, and how many times a dialyzer may be reused here. Booking shifts and reprocessing dialyzers need only the manage permission.",
+    description: "The unit's machines, the serology each is dedicated to, which are under maintenance, and how many times a dialyzer may be reused here. Booking shifts and reprocessing dialyzers need only the manage permission.",
     module: "specialty",
   },
   // order_sets
@@ -5447,43 +5259,37 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "insurance.enhancement.view",
     label: "See pre-auths nearly used up",
-    description:
-      "See insured inpatients whose running bill has reached 80% of the amount the payer approved, or whose approval could not be read, with the approved amount and the bill so far.",
+    description: "See insured inpatients whose running bill has reached 80% of the amount the payer approved, or whose approval could not be read, with the approved amount and the bill so far.",
     module: "insurance",
   },
   {
     code: "insurance.enhancement.request",
     label: "Request a pre-auth enhancement",
-    description:
-      "Ask the payer for more on a pre-auth that is nearly used up: the extra amount is recorded on the pre-auth, which is marked as an enhancement for sending, and the alert closes. Who and when is kept.",
+    description: "Ask the payer for more on a pre-auth that is nearly used up: the extra amount is recorded on the pre-auth, which is marked as an enhancement for sending, and the alert closes. Who and when is kept.",
     module: "insurance",
   },
   {
     code: "insurance.preauth_missing.dismiss",
-    label: 'Dismiss a "no usable pre-auth" alert',
-    description:
-      "Close the alert on an insured inpatient with no usable pre-auth when none is coming: the family pays cash, the treatment is not covered, or another reason written down. Who, when and why is kept.",
+    label: "Dismiss a \"no usable pre-auth\" alert",
+    description: "Close the alert on an insured inpatient with no usable pre-auth when none is coming: the family pays cash, the treatment is not covered, or another reason written down. Who, when and why is kept.",
     module: "insurance",
   },
   {
     code: "insurance.room_eligibility.view",
     label: "See rooms above the policy limit",
-    description:
-      "See inpatients placed in a room dearer than their policy's eligible room rent, with the share of room-linked charges the insurer may cut in proportion.",
+    description: "See inpatients placed in a room dearer than their policy's eligible room rent, with the share of room-linked charges the insurer may cut in proportion.",
     module: "insurance",
   },
   {
     code: "insurance.room_eligibility.resolve",
     label: "Record consent for a higher room",
-    description:
-      "Record that the patient or a named relative agreed to pay the proportionate deduction for a room above the policy limit, which closes the alert.",
+    description: "Record that the patient or a named relative agreed to pay the proportionate deduction for a room above the policy limit, which closes the alert.",
     module: "insurance",
   },
   {
     code: "insurance.room_eligibility.configure",
     label: "Set a policy's room rent limit",
-    description:
-      "Record the eligible room rent from the policy schedule or e-card, in rupees a day or as a percentage of the sum insured, so rooms can be checked against it at admission and transfer.",
+    description: "Record the eligible room rent from the policy schedule or e-card, in rupees a day or as a percentage of the sum insured, so rooms can be checked against it at admission and transfer.",
     module: "insurance",
   },
   {
@@ -5519,43 +5325,37 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "insurance.nhcx.submit",
     label: "Send claims to NHCX",
-    description:
-      "Submit a claim or pre-authorisation, or check coverage eligibility, with a payer through NHCX.",
+    description: "Submit a claim or pre-authorisation, or check coverage eligibility, with a payer through NHCX.",
     module: "insurance",
   },
   {
     code: "insurance.nhcx.view",
     label: "See NHCX exchanges",
-    description:
-      "What was sent to NHCX for a claim, whether this hospital is set up for NHCX, and every response the payers sent back.",
+    description: "What was sent to NHCX for a claim, whether this hospital is set up for NHCX, and every response the payers sent back.",
     module: "insurance",
   },
   {
     code: "insurance.nhcx.configure",
     label: "Set up the NHCX connection",
-    description:
-      "The NHCX participant code, gateway keys and certificates, and whether the hospital talks to the sandbox or production.",
+    description: "The NHCX participant code, gateway keys and certificates, and whether the hospital talks to the sandbox or production.",
     module: "insurance",
   },
   {
     code: "insurance.nhcx.respond",
     label: "Answer payer queries on NHCX",
-    description:
-      "Reply to a payer's request for more information on a pre-authorisation or claim, with text and supporting documents, sent back through NHCX.",
+    description: "Reply to a payer's request for more information on a pre-authorisation or claim, with text and supporting documents, sent back through NHCX.",
     module: "insurance",
   },
   {
     code: "insurance.nhcx.cancel",
     label: "Cancel or reprocess NHCX claims",
-    description:
-      "Ask a payer through NHCX to cancel a claim, or to reprocess one after its deductions or rejection have been answered.",
+    description: "Ask a payer through NHCX to cancel a claim, or to reprocess one after its deductions or rejection have been answered.",
     module: "insurance",
   },
   {
     code: "insurance.nhcx.payments",
     label: "See and post NHCX payments",
-    description:
-      "The payment notices payers send through NHCX — amount, UTR and TDS against each claim — and posting an unmatched one to its claim.",
+    description: "The payment notices payers send through NHCX — amount, UTR and TDS against each claim — and posting an unmatched one to its claim.",
     module: "insurance",
   },
   // regulatory
@@ -5568,36 +5368,31 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "regulatory.dpdp.view",
     label: "See the privacy compliance pack and its gaps",
-    description:
-      "The DPDP / CERT-In overview: who the Data Protection Officer, grievance officer and CERT-In point of contact are, the policies and their versions, breach drills, and what is still missing.",
+    description: "The DPDP / CERT-In overview: who the Data Protection Officer, grievance officer and CERT-In point of contact are, the policies and their versions, breach drills, and what is still missing.",
     module: "regulatory",
   },
   {
     code: "regulatory.dpdp.officers",
     label: "Officers Dpdp",
-    description:
-      "Name the DPO, grievance officer and CERT-In contact. Set and publish the business contact patients use for privacy questions and grievances (DPDP Rules 2025 r.9) and the point of contact CERT-In writes to (Directions 28-04-2022 (iii)).",
+    description: "Name the DPO, grievance officer and CERT-In contact. Set and publish the business contact patients use for privacy questions and grievances (DPDP Rules 2025 r.9) and the point of contact CERT-In writes to (Directions 28-04-2022 (iii)).",
     module: "regulatory",
   },
   {
     code: "regulatory.dpdp.policy_draft",
     label: "Draft privacy policies from the templates",
-    description:
-      "Start a policy from its template, edit the draft and send it for approval. Drafting never publishes: a second person approves.",
+    description: "Start a policy from its template, edit the draft and send it for approval. Drafting never publishes: a second person approves.",
     module: "regulatory",
   },
   {
     code: "regulatory.dpdp.policy_approve",
     label: "Approve and publish privacy policies",
-    description:
-      "Approve a draft another person wrote, which publishes it and retires the version it replaces, or send it back with a reason.",
+    description: "Approve a draft another person wrote, which publishes it and retires the version it replaces, or send it back with a reason.",
     module: "regulatory",
   },
   {
     code: "regulatory.dpdp.drills",
     label: "Record breach-response drills",
-    description:
-      "Log a tabletop or live drill of the breach response plan, what it found, and when the next one is due.",
+    description: "Log a tabletop or live drill of the breach response plan, what it found, and when the next one is due.",
     module: "regulatory",
   },
   {
@@ -5706,8 +5501,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "care_view.scores.record",
     label: "Record an assessment score against a patient",
-    description:
-      "The score is the clinical record, not a calculation: an Aldrete is the evidence a patient was fit to leave recovery, and NEWS2 only means anything as a trend.",
+    description: "The score is the clinical record, not a calculation: an Aldrete is the evidence a patient was fit to leave recovery, and NEWS2 only means anything as a trend.",
     module: "care_view",
   },
   // chronic
@@ -5781,36 +5575,31 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "terminology.search",
     label: "Search clinical terminologies (ICD-11, SNOMED)",
-    description:
-      "Read-only lookup of codes and their display terms, for recording a provisional diagnosis at registration or a camp desk — not access to any patient's record.",
+    description: "Read-only lookup of codes and their display terms, for recording a provisional diagnosis at registration or a camp desk — not access to any patient's record.",
     module: "terminology",
   },
   {
     code: "terminology.snomed.manage",
     label: "Load SNOMED CT releases",
-    description:
-      "Upload or import an RF2 release package and watch its progress. The release replaces terminology every user of the deployment sees, so no built-in role holds it.",
+    description: "Upload or import an RF2 release package and watch its progress. The release replaces terminology every user of the deployment sees, so no built-in role holds it.",
     module: "terminology",
   },
   {
     code: "terminology.snomed.view",
     label: "Search and browse SNOMED CT concepts",
-    description:
-      "Find a concept by any of its terms, see its parents and children, and run bounded hierarchy queries. Results are capped so the licensed content cannot be extracted in bulk.",
+    description: "Find a concept by any of its terms, see its parents and children, and run bounded hierarchy queries. Results are capped so the licensed content cannot be extracted in bulk.",
     module: "terminology",
   },
   {
     code: "terminology.snomed.analytics",
     label: "Count records by SNOMED CT hierarchy",
-    description:
-      "See how many of the hospital's coded diagnoses fall under a concept or any of its descendants, and the roll-up by top-level category.",
+    description: "See how many of the hospital's coded diagnoses fall under a concept or any of its descendants, and the roll-up by top-level category.",
     module: "terminology",
   },
   {
     code: "terminology.coding.configure",
     label: "Choose ICD-11, ICD-10 or both for diagnoses",
-    description:
-      "Switch the classification doctors code diagnoses in, and load the hospital's licensed ICD-10 catalogue file. Changes what every doctor's diagnosis picker offers, so only administrators hold it.",
+    description: "Switch the classification doctors code diagnoses in, and load the hospital's licensed ICD-10 catalogue file. Changes what every doctor's diagnosis picker offers, so only administrators hold it.",
     module: "terminology",
   },
   // ckb
@@ -5835,15 +5624,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "ckb.reports.export",
     label: "Export statutory report sheets",
-    description:
-      "Builds the Ni-kshay TB notification and IDSP/IHIP line lists: patients' names, addresses and phones, prepared for a public authority. Every sheet made is a disclosure in the audit trail, so it is held apart from working the list.",
+    description: "Builds the Ni-kshay TB notification and IDSP/IHIP line lists: patients' names, addresses and phones, prepared for a public authority. Every sheet made is a disclosure in the audit trail, so it is held apart from working the list.",
     module: "ckb",
   },
   {
     code: "ckb.notifiable_rules.manage",
     label: "Set which diseases this hospital notifies",
-    description:
-      "Adds a disease the hospital's state notifies beyond the national list, or takes a national one off it, and sets its reporting body, timeframe and ICD-11 code. Changes what every diagnosis and lab result in the hospital is checked against, so it is held apart from working the report list.",
+    description: "Adds a disease the hospital's state notifies beyond the national list, or takes a national one off it, and sets its reporting body, timeframe and ICD-11 code. Changes what every diagnosis and lab result in the hospital is checked against, so it is held apart from working the report list.",
     module: "ckb",
   },
   // vpn
@@ -5863,29 +5650,25 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.access_requests.review",
     label: "Approve, reject or revoke access requests",
-    description:
-      "Grants temporary permissions to another person; a request for an elevated permission still needs an administrator. Approvers are notified of each new request.",
+    description: "Grants temporary permissions to another person; a request for an elevated permission still needs an administrator. Approvers are notified of each new request.",
     module: "admin",
   },
   {
     code: "admin.workbook.import",
     label: "Set up the hospital from a spreadsheet",
-    description:
-      "Download the onboarding workbook — blank or filled with what the hospital already has — and upload it back to add or update departments, wards, beds and staff in one checked, all-or-nothing change. New staff are emailed how to set their password.",
+    description: "Download the onboarding workbook — blank or filled with what the hospital already has — and upload it back to add or update departments, wards, beds and staff in one checked, all-or-nothing change. New staff are emailed how to set their password.",
     module: "admin",
   },
   {
     code: "admin.history_import.view",
     label: "See imported history batches",
-    description:
-      "Read the go-live cut-over and the log of history batches — what each checked or imported, what it refused and who ran it.",
+    description: "Read the go-live cut-over and the log of history batches — what each checked or imported, what it refused and who ran it.",
     module: "admin",
   },
   {
     code: "admin.history_import.run",
     label: "Import history from the previous system",
-    description:
-      "Set the go-live cut-over, and check and commit batches of past patients, visits, admissions, lab results, dispenses, bills and claims, dated when they happened. Only adds records dated before go-live; never changes existing ones.",
+    description: "Set the go-live cut-over, and check and commit batches of past patients, visits, admissions, lab results, dispenses, bills and claims, dated when they happened. Only adds records dated before go-live; never changes existing ones.",
     module: "admin",
   },
   {
@@ -5927,15 +5710,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.users.link_identity",
     label: "Link an account to a sign-in person",
-    description:
-      "Link or unlink a MedBrains account to a person in the hospital's own sign-in service, chosen by name and ID. An email address never links an account there, so existing staff are linked here. Administrators only; the server also requires a bypass role.",
+    description: "Link or unlink a MedBrains account to a person in the hospital's own sign-in service, chosen by name and ID. An email address never links an account there, so existing staff are linked here. Administrators only; the server also requires a bypass role.",
     module: "admin",
   },
   {
     code: "admin.sso.providers.manage",
     label: "Add, change or remove sign-in providers",
-    description:
-      "Add, change, switch off or delete an outside identity provider, and map its directory groups to roles and access groups. Whoever holds this decides who can sign in and as what. The machine's own sign-in service is pinned by the OS and cannot be changed here. Administrators only; the server also requires a bypass role.",
+    description: "Add, change, switch off or delete an outside identity provider, and map its directory groups to roles and access groups. Whoever holds this decides who can sign in and as what. The machine's own sign-in service is pinned by the OS and cannot be changed here. Administrators only; the server also requires a bypass role.",
     module: "admin",
   },
   {
@@ -5965,57 +5746,49 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.api_keys.view_usage",
     label: "View API Key Usage",
-    description:
-      "Reading what a key actually did — a forensic surface, so it is grantable to an auditor who cannot mint or revoke anything.",
+    description: "Reading what a key actually did — a forensic surface, so it is grantable to an auditor who cannot mint or revoke anything.",
     module: "admin",
   },
   {
     code: "admin.api_keys.docs",
     label: "Read the API description",
-    description:
-      "The OpenAPI document: every endpoint, method and the permission it needs. Grant it to an integration's key so its developers can generate a client.",
+    description: "The OpenAPI document: every endpoint, method and the permission it needs. Grant it to an integration's key so its developers can generate a client.",
     module: "admin",
   },
   {
     code: "admin.webhooks.list",
     label: "See webhook subscriptions and their deliveries",
-    description:
-      "Where the hospital's events are sent, which events, and whether each delivery landed.",
+    description: "Where the hospital's events are sent, which events, and whether each delivery landed.",
     module: "admin",
   },
   {
     code: "admin.webhooks.manage",
     label: "Create, change and switch off webhooks",
-    description:
-      "Decides which outside systems are told about events and where they are sent, and issues the signing secret.",
+    description: "Decides which outside systems are told about events and where they are sent, and issues the signing secret.",
     module: "admin",
   },
   {
     code: "admin.connected_apps.view",
     label: "See connected apps and what they may read",
-    description:
-      "Each app's manifest and privacy label — the permissions it holds, the kinds of data it touches and where it sends them — when it was last used and whether its event deliveries are landing. Shows no patient data and no secrets.",
+    description: "Each app's manifest and privacy label — the permissions it holds, the kinds of data it touches and where it sends them — when it was last used and whether its event deliveries are landing. Shows no patient data and no secrets.",
     module: "admin",
   },
   {
     code: "admin.connected_apps.manage",
     label: "Manage Connected Apps",
-    description:
-      "Register, approve, revoke and re-key connected apps. Lets an outside app act in the hospital with the permissions in its manifest, or cuts it off at once. Nobody can approve an app wider than themselves.",
+    description: "Register, approve, revoke and re-key connected apps. Lets an outside app act in the hospital with the permissions in its manifest, or cuts it off at once. Nobody can approve an app wider than themselves.",
     module: "admin",
   },
   {
     code: "admin.error_tracking.view",
     label: "See how often the software is failing",
-    description:
-      "New errors in the last day, the share of sessions on the running release that did not crash, and a link to the error tracker. The reports are about the software and carry no patient data.",
+    description: "New errors in the last day, the share of sessions on the running release that did not crash, and a link to the error tracker. The reports are about the software and carry no patient data.",
     module: "admin",
   },
   {
     code: "admin.kernel.view",
     label: "See whether the kernel is doing its job",
-    description:
-      "When the audit chain was last verified and whether it held, whether the database enforces hospital separation, which authorisation engine is answering, how settings are resolved, and which modules already go only through the kernel. Shows no patient data.",
+    description: "When the audit chain was last verified and whether it held, whether the database enforces hospital separation, which authorisation engine is answering, how settings are resolved, and which modules already go only through the kernel. Shows no patient data.",
     module: "admin",
   },
   {
@@ -6051,8 +5824,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.notifications.simulator.view",
     label: "Open the message simulator (dev and test only)",
-    description:
-      "Shows, as a phone would, every SMS, WhatsApp message and email the system would have sent a patient or staff member. It exists only on deployments running with the simulator on — never in production — and shows real names and numbers from that database.",
+    description: "Shows, as a phone would, every SMS, WhatsApp message and email the system would have sent a patient or staff member. It exists only on deployments running with the simulator on — never in production — and shows real names and numbers from that database.",
     module: "admin",
   },
   {
@@ -6142,8 +5914,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.tv_displays.board",
     label: "Read a queue or bed board",
-    description:
-      "Distinct from `list`, which is the display *configuration*: this is the board's live contents — the waiting counts, the ER acuity mix, the bed availability and the per-department queue analytics that drive the screens on the wall. Seven board endpoints checked nothing at all, so any authenticated user in the tenant could read them, while the display and token handlers beside them had been gated in an earlier pass. Widening `list` to cover this would have handed the boards to everyone who may edit a screen's settings.",
+    description: "Distinct from `list`, which is the display *configuration*: this is the board's live contents — the waiting counts, the ER acuity mix, the bed availability and the per-department queue analytics that drive the screens on the wall. Seven board endpoints checked nothing at all, so any authenticated user in the tenant could read them, while the display and token handlers beside them had been gated in an earlier pass. Widening `list` to cover this would have handed the boards to everyone who may edit a screen's settings.",
     module: "admin",
   },
   {
@@ -6287,15 +6058,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.settings.dictation.manage",
     label: "Configure note dictation services",
-    description:
-      "Where speech is transcribed (the hospital's own whisper server by default) and which local model drafts the note. Turning on the cloud transcription service sends doctors' recordings off the premises, so it is a separate, deliberate setting.",
+    description: "Where speech is transcribed (the hospital's own whisper server by default) and which local model drafts the note. Turning on the cloud transcription service sends doctors' recordings off the premises, so it is a separate, deliberate setting.",
     module: "admin",
   },
   {
     code: "admin.settings.read",
     label: "Read tenant configuration",
-    description:
-      "Not an administrative act. This is the configuration the application itself runs on — which vitals a ward captures, whether weights are metric, which locale to format in — and every clinical screen reads it on load. Reading was gated on `settings.modules.manage`, which no role holds, so for every non-bypass user the read failed and the screen fell back to defaults without saying so. A ward that configured its vitals set had that configuration ignored, and a hospital on imperial units was shown metric. Sensitive categories are NOT covered by this and still require `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.",
+    description: "Not an administrative act. This is the configuration the application itself runs on — which vitals a ward captures, whether weights are metric, which locale to format in — and every clinical screen reads it on load. Reading was gated on `settings.modules.manage`, which no role holds, so for every non-bypass user the read failed and the screen fell back to defaults without saying so. A ward that configured its vitals set had that configuration ignored, and a hospital on imperial units was shown metric. Sensitive categories are NOT covered by this and still require `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.",
     module: "admin",
   },
   {
@@ -6476,22 +6245,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "doctor.signoffs.verbal_register",
     label: "View Verbal Order Register",
-    description:
-      "Ward/compliance-wide verbal & telephone order countersign register (NABH audit view) — broader than the prescriber's own queue.",
+    description: "Ward/compliance-wide verbal & telephone order countersign register (NABH audit view) — broader than the prescriber's own queue.",
     module: "doctor",
   },
   {
     code: "doctor.refill_requests.decide",
     label: "Decide patient refill requests",
-    description:
-      "Approve or decline a refill a patient asked for on a prescription this doctor wrote; approving sends it to the pharmacy.",
+    description: "Approve or decline a refill a patient asked for on a prescription this doctor wrote; approving sends it to the pharmacy.",
     module: "doctor",
   },
   {
     code: "doctor.store_substitutions.decide",
     label: "Decide substitutes on online orders",
-    description:
-      "Approve, change or decline a substitute the pharmacy proposed for a medicine this doctor prescribed, or confirm one agreed by phone within 24 hours.",
+    description: "Approve, change or decline a substitute the pharmacy proposed for a medicine this doctor prescribed, or confirm one agreed by phone within 24 hours.",
     module: "doctor",
   },
   // patient_packages
@@ -6595,8 +6361,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "documents.print_jobs.deliver",
     label: "Deliver print jobs to printers",
-    description:
-      "Lets a site bridge take queued print jobs — the document already rendered for its printer as PDF, ZPL or ESC/POS, which carries patient details — send them to the printer and report the result. Grant it to the bridge's API key, not to people.",
+    description: "Lets a site bridge take queued print jobs — the document already rendered for its printer as PDF, ZPL or ESC/POS, which carries patient details — send them to the printer and report the result. Grant it to the bridge's API key, not to people.",
     module: "documents",
   },
   // occ_health
@@ -6836,8 +6601,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "audit.processors.list",
     label: "See the data processors register",
-    description:
-      "Every outside service that handles patient data — hosting, SMS, payments, AI — with what it receives, where it keeps it, and the agreement that binds it (DPDP Act s.8(2), s.16).",
+    description: "Every outside service that handles patient data — hosting, SMS, payments, AI — with what it receives, where it keeps it, and the agreement that binds it (DPDP Act s.8(2), s.16).",
     module: "audit",
   },
   {
@@ -6892,22 +6656,19 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "analytics.management.view",
     label: "View management KPIs and per-doctor performance",
-    description:
-      "OPD flow against the usual day, documentation completeness by doctor, department efficiency. Names clinicians next to their numbers, so it is granted to management and quality, not with general analytics access.",
+    description: "OPD flow against the usual day, documentation completeness by doctor, department efficiency. Names clinicians next to their numbers, so it is granted to management and quality, not with general analytics access.",
     module: "analytics",
   },
   {
     code: "analytics.paperless.view",
     label: "See the paperless meter",
-    description:
-      "The share of clinical documents made in the system, signed digitally and legally signed, by department and day, and the paper still in use. Counts only; no patient or clinician is named.",
+    description: "The share of clinical documents made in the system, signed digitally and legally signed, by department and day, and the paper still in use. Counts only; no patient or clinician is named.",
     module: "analytics",
   },
   {
     code: "analytics.paperless.refresh",
     label: "Recount the paperless meter now",
-    description:
-      "Rebuilds the meter's daily counts for recent days instead of waiting for the nightly pass.",
+    description: "Rebuilds the meter's daily counts for recent days instead of waiting for the nightly pass.",
     module: "analytics",
   },
   // command_center
@@ -7018,8 +6779,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "devices.orders.send",
     label: "Send lab orders to an analyzer",
-    description:
-      "Lets a lab bridge read collected samples — barcode, test, and the patient's name, birth date and sex — to load them onto its analyzer's worklist, and record that it did. Grant it to the bridge's API key, not to people.",
+    description: "Lets a lab bridge read collected samples — barcode, test, and the patient's name, birth date and sex — to load them onto its analyzer's worklist, and record that it did. Grant it to the bridge's API key, not to people.",
     module: "devices",
   },
   {
@@ -7067,65 +6827,56 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "devices.pairing.roster.read",
     label: "Read the peer-sync roster",
-    description:
-      "Separate from `PAIRED_LIST` on purpose. An edge appliance polls the roster unattended and holds its credential on disk for months; giving it the operator's device-listing right means a leaked appliance token enumerates the whole estate. This is the one thing an appliance needs.",
+    description: "Separate from `PAIRED_LIST` on purpose. An edge appliance polls the roster unattended and holds its credential on disk for months; giving it the operator's device-listing right means a leaked appliance token enumerates the whole estate. This is the one thing an appliance needs.",
     module: "devices",
   },
   {
     code: "devices.machines.view",
     label: "See machines and their join requests",
-    description:
-      "Lists the machines waiting to join, and every joined machine with its name, type, status and when it was last seen. It does not show the code a person must read from a machine's own screen.",
+    description: "Lists the machines waiting to join, and every joined machine with its name, type, status and when it was last seen. It does not show the code a person must read from a machine's own screen.",
     module: "devices",
   },
   {
     code: "devices.machines.approve",
     label: "Approve or reject a machine that asks to join",
-    description:
-      "Lets a machine onto the hospital's network of screens. It is a separate duty from removing one, and each decision is audited.",
+    description: "Lets a machine onto the hospital's network of screens. It is a separate duty from removing one, and each decision is audited.",
     module: "devices",
   },
   {
     code: "devices.machines.remove",
     label: "Remove a joined machine",
-    description:
-      "Ends the machine's access at once, so a lost or retired machine can be cut off by somebody who cannot admit new ones.",
+    description: "Ends the machine's access at once, so a lost or retired machine can be cut off by somebody who cannot admit new ones.",
     module: "devices",
   },
   {
     code: "devices.binding.issue",
     label: "Issue hospital binding QR codes",
-    description:
-      "Prints a signed, expiring QR that a staff or patient app scans to bind itself to this hospital's server, so nobody types a hospital code or server address.",
+    description: "Prints a signed, expiring QR that a staff or patient app scans to bind itself to this hospital's server, so nobody types a hospital code or server address.",
     module: "devices",
   },
   {
     code: "devices.binding.list",
     label: "See hospital binding QR codes",
-    description:
-      "Lists the binding codes issued here, how many times each was used and whether it is still valid.",
+    description: "Lists the binding codes issued here, how many times each was used and whether it is still valid.",
     module: "devices",
   },
   {
     code: "devices.binding.revoke",
     label: "Revoke hospital binding QR codes",
-    description:
-      "Stops a lost or leaked binding code from binding any more devices. Devices it already bound are revoked from Paired devices.",
+    description: "Stops a lost or leaked binding code from binding any more devices. Devices it already bound are revoked from Paired devices.",
     module: "devices",
   },
   // qa
   {
     code: "qa.test_cases.record",
     label: "Record test results",
-    description:
-      "Shows the test-case panel and saves Pass, Fail or Blocked for the signed-in role's cases in the open test cycle. Given to the `test_<role>` accounts per user by scripts/create_test_accounts.py, never to a built-in role: real staff never see the panel.",
+    description: "Shows the test-case panel and saves Pass, Fail or Blocked for the signed-in role's cases in the open test cycle. Given to the `test_<role>` accounts per user by scripts/create_test_accounts.py, never to a built-in role: real staff never see the panel.",
     module: "qa",
   },
   {
     code: "qa.test_cycles.manage",
     label: "Run test cycles",
-    description:
-      "Open and close a test cycle, and see every role's progress and every failure across the hospital's testers.",
+    description: "Open and close a test cycle, and see every role's progress and every failure across the hospital's testers.",
     module: "qa",
   },
   // storage
@@ -7297,23 +7048,20 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "ai.assistant.use",
     label: "Use the AI assistant",
-    description:
-      "Chat, and the caller's own conversation history. The three handlers behind it checked nothing at all: any signed-in account could send a prompt about a patient to the model. Held by the clinical roles the assistant is built for.",
+    description: "Chat, and the caller's own conversation history. The three handlers behind it checked nothing at all: any signed-in account could send a prompt about a patient to the model. Held by the clinical roles the assistant is built for.",
     module: "ai",
   },
   {
     code: "ai.assistant.query",
     label: "Let the assistant write read-only queries",
-    description:
-      "For questions no report covers, the assistant may write one SELECT over the curated `ai_query` views — identifiers hashed, restricted classes excluded, read-only, time-boxed and audited. Whole-hospital figures, so held by no built-in role: admins hold it by bypass, and it can be granted to a custom role.",
+    description: "For questions no report covers, the assistant may write one SELECT over the curated `ai_query` views — identifiers hashed, restricted classes excluded, read-only, time-boxed and audited. Whole-hospital figures, so held by no built-in role: admins hold it by bypass, and it can be granted to a custom role.",
     module: "ai",
   },
   // nurse
   {
     code: "nurse.signature.sign",
     label: "Sign own nursing entries",
-    description:
-      "Put a digital signature on the medication administrations, vitals, ICU chart entries, OT checklists, transfusions and triage this nurse recorded. Needs a nurse profile with a licence number and a fresh password step-up.",
+    description: "Put a digital signature on the medication administrations, vitals, ICU chart entries, OT checklists, transfusions and triage this nurse recorded. Needs a nurse profile with a licence number and a fresh password step-up.",
     module: "nurse",
   },
   {
@@ -7343,15 +7091,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "nurse.roster.view",
     label: "See who is rostered on a ward",
-    description:
-      "The ward's on-duty list, per shift and date. Distinct from `nurse.shift.*`, which covers a nurse's own duty session.",
+    description: "The ward's on-duty list, per shift and date. Distinct from `nurse.shift.*`, which covers a nurse's own duty session.",
     module: "nurse",
   },
   {
     code: "nurse.roster.manage",
     label: "Roster nurses onto ward shifts",
-    description:
-      "Deciding who staffs a ward. Held by no built-in role: with no charge-nurse role to give it to, granting it to every nurse would let any of them restaff the ward. Admins hold it by bypass, and it can be granted to a custom role.",
+    description: "Deciding who staffs a ward. Held by no built-in role: with no charge-nurse role to give it to, granting it to every nurse would let any of them restaff the ward. Admins hold it by bypass, and it can be granted to a custom role.",
     module: "nurse",
   },
   {
@@ -7381,8 +7127,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "nurse.mar.witness",
     label: "Witness a high-alert dose as the second checker",
-    description:
-      "The independent double check before insulin, heparin, potassium and other high-alert drugs are given (IPSG.3). Checked on the witness, not the giver. Held by nurses, doctors and pharmacists; a bypass role holds it only when granted it by name.",
+    description: "The independent double check before insulin, heparin, potassium and other high-alert drugs are given (IPSG.3). Checked on the witness, not the giver. Held by nurses, doctors and pharmacists; a bypass role holds it only when granted it by name.",
     module: "nurse",
   },
   {
@@ -7412,29 +7157,25 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "nurse.ews.view",
     label: "See early-warning scores and escalations",
-    description:
-      "The score charted with each vitals reading, its trend, when the next observations are due, and the ward's open escalations.",
+    description: "The score charted with each vitals reading, its trend, when the next observations are due, and the ward's open escalations.",
     module: "nurse",
   },
   {
     code: "nurse.ews.acknowledge",
     label: "Acknowledge an early-warning escalation",
-    description:
-      "Record the response to an urgent or emergency score — who responded and what was done — which stops it escalating further.",
+    description: "Record the response to an urgent or emergency score — who responded and what was done — which stops it escalating further.",
     module: "nurse",
   },
   {
     code: "nurse.ews.plan",
     label: "Set a patient's early-warning scoring plan",
-    description:
-      "Prescribe SpO2 Scale 2 for hypercapnic respiratory failure, or choose the scoring tool. RCP NEWS2 requires a clinical decision maker to prescribe Scale 2.",
+    description: "Prescribe SpO2 Scale 2 for hypercapnic respiratory failure, or choose the scoring tool. RCP NEWS2 requires a clinical decision maker to prescribe Scale 2.",
     module: "nurse",
   },
   {
     code: "nurse.ews.policy",
     label: "Set the hospital's early-warning policy",
-    description:
-      "Observation frequency per score band, which bands escalate, and how long an escalation may wait for acknowledgement.",
+    description: "Observation frequency per score band, which bands escalate, and how long an escalation may wait for acknowledgement.",
     module: "nurse",
   },
   {
@@ -7464,15 +7205,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "nurse.transfusion.view",
     label: "See the transfusions running on a bed",
-    description:
-      "Distinct from `blood_bank.transfusion.list`, which is the bank's issue register — who was given which bag out of stock. This is the bedside record: the two-person identity check, the observation schedule, and whether the patient reacted.",
+    description: "Distinct from `blood_bank.transfusion.list`, which is the bank's issue register — who was given which bag out of stock. This is the bedside record: the two-person identity check, the observation schedule, and whether the patient reacted.",
     module: "nurse",
   },
   {
     code: "nurse.transfusion.administer",
     label: "Administer Transfusion",
-    description:
-      "Start, observe and complete a transfusion at the bed. The bank issues the unit; a nurse hangs it, checks the patient against the bag with a second nurse, and watches for the first fifteen minutes. Those are different acts by different people in different rooms, and `blood_bank.transfusion.create` — held by blood_bank_tech and by nobody at a bedside — could not express the second one.",
+    description: "Start, observe and complete a transfusion at the bed. The bank issues the unit; a nurse hangs it, checks the patient against the bag with a second nurse, and watches for the first fifteen minutes. Those are different acts by different people in different rooms, and `blood_bank.transfusion.create` — held by blood_bank_tech and by nobody at a bedside — could not express the second one.",
     module: "nurse",
   },
   {
@@ -7562,15 +7301,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "nurse.code_blue.respond",
     label: "Say you are responding to a code blue",
-    description:
-      "The page is one-way until somebody answers it. Held by everyone the activation reaches, so the team lead can see who is coming. The first response is also the arrival time NABH measures.",
+    description: "The page is one-way until somebody answers it. Held by everyone the activation reaches, so the team lead can see who is coming. The first response is also the arrival time NABH measures.",
     module: "nurse",
   },
   {
     code: "nurse.code_blue.manage_team",
     label: "Set who a code blue pages",
-    description:
-      "The code team, the duty medical officer and the medical superintendent, in that order of escalation. Without a roster the page falls back to the ward's shift team, then to every clinician, and says so on the code-blue screen.",
+    description: "The code team, the duty medical officer and the medical superintendent, in that order of escalation. Without a roster the page falls back to the ward's shift team, then to every clinician, and says so on the code-blue screen.",
     module: "nurse",
   },
   {
@@ -7717,15 +7454,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "abdm.bridge.register",
     label: "Register the ABDM bridge",
-    description:
-      "Point the ABDM gateway at this hospital's callback URL and bind each campus's HFR facility ID to the bridge as HIP and HIU. Every consent, record request and Scan & Share from ABDM arrives there.",
+    description: "Point the ABDM gateway at this hospital's callback URL and bind each campus's HFR facility ID to the bridge as HIP and HIU. Every consent, record request and Scan & Share from ABDM arrives there.",
     module: "abdm",
   },
   {
     code: "abdm.relay.pull",
     label: "Pull and acknowledge ABDM gateway callbacks",
-    description:
-      "For the hospital's on-premises server, which collects the ABDM gateway's callbacks for its own facility and marks each one received. Callbacks carry patient health data, so only this hospital's own, never another's.",
+    description: "For the hospital's on-premises server, which collects the ABDM gateway's callbacks for its own facility and marks each one received. Callbacks carry patient health data, so only this hospital's own, never another's.",
     module: "abdm",
   },
   {
@@ -7743,15 +7478,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "abdm.abha.deactivate",
     label: "Delete or deactivate a patient's ABHA at ABDM",
-    description:
-      "At the patient's request and with the OTP ABDM sends them, close their national ABHA for good (delete) or until they reactivate it (deactivate). The hospital then stops using it on their record.",
+    description: "At the patient's request and with the OTP ABDM sends them, close their national ABHA for good (delete) or until they reactivate it (deactivate). The hospital then stops using it on their record.",
     module: "abdm",
   },
   {
     code: "abdm.abha.unlink",
     label: "Record a patient's ABDM opt-out",
-    description:
-      "The patient withdraws their ABHA from this hospital: it is unlinked from their record, the consents they granted the hospital are deleted and no more records are linked to it.",
+    description: "The patient withdraws their ABHA from this hospital: it is unlinked from their record, the consents they granted the hospital are deleted and no more records are linked to it.",
     module: "abdm",
   },
   {
@@ -7763,166 +7496,143 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "abdm.hfr.register",
     label: "Register Hfr",
-    description:
-      "Register or update the facility in the Health Facility Registry. A facility-level administrative act, not a clinical one.",
+    description: "Register or update the facility in the Health Facility Registry. A facility-level administrative act, not a clinical one.",
     module: "abdm",
   },
   {
     code: "abdm.records.view",
     label: "View records shared through ABDM",
-    description:
-      "Which of a patient's records are linked to their ABHA, why one is not, the consents received and every transfer made, and the hospital's monthly DHIS counts.",
+    description: "Which of a patient's records are linked to their ABHA, why one is not, the consents received and every transfer made, and the hospital's monthly DHIS counts.",
     module: "abdm",
   },
   {
     code: "abdm.records.manage",
     label: "Link or retry linking records to ABHA",
-    description:
-      "Send a patient's finalised records to ABDM again after a failure, or link one that was captured before the ABHA was verified.",
+    description: "Send a patient's finalised records to ABDM again after a failure, or link one that was captured before the ABHA was verified.",
     module: "abdm",
   },
   {
     code: "abdm.records.notify",
     label: "Text a patient the ABHA app link",
-    description:
-      "For a patient with a mobile and no ABHA here, ask ABDM to text them a link to the ABHA app, so the records this hospital holds can reach them once they have one. ABDM sends the text; it names this hospital.",
+    description: "For a patient with a mobile and no ABHA here, ask ABDM to text them a link to the ABHA app, so the records this hospital holds can reach them once they have one. ABDM sends the text; it names this hospital.",
     module: "abdm",
   },
   {
     code: "abdm.consent.request",
     label: "Request a patient's records from other hospitals",
-    description:
-      "Ask, through ABDM, for the patient's consent to see their records held elsewhere: purpose, record types, dates and how long the copy may be kept. The request is made in the requester's name and HPR ID.",
+    description: "Ask, through ABDM, for the patient's consent to see their records held elsewhere: purpose, record types, dates and how long the copy may be kept. The request is made in the requester's name and HPR ID.",
     module: "abdm",
   },
   {
     code: "abdm.consent.view",
     label: "View records received from other hospitals",
-    description:
-      "The consent requests raised for a patient and the records other facilities sent under them, until the consent is revoked or expires.",
+    description: "The consent requests raised for a patient and the records other facilities sent under them, until the consent is revoked or expires.",
     module: "abdm",
   },
   {
     code: "abdm.scanshare.view",
     label: "Work the Scan & Share registration queue",
-    description:
-      "See the ABHA profiles patients shared at the registration counters today, with their token numbers; open the matched patient, register a new one from the profile, or dismiss a share.",
+    description: "See the ABHA profiles patients shared at the registration counters today, with their token numbers; open the matched patient, register a new one from the profile, or dismiss a share.",
     module: "abdm",
   },
   {
     code: "abdm.scanshare.manage",
     label: "Print the counters' Scan & Share QR codes",
-    description:
-      "The QR poster for each registration counter, naming this hospital's HFR facility ID and the counter.",
+    description: "The QR poster for each registration counter, naming this hospital's HFR facility ID and the counter.",
     module: "abdm",
   },
   {
     code: "abdm.hpr.manage",
     label: "Record and verify doctors' HPR IDs",
-    description:
-      "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
+    description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
     module: "abdm",
   },
   {
     code: "abdm.dashboard.view",
     label: "View the ABDM management dashboard",
-    description:
-      "The month's OPD visits with a verified ABHA, KYC, ABHAs created here, records linked against the DHIS threshold and the estimated incentive, consents, Scan & Share, HPR and HFR coverage, and the records that failed to link with their reasons. Counts only, plus the names on failed links.",
+    description: "The month's OPD visits with a verified ABHA, KYC, ABHAs created here, records linked against the DHIS threshold and the estimated incentive, consents, Scan & Share, HPR and HFR coverage, and the records that failed to link with their reasons. Counts only, plus the names on failed links.",
     module: "abdm",
   },
   // uhi
   {
     code: "uhi.configure",
     label: "Set up UHI",
-    description:
-      "The subscriber ID and key the hospital is registered under, its signing key pair, the services it offers and the campus it offers them from.",
+    description: "The subscriber ID and key the hospital is registered under, its signing key pair, the services it offers and the campus it offers them from.",
     module: "uhi",
   },
   {
     code: "uhi.requests.view",
     label: "View UHI requests",
-    description:
-      "Teleconsultations booked, and ambulance and blood requests made, from patient apps — with the patient's name, phone and ABHA address as the app sent them.",
+    description: "Teleconsultations booked, and ambulance and blood requests made, from patient apps — with the patient's name, phone and ABHA address as the app sent them.",
     module: "uhi",
   },
   {
     code: "uhi.requests.respond",
     label: "Accept or decline UHI requests",
-    description:
-      "Tell the patient's app whether the hospital can send the ambulance, has the blood or will do the lab tests. Accepting an ambulance request also needs ambulance trip creation, a blood request blood inventory management, a lab request walk-in lab ordering (and sample management for a home collection).",
+    description: "Tell the patient's app whether the hospital can send the ambulance, has the blood or will do the lab tests. Accepting an ambulance request also needs ambulance trip creation, a blood request blood inventory management, a lab request walk-in lab ordering (and sample management for a home collection).",
     module: "uhi",
   },
   // knowledge
   {
     code: "knowledge.change_sets.list",
     label: "See knowledge changes and their history",
-    description:
-      "Drafts, approvals, applied changes and rollbacks to drug interactions and critical lab values, with each impact report and the proof an auditor can re-check.",
+    description: "Drafts, approvals, applied changes and rollbacks to drug interactions and critical lab values, with each impact report and the proof an auditor can re-check.",
     module: "knowledge",
   },
   {
     code: "knowledge.change_sets.create",
     label: "Draft and preview knowledge changes",
-    description:
-      "Propose edits to drug interactions or critical lab values and see which prescriptions, orders and results they would affect. Also needs the area's own manage permission.",
+    description: "Propose edits to drug interactions or critical lab values and see which prescriptions, orders and results they would affect. Also needs the area's own manage permission.",
     module: "knowledge",
   },
   {
     code: "knowledge.change_sets.approve",
     label: "Approve someone else's knowledge change",
-    description:
-      "A second person approves or rejects a previewed change after seeing the same diff and impact. Nobody approves their own.",
+    description: "A second person approves or rejects a previewed change after seeing the same diff and impact. Nobody approves their own.",
     module: "knowledge",
   },
   {
     code: "knowledge.change_sets.apply",
     label: "Apply approved knowledge changes",
-    description:
-      "Make an approved change live, all items or none. Refused when the live data changed since preview.",
+    description: "Make an approved change live, all items or none. Refused when the live data changed since preview.",
     module: "knowledge",
   },
   {
     code: "knowledge.change_sets.rollback",
     label: "Roll back an applied knowledge change",
-    description:
-      "Starts a new change set that reverses an applied one; it is previewed and approved like any other.",
+    description: "Starts a new change set that reverses an applied one; it is previewed and approved like any other.",
     module: "knowledge",
   },
   // flows
   {
     code: "flows.view",
     label: "See flows, switchboards and the control room",
-    description:
-      "Read a flow's route, its switches and locked safety signals, where patients are on it now, and a patient's discharge ticket.",
+    description: "Read a flow's route, its switches and locked safety signals, where patients are on it now, and a patient's discharge ticket.",
     module: "flows",
   },
   {
     code: "flows.switch",
     label: "Propose switch changes on a flow",
-    description:
-      "Flip switches on a flow's switchboard, preview the new route and who it affects, and propose it as a knowledge change set. Nothing changes until it is approved and applied.",
+    description: "Flip switches on a flow's switchboard, preview the new route and who it affects, and propose it as a knowledge change set. Nothing changes until it is approved and applied.",
     module: "flows",
   },
   {
     code: "flows.publish",
     label: "Approve and apply flow switch changes",
-    description:
-      "Approve someone else's proposed switch change and make it live. A clinical flow needs both the quality officer and the medical superintendent to approve.",
+    description: "Approve someone else's proposed switch change and make it live. A clinical flow needs both the quality officer and the medical superintendent to approve.",
     module: "flows",
   },
   {
     code: "flows.build",
     label: "Build and test draft tracks for a flow",
-    description:
-      "Arrange a flow's stations and branches from registered building blocks, run its safety checks, dry run and what-if replay. Drafts never affect patients; proposing one is a switch change set that the quality officer and medical superintendent approve.",
+    description: "Arrange a flow's stations and branches from registered building blocks, run its safety checks, dry run and what-if replay. Drafts never affect patients; proposing one is a switch change set that the quality officer and medical superintendent approve.",
     module: "flows",
   },
   // health
   {
     code: "health.intel.view",
     label: "See health intelligence",
-    description:
-      "Read the hospital's notifiable-disease counts this week against its own usual (aggregate only, small counts suppressed), public outbreak notices for the region, weather and air-quality advisories, and whether each feed and recompute is still running.",
+    description: "Read the hospital's notifiable-disease counts this week against its own usual (aggregate only, small counts suppressed), public outbreak notices for the region, weather and air-quality advisories, and whether each feed and recompute is still running.",
     module: "health",
   },
 ];
@@ -7937,11 +7647,13 @@ export const PERMISSIONS: PermissionDef[] = [
 export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string[] }> = {
   super_admin: {
     label: "Super Admin",
-    permissions: [],
+    permissions: [
+    ],
   },
   hospital_admin: {
     label: "Hospital Admin",
-    permissions: [],
+    permissions: [
+    ],
   },
   doctor: {
     label: "Doctor",
@@ -9757,6 +9469,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   it_security_officer: {
     label: "IT Security Officer",
     permissions: [
+      P.ADMIN.BACKUP_MANAGE,
       P.DASHBOARD.VIEW,
       P.DEVICES.MACHINES.REMOVE,
       P.DEVICES.MACHINES.VIEW,
@@ -9807,7 +9520,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   },
   display_device: {
     label: "Wall Display",
-    permissions: [P.DISPLAY.BOARD.READ],
+    permissions: [
+      P.DISPLAY.BOARD.READ,
+    ],
   },
   ot_staff: {
     label: "OT Staff",
@@ -9850,6 +9565,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.BRIDGE.REGISTER,
       P.ABDM.SETTINGS.MANAGE,
+      P.ADMIN.BACKUP_MANAGE,
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
     ],

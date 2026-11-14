@@ -331,8 +331,12 @@ mod tests {
         let gate = Arc::new(Switch(AtomicBool::new(true)));
         let (changed, changes) = watch::channel(());
 
-        let edge = build_endpoint(iroh::SecretKey::generate(), None).await.expect("edge");
-        let device = build_endpoint(iroh::SecretKey::generate(), None).await.expect("device");
+        let edge = build_endpoint(iroh::SecretKey::generate(), None)
+            .await
+            .expect("edge");
+        let device = build_endpoint(iroh::SecretKey::generate(), None)
+            .await
+            .expect("device");
         let edge_addr = edge.addr();
 
         // The test keeps its own handle to the edge endpoint, as the appliance
@@ -351,7 +355,9 @@ mod tests {
         // A refresh that still admits the device leaves the session alone.
         changed.send(()).expect("send");
         assert!(
-            tokio::time::timeout(Duration::from_millis(300), conn.closed()).await.is_err(),
+            tokio::time::timeout(Duration::from_millis(300), conn.closed())
+                .await
+                .is_err(),
             "an admitted peer must keep its session"
         );
 

@@ -100,8 +100,10 @@ backup fails) dumps Postgres with `pg_dump -Fc`, seals it with
 `/etc/medbrains/backup-recipients.txt`, and streams it to S3. `/etc/medbrains`
 (HMAC/ABDM/JWT keys, role passwords — a restored database is unusable without
 them) is sealed and shipped the same way. Nothing is staged on disk in plain
-text. The private key is **never on the server**: the host can write backups
-but neither it, root, nor the app can read one.
+text, and no dump is ever written unencrypted: without a key the job refuses
+and pages. The key belongs to **the hospital running this install**, never to
+the MedBrains project, and its private half is kept **off the server**: the
+host can write backups but neither it, root, nor the app can read one.
 
 | Prefix | What | Kept |
 |---|---|---|
@@ -121,9 +123,13 @@ on the same threshold, and a failed run pages via `OnFailure=`.
 RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
 `docs/ops/BACKUP-RESTORE.md`.
 
-### Founder's steps to switch it on (in order)
+### Steps to switch it on (in order)
 
-1. **Make the key, offline** (your own Mac or an air-gapped machine, never the server):
+1. **Make the hospital's key, offline** (an operator's machine or an
+   air-gapped one, never the server). If you skip this, `install.sh` makes a
+   keypair on the server on the first install, prints where the private key
+   is, and you must move it offline and `shred -u` it there: until then root
+   on the server can read the backups.
    ```sh
    brew install age                                  # or apt install age
    age-keygen -o medbrains-backup.key                # prints "Public key: age1…"
@@ -134,9 +140,13 @@ RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
    (e.g. a USB stick in a safe + your password manager) and the passphrase
    separately. Lose both and **every backup is unreadable** — consider a
    second key held by someone you trust, as a second line in step 2.
-2. **Commit the public key** (not secret): put the `age1…` line(s) in
-   `deploy/standalone/backup-recipients.txt`, open a PR, merge. Every
-   install now seals to it; `install.sh` refuses a malformed file.
+2. **Give the public key to the install** (not secret):
+   `sudo BACKUP_AGE_RECIPIENT='age1…' bash install.sh <domain> <email> …`
+   (several keys: one per line). It lands in
+   `/etc/medbrains/backup-recipients.txt`; later installs keep that file
+   unless `BACKUP_AGE_RECIPIENT` is set again. `install.sh` refuses a
+   malformed key. The kit ships no key: a key in the kit would seal every
+   hospital's backups to whoever committed it.
 3. **Create the bucket**: `cd infra/terraform/envs/medbrains-in`, then
    `terraform plan -out ops.tfplan` and check it — Object Lock on the existing
    bucket is in place and **cannot be switched off later** — then
@@ -162,6 +172,27 @@ RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
 
 `make test-backups` runs the kit's own tests (a local directory stands in for
 S3, with a throwaway key).
+
+### Rotate the backup key
+
+Kits before 3.33.1 installed the MedBrains project's own public key on every
+host, so those backups are sealed to a key the hospital does not hold. Such a
+host says so in the backup log (`journalctl -u medbrains-pg-backup`) and on
+**Admin → Settings → System health**. To move to the hospital's own key:
+
+1. Make a key offline (step 1 above).
+2. On the server: `sudo BACKUP_AGE_RECIPIENT='age1…' bash install.sh …` as for
+   any update, or write the `age1…` line to
+   `/etc/medbrains/backup-recipients.txt` directly.
+3. `sudo systemctl start medbrains-pg-backup.service`, check System health no
+   longer warns, and run the restore drill (step 5) with the new key.
+4. Backups taken before the rotation stay sealed to the old key. Keep them
+   until the new ones have passed the drill and covered the retention window,
+   then retire them by your own policy.
+
+The project's own server is the only host meant to hold the project key; it
+sets `BACKUP_PROJECT_KEY_IS_OURS=1` in `/etc/medbrains/env`
+(`infra/terraform/envs/medbrains-in/README.md`).
 
 ## Log archive
 
@@ -227,7 +258,6 @@ Certbot once the domain is proven and add its route to the proxy config.
 | `env.example` | starter `/etc/medbrains/env` |
 | `medbrains-pg-backup` (+ `.service`, `.timer`) | sealed nightly + pre-deploy backup → S3 or `BACKUP_DIR` |
 | `medbrains-restore-drill` | operator-side: latest backup → scratch DB → integrity report |
-| `backup-recipients.txt` | age public key(s) every backup is sealed to (add it: step 2 above) |
 | `test-pg-backup-local.sh`, `test-backup-drill-e2e.sh` | `make test-backups` |
 | `STORAGE.md` | LocalFs / RustFS / S3+Glacier deployment shapes |
 

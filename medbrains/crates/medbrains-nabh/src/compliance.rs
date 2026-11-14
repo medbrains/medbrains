@@ -18,7 +18,9 @@ fn is_safe_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 63
         && value.starts_with(|c: char| c.is_ascii_lowercase() || c == '_')
-        && value.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 /// When this obligation was last met, according to its register.
@@ -26,13 +28,12 @@ fn is_safe_identifier(value: &str) -> bool {
 /// `None` covers both "the register is empty" and "the register does not
 /// exist" — a table that has not been created yet means the hospital is not
 /// recording this, which is exactly the answer the caller wants.
-pub async fn last_met(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    norm: &Norm,
-) -> Option<DateTime<Utc>> {
+pub async fn last_met(pool: &PgPool, tenant_id: Uuid, norm: &Norm) -> Option<DateTime<Utc>> {
     if !is_safe_identifier(norm.source_table) || !is_safe_identifier(norm.source_date_column) {
-        tracing::error!(code = norm.code, "norm names a register that cannot be queried");
+        tracing::error!(
+            code = norm.code,
+            "norm names a register that cannot be queried"
+        );
         return None;
     }
 
@@ -44,7 +45,10 @@ pub async fn last_met(
     );
 
     match sqlx::query(&sql).bind(tenant_id).fetch_one(pool).await {
-        Ok(row) => row.try_get::<Option<DateTime<Utc>>, _>("last").ok().flatten(),
+        Ok(row) => row
+            .try_get::<Option<DateTime<Utc>>, _>("last")
+            .ok()
+            .flatten(),
         Err(error) => {
             tracing::warn!(
                 code = norm.code,

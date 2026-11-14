@@ -85,6 +85,11 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.health.connect)
+    constraints {
+        // Health Connect pulls kotlinx-coroutines-guava, whose guava is the -jre (server JVM)
+        // flavour. Hold the Android flavour at a version that wins the conflict.
+        implementation("com.google.guava:guava:32.0.1-android")
+    }
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)

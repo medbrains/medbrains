@@ -15,13 +15,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use axum::extract::State;
 use medbrains_server_core::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_any_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_any_permission,
     state::AppState,
 };
-use axum::extract::State;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Requisition {

@@ -1,0 +1,5 @@
+# Bulk formatting commits for `git blame` to skip.
+# Use locally with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# cargo fmt over the workspace (rustfmt 1.10.0, Rust 1.99.1)
+a2d349c5edb91b9a2fcd29c1a2b937f46c078686

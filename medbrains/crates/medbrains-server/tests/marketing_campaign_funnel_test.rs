@@ -53,7 +53,11 @@ async fn a_campaign_with_no_enquiries_still_appears_and_won_follows_the_flag() {
                 .expect("create campaign");
             assert_eq!(resp.status(), reqwest::StatusCode::OK, "create campaign");
             let body: serde_json::Value = resp.json().await.expect("campaign json");
-            body["id"].as_str().unwrap_or_default().parse::<Uuid>().expect("campaign id")
+            body["id"]
+                .as_str()
+                .unwrap_or_default()
+                .parse::<Uuid>()
+                .expect("campaign id")
         }
     };
 
@@ -75,9 +79,17 @@ async fn a_campaign_with_no_enquiries_still_appears_and_won_follows_the_flag() {
         .send()
         .await
         .expect("create contact");
-    assert_eq!(contact_resp.status(), reqwest::StatusCode::OK, "create contact");
+    assert_eq!(
+        contact_resp.status(),
+        reqwest::StatusCode::OK,
+        "create contact"
+    );
     let contact: serde_json::Value = contact_resp.json().await.expect("contact json");
-    let contact_id: Uuid = contact["id"].as_str().unwrap_or_default().parse().expect("contact id");
+    let contact_id: Uuid = contact["id"]
+        .as_str()
+        .unwrap_or_default()
+        .parse()
+        .expect("contact id");
 
     // The won stage is whichever one carries is_won — not a name.
     let stages: serde_json::Value = app
@@ -119,16 +131,29 @@ async fn a_campaign_with_no_enquiries_still_appears_and_won_follows_the_flag() {
 
     let find = |id: Uuid| {
         rows.iter()
-            .find(|r| r["campaign_id"].as_str().and_then(|s| s.parse::<Uuid>().ok()) == Some(id))
+            .find(|r| {
+                r["campaign_id"]
+                    .as_str()
+                    .and_then(|s| s.parse::<Uuid>().ok())
+                    == Some(id)
+            })
             .unwrap_or_else(|| panic!("campaign {id} missing from the funnel"))
     };
 
     let barren_row = find(barren);
-    assert_eq!(barren_row["enquiries"].as_i64(), Some(0), "barren campaign enquiries");
+    assert_eq!(
+        barren_row["enquiries"].as_i64(),
+        Some(0),
+        "barren campaign enquiries"
+    );
     assert_eq!(barren_row["won"].as_i64(), Some(0), "barren campaign won");
 
     let earning_row = find(earning);
-    assert_eq!(earning_row["enquiries"].as_i64(), Some(1), "earning campaign enquiries");
+    assert_eq!(
+        earning_row["enquiries"].as_i64(),
+        Some(1),
+        "earning campaign enquiries"
+    );
     assert_eq!(
         earning_row["won"].as_i64(),
         Some(1),
@@ -164,13 +189,22 @@ async fn the_enquiry_audit_reports_no_data_rather_than_a_perfect_rate() {
     let inbound = audit["inbound_calls"].as_i64().expect("inbound_calls");
     let rate = &audit["missed_call_rate_pct"];
     if inbound == 0 {
-        assert!(rate.is_null(), "no calls must report a null rate, got {rate}");
+        assert!(
+            rate.is_null(),
+            "no calls must report a null rate, got {rate}"
+        );
     } else {
-        assert!(rate.as_f64().is_some(), "with calls present the rate is a number");
+        assert!(
+            rate.as_f64().is_some(),
+            "with calls present the rate is a number"
+        );
     }
 
     // by_hour is a staffing view: it must be present even when empty, because
     // an absent array reads as "the report is broken" rather than "nobody
     // called".
-    assert!(audit["by_hour"].is_array(), "by_hour must always be an array");
+    assert!(
+        audit["by_hour"].is_array(),
+        "by_hour must always be an array"
+    );
 }

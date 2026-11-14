@@ -403,7 +403,12 @@ pub async fn add_touchpoint(
     .bind(body.medium.as_deref())
     .bind(body.external_ref.as_deref())
     .bind(body.referrer_label.as_deref())
-    .bind(body.area_label.as_deref().map(str::trim).filter(|a| !a.is_empty()))
+    .bind(
+        body.area_label
+            .as_deref()
+            .map(str::trim)
+            .filter(|a| !a.is_empty()),
+    )
     .fetch_one(&mut *tx)
     .await?;
 

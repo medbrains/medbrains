@@ -10,7 +10,9 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::{is_bypass_role, require_permission},
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{is_bypass_role, require_permission},
     state::AppState,
 };
 
@@ -413,9 +415,8 @@ pub async fn list_my_pending_signoffs(
     tx.commit().await?;
     // Verbal/telephone orders carry a 24h countersign deadline — surface them
     // first, soonest (and overdue) deadline at the top; everything else by age.
-    let is_countersign = |e: &PendingSignoffEntry| {
-        matches!(e.order_mode.as_deref(), Some("verbal" | "telephone"))
-    };
+    let is_countersign =
+        |e: &PendingSignoffEntry| matches!(e.order_mode.as_deref(), Some("verbal" | "telephone"));
     entries.sort_by(|a, b| match (is_countersign(a), is_countersign(b)) {
         (true, false) => std::cmp::Ordering::Less,
         (false, true) => std::cmp::Ordering::Greater,

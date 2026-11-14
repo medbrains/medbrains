@@ -39,7 +39,10 @@ pub fn counted_total(counts: &BTreeMap<String, i64>) -> Result<Decimal, AppError
 }
 
 /// Any difference between counted and expected cash is explained.
-pub fn variance_reason(variance: Decimal, reason: Option<&str>) -> Result<Option<String>, AppError> {
+pub fn variance_reason(
+    variance: Decimal,
+    reason: Option<&str>,
+) -> Result<Option<String>, AppError> {
     let reason = reason
         .map(str::trim)
         .filter(|r| r.chars().count() >= REASON_MIN_CHARS);

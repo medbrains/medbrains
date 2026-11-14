@@ -1,6 +1,8 @@
 import { Card, FileInput, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type { CompletenessCheck } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconCircleCheck,
@@ -29,7 +31,13 @@ const COMPLETENESS_ITEMS: { key: keyof CompletenessCheck; label: string; min: nu
   { key: "lab_tests", label: "Lab Tests", min: 0 },
 ];
 
+/**
+ * Admin → Settings → System health. A holder of only the backup permission
+ * (the IT security officer) sees the backup card alone, and the setup queries
+ * are not issued for them.
+ */
 export function SystemHealthSettings() {
+  const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const [importFile, setImportFile] = useState<File | null>(null);
 
   // ── Completeness Check ──
@@ -40,6 +48,7 @@ export function SystemHealthSettings() {
   } = useQuery({
     queryKey: ["setup-completeness"],
     queryFn: () => settingsSetupService.completenessCheck(),
+    enabled: canManage,
     staleTime: 30_000,
   });
 
@@ -51,6 +60,7 @@ export function SystemHealthSettings() {
   } = useQuery({
     queryKey: ["setup-health"],
     queryFn: () => settingsSetupService.systemHealth(),
+    enabled: canManage,
     staleTime: 30_000,
   });
 
@@ -108,6 +118,8 @@ export function SystemHealthSettings() {
       });
     },
   });
+
+  if (!canManage) return <BackupStatusCard />;
 
   return (
     <Stack gap="lg">

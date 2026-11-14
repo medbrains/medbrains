@@ -9,7 +9,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -175,8 +175,7 @@ pub async fn book_health_package(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     // Same act as patient_packages::subscribe, booked from the microsite.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -291,7 +290,9 @@ pub async fn create_testimonial(
 ) -> Result<Json<Testimonial>, AppError> {
     require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     if body.patient_name.trim().is_empty() || body.body.trim().is_empty() {
-        return Err(AppError::BadRequest("Name and review text are required".to_owned()));
+        return Err(AppError::BadRequest(
+            "Name and review text are required".to_owned(),
+        ));
     }
     if !(1..=5).contains(&body.rating) {
         return Err(AppError::BadRequest("Rating must be 1-5".to_owned()));
@@ -437,8 +438,7 @@ pub struct SiteDomain {
     pub created_at: DateTime<Utc>,
 }
 
-const DOMAIN_COLS: &str =
-    "id, domain, is_primary, is_verified, verification_token, created_at";
+const DOMAIN_COLS: &str = "id, domain, is_primary, is_verified, verification_token, created_at";
 
 /// `GET /api/microsite/domains` — mapped custom domains.
 pub async fn list_site_domains(

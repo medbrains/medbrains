@@ -32,17 +32,32 @@ pub struct Finding {
 impl Finding {
     #[must_use]
     pub fn ok(check: &'static str, detail: impl Into<String>) -> Self {
-        Self { check, level: Level::Ok, detail: detail.into(), fix: None }
+        Self {
+            check,
+            level: Level::Ok,
+            detail: detail.into(),
+            fix: None,
+        }
     }
 
     #[must_use]
     pub fn warn(check: &'static str, detail: impl Into<String>, fix: &'static str) -> Self {
-        Self { check, level: Level::Warn, detail: detail.into(), fix: Some(fix) }
+        Self {
+            check,
+            level: Level::Warn,
+            detail: detail.into(),
+            fix: Some(fix),
+        }
     }
 
     #[must_use]
     pub fn fail(check: &'static str, detail: impl Into<String>, fix: &'static str) -> Self {
-        Self { check, level: Level::Fail, detail: detail.into(), fix: Some(fix) }
+        Self {
+            check,
+            level: Level::Fail,
+            detail: detail.into(),
+            fix: Some(fix),
+        }
     }
 }
 
