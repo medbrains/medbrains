@@ -285,6 +285,7 @@ mod pharmacy_storefront_test;
 mod pharmacy_transfer_stock_test;
 mod portal_export_test;
 mod portal_health_data_test;
+mod portal_sign_in_limit_test;
 mod preauth_request_role_test;
 mod prescription_refills_test;
 mod prescription_verify_test;
