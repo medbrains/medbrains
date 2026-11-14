@@ -25,8 +25,8 @@ KEY_SAVED="$CONFIG/.recovery-key-saved"
 # Not 12: it changed between normal cold boots under test, so the machine stopped opening itself.
 SEAL_PCRS_SECURE_BOOT=7
 SEAL_PCRS_NO_SECURE_BOOT=4+7
-EFIVARS=/sys/firmware/efi/efivars
-EFI_GLOBAL=8be4df61-93ca-11d2-aa0d-e098032b8c
+EFIVARS="${MEDBRAINS_EFIVARS:-/sys/firmware/efi/efivars}"
+EFI_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
 # Put here by the boot file when the image was signed. 11 alone protects nothing without 4 or Secure
 # Boot: an attacker's system can extend it to the published values and replay this signature.
 PCR_PUBLIC_KEY=/run/systemd/tpm2-pcr-public-key.pem

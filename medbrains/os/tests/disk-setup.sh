@@ -121,4 +121,19 @@ floor "a raise defines a missing floor" missing 4 floor-raise 0 4 no
 floor "a raise far beyond the floor is refused, not counted forever" 1 5000 floor-raise 1 1001 no
 floor "adopting defines a missing floor at its lowest" missing 9 floor-adopt 0 1 no
 floor "adopting leaves a floor alone" 6 9 floor-adopt 0 6 no
+
+# The PCRs sealed to, from the firmware's variables as the kernel shows them (4 attribute bytes, then the
+# value), under systemd's EFI global GUID. A wrong name or GUID reads as Secure Boot off, silently.
+seal_pcrs() {
+    local name="$1" secure="$2" setup="$3" want="$4" vars="$WORK/efivars" got
+    rm -rf "$vars" && mkdir -p "$vars"
+    [[ -n "$secure" ]] && printf "\x06\x00\x00\x00\x$secure" > "$vars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+    [[ -n "$setup" ]] && printf "\x06\x00\x00\x00\x$setup" > "$vars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+    got="$(MEDBRAINS_EFIVARS="$vars" bash -c 'source "$1" && set_seal_args && echo "${SEAL_ARGS[1]}"' _ "$SCRIPT")"
+    if [[ "$got" == "--tpm2-pcrs=$want" ]]; then echo "pass  $name"; else echo "FAIL  $name: $got"; FAILED=1; fi
+}
+seal_pcrs "Secure Boot enforced seals to PCR 7 alone" 01 00 7
+seal_pcrs "Secure Boot in setup mode keeps PCR 4" 01 01 4+7
+seal_pcrs "Secure Boot off keeps PCR 4" 00 00 4+7
+seal_pcrs "no firmware variables keep PCR 4" "" "" 4+7
 exit "$FAILED"
