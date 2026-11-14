@@ -38,15 +38,22 @@ pub async fn public_book_appointment(
 
     // The booking itself, not just the page that offers it. A tenant that never
     // opted in is not bookable, and answers as an unknown one does.
-    require_public_booking_enabled(&mut tx, tenant_id).await?;
+    let otp_required = require_public_booking_enabled(&mut tx, tenant_id).await?;
 
-    verify_booking_otp(
+    // A wrong or expired code is written to its row, and that write must
+    // outlive the refusal: rolled back, the attempt count never grew.
+    if let Err(refused) = verify_booking_otp(
         &mut tx,
         tenant_id,
         body.patient_phone.trim(),
         body.otp.as_deref(),
+        otp_required,
     )
-    .await?;
+    .await
+    {
+        tx.commit().await?;
+        return Err(refused);
+    }
 
     let appointment = book_online(
         &mut tx,
@@ -649,6 +656,9 @@ async fn ensure_public_slot_capacity(
 
 const BOOKING_OTP_TTL_MINUTES: i32 = 10;
 const BOOKING_OTP_MAX_ATTEMPTS: i32 = 5;
+/// Codes one mobile may be sent in `BOOKING_OTP_WINDOW_MINUTES`: each is an SMS.
+const BOOKING_OTPS_PER_WINDOW: i64 = 3;
+const BOOKING_OTP_WINDOW_MINUTES: i32 = 15;
 
 fn hash_booking_otp(otp: &str) -> String {
     use sha2::{Digest, Sha256};
@@ -705,6 +715,23 @@ pub async fn request_public_booking_otp(
         .await
         .is_err()
     {
+        return Ok(ack);
+    }
+
+    // One mobile gets its share of codes per window and no more, answered
+    // with the same ack so the cap cannot be probed.
+    let recent: i64 = sqlx::query_scalar(
+        // allow-raw-sql: public booking OTP send cap
+        "SELECT COUNT(*) FROM public_booking_otps \
+          WHERE tenant_id = $1 AND phone = $2 \
+            AND created_at > now() - make_interval(mins => $3)",
+    )
+    .bind(tenant_id)
+    .bind(phone)
+    .bind(BOOKING_OTP_WINDOW_MINUTES)
+    .fetch_one(&mut *tx)
+    .await?;
+    if recent >= BOOKING_OTPS_PER_WINDOW {
         return Ok(ack);
     }
 
@@ -798,25 +825,16 @@ pub(super) async fn require_public_booking_enabled(
     Ok(flag("public_booking_otp_required"))
 }
 
-/// Verify a booking OTP inside the booking transaction. Errors when the
-/// tenant requires verification and the code is absent/wrong/expired.
+/// Verify a booking OTP inside the booking transaction. Errors when
+/// `required` (the tenant's switch, read by `require_public_booking_enabled`)
+/// and the code is absent/wrong/expired.
 pub(super) async fn verify_booking_otp(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     phone: &str,
     otp: Option<&str>,
+    required: bool,
 ) -> Result<(), AppError> {
-    let required = sqlx::query_scalar::<_, serde_json::Value>(
-        // allow-raw-sql: public booking OTP requirement check
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'appointments' \
-           AND key = 'public_booking_otp_required'",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
-    .unwrap_or(false);
     if !required {
         return Ok(());
     }

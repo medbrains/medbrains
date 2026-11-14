@@ -64,6 +64,16 @@ describe("BackupStatusCard", () => {
     expect(screen.getByText(/journalctl -u medbrains-pg-backup/)).toBeInTheDocument();
   });
 
+  it("shows the notice a completed run recorded, such as a key to rotate", async () => {
+    service.listBackups.mockResolvedValue([
+      row("completed", 2, { error_message: "Sealed to the MedBrains project key" }),
+    ]);
+    render(<BackupStatusCard />);
+    expect(await screen.findByText("This backup needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Sealed to the MedBrains project key")).toBeInTheDocument();
+    expect(screen.getByText("Up to date")).toBeInTheDocument();
+  });
+
   it("calls a history with no success overdue, not fine", async () => {
     service.listBackups.mockResolvedValue([]);
     render(<BackupStatusCard />);

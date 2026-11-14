@@ -66,6 +66,20 @@ this directory's state file private.
    env owns the old name's GoDaddy record, and the redirect needs it. Switch it
    when the old name is retired.
 
+## Backup key
+
+`backup-recipients.txt` here is this deployment's own age public key (the
+private key is offline with the founder). The deploy kit no longer ships it.
+The prod host keeps `/etc/medbrains/backup-recipients.txt` across installs;
+it also needs, once, so its backups are not flagged as sealed to a foreign key:
+
+```sh
+echo BACKUP_PROJECT_KEY_IS_OURS=1 | sudo tee -a /etc/medbrains/env
+```
+
+On a rebuilt host, pass the key to the first install:
+`BACKUP_AGE_RECIPIENT="$(grep '^age1' backup-recipients.txt)"`.
+
 ## Microsoft 365 mailboxes
 
 1. M365 admin → Settings → Domains → **Add domain** `medbrains.in` → choose
