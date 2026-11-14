@@ -33,10 +33,25 @@ pub fn roothash(cmdline: &str) -> Option<&str> {
 /// second `root=`, or dm-verity told to read past a changed block. A boot file carrying any is refused.
 const UNSAFE_WORDS: [&str; 3] = ["systemd.verity", "ignore-corruption", "ignore_corruption"];
 
-/// The root hash of a boot file's command line, if the line seals its system and nothing on it undoes
-/// that: exactly one `roothash=`, exactly one `root=`, and none of `UNSAFE_WORDS`.
+/// Unsigned credentials from the boot partition or firmware could add units that run with the data disk
+/// open, measured only outside the seal (PCR 12), so a sealed boot file must refuse them.
+const NO_CREDENTIALS: &str = "systemd.import_credentials=no";
+
+/// The root hash of a boot file's command line, if the line seals its system and nothing undoes that.
+///
+/// Exactly one `roothash=`, exactly one `root=`, none of `UNSAFE_WORDS`, and credential import off, said
+/// once.
 pub fn sealed_cmdline(cmdline: &str) -> Result<&str, String> {
     let words: Vec<&str> = cmdline.split_whitespace().collect();
+    let imports: Vec<&&str> = words
+        .iter()
+        .filter(|word| word.starts_with("systemd.import_credentials="))
+        .collect();
+    if imports != [&NO_CREDENTIALS] {
+        return Err(format!(
+            "Its command line does not carry {NO_CREDENTIALS} once, so unsigned credentials could run code with the disk open."
+        ));
+    }
     if let Some(word) = words.iter().find(|word| {
         UNSAFE_WORDS
             .iter()
@@ -187,9 +202,12 @@ mod tests {
     /// refused, whatever else it carries.
     #[test]
     fn a_command_line_that_undoes_the_seal_is_refused() {
-        let good = format!("root=/dev/mapper/root ro roothash={HASH} quiet");
+        let good =
+            format!("root=/dev/mapper/root ro roothash={HASH} systemd.import_credentials=no quiet");
         assert_eq!(sealed_cmdline(&good), Ok(HASH));
         for bad in [
+            good.replace(" systemd.import_credentials=no", ""),
+            format!("{good} systemd.import_credentials=yes"),
             format!("{good} systemd.verity=no"),
             format!("{good} systemd.verity_root_options=ignore-corruption"),
             format!("{good} root=/dev/vda3"),

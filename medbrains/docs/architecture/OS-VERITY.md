@@ -4,9 +4,9 @@ Status: built 2026-11-10 (plan T1, "verity"), in review (`OS-UPDATES.md`, What i
 macOS's Signed System Volume: the system partition is read-only and every block of it is checked, when read,
 against a root hash the boot file carries. A block changed after the image was built, online or with the disk
 in someone's hands, is refused, and the machine acts on it (below). That holds only as far as the boot file and
-its command line can be trusted: without Secure Boot, someone with the disk can start another boot file or add
-a loader entry with another `roothash=` ("What this closes, and what it does not"). The seal makes a changed
-system fail; it does not yet make a hostile boot impossible. Class A: failure table below.
+its command line can be trusted: with Secure Boot enforced only our signed boot files start, and they ignore a
+loader's command line; without it, someone with the disk can start another boot file or add a loader entry with
+another `roothash=` ("What this closes, and what it does not"). Class A: failure table below.
 
 ## Design
 
@@ -14,7 +14,7 @@ system fail; it does not yet make a hostile boot impossible. Class A: failure ta
 writable) and its dm-verity hash tree (32 MiB, the tree is 16.1 MiB). `systemd-repart` computes the tree when
 the image is built, and mkosi puts its root hash on the boot file's command line as `roothash=`. The boot
 file (UKI) is one signed file, so the root hash is covered by everything that covers the boot file: PCR 11's
-signed policy, PCR 4, and the update manifest's signature.
+signed policy, its Secure Boot signature (or PCR 4 without Secure Boot), and the update manifest's signature.
 
 **Found by the hash, not by a name.** `systemd-veritysetup-generator` finds the two partitions by the UUIDs the
 root hash gives them, the first half for the system and the second for the tree (Discoverable Partitions
@@ -99,23 +99,25 @@ and even then only after a person applies it. Trial boots, counting and rollback
 
 ## The TPM seal
 
-**Unchanged: PCR 4 and 7, and PCR 11 by signature.** The root hash is on the boot file's command line, which
-the stub measures into PCR 11 and which is part of the boot file the firmware measures into PCR 4. A boot
-file with another root hash is another boot file: the seal already refuses it. Measuring the hash again into a
-PCR of its own would add nothing.
+**PCR 7 and PCR 11 by signature with Secure Boot enforced; PCR 4 and 7 and PCR 11 by signature without it**, and a
+rollback floor (`OS-KEYS.md`, "Binding to the signed boot image", "Rollback floor"). The root hash is on the boot
+file's command line, which the stub measures into PCR 11. A boot file with another root hash is another boot file:
+its PCR 11 has no signature unless we signed it. Measuring the hash again into a PCR of its own would add nothing.
 
-**After an update:** verity changes nothing here. PCR 4 holds the boot file's own hash, so a new boot file
-changes it, and the data disk asks for its recovery key at every start of a new version, not only the first, as it has since
-PCR 4 joined the seal (DECISIONS 2026-11-05). Not closed by this work: see "Open".
+**After an update:** with Secure Boot, a new boot file signed with our keys leaves PCR 7 as it was and carries its
+own signed PCR 11, so the disk opens by itself at every start of the new version (#5452, `sealed_update`,
+`power_cuts_applying`). Its system's rollback number must not be below the floor. Without Secure Boot, PCR 4 changes
+and every new version asks for the recovery key once.
 
 ## What this closes, and what it does not
 
 | Attack | Before | Now |
 |---|---|---|
 | A file on the system partition changed while the machine is off, then booted in this machine | **Ran, with the disk open**, without a PIN (`known_gap_system_partition_edit_opens`) | **Does not start.** The changed block fails its check, and the seal check stops the start with a plain message, or goes back. Tested on arm64: `tamper`, `changed_slot_rolls_back` |
-| A changed system with a recomputed tree, and a boot file carrying the new root hash | — | The boot file changed: PCR 4 and 11 differ and the disk stays locked (`changed_boot_file_stays_locked`) |
+| A changed system with a recomputed tree, and a boot file carrying the new root hash | — | The boot file changed: its PCR 11 has no signature of ours, Secure Boot refuses it or PCR 4 differs, and the disk stays locked (`changed_boot_file_stays_locked`) |
+| An older system and boot file, both signed with our keys | — | **Refused by the rollback floor:** its rollback number is below the TPM counter, so PCR 11 is extended before the unlock and the disk asks for its recovery key (`floor_refuses_older_system`, x86-64 swtpm) |
 | Root, while running, changes a system file | Possible | The device is read-only; a remount is refused. Tested (`the system partition is sealed and read-only`). Writing the raw partition under it is possible for root and is caught at the next read, as above |
-| **Our own boot file started with another command line, from a loader entry the attacker adds to the boot partition** | — | **Open without Secure Boot.** systemd-stub accepts a loader's command line when Secure Boot is off and measures it into PCR 12, which the seal leaves out because PCR 12 was unstable (DECISIONS 2026-11-04). PCR 4 and 11 match, so the disk opens for whatever `roothash=` was given. Reasoned from systemd 257's stub, not yet run. Closed by Secure Boot, which makes the stub ignore it, or by refusing to unlock when PCR 12 shows a loader command line |
+| **Our own boot file started with another command line, from a loader entry the attacker adds to the boot partition** | — | **Closed with Secure Boot:** systemd-stub ignores a loader's command line when Secure Boot is on, so the genuine system starts (`added_entry_is_ignored`, x86-64 swtpm), and the updater refuses a boot partition holding an entry it did not put there (`check_boot_files`). Credentials from the boot partition, the other loader-supplied input, are refused by `systemd.import_credentials=no`, which the updater requires on every boot file. **Still open without Secure Boot:** the stub accepts the loader's line and measures it into PCR 12, which the seal leaves out because PCR 12 was unstable (DECISIONS 2026-11-04); PCR 4 and 11 match, so the disk opens for whatever `roothash=` was given. Reasoned from systemd 257's stub |
 
 ## Failure table
 
@@ -153,11 +155,8 @@ Boot time: see "Evidence".
 
 ## Open
 
-1. **Recovery key after every update** (PCR 4), #5452. Fix: before applying, add a TPM slot for the new boot file's
-   predicted PCR 4 (`systemd-cryptenroll --tpm2-pcrs=4:sha256=<value>+7`, the value computed from the firmware
-   event log with the new boot file's Authenticode hash in place of the running one's), and drop the old slot
-   once the new version proves good; or Secure Boot, then drop PCR 4.
-2. **Loader command line** (above). Secure Boot, or an initrd check of PCR 12.
-3. **Secure Boot** itself and a release signing key (plan T1, X2).
-4. **A full scan of the slot** on a schedule, so a bad block in a rarely read file is found before it is
+1. **Secure Boot on real machines**: enrolling our keys at installation (plan X2) and release keys (T1). Until then a
+   real machine takes the Secure Boot off path: a recovery key after every update, and the loader command line open.
+   Closed in a virtual machine by #5452.
+2. **A full scan of the slot** on a schedule, so a bad block in a rarely read file is found before it is
    needed (with U2.4).

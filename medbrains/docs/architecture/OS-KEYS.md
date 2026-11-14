@@ -10,18 +10,21 @@ a design: root, machine and licence keys are plan T2. A key not listed here is a
 The data partition is `/var`: the database, secrets, files, logs. It is LUKS2, created on first boot, so no
 plaintext copy of it ever exists (`os/mkosi.extra/usr/lib/medbrains/disk-setup`).
 
-The seal is **PCR 4 and 7, and PCR 11 by signature when the image is signed**. **In one line: this protects a disk that
-has left the machine. Without a PIN it does not protect a stolen machine from someone able to change its disk.**
+The seal is **PCR 7 and PCR 11 by signature with Secure Boot enforced, PCR 4 and 7 and PCR 11 by signature without it**,
+plus a **rollback floor** in the TPM (below). With Secure Boot, a new boot file signed with our keys opens the disk by
+itself, so updates and power cuts after them need nobody. **In one line: this protects a disk that has left the machine.
+Without a PIN it does not protect a stolen machine from someone able to change its disk.**
 
 | Attack | Result today | Evidence |
 |---|---|---|
 | Disk removed or copied, read or booted elsewhere | **Stopped** without the recovery key. Marker and JWT key absent from the raw disk | `raw_disk_shows_nothing`, `copy_stays_locked` |
-| Stolen machine booted from an attacker's own system | **Stopped by PCR 4, tested.** Before that the disk **opened**: with Secure Boot off PCR 7 is the same under any system, and PCR 11 can be extended by hand to the published values and the signature replayed. Measured on swtpm | `stolen_machine_replay_refused`, with a control that still opens without PCR 4 |
-| Boot file (UKI) changed | **Stopped:** PCR 4 and PCR 11 both change | `changed_boot_file_stays_locked` |
-| Kernel command line edited | **Menu and editor off**, tested by file only; **not sealed:** PCR 12 changed between normal cold boots, so a machine stopped opening itself. Starting a firmware shell first changes PCR 4 | `boot_editor_off`, anomaly in DECISIONS |
+| Stolen machine booted from an attacker's own system | **With Secure Boot, the firmware refuses a boot file not signed with our key, and PCR 7 records that it enforced that key. Without it, stopped by PCR 4, tested.** Before that the disk **opened**: with Secure Boot off PCR 7 is the same under any system, and PCR 11 can be extended by hand to the published values and the signature replayed. Measured on swtpm | `stolen_machine_replay_refused`, with a control that still opens without PCR 4 |
+| Boot file (UKI) changed | **Stopped:** PCR 11 changes, and Secure Boot refuses it or PCR 4 changes | `changed_boot_file_stays_locked` |
+| Older boot file and system, signed with our keys | **Stopped by the rollback floor:** a system whose `MEDBRAINS_ROLLBACK` is below the TPM counter gets no TPM unlock, and the disk asks for its recovery key | `floor_refuses_older_system` (x86-64 swtpm), `os/tests/disk-setup.sh` |
+| Kernel command line edited | **With Secure Boot, ignored:** systemd-stub uses only the command line inside the signed boot file, so an added loader entry with another `roothash=` starts the genuine system (`added_entry_is_ignored`), and the updater refuses a boot partition holding an entry it did not put there. Unsigned credentials from the boot partition or SMBIOS are refused by `systemd.import_credentials=no`, which the updater requires of every boot file. **Without Secure Boot:** menu and editor off, tested by file only; **not sealed:** PCR 12 changed between normal cold boots, so a machine stopped opening itself. Starting a firmware shell first changes PCR 4 | `boot_editor_off`, anomaly in DECISIONS |
 | Passive sniffing of the TPM bus | **Stopped.** Unseal runs in a salted HMAC session with response encryption, on by default | Below |
 | Active interposer on the TPM bus, no PIN | **Not stopped.** systemd says so in its source. A PIN closes it | Below |
-| System partition edited, then booted in this machine | **Stopped since verity** (`OS-VERITY.md`): the changed block is refused and the start stops or goes back, tested on arm64 (`tamper`). **Still open without Secure Boot:** a boot entry added to the boot partition can start our boot file with another root hash, measured only into PCR 12, which the seal leaves out (reasoned). Before verity: **not stopped without a PIN, tested.** Same loader and boot file, so PCR 4 matches and the TPM opens the disk for whatever runs. The same goes for those files copied to a USB stick with another system partition (reasoned, not run). **Only verity and Secure Boot close this. A PIN does, today** | `system_partition_edit_stays_locked` (x86-64, not yet run), `tamper` (arm64) |
+| System partition edited, then booted in this machine | **Stopped since verity** (`OS-VERITY.md`): the changed block is refused and the start stops or goes back, tested on arm64 (`tamper`). **Closed with Secure Boot** (row above). **Still open without it:** a boot entry added to the boot partition can start our boot file with another root hash, measured only into PCR 12, which the seal leaves out (reasoned). Before verity: **not stopped without a PIN, tested.** Same loader and boot file, so PCR 4 matches and the TPM opens the disk for whatever runs. The same goes for those files copied to a USB stick with another system partition (reasoned, not run). **Only verity and Secure Boot close this. A PIN does, today** | `system_partition_edit_stays_locked` (x86-64, not yet run), `tamper` (arm64) |
 | Cold boot, or DMA while running | Volume key is in kernel memory. IOMMU settings help against DMA; nothing here stops cold boot | Below |
 
 ### Sniffing the TPM, and the PIN trade-off
@@ -48,15 +51,66 @@ with no system until someone types a PIN carries its own patient risk, so no PIN
 ### Binding to the signed boot image
 
 `build.sh` signs the boot file's expected PCR 11 values with `OS_PCR_KEY`; mkosi and `systemd-measure` embed the
-signature, and the stub puts it in `/run/systemd`. `disk-setup` seals to that public key when it is present.
-**PCR 11 alone protects nothing with Secure Boot off**, as the attack above shows. PCR 4 is what stops it, and PCR 4 holds
-the boot file's own hash, so **any new boot file needs a re-seal until Secure Boot lands**; the A/B update path must plan for it.
+signature (`.pcrsig`) and public key (`.pcrpkey`), and the stub puts them in `/run/systemd`. `disk-setup` seals to that key
+(`systemd-cryptenroll --tpm2-public-key --tpm2-public-key-pcrs=11`), so any boot file signed with it matches PCR 11.
+**PCR 11 alone protects nothing with Secure Boot off**, as the attack above shows: someone's own system extends PCR 11 to
+the published values and replays the signature. Beside it the seal needs a value that system cannot produce:
 
-- **Key today:** debug images make a throwaway. **No release key exists, so a release image is not signed.** Holding the key
-  is plan T2, offline.
+- **Secure Boot enforced, and our certificate the only one trusted:** PCR 7 alone. The exact condition
+  (`medbrains-os-update seal-pcrs`, `secure_boot.rs`, unit-tested): `SecureBoot` is 1, `SetupMode` is 0, `AuditMode` is 0
+  or absent (`DeployedMode` may be either), and **PK, KEK and db are each well-formed signature lists holding only X.509
+  entries equal to our certificate**, read from the sealed system partition (`/usr/share/medbrains/secure-boot-db.der`),
+  never from the boot partition. dbx may hold anything: it only removes trust. Any other trusted entry, a vendor's or
+  Microsoft's certificate or a hash, keeps PCR 4: any of them could have signed a boot chain that leaves PCR 7 as it is.
+  Anything missing, malformed or unreadable keeps PCR 4 too. `build.sh` signs the loader and the boot file with `OS_SB_KEY`; mkosi puts the key files on the boot partition, and
+  systemd-boot enrols them only where that is safe, a virtual machine in setup mode (`secure-boot-enroll if-safe`). PCR 7
+  does not change when a new boot file is signed with the same key, so **updates open by themselves**. A real machine gets
+  the keys at installation (plan X2); until then it takes the next line.
+- **Otherwise** (Secure Boot off, or a firmware that also trusts others, as most PCs' db does): PCR 4, the loader and boot
+  file the firmware started, as before. Every new boot file asks for the recovery key once, then `disk-setup reseal`.
+
+`disk-setup` chooses when it seals, at first boot or at `reseal`, from the firmware's variables. Turning Secure Boot on
+later changes PCR 7: the recovery key once, then `disk-setup reseal` seals the new way. That is the one-time step for a
+disk sealed before this. Not PCR 12: unstable (DECISIONS 2026-11-04), and what it would catch Secure Boot refuses already.
+
+- **Key today:** debug images make throwaways. **No release key exists, so a release image is not signed.** Holding the keys
+  is plan T2, offline (`OS_PCR_KEY` and `OS_SB_KEY` apart: either alone opens no disk).
 - **Shown on swtpm:** the replay is refused and its control opens, a changed boot file is refused, restoring it opens again.
-- **swtpm cannot show:** real firmware's PCR 4 and 7 across updates (one recovery-key prompt expected), real TPM timing, any
-  physical attack.
+- **swtpm cannot show:** real firmware's PCR 4 and 7 across updates, real TPM timing, any physical attack.
+
+### Rollback floor
+
+With PCR 4 out of the seal, any older boot file signed with our keys would open the disk, a flawed one included. So the
+TPM holds a **floor**: an NV monotonic counter (`0x01004d42`). Each image carries a rollback number, `MEDBRAINS_ROLLBACK`
+in its `os-release`, so it is on the sealed system partition and in the boot file's measured `.osrel`. `OS_ROLLBACK` sets
+it and must rise with every release (debug: the version's last number plus one).
+
+- **Checked** before the data disk opens (`medbrains-disk-floor.service`, `disk-setup floor-check`, required by the
+  unlock): a number below the counter, or a counter that can't be read, extends PCR 11 with `medbrains-below-rollback-floor`,
+  so no signed policy matches for the rest of that boot and the disk asks for its recovery key. A person can still open it.
+- **Raised** at first boot, before the partition exists, to the image's number, and by the updater before each install to
+  the running version's number (`disk-setup floor-raise`). The version in use and newer ones open by themselves, so going
+  back to the version just left still works; the one before it no longer does.
+- **Steps:** each release raises `OS_ROLLBACK` by one, so an install is normally one TPM increment, a machine that skipped
+  releases a few. `MAX_FLOOR_STEPS` is 64 (a year of weekly releases skipped at once); a larger gap is a release numbered
+  wrongly and stops the install. Each step is one NV write. Real TPMs rate-limit NV writes and are rated for roughly
+  100,000 or more of them, so a few per release is negligible wear; at a slow chip's ~100 ms per write, 64 steps fit the
+  updater's 120 s `FLOOR_LIMIT`. Not measured on a real TPM.
+- **A counter, not an ordinary index:** anyone with the owner authorisation (empty, as on most machines) can delete an
+  index and define it again. By the TPM 2.0 specification a counter defined again starts no lower than the highest any
+  counter on that TPM has reached, and a missing one is refused. On swtpm (`floor_counter_cannot_be_lowered`): deleting it
+  is refused by the check; defining it again started at or above the old value; clearing the TPM left a disk that does not
+  open by itself (the clear also discards the seal). **Not verified on a real TPM.** Anyone with OS access can raise it,
+  which locks the machine to its recovery key: damage, not access (owner decision on owner authorisation, DECISIONS).
+- **Adopted** by a disk sealed before the floor existed: once it opens, with its recovery key that once, as every update on
+  such a disk needed, `medbrains-disk-floor-adopt.service` (`disk-setup floor-adopt`) defines the counter at its lowest; the
+  next install raises it. A failure is a failed unit with a plain reason in the journal and on the console.
+- **Reinstalling an older image** on a machine that ran a newer one starts below its floor and asks for the recovery key at
+  every start: install the current release.
+
+Chosen over `systemd-pcrlock` (predicted PCR 4 values from the firmware event log in an NV policy: experimental in systemd
+257, and once found sealing the disk to a file on that disk) and over a key per release (a restored old LUKS header with
+its old token opens an old boot file again: only TPM state resists that). Ordinary NV indexes: rejected, above.
 
 ### DMA and the IOMMU
 
@@ -94,9 +148,11 @@ disposal. No screen for this yet.
 | Key | Protects | Algorithm | Where | Mode | Lifetime | Rotation | Lost | Stolen |
 |---|---|---|---|---|---|---|---|---|
 | **Disk volume key** | Everything in `/var` | AES-256-XTS (`aes-xts-plain64`, 512-bit key), measured | LUKS2 header, wrapped by each key slot; kernel memory while open | header on `/dev/vda4` | Life of the disk | None: `cryptsetup reencrypt` exists, **no path built, not tested** | Data gone without slots | Data readable, by a copy forever |
-| **TPM seal** | Opens the volume key at boot | LUKS2 `systemd-tpm2` token, SHA-256 bank, PCR 7, PCR 11 by signature, measured; slot uses minimal PBKDF2 (1000 rounds) because its secret is high entropy | Sealed blob in LUKS2 header; only that TPM can unseal | header | Until PCR 7 changes, or the TPM is replaced | `disk-setup reseal KEYFILE`, below | Recovery key opens the disk | Useless without that TPM |
+| **TPM seal** | Opens the volume key at boot | LUKS2 `systemd-tpm2` token, SHA-256 bank, PCR 7 (Secure Boot) or 4+7, PCR 11 by signature, measured; slot uses minimal PBKDF2 (1000 rounds) because its secret is high entropy | Sealed blob in LUKS2 header; only that TPM can unseal | header | Until PCR 7 changes, or the TPM is replaced | `disk-setup reseal KEYFILE`, below | Recovery key opens the disk | Useless without that TPM |
 | **Optional PIN** | Binds the seal to a person | TPM auth value, chosen at setup | In the person's head | none | Until replaced | No screen yet, **gap** | Recovery key | Needs the TPM too; lockout limits guessing |
-| **Boot signing key** (`OS_PCR_KEY`) | Which boot files may open disks | RSA 2048, `systemd-measure`. Public half in every boot file | Debug: throwaway in the build folder. Release: **none exists** | | 30 days for the throwaway | Plan T2 | No signed update can open existing disks, after which the recovery key is needed | **Any machine** would accept that boot file: offline only |
+| **Boot signing key** (`OS_PCR_KEY`) | Which boot files may open disks | RSA 2048, `systemd-measure`. Public half in every boot file | Debug: throwaway in the build folder. Release: **none exists** | | 30 days for the throwaway | Plan T2 | No signed update can open existing disks, after which the recovery key is needed | With the Secure Boot key as well, **any machine** would open for that boot file: offline only |
+| **Secure Boot key** (`OS_SB_KEY`; the firmware's PK, KEK and db) | Which loaders and boot files the firmware starts | RSA 2048, `sbsign` through mkosi and ukify; certificate on the boot partition and in the firmware | Debug: throwaway in the build folder. Release: **none exists**; held like `OS_PCR_KEY`, apart from it | | Firmware ignores expiry | A KEK-signed db update, which changes PCR 7: re-seal. **Not built** | No new boot file starts on enrolled machines | Starts signed code; opens disks only with `OS_PCR_KEY` too |
+| **Rollback floor** | Which systems open the disk by themselves | TPM NV monotonic counter `0x01004d42`, owner hierarchy | The TPM | | Life of the TPM | Only rises | Lost with the TPM, as is the seal | Raising it locks the machine to its recovery key |
 | **Recovery key** | Opens the disk on any machine | 64 modhex characters, 256 bits, from `systemd-cryptenroll` | **Paper only**; a slot in the header | none on disk | Life of the disk | `systemd-cryptenroll --wipe-slot=recovery --recovery-key` on a running machine: no screen yet, **gap** | If the TPM also fails, data is gone; MedBrains holds no copy | Full data access from a copy. Replace it at once |
 | **`JWT_PRIVATE_KEY`** | Sessions (15 min), refresh chain (7 days), step-up (5 min), portal (12 h), device tokens (30 days) | Ed25519, source (`jsonwebtoken` 10, aws-lc-rs) | `/var/lib/medbrains/config/env` | 0640 root:medbrains | Forever | **None**: no key id, no verify-with-old. Replace and every session and device token ends | Everyone signs in again; devices re-pair. No data lost | Forge any user until replaced. **High** |
 | **`MEDBRAINS_IDENTIFIER_HMAC_KEY`** | Aadhaar and identifier fingerprints | HMAC-SHA256, source | same env | 0640 | Forever | **None**: fingerprints cannot be recomputed from the hash | Duplicate matching stops, permanently | Identifier values can be tested offline against stolen fingerprints |
@@ -162,7 +218,8 @@ not about real chips; the real server was exercised on arm64's no-TPM path. Side
 
 1. **A stolen machine without a PIN or Secure Boot is not fully protected.** Verity now refuses a changed system partition
    (`OS-VERITY.md`), but with Secure Boot off our boot file accepts a command line from a boot entry an attacker adds, and that
-   lands in PCR 12, outside the seal. Secure Boot and a release signing key remain open in plan T1.
+   lands in PCR 12, outside the seal. With Secure Boot it is ignored, tested in a VM; enrolling our keys on real machines
+   (plan X2) and release keys (T1) are open, so **every real machine today takes the Secure Boot off path**.
 2. **No key rotation anywhere.** JWT, HMAC and every sealing key are forever. A stolen `env` is permanent
    until each is rotated, and rotation has no code. Plan T2.
 3. **Keys in one plaintext file once the disk is open.** Any root process or a read of `/var/lib/medbrains`
@@ -200,7 +257,9 @@ systemd-cryptenroll --unlock-key-file=/dev/null --recovery-key "$PART"
 systemd-cryptenroll --unlock-key-file=<file with that key> --tpm2-device=auto --tpm2-pcrs=4+7 --wipe-slot=empty "$PART"
 ```
 
-A new boot file, or Secure Boot turned on, changes PCR 4 or 7: the disk asks for the recovery key once, and needs re-sealing.
+With Secure Boot enforced, use `--tpm2-pcrs=7` there; `disk-setup reseal` picks for itself. With Secure Boot off, a new
+boot file changes PCR 4: the disk asks for the recovery key once, and needs re-sealing. Turning Secure Boot on changes PCR 7:
+the same, once, after which `reseal` seals to PCR 7 and signed 11.
 To test a typed key, use `cryptsetup --disable-external-tokens`: otherwise the TPM token opens it and any key seems to work.
 `systemd-pcrlock` is disabled: it writes a policy into `/var` that cryptenroll then picks up by itself, sealing the
 disk to a file on that disk. A test found this: the disk would not open.
@@ -220,7 +279,14 @@ disk to a file on that disk. A test found this: the disk would not open.
 | Power cut with the key on screen | Key may be unsaved | No `disk-protection` record | Next boot wipes the slot and shows a new key; old one stops working | `power_cut_replaces_unconfirmed_key` |
 | Key slots unreadable, or a recovery key cannot be made | No way back if the TPM fails | Exit status, and an empty-key slot required before recording unencrypted | Plain message stays on screen; no secrets written; the screen unit does not start | `failed_disk_step_stops_first_boot_visibly`, `os/tests/disk-setup.sh` |
 | Partition creation fails, disk full or TPM error | No data disk | repart's exit status | Message and reason on screen; boot waits with no device | Not injected: gap |
-| PCR 4 or 7 changes: firmware or boot file update, Secure Boot turned on | Seal no longer matches | Unseal fails | Same as a copied disk: asks for recovery key. Re-seal, above | Same path as `copy_stays_locked` |
+| PCR 4 or 7 changes: firmware or db update, a boot file update with Secure Boot off, Secure Boot turned on | Seal no longer matches | Unseal fails | Same as a copied disk: asks for recovery key. Re-seal, above | Same path as `copy_stays_locked` |
+| A new boot file signed with our keys, Secure Boot on | PCR 7 and signed 11 still match | | Opens by itself, at every start | `sealed_update`, `power_cuts_applying` (x86-64 swtpm) |
+| A system below the rollback floor starts | Older signed code | `floor-check`, before the unlock | PCR 11 extended: asks for the recovery key; a trial nobody answers rolls back | `floor_refuses_older_system`; `os/tests/disk-setup.sh` |
+| Floor counter missing, deleted or unreadable | Old can't be told from new | `floor-check` | Treated as below the floor. A disk sealed before the floor adopts one once open | `os/tests/disk-setup.sh` |
+| Floor can't be raised: TPM fault, or a gap over 64 | Older versions would keep opening | `floor-raise` exit status | First boot stops before any data; an install stops before writing | `os/tests/disk-setup.sh` |
+| The floor check fails, including when it can't extend PCR 11 | Could open for an older system | Unit exit status | The unit fails, so the unlock that requires it does not run: the disk stays locked, and the start falls to emergency mode with no recovery-key prompt | `os/tests/disk-setup.sh` (a failed extend fails the check). The VM scenario `failed_floor_check_keeps_disk_locked` exists but could not observe the machine: once the start falls to emergency mode the serial shell is gone (three tries; open) |
+| Firmware also trusts a certificate other than ours | PCR 7 would not prove our boot chain | `seal-pcrs` reads PK, KEK, db | Sealed with PCR 4 + 7 | `seal_matches_trusted_keys` with a vendor db (x86-64), `secure_boot_tests.rs` |
+| Floor adopt fails | The next start asks for the recovery key | Unit exit status | Failed unit, reason in the journal and on the console | `os/tests/disk-setup.sh` |
 | Recovery key leaks into logs | Full data access | `grep` of journal and raw disk | Never written: stderr discarded, stdout captured in the shell only | `recovery_key_not_logged`, `raw_disk_shows_nothing` |
 
 Tests are in `crates/medbrains-os-test/src/disk.rs`.

@@ -1,0 +1,19 @@
+# Before the data disk opens: a version below this machine's rollback floor gets no TPM unlock, so an
+# older signed system can't open the disk (disk-setup floor-check, OS-KEYS.md). Required by the unlock, so
+# if the check itself fails the disk is not opened.
+[Unit]
+Description=MedBrains rollback floor
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=medbrains-disk-setup.service tpm2.target
+Before=systemd-cryptsetup@medbrains\x2ddata.service shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/medbrains/disk-setup floor-check
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+RequiredBy=systemd-cryptsetup@medbrains\x2ddata.service

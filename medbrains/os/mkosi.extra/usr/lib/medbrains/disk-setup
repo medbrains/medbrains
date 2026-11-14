@@ -5,6 +5,9 @@
 #   disk-setup notice    say what the passphrase prompt means if the disk did not open by itself
 #   disk-setup finish    after /var is mounted: show the recovery key once, offer a PIN, record it
 #   disk-setup reseal KEYFILE   seal to this machine's TPM again, after a board or TPM change; drops a PIN
+#   disk-setup floor-check   before /var is opened: no TPM unlock for a version below the rollback floor
+#   disk-setup floor-raise   raise the rollback floor to this version (the updater, before an install)
+#   disk-setup floor-adopt   after /var is mounted: give a disk sealed before the floor existed one
 set -euo pipefail
 
 PART="${MEDBRAINS_DISK_PART:-/dev/disk/by-partlabel/medbrains-data}"
@@ -14,15 +17,30 @@ CONFIG="${MEDBRAINS_DISK_CONFIG:-/var/lib/medbrains/config}"
 RECORD="$CONFIG/disk-protection"
 # Written once the person has shown they saved the recovery key. Holds no secret.
 KEY_SAVED="$CONFIG/.recovery-key-saved"
-# 4: the boot loader and boot file the firmware started. An attacker's own system cannot produce it,
-# because the firmware measures what it starts before that runs. With Secure Boot off, 7 is the same
-# under any system and proves nothing, and a new boot file needs re-sealing. A proven attack: OS-KEYS.md.
+# PCR 7 alone only when the firmware enforces Secure Boot and trusts our certificate and nothing else in
+# PK, KEK and db: then only boot files we signed can have run, and a new one leaves 7 unchanged, so updates
+# open by themselves. Any other trusted certificate, a mode that does not enforce, or anything unreadable
+# keeps 4, the boot loader and boot file the firmware started, and every new boot file asks for the
+# recovery key once. The decision is `medbrains-os-update seal-pcrs` (secure_boot.rs, unit-tested).
 # Not 12: it changed between normal cold boots under test, so the machine stopped opening itself.
-SEAL_PCRS=4+7
-# Put here by the boot file when the image was signed. 11 alone protects nothing without 4: an attacker's
-# system can extend it to the published values and replay this signature.
+SEAL_PCRS_KEEP_4=4+7
+SEAL_DECIDER="${MEDBRAINS_SEAL_DECIDER:-/usr/bin/medbrains-os-update}"
+# Put here by the boot file when the image was signed. 11 alone protects nothing without 4 or Secure
+# Boot: an attacker's system can extend it to the published values and replay this signature.
 PCR_PUBLIC_KEY=/run/systemd/tpm2-pcr-public-key.pem
 SIGNED_PCRS=11
+# The rollback floor (OS-KEYS.md): a TPM monotonic counter. A version whose MEDBRAINS_ROLLBACK is below it
+# gets no TPM unlock. A counter, not an ordinary index: deleting and defining it again cannot lower it.
+FLOOR_INDEX=0x01004d42
+TPM_DEVICE="${MEDBRAINS_TPM_DEVICE:-/dev/tpmrm0}"
+export TPM2TOOLS_TCTI="device:$TPM_DEVICE"
+PCR_EXTEND="${MEDBRAINS_PCR_EXTEND:-/usr/lib/systemd/systemd-pcrextend}"
+OS_RELEASE="${MEDBRAINS_OS_RELEASE:-/usr/lib/os-release}"
+# Each release raises OS_ROLLBACK by one, so an install normally takes one TPM increment, and a machine
+# that skipped releases a few. 64 covers a year of weekly releases skipped at once; more is a release
+# numbered wrongly. Each step is one NV write: real TPMs rate-limit those and rate them for about 100,000
+# or more writes, so 64 is far inside both, and at a slow chip's ~100 ms each, inside the updater's 120 s.
+MAX_FLOOR_STEPS=64
 MIN_PIN_LENGTH=6
 SETTLE_S=30
 NOTICE_AFTER_S=20
@@ -36,9 +54,22 @@ KEY_DIR="${MEDBRAINS_KEY_DIR:-/run}"
 # Clears the machine's screen and shows the cursor, which the kernel command line hides.
 clear_screen() { printf '\033c\033[?25h'; }
 
+# Prints the PCRs to seal to. Only the two answers the decider can give are taken; anything else, or a
+# decider that fails, keeps PCR 4.
+seal_pcrs() {
+    local answer
+    answer="$("$SEAL_DECIDER" seal-pcrs 2>/dev/null)" || answer=""
+    case "$answer" in
+        7) echo 7 ;;
+        *) echo "$SEAL_PCRS_KEEP_4" ;;
+    esac
+}
+
 # Sets SEAL_ARGS: what to seal to, the same for first boot and for a later re-seal.
 set_seal_args() {
-    SEAL_ARGS=(--tpm2-device=auto --tpm2-pcrs="$SEAL_PCRS")
+    local pcrs
+    pcrs="$(seal_pcrs)"
+    SEAL_ARGS=(--tpm2-device=auto --tpm2-pcrs="$pcrs")
     if [[ -e "$PCR_PUBLIC_KEY" ]]; then
         SEAL_ARGS+=(--tpm2-public-key="$PCR_PUBLIC_KEY" --tpm2-public-key-pcrs="$SIGNED_PCRS")
     fi
@@ -101,6 +132,11 @@ prepare() {
     fi
     clear_screen
     echo 'MedBrains: preparing the data disk. This takes a moment.'
+    # Before the partition, so a sealed disk never exists without its floor.
+    if [[ "$definitions" == tpm ]] && ! floor_raise; then
+        echo 'MedBrains could not set the rollback floor in the security chip, so nothing was stored.'
+        exit 1
+    fi
     set_seal_args
     if ! systemd-repart --dry-run=no --definitions="$(definitions_named_after_this_machine "$definitions")" "${SEAL_ARGS[@]}"; then
         echo
@@ -125,7 +161,8 @@ notice() {
 MedBrains: the data disk did not open by itself.
 
 This happens if the disk was moved to another machine, or this machine's main board
-or security chip changed, or its boot files were changed. Patient data stays locked.
+or security chip changed, or its boot files were changed, or an older MedBrains version
+was started than this machine allows. Patient data stays locked.
 If it asks for a PIN, type your hospital's PIN. After two wrong tries it asks for the
 recovery key instead; restart to try the PIN again. If it asks for the recovery key,
 type what was written down at setup. Then press Enter. Typed characters are not shown.
@@ -332,6 +369,70 @@ reseal() {
     if mountpoint -q /var; then write_record encrypted-tpm2; fi
 }
 
+# Prints this system's rollback number, from the sealed system partition: the boot file carries its root
+# hash, so no boot file can claim another system's number.
+own_rollback() {
+    local value
+    value="$(sed -n 's/^MEDBRAINS_ROLLBACK=//p' "$OS_RELEASE" | tr -d '"')"
+    [[ "$value" =~ ^[1-9][0-9]{0,8}$ ]] || return 1
+    echo "$value"
+}
+
+# Prints the floor counter's value; fails if it is missing or unreadable.
+floor_value() {
+    local hex
+    # Eight bytes, most significant first.
+    hex="$(tpm2_nvread -C o -s 8 "$FLOOR_INDEX" 2>/dev/null | od -An -tx1 | tr -d ' \n')"
+    [[ "$hex" =~ ^[0-7][0-9a-f]{15}$ ]] || return 1
+    echo "$((16#$hex))"
+}
+
+# Defines the floor counter if it is missing. A new counter starts above any this TPM ever deleted.
+floor_define() {
+    tpm2_nvreadpublic "$FLOOR_INDEX" >/dev/null 2>&1 && return 0
+    tpm2_nvdefine "$FLOOR_INDEX" -C o -s 8 -a 'nt=counter|ownerwrite|ownerread' >/dev/null &&
+        tpm2_nvincrement -C o "$FLOOR_INDEX" >/dev/null
+}
+
+# Raises the floor to this system's rollback number, never lowering it: a counter cannot go down.
+floor_raise() {
+    local want have steps=0
+    [[ -e "$TPM_DEVICE" ]] || return 0
+    want="$(own_rollback)" || { echo 'This system has no rollback number.' >&2; return 1; }
+    floor_define || return 1
+    have="$(floor_value)" || return 1
+    while (( have < want && steps < MAX_FLOOR_STEPS )); do
+        tpm2_nvincrement -C o "$FLOOR_INDEX" >/dev/null || return 1
+        have="$(floor_value)" || return 1
+        steps=$((steps + 1))
+    done
+    (( have >= want ))
+}
+
+# Before the data disk opens. A version below the floor, or a floor that can't be read, gets no TPM
+# unlock: PCR 11 is extended, so no signed policy matches for the rest of this boot, and the disk asks for
+# its recovery key. Fails only if that refusal could not be made; then the disk is not opened at all.
+floor_check() {
+    local own="" floor=""
+    [[ -e "$TPM_DEVICE" ]] || return 0
+    if own="$(own_rollback)" && floor="$(floor_value)" && (( own >= floor )); then
+        return 0
+    fi
+    echo "MedBrains: this version (rollback ${own:-unknown}) is below this machine's floor" \
+        "(${floor:-unreadable}), so the data disk will ask for its recovery key." >&2
+    "$PCR_EXTEND" --pcr=11 medbrains-below-rollback-floor
+}
+
+# After the data disk opened: a disk sealed before the floor existed gets one, at its lowest, never at
+# this version, which may be a trial that must still be able to go back. Installs raise it.
+floor_adopt() {
+    [[ -e "$TPM_DEVICE" ]] || return 0
+    floor_define && return 0
+    echo 'MedBrains: the rollback floor could not be set in the security chip, so the next start will ask' \
+        'for the data disk recovery key. Call your system administrator.' >&2
+    return 1
+}
+
 # Sourced by its tests, which call the functions above; run, it does what it is asked.
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 case "${1:-}" in
@@ -339,5 +440,8 @@ case "${1:-}" in
     notice) notice ;;
     finish) finish ;;
     reseal) reseal "$2" ;;
-    *) echo "usage: disk-setup prepare|notice|finish|reseal KEYFILE" >&2; exit 2 ;;
+    floor-check) floor_check ;;
+    floor-raise) floor_raise ;;
+    floor-adopt) floor_adopt ;;
+    *) echo "usage: disk-setup prepare|notice|finish|reseal KEYFILE|floor-check|floor-raise|floor-adopt" >&2; exit 2 ;;
 esac

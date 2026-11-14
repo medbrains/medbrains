@@ -36,7 +36,7 @@ cat /etc/nftables.conf /usr/lib/medbrains/main-machine.nft > /tmp/whole-firewall
 nft -c -f /tmp/whole-firewall.nft
 rm /tmp/whole-firewall.nft
 systemctl enable nftables chrony systemd-networkd systemd-resolved \
-    medbrains-disk-setup medbrains-disk-notice medbrains-disk-finish medbrains-network-settings medbrains-os-setup medbrains-main.target medbrains-node.target \
+    medbrains-disk-setup medbrains-disk-notice medbrains-disk-finish medbrains-disk-floor medbrains-disk-floor-adopt medbrains-network-settings medbrains-os-setup medbrains-main.target medbrains-node.target \
     medbrains-agent medbrains-time-role cage-console medbrains-update-reconcile medbrains-update-health \
     medbrains-update-deadline.timer medbrains-update-look.timer medbrains-update-quiet.timer medbrains-seal
 systemctl mask systemd-boot-update.service
@@ -58,6 +58,11 @@ systemctl set-default graphical.target
 
 # The screen's own fonts, installed by mkosi.build.chroot.
 fc-cache -f /usr/share/fonts
+
+# The rollback number (OS-KEYS.md, "Rollback floor"), from build.sh. In os-release, so it is on the sealed
+# system partition and in the boot file's measured .osrel: no boot file can claim another system's number.
+[[ "${MEDBRAINS_ROLLBACK:-}" =~ ^[1-9][0-9]{0,8}$ ]] || { echo "MEDBRAINS_ROLLBACK is not a rollback number" >&2; exit 1; }
+echo "MEDBRAINS_ROLLBACK=$MEDBRAINS_ROLLBACK" >> /usr/lib/os-release
 
 # Unused in an appliance; trimmed for size (§3a).
 rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* /var/cache/apt/* /var/lib/apt/lists/*

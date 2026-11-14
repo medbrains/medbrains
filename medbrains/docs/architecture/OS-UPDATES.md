@@ -176,12 +176,14 @@ lines here. The updater is 0.78 MB; `fdisk` (0.6 MB) and `zstd` (2.1 MB) were ad
 
 ## The sealed data disk
 
-The seal is PCR 7 plus PCR 11 by signature (OS-KEYS.md). What an update changes:
+With Secure Boot enforced the seal is PCR 7 plus PCR 11 by signature, and a rollback floor (OS-KEYS.md). What an update
+changes:
 
 | What changes | PCR 7 | PCR 11 | At the next start |
 |---|---|---|---|
-| New boot file, signed by the same `OS_PCR_KEY` | same | new value, new signature, same key | **Opens by itself.** Tested on swtpm |
-| Back to the old slot, automatically or by a person | same | old value, old signature | **Opens by itself.** Tested on swtpm |
+| New boot file, signed by the same `OS_PCR_KEY` and `OS_SB_KEY` | same | new value, new signature, same key | **Opens by itself**, at every start, and after a power cut. Tested on x86-64 swtpm (`sealed_update`, `power_cuts_applying`) |
+| Back to the old slot, automatically or by a person | same | old value, old signature | **Opens by itself.** Tested on swtpm. The install raised the floor to the old version's number, so it still opens |
+| A system whose rollback number is below the floor | same | extended by the floor check | **Asks for the recovery key.** The updater installs it (its version can be newer), the trial nobody answers rolls back. Tested (`floor_refuses_older_system`) |
 | New boot file signed by another key, or by none | same | no accepted signature | **Would ask for the recovery key.** The updater refuses it before writing, with that reason. Tested |
 | Image with no key today (a release image until X2): seal is PCR 7 alone | same | not sealed | Opens by itself, and a changed boot file also opens it: OS-KEYS.md's gap |
 | Firmware update or Secure Boot turned on | **changes** | | **Asks for the recovery key once**, then needs `disk-setup reseal`. Nothing in an OS update changes firmware or boot loader, so an update can't cause this. It can't be avoided for a firmware update, and that is not ours to prevent |
@@ -193,45 +195,18 @@ rotate, a release must add a second seal while the disk is open, with `systemd-c
 Until built, losing that key means an updated machine needs its recovery key once, so it is held like the release key.
 
 **The system partition is now covered too**, through the root hash on the boot file's command line (`OS-VERITY.md`): a changed
-slot does not start. **But the seal includes PCR 4, the boot file's own hash, so every start of a new version asks for the recovery
-key**, not only the first: nothing seals the disk to the new boot file, and typing the key does not either (seen on swtpm
-2026-11-13, a power cut after the new version proved good) (DECISIONS 2026-11-05, after the rows above were tested). The rows "Opens by itself" above predate PCR 4. The fix, a seal for
-the new boot file's predicted PCR 4 added before applying, is open (`OS-VERITY.md`, "Open").
+slot does not start.
 
-### Proposal: no recovery key after an update (must land before any release key)
+**Without Secure Boot** the seal also holds PCR 4, the boot file's own hash: every new version asks for the recovery key, at
+every start (seen on swtpm 2026-11-13), because PCR 11 alone can be forged by an attacker's own system (DECISIONS 2026-11-05).
+That is every real machine until our keys are enrolled at installation (plan X2). With Secure Boot, the same update opens by
+itself (#5452, DECISIONS 2026-11-14): PCR 7 is the value an attacker's system cannot produce, and it survives every update
+signed with our key. Sealing to a predicted PCR 4 (`systemd-pcrlock`) was the alternative and was not taken: OS-KEYS.md.
 
-**The problem.** The seal includes PCR 4, which holds the hash of the boot loader and of the boot file the firmware started
-(DECISIONS 2026-11-05, the attack it closes). Every update ships a new boot file, so PCR 4 changes and the first start of every
-new version stops at the recovery-key prompt. A hospital cannot have a person type 64 characters after each update, and a
-machine that waits there is a ward without a system. Until this is fixed, no release may be signed.
-
-**Fix A, recommended: seal to the predicted PCR 4 before applying.** PCR 4 is not secret or random: it is the SHA-256 chain of the
-firmware's `EV_EFI_BOOT_SERVICES_APPLICATION` events, one per binary it started, each the binary's Authenticode hash. The
-machine knows all of them except the new boot file's, and that one is a hash of a file it already holds and has verified.
-
-1. At install, after the slot is named and before the boot file is staged: replay the running machine's PCR 4 event log
-   (`/sys/kernel/security/tpm0/binary_bios_measurements`), replacing the running boot file's Authenticode digest with the new
-   one's. systemd 257 ships the parts: `systemd-pcrlock log` reads and checks the log against the live PCR, `lock-uki` and
-   `lock-pe` compute the Authenticode digests. Refuse the install if the replayed log does not reproduce today's PCR 4: an
-   unreadable log must not become a guessed seal.
-2. Add a second TPM2 token while the disk is open: `systemd-cryptenroll --unlock-tpm2-device=auto --tpm2-device=auto
-   --tpm2-pcrs=4:sha256=<predicted>+7 --tpm2-public-key=<key> --tpm2-public-key-pcrs=11`. The old token stays, so a rollback
-   or a person going back still opens by itself.
-3. When the new version proves good, drop the old token; when it rolls back, drop the new one. At most two tokens, both
-   named in the update record, so a power cut at any step leaves a token that opens the disk for whichever version boots.
-
-Cost: about 150 lines in the updater (log replay, Authenticode digest, two `cryptenroll` calls, the record), one new failure
-row per step, and x86-64 swtpm tests: update opens by itself, rollback opens by itself, a cut between enrolling and staging opens.
-Ruled out: `systemd-pcrlock make-policy` as the whole answer. It moves the seal to an NV-index policy that tolerates listed
-variants, a larger change to `disk-setup` and recovery than this needs; its log and digest code is what we reuse.
-
-**Fix B: Secure Boot, then drop PCR 4.** With our key in the firmware's db and Secure Boot on, the firmware refuses an
-attacker's boot file and PCR 7 records the policy, so the seal can be PCR 7 plus signed PCR 11 and survives every update.
-Needs a key enrolled per machine at installation (or shim with a vendor certificate), a signing key held like the release key
-(X2), and a plan for machines whose firmware cannot enrol keys. It also closes the loader-command-line gap in `OS-VERITY.md`.
-It is the end state; A is what makes updates usable before every installed machine has it.
-
-Tracked in #5452, linked from #5403 and #5404.
+**Installing raises the rollback floor** to the running version's number before anything is written (`disk-setup floor-raise`);
+a floor that can't be raised stops the install. A disk sealed before the floor existed adopts one at its first start after
+updating (`floor-adopt`), so an installed machine needs nothing done by hand; turning Secure Boot on is the one-time
+recovery-key step (OS-KEYS.md).
 
 ## The hard part: the database
 
@@ -342,3 +317,27 @@ installed anything; and scenarios shared one set of firmware variables.
 
 The three apply failures share one symptom and are not yet explained; the update cycle's own apply passes. Until they are, a
 release must not ship on this branch. x86-64 with swtpm (`update_sealed.rs`, the disk scenarios) was not run.
+
+**Sealed disk with Secure Boot enforced (#5452), x86-64 swtpm, 2026-11-14.** QEMU's Secure Boot firmware in setup mode;
+systemd-boot enrolled the image's throwaway keys on the first start; `bootctl status` said "enabled (user)"; the disk sealed
+to PCR 7 and signed PCR 11. Nobody typed a recovery key in any of these (`unlock_new_version` is gone):
+
+| Scenario | Result |
+|---|---|
+| a sealed disk keeps its data through an update, and opens by itself after going back | pass, 492 s |
+| a boot file signed by another key is refused before it can lock the disk | pass, 111 s |
+| a seal that does fail rolls back with nobody typing | pass, back by itself after 659 s |
+| an older system signed with our keys does not open the disk (rollback floor) | pass, three locked trial starts, back by itself after 1,988 s |
+| an added loader entry with a foreign root hash does not open the disk | pass, 404 s: the genuine root hash started, and the updater refused to touch the boot partition |
+| refuses unsigned, tampered, wrong and old bundles | pass, 160 s |
+| a power cut while applying and on trial, and after proving good, leaves a machine that boots | pass, 951 s |
+| a new version that fails its checks rolls back by itself | pass, 1,442 s |
+| review of #5680: our key alone in PK/KEK/db → the enrolled token is PCR 7 | pass, 79 s |
+| review: db holding our key and a vendor's → the enrolled token is PCR 4+7 | pass, 80 s (firmware variables preset with `virt-fw-vars`) |
+| review: the floor counter deleted, defined again (started at 3 over a floor of 2), TPM cleared → refused / not lower / disk locked | pass, 166 s, swtpm only |
+| review: a failed floor check keeps the disk locked | not observed: the start falls to emergency mode and the serial shell is gone (open) |
+
+Found on the way, fixed: the EFI global GUID was missing a byte, so every machine read as Secure Boot off and sealed to
+PCR 4 again; the test bundles' kernels kept only Debian's signature, so the stub's firmware check refused them; bootctl
+reports firmware-only entries with an EFI variable as their path, which the stricter boot partition check refused. The
+x86-64 disk scenarios (`disk.rs`) were not rerun under Secure Boot.

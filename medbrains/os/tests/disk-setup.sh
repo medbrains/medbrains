@@ -80,4 +80,69 @@ if grep -nE "^ +local .*KEY_FILE|trap .*key_file" "$SCRIPT"; then
 else
     echo "pass  the key file's trap does not use a local variable"
 fi
+
+# The rollback floor, with a stand-in TPM: the counter is a number in a file, tpm2_nvread prints it as 8
+# bytes, most significant first, and the PCR extension is recorded. "missing" means no counter defined.
+floor() {
+    local name="$1" counter="$2" own="$3" action="$4" want_code="$5" want_counter="$6" want_refused="$7"
+    local tpm="$WORK/floor" got=0 left refused=no
+    rm -rf "$tpm" && mkdir -p "$tpm/bin" && : > "$tpm/device"
+    case "$counter" in
+        missing) ;;
+        undefinable) : > "$tpm/define-fails"; counter=missing ;;
+        *) echo "$counter" > "$tpm/counter" ;;
+    esac
+    printf 'NAME=x\nMEDBRAINS_ROLLBACK=%s\n' "$own" > "$tpm/os-release"
+    cat > "$tpm/bin/tpm2_nvread" <<STUB
+#!/bin/bash
+[[ -f "$tpm/counter" ]] || exit 1
+printf '%016x' "\$(cat "$tpm/counter")" | xxd -r -p
+STUB
+    printf '#!/bin/bash\n[[ -f "%s/counter" ]]\n' "$tpm" > "$tpm/bin/tpm2_nvreadpublic"
+    printf '#!/bin/bash\n[[ -e "%s/define-fails" ]] && exit 1\necho 0 > "%s/counter"\n' "$tpm" "$tpm" > "$tpm/bin/tpm2_nvdefine"
+    printf '#!/bin/bash\necho $(( $(cat "%s/counter") + 1 )) > "%s/counter"\n' "$tpm" "$tpm" > "$tpm/bin/tpm2_nvincrement"
+    if [[ "${EXTEND_FAILS:-}" == yes ]]; then
+        printf '#!/bin/bash\nexit 1\n' > "$tpm/bin/pcrextend"
+    else
+        printf '#!/bin/bash\necho "$@" > "%s/extended"\n' "$tpm" > "$tpm/bin/pcrextend"
+    fi
+    chmod +x "$tpm"/bin/*
+    PATH="$tpm/bin:$PATH" MEDBRAINS_TPM_DEVICE="$tpm/device" MEDBRAINS_OS_RELEASE="$tpm/os-release" \
+        MEDBRAINS_PCR_EXTEND="$tpm/bin/pcrextend" bash "$SCRIPT" "$action" >/dev/null 2>&1 || got=$?
+    left="$(cat "$tpm/counter" 2>/dev/null || echo missing)"
+    [[ -f "$tpm/extended" ]] && grep -q -- '--pcr=11' "$tpm/extended" && refused=yes
+    if [[ "$got" == "$want_code" && "$left" == "$want_counter" && "$refused" == "$want_refused" ]]; then
+        echo "pass  $name"
+    else
+        echo "FAIL  $name: exit $got, counter $left, refused $refused"
+        FAILED=1
+    fi
+}
+floor "a version at the floor opens" 3 3 floor-check 0 3 no
+floor "a version above the floor opens" 3 5 floor-check 0 3 no
+floor "a version below the floor gets no TPM unlock" 3 2 floor-check 0 3 yes
+EXTEND_FAILS=yes floor "a refusal that can't extend PCR 11 fails the check, so the disk is not opened" 3 2 floor-check 1 3 no
+floor "a missing floor gets no TPM unlock" missing 3 floor-check 0 missing yes
+floor "a system with no rollback number gets no TPM unlock" 3 "" floor-check 0 3 yes
+floor "a raise counts up to this version" 2 5 floor-raise 0 5 no
+floor "a raise never lowers the floor" 7 5 floor-raise 0 7 no
+floor "a raise defines a missing floor" missing 4 floor-raise 0 4 no
+floor "a raise far beyond the floor is refused, not counted forever" 1 5000 floor-raise 1 65 no
+floor "adopting defines a missing floor at its lowest" missing 9 floor-adopt 0 1 no
+floor "adopting leaves a floor alone" 6 9 floor-adopt 0 6 no
+floor "adopting that the chip refuses fails, so the unit shows it" undefinable 9 floor-adopt 1 missing no
+floor "a first-boot raise the chip refuses fails" undefinable 4 floor-raise 1 missing no
+
+# The PCRs sealed to come from `medbrains-os-update seal-pcrs` (its decision is unit-tested in Rust). The
+# script takes only its two answers; a failing or odd decider keeps PCR 4.
+seal_pcrs() {
+    local name="$1" answer="$2" code="$3" want="$4" stub="$WORK/decider" got
+    printf '#!/bin/bash\necho "%s"\nexit %s\n' "$answer" "$code" > "$stub" && chmod +x "$stub"
+    got="$(MEDBRAINS_SEAL_DECIDER="$stub" bash -c 'source "$1" && set_seal_args && echo "${SEAL_ARGS[1]}"' _ "$SCRIPT")"
+    if [[ "$got" == "--tpm2-pcrs=$want" ]]; then echo "pass  $name"; else echo "FAIL  $name: $got"; FAILED=1; fi
+}
+seal_pcrs "our keys alone seal to PCR 7" 7 0 7
+seal_pcrs "any other answer keeps PCR 4" 4+7 0 4+7
+seal_pcrs "a failing decider keeps PCR 4" 7 1 4+7
+seal_pcrs "an odd answer keeps PCR 4" "7 4" 0 4+7
 exit "$FAILED"

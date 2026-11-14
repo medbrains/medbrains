@@ -211,13 +211,51 @@ fn boot_editor_off(vm: &mut Vm, _: &Path) -> Result<(), String> {
     )
 }
 
-/// A changed boot file does not open the disk, where the image is signed; restored, it opens again.
-fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
+/// True if the firmware enforces Secure Boot, as `bootctl` reads it.
+fn secure_boot(vm: &mut Vm) -> Result<bool, String> {
+    Ok(vm.run("bootctl status 2>/dev/null | grep -c 'Secure Boot: enabled (user)'; true")? == "1")
+}
+
+/// With Secure Boot: a changed copy of the image's boot file, handed straight to the firmware, never runs.
+/// The firmware refuses its signature and goes on to the disk's own loader, so the start that follows is
+/// the genuine boot file, which opens the disk. Made on the host, so the machine's disk is not touched.
+fn changed_boot_file_never_starts(vm: &mut Vm, image: &Path) -> Result<(), String> {
+    let mut bytes = std::fs::read(image.with_extension("efi")).map_err(|e| e.to_string())?;
+    let (from, to) = (b"loglevel=3", b"loglevel=4");
+    let at = bytes
+        .windows(from.len())
+        .position(|window| window == from)
+        .ok_or("the boot file has no loglevel=3 to change")?;
+    bytes
+        .get_mut(at..at + to.len())
+        .ok_or("the boot file is too short")?
+        .copy_from_slice(to);
+    let changed = vm.scratch_path("changed.efi");
+    std::fs::write(&changed, bytes).map_err(|e| e.to_string())?;
+    vm.shut_down()?;
+    let disk = vm.disk();
+    vm.boot_firmware_image(&disk, Some(OWN_TPM), &changed)?;
+    let line = vm.run("cat /proc/cmdline")?;
+    ensure(
+        line.contains("loglevel=3") && !line.contains("loglevel=4"),
+        format!("the changed boot file started: {line}"),
+    )?;
+    vm.cut_power()?;
+    vm.boot(&disk, Some(OWN_TPM))?;
+    wait_open(vm)
+}
+
+/// A changed boot file does not open the disk, where the image is signed; restored, it opens again. With
+/// Secure Boot it does not even start (`changed_boot_file_never_starts`).
+fn changed_boot_file_stays_locked(vm: &mut Vm, image: &Path) -> Result<(), String> {
     let signed = vm.run("test -e /run/systemd/tpm2-pcr-public-key.pem; echo $?")?;
     ensure(
         signed == "0",
         "the image is not signed, so this cannot be tested: debug images are",
     )?;
+    if secure_boot(vm)? {
+        return changed_boot_file_never_starts(vm, image);
+    }
     let (from, to) = ("loglevel=3", "loglevel=4");
     let patch = |text: &str| {
         format!(
@@ -241,12 +279,26 @@ fn changed_boot_file_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), String> {
 
 /// The attack in OS-KEYS.md: the stolen machine, its own TPM, an attacker's kernel with no boot file,
 /// and PCR 11 extended by hand to the published values with the signature replayed. It must fail, and
-/// the control proves why: the same replay opens a slot that leaves out PCR 4.
+/// the control proves why: the same replay opens a slot that leaves out PCR 4. With Secure Boot enforced
+/// the firmware refuses that kernel before it runs and goes on to the machine's own boot file, which is
+/// the stronger result, so then only that is checked.
 fn stolen_machine_replay_refused(vm: &mut Vm, image: &Path) -> Result<(), String> {
     vm.shut_down()?;
     let copy = vm.scratch_path("stolen.qcow2");
     std::fs::copy(vm.disk(), &copy).map_err(|e| e.to_string())?;
     vm.boot_bare_kernel(&copy, Some(OWN_TPM), image)?;
+    if !vm.run("cat /proc/cmdline")?.contains("root=PARTLABEL=") {
+        let secure =
+            vm.run("bootctl status 2>/dev/null | grep -c 'Secure Boot: enabled (user)'; true")?;
+        ensure(
+            secure == "1",
+            "the attacker's kernel did not start, and Secure Boot is not why",
+        )?;
+        vm.cut_power()?;
+        let disk = vm.disk();
+        vm.boot(&disk, Some(OWN_TPM))?;
+        return wait_open(vm);
+    }
     vm.run("mkdir -p /mnt/esp; mount -o ro /dev/disk/by-partlabel/esp /mnt/esp")?;
     let limit = scaled(REPLAY_LIMIT);
     let attack = vm.run_for(
@@ -288,7 +340,14 @@ fn system_partition_edit_stays_locked(vm: &mut Vm, _: &Path) -> Result<(), Strin
     ))?;
     vm.reboot()?;
     ensure(!data_open(vm)?, "the disk opened under a changed system")?;
-    let state = vm.run("systemctl is-system-running")?;
+    // The shell answers while the start is still stopping; the state settles a little later.
+    let deadline = Instant::now() + scaled(SETTLE);
+    let mut state = vm.run("systemctl is-system-running; true")?;
+    while !state.contains("maintenance") && Instant::now() < deadline {
+        sleep(Duration::from_secs(5));
+        state = vm.run("systemctl is-system-running; true")?;
+    }
+    ensure(!data_open(vm)?, "the disk opened under a changed system")?;
     ensure(
         state.contains("maintenance"),
         format!("the system is {state}"),

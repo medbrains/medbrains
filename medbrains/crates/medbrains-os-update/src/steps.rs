@@ -66,19 +66,21 @@ fn sealed_roothash(staging: &Path, slots: &Slots) -> Result<String, Stopped> {
     Ok(hash.to_owned())
 }
 
-/// Checks every boot file on the boot partition that this machine recorded still has the hash it was
-/// put there with, before anything there is deleted: a boot partition that changed is not cleaned up.
+/// Checks that every entry on the boot partition is a boot file this machine recorded, with the hash it
+/// was put there with, before anything there is deleted. An entry nobody recorded, such as one an
+/// attacker added to start our boot file with another command line, is refused too: a boot partition
+/// that changed is not cleaned up.
 fn check_boot_files(known: &[BootFile]) -> Result<(), String> {
     for entry in disk::boot_entries()? {
-        let Some(want) = known.iter().find(|k| k.version == entry.version) else {
-            continue;
-        };
         let (have, _) = disk::hash_file(&entry.path, MAX_BOOT_FILE)?;
-        if have != want.sha256 {
+        if !known
+            .iter()
+            .any(|k| k.version == entry.version && k.sha256 == have)
+        {
             return Err(format!(
-                "The boot file for version {} is not the one this machine put there, so nothing on \
-                 the boot partition was deleted. Call your system administrator.",
-                entry.version
+                "The boot entry {} is not the one this machine put there, so nothing on the boot \
+                 partition was deleted. Call your system administrator.",
+                entry.path.display()
             ));
         }
     }

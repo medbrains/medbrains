@@ -24,6 +24,8 @@ const KEPT: &str = "/var/lib/medbrains/config /var/lib/medbrains-settings /var/l
 const CANARY_ROWS: u32 = 100_000;
 /// The set-up machine's firmware variables, which every scenario starts from, as it starts from its disk.
 const BASE_VARS: &str = "vars-base.fd";
+/// The TPM as setup left it, restored before each scenario.
+const BASE_TPM: &str = "tpm-base";
 const READ_VERSION: &str = "sed -n 's/^IMAGE_VERSION=//p' /usr/lib/os-release | tr -d '\"'";
 /// Where the guest finds the host running this test.
 const HOST: &str = "10.0.2.2";
@@ -291,6 +293,28 @@ fn failure_notes(vm: &mut Vm) -> String {
     .unwrap_or_else(|why| format!("no shell: {why}"))
 }
 
+/// Replaces the TPM folder `to` with a copy of `from`, beside the machine's disk, while the machine is
+/// off; nothing to do where no TPM is used.
+fn copy_tpm(vm: &Vm, from: &str, to: &str) -> Result<(), String> {
+    if !vm::tpm_usable() {
+        return Ok(());
+    }
+    let source = vm.scratch_path(from);
+    let target = vm.scratch_path(to);
+    drop(std::fs::remove_dir_all(&target));
+    let copied = Command::new("cp")
+        .arg("-R")
+        .arg(&source)
+        .arg(&target)
+        .status()
+        .map_err(|e| format!("TPM state: {e}"))?;
+    if copied.success() {
+        Ok(())
+    } else {
+        Err(format!("TPM state: could not copy {}", source.display()))
+    }
+}
+
 /// Plays one scenario on a copy of the set-up machine, and removes the copy.
 fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
     let started = Instant::now();
@@ -300,7 +324,9 @@ fn play(vm: &mut Vm, bench: &Bench, base: &Path, scenario: &Scenario) -> bool {
     let firmware = std::fs::copy(vm.scratch_path(BASE_VARS), vm.scratch_path("vars.fd"))
         .map(|_| ())
         .map_err(|e| format!("firmware variables: {e}"));
+    // So is the TPM: a scenario that clears it or moves the rollback floor must not decide the next one's.
     let result = firmware
+        .and_then(|()| copy_tpm(vm, BASE_TPM, vm::OWN_TPM))
         .and_then(|()| make_overlay(base, &overlay))
         .and_then(|()| cold_start(vm, &overlay))
         .and_then(|()| open_mirror(vm, bench))
@@ -346,6 +372,7 @@ pub(crate) fn run(image: &Path, bundles: &Path) -> Result<usize, String> {
     vm.shut_down()?;
     std::fs::copy(vm.scratch_path("vars.fd"), vm.scratch_path(BASE_VARS))
         .map_err(|e| format!("firmware variables: {e}"))?;
+    copy_tpm(&vm, vm::OWN_TPM, BASE_TPM)?;
     let base = vm.disk();
     let mut failed = 0;
     for scenario in update_steps::scenarios() {

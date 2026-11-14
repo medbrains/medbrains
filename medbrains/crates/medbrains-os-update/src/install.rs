@@ -19,6 +19,10 @@ const PCR_KEY_SECTION: &str = ".pcrpkey";
 const MAX_STEPS: usize = 8;
 /// Where the running boot file's public key is put at boot, when it has one.
 const RUNNING_PCR_KEY: &str = "/run/systemd/tpm2-pcr-public-key.pem";
+/// Seals the data disk and keeps its rollback floor.
+const DISK_SETUP: &str = "/usr/lib/medbrains/disk-setup";
+/// A floor raise is at most 1000 TPM increments.
+const FLOOR_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// Why an install stopped.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -207,6 +211,25 @@ fn check_seal(staging: &Path) -> Result<(), Stopped> {
     ))
 }
 
+/// Raises the TPM rollback floor to the running version before its slot partner is overwritten
+/// (`OS-KEYS.md`, "Rollback floor"): after this install only the running version and newer ones open the
+/// disk by themselves, so going back to the running one still works. A floor that can't be raised stops
+/// the install, since every older version would otherwise keep opening the disk.
+fn raise_floor() -> Result<(), Stopped> {
+    let done = crate::child::run(DISK_SETUP, &["floor-raise"], FLOOR_LIMIT).ok_or_else(|| {
+        Stopped::Fault(
+            "The security chip did not answer in time; nothing was installed.".to_owned(),
+        )
+    })?;
+    if done.success {
+        return Ok(());
+    }
+    Err(Stopped::Fault(format!(
+        "The security chip's rollback floor could not be raised, so nothing was installed. {}",
+        String::from_utf8_lossy(&done.stderr).trim()
+    )))
+}
+
 /// Judges, stages and writes. State is saved before each stage, so a power cut is reported truthfully.
 fn install_checked(source: &Source, retry: bool, state: &mut State) -> Result<String, Stopped> {
     let staging = Path::new(paths::STAGING_DIR);
@@ -247,6 +270,7 @@ fn install_checked(source: &Source, retry: bool, state: &mut State) -> Result<St
     begin(state, &manifest, Stage::Fetching)?;
     stage_payload(source, &manifest, staging)?;
     check_seal(staging)?;
+    raise_floor()?;
     let known = state.boot_files.clone();
     let job = Job::new(&slots, &manifest, staging, &known)?;
     begin(state, &manifest, Stage::Writing)?;

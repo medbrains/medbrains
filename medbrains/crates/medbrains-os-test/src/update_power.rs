@@ -4,9 +4,7 @@
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use crate::update_steps::{
-    INSTALL_LIMIT, NEXT, RESTART_LIMIT, apply_and_prove, install_ok, unlock_new_version,
-};
+use crate::update_steps::{INSTALL_LIMIT, NEXT, RESTART_LIMIT, apply_and_prove, install_ok};
 use crate::updates::{
     Bench, ensure, open_mirror, own_tpm, running_version, same_var, say, status, url, var_snapshot,
     wait_status,
@@ -169,8 +167,6 @@ pub(crate) fn power_cuts_applying(vm: &mut Vm, bench: &Bench) -> Result<(), Stri
         version == NEXT.1,
         format!("a cut after proving good: booted {version}"),
     )?;
-    // Every start of the new version asks, not only its first: nothing seals the disk to it (#5452).
-    unlock_new_version(vm)?;
     vm.wait_for_server()?;
     same_var(&before, &var_snapshot(vm)?)
 }

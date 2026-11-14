@@ -13,6 +13,7 @@ mod tamper;
 mod update_channel;
 mod update_power;
 mod update_seal;
+mod update_seal_locks;
 mod update_sealed;
 mod update_steps;
 mod update_verity;

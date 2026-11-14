@@ -6,6 +6,9 @@ DefaultDependencies=no
 After=dev-%i.device
 Conflicts=serial-getty@%i.service shutdown.target
 Before=shutdown.target
+# Kept when a failed start isolates emergency.target, so a test can still look at a machine that stopped
+# before its data disk opened.
+IgnoreOnIsolate=yes
 
 [Service]
 Environment=TERM=vt220 HOME=/root

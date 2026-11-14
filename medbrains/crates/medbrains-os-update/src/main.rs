@@ -163,9 +163,17 @@ fn main() -> ExitCode {
             !rest.iter().any(|arg| arg == "--running"),
         )),
         Some("status") => run_status(),
+        Some("seal-pcrs") => {
+            drop(writeln!(
+                std::io::stdout(),
+                "{}",
+                medbrains_os_update::secure_boot::this_machine()
+            ));
+            ExitCode::SUCCESS
+        }
         _ => {
             say(
-                "usage: medbrains-os-update install|usb|apply|go-back|tick|reconcile|health|deadline|seal|status",
+                "usage: medbrains-os-update install|usb|apply|go-back|tick|reconcile|health|deadline|seal|seal-pcrs|status",
             );
             ExitCode::from(BAD_USAGE)
         }

@@ -22,6 +22,8 @@ pub const ESP: &str = "/boot";
 pub const BOOT_DIR: &str = "/boot/EFI/Linux";
 /// Where a boot file waits for its update to be applied. The loader never looks here.
 pub const STAGED_BOOT_DIR: &str = "/boot/EFI/MedBrains";
+/// Where entries the boot loader only reports, with no file of their own, say they come from.
+const EFI_VARIABLES: &str = "/sys/firmware/efi/efivars/";
 const WRITE_CHUNK: usize = 1024 * 1024;
 const PARTITION_LIMIT: Duration = Duration::from_secs(30);
 const MOUNT_LIMIT: Duration = Duration::from_secs(60);
@@ -182,6 +184,10 @@ pub fn read_slots() -> Result<Slots, String> {
 }
 
 /// Parses `bootctl list --json=short`; entries without a boot file, such as "reboot to firmware", go.
+///
+/// The loader reports those with its EFI variable as their path, not a file on the boot partition. One
+/// with a file but no version, such as a loader entry someone added, stays with an empty version, so
+/// the boot partition check sees it.
 pub fn parse_entries(json: &str) -> Result<Vec<BootEntry>, String> {
     let parsed: Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
     let entries = parsed
@@ -190,9 +196,17 @@ pub fn parse_entries(json: &str) -> Result<Vec<BootEntry>, String> {
     Ok(entries
         .iter()
         .filter_map(|entry| {
+            let path = entry.get("path")?.as_str()?;
+            if path.starts_with(EFI_VARIABLES) {
+                return None;
+            }
             Some(BootEntry {
-                path: PathBuf::from(entry.get("path")?.as_str()?),
-                version: entry.get("version")?.as_str()?.to_owned(),
+                path: PathBuf::from(path),
+                version: entry
+                    .get("version")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
                 selected: entry
                     .get("isSelected")
                     .and_then(Value::as_bool)
