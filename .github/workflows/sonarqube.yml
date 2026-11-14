@@ -219,6 +219,26 @@ jobs:
           path: rust-coverage
           run-id: ${{ steps.nightly.outputs.run }}
           github-token: ${{ github.token }}
+      # Browser coverage from the Playwright journeys: the latest nightly E2E run on main (e2e.yml),
+      # one LCOV per shard. PR analyses go without it, as they go without Rust coverage.
+      - name: Find the latest nightly E2E coverage
+        id: e2e
+        if: env.SONAR_TOKEN != '' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          run=$(gh api "repos/$REPO/actions/workflows/e2e.yml/runs?branch=main&status=completed&per_page=30" \
+            --jq '[.workflow_runs[] | select(.event == "schedule" or .event == "workflow_dispatch")][0].id // empty')
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.SONAR_TOKEN != '' && steps.e2e.outputs.run != ''
+        continue-on-error: true
+        with:
+          pattern: e2e-lcov-*
+          path: e2e-coverage
+          run-id: ${{ steps.e2e.outputs.run }}
+          github-token: ${{ github.token }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: env.SONAR_TOKEN != '' && needs.android-coverage.result == 'success'
         continue-on-error: true
@@ -238,6 +258,11 @@ jobs:
           # Kotlin coverage from the Android job, when it produced a report.
           if [ -f android-coverage/report.xml ]; then
             extra="$extra -Dsonar.coverage.jacoco.xmlReportPaths=android-coverage/report.xml"
+          fi
+          # Browser coverage from the journeys, merged with Vitest's (SonarCloud sums the reports).
+          e2e=$(find e2e-coverage -name lcov.info 2>/dev/null | sort | paste -sd, -)
+          if [ -n "$e2e" ]; then
+            extra="$extra -Dsonar.javascript.lcov.reportPaths=medbrains/apps/web/coverage/lcov.info,$e2e"
           fi
           echo "rust=$extra" >> "$GITHUB_OUTPUT"
       - uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
