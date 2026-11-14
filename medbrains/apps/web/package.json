@@ -109,6 +109,7 @@
     "axe-core": "4.11.4",
     "dpdm": "^3.14.0",
     "jsdom": "^29.1.1",
+    "monocart-coverage-reports": "3.2.0",
     "msw": "^2.14.2",
     "postcss": "^8.5.14",
     "postcss-preset-mantine": "^1.17.0",

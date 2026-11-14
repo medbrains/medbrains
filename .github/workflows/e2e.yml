@@ -90,6 +90,9 @@ jobs:
       DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
       E2E_BASE_URL: http://localhost:5173
       E2E_BACKEND_URL: http://127.0.0.1:3000
+      # Browser coverage (e2e/helpers/coverage.ts) for SonarCloud, which reads main's nightly;
+      # a PR run skips the cost.
+      E2E_COVERAGE: ${{ github.event_name != 'pull_request' && '1' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -167,6 +170,12 @@ jobs:
           path: |
             medbrains/server.log
             medbrains/vite.log
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && env.E2E_COVERAGE == '1' }}
+        with:
+          name: e2e-lcov-${{ matrix.shard }}
+          path: medbrains/apps/web/coverage/e2e/lcov.info
           retention-days: 14
 
   report:
