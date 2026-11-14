@@ -65,7 +65,14 @@ fn tunnel_dsn(origin: &Url, config: &ClientConfig) -> Option<String> {
     if !config.enabled || config.dsn.is_none() {
         return None;
     }
-    let mut dsn = origin.join(config.tunnel_dsn_path.as_deref()?).ok()?;
+    // Set as a path on the chosen origin, never joined: `join` would follow a
+    // `//other-host/…` answer off the hospital server.
+    let path = config.tunnel_dsn_path.as_deref()?;
+    if !path.starts_with('/') {
+        return None;
+    }
+    let mut dsn = origin.clone();
+    dsn.set_path(path);
     dsn.set_username(TUNNEL_KEY).ok()?;
     Some(dsn.to_string())
 }
@@ -87,6 +94,10 @@ fn options(dsn: &str, environment: Option<String>) -> Option<ClientOptions> {
 /// What leaves this computer: the failure's type, message, stack, level,
 /// release and machine kind. Who used it, the machine's name, request details,
 /// extras, tags and breadcrumbs stay. The server then scrubs the text.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "before_send returns an Option; None would drop the event"
+)]
 fn scrub(mut event: Event<'static>) -> Option<Event<'static>> {
     event.user = None;
     event.request = None;
@@ -148,6 +159,22 @@ mod tests {
         assert_eq!(
             options.dsn.ok_or("no DSN")?.envelope_api_url().as_str(),
             "https://hims.example.in/api/public/error-tracking/desktop/api/1/envelope/"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_path_naming_another_host_stays_on_the_hospital_server() -> Result<(), url::ParseError> {
+        let dsn = Some("https://k@o1.ingest.sentry.io/5");
+        let hostile = config(true, dsn, Some("//evil.example/api/1"));
+        let built = tunnel_dsn(&origin()?, &hostile).unwrap_or_default();
+        assert_eq!(url::Url::parse(&built)?.host_str(), Some("hims.example.in"));
+        assert!(
+            tunnel_dsn(
+                &origin()?,
+                &config(true, dsn, Some("https://evil.example/1"))
+            )
+            .is_none()
         );
         Ok(())
     }
