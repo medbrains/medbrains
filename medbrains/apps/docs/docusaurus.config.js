@@ -62,6 +62,7 @@ module.exports = {
         { to: "/compliance/", label: "Compliance", position: "left" },
         { to: "/developer/", label: "Developers", position: "left" },
         { to: "/release-notes/", label: "Release notes", position: "left" },
+        { href: "https://tests.medbrains.in", label: "Test report", position: "right" },
         { href: "https://github.com/medbrains/medbrains", label: "GitHub", position: "right" },
       ],
     },
@@ -70,6 +71,7 @@ module.exports = {
       links: [
         { label: "Website", href: "https://medbrains.in" },
         { label: "Source code", href: "https://github.com/medbrains/medbrains" },
+        { label: "Test report", href: "https://tests.medbrains.in" },
         { label: "Feedback from a hospital", href: FEEDBACK_URL },
       ],
       copyright: "MedBrains · Apache License 2.0 · Never include real patient data in an issue or feedback.",
