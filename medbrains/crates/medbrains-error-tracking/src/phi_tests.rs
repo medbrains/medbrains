@@ -263,7 +263,9 @@ fn native_envelope(platform: &str, timestamp: &Value) -> String {
             "mechanism": {"type": "UncaughtExceptionHandler", "handled": false}}]},
         "threads": {"values": [{"id": 1, "name": format!("load {UHID}"), "crashed": true,
             "stacktrace": {"frames": [{"function": "admit", "module": "in.medbrains.staff.Ward",
-                "lineno": 42, "in_app": true, "vars": {"patient": NAME}}]}}]},
+                "lineno": 42, "in_app": true, "vars": {"patient": NAME},
+                "context_line": format!("admit({NAME})"), "pre_context": [PHONE],
+                "post_context": [UHID]}]}}]},
         "debug_meta": {"images": [
             {"type": "macho", "debug_id": "8b1c3e2a-0d4f-4a8e-9a3b-2f1e5d6c7b8a",
              "image_addr": "0x100000000", "image_size": 65536,

@@ -285,7 +285,9 @@ have no tunnel option, are given a DSN on this server
 (`tunnel_dsn_path`) and post to
 `/api/public/error-tracking/<app>/api/1/envelope/`. The server scrubs each
 envelope and forwards it to that app's project, whatever DSN the envelope
-itself names.
+itself names. Each address may send 60 reports a minute (429 after that);
+at most 8 are forwarded at once (503 after that); a body may be gzipped
+(the phone SDKs do) up to 512 KiB unpacked, and any other encoding is refused.
 
 ```bash
 # DNS: errors.<domain> → this host, then:
