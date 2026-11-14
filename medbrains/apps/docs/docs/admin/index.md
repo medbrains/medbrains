@@ -11,8 +11,8 @@ For the person who sets up and runs MedBrains at a hospital.
 
 ## Set up the box
 
-1. [Install the MedBrains OS box](/admin/install-the-box/)
-2. [First boot and the authenticator](/admin/first-boot/)
+1. [Install MedBrains OS](/install/os/) on a machine, a virtual machine or a cloud
+2. [First boot, the recovery key and the authenticator](/admin/first-boot/)
 3. [Sign in to MedBrains](/admin/sign-in/)
 4. [Join a ward PC](/admin/join-a-machine/)
 5. [Remove a machine](/admin/remove-a-machine/)
