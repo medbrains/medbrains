@@ -724,9 +724,7 @@ pub async fn create_signature(
     Json(body): Json<CreateSignatureRequest>,
 ) -> Result<Json<ConsentSignatureMetadata>, AppError> {
     require_permission(&claims, permissions::consent::signatures::MANAGE)?;
-    // Nothing here verifies a code sent to the patient, so a signature that
-    // claims one would record a check that never happened.
-    if body.signature_type == "otp" {
+    if medbrains_core::consent::claims_unverified_check(&body.signature_type) {
         return Err(AppError::BadRequest(
             "An OTP signature needs a verified code, and none can be verified here. \
              Record the consent another way."

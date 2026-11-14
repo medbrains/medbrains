@@ -42,3 +42,37 @@ async fn an_otp_signature_without_a_verified_code_is_refused() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(stored, 0);
 }
+
+/// Given no code was verified, When a generated document is signed as "otp",
+/// Then it is refused and nothing is stored: the same rule as consent.
+#[tokio::test]
+async fn an_otp_document_signature_without_a_verified_code_is_refused() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    app.step_up(&app.client, &csrf, "admin123").await;
+    let output = Uuid::new_v4();
+
+    let status = app
+        .client
+        .post(app.url(&format!("/api/documents/outputs/{output}/signatures")))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({
+            "document_output_id": output,
+            "signer_role": "author",
+            "signature_type": "otp",
+        }))
+        .send()
+        .await
+        .expect("signature")
+        .status();
+
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM document_output_signatures WHERE document_output_id = $1",
+    )
+    .bind(output)
+    .fetch_one(&app.db)
+    .await
+    .expect("count");
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(stored, 0);
+}
