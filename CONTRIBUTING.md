@@ -64,6 +64,25 @@ pnpm exec playwright test --ui           # watch them run
 
 CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into a `release/**` branch and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
 
+### The test report
+
+Every night the Playwright, Vitest and Rust results are combined into one report at [tests.medbrains.in](https://tests.medbrains.in), grouped by app, then module, then scenario. Each PR run also attaches the same report as the `test-report` artifact.
+
+The grouping is filled in for you: the app is `web` or `server`, the module comes from the file name (`pharmacy-dispense.spec.ts` goes under `pharmacy`), and the scenario is the `describe` block. To set any of them yourself, or to link the test to its `test-scenario` issue, add annotations to the test. A `tms` link names the scenario the test proves, and an `issue` link names a bug it guards against:
+
+```ts
+test("pharmacist cannot dispense Schedule X without a duplicate record", {
+  annotation: [
+    { type: "tms", description: "5123" },        // links to issue #5123
+    { type: "feature", description: "pharmacy" }, // module, when the file name is wrong
+  ],
+}, async ({ page }) => { /* ... */ });
+```
+
+In Vitest, use `allure.tms("5123")` or `allure.feature("pharmacy")` from `allure-js-commons` inside the test.
+
+To look at a PR's report, download its `test-report` artifact and run `pnpm exec allure open <folder>` from `medbrains/apps/web`.
+
 ## Code style
 
 The full rules are in [`ENGINEERING.md`](./ENGINEERING.md). The essentials:

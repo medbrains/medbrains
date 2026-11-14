@@ -179,6 +179,8 @@ jobs:
       # The per-test summary: a check run and one PR comment.
       checks: write
       pull-requests: write
+      # To find and download the Vitest and Rust results ci.yml saved.
+      actions: read
     defaults:
       run:
         working-directory: medbrains/apps/web
@@ -200,7 +202,9 @@ jobs:
           pattern: e2e-blob-*
           path: medbrains/apps/web/all-blob-reports
           merge-multiple: true
-      - run: pnpm exec playwright merge-reports --config playwright.merge.config.ts all-blob-reports
+      # Exits 1 when any test failed; the reports are written either way, and a missing JUnit
+      # file fails the publish step below.
+      - run: pnpm exec playwright merge-reports --config playwright.merge.config.ts all-blob-reports || true
       - name: Publish the per-test summary
         uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
         with:
@@ -212,3 +216,95 @@ jobs:
           name: playwright-report
           path: medbrains/apps/web/playwright-report
           retention-days: 14
+
+      # The test report (allurerc.mjs): these Playwright results, plus the latest Vitest and
+      # Rust results ci.yml saved for this branch, plus the history of the published report.
+      - name: Collect the Vitest and Rust results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          python3 ../../scripts/test_report.py label allure-results/playwright web
+          mkdir -p allure-results/vitest allure-results/rust allure-history
+          latest_run() {  # newest unexpired run on this branch that saved artifact $1
+            gh api "repos/$REPO/actions/artifacts?name=$1&per_page=50" --jq \
+              "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BRANCH\")][0].workflow_run.id // empty"
+          }
+          run=$(latest_run vitest-allure)
+          if [ -n "$run" ]; then
+            gh run download "$run" -R "$REPO" -n vitest-allure -D allure-results/vitest
+            python3 ../../scripts/test_report.py label allure-results/vitest web
+          else
+            echo "::notice::No Vitest results saved for $BRANCH; the report shows Playwright and Rust."
+          fi
+          run=$(latest_run rust-junit)
+          if [ -n "$run" ]; then
+            gh run download "$run" -R "$REPO" -n rust-junit -D rust-junit
+            python3 ../../scripts/test_report.py junit rust-junit/junit.xml allure-results/rust
+          else
+            echo "::notice::No Rust results saved for $BRANCH; the report shows Playwright and Vitest."
+          fi
+          # Trends and flaky markers carry over from the published report (none on its first run).
+          curl -fsSL https://raw.githubusercontent.com/medbrains/tests/main/history.jsonl \
+            -o allure-history/history.jsonl || rm -f allure-history/history.jsonl
+      - name: Build the test report
+        run: |
+          pnpm exec allure generate --config allurerc.mjs
+          python3 ../../scripts/test_report.py theme allure-report
+          cp allure-history/history.jsonl allure-report/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-report
+          path: medbrains/apps/web/allure-report
+          retention-days: 14
+
+  # tests.medbrains.in is the separate public repo medbrains/tests (this repo's Pages is
+  # docs.medbrains.in). Only the nightly on main publishes, with a deploy key scoped to that
+  # repo, held in the `tests-publish` environment (deployment branch: main).
+  publish:
+    needs: report
+    if: >-
+      !cancelled() && needs.report.result == 'success' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    name: Publish to tests.medbrains.in
+    runs-on: ubuntu-latest
+    environment: tests-publish
+    permissions:
+      contents: read
+    env:
+      DEPLOY_KEY: ${{ secrets.TESTS_DEPLOY_KEY }}
+    steps:
+      - name: Skip until the deploy key is set
+        if: env.DEPLOY_KEY == ''
+        run: echo "::notice::TESTS_DEPLOY_KEY is not set in the tests-publish environment; not published."
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.DEPLOY_KEY != ''
+        with:
+          name: test-report
+          path: report
+      - name: Push the report to medbrains/tests
+        if: env.DEPLOY_KEY != ''
+        env:
+          # GitHub's published SSH host key (docs: "GitHub's SSH key fingerprints").
+          GITHUB_HOST_KEY: github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+          SHA: ${{ github.sha }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/tests_deploy_key
+          chmod 600 ~/.ssh/tests_deploy_key
+          printf '%s\n' "$GITHUB_HOST_KEY" > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/tests_deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          git clone --depth 1 git@github.com:medbrains/tests.git site
+          # Replace the site, keeping the repo's own files (custom domain, Jekyll off, README).
+          find site -mindepth 1 -maxdepth 1 ! -name .git ! -name CNAME ! -name .nojekyll ! -name README.md \
+            -exec rm -rf {} +
+          cp -R report/. site/
+          cd site
+          git config user.name "medbrains-ci"
+          git config user.email "medbrains-ci@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No change"; exit 0; fi
+          git commit -q -m "Test report for medbrains/medbrains@$SHA"
+          git push -q origin HEAD:main
+          rm -f ~/.ssh/tests_deploy_key
