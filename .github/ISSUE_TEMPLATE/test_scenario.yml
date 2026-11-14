@@ -22,6 +22,26 @@ body:
       options: [Doctor, Nurse, Pharmacist, Front office / reception, Ward secretary / admission, Lab, Radiology, Billing, MRD, Hospital admin / IT, Patient, Other]
     validations:
       required: true
+  - type: dropdown
+    id: apps
+    attributes:
+      label: Which apps or devices?
+      description: Pick every one this should work on.
+      multiple: true
+      options:
+        - Web (browser)
+        - Staff app, Android
+        - Staff app, iPhone / iPad
+        - Patient app, Android
+        - Patient app, iPhone
+        - Desktop app (Windows, macOS, Linux)
+        - TV display / queue board
+        - Kiosk
+        - MedBrains OS / server box
+        - API / integration (HL7, FHIR, ABDM)
+        - Not sure
+    validations:
+      required: true
   - type: input
     id: module
     attributes:
