@@ -154,8 +154,10 @@ jobs:
         # Report-only: failures go to the report job, not to this step's status.
         continue-on-error: true
         working-directory: medbrains/apps/web
+        # The global timeout ends a slow shard inside the job's limit, so its results are
+        # still uploaded (a job that times out uploads nothing).
         run: >-
-          pnpm exec playwright test --retries=1 --shard=${{ matrix.shard }}/6
+          pnpm exec playwright test --retries=1 --global-timeout=6000000 --shard=${{ matrix.shard }}/6
           --project=api --project=crud --project=forms --project=analytics --project=rbac
           --project=journeys --project=robustness --project=accessibility --project=linkages
           --project=screens --project=chromium --project=mock-chromium
