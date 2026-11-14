@@ -6,6 +6,7 @@ The nightly E2E run (.github/workflows/e2e.yml) calls it between the test runs a
 
   label  <results-dir> <app>     fill epic/feature/story where a test set none
   junit  <junit.xml> <out-dir>   turn the Rust tests' nextest JUnit into Allure results
+  badge  <out.json> <dir>...     the shields.io endpoint JSON for the README badge
   theme  <report-dir>            MedBrains colours, fonts, logo and header links; drops
                                  the report's built-in Google Analytics tag
   --self-test                    check the above, and the theme's WCAG 2.2 AA contrast
@@ -23,6 +24,7 @@ import sys
 import tempfile
 import uuid
 import xml.etree.ElementTree as ET
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -30,6 +32,11 @@ REPO = Path(__file__).resolve().parents[2]
 LOGO = REPO / "website/public/logo/medbrains-mark.svg"
 DOCS_URL = "https://docs.medbrains.in"
 SOURCE_URL = "https://github.com/medbrains/medbrains"
+
+# Allure statuses as the badge counts them; broken (an error, not an assertion) is a failure.
+BADGE_BUCKET = {"passed": "passed", "failed": "failed", "broken": "failed"}
+BADGE_GREEN = "24A148"
+BADGE_RED = "DA1E28"
 
 def labels_of(result: dict) -> dict[str, str]:
     """The first value of each label name on an Allure result."""
@@ -157,6 +164,29 @@ def junit_to_allure(junit: Path, out_dir: Path) -> int:
             (out_dir / f"{result['uuid']}-result.json").write_text(json.dumps(result))
             count += 1
     return count
+
+
+def final_statuses(results_dirs: list[Path]) -> Counter:
+    """Each test's last attempt, counted as passed, failed or skipped. A retried test is one
+    test: the attempt that finished last decides it, as the report shows it."""
+    latest: dict[str, tuple[int, str]] = {}
+    for results_dir in results_dirs:
+        for path in results_dir.glob("*-result.json"):
+            result = json.loads(path.read_text())
+            key = result.get("historyId") or result.get("fullName") or path.name
+            stop = int(result.get("stop") or 0)
+            if key not in latest or stop >= latest[key][0]:
+                latest[key] = (stop, BADGE_BUCKET.get(result.get("status", ""), "skipped"))
+    return Counter(bucket for _, bucket in latest.values())
+
+
+def badge_json(counts: Counter) -> dict:
+    """The shields.io endpoint body: "4,812 passed", or "4,809 passed · 3 failed" in red."""
+    message = f"{counts['passed']:,} passed"
+    if counts["failed"]:
+        message += f" · {counts['failed']:,} failed"
+    colour = BADGE_RED if counts["failed"] else BADGE_GREEN
+    return {"schemaVersion": 1, "label": "tests", "message": message, "color": colour}
 
 
 # The report's CSS variables (Allure 3 Awesome UI) mapped to the website colours
@@ -340,7 +370,7 @@ def theme_report(report_dir: Path) -> None:
 
 
 def self_test() -> None:
-    """Checks labelling, attachment slimming, the JUnit conversion and the theme's contrast."""
+    """Checks labelling, attachment slimming, the JUnit conversion, the badge and the theme's contrast."""
     playwright = {"labels": [{"name": "parentSuite", "value": "journeys"},
                              {"name": "suite", "value": "journeys/pharmacy-dispense.spec.ts"},
                              {"name": "feature", "value": "dispensing"}]}
@@ -378,6 +408,20 @@ def self_test() -> None:
         first = next(r for r in results if r["name"] == "refuses_schedule_x")
         assert labels_of(first)["feature"] == "pharmacy" and labels_of(first)["story"] == "tests"
         assert first["start"] == 1_794_621_600_000 and first["stop"] == first["start"] + 500, first
+        assert final_statuses([out]) == Counter(passed=1, failed=1, skipped=1)
+        # A retry that passed counts once, as passed.
+        retry = Path(tmp) / "retry"
+        retry.mkdir()
+        for n, (stop, status) in enumerate([(1, "failed"), (2, "passed")]):
+            (retry / f"{n}-result.json").write_text(
+                json.dumps({"historyId": "h", "status": status, "stop": stop}))
+        assert final_statuses([retry]) == Counter(passed=1)
+
+    assert badge_json(Counter(passed=4812)) == {
+        "schemaVersion": 1, "label": "tests", "message": "4,812 passed", "color": BADGE_GREEN}
+    assert badge_json(Counter(passed=4809, failed=3))["message"] == "4,809 passed · 3 failed"
+    assert badge_json(Counter(passed=1, failed=1))["color"] == BADGE_RED
+
     for theme, values in THEMES.items():
         for fg, bg in CONTRAST_PAIRS:
             ratio = contrast(values[fg], values[bg])
@@ -402,6 +446,10 @@ def main(argv: list[str]) -> int:
             print(f"labelled {label_dir(Path(results_dir), app)} results in {results_dir}")
         case ["junit", junit, out_dir]:
             print(f"converted {junit_to_allure(Path(junit), Path(out_dir))} Rust tests")
+        case ["badge", out, *dirs] if dirs:
+            body = badge_json(final_statuses([Path(d) for d in dirs]))
+            Path(out).write_text(json.dumps(body))
+            print(body["message"])
         case ["theme", report_dir]:
             theme_report(Path(report_dir))
         case _:
