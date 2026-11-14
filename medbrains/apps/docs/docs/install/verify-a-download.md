@@ -64,10 +64,12 @@ cosign verify-blob SHA256SUMS \
 
 - **Build provenance.** Every release file also has a GitHub attestation:
   `gh attestation verify <file> --repo medbrains/medbrains`.
-- **Container image.** The server image is signed on its own:
+- **Container image.** The server image is signed on its own. It is pushed
+  when a release is published; the v3.33.0 image job failed, so the first
+  image is v3.34.0:
 
   ```bash
-  cosign verify ghcr.io/medbrains/medbrains:3.33.0 \
+  cosign verify ghcr.io/medbrains/medbrains:3.34.0 \
     --certificate-identity-regexp '^https://github.com/medbrains/medbrains/.github/workflows/release.yml@refs/tags/v' \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com
   ```
