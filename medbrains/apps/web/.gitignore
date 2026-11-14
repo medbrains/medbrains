@@ -8,6 +8,11 @@ e2e/.auth/
 playwright-report/
 test-results/
 allure-results/
+blob-report/
+allure-report/
+allure-history/
+report-screenshots/
+all-blob-reports/
 
 *storybook.log
 storybook-static
