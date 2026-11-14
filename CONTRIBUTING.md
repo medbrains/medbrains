@@ -90,3 +90,7 @@ Do not report vulnerabilities in public issues. Follow [SECURITY.md](./SECURITY.
 ## Licence
 
 MedBrains is dual-licensed (AGPL-3.0-only and commercial). Pull requests are merged only after you sign the [contributor licence agreement](./CLA.md): your contribution is licensed under the AGPL-3.0-only, and you grant the maintainer the right to also license it commercially. You keep your copyright. The name and logo are covered by the [trademark policy](./TRADEMARKS.md).
+
+## Contribute a test scenario, no code needed
+
+Know how a hospital task should go? Open a [test scenario](https://github.com/medbrains/medbrains/issues/new?template=test_scenario.yml): who does it, the starting situation, what they do and what MedBrains must do. Each accepted scenario becomes an automated test that runs on every change. Scenarios labelled `test-scenario` are also good first issues for anyone who wants to write the test.
