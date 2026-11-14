@@ -47,9 +47,20 @@ See the [admin quick guide](/admin/quick-guide/) for roles and permissions.
 Each ward or reception PC that runs MedBrains OS joins the main box by
 approval. See [join a ward PC](/admin/join-a-machine/).
 
+## On a Linux server: the setup wizard
+
+A [Linux server install](/install/apps/server/) has no box screen. Sign in as
+the first administrator (the installer prints where its password is), then
+open `https://<your server>/onboarding`. The wizard walks through 15 steps:
+welcome, administrator, hospital, region and regulations, facilities,
+locations, departments, users, modules, number sequences, services, beds,
+billing and tax, branding, and review. You can go live once departments,
+services and sequences are filled in. Opened without signing in, the page says
+**Registration is closed**.
+
 :::note
-Departments, wards, beds, services and prices are set up from the admin
-screens too. Their guides are coming in a later phase.
+Departments, wards, beds, services and prices can also be changed later from
+the admin screens. Their guides are coming in a later phase.
 :::
 
 ## Next

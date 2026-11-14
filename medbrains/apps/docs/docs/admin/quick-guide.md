@@ -59,7 +59,7 @@ A directory group can never be mapped to an administrator role.
 
 ## Check backups
 
-Go to **Admin** → **Settings** → **System Health**. The **Database backups**
+Go to **Admin** → **Settings** → **System health**. The **Database backups**
 card shows whether the latest backup succeeded. There is no screen to start or
 restore a backup yet; see [backups](/admin/backups/).
 

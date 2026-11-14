@@ -30,8 +30,8 @@ disk with the TPM security chip.
 
 Keep the paper in a locked place away from the machine. It is the only way in
 if the disk is moved, the board or TPM is changed, or a firmware update
-changes the boot settings. Every disk key and what to do when one is lost is in
-[OS keys](https://github.com/medbrains/medbrains/blob/main/medbrains/docs/architecture/OS-KEYS.md).
+changes the boot settings. See [recovery](/operate/recovery/) and
+[keys and secrets](/operate/keys/).
 
 ### If the machine has no security chip
 

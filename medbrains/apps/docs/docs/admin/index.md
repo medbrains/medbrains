@@ -23,4 +23,6 @@ For the person who sets up and runs MedBrains at a hospital.
   modules, single sign-on and backup status.
 - [Desktop and phone apps](/install/apps/): install them and connect them to
   the hospital.
-- [Backups](/admin/backups/) and [updates](/admin/updates/): coming soon.
+- [Backups and restore](/admin/backups/) and [updates and rollback](/admin/updates/).
+- When something goes wrong: [recovery](/operate/recovery/) and
+  [troubleshooting](/operate/troubleshooting/).
