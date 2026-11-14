@@ -201,7 +201,7 @@ tokio = { version = "1.54.1", features = ["full", "test-util"] }
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws"] }
 tower = { version = "0.5" }
-tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "util", "set-header", "fs", "compression-br", "compression-gzip", "compression-zstd", "compression-deflate"] }
+tower-http = { version = "0.7", features = ["cors", "trace", "request-id", "util", "set-header", "fs", "compression-br", "compression-gzip", "compression-zstd", "compression-deflate"] }
 
 # Database
 sqlx = { version = "0.8.3", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json", "migrate", "macros", "rust_decimal"] }
@@ -214,13 +214,13 @@ serde_json = "1"
 figment = { version = "0.10", features = ["toml", "env"] }
 
 # Auth
-jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs"] }
+jsonwebtoken = { version = "11", default-features = false, features = ["aws_lc_rs"] }
 argon2 = "0.6"
 
 # Utilities
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-cron = "0.15"
+cron = "0.17"
 thiserror = "2"
 anyhow = "1"
 tracing = "0.1"
@@ -235,7 +235,7 @@ rand = "0.10"
 sha2 = "0.11"
 hmac = "0.13"
 hex = "0.4"
-base64 = "0.22"
+base64 = "0.23"
 
 # Compression (cold-tier ObjectStore)
 flate2 = "1"
@@ -269,18 +269,18 @@ reqwest = { version = "0.13", features = ["json", "cookies", "form", "query", "r
 # The narrow crates, not the `rig` facade: its optional backends (LanceDB,
 # fastembed, DataFusion…) would all land in Cargo.lock.
 rig = { package = "rig-core", version = "=0.45.0", default-features = false, features = ["reqwest", "rustls"] }
-rig-agent = { version = "=0.45.0", default-features = false }
-rig-reqwest = { version = "=0.45.0", default-features = false, features = ["rustls"] }
+rig-agent = { version = "=0.46.0", default-features = false }
+rig-reqwest = { version = "=0.46.0", default-features = false, features = ["rustls"] }
 schemars = "1"
 
 # Code execution (pipeline custom code)
-mlua = { version = "0.10", features = ["lua54", "serialize", "send", "vendored"] }
+mlua = { version = "0.12", features = ["lua54", "serialize", "send", "vendored"] }
 
 # CRDT (Loro) — offline-first replication. Sprint C foundation.
 loro = "1.4"
 
 # LAN service discovery for the edge sync hub
-mdns-sd = "0.13"
+mdns-sd = "0.21"
 
 [patch.crates-io]
 pingora-core = { path = "vendor/pingora-core-0.9.1" }

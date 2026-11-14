@@ -21,7 +21,7 @@ base64 = { workspace = true }
 reqwest = { workspace = true }
 getrandom = { workspace = true }
 jsonwebtoken = { workspace = true }
-axum-extra = { version = "0.10", features = ["cookie"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
 hex = { workspace = true }
 tracing = { workspace = true }
 medbrains-crypto = { path = "../medbrains-crypto" }

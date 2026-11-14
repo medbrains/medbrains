@@ -22,7 +22,7 @@ ed25519-dalek = { workspace = true }
 # Persistent embedded KV (redb: maintained, pure Rust, one file, durable commits) + in-memory
 # LRU. Replaced sled 0.34, unmaintained since 2021 and pulling fxhash and instant (#5471).
 redb = "4.5"
-lru = "0.18"
+lru = "0.19"
 
 [dev-dependencies]
 tempfile = { workspace = true }

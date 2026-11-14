@@ -22,7 +22,7 @@ rust_decimal = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 getrandom = { workspace = true }
-axum-extra = { version = "0.10", features = ["cookie"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
 
 [lints]
 workspace = true
