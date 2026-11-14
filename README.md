@@ -23,6 +23,7 @@
 [![CI](https://github.com/medbrains/medbrains/actions/workflows/ci.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/ci.yml)
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=medbrains_medbrains)](https://sonarcloud.io/summary/new_code?id=medbrains_medbrains)
 [![Tests](https://img.shields.io/endpoint?url=https://tests.medbrains.in/badge.json)](https://tests.medbrains.in/)
+[![Error tracking: Sentry](https://img.shields.io/badge/Error_tracking-Sentry-362D59?logo=sentry&logoColor=white)](./medbrains/deploy/standalone/README.md#optional-error-tracking-rustrak)
 [![Security scans](https://github.com/medbrains/medbrains/actions/workflows/security.yml/badge.svg)](https://github.com/medbrains/medbrains/actions/workflows/security.yml)
 [![Security policy](https://img.shields.io/badge/Security-policy-0F62FE.svg)](./SECURITY.md)
 [![Latest release](https://img.shields.io/github/v/release/medbrains/medbrains?label=Release&color=851B7F)](https://github.com/medbrains/medbrains/releases/latest)
@@ -469,6 +470,6 @@ MedBrains is dual-licensed: the [GNU Affero General Public License, version 3 on
 
 Created by **Domnic Amalan S** ([@DomnicAmalan](https://github.com/DomnicAmalan)), with thanks to everyone who contributes.
 
-Built on the shoulders of open source: Rust, Axum, SQLx, PostgreSQL, React, Mantine, Orthanc, SpiceDB, Gotenberg, and many more.
+Built on the shoulders of open source: Rust, PostgreSQL, React, Mantine, Kanidm, Pingora and many more, and shaped by the work of the WHO, HL7, openEHR and many others. Thank you. The full list is in [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).
 
 Website: [medbrains.in](https://www.medbrains.in) · [Health blog](https://www.medbrains.in/blog) · [Partners](https://www.medbrains.in/partners) · [Sponsor](https://www.medbrains.in/sponsors)

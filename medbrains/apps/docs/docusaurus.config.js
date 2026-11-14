@@ -74,7 +74,7 @@ module.exports = {
         { label: "Test report", href: "https://tests.medbrains.in" },
         { label: "Feedback from a hospital", href: FEEDBACK_URL },
       ],
-      copyright: "MedBrains · Apache License 2.0 · Never include real patient data in an issue or feedback.",
+      copyright: "MedBrains · GNU AGPL-3.0 · Never include real patient data in an issue or feedback.",
     },
   },
 };
