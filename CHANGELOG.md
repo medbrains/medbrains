@@ -30,17 +30,12 @@ older than 3.33.1 must do.
 - **Documentation home page.** docs.medbrains.in now opens on a page that starts
   from your role (front office, doctor, nurse, pharmacy, lab, billing, hospital IT,
   developer), with common tasks and every chapter one click away (#5675).
-- **Public test report** at [tests.medbrains.in](https://tests.medbrains.in), with a
-  live test-count badge in the README (#5681).
-- **Propose a test scenario without writing code.** A new issue form lets anyone,
-  clinicians included, describe a hospital situation MedBrains must handle (#5665).
 - **Acknowledgements.** `ACKNOWLEDGEMENTS.md` thanks the open-source projects
   MedBrains is built on and the standards and ideas that shaped it (#5666).
 
 ### Changed
 - The docs site footer names the GNU AGPL-3.0 licence (it still said Apache 2.0) (#5679).
-- The docs, website and test report link to each other, and the README shows the
-  error-tracking badge (#5667, #5664).
+- The README shows the error-tracking badge (#5664).
 
 ## [3.33.1] - 2026-11-14 (tagged, not released; replaced by 3.33.2)
 
