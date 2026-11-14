@@ -7,6 +7,7 @@
 pub mod clinical_credential;
 pub mod config;
 pub mod error;
+pub mod form_friction;
 pub mod hospital_time;
 pub mod http_trace;
 pub mod lockout;

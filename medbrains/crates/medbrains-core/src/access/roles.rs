@@ -1433,6 +1433,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            // Refused saves per screen: a process-quality signal.
+            permissions::admin::form_friction::VIEW,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
             // The resuscitation committee keeps the code-blue team roster.
             permissions::nurse::code_blue::MANAGE_TEAM,
@@ -2219,6 +2221,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Medical administration answers for the move off paper.
             permissions::analytics::paperless::VIEW,
             permissions::analytics::paperless::REFRESH,
+            // Which forms the server refuses most: each is a form to fix.
+            permissions::admin::form_friction::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,

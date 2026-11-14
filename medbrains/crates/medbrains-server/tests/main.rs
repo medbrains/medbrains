@@ -139,6 +139,7 @@ mod final_bill_checklist_test;
 mod flow_access_test;
 mod flow_test;
 mod flow_world;
+mod form_friction_test;
 mod form_templates_test;
 mod front_office_queue_metrics_test;
 mod frontline_authz_test;

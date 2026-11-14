@@ -3626,6 +3626,18 @@ pub mod admin {
         pub const VIEW: &str = "admin.error_tracking.view";
     }
 
+    /// Refused saves, counted per screen so a form that lets a bad entry
+    /// through can be found and fixed.
+    pub mod form_friction {
+        /// See which forms the server refuses most.
+        ///
+        /// How many saves the server refused (400 and 422) on each screen per
+        /// day, with the reason stripped of every value that was typed. Shows
+        /// no patient and no staff member: the screen is counted, never the
+        /// person.
+        pub const VIEW: &str = "admin.form_friction.view";
+    }
+
     /// The kernel: the trusted core every module goes through.
     pub mod kernel {
         /// See whether the kernel is doing its job.
