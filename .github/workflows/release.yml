@@ -192,19 +192,51 @@ jobs:
       # The patient app's release build needs the hospital server it talks to; a public release
       # names one only when the PATIENT_SERVER_URL repository variable is set, otherwise the
       # patient app is left out of the release (a hospital builds it with its own address).
+      # With the SENTRY_AUTH_TOKEN secret set, each app gets its own ProGuard UUID (compiled into
+      # BuildConfig, so a crash report names its mapping) and the next step uploads the R8
+      # mapping. Only whether the token is set reaches this step, never the token.
       - env:
           PATIENT_SERVER_URL: ${{ vars.PATIENT_SERVER_URL }}
+          HAS_SENTRY_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
         run: |
           [[ "$GITHUB_REF" != refs/tags/v* ]] || ../../scripts/app_version.sh "$GITHUB_REF_NAME"
           tasks=()
+          uuids=()
+          : > "$RUNNER_TEMP/proguard-uuids"
           for d in app-*; do
             if [[ "$d" == app-patient && -z "$PATIENT_SERVER_URL" ]]; then
               echo "::notice::app-patient left out: set the PATIENT_SERVER_URL repository variable to build it"
               continue
             fi
             tasks+=(":$d:assembleRelease" ":$d:bundleRelease")
+            if [[ "$HAS_SENTRY_TOKEN" == true ]]; then
+              uuid=$(cat /proc/sys/kernel/random/uuid)
+              uuids+=("-Psentry.proguardUuid.$d=$uuid")
+              echo "$d $uuid" >> "$RUNNER_TEMP/proguard-uuids"
+            fi
           done
-          ./gradlew --no-daemon ${PATIENT_SERVER_URL:+"-Pmedbrains.serverUrl=$PATIENT_SERVER_URL"} "${tasks[@]}"
+          ./gradlew --no-daemon ${PATIENT_SERVER_URL:+"-Pmedbrains.serverUrl=$PATIENT_SERVER_URL"} "${uuids[@]}" "${tasks[@]}"
+      # sentry-cli is a pinned release binary checked against its published sha256.
+      - name: Upload R8 mappings to error tracking
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_ANDROID_PROJECT }}
+          SENTRY_CLI_VERSION: 3.8.2
+          SENTRY_CLI_SHA256: c958865f9d4000183509ea21b1f04925d5390de6d8d87386b9e69f2b305070c3
+        run: |
+          if [[ -z "$SENTRY_AUTH_TOKEN" ]]; then
+            echo "::notice::R8 mappings not uploaded: the SENTRY_AUTH_TOKEN secret is not set"
+            exit 0
+          fi
+          cli="$RUNNER_TEMP/sentry-cli"
+          curl -fsSL -o "$cli" "https://github.com/getsentry/sentry-cli/releases/download/$SENTRY_CLI_VERSION/sentry-cli-Linux-x86_64"
+          echo "$SENTRY_CLI_SHA256  $cli" | sha256sum -c -
+          chmod +x "$cli"
+          while read -r d uuid; do
+            "$cli" proguard upload --uuid "$uuid" --require-one "$d/build/outputs/mapping/release/mapping.txt"
+          done < "$RUNNER_TEMP/proguard-uuids"
       - name: Sign, or mark unsigned
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}

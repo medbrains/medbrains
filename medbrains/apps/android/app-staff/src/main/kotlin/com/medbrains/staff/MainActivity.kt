@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.medbrains.kit.AlertAudience
 import com.medbrains.kit.AlertChannels
 import com.medbrains.kit.ApiClient
@@ -26,7 +27,9 @@ import com.medbrains.kit.LocalAuthStore
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.SecretStore
 import com.medbrains.kit.StoredBinding
+import com.medbrains.kit.TrackedApp
 import com.medbrains.kit.chooseServerUrl
+import com.medbrains.kit.startErrorTracking
 import com.medbrains.ui.MedBrainsTheme
 
 /**
@@ -53,6 +56,13 @@ class MainActivity : ComponentActivity() {
         )
         val client = ApiClient(baseUrl = baseUrl, variant = "staff", secrets = secrets, http = http)
         val auth = AuthStore(applicationContext, client, secrets)
+        startErrorTracking(
+            lifecycleScope,
+            TrackedApp(
+                applicationContext, client, auth, BuildConfig.VERSION_NAME,
+                BuildConfig.SENTRY_PROGUARD_UUID.ifEmpty { null }
+            )
+        )
         // Binding or forgetting a hospital changes the server: start over against it.
         val binder = StaffBinder(auth, bindings, binding, onChanged = { recreate() })
         setContent {
