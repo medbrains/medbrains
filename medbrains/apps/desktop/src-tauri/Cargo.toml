@@ -36,6 +36,15 @@ tauri-plugin-store = "2.5.0"
 base64 = { workspace = true }
 # Checks a hospital server answers before the window is sent to it.
 reqwest = { workspace = true }
+# Crash reports from this shell, through the hospital server's tunnel. Same SDK
+# and version as medbrains-error-tracking; off unless the server turns it on.
+sentry = { version = "0.49.3", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "panic",
+    "reqwest",
+    "rustls",
+] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -257,12 +257,37 @@ simpler.
 ## Optional error tracking (Rustrak)
 
 The server and the browser report crashes with the Sentry SDKs to a
-self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host —
-never to sentry.io. Every report is scrubbed of patient data before it
+self-hosted [Rustrak](https://github.com/rustrak/rustrak) on this host,
+the default for every hospital install. A `SENTRY_DSN` that points off
+this host, such as sentry.io, turns error tracking off unless
+`SENTRY_ALLOW_EXTERNAL=1` is also set; the preflight warns either way.
+That opt-in is for the project's own servers only: use an EU-region
+Sentry project, sign Sentry's data processing agreement, and never turn
+on `send_default_pii`. Every report is scrubbed of patient data before it
 leaves the HMS process (`crates/medbrains-error-tracking`); the browser's
 reports go through the server's tunnel to get the same scrubbing.
 It is off until `SENTRY_DSN` is set: without it the server and the
 browser send nothing, and no other variable is required.
+
+Each app can report to a project of its own: `SENTRY_WEB_DSN`,
+`SENTRY_ANDROID_DSN`, `SENTRY_IOS_DSN` and `SENTRY_DESKTOP_DSN`. An app
+without one reports to `SENTRY_DSN`, which is all a single Rustrak project
+needs. They follow the same rule as `SENTRY_DSN`: off this host they need
+`SENTRY_ALLOW_EXTERNAL=1`, and one that does not parse or is refused turns
+all error tracking off and is logged at startup. Setting only an app's DSN
+does not turn anything on.
+
+`GET /api/public/error-tracking/config?app=<web|android|ios|desktop>`
+tells each app whether to report and with which project. Every report,
+from every app, comes through this server: the browser posts to
+`/api/public/error-tracking/envelope`; the phone and desktop SDKs, which
+have no tunnel option, are given a DSN on this server
+(`tunnel_dsn_path`) and post to
+`/api/public/error-tracking/<app>/api/1/envelope/`. The server scrubs each
+envelope and forwards it to that app's project, whatever DSN the envelope
+itself names. Each address may send 60 reports a minute (429 after that);
+at most 8 are forwarded at once (503 after that); a body may be gzipped
+(the phone SDKs do) up to 512 KiB unpacked, and any other encoding is refused.
 
 ```bash
 # DNS: errors.<domain> → this host, then:
