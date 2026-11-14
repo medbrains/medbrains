@@ -37,9 +37,10 @@ const UNSAFE_WORDS: [&str; 3] = ["systemd.verity", "ignore-corruption", "ignore_
 /// open, measured only outside the seal (PCR 12), so a sealed boot file must refuse them.
 const NO_CREDENTIALS: &str = "systemd.import_credentials=no";
 
-/// The root hash of a boot file's command line, if the line seals its system and nothing on it undoes
-/// that: exactly one `roothash=`, exactly one `root=`, none of `UNSAFE_WORDS`, and credential import off,
-/// said once.
+/// The root hash of a boot file's command line, if the line seals its system and nothing undoes that.
+///
+/// Exactly one `roothash=`, exactly one `root=`, none of `UNSAFE_WORDS`, and credential import off, said
+/// once.
 pub fn sealed_cmdline(cmdline: &str) -> Result<&str, String> {
     let words: Vec<&str> = cmdline.split_whitespace().collect();
     let imports: Vec<&&str> = words

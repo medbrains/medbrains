@@ -322,4 +322,18 @@ release must not ship on this branch. x86-64 with swtpm (`update_sealed.rs`, the
 systemd-boot enrolled the image's throwaway keys on the first start; `bootctl status` said "enabled (user)"; the disk sealed
 to PCR 7 and signed PCR 11. Nobody typed a recovery key in any of these (`unlock_new_version` is gone):
 
-RESULTS_TABLE
+| Scenario | Result |
+|---|---|
+| a sealed disk keeps its data through an update, and opens by itself after going back | pass, 492 s |
+| a boot file signed by another key is refused before it can lock the disk | pass, 111 s |
+| a seal that does fail rolls back with nobody typing | pass, back by itself after 659 s |
+| an older system signed with our keys does not open the disk (rollback floor) | pass, three locked trial starts, back by itself after 1,988 s |
+| an added loader entry with a foreign root hash does not open the disk | pass, 404 s: the genuine root hash started, and the updater refused to touch the boot partition |
+| refuses unsigned, tampered, wrong and old bundles | pass, 160 s |
+| a power cut while applying and on trial, and after proving good, leaves a machine that boots | pass, 951 s |
+| a new version that fails its checks rolls back by itself | pass, 1,442 s |
+
+Found on the way, fixed: the EFI global GUID was missing a byte, so every machine read as Secure Boot off and sealed to
+PCR 4 again; the test bundles' kernels kept only Debian's signature, so the stub's firmware check refused them; bootctl
+reports firmware-only entries with an EFI variable as their path, which the stricter boot partition check refused. The
+x86-64 disk scenarios (`disk.rs`) were not rerun under Secure Boot.
