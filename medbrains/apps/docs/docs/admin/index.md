@@ -21,5 +21,6 @@ For the person who sets up and runs MedBrains at a hospital.
 
 - [Admin quick guide](/admin/quick-guide/): add staff, roles and permissions,
   modules, single sign-on and backup status.
-- [Backups](/admin/backups/), [updates](/admin/updates/) and
-  [desktop and mobile apps](/admin/apps/): coming soon.
+- [Desktop and phone apps](/install/apps/): install them and connect them to
+  the hospital.
+- [Backups](/admin/backups/) and [updates](/admin/updates/): coming soon.

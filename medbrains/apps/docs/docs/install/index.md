@@ -20,6 +20,8 @@ Every file on it is listed in a signed `SHA256SUMS`.
 | A small server or mini PC for the hospital | MedBrains OS, the appliance: the system, database and server in one image | [MedBrains OS](/install/os/) |
 | A hypervisor (Proxmox, VMware, Hyper-V, KVM) | the same appliance as a virtual machine | [MedBrains OS](/install/os/) |
 | A cloud account (AWS, Azure) | the same appliance as a cloud image | [MedBrains OS](/install/os/) |
+| Your own Linux server | the server and web app, with the standalone kit | [Linux server](/install/apps/server/) |
+| Staff computers and phones | the desktop and phone apps, connected to a server | [Applications](/install/apps/) |
 
 The appliance is the supported route. It has no command line to look after.
 You manage it from its own screen and from MedBrains.
