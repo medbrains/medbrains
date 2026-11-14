@@ -19,4 +19,6 @@ declare module "*.module.scss" {
 // through `any`.
 declare const __APP_VERSION__: string;
 declare const __APP_COMMIT__: string;
+/** The error-tracking release (src/lib/release-name.ts): the tag's or the commit. */
+declare const __APP_RELEASE__: string;
 declare const __APP_BUILT__: string;
