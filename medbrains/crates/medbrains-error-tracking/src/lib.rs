@@ -25,11 +25,15 @@ mod phi_tests;
 use std::sync::OnceLock;
 
 use axum::extract::{DefaultBodyLimit, Query};
+use axum::middleware::from_fn_with_state;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use medbrains_core::permissions;
 use medbrains_kernel::{Claims, require_permission};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::rate_limit::{
+    RateLimiter, error_report_rate_limit_middleware,
+};
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 
@@ -72,14 +76,25 @@ struct ConfigQuery {
 pub fn public_router() -> Router<AppState> {
     Router::new()
         .route("/api/public/error-tracking/config", get(get_client_config))
-        .route(
-            TUNNEL_PATH,
-            post(tunnel::post_envelope).layer(DefaultBodyLimit::max(tunnel::MAX_ENVELOPE_BYTES)),
-        )
+        .merge(tunnel_router())
+}
+
+/// The browser's and the native apps' tunnels, sharing one per-IP limit.
+fn tunnel_router<S: Clone + Send + Sync + 'static>() -> Router<S> {
+    let limiter = RateLimiter::new();
+    let with_limits = |route: axum::routing::MethodRouter<S>| {
+        route
+            .layer(DefaultBodyLimit::max(tunnel::MAX_ENVELOPE_BYTES))
+            .layer(from_fn_with_state(
+                limiter.clone(),
+                error_report_rate_limit_middleware,
+            ))
+    };
+    Router::new()
+        .route(TUNNEL_PATH, with_limits(post(tunnel::post_envelope)))
         .route(
             APP_TUNNEL_ROUTE,
-            post(tunnel::post_app_envelope)
-                .layer(DefaultBodyLimit::max(tunnel::MAX_ENVELOPE_BYTES)),
+            with_limits(post(tunnel::post_app_envelope)),
         )
 }
 
@@ -127,7 +142,46 @@ fn http_client() -> Result<&'static reqwest::Client, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ClientApp, Settings, TUNNEL_PATH, client_config};
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use medbrains_server_core::middleware::client_ip::ClientIp;
+    use tower::ServiceExt;
+
+    use super::{ClientApp, Settings, TUNNEL_PATH, client_config, tunnel_router};
+
+    /// One envelope post from `ip`, as the server's client-IP layer marks it.
+    async fn post_from(router: axum::Router, ip: IpAddr) -> Result<StatusCode, String> {
+        let mut request = Request::post(TUNNEL_PATH)
+            .body(Body::from("{}"))
+            .map_err(|e| e.to_string())?;
+        request.extensions_mut().insert(ClientIp(ip));
+        let response = router.oneshot(request).await.map_err(|e| e.to_string())?;
+        Ok(response.status())
+    }
+
+    #[tokio::test]
+    async fn one_address_may_send_sixty_reports_a_minute_and_no_more() -> Result<(), String> {
+        let router = tunnel_router::<()>();
+        let flooder = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7));
+        for _ in 0..60 {
+            assert_ne!(
+                post_from(router.clone(), flooder).await?,
+                StatusCode::TOO_MANY_REQUESTS
+            );
+        }
+        assert_eq!(
+            post_from(router.clone(), flooder).await?,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        let neighbour = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 8));
+        assert_ne!(
+            post_from(router, neighbour).await?,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        Ok(())
+    }
 
     fn settings() -> Result<Settings, String> {
         let lookup = |key: &str| match key {
