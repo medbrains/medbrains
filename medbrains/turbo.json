@@ -3,7 +3,9 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["lib/**", "dist/**"]
+      "outputs": ["lib/**", "dist/**"],
+      "env": ["MEDBRAINS_RELEASE", "SENTRY_URL", "SENTRY_PROJECT"],
+      "passThroughEnv": ["SENTRY_AUTH_TOKEN"]
     },
     "dev": {
       "persistent": true,
