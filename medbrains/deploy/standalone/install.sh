@@ -592,6 +592,20 @@ RECIPIENTS=/etc/medbrains/backup-recipients.txt
 BACKUP_IDENTITY=/root/medbrains-backup-identity.txt
 if [[ -n "${BACKUP_AGE_RECIPIENT:-}" ]]; then
     printf '%s\n' "$BACKUP_AGE_RECIPIENT" > "$RECIPIENTS" && chmod 0644 "$RECIPIENTS"
+elif [[ ! -s "$RECIPIENTS" && -s "$BACKUP_IDENTITY" ]]; then
+    # The key this install made earlier is still here but its public half is
+    # gone. Never make a new one over it: re-derive the public key from it.
+    echo "    NOTE: $RECIPIENTS is missing but $BACKUP_IDENTITY exists."
+    if command -v age-keygen >/dev/null && age-keygen -y "$BACKUP_IDENTITY" > "$RECIPIENTS"; then
+        chmod 0644 "$RECIPIENTS"
+        echo "          Restored the public key from it; the private key is untouched."
+    else
+        rm -f "$RECIPIENTS"
+        echo "    ERROR: could not read the public key from $BACKUP_IDENTITY. Restore" >&2
+        echo "           $RECIPIENTS (the age1… line, from your offline copy) or set" >&2
+        echo "           BACKUP_AGE_RECIPIENT, then re-run. The key file was not changed." >&2
+        exit 1
+    fi
 elif [[ ! -s "$RECIPIENTS" ]]; then
     if command -v age-keygen >/dev/null; then
         (umask 077 && age-keygen -o "$BACKUP_IDENTITY" 2>/dev/null)

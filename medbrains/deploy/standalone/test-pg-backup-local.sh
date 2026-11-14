@@ -34,7 +34,7 @@ run() { # run <BACKUP_DIR> [extra env assignments...]
         POSTGRES_USER=medbrains POSTGRES_DB=medbrains \
         DATABASE_URL="postgres://u:p@127.0.0.1:5432/medbrains" \
         BACKUP_AGE_RECIPIENTS_FILE="$TMP/recipients.txt" BACKUP_SECRETS_DIR="$TMP/nosecrets" \
-        BACKUP_DIR="$1" "${@:2}" bash "$SCRIPT" 2>&1
+        BACKUP_IDENTITY_FILE="$TMP/no-identity.txt" BACKUP_DIR="$1" "${@:2}" bash "$SCRIPT" 2>&1
 }
 
 fail=0
@@ -109,6 +109,22 @@ out="$(run "$DIR" BACKUP_AGE_RECIPIENTS_FILE="$TMP/project.txt" BACKUP_PROJECT_K
 if [[ $rc -eq 0 && "$out" != *"project key"* ]] && grep -q "err= " "$TMP/psql-local.log"; then
     ok "project key on the project's own server: no warning"
 else bad "project key opt-out (rc=$rc): $out"; fi
+# 8d. A commented-out project key is not a recipient: no warning.
+{ printf '# %s\n' age108rvm8yeaxq7my9mx33d8k5ee8cfr9k5p2q4q5kr5qpfanyex4qsjgnmjs; cat "$TMP/recipients.txt"; } > "$TMP/commented.txt"
+out="$(run "$DIR" BACKUP_AGE_RECIPIENTS_FILE="$TMP/commented.txt")"; rc=$?
+[[ $rc -eq 0 && "$out" != *"project key"* ]] && ok "commented-out project key: no warning" \
+    || bad "commented-out project key (rc=$rc): $out"
+
+# 8e. A private key left on the host is flagged on every run, by path only.
+age-keygen -o "$TMP/identity.txt" 2>/dev/null
+: > "$TMP/psql-local.log"
+out="$(run "$DIR" BACKUP_IDENTITY_FILE="$TMP/identity.txt")"; rc=$?
+secret="$(grep '^AGE-SECRET-KEY' "$TMP/identity.txt")"
+if [[ $rc -eq 0 && "$out" == *"private key is still on this server"* ]] \
+    && grep -q "err=The backup private key is still on this server" "$TMP/psql-local.log" \
+    && ! grep -qF "$secret" "$TMP/psql-local.log" && [[ "$out" != *"$secret"* ]]; then
+    ok "private key on the host: warned and recorded, key never printed"
+else bad "private key on the host (rc=$rc): $out"; fi
 rm -f "$TMP/bin/psql"
 
 # 9-11. S3 branch: dump streams to pg-backups/, each file root syncs to

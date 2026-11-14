@@ -41,6 +41,7 @@ BACKUP_DIR="${BACKUP_DIR:-}"
 BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
 RECIPIENTS="${BACKUP_AGE_RECIPIENTS_FILE:-/etc/medbrains/backup-recipients.txt}"
 SECRETS_DIR="${BACKUP_SECRETS_DIR:-/etc/medbrains}"
+IDENTITY="${BACKUP_IDENTITY_FILE:-/root/medbrains-backup-identity.txt}"
 
 if [[ -z "$BACKUP_BUCKET" && -z "$BACKUP_DIR" ]]; then
     echo "ERROR: no backup destination. Set BACKUP_BUCKET (S3) or BACKUP_DIR" >&2
@@ -133,9 +134,19 @@ age -R "$RECIPIENTS" </dev/null >/dev/null || { echo "ERROR: $RECIPIENTS holds n
 # sets BACKUP_PROJECT_KEY_IS_OURS=1.
 PROJECT_KEY=age108rvm8yeaxq7my9mx33d8k5ee8cfr9k5p2q4q5kr5qpfanyex4qsjgnmjs
 NOTICE=""
-if [[ "${BACKUP_PROJECT_KEY_IS_OURS:-0}" != "1" ]] && grep -qF "$PROJECT_KEY" "$RECIPIENTS"; then
+# Uncommented lines only: a key commented out is not a recipient.
+if [[ "${BACKUP_PROJECT_KEY_IS_OURS:-0}" != "1" ]] \
+    && grep -qE "^[[:space:]]*${PROJECT_KEY}[[:space:]]*$" "$RECIPIENTS"; then
     NOTICE="Sealed to the MedBrains project key, which this hospital does not hold. Rotate to your own key: deploy/standalone/README.md, 'Rotate the backup key'."
     echo "WARNING: $NOTICE" >&2
+fi
+# install.sh makes a keypair here when no key was given. While its private
+# half stays on this host, root here can read every backup. The path only,
+# never the contents.
+if [[ -e "$IDENTITY" ]]; then
+    KEPT="The backup private key is still on this server ($IDENTITY). Copy it offline, then remove it here: deploy/standalone/README.md, 'Encrypted off-site backups'."
+    echo "WARNING: $KEPT" >&2
+    NOTICE="${NOTICE:+$NOTICE }$KEPT"
 fi
 seal() { age -R "$RECIPIENTS"; }
 SUFFIX=".age"
