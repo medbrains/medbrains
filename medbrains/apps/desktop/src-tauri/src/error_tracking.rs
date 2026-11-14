@@ -91,13 +91,13 @@ fn options(dsn: &str, environment: Option<String>) -> Option<ClientOptions> {
     Some(options)
 }
 
-/// What leaves this computer: the failure's type, message, stack, level,
-/// release and machine kind. Who used it, the machine's name, request details,
-/// extras, tags and breadcrumbs stay. The server then scrubs the text.
 #[allow(
     clippy::unnecessary_wraps,
     reason = "before_send returns an Option; None would drop the event"
 )]
+/// What leaves this computer: the failure's type, message, stack, level,
+/// release and machine kind. Who used it, the machine's name, request details,
+/// extras, tags and breadcrumbs stay. The server then scrubs the text.
 fn scrub(mut event: Event<'static>) -> Option<Event<'static>> {
     event.user = None;
     event.request = None;
