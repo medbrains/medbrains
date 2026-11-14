@@ -105,6 +105,7 @@ mod collect_refund_test;
 mod collect_test;
 mod compliance_checklist_test;
 mod connected_apps_test;
+mod consent_otp_signature_test;
 mod consult_pricing_test;
 mod core_day_guards_test;
 mod counter_display_test;
