@@ -22,10 +22,10 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'release/**', 'hotfix/**']
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master, main]
+    branches: [master, main, 'release/**', 'hotfix/**']
     # No paths-ignore: required checks must report on every PR, or a docs-only PR can never
     # merge. The `changes` job skips the heavy jobs instead (they report as skipped = passing).
 
@@ -133,6 +133,18 @@ jobs:
       - run: python3 medbrains/scripts/check_docs_on_new_functions.py "origin/$BASE_REF"
         env:
           BASE_REF: ${{ github.base_ref }}
+
+  docs-prose:
+    # Banned words and Title Case headings in the docs site (medbrains/apps/docs/STYLE.md).
+    # Report-only until the pages written before the guide are clean; then add --strict.
+    name: Docs prose (report-only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node medbrains/apps/docs/scripts/check-prose.mjs
 
   support-dates:
     # A published end-of-support date may be extended, never cut, and a supported line never

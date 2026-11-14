@@ -2,8 +2,29 @@
    "Website theme"), MedBrains Sans and IBM Plex Mono self-hosted, light and dark at WCAG 2.2 AA. */
 @import "./medbrains-sans.css";
 @import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+
+/* Archivo Expanded, the display face: Archivo's width axis at 125% (the website and web app
+   use the same @fontsource-variable/archivo 5.3.0 file). Latin only; SIL OFL 1.1, see
+   src/fonts/OFL-Archivo.txt. Headings only, so body text never waits for it. */
+@font-face {
+  font-family: "Archivo Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url("../fonts/Archivo-latin-wdth.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
+  --mb-display: "Archivo Variable", "MedBrains Sans", system-ui, sans-serif;
+  --mb-muted: #5d677a;
+  --mb-success: #2f6a39;
+  --mb-warning: #825500;
+  --mb-danger: #ba1a1a;
+  --mb-pulse: #42be65;
   --mb-blue: #0f62fe;
   --mb-purple: #851b7f;
   --mb-surface: #ffffff;
@@ -55,6 +76,10 @@
   --mb-line: #30343a;
   --mb-link: #78a9ff;
   --mb-accent-text: #ffabf0;
+  --mb-muted: #a9afb7;
+  --mb-success: #96d69a;
+  --mb-warning: #ffb94e;
+  --mb-danger: #ffb4ab;
 
   --ifm-color-primary: #78a9ff;
   --ifm-color-primary-dark: #5a95ff;
@@ -81,13 +106,44 @@
 .markdown {
   max-width: 75ch;
 }
+/* Display headings in Archivo Expanded, as on the website; h3 and below stay in MedBrains Sans. */
+.markdown h1,
+.markdown h2,
+.navbar__title,
+.footer__title {
+  font-family: var(--mb-display);
+  font-stretch: 125%;
+  letter-spacing: -0.01em;
+}
 .markdown h1 {
   font-size: 2rem;
-  line-height: 1.25;
+  font-weight: 750;
+  line-height: 1.2;
 }
 .markdown h2 {
-  font-size: 1.5rem;
+  font-size: 1.45rem;
+  font-weight: 700;
   margin-top: 2.5rem;
+}
+.navbar__title {
+  font-weight: 700;
+}
+
+/* Labels and keyboard keys in IBM Plex Mono, as in the app. */
+kbd {
+  font-family: var(--ifm-font-family-monospace);
+  font-weight: 600;
+  border-color: var(--mb-line);
+  background: var(--mb-raised);
+  box-shadow: none;
+  color: var(--mb-ink);
+}
+
+/* Highlights use the brand purple, the secondary accent (never a page background). */
+mark {
+  background: none;
+  color: var(--mb-accent-text);
+  font-weight: 600;
 }
 .markdown h3 {
   font-size: 1.2rem;
@@ -141,6 +197,31 @@
 }
 .alert--secondary {
   border-left-color: var(--mb-purple);
+}
+/* Infima's own green, amber and red are replaced by the design-system support colours. */
+.alert--success {
+  border-left-color: var(--mb-success);
+}
+.alert--warning {
+  border-left-color: var(--mb-warning);
+}
+.alert--danger {
+  border-left-color: var(--mb-danger);
+}
+.alert--success svg {
+  fill: var(--mb-success);
+}
+.alert--warning svg {
+  fill: var(--mb-warning);
+}
+.alert--danger svg {
+  fill: var(--mb-danger);
+}
+.alert--info svg {
+  fill: var(--mb-link);
+}
+.alert--secondary svg {
+  fill: var(--mb-accent-text);
 }
 .theme-admonition .admonition-heading,
 .theme-admonition [class*="admonitionHeading"] {

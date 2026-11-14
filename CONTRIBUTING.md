@@ -7,7 +7,7 @@ Thank you for helping. MedBrains runs hospitals, so the code can affect patient 
 - **Clinical review.** Doctors, nurses, pharmacists and administrators: tell us where a workflow or rule is wrong. Open an issue and describe what really happens on the ward.
 - **Code.** Fix a bug, finish a roadmap item, improve speed or accessibility.
 - **Translations.** The web app's interface text is translatable.
-- **Docs.** Setup guides, how-tos, screenshots.
+- **Docs.** Setup guides, how-tos, screenshots. Follow the [documentation style guide](./medbrains/apps/docs/STYLE.md).
 - **Triage.** Reproduce bugs and help others in Discussions.
 
 Good first tasks are listed in the README under [Contributing](./README.md#contributing) and labelled `good first issue`.

@@ -6,8 +6,9 @@
   "scripts": {
     "generate": "node scripts/generate-reference.mjs && node scripts/check-front-matter.mjs",
     "dev": "node scripts/generate-reference.mjs && docusaurus start --port 3010 --no-open",
-    "build": "node scripts/generate-reference.mjs && node scripts/check-front-matter.mjs && docusaurus build --out-dir build",
+    "build": "node scripts/generate-reference.mjs && node scripts/check-front-matter.mjs && node scripts/check-contrast.mjs && docusaurus build --out-dir build",
     "build:public": "DOCS_BASE_URL=/ pnpm run build",
+    "lint:prose": "node scripts/check-prose.mjs",
     "serve": "docusaurus serve --port 3010"
   },
   "dependencies": {

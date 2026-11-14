@@ -1,9 +1,15 @@
-//! Error tracking is off unless `SENTRY_DSN` names a Rustrak project.
+//! Error tracking is off unless `SENTRY_DSN` names a Rustrak project on this
+//! host, or an outside service with `SENTRY_ALLOW_EXTERNAL=1` also set.
 
 use std::str::FromStr;
 use std::sync::OnceLock;
 
 use sentry::types::Dsn;
+
+use crate::sdk::dsn_host_is_own;
+
+/// The operator's opt-in to an error tracker off this host, such as sentry.io.
+pub const ALLOW_EXTERNAL: &str = "SENTRY_ALLOW_EXTERNAL";
 
 /// Error events are all kept; traces are sampled.
 const DEFAULT_TRACES_SAMPLE_RATE: f32 = 0.05;
@@ -31,8 +37,9 @@ const BUILD_RELEASE: &str = match option_env!("MEDBRAINS_RELEASE") {
 };
 
 impl Settings {
-    /// `Ok(None)` when `SENTRY_DSN` is unset or empty; an error for a DSN that
-    /// does not parse, so a typo is reported rather than silently off.
+    /// `Ok(None)` when `SENTRY_DSN` is unset or empty; an error (so off, and
+    /// said) for a DSN that does not parse, or one off this host without
+    /// `SENTRY_ALLOW_EXTERNAL=1`, so a hospital never reports outside by accident.
     pub fn from_env() -> Result<Option<Self>, String> {
         Self::from_lookup(|key| std::env::var(key).ok())
     }
@@ -49,6 +56,16 @@ impl Settings {
             return Ok(None);
         };
         let dsn = Dsn::from_str(&raw).map_err(|e| format!("SENTRY_DSN does not parse: {e}"))?;
+        let own_domain = value("COOKIE_DOMAIN");
+        if !dsn_host_is_own(dsn.host(), own_domain.as_deref())
+            && value(ALLOW_EXTERNAL).as_deref() != Some("1")
+        {
+            return Err(format!(
+                "SENTRY_DSN points at {}, outside this server; \
+                 set {ALLOW_EXTERNAL}=1 to send error reports there",
+                dsn.host()
+            ));
+        }
         let rate = value("SENTRY_TRACES_SAMPLE_RATE")
             .and_then(|r| r.parse::<f32>().ok())
             .filter(|r| (0.0..=1.0).contains(r))
@@ -131,6 +148,34 @@ mod tests {
         assert_eq!(settings.environment, "prod");
         assert!((settings.traces_sample_rate - 0.05).abs() < f32::EPSILON);
         assert_eq!(settings.api_base(), "http://127.0.0.1:8180");
+        Ok(())
+    }
+
+    const EXTERNAL: &str = "https://k@o1.ingest.sentry.io/1";
+
+    #[test]
+    fn an_external_dsn_without_the_flag_is_off() {
+        assert!(Settings::from_lookup(lookup(&[("SENTRY_DSN", EXTERNAL)])).is_err());
+        let wrong_flag = lookup(&[("SENTRY_DSN", EXTERNAL), ("SENTRY_ALLOW_EXTERNAL", "yes")]);
+        assert!(Settings::from_lookup(wrong_flag).is_err());
+    }
+
+    #[test]
+    fn an_external_dsn_with_the_flag_is_on() -> Result<(), String> {
+        let on = lookup(&[("SENTRY_DSN", EXTERNAL), ("SENTRY_ALLOW_EXTERNAL", "1")]);
+        assert!(Settings::from_lookup(on)?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn loopback_and_own_domain_dsns_need_no_flag() -> Result<(), String> {
+        let loopback = lookup(&[("SENTRY_DSN", "http://k@127.0.0.1:8180/1")]);
+        assert!(Settings::from_lookup(loopback)?.is_some());
+        let same_host = lookup(&[
+            ("SENTRY_DSN", "https://k@errors.hims.example.in/1"),
+            ("COOKIE_DOMAIN", "hims.example.in"),
+        ]);
+        assert!(Settings::from_lookup(same_host)?.is_some());
         Ok(())
     }
 }
