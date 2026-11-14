@@ -6,6 +6,7 @@
 const SITE_URL = "https://docs.medbrains.in";
 const FEEDBACK_URL = "https://github.com/medbrains/medbrains/issues/new?template=hospital_feedback.yml";
 const baseUrl = process.env.DOCS_BASE_URL ?? "/help/";
+const prism = require("./src/prism-themes.js");
 
 
 /** @type {import('@docusaurus/types').Config} */
@@ -52,6 +53,8 @@ module.exports = {
       { name: "keywords", content: "hospital operating system, hospital management software, HMS, EMR, open source, FHIR, regulatory compliance" },
     ],
     colorMode: { defaultMode: "dark", respectPrefersColorScheme: true },
+    // Our token colours: Prism's default (palenight) is navy and fails AA.
+    prism: { theme: prism.lightTheme, darkTheme: prism.darkTheme, additionalLanguages: ["bash", "powershell"] },
     navbar: {
       title: "MedBrains Docs",
       logo: { alt: "MedBrains", src: "img/favicon.svg" },
@@ -66,7 +69,8 @@ module.exports = {
       ],
     },
     footer: {
-      style: "dark",
+      // "light" reads the token surfaces; Infima's "dark" footer paints its own navy-grey.
+      style: "light",
       links: [
         { label: "Website", href: "https://medbrains.in" },
         { label: "Source code", href: "https://github.com/medbrains/medbrains" },
