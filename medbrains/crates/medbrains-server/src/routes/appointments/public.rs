@@ -40,13 +40,19 @@ pub async fn public_book_appointment(
     // opted in is not bookable, and answers as an unknown one does.
     require_public_booking_enabled(&mut tx, tenant_id).await?;
 
-    verify_booking_otp(
+    // A wrong or expired code is written to its row, and that write must
+    // outlive the refusal: rolled back, the attempt count never grew.
+    if let Err(refused) = verify_booking_otp(
         &mut tx,
         tenant_id,
         body.patient_phone.trim(),
         body.otp.as_deref(),
     )
-    .await?;
+    .await
+    {
+        tx.commit().await?;
+        return Err(refused);
+    }
 
     let appointment = book_online(
         &mut tx,
@@ -649,6 +655,9 @@ async fn ensure_public_slot_capacity(
 
 const BOOKING_OTP_TTL_MINUTES: i32 = 10;
 const BOOKING_OTP_MAX_ATTEMPTS: i32 = 5;
+/// Codes one mobile may be sent in `BOOKING_OTP_WINDOW_MINUTES`: each is an SMS.
+const BOOKING_OTPS_PER_WINDOW: i64 = 3;
+const BOOKING_OTP_WINDOW_MINUTES: i32 = 15;
 
 fn hash_booking_otp(otp: &str) -> String {
     use sha2::{Digest, Sha256};
@@ -705,6 +714,23 @@ pub async fn request_public_booking_otp(
         .await
         .is_err()
     {
+        return Ok(ack);
+    }
+
+    // One mobile gets its share of codes per window and no more, answered
+    // with the same ack so the cap cannot be probed.
+    let recent: i64 = sqlx::query_scalar(
+        // allow-raw-sql: public booking OTP send cap
+        "SELECT COUNT(*) FROM public_booking_otps \
+          WHERE tenant_id = $1 AND phone = $2 \
+            AND created_at > now() - make_interval(mins => $3)",
+    )
+    .bind(tenant_id)
+    .bind(phone)
+    .bind(BOOKING_OTP_WINDOW_MINUTES)
+    .fetch_one(&mut *tx)
+    .await?;
+    if recent >= BOOKING_OTPS_PER_WINDOW {
         return Ok(ack);
     }
 
