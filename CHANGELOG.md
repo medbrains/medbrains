@@ -10,20 +10,67 @@ GitHub release notes, so write each section for a hospital IT team.
 
 ## [Unreleased]
 
-## [3.33.1] - 2026-11-13
+## [3.33.1] - 2026-11-14
 
-The first update to 3.33.0. It adds the container image, which did not build for 3.33.0, plus OS hardening and fixes.
+A security update to 3.33.0, released early under the 7-day rule for high-severity
+fixes in [`SECURITY-RELEASE-PROCESS.md`](https://github.com/medbrains/medbrains/blob/v3.33.1/medbrains/docs/SECURITY-RELEASE-PROCESS.md).
+Update every install. Installs set up with a kit older than 3.33.1 must also
+rotate their backup key (below).
+
+### Security
+
+- **Backups are sealed to the hospital's own key.** Older deploy kits installed
+  the MedBrains project's own public key on every host, so those backups were
+  sealed to a key the hospital does not hold. The kit now ships no key: a first
+  install makes a keypair for the hospital (move the private key offline, as
+  the install banner says) or takes yours from `BACKUP_AGE_RECIPIENT`. Backups
+  to a local directory are now sealed too; before, they were written
+  unencrypted. The backup job refuses to run without a key. A host still on
+  the old key keeps backing up, warns in `journalctl -u medbrains-pg-backup`
+  and shows a warning on **Admin → Settings → System health** (#5597).
+  **What to do on an existing install:** follow
+  [Rotate the backup key](https://github.com/medbrains/medbrains/blob/v3.33.1/medbrains/deploy/standalone/README.md#rotate-the-backup-key):
+  make a key offline, re-run `install.sh` with `BACKUP_AGE_RECIPIENT='age1…'`,
+  start one backup, check System health no longer warns, and run the restore
+  drill with the new key. Backups taken before the rotation stay sealed to the
+  old key; keep them until the new ones have passed the drill.
+- **Sign-in and one-time codes.** An authenticator code is accepted once only.
+  Wrong codes when turning off two-factor sign-in count toward the account
+  lockout. Codes are compared in constant time everywhere. A device pairing
+  token can pair one device only, even when two use it at the same moment.
+  First-admin setup no longer skips the authenticator step when it cannot
+  check the disk's identity provider (#5591).
+- **Limits on code requests.** Patient portal sign-in, public booking codes and
+  password reset codes are limited per client address and per account or
+  mobile; past the limit the answer is the same as before, so the limit reveals
+  nothing. Wrong booking codes now count toward that code's attempt limit
+  (#5587, #5588, #5589).
+- **Signatures recorded as OTP are refused.** Consent and document signatures
+  can no longer be stored with method `otp`, because no code is sent or
+  checked for them; the consent screen no longer offers it. Existing records
+  are unchanged (#5590).
+- **Dependency fixes.** The Android app uses Bouncy Castle 1.86 (#5578). The
+  Android build tools' own Bouncy Castle and Guava copies, which are not
+  shipped in the app, are raised to fixed versions, clearing
+  GHSA-9pwp-9qqc-pr26, GHSA-qp49-qgx5-5m26, GHSA-cj8j-37rh-8475 and
+  GHSA-xxph-c9ww-hj94 (#5583). Rust dependencies take their patch and minor
+  updates (#5577).
 
 ### Added
 
 - **Container image.** `ghcr.io/medbrains/medbrains:3.33.1` for x86-64 and arm64, signed with cosign. The 3.33.0 image did not build because its Dockerfile used an outdated Rust toolchain. The Dockerfile now follows the pinned toolchain, and CI checks that the two match and builds the image whenever either changes (#5572).
+- **`medbrains-proxy` in the server tarball.** The 3.33.0
+  `medbrains-server-bins-linux-*.tar.gz` lacked it, so `install.sh` could not
+  finish from the release. CI now checks the tarball holds every binary
+  `install.sh` installs (#5598).
 - **OS hardening.** OS services are confined with AppArmor. The image is scored against the CIS benchmark, and the console shows boot health (#5453).
 - **Download page** on the website, listing every OS image, the desktop clients, the Android staff app and how to verify a download (#5570).
 
 ### Changed
 
-- **Waiting-room screen pairing needs the code shown on that screen.** The admin types the 8-character code from the screen to approve it. Pending codes are never listed, and each request belongs to one hospital: open the screen at `/screen?hospital=<code>`, or scan the QR code on Admin → Paired devices. The flow pairs display screens only. Screens already paired keep working; screens that were waiting during the upgrade ask again.
-- **The old React Native TV app (`apps/tv`) can no longer pair.** It is reference-only and unsupported. It sends no hospital code, so it is refused. Open `/screen?hospital=<code>` in the TV's browser instead.
+- **Release calendar.** A monthly patch day, quarterly feature releases and
+  yearly majors; security fixes still ship on their own deadlines
+  ([`COMPATIBILITY.md`](https://github.com/medbrains/medbrains/blob/v3.33.1/medbrains/docs/COMPATIBILITY.md), #5579).
 - **Offline signing-key design** for OS updates. Every intermediate key, revocation list and root change needs two of three root keys, and no single stolen key can sign an update (#5511).
 - Background file reads and writes no longer block the server (#5515).
 
@@ -31,10 +78,23 @@ The first update to 3.33.0. It adds the container image, which did not build for
 
 - The app version check and the OPD vitals screen no longer trip reliability warnings (#5571).
 
+### Already in 3.33.0, missing from its notes
+
+- **Waiting-room screen pairing needs the code shown on that screen.** The admin types the 8-character code from the screen to approve it. Pending codes are never listed, and each request belongs to one hospital: open the screen at `/screen?hospital=<code>`, or scan the QR code on Admin → Paired devices. The flow pairs display screens only. Screens already paired keep working (#5560).
+- **The old React Native TV app (`apps/tv`) cannot pair.** It is reference-only and unsupported. Open `/screen?hospital=<code>` in the TV's browser instead.
+
 ### Not in this release
 
 - The patient app waits for run-time hospital configuration (#5569).
 - Sealing the OS system partition (dm-verity) waits for its update-unlock fix.
+- How invitation and verification links choose their address waits for a
+  decision on hospitals with their own domains.
+- A verified OTP flow for consent signatures; until then OTP is not offered.
+- Installs through the terraform modules cannot pass `BACKUP_AGE_RECIPIENT`
+  yet; they make the key on the server, so move it offline as the banner says.
+- The larger dependency moves (Kotlin 2.4 with AGP 9.5 and Compose, and major
+  Rust updates such as tower-http 0.7, jsonwebtoken 11 and totp-rs 6) each come
+  in their own release.
 
 ## [3.33.0] - 2026-11-13
 
