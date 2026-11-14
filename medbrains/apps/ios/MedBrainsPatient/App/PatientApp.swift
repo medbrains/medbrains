@@ -25,7 +25,12 @@ struct PatientApp: App {
                 .environment(auth)
                 .environment(\.portalApi, PortalApi(client: client))
                 .tint(MedBrainsTheme.interactive)
-                .task { await auth.hydrate() }
+                .task {
+                    let client = client
+                    async let tracking: Void = ErrorTracking.configure(client: client)
+                    await auth.hydrate()
+                    await tracking
+                }
         }
     }
 }

@@ -86,7 +86,10 @@ enum LoginAnswer: Decodable {
 @MainActor
 @Observable
 public final class AuthStore {
-    public private(set) var identity: TenantIdentity?
+    /// Every change re-tags error reports, so a signed-out report carries no one.
+    public private(set) var identity: TenantIdentity? {
+        didSet { ErrorTracking.setUser(identity) }
+    }
     public private(set) var isHydrating = true
     public private(set) var lastError: String?
     /// The server asked which hospital: the username is shared.
