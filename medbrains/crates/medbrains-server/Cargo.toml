@@ -145,7 +145,7 @@ http-body = "1"
 # jemalloc global allocator — better multithreaded heap behaviour + lower
 # fragmentation tail-latency under concurrent load than the system allocator.
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = "0.6"
+tikv-jemallocator = "0.7"
 medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-fhir = { path = "../medbrains-fhir" }
 medbrains-crypto = { path = "../medbrains-crypto" }
@@ -179,7 +179,7 @@ regex = { workspace = true }
 url = { workspace = true }
 ed25519-dalek = { workspace = true }
 getrandom = { workspace = true }
-axum-extra = { version = "0.10", features = ["cookie"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
 time = "0.3"
 futures = { workspace = true }
 async-stream = { workspace = true }
@@ -195,13 +195,13 @@ aws-config = { version = "1", default-features = false, features = ["rt-tokio"] 
 # Optional secrets backend — only compiled when the `aws-secrets` feature is on,
 # so on-prem / dev builds don't pull the AWS Secrets Manager SDK.
 aws-sdk-secretsmanager = { version = "1", default-features = false, features = ["rt-tokio"], optional = true }
-totp-rs = { version = "5.7.1", features = ["otpauth", "qr"] }
+totp-rs = { version = "6.0.0", features = ["otpauth", "qr"] }
 medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 
 [dev-dependencies]
 reqwest = { workspace = true }
 tokio = { version = "1.54.1", features = ["full", "test-util"] }
-tokio-tungstenite = "0.27"
+tokio-tungstenite = "0.29"
 zip = { workspace = true }
 # The ABDM and NHCX mocks in tests decrypt what the server encrypts for them.
 openssl = { version = "0.10", features = ["vendored"] }
