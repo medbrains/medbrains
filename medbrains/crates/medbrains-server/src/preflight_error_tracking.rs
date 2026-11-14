@@ -61,6 +61,7 @@ mod tests {
             traces_sample_rate: 0.05,
             api_token: None,
             public_url: None,
+            app_dsns: Default::default(),
         }))
     }
 

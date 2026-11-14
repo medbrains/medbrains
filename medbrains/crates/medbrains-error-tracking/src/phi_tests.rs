@@ -245,3 +245,63 @@ fn a_verify_token_in_a_request_url_is_removed() {
         "https://h.example/api/public/signatures/verify/:id"
     );
 }
+
+/// An envelope as the Android (sentry-java) or iOS (sentry-cocoa) SDK sends it:
+/// an RFC 3339 or float timestamp, a crashed thread holding the stack, and
+/// `macho` or `proguard` debug images the protocol type does not know.
+fn native_envelope(platform: &str, timestamp: &Value) -> String {
+    let header = r#"{"event_id":"5ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://medbrains@hims.example.in/api/public/error-tracking/android/1"}"#;
+    let event = serde_json::json!({
+        "event_id": "5ec79c33ec9942ab8353589fcb2e04dc",
+        "timestamp": timestamp,
+        "platform": platform,
+        "level": "fatal",
+        "server_name": format!("{NAME}-PC"),
+        "exception": {"values": [{"type": "IllegalStateException",
+            "value": format!("no bed for {NAME}, UHID {UHID}, call {PHONE}"),
+            "thread_id": 1,
+            "mechanism": {"type": "UncaughtExceptionHandler", "handled": false}}]},
+        "threads": {"values": [{"id": 1, "name": format!("load {UHID}"), "crashed": true,
+            "stacktrace": {"frames": [{"function": "admit", "module": "in.medbrains.staff.Ward",
+                "lineno": 42, "in_app": true, "vars": {"patient": NAME}}]}}]},
+        "debug_meta": {"images": [
+            {"type": "macho", "debug_id": "8b1c3e2a-0d4f-4a8e-9a3b-2f1e5d6c7b8a",
+             "image_addr": "0x100000000", "image_size": 65536,
+             "code_file": format!("/var/mobile/{NAME}/MedBrainsStaff")},
+            {"type": "proguard", "uuid": "0b5a3d8e-7a1f-4c2b-9e6d-1a2b3c4d5e6f"}]},
+        "breadcrumbs": {"values": [{"category": "navigation",
+            "data": {"from": "/patients", "to": format!("/patients/{UHID}"), "name": NAME}}]},
+        "user": {"id": "8f14e45fceea167a5a36dedd4bea2543", "username": NAME},
+        "contexts": {"device": {"type": "device", "model": "Pixel 8", "name": format!("{NAME}'s phone")},
+            "os": {"type": "os", "name": "Android", "version": "15"}},
+        "tags": {"role": "nurse", "patient": NAME},
+        "extra": {"phone": PHONE}
+    });
+    format!("{header}\n{{\"type\":\"event\"}}\n{event}\n")
+}
+
+#[test]
+fn android_and_ios_crash_reports_are_kept_and_cleaned() -> TestResult {
+    let android = native_envelope("java", &Value::from("2026-11-14T07:00:00.123Z"));
+    let ios = native_envelope("cocoa", &Value::from(1_794_000_000.5));
+    for body in [android, ios] {
+        let forwarded = scrub_browser_envelope(body.as_bytes()).ok_or("envelope refused")?;
+        let forwarded = String::from_utf8(forwarded)?;
+        assert!(forwarded.contains("IllegalStateException"), "{forwarded}");
+        assert!(
+            forwarded.contains("\"admit\""),
+            "the crashed thread's stack survives"
+        );
+        assert!(
+            forwarded.contains("8b1c3e2a"),
+            "the build id survives for symbolication"
+        );
+        assert!(
+            forwarded.contains("\"role\":\"nurse\""),
+            "the role tag survives"
+        );
+        assert!(!forwarded.contains("/var/mobile"), "no image paths");
+        assert_clean(&forwarded);
+    }
+    Ok(())
+}

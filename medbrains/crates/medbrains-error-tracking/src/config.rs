@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::OnceLock;
 
 use sentry::types::Dsn;
+use serde::Deserialize;
 
 use crate::sdk::dsn_host_is_own;
 
@@ -14,10 +15,53 @@ pub const ALLOW_EXTERNAL: &str = "SENTRY_ALLOW_EXTERNAL";
 /// Error events are all kept; traces are sampled.
 const DEFAULT_TRACES_SAMPLE_RATE: f32 = 0.05;
 
+/// An app whose reports come through this server's tunnel.
+///
+/// Each may have a project of its own, `SENTRY_<APP>_DSN`; without one it
+/// reports to the server's `SENTRY_DSN` (one Rustrak project serves a hospital install).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ClientApp {
+    #[default]
+    Web,
+    Android,
+    Ios,
+    Desktop,
+}
+
+impl ClientApp {
+    const ALL: [Self; 4] = [Self::Web, Self::Android, Self::Ios, Self::Desktop];
+
+    /// The variable naming this app's own project.
+    #[must_use]
+    pub const fn dsn_key(self) -> &'static str {
+        match self {
+            Self::Web => "SENTRY_WEB_DSN",
+            Self::Android => "SENTRY_ANDROID_DSN",
+            Self::Ios => "SENTRY_IOS_DSN",
+            Self::Desktop => "SENTRY_DESKTOP_DSN",
+        }
+    }
+
+    /// The app's name in a tunnel path and a config request.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Web => "web",
+            Self::Android => "android",
+            Self::Ios => "ios",
+            Self::Desktop => "desktop",
+        }
+    }
+}
+
 /// What this server reports, and where.
 #[derive(Debug, Clone)]
 pub struct Settings {
     pub dsn: Dsn,
+    /// Each [`ClientApp`]'s own project, in [`ClientApp::ALL`] order; `None`
+    /// for an app that reports to `dsn`.
+    pub app_dsns: [Option<Dsn>; 4],
     /// `prod`, `staging` or `dev`.
     pub environment: String,
     /// The commit the deploy built, the same string the web bundle carries.
@@ -55,16 +99,16 @@ impl Settings {
         let Some(raw) = value("SENTRY_DSN") else {
             return Ok(None);
         };
-        let dsn = Dsn::from_str(&raw).map_err(|e| format!("SENTRY_DSN does not parse: {e}"))?;
         let own_domain = value("COOKIE_DOMAIN");
-        if !dsn_host_is_own(dsn.host(), own_domain.as_deref())
-            && value(ALLOW_EXTERNAL).as_deref() != Some("1")
-        {
-            return Err(format!(
-                "SENTRY_DSN points at {}, outside this server; \
-                 set {ALLOW_EXTERNAL}=1 to send error reports there",
-                dsn.host()
-            ));
+        let allow_external = value(ALLOW_EXTERNAL).as_deref() == Some("1");
+        let parse =
+            |key: &str, raw: &str| parse_dsn(key, raw, own_domain.as_deref(), allow_external);
+        let dsn = parse("SENTRY_DSN", &raw)?;
+        let mut app_dsns: [Option<Dsn>; 4] = Default::default();
+        for (slot, app) in app_dsns.iter_mut().zip(ClientApp::ALL) {
+            if let Some(raw) = value(app.dsn_key()) {
+                *slot = Some(parse(app.dsn_key(), &raw)?);
+            }
         }
         let rate = value("SENTRY_TRACES_SAMPLE_RATE")
             .and_then(|r| r.parse::<f32>().ok())
@@ -72,6 +116,7 @@ impl Settings {
             .unwrap_or(DEFAULT_TRACES_SAMPLE_RATE);
         Ok(Some(Self {
             dsn,
+            app_dsns,
             environment: value("SENTRY_ENVIRONMENT")
                 .unwrap_or_else(|| environment_for(value("MEDBRAINS_ENV").as_deref()).to_owned()),
             release: value("SENTRY_RELEASE").unwrap_or_else(|| BUILD_RELEASE.to_owned()),
@@ -79,6 +124,17 @@ impl Settings {
             api_token: value("RUSTRAK_API_TOKEN"),
             public_url: value("RUSTRAK_PUBLIC_URL"),
         }))
+    }
+
+    /// The project `app`'s reports are forwarded to.
+    #[must_use]
+    pub fn client_dsn(&self, app: ClientApp) -> &Dsn {
+        ClientApp::ALL
+            .iter()
+            .position(|a| *a == app)
+            .and_then(|i| self.app_dsns.get(i))
+            .and_then(Option::as_ref)
+            .unwrap_or(&self.dsn)
     }
 
     /// Rustrak's REST API base, from the DSN: same scheme, host and port.
@@ -91,6 +147,25 @@ impl Settings {
             self.dsn.port()
         )
     }
+}
+
+/// A DSN that parses and stays on this host, or is opted out of it. An error
+/// otherwise, which turns all error tracking off and says why.
+fn parse_dsn(
+    key: &str,
+    raw: &str,
+    own_domain: Option<&str>,
+    allow_external: bool,
+) -> Result<Dsn, String> {
+    let dsn = Dsn::from_str(raw).map_err(|e| format!("{key} does not parse: {e}"))?;
+    if !allow_external && !dsn_host_is_own(dsn.host(), own_domain) {
+        return Err(format!(
+            "{key} points at {}, outside this server; \
+             set {ALLOW_EXTERNAL}=1 to send error reports there",
+            dsn.host()
+        ));
+    }
+    Ok(dsn)
 }
 
 /// `MEDBRAINS_ENV` in the three names release health groups by.
@@ -115,7 +190,7 @@ pub(crate) fn remember(settings: Option<Settings>) {
 
 #[cfg(test)]
 mod tests {
-    use super::Settings;
+    use super::{ClientApp, Settings};
 
     fn lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
         let owned: Vec<(String, String)> = pairs
@@ -176,6 +251,52 @@ mod tests {
             ("COOKIE_DOMAIN", "hims.example.in"),
         ]);
         assert!(Settings::from_lookup(same_host)?.is_some());
+        Ok(())
+    }
+
+    const WEB: &str = "https://w@o1.ingest.sentry.io/2";
+
+    #[test]
+    fn the_web_gets_its_own_project_and_other_apps_the_servers() -> Result<(), String> {
+        let settings = Settings::from_lookup(lookup(&[
+            ("SENTRY_DSN", EXTERNAL),
+            ("SENTRY_WEB_DSN", WEB),
+            ("SENTRY_ALLOW_EXTERNAL", "1"),
+        ]))?
+        .ok_or("expected settings")?;
+        assert_eq!(
+            settings.client_dsn(ClientApp::Web).project_id().value(),
+            "2"
+        );
+        assert_eq!(
+            settings.client_dsn(ClientApp::Android).project_id().value(),
+            "1"
+        );
+        assert_eq!(settings.dsn.public_key(), "k");
+        Ok(())
+    }
+
+    #[test]
+    fn without_a_web_dsn_the_web_reports_to_the_servers() -> Result<(), String> {
+        let settings =
+            Settings::from_lookup(lookup(&[("SENTRY_DSN", "http://k@127.0.0.1:8180/1")]))?
+                .ok_or("expected settings")?;
+        assert_eq!(settings.client_dsn(ClientApp::Web), &settings.dsn);
+        Ok(())
+    }
+
+    #[test]
+    fn an_external_web_dsn_needs_the_same_opt_in() {
+        let refused = lookup(&[
+            ("SENTRY_DSN", "http://k@127.0.0.1:8180/1"),
+            ("SENTRY_WEB_DSN", WEB),
+        ]);
+        assert!(Settings::from_lookup(refused).is_err());
+    }
+
+    #[test]
+    fn a_web_dsn_alone_does_not_turn_tracking_on() -> Result<(), String> {
+        assert!(Settings::from_lookup(lookup(&[("SENTRY_WEB_DSN", WEB)]))?.is_none());
         Ok(())
     }
 }

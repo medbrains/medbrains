@@ -269,6 +269,24 @@ reports go through the server's tunnel to get the same scrubbing.
 It is off until `SENTRY_DSN` is set: without it the server and the
 browser send nothing, and no other variable is required.
 
+Each app can report to a project of its own: `SENTRY_WEB_DSN`,
+`SENTRY_ANDROID_DSN`, `SENTRY_IOS_DSN` and `SENTRY_DESKTOP_DSN`. An app
+without one reports to `SENTRY_DSN`, which is all a single Rustrak project
+needs. They follow the same rule as `SENTRY_DSN`: off this host they need
+`SENTRY_ALLOW_EXTERNAL=1`, and one that does not parse or is refused turns
+all error tracking off and is logged at startup. Setting only an app's DSN
+does not turn anything on.
+
+`GET /api/public/error-tracking/config?app=<web|android|ios|desktop>`
+tells each app whether to report and with which project. Every report,
+from every app, comes through this server: the browser posts to
+`/api/public/error-tracking/envelope`; the phone and desktop SDKs, which
+have no tunnel option, are given a DSN on this server
+(`tunnel_dsn_path`) and post to
+`/api/public/error-tracking/<app>/api/1/envelope/`. The server scrubs each
+envelope and forwards it to that app's project, whatever DSN the envelope
+itself names.
+
 ```bash
 # DNS: errors.<domain> → this host, then:
 INSTALL_RUSTRAK=1 sudo -E bash install.sh <domain> <admin-email>
