@@ -1,0 +1,63 @@
+name: 🧪 Test scenario
+description: Describe a real hospital situation MedBrains must handle, so it becomes an automated test
+labels: ["test-scenario", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You don't need to write code. Describe one situation from real hospital work and what should happen. We turn each accepted scenario into an automated test that runs on every change, so MedBrains can never quietly break it again.
+
+        **Never include real patient data.** Use made-up names and numbers.
+  - type: checkboxes
+    id: no-phi
+    attributes:
+      label: Privacy
+      options:
+        - label: This contains no real patient data.
+          required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Who does this in the hospital?
+      options: [Doctor, Nurse, Pharmacist, Front office / reception, Ward secretary / admission, Lab, Radiology, Billing, MRD, Hospital admin / IT, Patient, Other]
+    validations:
+      required: true
+  - type: input
+    id: module
+    attributes:
+      label: Which part of MedBrains?
+      placeholder: e.g. OPD, pharmacy, admission, eye exam, billing
+    validations:
+      required: true
+  - type: textarea
+    id: given
+    attributes:
+      label: Given (the starting situation)
+      placeholder: e.g. A patient has a prescription for a Schedule X drug, and no duplicate record exists
+    validations:
+      required: true
+  - type: textarea
+    id: when
+    attributes:
+      label: When (what the person does)
+      placeholder: e.g. The pharmacist tries to dispense it
+    validations:
+      required: true
+  - type: textarea
+    id: then
+    attributes:
+      label: Then (what MedBrains must do)
+      placeholder: e.g. Dispensing is blocked, the reason is shown on screen, and the attempt is logged
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: The rule behind it (optional)
+      description: A law, accreditation standard or hospital policy, if you know it.
+      placeholder: e.g. Drugs and Cosmetics Rules Schedule X, NABH MOM.4, JCI IPSG.1
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else (optional)
+      description: Edge cases, what goes wrong in practice, how other systems handle it.
