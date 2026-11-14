@@ -68,6 +68,7 @@ rotate their backup key (below).
 
 ### Changed
 
+- **The IT security officer role can view and manage backups.** It sees the backup card on **Admin → Settings → System health**, so it can check that backups run and are sealed to the hospital's key. Existing installs get this on the next server restart (#5656).
 - **Release calendar.** A monthly patch day, quarterly feature releases and
   yearly majors; security fixes still ship on their own deadlines
   ([`COMPATIBILITY.md`](https://github.com/medbrains/medbrains/blob/v3.33.1/medbrains/docs/COMPATIBILITY.md), #5579).
