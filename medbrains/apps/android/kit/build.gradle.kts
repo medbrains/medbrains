@@ -33,5 +33,7 @@ dependencies {
     api(libs.okhttp)
     // Ed25519 for the hospital QR: JCA has it only from API 33, minSdk is 28.
     implementation(libs.bouncycastle.prov)
+    // Error reports through the hospital server (ErrorTracking.kt).
+    implementation(libs.sentry.android.core)
     testImplementation(libs.junit)
 }

@@ -36,6 +36,9 @@ android {
         versionCode = rootProject.extra["appVersionCode"] as Int
         versionName = rootProject.extra["appVersionName"] as String
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Release CI passes this only when it uploads the R8 mapping to error tracking.
+        val proguardUuid = providers.gradleProperty("sentry.proguardUuid.app-patient").orNull.orEmpty()
+        buildConfigField("String", "SENTRY_PROGUARD_UUID", "\"$proguardUuid\"")
     }
     buildTypes {
         // Cleartext and the launch-intent server override are for the emulator

@@ -26,3 +26,27 @@
 # A reason must name the advisory (RUSTSEC-, GHSA-, CVE-, PYSEC- or GO- id), or the exception is
 # ignored. This file is code-owned (.github/CODEOWNERS): the owner's review of each entry is the
 # gate, the script only checks that an entry exists and is well formed.
+
+[[review]]
+ecosystem = "maven"
+name = "io.sentry:sentry-android-core"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-14"
+why = "Crash and error reports from the Android staff and patient apps, through the hospital server's scrubbing tunnel (kit ErrorTracking.kt). Core only: the sentry-android meta package would add NDK and replay. Our own crash capture, ANR detection and envelope format would be far more code than the SDK."
+checked = "Official Sentry SDK (getsentry/sentry-java, MIT), published by Sentry for years; Java/Kotlin AAR, no Gradle plugin or build script, consumer ProGuard rules only; 8.63.0 published 2026-11-05 (9 days)."
+
+[[review]]
+ecosystem = "maven"
+name = "io.sentry:sentry"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-14"
+why = "The JVM core of the Sentry SDK (event model, envelope transport, serializer), required by sentry-android-core."
+checked = "Same repo and publisher as sentry-android-core (getsentry/sentry-java, MIT); plain JAR, no build scripts; 8.63.0 published 2026-11-05 (9 days)."
+
+[[review]]
+ecosystem = "maven"
+name = "com.abovevacant:epitaph"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-14"
+why = "Transitive of sentry-android-core 8.63.0: decodes Android tombstone protobufs for native-crash context. Not called by our code; it comes with the SDK version."
+checked = "MIT, zero dependencies (POM); repo abovevacant/epitaph on GitHub, created 2026-03, small; its one contributor (supervacuus) appears to be a Sentry SDK maintainer, unconfirmed; 0.2.0 published 2026-09-13; plain library, no build scripts."

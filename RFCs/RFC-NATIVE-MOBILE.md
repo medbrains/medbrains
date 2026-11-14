@@ -84,6 +84,20 @@ adaptivity is verified on iPad split view and large-phone landscape until one ex
 expressive components (button groups, FAB menu, loading indicator) where Paper equivalents
 were used.
 
+**Android error reports.** `:kit` `ErrorTracking.kt`, started by each app's `MainActivity`,
+uses `io.sentry:sentry-android-core` only (no NDK, no replay, no screenshots or view
+hierarchy, no tracing). It is off unless `GET /api/public/error-tracking/config?app=android`
+answers `enabled` with a `dsn` and a `tunnel_dsn_path`; a failed fetch is off. The SDK never
+reaches the real DSN host: it starts with `{scheme}://medbrains@{server}{tunnel_dsn_path}` on the
+hospital server the app already uses, whose tunnel scrubs patient data from the text and
+forwards to the android project. On the phone the report is scrubbed by shape, as on the web:
+console and typed-text breadcrumbs dropped, `ui.*` messages dropped, URLs without query and with
+record ids as `:id`, the request reduced to method and URL, extras and server name cleared, and
+the user only `sha256(userId)` (32 hex) with `role` and `tenant_id` tags. Auto-init is off in the
+`:kit` manifest. Release CI uploads each app's R8 mapping with `sentry-cli` only when
+`SENTRY_AUTH_TOKEN` is set; it passes a per-app UUID as `-Psentry.proguardUuid.app-<name>`.
+Tests: `kit/src/test/.../ErrorTrackingTest.kt`.
+
 **TV.** Compose for TV, an obvious focus state, 48dp overscan, WebSocket-driven boards with a
 last-good render, never a blank board.
 
