@@ -2,7 +2,6 @@ import { defineConfig } from "vitest/config";
 import path from "path";
 import svgr from "vite-plugin-svgr";
 import pkg from "./package.json" with { type: "json" };
-import { ALLURE_LINKS } from "./allure-links.ts";
 
 export default defineConfig({
   plugins: [svgr()],
@@ -10,24 +9,12 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
-    // CI sets VITEST_REPORT_DIR for a JUnit file the PR's per-test summary reads, and the
-    // Allure results the test report at tests.medbrains.in is built from.
+    include: ["src/**/*.test.{ts,tsx}"],
+    // CI sets VITEST_REPORT_DIR for a JUnit file the PR's per-test summary reads.
     ...(process.env.VITEST_REPORT_DIR
       ? {
-          setupFiles: ["allure-vitest/setup", "./src/test/setup.ts"],
-          reporters: [
-            "default",
-            "junit",
-            [
-              "allure-vitest/reporter",
-              {
-                resultsDir: `${process.env.VITEST_REPORT_DIR}/allure-results`,
-                links: ALLURE_LINKS,
-              },
-            ],
-          ],
+          reporters: ["default", "junit"],
           outputFile: { junit: `${process.env.VITEST_REPORT_DIR}/vitest.xml` },
         }
       : {}),
