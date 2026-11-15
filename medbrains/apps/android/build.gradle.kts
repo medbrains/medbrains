@@ -1,5 +1,14 @@
 // MedBrains Android — Kotlin + Jetpack Compose (Material 3 Expressive).
 // Modules: :core (Rust via UniFFI), :kit (shell), :ui (Carbon tokens + theme), :app-*.
+// The plugin classpath (Android Gradle plugin, Kotlin plugins) is locked too, in this folder's
+// buildscript-gradle.lockfile: every module builds with these plugins, so an unpinned transitive
+// version here would reach every app. Regenerate with: ./gradlew :buildEnvironment --write-locks
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
