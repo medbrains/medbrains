@@ -21,6 +21,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | What we learnt from big OS platforms | `medbrains/docs/research/OS-PLATFORM-LESSONS.md` |
 | Building the OS image | `medbrains/os/README.md` (arrives with D1) |
 | SOP flows and the track builder | `medbrains/RFCs/RFC-SOP-FLOWS.md` |
+| Locale profile and country packs | `medbrains/RFCs/RFC-WORLD-READY.md` |
 | Knowledge change sets | `medbrains/RFCs/RFC-KNOWLEDGE-CHANGE-SETS.md` |
 | AI-native MedBrains | `medbrains/RFCs/RFC-AI-NATIVE.md` |
 | AI in clinical flows, voice first | `medbrains/RFCs/RFC-AI-CLINICAL-FLOWS.md` |
@@ -97,6 +98,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-01 | SOP flows: staff flip switches like a railway pointsman; safety signals stay locked | Non-technical staff can adapt a process without breaking safety | A free-form workflow editor | Done (#5153) |
 | 2026-11-01 | A full track builder, bounded by checks and dry runs | Hospitals asked for more than switches | Switches only | Done (#5174) |
 | 2026-11-01 | No database changes at runtime from the builder | Schema changes must stay accurate and reviewed; AI may help draft them | Runtime DDL | Plan (RFC-SOP-FLOWS §11.3a) |
+| 2026-11-15 | Build for the world (`medbrains/RFCs/RFC-WORLD-READY.md`, #5925) under one principle: fit any hospital in any country, never weaken a security or compliance floor. A pack or setting may only add restrictions; universal floors (audit, consent, encryption, authorisation, AI per-item accept, controlled-drug gates, data residency, retention minimums) live in code, every pack has a floor test, and a pack that lowers a floor fails to load. One locale profile at `locale/*` paths in the kernel configuration tree (hospital › facility › user; facility timezone scope built now in #5926), sent in `/auth/me`; India becomes a country pack and UAE is the second; packs are data compiled into a new `medbrains-country` crate, runtime packs later only if signed and verified like OS updates; one formatting helper set per platform over its own CLDR engine; a ratchet on India literals; money columns widened to 4 decimals in #5927 with a maintenance window; one tenant per country with group reports aggregated across tenants; dated legal changes apply only from a pack version approved beforehand through a change set; locale profile changes by `hospital_admin` with second-person approval, audited; no silent India fallback | Owner direction 2026-11-15: "a strong product that fits anything without compromising security and compliance"; four sources of locale disagree today and default to India; 1,485 rupee lines and 348 bare `toLocaleString()` calls; rules must stay testable and India must see no change | Per-country forks of screens; packs that can relax a floor; packs as runtime-editable database rows or unsigned files; rules as free configuration (safety gates must be code, RFC-HOSPITAL-OS §3.3); refusing 3-decimal currencies; mixed countries in one tenant; keeping the `tenants` locale columns as a second source | Proposed; owner to review |
 
 ### The OS
 
