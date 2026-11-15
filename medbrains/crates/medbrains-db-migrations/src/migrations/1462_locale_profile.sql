@@ -122,7 +122,19 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.locale_profile_guard() RETURNS trigger
     LANGUAGE plpgsql AS $$
+DECLARE
+    zone text := NEW.value #>> '{}';
 BEGIN
+    -- Every writer, the change set included, stores only an IANA zone name
+    -- every platform accepts (validate.rs `check_zone_name`): an abbreviation
+    -- or POSIX string (IST, GMT+4) breaks Intl and shifts prints.
+    IF NEW.key = 'timezone' AND NEW.deleted_at IS NULL AND NOT (
+           zone = 'UTC'
+        OR (zone LIKE '%/%' AND zone NOT LIKE 'posix/%' AND zone NOT LIKE 'right/%'
+            AND EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = zone))) THEN
+        RAISE EXCEPTION '"%" is not an IANA time zone; use a name such as Asia/Kolkata', zone
+            USING ERRCODE = '23514';
+    END IF;
     IF current_setting('medbrains.locale_profile_writer', true) = 'change_set' THEN
         RETURN NEW;
     END IF;
