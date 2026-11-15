@@ -50,6 +50,7 @@ function localeOf(profile: FormatProfile): string {
   return Intl.NumberFormat.supportedLocalesOf([tag]).length > 0 ? tag : NEUTRAL_LOCALE;
 }
 
+/** A cached number formatter for the locale and options. */
 function numberFormat(locale: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
   return cached(
     numberCache,
@@ -109,6 +110,7 @@ const STYLE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
   time: { hour: "2-digit", minute: "2-digit" },
 };
 
+/** A cached date formatter in the profile's locale, zone and clock, optionally in another calendar. */
 function dateFormat(
   profile: FormatProfile,
   style: DateStyle,

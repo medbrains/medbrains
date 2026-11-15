@@ -57,8 +57,10 @@ interface TextStore {
 class PrefsTextStore(context: Context) : TextStore {
     private val prefs = context.getSharedPreferences("medbrains.locale_profile", Context.MODE_PRIVATE)
 
+    /** The saved text, if any. */
     override fun read(key: String): String? = prefs.getString(key, null)
 
+    /** Save, asynchronously: the profile is a cache, the server holds the truth. */
     override fun write(key: String, value: String) {
         prefs.edit().putString(key, value).apply()
     }
@@ -78,6 +80,7 @@ class LocaleProfileStore(private val store: TextStore) {
     private val _state = MutableStateFlow(LocaleProfileState.LOADING)
     val state: StateFlow<LocaleProfileState> = _state.asStateFlow()
 
+    /** One saved profile per hospital: another hospital's is never borrowed. */
     private fun key(tenantId: String) = "medbrains.locale_profile.$tenantId"
 
     /** Fetch the profile; on any failure fall back to the last good one. */

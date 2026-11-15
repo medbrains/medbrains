@@ -11,14 +11,17 @@ public enum Format {
     /// Most decimals a stored amount carries (money columns are `numeric(_,4)`).
     private static let maxDecimals = 4
 
+    /// The profile's locale, English when it names none.
     private static func locale(_ p: LocaleProfile) -> Locale {
         Locale(identifier: p.values.locale ?? "en")
     }
 
+    /// The facility's zone, UTC when the profile has none or names an unknown one.
     private static func zone(_ p: LocaleProfile) -> TimeZone {
         p.values.timezone.flatMap(TimeZone.init(identifier:)) ?? utc
     }
 
+    /// " UTC" when the profile has no zone, so a neutral time never reads as local.
     private static func zoneLabel(_ p: LocaleProfile) -> String {
         p.values.timezone == nil ? " UTC" : ""
     }
@@ -58,6 +61,7 @@ public enum Format {
         value.formatted(.number.locale(locale(p)))
     }
 
+    /// The date and/or time style in the profile's locale, zone and clock.
     private static func style(_ p: LocaleProfile, date: Bool, time: Bool) -> Date.FormatStyle {
         var s = Date.FormatStyle(locale: locale(p), timeZone: zone(p))
         if date { s = s.year().month(.abbreviated).day() }

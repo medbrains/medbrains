@@ -74,6 +74,7 @@ public final class LocaleProfileStore {
         self.defaults = defaults
     }
 
+    /// One saved profile per hospital: another hospital's is never borrowed.
     private static func key(_ tenantId: String) -> String { "medbrains.locale_profile.\(tenantId)" }
 
     private struct Me: Decodable { let localeProfile: LocaleProfile? }

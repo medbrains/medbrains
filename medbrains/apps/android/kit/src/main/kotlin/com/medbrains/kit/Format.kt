@@ -26,11 +26,14 @@ object Format {
     /** Most decimals a stored amount carries (money columns are `numeric(_,4)`). */
     private const val MAX_DECIMALS = 4
 
+    /** The profile's locale, English when it names none. */
     private fun locale(p: LocaleProfile): Locale = Locale.forLanguageTag(p.values.locale ?: "en")
 
+    /** The facility's zone, UTC when the profile has none or names an unknown one. */
     private fun zone(p: LocaleProfile): ZoneId =
         p.values.timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: UTC
 
+    /** " UTC" when the profile has no zone, so a neutral time never reads as local. */
     private fun zoneLabel(p: LocaleProfile): String = if (p.values.timezone == null) " UTC" else ""
 
     /** The decimals an amount carries, so a bill never hides the paisa it was charged. */
@@ -55,6 +58,7 @@ object Format {
     /** A plain number grouped as the locale groups. */
     fun number(value: BigDecimal, p: LocaleProfile): String = NumberFormat.getNumberInstance(locale(p)).format(value)
 
+    /** 24- or 12-hour, as the profile's clock says. */
     private fun timePattern(p: LocaleProfile): String = if (p.values.hour_cycle == "h23") "HH:mm" else "hh:mm a"
 
     /** An instant as a date in the facility's zone. */

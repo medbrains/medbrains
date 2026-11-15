@@ -95,6 +95,7 @@ object AppConfig {
         if (BuildConfig.DEBUG) intent?.getStringExtra(key) else null
 }
 
+/** Sign-in or the module home, with the hospital's locale profile provided below. */
 @Composable
 private fun Root(auth: AuthStore, locale: LocaleProfileStore, binder: StaffBinder, initialModule: String?) {
     val state by auth.state.collectAsStateWithLifecycle()
