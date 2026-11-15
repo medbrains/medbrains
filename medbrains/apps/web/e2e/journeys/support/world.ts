@@ -9,6 +9,7 @@
 import { test as base, type Browser, expect, type Page } from "@playwright/test";
 import { loginAsRole, routeApiDirect } from "../../helpers";
 import { type AuthContext, api, getAuthContextFromCookies } from "../../helpers/api";
+import { saveCoverage, startCoverage } from "../../helpers/coverage";
 import { getE2EIdentity } from "../../helpers/e2e-identities";
 
 export interface Department {
@@ -58,6 +59,7 @@ const unique = () => crypto.randomUUID().slice(0, 8).toUpperCase();
 async function openPage(browser: Browser, storageState?: string): Promise<Page> {
   const context = await browser.newContext(storageState ? { storageState } : {});
   const page = await context.newPage();
+  await startCoverage(page);
   await routeApiDirect(page);
   return page;
 }
@@ -172,7 +174,10 @@ export const test = base.extend<{ hospital: Hospital }>({
     });
 
     for (const undo of restore.reverse()) await undo();
-    for (const page of pages) await page.context().close();
+    for (const page of pages) {
+      await saveCoverage(page);
+      await page.context().close();
+    }
   },
 });
 

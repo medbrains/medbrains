@@ -21,7 +21,8 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["VITEST_REPORT_DIR"]
     }
   }
 }

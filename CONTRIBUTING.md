@@ -50,6 +50,39 @@ pnpm dev:web         # web app on http://localhost:5173
 
 The workspace has about 119 Rust crates. The first build is slow and uses a lot of disk. Run only one cargo build at a time, and build just the crate you changed (`cargo clippy -p <crate>`). SQL metadata is committed in `.sqlx/`, so builds work offline with `SQLX_OFFLINE=true`.
 
+## Running the end-to-end tests
+
+The Playwright journeys live in `medbrains/apps/web/e2e/`. They need the server and the web app running, as in the setup above, against a development database (they sign in as the dev seed's `admin` and create their own temporary staff).
+
+```bash
+cd medbrains/apps/web
+pnpm exec playwright install chromium   # once
+pnpm exec playwright test --project=journeys            # one layer
+pnpm exec playwright test e2e/journeys/access-alerts.spec.ts  # one file
+pnpm exec playwright test --ui           # watch them run
+```
+
+CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into `main`, a `release/**` or a `hotfix/**` branch, and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
+
+### The test report
+
+Every night the Playwright, Vitest and Rust results are combined into one report at [tests.medbrains.in](https://tests.medbrains.in), grouped by app, then module, then scenario. Each PR run also attaches the same report as the `test-report` artifact.
+
+The grouping is filled in for you: the app is `web` or `server`, the module comes from the file name (`pharmacy-dispense.spec.ts` goes under `pharmacy`), and the scenario is the `describe` block. To set any of them yourself, or to link the test to its `test-scenario` issue, add annotations to the test. A `tms` link names the scenario the test proves, and an `issue` link names a bug it guards against:
+
+```ts
+test("pharmacist cannot dispense Schedule X without a duplicate record", {
+  annotation: [
+    { type: "tms", description: "5123" },        // links to issue #5123
+    { type: "feature", description: "pharmacy" }, // module, when the file name is wrong
+  ],
+}, async ({ page }) => { /* ... */ });
+```
+
+Vitest tests are grouped the same way, from the file name and the `describe` block; issue links are for the Playwright journeys.
+
+To look at a PR's report, download its `test-report` artifact and run `pnpm exec allure open <folder>` from `medbrains/apps/web`.
+
 ## Code style
 
 The full rules are in [`ENGINEERING.md`](./ENGINEERING.md). The essentials:
@@ -90,3 +123,7 @@ Do not report vulnerabilities in public issues. Follow [SECURITY.md](./SECURITY.
 ## Licence
 
 MedBrains is dual-licensed (AGPL-3.0-only and commercial). Pull requests are merged only after you sign the [contributor licence agreement](./CLA.md): your contribution is licensed under the AGPL-3.0-only, and you grant the maintainer the right to also license it commercially. You keep your copyright. The name and logo are covered by the [trademark policy](./TRADEMARKS.md).
+
+## Contribute a test scenario, no code needed
+
+Know how a hospital task should go? Open a [test scenario](https://github.com/medbrains/medbrains/issues/new?template=test_scenario.yml): who does it, the starting situation, what they do and what MedBrains must do. Each accepted scenario becomes an automated test on every app it names (web, Android, iPhone, desktop, TV, kiosk, the OS box or the API) and runs on every change. Scenarios labelled `test-scenario` are also good first issues for anyone who wants to write the test.
