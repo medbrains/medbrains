@@ -58,6 +58,7 @@ export function KnowledgeChangesPage() {
     canApprove: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.APPROVE),
     canApply: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.APPLY),
     canRollback: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.ROLLBACK),
+    canApplyLocaleProfile: useHasPermission(P.ADMIN.LOCALE_PROFILE.UPDATE),
     canDraft: canCreate && (manageInteractions || manageCriticals || canSwitch),
   };
   // Flow switches are proposed from the switchboard and the locale profile

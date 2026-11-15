@@ -21,6 +21,8 @@ export interface SetPermissions {
   canApprove: boolean;
   canApply: boolean;
   canRollback: boolean;
+  /** A locale-profile change is applied only by the hospital administrator. */
+  canApplyLocaleProfile: boolean;
 }
 
 export type SetAction =
@@ -48,6 +50,8 @@ export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps
   const canWithdraw = isAuthor && (isOpen || set.status === "approved");
   const canRollBack = set.status === "applied" && can.canRollback && !set.rolled_back_by_set_id;
   const hasProof = set.status === "applied" || set.status === "rolled_back";
+  // The server also asks for the area's own code at apply (engine::apply).
+  const canApply = can.canApply && (set.area !== "locale_profile" || can.canApplyLocaleProfile);
   const needsNote = canDecide || canWithdraw || canRollBack;
 
   return (
@@ -105,7 +109,7 @@ export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps
             {canDecide ? "Reject" : "Withdraw"}
           </Button>
         )}
-        {set.status === "approved" && can.canApply && (
+        {set.status === "approved" && canApply && (
           <Button
             tone="primary"
             leftSection={<IconPlayerPlay size={16} />}
