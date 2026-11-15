@@ -18522,10 +18522,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ otp }),
     }),
-  chooseAbhaAddress: (id: string, abhaAddress: string) =>
+  /** Create the chosen ABHA address; `keepExisting` finishes on the one the ABHA already has. */
+  chooseAbhaAddress: (id: string, abhaAddress: string, keepExisting = false) =>
     request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/address`, {
       method: "POST",
-      body: JSON.stringify({ abha_address: abhaAddress }),
+      body: JSON.stringify({ abha_address: abhaAddress, keep_existing: keepExisting }),
     }),
   /** The ABHA QR image, for showing on screen (cookie-authenticated GET). */
   abhaQrUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/qr`,

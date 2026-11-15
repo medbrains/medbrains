@@ -21,7 +21,7 @@ object AbdmEndpoint {
 @Serializable private data class OtpBody(val otp: String)
 @Serializable private data class EnrolmentOtpBody(val otp: String, val mobile: String)
 @Serializable private data class AccountBody(val abha_number: String)
-@Serializable private data class AddressBody(val abha_address: String)
+@Serializable private data class AddressBody(val abha_address: String, val keep_existing: Boolean)
 @Serializable private data class EnrolBody(val aadhaar: String, val consent: Boolean)
 @Serializable private data class ResendEnrolBody(val aadhaar: String? = null)
 @Serializable private data class ResendBody(val value: String? = null)
@@ -59,7 +59,10 @@ class AbhaApi(private val client: ApiClient) {
 
     suspend fun enrolmentMobileOtp(id: String, otp: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "mobile-otp"), OtpBody(otp))
 
-    suspend fun chooseAddress(id: String, address: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "address"), AddressBody(address))
+    suspend fun chooseAddress(id: String, address: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "address"), AddressBody(address, false))
+
+    /** After "ABHA address already exists.": finish on the address the new ABHA already has (CRT_ABHA_112). */
+    suspend fun keepExistingAddress(id: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "address"), AddressBody("", true))
 
     /** The ABHA card as ABDM renders it, to show, print or share. */
     suspend fun card(id: String): ByteArray = client.download(AbdmEndpoint.verification(id, "card"))

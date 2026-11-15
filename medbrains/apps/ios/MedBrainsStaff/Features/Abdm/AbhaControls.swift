@@ -71,11 +71,50 @@ struct AbhaOtpField: View {
     }
 }
 
-/// ABDM refused or could not be reached: said in ABDM's words.
+/// ABDM refused or could not be reached: ABDM's own words first
+/// (CRT_ABHA_105, 107), our hint beneath when the server added one.
 struct AbhaFailureNote: View {
     let message: String?
     var body: some View {
-        if let message { CarbonNotification(kind: .error, title: "ABDM said no", message: message).accessibilityIdentifier("abha-failure") }
+        if let message {
+            let split = AbhaRules.splitAbdmMessage(message)
+            CarbonNotification(kind: .error, title: "ABDM said no", message: split.message) {
+                if let hint = split.hint { Text(hint).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.inkSecondary) }
+            }
+            .accessibilityIdentifier("abha-failure")
+        }
+    }
+}
+
+/// The masked mobile the OTP went to (CRT_ABHA_105), when the server knows it.
+struct AbhaSentTo: View {
+    let step: AbhaVerificationStep?
+    var body: some View {
+        if let to = step?.sentTo {
+            Text("OTP sent to \(to)").font(CarbonType.code).foregroundStyle(MedBrainsTheme.ink).accessibilityIdentifier("abha-sent-to")
+        }
+    }
+}
+
+/// NHA's ABHA address rules beside the field (CRT_ABHA_112): green when met,
+/// red when not, with an icon and the words "met" / "not met" so colour is
+/// never the only signal.
+struct AbhaAddressRulesView: View {
+    let name: String
+    let domain: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(AbhaRules.addressChecklist(name, domain: domain), id: \.label) { rule in
+                Label {
+                    Text("\(rule.label) — \(rule.met ? "met" : "not met")").foregroundStyle(MedBrainsTheme.ink)
+                } icon: {
+                    Image(systemName: rule.met ? "checkmark.circle.fill" : "xmark.circle.fill").foregroundStyle(rule.met ? MedBrainsTheme.success : MedBrainsTheme.danger)
+                }
+                .font(CarbonType.helper)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("abha-address-rules")
     }
 }
 

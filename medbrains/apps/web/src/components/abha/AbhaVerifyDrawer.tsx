@@ -11,8 +11,10 @@ import { useState } from "react";
 import { useInterval } from "react-use";
 import { Alert, Button, Input, Modal, PasswordField, Select } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
+import { AbhaFailureAlert } from "./AbhaFailureAlert";
 import { AbhaQrScanModal } from "./AbhaQrScanModal";
 import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
+import { ABHA_MESSAGES, isValidAadhaar, isValidMobile } from "./abhaRules";
 import { ResendOtpButton } from "./ResendOtpButton";
 
 interface AbhaVerifyDrawerProps extends AbhaConfirmProps {
@@ -54,10 +56,20 @@ const choosesVia = (m: AbhaVerifyMethod) => m === "abha_number" || m === "abha_a
 
 const digitsOnly = (v: string) => v.replace(/\D/g, "");
 
+/** NHA's exact refusal for what is typed (VRFY_ABHA_301, CRT_ABHA_104), or none. */
+function lookupError(method: AbhaVerifyMethod, value: string): string | undefined {
+  if ((method === "mobile" || method === "find_mobile") && !isValidMobile(value)) {
+    return ABHA_MESSAGES.mobileInvalid;
+  }
+  if (method === "aadhaar" && !isValidAadhaar(value)) return ABHA_MESSAGES.aadhaarInvalid;
+  return undefined;
+}
+
 function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDrawerProps) {
   const [method, setMethod] = useState<AbhaVerifyMethod>("abha_number");
   const [via, setVia] = useState<AbhaOtpVia>("aadhaar");
   const [value, setValue] = useState("");
+  const [tried, setTried] = useState(false);
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<AbhaVerificationStep | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -94,6 +106,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
     onSuccess: advance,
   });
   const failure = [start, resend, verify, choose].find((m) => m.isError)?.error;
+  const valueError = tried ? lookupError(method, value) : undefined;
   const readCard = (read: AbhaCardQr) => {
     setScanning(false);
     setCard(read);
@@ -111,11 +124,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
 
   return (
     <Stack>
-      {failure && (
-        <Alert tone="danger" title="ABDM said no">
-          {failure.message}
-        </Alert>
-      )}
+      {failure && <AbhaFailureAlert error={failure} />}
 
       {!step && (
         <Stack>
@@ -148,6 +157,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
               inputMode="numeric"
               autoComplete="off"
               value={value}
+              error={valueError}
               onChange={(e) => setValue(digitsOnly(e.currentTarget.value).slice(0, 12))}
               data-autofocus
             />
@@ -157,6 +167,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
               inputMode={method === "abha_address" ? "text" : "numeric"}
               autoComplete="off"
               value={value}
+              error={valueError}
               onChange={(e) => setValue(e.currentTarget.value)}
               data-autofocus
             />
@@ -178,7 +189,15 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
               </Stack>
             </Radio.Group>
           )}
-          <Button tone="primary" loading={start.isPending} onClick={() => start.mutate()}>
+          <Button
+            tone="primary"
+            loading={start.isPending}
+            onClick={() => {
+              // An invalid mobile or Aadhaar is refused here: no search, no OTP.
+              setTried(true);
+              if (!lookupError(method, value)) start.mutate();
+            }}
+          >
             {method === "find_mobile" ? "Find ABHAs" : "Send OTP"}
           </Button>
         </Stack>
@@ -189,6 +208,11 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
           <Text size="sm">
             {step.message ?? "ABDM has sent the patient an OTP."} Ask them to read it out.
           </Text>
+          {step.sent_to && (
+            <Text size="sm" ff="monospace">
+              OTP sent to {step.sent_to}
+            </Text>
+          )}
           <Input
             label="OTP"
             inputMode="numeric"

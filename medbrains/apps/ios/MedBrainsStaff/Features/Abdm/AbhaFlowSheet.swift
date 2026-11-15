@@ -148,6 +148,7 @@ private struct AbhaVerifyFlow: View {
     private var otpStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(flow.step?.message ?? "ABDM has sent the patient an OTP.").font(CarbonType.body).foregroundStyle(MedBrainsTheme.ink)
+            AbhaSentTo(step: flow.step)
             AbhaOtpField(otp: $flow.otp)
             Button {
                 guard let client, let id = flow.step?.id else { return }
@@ -202,10 +203,15 @@ private struct AbhaCreateFlow: View {
     @State private var aadhaar = ""
     @State private var abhaMobile = ""
     @State private var address = ""
+    @State private var tried = false
     @FocusState private var focused: Bool
 
+    /// CRT_ABHA_112: ABDM found the address taken — a choice, not a failure.
+    private var taken: Bool { flow.failure == AbhaRules.addressTaken }
+    private var domain: String { flow.step?.addressDomain ?? "abdm" }
+
     var body: some View {
-        AbhaFailureNote(message: flow.failure)
+        AbhaFailureNote(message: taken ? nil : flow.failure)
         switch flow.step?.stageKind {
         case nil: consentStep
         case .otpSent?: aadhaarOtpStep
@@ -232,15 +238,20 @@ private struct AbhaCreateFlow: View {
             CarbonNotification(kind: .info, title: "Terms and Conditions — read these to the patient", message: Abha.enrolConsent)
             Toggle("I agree — the patient consents to creating their ABHA with Aadhaar (ABDM consent v\(Abha.enrolConsentVersion))", isOn: $consent).font(CarbonType.body).tint(MedBrainsTheme.interactive)
                 .accessibilityIdentifier("abha-consent")
-            CarbonField("Aadhaar number", helper: "12 digits. Sent to ABDM encrypted; not saved here.", isFocused: focused) {
+            CarbonField("Aadhaar number", helper: "12 digits. Sent to ABDM encrypted; not saved here.", error: (tried || aadhaar.count == Abha.aadhaarLength) && !AbhaRules.isValidAadhaar(aadhaar) ? AbhaRules.aadhaarInvalid : nil, isFocused: focused) {
                 SecureField("12 digits", text: Binding(get: { aadhaar }, set: { aadhaar = Abha.aadhaarInput($0) }))
                     .keyboardType(.numberPad).textContentType(.none).privacySensitive().focused($focused)
                     .accessibilityIdentifier("abha-aadhaar")
             }
-            Button { run { [aadhaar, consent] in try await $0.startEnrolment(aadhaar: aadhaar, consent: consent) } } label: {
+            Button {
+                // CRT_ABHA_104: an invalid number is refused here; no OTP is asked for.
+                tried = true
+                guard AbhaRules.isValidAadhaar(aadhaar) else { return }
+                run { [aadhaar, consent] in try await $0.startEnrolment(aadhaar: aadhaar, consent: consent) }
+            } label: {
                 HStack { Text("Send OTP to the Aadhaar mobile"); Spacer(); Image(systemName: "arrow.right") }
             }
-            .buttonStyle(.carbonPrimary).disabled(!consent || aadhaar.count != Abha.aadhaarLength || flow.busy).accessibilityIdentifier("abha-aadhaar-send")
+            .buttonStyle(.carbonPrimary).disabled(!consent || flow.busy).accessibilityIdentifier("abha-aadhaar-send")
         }
         .onAppear { if abhaMobile.isEmpty { abhaMobile = Abha.mobile(mobile) ?? "" } }
     }
@@ -248,8 +259,9 @@ private struct AbhaCreateFlow: View {
     private var aadhaarOtpStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(flow.step?.message ?? "ABDM has sent an OTP to the Aadhaar mobile.").font(CarbonType.body).foregroundStyle(MedBrainsTheme.ink)
+            AbhaSentTo(step: flow.step)
             AbhaOtpField(otp: $flow.otp)
-            CarbonField("Mobile for the ABHA", helper: "If this is not the Aadhaar-linked mobile, it gets its own OTP next.", isFocused: false) {
+            CarbonField("Mobile for the ABHA", helper: "If this is not the Aadhaar-linked mobile, it gets its own OTP next.", error: !abhaMobile.isEmpty && !AbhaRules.isValidMobile(abhaMobile) ? AbhaRules.mobileInvalid : nil, isFocused: false) {
                 TextField("10 digits", text: Binding(get: { abhaMobile }, set: { abhaMobile = Abha.mobileInput($0) })).keyboardType(.numberPad)
                     .accessibilityIdentifier("abha-mobile")
             }
@@ -257,7 +269,7 @@ private struct AbhaCreateFlow: View {
                 guard let id = flow.step?.id else { return }
                 run { [otp = flow.otp, abhaMobile] in try await $0.enrolmentOtp(id, otp: otp, mobile: abhaMobile) }
             }
-            .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength || abhaMobile.count != Abha.mobileLength).accessibilityIdentifier("abha-create")
+            .buttonStyle(.carbonPrimary).disabled(flow.busy || flow.otp.count != Abha.otpLength || !AbhaRules.isValidMobile(abhaMobile)).accessibilityIdentifier("abha-create")
             AbhaResendControl(flow: flow) {
                 guard let id = flow.step?.id else { return }
                 run { [aadhaar] in try await $0.resendEnrolment(id, aadhaar: aadhaar) }
@@ -269,6 +281,7 @@ private struct AbhaCreateFlow: View {
     private var mobileOtpStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(flow.step?.message ?? "ABDM has sent an OTP to the new mobile.").font(CarbonType.body).foregroundStyle(MedBrainsTheme.ink)
+            AbhaSentTo(step: flow.step)
             AbhaOtpField(otp: $flow.otp)
             Button("Verify mobile") {
                 guard let id = flow.step?.id else { return }
@@ -287,20 +300,35 @@ private struct AbhaCreateFlow: View {
         VStack(alignment: .leading, spacing: 12) {
             CarbonSectionTitle("Choose an ABHA address — the patient's easy-to-remember health ID")
             ForEach(flow.step?.suggestions ?? [], id: \.self) { s in
-                Button { address = s } label: {
+                Button { address = s; flow.failure = nil } label: {
                     CarbonRow(s, mono: true) { Image(systemName: address == s ? "largecircle.fill.circle" : "circle").foregroundStyle(MedBrainsTheme.interactive) }
                 }
                 .buttonStyle(.plain).accessibilityAddTraits(address == s ? .isSelected : [])
             }
-            CarbonField("Or type one", helper: "Letters, numbers, dot or underscore. ABDM adds the @ part.", error: address.isEmpty ? nil : Abha.addressProblem(address), isFocused: false) {
-                TextField("priya.v", text: Binding(get: { address }, set: { address = $0.trimmingCharacters(in: .whitespaces) }))
+            CarbonField("Or type one", helper: "ABDM adds @\(domain).", isFocused: false) {
+                TextField("priya.v", text: Binding(get: { address }, set: { address = $0.trimmingCharacters(in: .whitespaces); flow.failure = nil }))
                     .textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("abha-address")
             }
-            Button("Create ABHA address") {
-                guard let id = flow.step?.id else { return }
-                run { [address] in try await $0.chooseAddress(id, address: address) }
+            let name = AbhaRules.addressName(address, domain: domain)
+            AbhaAddressRulesView(name: name, domain: domain)
+            if taken {
+                CarbonNotification(kind: .warning, title: AbhaRules.addressTaken, message: "Keep the address the ABHA already has, or choose another.") {
+                    Button("Proceed with the existing ABHA address") {
+                        guard let id = flow.step?.id else { return }
+                        run { try await $0.keepExistingAddress(id) }
+                    }
+                    .buttonStyle(.carbonPrimary).disabled(flow.busy).accessibilityIdentifier("abha-address-keep")
+                    Button("Create a new ABHA address") { address = ""; flow.failure = nil }
+                        .buttonStyle(.carbonTertiary).accessibilityIdentifier("abha-address-new")
+                }
+                .accessibilityIdentifier("abha-address-taken")
+            } else {
+                Button("Create ABHA address") {
+                    guard let id = flow.step?.id else { return }
+                    run { [address] in try await $0.chooseAddress(id, address: address) }
+                }
+                .buttonStyle(.carbonPrimary).disabled(flow.busy || !AbhaRules.isValidAddress(name, domain: domain)).accessibilityIdentifier("abha-address-create")
             }
-            .buttonStyle(.carbonPrimary).disabled(flow.busy || Abha.addressProblem(address) != nil).accessibilityIdentifier("abha-address-create")
         }
     }
 }

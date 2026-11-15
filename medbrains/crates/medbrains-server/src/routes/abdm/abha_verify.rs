@@ -19,7 +19,7 @@ use axum::{
 };
 use medbrains_abdm::{
     AbhaAccountSummary, OtpSystem, RequestOtpRequest, VerifyOtpAuthData, VerifyOtpPayload,
-    VerifyOtpRequest, VerifyUserRequest,
+    VerifyOtpRequest, VerifyOtpResponse, VerifyUserRequest, rules::OTP_INVALID,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;
@@ -28,18 +28,16 @@ use uuid::Uuid;
 use super::abha::{Abdm, connect, map_abdm_error};
 use super::abha_address::{full_address, hint, otp_system, request_otp, scope, verify_and_finish};
 use super::abha_common::{
-    AccountChoice, RESEND_AFTER_SECONDS, VerificationStep, abha_number_display, check_resend,
-    digits, env_name, gender_name, keep_token, record_verified, take_token, to_profile, update,
+    AccountChoice, OTP_TRANSACTION_MINUTES, RESEND_AFTER_SECONDS, VerificationStep, aadhaar_digits,
+    abha_number_display, check_resend, digits, env_name, gender_name, keep_token, mobile_digits,
+    record_verified, take_token, to_profile, update,
 };
-use super::abha_enrol::aadhaar_digits;
 use super::abha_find::{found_otp_request, pick_found, search, unreachable_method};
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
 
-/// How long a verification can be used to register or link the patient.
-const VERIFICATION_LIFETIME_MINUTES: i32 = 30;
 /// Wrong OTPs allowed before the verification must start again.
 const MAX_OTP_ATTEMPTS: i32 = 5;
 
@@ -112,6 +110,16 @@ pub async fn start(
     Json(body): Json<StartVerification>,
 ) -> Result<Json<VerificationStep>, AppError> {
     require_permission(&claims, permissions::abdm::abha::MANAGE)?;
+    // NHA's exact refusals come before ABDM is asked anything (VRFY_ABHA_301).
+    match body.method {
+        VerifyMethod::Mobile | VerifyMethod::FindMobile => {
+            mobile_digits(&body.value)?;
+        }
+        VerifyMethod::Aadhaar => {
+            aadhaar_digits(&body.value)?;
+        }
+        VerifyMethod::AbhaNumber | VerifyMethod::AbhaAddress => {}
+    }
     let abdm = connect(&state, claims.tenant_id).await?;
     if body.method == VerifyMethod::FindMobile {
         return search(&state, &claims, &abdm, &body.value).await.map(Json);
@@ -122,15 +130,7 @@ pub async fn start(
                 .ok_or_else(|| AppError::BadRequest("an ABHA number has 14 digits".to_owned()))?;
             (number, otp_system(body.otp_via))
         }
-        VerifyMethod::Mobile => {
-            let mobile = digits(&body.value);
-            if mobile.len() != 10 {
-                return Err(AppError::BadRequest(
-                    "a mobile number has 10 digits".to_owned(),
-                ));
-            }
-            (mobile, OtpSystem::Abdm)
-        }
+        VerifyMethod::Mobile => (mobile_digits(&body.value)?, OtpSystem::Abdm),
         VerifyMethod::AbhaAddress => {
             let address = full_address(&body.value, abdm.environment)
                 .ok_or_else(|| AppError::BadRequest("enter the ABHA address".to_owned()))?;
@@ -172,7 +172,7 @@ pub async fn start(
     .bind(env_name(&abdm))
     .bind(&kept)
     .bind(&sent.txn_id)
-    .bind(VERIFICATION_LIFETIME_MINUTES)
+    .bind(OTP_TRANSACTION_MINUTES)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -271,6 +271,34 @@ pub async fn resend(
     ))
 }
 
+/// ABDM answers a wrong OTP with 200 and `authResult: failed`; that is a
+/// refusal in ABDM's words, not a missing session.
+fn accepted(verified: VerifyOtpResponse) -> Result<VerifyOtpResponse, AppError> {
+    if verified
+        .auth_result
+        .as_deref()
+        .is_some_and(|r| !r.eq_ignore_ascii_case("success"))
+    {
+        return Err(AppError::BadRequest(verified.message.unwrap_or_else(
+            || "ABDM did not accept the OTP. Check it with the patient.".to_owned(),
+        )));
+    }
+    Ok(verified)
+}
+
+/// Finding an ABHA by mobile, a refused OTP gets NHA's exact words
+/// (`VRFY_ABHA_307`); ABDM's are logged. Every other method keeps ABDM's.
+fn wrong_otp(method: VerifyMethod, error: AppError) -> AppError {
+    match error {
+        AppError::BadRequest(why) if method == VerifyMethod::FindMobile => {
+            tracing::warn!(detail = %why, "ABDM refused the find-by-mobile OTP");
+            AppError::BadRequest(OTP_INVALID.to_owned())
+        }
+        other => other,
+    }
+}
+
+/// The method and OTP system a stored verification was started with.
 fn parse_row_method(row: &Row) -> (VerifyMethod, OtpSystem) {
     let method = match row.method.as_str() {
         "mobile" => VerifyMethod::Mobile,
@@ -339,7 +367,9 @@ pub async fn submit_otp(
         .client
         .verify_login_otp(&abdm.session, &request)
         .await
-        .map_err(map_abdm_error)?;
+        .map_err(map_abdm_error)
+        .and_then(accepted)
+        .map_err(|e| wrong_otp(method, e))?;
     let token = verified
         .token
         .ok_or_else(|| AppError::ServiceUnavailable("ABDM did not return a session".to_owned()))?;
@@ -432,6 +462,8 @@ async fn offer_accounts(
         profile: None,
         already_linked: None,
         suggestions: Vec::new(),
+        sent_to: None,
+        address_domain: None,
     }))
 }
 
@@ -503,4 +535,52 @@ async fn finish(
     // Kept for printing the ABHA card while ABDM's token lasts.
     keep_token(id, x_token);
     record_verified(state, claims, id, profile).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{VerifyMethod, accepted, wrong_otp};
+    use crate::error::AppError;
+    use medbrains_abdm::{VerifyOtpResponse, rules::OTP_INVALID};
+
+    fn answer(result: &str, message: Option<&str>) -> VerifyOtpResponse {
+        VerifyOtpResponse {
+            txn_id: None,
+            auth_result: Some(result.to_owned()),
+            message: message.map(str::to_owned),
+            token: None,
+            accounts: Vec::new(),
+        }
+    }
+
+    /// A 200 with `authResult: failed` is a refusal in ABDM's words.
+    #[test]
+    fn a_failed_auth_result_is_a_refusal() {
+        let refused = accepted(answer(
+            "failed",
+            Some("OTP did not match, please try again."),
+        ));
+        assert!(
+            matches!(refused, Err(AppError::BadRequest(m)) if m == "OTP did not match, please try again.")
+        );
+        assert!(accepted(answer("success", None)).is_ok());
+    }
+
+    /// `VRFY_ABHA_307`: only find-by-mobile swaps ABDM's words for NHA's;
+    /// an outage is never dressed as a wrong OTP.
+    #[test]
+    fn find_by_mobile_says_invalid_otp_exactly() {
+        let wrong = || AppError::BadRequest("OTP did not match".to_owned());
+        assert!(
+            matches!(wrong_otp(VerifyMethod::FindMobile, wrong()), AppError::BadRequest(m) if m == OTP_INVALID)
+        );
+        assert!(
+            matches!(wrong_otp(VerifyMethod::Mobile, wrong()), AppError::BadRequest(m) if m == "OTP did not match")
+        );
+        let down = AppError::ServiceUnavailable("ABDM is not responding".to_owned());
+        assert!(matches!(
+            wrong_otp(VerifyMethod::FindMobile, down),
+            AppError::ServiceUnavailable(_)
+        ));
+    }
 }

@@ -16,10 +16,12 @@ describe("ResendOtpButton", () => {
     expect(screen.getByText("One resend left")).toBeInTheDocument();
   });
 
-  it("offers no third resend — ABDM allows two (CRT_ABHA_106)", () => {
+  it("offers no third resend and says NHA's 30-minute words (CRT_ABHA_106)", () => {
     render(<ResendOtpButton wait={0} resendsLeft={0} loading={false} onResend={vi.fn()} />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.getByText(/cannot be sent again/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Maximum OTP resend attempts reached. Please try again after 30 mins"),
+    ).toBeInTheDocument();
   });
 });
 

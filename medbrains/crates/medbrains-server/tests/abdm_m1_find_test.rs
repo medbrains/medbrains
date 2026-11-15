@@ -56,6 +56,10 @@ async fn finding_by_mobile_lists_the_abhas_then_verifies_the_one_picked() {
         (StatusCode::OK, Some("otp_sent")),
         "{sent}"
     );
+    assert_eq!(
+        sent["sent_to"], "******3210",
+        "the masked mobile (CRT_ABHA_105)"
+    );
     let otp = &mock.sent("/v3/profile/login/request/otp")[0];
     assert_eq!(
         otp["scope"],
@@ -91,6 +95,23 @@ async fn finding_by_mobile_lists_the_abhas_then_verifies_the_one_picked() {
         (Some("search-txn"), "2".to_owned())
     );
 
+    // VRFY_ABHA_307: a wrong OTP reads exactly as NHA words it.
+    let (s, wrong) = call(
+        &app,
+        &csrf,
+        &format!("/api/abdm/abha/verifications/{id}/otp"),
+        json!({ "otp": EXPIRED_OTP }),
+    )
+    .await;
+    assert_eq!(
+        (s, wrong["detail"].as_str()),
+        (
+            StatusCode::BAD_REQUEST,
+            Some("Invalid OTP. Please enter a valid OTP.")
+        ),
+        "{wrong}"
+    );
+
     let (s, done) = call(
         &app,
         &csrf,
@@ -113,6 +134,73 @@ async fn finding_by_mobile_lists_the_abhas_then_verifies_the_one_picked() {
     );
 }
 
+/// Given a mobile that is short, long, has letters or symbols, or is blank,
+/// Then NHA's exact words and no search (VRFY_ABHA_301); given an Aadhaar
+/// number of the wrong length or checksum, NHA's words and no OTP
+/// (CRT_ABHA_104) — for finding and for creating alike.
+#[tokio::test]
+async fn an_invalid_mobile_or_aadhaar_is_refused_before_abdm_is_asked() {
+    let _serial = SERIAL.lock().await;
+    let (app, csrf, mock) = app_with_keys().await;
+    for bad in ["987654321", "98765432101", "98765abc10", "98765-43210", ""] {
+        for method in ["find_mobile", "mobile"] {
+            let (s, said) = call(
+                &app,
+                &csrf,
+                "/api/abdm/abha/verifications",
+                json!({ "method": method, "value": bad }),
+            )
+            .await;
+            assert_eq!(
+                (s, said["detail"].as_str()),
+                (
+                    StatusCode::BAD_REQUEST,
+                    Some("Please enter a valid mobile number.")
+                ),
+                "{method} {bad:?}"
+            );
+        }
+    }
+    for bad in ["234567890123", "23456789012", "2345-6789-0127"] {
+        let (s, said) = call(
+            &app,
+            &csrf,
+            "/api/abdm/abha/verifications",
+            json!({ "method": "aadhaar", "value": bad }),
+        )
+        .await;
+        assert_eq!(
+            (s, said["detail"].as_str()),
+            (StatusCode::BAD_REQUEST, Some("Aadhaar Number is not valid")),
+            "{bad:?}"
+        );
+        let (s, said) = call(
+            &app,
+            &csrf,
+            "/api/abdm/abha/enrolments",
+            json!({ "aadhaar": bad, "consent": true }),
+        )
+        .await;
+        assert_eq!(
+            (s, said["detail"].as_str()),
+            (StatusCode::BAD_REQUEST, Some("Aadhaar Number is not valid")),
+            "enrol {bad:?}"
+        );
+    }
+    assert!(
+        mock.sent("/v3/profile/account/abha/search").is_empty(),
+        "no search ran"
+    );
+    assert!(
+        mock.sent("/v3/profile/login/request/otp").is_empty(),
+        "no OTP was asked for"
+    );
+    assert!(
+        mock.sent("/v3/enrollment/request/otp").is_empty(),
+        "no enrolment OTP"
+    );
+}
+
 /// Given an Aadhaar number, When the desk finds the ABHA by it, Then the
 /// OTP goes to the Aadhaar mobile (scope aadhaar-verify, hint aadhaar), the
 /// number is never stored, a resend needs it typed again, and an Aadhaar
@@ -125,7 +213,7 @@ async fn finding_by_aadhaar_never_stores_it_and_says_when_there_is_no_abha() {
         &app,
         &csrf,
         "/api/abdm/abha/verifications",
-        json!({ "method": "aadhaar", "value": "2345 6789 0123" }),
+        json!({ "method": "aadhaar", "value": "2345 6789 0127" }),
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{step}");
@@ -136,7 +224,7 @@ async fn finding_by_aadhaar_never_stores_it_and_says_when_there_is_no_abha() {
         (otp["loginHint"].as_str(), otp["otpSystem"].as_str()),
         (Some("aadhaar"), Some("aadhaar"))
     );
-    assert_eq!(mock.decrypt(&otp["loginId"]), "234567890123");
+    assert_eq!(mock.decrypt(&otp["loginId"]), "234567890127");
     let kept: String =
         sqlx::query_scalar("SELECT login_id_cipher FROM abha_verifications WHERE id = $1::uuid")
             .bind(&id)
@@ -163,7 +251,7 @@ async fn finding_by_aadhaar_never_stores_it_and_says_when_there_is_no_abha() {
         &app,
         &csrf,
         &format!("/api/abdm/abha/verifications/{id}/resend"),
-        json!({ "value": "234567890123" }),
+        json!({ "value": "234567890127" }),
     )
     .await;
     assert_eq!(s, StatusCode::OK);

@@ -18,6 +18,7 @@ pub mod abha_address;
 pub mod abha_card;
 pub mod abha_common;
 pub mod abha_enrol;
+pub mod abha_enrol_address;
 mod abha_find;
 pub mod abha_link;
 pub mod abha_optout;
