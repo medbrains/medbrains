@@ -10,7 +10,7 @@
 //! - [`floor`]: the security and compliance floor, code a pack can only add to.
 //! - [`profile`]: the fields, their scopes and pure resolution.
 //! - [`for_user`] / [`for_scope`]: resolution against the database, one
-//!   configuration round trip.
+//!   round trip (the user's facility is found inside the same query).
 
 use medbrains_kernel::config::{self, Scopes};
 use sqlx::PgConnection;
@@ -31,27 +31,6 @@ pub enum CountryError {
     Db(#[from] sqlx::Error),
     #[error(transparent)]
     Pack(&'static pack::PackError),
-}
-
-/// The facility a user works at: their primary assignment, else their
-/// earliest, else none (the hospital scope then answers).
-///
-/// # Errors
-/// The database error.
-pub async fn facility_of(
-    conn: &mut PgConnection,
-    tenant_id: Uuid,
-    user_id: Uuid,
-) -> Result<Option<Uuid>, sqlx::Error> {
-    sqlx::query_scalar!(
-        "SELECT facility_id FROM user_facility_assignments \
-          WHERE tenant_id = $1 AND user_id = $2 AND deleted_at IS NULL \
-          ORDER BY is_primary DESC, assigned_at LIMIT 1",
-        tenant_id,
-        user_id,
-    )
-    .fetch_optional(conn)
-    .await
 }
 
 /// The profile for one set of scopes (a facility's print, a job, a user).
@@ -78,10 +57,10 @@ pub async fn for_user(
     tenant_id: Uuid,
     user_id: Uuid,
 ) -> Result<LocaleProfile, CountryError> {
-    let facility = facility_of(conn, tenant_id, user_id).await?;
     let scopes = Scopes {
         user: Some(user_id),
-        facility,
+        facility: None,
+        facility_of_user: true,
     };
     for_scope(conn, tenant_id, scopes).await
 }

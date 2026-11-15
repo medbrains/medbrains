@@ -84,25 +84,10 @@ async fn access_patterns_raise_one_alert_each() {
     let offset = if offset > 12 { offset - 24 } else { offset };
     // Etc/GMT signs are inverted: Etc/GMT-5 is UTC+5.
     let zone = format!("Etc/GMT{:+}", -offset);
-    let previous: Option<String> = sqlx::query_scalar("SELECT timezone FROM tenants WHERE id = $1")
-        .bind(tenant)
-        .fetch_one(db)
-        .await
-        .expect("tz");
-    sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
-        .bind(tenant)
-        .bind(&zone)
-        .execute(db)
-        .await
-        .expect("tz");
+    let previous = common::set_hospital_timezone(db, tenant, &zone).await;
 
     let raised = scan_once(db).await;
-    sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
-        .bind(tenant)
-        .bind(previous)
-        .execute(db)
-        .await
-        .expect("restore");
+    common::set_hospital_timezone(db, tenant, &previous).await;
     raised.expect("scan");
 
     assert_eq!(

@@ -134,12 +134,13 @@ impl Adapter for LocaleProfile {
         let Some(id) = target else {
             return Ok(None);
         };
-        if scope_of(tx, tenant, id).await?.is_none() {
+        let Some(scope) = scope_of(tx, tenant, id).await? else {
             return Ok(None);
-        }
+        };
+        // The name labels the diff and the impact; equality ignores it.
         Ok(Some(LocaleProfileRow {
             scope_id: id,
-            scope_name: None,
+            scope_name: Some(scope.name),
             values: stored(tx, tenant, id).await?,
         }))
     }

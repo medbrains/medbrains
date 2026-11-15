@@ -170,11 +170,14 @@ export function LocaleProfileSettings() {
     queryFn: () => svc.liveRows("locale_profile"),
     enabled: canRequest,
   });
-  const pending = useQuery({
-    queryKey: ["knowledge-changes", "list", "locale_profile", "previewed"],
-    queryFn: () => svc.list({ area: "locale_profile", status: "previewed" }),
+  // Bounded by the list's own limit; split here, not with two requests.
+  const open = useQuery({
+    queryKey: ["knowledge-changes", "list", "locale_profile", null],
+    queryFn: () => svc.list({ area: "locale_profile" }),
     enabled: canList,
   });
+  const waiting = open.data?.filter((s) => s.status === "previewed").length;
+  const toApply = open.data?.filter((s) => s.status === "approved").length;
   // The first live row is the hospital; the server lists it before facilities.
   const hospitalId = live.data?.[0]?.id;
   const rows = useMemo(
@@ -194,8 +197,25 @@ export function LocaleProfileSettings() {
         </Alert>
       )}
       {profile && <InForce profile={profile} />}
-      {(pending.data?.length ?? 0) > 0 && (
-        <Alert tone="warning" title="A change is waiting for approval">
+      {open.isError && (
+        <Alert tone="warning" role="status" title="Changes in progress could not be checked">
+          {open.error.message}
+        </Alert>
+      )}
+      {(toApply ?? 0) > 0 && (
+        <Alert tone="info" title="An approved change is waiting for the administrator to apply it">
+          <Button
+            onClick={() => void navigate("/admin/knowledge-changes")}
+            tone="ghost"
+            size="compact-sm"
+            rightSection={<IconExternalLink size={14} />}
+          >
+            Open Knowledge changes
+          </Button>
+        </Alert>
+      )}
+      {(waiting ?? 0) > 0 && (
+        <Alert tone="warning" title="A change is waiting for a second person's approval">
           <Button
             onClick={() => void navigate("/admin/knowledge-changes")}
             tone="ghost"

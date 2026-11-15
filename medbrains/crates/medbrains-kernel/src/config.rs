@@ -24,6 +24,9 @@ pub const RESOLVED_SCOPES: [&str; 3] = ["user", "facility", "hospital"];
 pub struct Scopes {
     pub user: Option<Uuid>,
     pub facility: Option<Uuid>,
+    /// With no `facility`, use `user`'s own (their primary assignment, else
+    /// their earliest), looked up inside the same query.
+    pub facility_of_user: bool,
 }
 
 /// One stored value and the scope that set it.
@@ -132,7 +135,11 @@ pub async fn categories_in(
              SELECT category, key, value, CASE scope WHEN 'user' THEN 0 ELSE 1 END AS rank
                FROM scoped_settings
               WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL
-                AND ((scope = 'user' AND scope_id = $3) OR (scope = 'facility' AND scope_id = $4))
+                AND ((scope = 'user' AND scope_id = $3)
+                  OR (scope = 'facility' AND scope_id = COALESCE($4, CASE WHEN $5 THEN (
+                        SELECT a.facility_id FROM user_facility_assignments a
+                         WHERE a.tenant_id = $1 AND a.user_id = $3 AND a.deleted_at IS NULL
+                         ORDER BY a.is_primary DESC, a.assigned_at LIMIT 1) END)))
              UNION ALL
              SELECT category, key, value, 2 FROM tenant_settings
               WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL
@@ -141,6 +148,7 @@ pub async fn categories_in(
         &categories,
         scopes.user,
         scopes.facility,
+        scopes.facility_of_user,
     )
     .fetch_all(conn)
     .await?;

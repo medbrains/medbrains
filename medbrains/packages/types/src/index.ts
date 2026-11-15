@@ -3702,8 +3702,8 @@ export interface HospitalGroup {
   logo_url: string | null;
   primary_color: string | null;
   config: Record<string, unknown>;
-  default_currency: string;
-  timezone: string;
+  default_currency: string | null;
+  timezone: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

@@ -270,24 +270,11 @@ async fn the_punch_is_dated_by_the_hospitals_clock() {
     } else {
         ("Etc/GMT+12", -12)
     };
-    let previous: Option<String> = sqlx::query_scalar(
-        "UPDATE tenants t SET timezone = $2 FROM tenants o \
-                            WHERE t.id = $1 AND o.id = t.id RETURNING o.timezone",
-    )
-    .bind(tenant_id)
-    .bind(zone)
-    .fetch_one(&app.db)
-    .await
-    .expect("set zone");
+    let previous = common::set_hospital_timezone(&app.db, tenant_id, zone).await;
 
     let (status, body) = start(&app, &w, &at(CAMPUS, 20.0)).await;
 
-    sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
-        .bind(tenant_id)
-        .bind(previous)
-        .execute(&app.db)
-        .await
-        .expect("restore zone");
+    common::set_hospital_timezone(&app.db, tenant_id, &previous).await;
 
     assert_eq!(status, StatusCode::OK, "{body}");
     let local = (now + Duration::hours(offset_h)).date_naive();
