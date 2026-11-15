@@ -85,6 +85,7 @@ async fn diagnoses(
             icd_system: medbrains_core::diagnosis_coding::icd_system_of_code(code)
                 .unwrap_or_default()
                 .to_owned(),
+            icd_display: None,
             description: code.clone(),
             snomed_code: None,
             is_primary: i == 0,

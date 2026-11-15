@@ -82,6 +82,7 @@ fn diagnoses() -> Vec<DiagnosisLine> {
     vec![DiagnosisLine {
         icd_code: Some("K35.8".to_owned()),
         icd_system: "icd10".to_owned(),
+        icd_display: Some("Acute appendicitis, other and unspecified".to_owned()),
         description: "Acute appendicitis".to_owned(),
         snomed_code: Some("85189001".to_owned()),
         is_primary: true,
