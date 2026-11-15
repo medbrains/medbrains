@@ -26,3 +26,27 @@
 # A reason must name the advisory (RUSTSEC-, GHSA-, CVE-, PYSEC- or GO- id), or the exception is
 # ignored. This file is code-owned (.github/CODEOWNERS): the owner's review of each entry is the
 # gate, the script only checks that an entry exists and is well formed.
+
+[[review]]
+ecosystem = "npm"
+name = "@bruits/satteri-android-arm64"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-15"
+why = "Platform binary of satteri, astro's markdown parser; astro 7.4.7 (fixes GHSA-mh32-jxcr-mh9f, GHSA-r3h5-4585-7x3w) takes satteri 0.11. Optional, website build only."
+checked = "same publisher as satteri 0.10.5 already in the lockfile; no install script"
+
+[[review]]
+ecosystem = "npm"
+name = "@bruits/satteri-freebsd-x64"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-15"
+why = "Platform binary of satteri for astro 7.4.7, as above. Optional, website build only."
+checked = "same publisher as satteri 0.10.5 already in the lockfile; no install script"
+
+[[review]]
+ecosystem = "npm"
+name = "@rolldown/binding-wasm32-wasi"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-15"
+why = "Optional WASI build of rolldown, vite's bundler, pulled by the astro 7.4.7 upgrade. Website build only."
+checked = "published by the rolldown team (same scope as the bindings already in the lockfile); no install script"
