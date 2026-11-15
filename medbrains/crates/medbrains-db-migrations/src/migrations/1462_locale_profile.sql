@@ -3,7 +3,8 @@
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: scoped_settings
--- Drops: default on hospital_groups.default_currency, hospital_groups.timezone
+-- Drops: default on hospital_groups.default_currency, hospital_groups.timezone;
+--        tenants timezone/locale/currency/fy_start_month defaults become neutral
 -- ====================================================================
 -- The tenant locale profile (RFCs/RFC-WORLD-READY.md §2, #5926).
 --
@@ -29,7 +30,8 @@
 --     transaction with `medbrains.locale_profile_writer = 'change_set'`; any
 --     other writer that would change a set value is refused here, whichever
 --     route it came by.
---   * `hospital_groups` loses its India defaults; rows keep their values.
+--   * `hospital_groups` loses its India defaults and `tenants` gets neutral ones;
+--     existing rows keep their values.
 --
 -- Re-runnable, which the migration test relies on.
 
@@ -56,6 +58,17 @@ ON CONFLICT (tenant_id, category, key) DO UPDATE
 ALTER TABLE public.hospital_groups
     ALTER COLUMN default_currency DROP DEFAULT,
     ALTER COLUMN timezone DROP DEFAULT;
+
+-- A new hospital no longer starts Indian. The columns stay NOT NULL for the
+-- readers #5928 moves, so they take the neutral values the screens render
+-- when a profile is missing: UTC, plain English formatting, ISO 4217 "XXX"
+-- (no currency) and a calendar fiscal year. Onboarding sets the real values,
+-- and its first write becomes the profile (the guard below).
+ALTER TABLE public.tenants
+    ALTER COLUMN timezone SET DEFAULT 'UTC',
+    ALTER COLUMN locale SET DEFAULT 'en',
+    ALTER COLUMN currency SET DEFAULT 'XXX',
+    ALTER COLUMN fy_start_month SET DEFAULT 1;
 
 -- ── Facility and user scopes ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.scoped_settings (
@@ -179,11 +192,17 @@ CREATE OR REPLACE FUNCTION public.locale_profile_from_tenant(
 DECLARE
     held jsonb;
 BEGIN
-    IF p_value IS NULL OR p_value = 'null'::jsonb THEN
-        RETURN;
-    END IF;
     SELECT value INTO held FROM public.tenant_settings
      WHERE tenant_id = p_tenant AND category = 'locale' AND key = p_key AND deleted_at IS NULL;
+    -- Clearing a column the profile holds is a change too: refused, so the
+    -- column and the profile never disagree.
+    IF p_value IS NULL OR p_value = 'null'::jsonb THEN
+        IF held IS NOT NULL THEN
+            RAISE EXCEPTION 'The hospital''s % is part of its locale profile; change it in Settings, Locale profile, where a second person approves it', p_key
+                USING ERRCODE = 'MB409';
+        END IF;
+        RETURN;
+    END IF;
     IF held IS NULL THEN
         INSERT INTO public.tenant_settings (tenant_id, category, key, value)
         VALUES (p_tenant, 'locale', p_key, p_value)

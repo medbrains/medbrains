@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT category AS \"category!\", key AS \"key!\", value AS \"value!\", rank AS \"rank!\"\n             FROM (\n             SELECT category, key, value, CASE scope WHEN 'user' THEN 0 ELSE 1 END AS rank\n               FROM scoped_settings\n              WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL\n                AND ((scope = 'user' AND scope_id = $3)\n                  OR (scope = 'facility' AND scope_id = COALESCE($4, CASE WHEN $5 THEN (\n                        SELECT a.facility_id FROM user_facility_assignments a\n                         WHERE a.tenant_id = $1 AND a.user_id = $3 AND a.deleted_at IS NULL\n                         ORDER BY a.is_primary DESC, a.assigned_at LIMIT 1) END)))\n             UNION ALL\n             SELECT category, key, value, 2 FROM tenant_settings\n              WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL\n           ) s ORDER BY category, key, rank",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "value!",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "rank!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Uuid",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "991dda4bfaa399faf4a2848667969e20ef78f651fc31b18f6194840e96083549"
+}

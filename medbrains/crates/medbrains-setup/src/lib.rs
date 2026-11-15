@@ -3626,11 +3626,35 @@ async fn upsert_setting_in_tx(
     Ok(())
 }
 
+/// Whether `new` sets the hospital's country for the first time. Naming a
+/// different country than the one set is refused before anything is written:
+/// the country switches regulatory rules, so it changes only through a
+/// locale-profile change set a second person approves (RFC-WORLD-READY §2.4).
+async fn country_is_first_set(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    new: Option<Uuid>,
+) -> Result<bool, AppError> {
+    let current = sqlx::query_scalar!("SELECT country_id FROM tenants WHERE id = $1", tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+    match (current, new) {
+        (Some(old), Some(new)) if old != new => Err(AppError::Conflict(
+            "The country is part of the locale profile; change it in Settings, Locale profile, \
+             where a second person approves it"
+                .to_owned(),
+        )),
+        (None, Some(_)) => Ok(true),
+        _ => Ok(false),
+    }
+}
+
 // ── PUT /api/setup/tenant/geo (enhanced — auto-populates defaults) ──
 
-/// `PUT /api/setup/tenant/geo`: save the hospital's location and, on a
-/// country, fill units and date format from it, and the locale profile's
-/// zone and currency where the profile has none yet.
+/// `PUT /api/setup/tenant/geo`: save the hospital's location and, when the
+/// country is set for the first time, fill units and date format from it and
+/// the locale profile's zone and currency where the profile has none yet. A
+/// different country is refused (409): that is a locale-profile change set.
 pub async fn update_tenant_geo_with_presets(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3641,10 +3665,12 @@ pub async fn update_tenant_geo_with_presets(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // Save geo IDs
+    let first_country = country_is_first_set(&mut tx, claims.tenant_id, body.country_id).await?;
+    // Save geo IDs. An absent country keeps the one set: clearing it, like
+    // changing it, is a locale-profile change set.
     sqlx::query(
         "UPDATE tenants SET \
-         country_id = $1, state_id = $2, district_id = $3, \
+         country_id = COALESCE($1, country_id), state_id = $2, district_id = $3, \
          latitude = $4, longitude = $5 \
          WHERE id = $6",
     )
@@ -3657,9 +3683,10 @@ pub async fn update_tenant_geo_with_presets(
     .execute(&mut *tx)
     .await?;
 
-    // If country changed, auto-populate defaults from country presets
+    // A country set for the first time brings its presets; later saves keep
+    // whatever the hospital has chosen since.
     let mut defaults_applied = false;
-    if let Some(country_id) = body.country_id {
+    if let Some(country_id) = body.country_id.filter(|_| first_country) {
         let country = sqlx::query_as::<_, GeoCountry>("SELECT * FROM geo_countries WHERE id = $1")
             .bind(country_id)
             .fetch_optional(&mut *tx)

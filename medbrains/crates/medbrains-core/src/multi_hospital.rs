@@ -29,8 +29,10 @@ pub struct HospitalGroup {
     pub logo_url: Option<String>,
     pub primary_color: Option<String>,
     pub config: serde_json::Value,
-    pub default_currency: String,
-    pub timezone: String,
+    /// Unset until the group names one; never a default country's
+    /// (RFC-WORLD-READY §2.1). Each hospital's own profile is what formats.
+    pub default_currency: Option<String>,
+    pub timezone: Option<String>,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

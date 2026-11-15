@@ -522,3 +522,33 @@ pub fn handler_ctx(
         )),
     }
 }
+
+/// Set the hospital's time zone the way an applied locale-profile change set
+/// does, and return the zone it had. A direct `UPDATE tenants SET timezone`
+/// is refused once the profile holds a zone (migration 1462), so a test that
+/// moves the clock and puts it back goes through the profile; the trigger
+/// keeps `tenants.timezone` in step for readers not yet moved.
+pub async fn set_hospital_timezone(db: &sqlx::PgPool, tenant_id: uuid::Uuid, zone: &str) -> String {
+    let mut tx = db.begin().await.expect("tx");
+    let previous: String = sqlx::query_scalar("SELECT timezone FROM tenants WHERE id = $1")
+        .bind(tenant_id)
+        .fetch_one(&mut *tx)
+        .await
+        .expect("current zone");
+    sqlx::query("SELECT set_config('app.tenant_id', $1, true), set_config('medbrains.locale_profile_writer', 'change_set', true)")
+        .bind(tenant_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .expect("writer");
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) VALUES ($1, 'locale', 'timezone', to_jsonb($2::text)) \
+         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, deleted_at = NULL",
+    )
+    .bind(tenant_id)
+    .bind(zone)
+    .execute(&mut *tx)
+    .await
+    .expect("set zone");
+    tx.commit().await.expect("commit");
+    previous
+}

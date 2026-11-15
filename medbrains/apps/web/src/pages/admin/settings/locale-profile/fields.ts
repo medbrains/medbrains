@@ -154,9 +154,16 @@ export function fromFormText(key: ProfileKey, text: string): KnowledgeRowFields[
   return t;
 }
 
-/** The change-set row for one scope: its id and every field this scope may set. */
-export function toRow(scope: ProfileScope, scopeId: string, form: ProfileForm): KnowledgeRowFields {
-  const row: KnowledgeRowFields = { scope_id: scopeId };
+/** The scope a row is for: its id, kind and name (the name labels diffs and impact). */
+export interface RowScope {
+  id: string;
+  scope: ProfileScope;
+  name: string;
+}
+
+/** The change-set row for one scope: its id and name, and every field this scope may set. */
+export function toRow({ id, scope, name }: RowScope, form: ProfileForm): KnowledgeRowFields {
+  const row: KnowledgeRowFields = { scope_id: id, scope_name: name };
   for (const f of PROFILE_FIELDS) {
     if (f.scopes.includes(scope)) row[f.key] = fromFormText(f.key, form[f.key]);
   }

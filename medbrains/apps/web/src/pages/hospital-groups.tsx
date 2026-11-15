@@ -223,7 +223,7 @@ export function HospitalGroupsPage() {
   const columns: Column<HospitalGroup>[] = [
     { key: "code", label: "Code", render: (r) => r.code },
     { key: "name", label: "Name", render: (r) => r.display_name || r.name },
-    { key: "default_currency", label: "Currency", render: (r) => r.default_currency },
+    { key: "default_currency", label: "Currency", render: (r) => r.default_currency ?? "Not set" },
     {
       key: "open",
       label: "",

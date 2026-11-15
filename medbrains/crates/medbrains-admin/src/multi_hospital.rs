@@ -160,7 +160,7 @@ pub async fn create_group(
          (code, name, display_name, headquarters_address, phone, email, website, logo_url, \
           primary_color, default_currency, timezone) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, '#228be6'), \
-                 COALESCE($10, 'INR'), COALESCE($11, 'Asia/Kolkata')) RETURNING *",
+                 $10, $11) RETURNING *",
     )
     .bind(&payload.code)
     .bind(&payload.name)

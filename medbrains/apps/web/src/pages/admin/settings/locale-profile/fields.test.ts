@@ -7,15 +7,21 @@ const empty = Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, ""])) as Prof
 
 describe("locale profile form", () => {
   it("sends a facility only the fields a facility may set", () => {
-    const row = toRow("facility", "f1", { ...empty, timezone: "Asia/Dubai", currency: "AED" });
-    expect(row).toMatchObject({ scope_id: "f1", timezone: "Asia/Dubai" });
+    const row = toRow(
+      { id: "f1", scope: "facility", name: "Satellite" },
+      { ...empty, timezone: "Asia/Dubai", currency: "AED" },
+    );
+    expect(row).toMatchObject({ scope_id: "f1", scope_name: "Satellite", timezone: "Asia/Dubai" });
     // Currency and country are hospital-wide: never part of a facility's row.
     expect(row).not.toHaveProperty("currency");
     expect(row).not.toHaveProperty("country");
   });
 
   it("turns an empty field into inherit, not an empty string", () => {
-    const row = toRow("hospital", "t1", { ...empty, country: "AE" });
+    const row = toRow(
+      { id: "t1", scope: "hospital", name: "City Hospital" },
+      { ...empty, country: "AE" },
+    );
     expect(row.country).toBe("AE");
     expect(row.region).toBeNull();
   });

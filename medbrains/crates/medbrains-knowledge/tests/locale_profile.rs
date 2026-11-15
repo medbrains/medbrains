@@ -244,7 +244,7 @@ async fn every_other_writer_is_refused_by_the_database() {
     .await;
     let code = generic.err().and_then(|e| {
         e.as_database_error()
-            .and_then(|d| d.code().map(|c| c.into_owned()))
+            .and_then(|d| d.code().map(std::borrow::Cow::into_owned))
     });
     assert_eq!(code.as_deref(), Some("MB409"));
     tx.rollback().await.unwrap();
@@ -337,4 +337,47 @@ async fn the_currency_is_fixed_once_money_has_moved() {
     after["region"] = Value::Null;
     let refused = engine::create(&w.pool, &w.admin, &change(w.tenant, after)).await;
     assert!(matches!(refused, Err(AppError::BadRequest(m)) if m.contains("bills or payments")));
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn the_database_guard_knows_every_profile_field() {
+    let w = world().await;
+    let guarded: Vec<String> = sqlx::query_scalar("SELECT unnest(public.locale_profile_keys())")
+        .fetch_all(&w.pool)
+        .await
+        .unwrap();
+    let mut fields: Vec<String> = medbrains_country::Field::ALL
+        .iter()
+        .map(|f| f.key().to_owned())
+        .collect();
+    let mut guarded = guarded;
+    guarded.sort();
+    fields.sort();
+    assert_eq!(
+        guarded, fields,
+        "migration 1462's guard and Field::ALL disagree"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn the_impact_names_the_scope() {
+    let w = world().await;
+    let d = engine::create(
+        &w.pool,
+        &w.admin,
+        &change(w.facility, json!({"timezone": "Asia/Dubai"})),
+    )
+    .await
+    .expect("draft");
+    let d = engine::preview(&w.pool, &w.admin, d.set.id)
+        .await
+        .expect("preview");
+    let impact = d.set.impact.clone().unwrap().to_string();
+    assert!(impact.contains("Satellite clinic"), "{impact}");
+    assert_eq!(
+        d.items[0].before.as_ref().unwrap()["scope_name"],
+        json!("Satellite clinic")
+    );
 }

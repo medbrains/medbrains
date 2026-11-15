@@ -12,13 +12,12 @@ use serde_json::Value;
 async fn a_token_slip_prints_in_the_hospitals_zone() {
     let app = common::spawn_app().await;
     app.login_admin().await;
-    let tenant: uuid::Uuid = sqlx::query_scalar(
-        "UPDATE tenants SET timezone = 'Asia/Kolkata' \
-          WHERE id = (SELECT tenant_id FROM users WHERE username = 'admin') RETURNING id",
-    )
-    .fetch_one(&app.db)
-    .await
-    .expect("tenant");
+    let tenant: uuid::Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("tenant");
+    common::set_hospital_timezone(&app.db, tenant, "Asia/Kolkata").await;
     let token: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO tokens (tenant_id, module, scope, number, seq, token_date, created_at) \
          VALUES ($1, 'registration', 'global', 'TZ-001', 1, '2026-10-12', \

@@ -149,7 +149,7 @@ export function RequestChangeModal({ target, onClose, onCreated }: RequestChange
           {
             op: "update",
             target_id: target.id,
-            after: toRow(target.scope, target.id, values.getValues()),
+            after: toRow(target, values.getValues()),
           },
         ],
       });

@@ -84,24 +84,6 @@ pub fn refuse_admin_only_category(claims: &Claims, category: &str) -> Result<(),
     )))
 }
 
-/// Keys under `locale` that make up the locale profile (RFC-WORLD-READY
-/// §2.2). The same list the database guard holds (`locale_profile_keys()`,
-/// migration 1462); `locale/date_format` is not one of them.
-pub const LOCALE_PROFILE_KEYS: &[&str] = &[
-    "country",
-    "region",
-    "pack_version",
-    "currency",
-    "locale",
-    "languages",
-    "timezone",
-    "calendars",
-    "hour_cycle",
-    "week_start",
-    "fiscal_year_start",
-    "name_order",
-];
-
 /// Refuse a generic write of a locale-profile key with a 400 naming the screen.
 ///
 /// Those values change only through a change set a second person approves;
@@ -110,7 +92,12 @@ pub const LOCALE_PROFILE_KEYS: &[&str] = &[
 /// # Errors
 /// [`AppError::BadRequest`] for `locale/<profile key>`.
 pub fn refuse_locale_profile_key(category: &str, key: &str) -> Result<(), AppError> {
-    if category.trim() == "locale" && LOCALE_PROFILE_KEYS.contains(&key.trim()) {
+    // The profile's own field list (the database guard's
+    // `locale_profile_keys()` is checked against it in the change-set tests);
+    // `locale/date_format` is not a profile field.
+    if category.trim() == medbrains_country::profile::CATEGORY
+        && medbrains_country::Field::from_key(key.trim()).is_some()
+    {
         return Err(AppError::BadRequest(format!(
             "'locale/{}' is part of the locale profile; change it in Settings, Locale profile",
             key.trim()
