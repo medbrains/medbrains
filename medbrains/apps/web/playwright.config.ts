@@ -12,11 +12,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: [
-    ...(process.env.CI
-      ? [["github" as const]]
-      : [["html" as const]]),
-  ],
+  // CI (e2e.yml) runs in shards; each writes a blob that playwright.merge.config.ts turns
+  // into one HTML report and one JUnit file.
+  reporter: process.env.CI ? [["github"], ["blob"]] : [["html"]],
   timeout: 30_000,
   expect: { timeout: 10_000 },
 
@@ -25,6 +23,8 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // A failing CI journey keeps its video beside the trace; locally that is opt-in.
+    video: process.env.CI ? "retain-on-failure" : "off",
   },
 
   projects: [
