@@ -14,7 +14,7 @@ compliance.
 
 | Rule | What it means |
 |---|---|
-| Size | New or changed functions are at most 60 lines (aim for 20), nesting at most 3, cyclomatic complexity at most 10. Files never grow, and new files aim for 300 lines |
+| Size | New or changed functions are at most 60 lines (aim for 20), nesting at most 3, cyclomatic complexity at most 10 (web code: cognitive complexity at most 15, the measure Biome has). Files never grow, and new files aim for 300 lines |
 | Control flow | No recursion in code; a recursive SQL query only with a depth limit. Every loop has a bound, and every wait has a timeout |
 | Before a refactor | Tests that pin down today's behaviour, written and passing before any code moves |
 | Tests | Branch coverage on changed lines, measured in CI (MC/DC, which NASA asks for on safety-critical code, is not on stable Rust yet: a gap); a property test for each invariant; a test that failed before each bug fix |
