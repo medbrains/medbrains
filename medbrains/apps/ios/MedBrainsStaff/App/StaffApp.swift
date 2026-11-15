@@ -19,6 +19,7 @@ struct StaffApp: App {
         WindowGroup {
             RootView(modules: StaffModules.registry, appCode: nil)
                 .environment(shell.auth)
+                .environment(shell.locale)
                 .environment(shell)
                 .environment(\.apiClient, shell.client)
                 .tint(MedBrainsTheme.interactive)
@@ -41,6 +42,8 @@ final class StaffShell {
     private(set) var binding: HospitalBinding?
     private(set) var client: ApiClient
     private(set) var auth: AuthStore
+    /// The signed-in hospital's locale profile; a new binding starts afresh.
+    private(set) var locale = LocaleProfileStore()
 
     init() {
         let binding = try? secrets.readBinding()
@@ -69,6 +72,7 @@ final class StaffShell {
         self.binding = binding
         client = Self.makeClient(binding: binding, secrets: secrets)
         auth = AuthStore(client: client, secrets: secrets)
+        locale = LocaleProfileStore()
     }
 
     private static func makeClient(binding: HospitalBinding?, secrets: SecretStore) -> ApiClient {
@@ -110,6 +114,8 @@ struct RootView: View {
     let modules: [AppModule]
     let appCode: String?
     @Environment(AuthStore.self) private var auth
+    @Environment(LocaleProfileStore.self) private var locale
+    @Environment(\.apiClient) private var client
 
     var body: some View {
         if auth.isHydrating {
@@ -120,6 +126,12 @@ struct RootView: View {
         } else {
             ModuleHomeView(modules: modules, appCode: appCode)
                 .overlay { EmergencyFlashOverlay() }
+                // The hospital's money, clock and dates, refreshed per sign-in;
+                // offline, the last good one this device saw.
+                .task(id: auth.identity?.tenantId) {
+                    guard let tenant = auth.identity?.tenantId, let client else { return }
+                    await locale.refresh(client: client, tenantId: tenant)
+                }
         }
     }
 }

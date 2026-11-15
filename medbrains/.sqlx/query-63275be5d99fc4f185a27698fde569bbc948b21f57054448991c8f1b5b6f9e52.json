@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXTRACT(EPOCH FROM (now() AT TIME ZONE z) - (now() AT TIME ZONE 'UTC'))::int\n                  AS \"offset!\"\n             FROM (SELECT set_config('TimeZone', $1, true) AS z) s",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "offset!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "63275be5d99fc4f185a27698fde569bbc948b21f57054448991c8f1b5b6f9e52"
+}

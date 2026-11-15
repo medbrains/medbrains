@@ -10,6 +10,7 @@ medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-signing = { path = "../medbrains-signing" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
+medbrains-country = { path = "../medbrains-country" }
 medbrains-print = { path = "../medbrains-print" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-db = { path = "../medbrains-db" }
@@ -25,3 +26,6 @@ sqlx = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }

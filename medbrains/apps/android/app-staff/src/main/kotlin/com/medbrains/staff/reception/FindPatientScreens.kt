@@ -24,7 +24,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.medbrains.kit.Format
 import com.medbrains.kit.LocalIdentity
+import com.medbrains.kit.LocalLocaleProfile
 import com.medbrains.kit.Remote
 import com.medbrains.ui.CarbonActionRow
 import com.medbrains.ui.CarbonPageHeader
@@ -105,7 +107,9 @@ fun ReceptionPatientScreen(nav: NavHostController, patient: PatientSummary) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (patient.is_medico_legal == true) CarbonTag("MLC ${patient.mlc_number.orEmpty()}", CarbonTone.Danger)
                 if (patient.is_vip == true) CarbonTag("VIP", CarbonTone.Info)
-                patient.outstanding_balance?.toDoubleOrNull()?.takeIf { it > 0 }?.let { CarbonTag("₹%.2f due".format(it), CarbonTone.Warning) }
+                patient.outstanding_balance?.takeIf { (it.toBigDecimalOrNull()?.signum() ?: 0) > 0 }
+                    ?.let { Format.money(it, LocalLocaleProfile.current) }
+                    ?.let { CarbonTag("$it due", CarbonTone.Warning) }
             }
             patient.last_visit_date?.let { CarbonRow("Last visit", it) }
             if (abhaLinked) CarbonNotification(NotificationKind.Success, "ABHA linked", "The ABHA is linked and verified on this record.", Modifier.testTag("patient-abha-linked"))

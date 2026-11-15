@@ -1,4 +1,5 @@
 export { applyServerErrors, ValidationError } from "./form-errors.js";
+export * from "./format/index.js";
 
 /**
  * Deep clone an object. Uses structuredClone when available,
@@ -10,30 +11,6 @@ export function deepClone<T>(value: T): T {
   }
   // Fallback for environments without structuredClone
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-/**
- * Format an ISO date string for display.
- */
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/**
- * Format an ISO date string with time for display.
- */
-export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 /**

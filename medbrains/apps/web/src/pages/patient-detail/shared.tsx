@@ -3,21 +3,35 @@
 // can split into their own files without a cycle.
 
 import { Group, Text } from "@mantine/core";
+import { useLocaleStore } from "@medbrains/stores";
+import {
+  formatCalendarDate,
+  formatDate as formatInstant,
+  formatMoney as formatProfileMoney,
+} from "@medbrains/utils";
 
-export function formatDate(d: string | null): string {
-  if (!d) return "-";
-  return new Date(d).toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+/** A `date` column (birth date, visit day): a calendar day no zone may shift. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The hospital's profile as it is now.
+ * ponytail: a snapshot, not a subscription; the tabs render after sign-in
+ * loads it and re-render on navigation. Subscribe if a profile change must
+ * repaint an open tab.
+ */
+function profile() {
+  return useLocaleStore.getState().profile?.values ?? {};
 }
 
+/** A date or instant in the hospital's format; "-" when there is none. */
+export function formatDate(d: string | null): string {
+  if (!d) return "-";
+  return DATE_ONLY.test(d) ? formatCalendarDate(d, profile()) : formatInstant(d, profile());
+}
+
+/** An amount in the hospital's currency, exact (the API sends decimal strings). */
 export function formatMoney(value: number | string | null | undefined): string {
-  const amount = typeof value === "number" ? value : Number.parseFloat(value ?? "0");
-  return `₹${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-  })}`;
+  return formatProfileMoney(value ?? 0, profile());
 }
 
 export function escapeHtml(value: unknown): string {

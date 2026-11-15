@@ -12,7 +12,7 @@
 //! - [`for_user`] / [`for_scope`]: resolution against the database, one
 //!   configuration round trip.
 
-use medbrains_kernel::config::{self, Scopes};
+use medbrains_kernel::config;
 use sqlx::PgConnection;
 use uuid::Uuid;
 
@@ -21,6 +21,7 @@ pub mod pack;
 pub mod profile;
 pub mod validate;
 
+pub use medbrains_kernel::config::Scopes;
 pub use profile::{Field, LocaleProfile};
 
 /// Why a profile could not be resolved. Either is a fault: the caller shows
