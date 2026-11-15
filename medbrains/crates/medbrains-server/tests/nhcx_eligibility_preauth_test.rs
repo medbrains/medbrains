@@ -152,7 +152,11 @@ async fn a_preauth_goes_with_diagnoses_a_payer_query_is_answered_and_the_decisio
     let coding = &claim["diagnosis"][0]["diagnosisCodeableConcept"]["coding"];
     assert_eq!(
         coding[0],
-        json!({ "system": ICD10_SYSTEM, "code": "K35.80", "display": "Acute appendicitis" })
+        json!({
+            "system": ICD10_SYSTEM,
+            "code": "K35.80",
+            "display": "Acute appendicitis, other and unspecified"
+        })
     );
     assert_eq!(coding[1]["system"], json!(SNOMED_SYSTEM));
     assert_eq!(

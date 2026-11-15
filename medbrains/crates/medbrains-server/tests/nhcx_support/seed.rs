@@ -127,8 +127,9 @@ pub async fn seed_preauth(n: &Nhcx, patient: Uuid, policy: Uuid) -> (Uuid, Uuid)
     .expect("encounter");
     sqlx::query(
         "INSERT INTO diagnoses (tenant_id, encounter_id, icd_code, description, is_primary, \
-             snomed_code) \
-         VALUES ($1, $2, 'K35.80', 'Acute appendicitis', true, '85189001')",
+             snomed_code, icd_display) \
+         VALUES ($1, $2, 'K35.80', 'Acute appendicitis', true, '85189001', \
+             'Acute appendicitis, other and unspecified')",
     )
     .bind(n.tenant)
     .bind(encounter)

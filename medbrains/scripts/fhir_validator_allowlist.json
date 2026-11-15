@@ -79,6 +79,11 @@
       "severity": "error",
       "offline": true,
       "reason": "Offline run: the Invoice fails its profile only on the ISO 4217 code above; the slice match is re-checked nightly."
+    },
+    {
+      "match": "A definition for CodeSystem 'https://medbrains.health/charge-code' could not be found",
+      "files": "nhcx-*.json",
+      "reason": "Our own charge codes, used only when a hospital's tariff line has no NHCX package code. The code system is the hospital's, published nowhere, so no validator can resolve it; the payer reads the item's text."
     }
   ]
 }

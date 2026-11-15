@@ -277,7 +277,7 @@ pub(crate) async fn load_doctor(
     }))
 }
 
-const DIAGNOSIS_COLUMNS: &str = "d.icd_code, d.icd_system::text AS icd_system, d.description, \
+const DIAGNOSIS_COLUMNS: &str = "d.icd_code, d.icd_system::text AS icd_system, d.icd_display, d.description, \
      d.snomed_code, d.is_primary";
 
 /// The coded diagnoses of an encounter, principal first.

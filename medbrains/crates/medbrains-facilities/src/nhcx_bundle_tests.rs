@@ -104,6 +104,7 @@ fn line(system: &str, code: &str) -> DiagnosisLine {
     DiagnosisLine {
         icd_code: Some(code.to_owned()),
         icd_system: system.to_owned(),
+        icd_display: None,
         description: format!("Fixture {code}"),
         snomed_code: None,
         is_primary: true,
@@ -125,4 +126,23 @@ fn each_diagnosis_goes_in_the_system_it_was_coded_in() {
         serde_json::json!([])
     );
     assert_eq!(unknown["diagnosisCodeableConcept"]["text"], "Fixture 12345");
+}
+
+#[test]
+fn a_diagnosis_coding_carries_only_the_official_display() {
+    // The doctor's wording is not the code's display: the HL7 validator
+    // refuses it, so it travels in the text and the display stays off.
+    let typed = diagnosis(1, &line("icd10", "K35.8"));
+    let concept = &typed["diagnosisCodeableConcept"];
+    assert!(concept["coding"][0].get("display").is_none());
+    assert_eq!(concept["text"], "Fixture K35.8");
+    let official = "Acute appendicitis, other and unspecified";
+    let picked = DiagnosisLine {
+        icd_display: Some(official.to_owned()),
+        ..line("icd10", "K35.8")
+    };
+    assert_eq!(
+        diagnosis(1, &picked)["diagnosisCodeableConcept"]["coding"][0]["display"],
+        official
+    );
 }

@@ -39,7 +39,7 @@ pub const DIAGNOSTIC_REPORT: SectionCode = sct("721981007", "Diagnostic studies 
 pub const OP_ADVICE: SectionCode = sct("736271009", "Outpatient care plan");
 /// Course in hospital and treatment given (no DischargeSummaryRecord slice).
 pub const HOSPITAL_COURSE: SectionCode =
-    SectionCode(LOINC_SYSTEM, "8648-8", "Hospital course Narrative");
+    SectionCode(LOINC_SYSTEM, "8648-8", "Hospital course note");
 
 // The single sections of the later HI types, as their profiles fix them.
 

@@ -47,6 +47,9 @@ pub(crate) struct Parties<'a> {
 pub(crate) struct DiagnosisLine {
     pub(crate) icd_code: Option<String>,
     pub(crate) icd_system: String,
+    /// The code's official display from the catalogue it was picked in, when
+    /// there is one. Never the doctor's wording: that goes in the text.
+    pub(crate) icd_display: Option<String>,
     pub(crate) description: String,
     pub(crate) snomed_code: Option<String>,
     pub(crate) is_primary: bool,
@@ -206,7 +209,13 @@ fn diagnosis(seq: usize, d: &DiagnosisLine) -> Value {
         _ => None,
     };
     if let (Some(code), Some(system)) = (d.icd_code.as_deref().filter(|c| !c.is_empty()), system) {
-        coding.push(json!({ "system": system, "code": code, "display": d.description }));
+        // The official display, or none: the validator refuses a hospital's own
+        // wording in `coding.display`, and the wording is in `text` already.
+        let mut c = json!({ "system": system, "code": code });
+        if let Some(display) = d.icd_display.as_deref().filter(|s| !s.trim().is_empty()) {
+            c["display"] = json!(display);
+        }
+        coding.push(c);
     }
     if let Some(code) = d.snomed_code.as_deref().filter(|c| !c.is_empty()) {
         coding.push(json!({ "system": SNOMED_SYSTEM, "code": code }));
