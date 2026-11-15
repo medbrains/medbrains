@@ -3,6 +3,13 @@
 Status: DRAFT, awaiting owner review · Owner: Domnic Amalan S · 2026-11-15 · Issue #5925, epic #5936,
 exchanges #4917, meter #5937
 
+## 0. First principle
+
+**Fit any hospital in any country; never weaken a security or compliance floor.** (Owner,
+2026-11-15: "we need a strong product that fits anything without compromising security and
+compliance".) Every choice below is judged against both halves: a design that fits a country by
+lowering a floor is refused, and a floor that blocks a country is met by adding, never by removing.
+
 ## 1. Goal and non-goals
 
 **Goal.** The core assumes no country. A hospital picks a country (and, where rules differ inside it,
@@ -19,6 +26,34 @@ exchange adapters. India becomes one country pack among many.
 | Multi-currency inside one hospital (billing a patient in two currencies) | No customer asks for it; one functional currency per hospital (§2.4); revisit with evidence |
 | Translating clinical content (drug monographs, SNOMED descriptions) | Terminology is its own stream; this RFC covers UI strings and formatting |
 | Claiming any country is "certified" | Honesty rule from #4917: "built for" until an authority certifies |
+
+## 1a. Security and compliance floor
+
+A country pack or a setting may only **add** restrictions, never remove them. The floor is code in
+`medbrains-country` (`floor.rs`), not pack data, and no pack, setting, flow or plugin can lower it
+(RFC-HOSPITAL-OS §3.3: flows and plugins can add checks, never remove them).
+
+| Floor (universal) | What no pack or setting can do | What a pack may add |
+|---|---|---|
+| Audit logging | switch off or shorten the append-only, hash-chained audit of state changes and PHI reads | extra audited events, national audit export |
+| Consent | skip consent capture or checks where the core requires them | stricter consent (per-purpose, guardian rules, re-consent periods) |
+| Encryption at rest and in transit | allow plaintext storage, plaintext transport or weaker ciphers | stronger algorithms, in-country key custody |
+| Permissions and authorisation | bypass `kernel::authorize`, collapse `Unknown` into allow, widen a role | extra permissions, stricter field classes |
+| AI per-item accept | save AI text without per-item human accept (RFC-AI-CLINICAL-FLOWS §10.0) | extra AI restrictions, AI off |
+| Controlled-drug gates | drop the floor gates (`rx_required` + `dual_sign` + `register_entry` for any `is_controlled` item) | more schedules, more gates, national reporting |
+| Data residency | loosen a hosting rule set by the tenant, the install or a stricter pack | in-country only, region lists, backup location rules |
+| Retention minimums | go below the floor minimum per record class | longer minimums, legal hold rules |
+
+**Enforcement.**
+
+- The loader checks every pack against the floor: a pack whose rules are not a superset of the floor
+  **fails to load**, so the build fails (packs are compiled in, §3.2) and a runtime pack is refused.
+- Settings are checked the same way at save time: a value below the floor is refused with the reason,
+  never clamped silently.
+- Each pack ships a **floor test** (§3.4) proving its rules are a superset of the floor; the `world`
+  pack is the floor itself plus nothing.
+- A change to the floor is a kernel-grade change: two reviewers, a stated reason, a DECISIONS.md
+  row; it may only be raised, never lowered, without an owner-approved reversal row.
 
 ## 2. The tenant locale profile
 
@@ -56,8 +91,8 @@ into `tenant_settings` by one migration, then dropped when the last reader moves
 
 **Scopes.** Resolution is most specific first, as the kernel already promises:
 `user › facility › hospital › pack default`. Today the resolver reads only `hospital`
-(`RESOLVED_SCOPES` in `crates/medbrains-kernel/src/config.rs`); the profile is the first consumer
-of the facility scope from K3. Which fields each scope may set:
+(`RESOLVED_SCOPES` in `crates/medbrains-kernel/src/config.rs`); the facility scope (at least for
+timezone and region) is built now, inside #5926, not deferred to K3. Which fields each scope may set:
 
 | Field | Hospital | Facility | User |
 |---|---|---|---|
@@ -67,7 +102,8 @@ of the facility scope from K3. Which fields each scope may set:
 | hour_cycle, calendars `also` | yes | yes | yes (display preference) |
 
 A **different country per facility is not allowed in one tenant**: currency, tax and retention are
-hospital-wide. A group across countries is several tenants under `hospital_groups` (§6).
+hospital-wide. A group across countries is **one tenant per country** under `hospital_groups`;
+group reports aggregate across those tenants, each figure labelled with its currency (§6).
 
 ### 2.3 How each surface reads it
 
@@ -84,14 +120,16 @@ hospital-wide. A group across countries is several tenants under `hospital_group
 | Change | Rule |
 |---|---|
 | Language, hour cycle, display calendars | Immediate; clients refetch `/auth/me` on the settings save |
-| Timezone | Allowed. Stored times are `timestamptz`, so history re-renders correctly; wall-clock settings (doctor schedules, shift times, report cut-offs) are listed on the confirm screen for review. Audited |
+| Timezone | Allowed with second-person approval. Stored times are `timestamptz`, so history re-renders correctly; wall-clock settings (doctor schedules, shift times, report cut-offs) are listed on the confirm screen for review. Audited |
 | Country, region, pack version | Through a knowledge change set (`RFC-KNOWLEDGE-CHANGE-SETS.md`): preview of rules that switch on and off, second-person approval, apply, rollback. It switches regulatory gates, so one person cannot do it alone |
 | Currency | Refused once any financial row exists. Only 3 of 249 money columns carry a currency; amounts are in the hospital's functional currency by definition, so changing it would relabel every past invoice |
 
 **Permission first:** `admin.locale_profile.update` (country, region, currency, timezone, pack) is
 defined in `crates/medbrains-core/src/permissions.rs` before any handler, granted to
 `hospital_admin` only, and separate from the general settings code so it cannot be held by
-accident. Language and display preferences stay on the existing settings and profile codes.
+accident. Every change it covers needs a **second person's approval** (separation of privilege) and
+is audited with before and after values. Language and display preferences stay on the existing
+settings and profile codes.
 
 ## 3. Country packs
 
@@ -128,6 +166,7 @@ no exchange adapters. It is honest about what it lacks: those capabilities are n
 | Pack data | `medbrains/packs/<cc>/pack.toml` + `packs/<cc>/geo/*.csv`, `packs/world/` | Reviewable in git, diffable, no DB edit by hand ("setup lives in git") |
 | Loader and traits | new service crate `medbrains-country` (not the kernel: `make check-kernel-no-domain`) | Packs are domain; the kernel stays technical |
 | Embedding | packs compiled in with `include_str!` and parsed once at start into an immutable map keyed by country (hash lookup per request) | No runtime file reads; a broken pack fails the build, not a ward |
+| Runtime packs (later) | loadable at runtime only when **signed**, verified like OS updates (same signing chain and refusal path, RFC-HOSPITAL-OS §8b/§8j), then floor-checked (§1a) and applied through a change set; an unsigned or unverifiable pack is refused | Partners can ship a country without a release, without opening a tampering path |
 | Native | the same data and validators reach iOS and Android through the Rust edge core (`medbrains-edge-rn`, UniFFI) so offline registration validates exactly as the server does | No Swift/Kotlin copies of rules |
 | Web | validators in `@medbrains/utils` (the five checksums, ~100 lines), checked against the same golden vectors as Rust | Server stays the authority; web gives instant feedback |
 | Country list | `data/geo/countries.json` (exists, feeds `scripts/seed_world_geo.py`) stays the 195-country list; a `research` field per country feeds the meter's "N of 195 researched" | Reuse, not a new matrix |
@@ -141,8 +180,9 @@ no exchange adapters. It is honest about what it lacks: those capabilities are n
   applied when it was made: invoice lines already store the applied tax percent; a reprint never
   recomputes with today's rate.
 - A tenant pins `locale/pack_version`. A release may bring a newer pack; the upgrade is a change
-  set (§2.4) showing the diff. A legally effective change (a new GST rate) is shipped as a patch with
-  its date and applies on that date without anyone clicking, because the law does not wait.
+  set (§2.4) showing the diff. A dated legal change (a new GST rate) applies automatically on its
+  date **only from a pack version the hospital approved through a change set beforehand**; the
+  preview shows the future-dated rule and its date. Nothing changes silently.
 
 ### 3.4 Tests every pack ships
 
@@ -155,6 +195,7 @@ no exchange adapters. It is honest about what it lacks: those capabilities are n
 | Switch-on test: a tenant picks the country, and its gates, schemes and adapters are active; picking `world` turns them off | a rule does not follow the country |
 | India no-change test: today's outputs (written before the first sweep) still match | any Indian behaviour changed |
 | Adapter stand-in tests (per #4917) | an adapter breaks its spec |
+| Floor test (§1a): the pack's rules are a superset of the floor, every floor gate present | the pack lowers or omits any floor; the loader refuses it |
 
 ## 4. Formatting and parsing
 
@@ -171,7 +212,8 @@ Rules:
 
 - **Money** is a decimal string plus an ISO 4217 code end to end, never a float. Minor units come
   from ISO 4217: JPY 0, INR/AED 2, **KWD/BHD/OMR 3**. Today 233 of 249 money columns are
-  `numeric(_,2)`: they cannot hold fils (§6).
+  `numeric(_,2)`: they cannot hold fils. They are widened to 4 decimals in #5927 (§6), which also
+  leaves room for unit prices finer than the currency's minor unit.
 - **Times** are stored UTC (`timestamptz`) and shown in the **facility's** zone. When the device's
   zone differs, the zone abbreviation is shown. Date-only values (date of birth, LMP) are `date` and
   are never shifted by a zone.
@@ -234,7 +276,7 @@ Line totals are in #5936 (₹ 1,485 lines in 270 files; NABH 427 in 178; Aadhaar
 | 0 | #5925 this RFC | Agree the shape before moving 1,500+ lines |
 | 1 | #5935 ratchet | Stops the count growing while the sweeps run |
 | 2 | #5926 profile + helpers on all four platforms + `medbrains-country` with the `india` and `world` packs (loader, lint, India goldens recorded) | Every sweep below calls these; goldens must be recorded before any code moves |
-| 3 | #5927 currency | Largest count, mostly mechanical once `formatMoney` exists; includes the money-column scale decision (§6) |
+| 3 | #5927 currency | Largest count, mostly mechanical once `formatMoney` exists; includes the planned migration widening money columns to 4 decimals, run in a maintenance window (§6) |
 | 4 | #5928 dates, times, `en-IN`, bare `toLocaleString()` | Second largest, mechanical; adds `chrono-tz`, removes the IST constants outside India adapters, drops the `tenants` locale columns |
 | 5 | #5929 identity | Needs the pack's schemes; freezes the `identifier_type` enum and adds a `scheme` column (backfilled from the enum), so a new country never needs `ALTER TYPE` |
 | 6 | #5930 address and phone | Geo tables become generic admin levels 1–4 with pack labels; `pincode` becomes `postal_code`; phones stored E.164 |
@@ -287,10 +329,10 @@ least one adapter is built. India starts partial (ABDM PRs as evidence).
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Money columns are `numeric(_,2)` (233 of 249) | A Kuwaiti, Bahraini or Omani hospital cannot record fils | Widen to `numeric(_,3)` in #5927 (a table rewrite on large tables: needs a maintenance window), or refuse 3-decimal currencies until then (owner question 3) |
+| Money columns are `numeric(_,2)` (233 of 249) | A Kuwaiti, Bahraini or Omani hospital cannot record fils | Widen every money column to 4 decimals in one planned migration inside #5927, run in an announced maintenance window (a table rewrite on large tables); values round-trip unchanged, proven by a before/after checksum per table |
 | Stored amounts carry no currency (3 currency columns) | Changing currency relabels history | Currency fixed after the first financial row (§2.4); exports and FHIR resources take the code from the profile |
 | Identifier data migration | Aadhaar numbers, ABHA ids must not change, lose their hash or verification | Additive `scheme` column backfilled from the enum; `id_number_hash` and verification untouched; enum dropped only after every reader moves |
-| Group spanning countries | Currency, tax, retention differ | One tenant per country under `hospital_groups`; group reports convert at a stated rate, labelled (owner question 4) |
+| Group spanning countries | Currency, tax, retention differ | One tenant per country under `hospital_groups`; group reports aggregate across tenants, each figure labelled with its currency, and any converted total states its rate and date |
 | Region rules inside a country (Dubai vs Abu Dhabi, US states, Indian state PCPNDT rules) | Wrong gate per site | `locale/region` at facility scope; pack rules keyed by region where needed |
 | Print | Wrong time or currency on a legal document | Print uses the same server formatter and goldens; DST handled by `chrono-tz`; unknown zone fails the print (existing rule) |
 | Offline native | Rules drift from the server | Rules come from the Rust edge core with the same pack data; the profile is cached as last-good with the session; the server re-validates on sync |
@@ -298,18 +340,16 @@ least one adapter is built. India starts partial (ABDM PRs as evidence).
 | Accreditation standards text is copyrighted | Licence breach | Store codes and our own one-line summaries only, never the standard's text |
 | Silent fallback to India | A foreign hospital looks right but is wrong | India defaults removed from `DEFAULT_CONFIG`, schema defaults and `hospital_groups`; neutral render + banner instead |
 
-## 7. Open questions for the owner
+## 7. Owner questions, resolved
 
-1. **Facility scope.** The profile needs the K3 facility scope in the configuration resolver. Build
-   it as part of #5926, or keep the profile hospital-wide until K3 lands?
-2. **Packs in code vs installable.** This RFC compiles packs into the build (safe, testable, needs a
-   release to change). Should hospitals or partners also load signed packs at runtime later?
-3. **3-decimal currencies.** Widen money columns in #5927 (maintenance window on large installs), or
-   refuse KWD/BHD/OMR until a Gulf customer is signed?
-4. **Multi-country groups.** Is "one tenant per country" acceptable for a group with hospitals in
-   India and the UAE, with converted group reports?
-5. **Which second pack proves the design?** Recommendation: UAE (#5426): different currency, RTL,
-   Hijri, VAT, a region split, controlled-drug platform, data localisation; it exercises every row.
-6. **Pack-version auto-apply.** A dated legal change (a tax rate) applies on its date without a
-   click: agree, or always require a change-set approval?
-7. **New permission.** `admin.locale_profile.update` held by `hospital_admin` only: agree?
+All resolved 2026-11-15 by owner principle (§0).
+
+| # | Question | Resolution | Reason |
+|---|---|---|---|
+| 1 | Facility scope now or at K3? | Built now in #5926 (timezone and region at facility scope) | A group with sites in two zones must show each ward its own clinical time from day one |
+| 2 | Packs compiled in, or installable? | Compiled in now; runtime-loadable later, signed only, verified like OS updates, unsigned refused (§3.2) | Fits partners and new countries without opening a tampering path |
+| 3 | 3-decimal currencies? | Widen money columns to 4 decimals in a planned migration with a maintenance window, inside #5927 | Fits every currency; refusing Gulf currencies would not fit "anything" |
+| 4 | Multi-country groups? | One tenant per country; group reports aggregate across tenants | Currency, tax and retention stay correct per country, and RLS stays per tenant |
+| 5 | Second pack? | UAE (#5426) | Different currency, RTL, Hijri, VAT, a region split, a controlled-drug platform and data localisation: it exercises every row |
+| 6 | Dated legal changes? | Apply automatically on their date only from a pack version approved beforehand through a change set (§3.3) | The law's date is met, and nothing changes silently |
+| 7 | Who changes the locale profile? | `hospital_admin` only, plus second-person approval, audited (§2.4) | It switches regulatory rules; separation of privilege |
