@@ -53,12 +53,14 @@ function FieldControl({
   onChange,
   error,
   countries,
+  countriesError,
 }: {
   field: ProfileField;
   value: string;
   onChange: (v: string) => void;
   error?: string;
-  countries: { value: string; label: string }[];
+  countries: { value: string; label: string }[] | undefined;
+  countriesError?: string;
 }) {
   const common = { label: field.label, description: field.description, error };
   /** A searchable, clearable select over `data`, sharing the field's label and error. */
@@ -82,7 +84,11 @@ function FieldControl({
   };
   switch (field.kind) {
     case "country":
-      return pick(countries);
+      return countriesError ? (
+        <Select {...common} data={[]} disabled error={countriesError} />
+      ) : (
+        pick(countries ?? [])
+      );
     case "zone":
       return pick(intlOptions("timeZone"));
     case "currency":
@@ -114,9 +120,13 @@ export function RequestChangeModal({ target, onClose, onCreated }: RequestChange
     enabled: target?.scope === "hospital",
   });
   const countryOptions = useMemo(
-    () => (countries.data ?? []).map((c) => ({ value: c.code, label: `${c.name} (${c.code})` })),
+    () => countries.data?.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` })),
     [countries.data],
   );
+  // A failed list is said on the field, never shown as "no countries".
+  const countriesError = countries.isError
+    ? "The country list could not load; close and try again"
+    : undefined;
   const fields = PROFILE_FIELDS.filter((f) => target && f.scopes.includes(target.scope));
   const values = useForm<ProfileForm>({ values: target?.form });
   const meta = useForm({
@@ -187,6 +197,7 @@ export function RequestChangeModal({ target, onClose, onCreated }: RequestChange
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   countries={countryOptions}
+                  countriesError={countriesError}
                 />
               )}
             />
