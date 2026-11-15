@@ -1,10 +1,10 @@
 #![allow(clippy::too_many_lines)]
 
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,put};
 use medbrains_core::permissions;
 use medbrains_core::specialty::cath_lab::{
     CathDevice, CathHemodynamic, CathPostMonitoring, CathProcedure, CathStemiTimeline,
@@ -185,8 +185,12 @@ pub async fn list_cath_procedures(
     // ?patient_id, otherwise the set the caller may see.
     let permitted_patients =
         medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -223,8 +227,12 @@ pub async fn get_cath_procedure(
         id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -250,10 +258,13 @@ pub async fn create_cath_procedure(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops a
     // procedure being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -300,8 +311,12 @@ pub async fn update_cath_procedure(
         id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -351,8 +366,12 @@ pub async fn list_hemodynamics(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -385,8 +404,12 @@ pub async fn create_hemodynamic(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -428,8 +451,12 @@ pub async fn list_cath_devices(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -459,8 +486,12 @@ pub async fn create_cath_device(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -506,8 +537,12 @@ pub async fn list_stemi_timeline(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -537,8 +572,12 @@ pub async fn create_stemi_event(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -599,8 +638,12 @@ pub async fn list_post_monitoring(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -633,8 +676,12 @@ pub async fn create_post_monitoring(
         procedure_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "cath_lab",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -715,8 +762,7 @@ pub async fn create_endoscopy_procedure(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops a
     // procedure being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1088,38 +1134,31 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/specialty/cath-lab/procedures",
-            get(list_cath_procedures)
-                .post(create_cath_procedure),
+            get(list_cath_procedures).post(create_cath_procedure),
         )
         .route(
             "/api/specialty/cath-lab/procedures/{id}",
-            get(get_cath_procedure)
-                .put(update_cath_procedure),
+            get(get_cath_procedure).put(update_cath_procedure),
         )
         .route(
             "/api/specialty/cath-lab/procedures/{procedure_id}/hemodynamics",
-            get(list_hemodynamics)
-                .post(create_hemodynamic),
+            get(list_hemodynamics).post(create_hemodynamic),
         )
         .route(
             "/api/specialty/cath-lab/procedures/{procedure_id}/devices",
-            get(list_cath_devices)
-                .post(create_cath_device),
+            get(list_cath_devices).post(create_cath_device),
         )
         .route(
             "/api/specialty/cath-lab/procedures/{procedure_id}/stemi-timeline",
-            get(list_stemi_timeline)
-                .post(create_stemi_event),
+            get(list_stemi_timeline).post(create_stemi_event),
         )
         .route(
             "/api/specialty/cath-lab/procedures/{procedure_id}/post-monitoring",
-            get(list_post_monitoring)
-                .post(create_post_monitoring),
+            get(list_post_monitoring).post(create_post_monitoring),
         )
         .route(
             "/api/specialty/endoscopy/procedures",
-            get(list_endoscopy_procedures)
-                .post(create_endoscopy_procedure),
+            get(list_endoscopy_procedures).post(create_endoscopy_procedure),
         )
         .route(
             "/api/specialty/endoscopy/procedures/{id}",
@@ -1127,21 +1166,15 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/specialty/endoscopy/scopes",
-            get(list_scopes)
-                .post(create_scope),
+            get(list_scopes).post(create_scope),
         )
-        .route(
-            "/api/specialty/endoscopy/scopes/{id}",
-            put(update_scope),
-        )
+        .route("/api/specialty/endoscopy/scopes/{id}", put(update_scope))
         .route(
             "/api/specialty/endoscopy/reprocessing",
-            get(list_reprocessing)
-                .post(create_reprocessing),
+            get(list_reprocessing).post(create_reprocessing),
         )
         .route(
             "/api/specialty/endoscopy/procedures/{procedure_id}/biopsies",
-            get(list_biopsy_specimens)
-                .post(create_biopsy_specimen),
+            get(list_biopsy_specimens).post(create_biopsy_specimen),
         )
 }

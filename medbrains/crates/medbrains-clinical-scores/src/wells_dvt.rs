@@ -99,7 +99,13 @@ pub fn compute_wells_dvt(r: &WellsDvtRequest) -> WellsDvtResult {
     } else {
         "Low probability — a negative D-dimer safely excludes DVT without imaging."
     };
-    WellsDvtResult { score, risk_tier, dvt_likely, recommended_workup, response }
+    WellsDvtResult {
+        score,
+        risk_tier,
+        dvt_likely,
+        recommended_workup,
+        response,
+    }
 }
 
 /// `POST /api/clinical/wells-dvt` — Wells pre-test probability for suspected deep vein thrombosis.

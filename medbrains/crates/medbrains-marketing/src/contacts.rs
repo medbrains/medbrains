@@ -42,8 +42,9 @@ pub const CHANNEL_EMAIL: &str = "email";
 /// normalised.
 pub fn canonical_value(channel: &str, raw: &str) -> Result<String, AppError> {
     match channel {
-        CHANNEL_PHONE | CHANNEL_WHATSAPP => phone::normalise(raw)
-            .map_err(|e| AppError::BadRequest(e.message().to_owned())),
+        CHANNEL_PHONE | CHANNEL_WHATSAPP => {
+            phone::normalise(raw).map_err(|e| AppError::BadRequest(e.message().to_owned()))
+        }
         CHANNEL_EMAIL => Ok(raw.trim().to_lowercase()),
         _ => Ok(raw.trim().to_owned()),
     }
@@ -104,8 +105,8 @@ pub async fn resolve_or_create(
         return Ok(found);
     }
 
-    let phone_for_contact = matches!(channel, CHANNEL_PHONE | CHANNEL_WHATSAPP)
-        .then(|| canonical.clone());
+    let phone_for_contact =
+        matches!(channel, CHANNEL_PHONE | CHANNEL_WHATSAPP).then(|| canonical.clone());
     let email_for_contact = (channel == CHANNEL_EMAIL).then(|| canonical.clone());
 
     let contact_id: Uuid = sqlx::query_scalar(

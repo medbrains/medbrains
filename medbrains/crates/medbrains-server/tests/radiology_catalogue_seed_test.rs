@@ -62,6 +62,9 @@ async fn a_new_hospital_has_the_default_radiology_catalogue() {
 
     assert_eq!(modalities, ["BMD", "CT", "DX", "MG", "MR", "RF", "US"]);
     assert!(exams >= 60, "{exams} exams");
-    assert!(lateral > 0 && lateral < exams, "{lateral} of {exams} need a side");
+    assert!(
+        lateral > 0 && lateral < exams,
+        "{lateral} of {exams} need a side"
+    );
     assert!(knee_side, "a knee x-ray must ask which knee");
 }

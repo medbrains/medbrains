@@ -199,6 +199,8 @@ async fn scope_to_token(
     Ok(())
 }
 
+/// `POST /api/device-pairing/pair`: a device spends a pairing token, once, for
+/// its paired-device row and JWT.
 pub async fn pair_device(
     State(state): State<AppState>,
     Json(body): Json<PairRequest>,
@@ -226,11 +228,14 @@ pub async fn pair_device(
         serde_json::Value,
         Option<Uuid>,
     );
+    // Locked, so two devices presenting one token at once cannot both see it
+    // unused: the second waits, then reads it spent.
     let token_row: Option<PairingTokenRow> = sqlx::query_as(
         "SELECT id, tenant_id, intended_device_label, intended_app_variant, \
                 intended_user_id, issued_by_user_id, expires_at, used_at, \
                 department_id, location_label, location_scope, station_id \
-         FROM device_pairing_tokens WHERE token = $1",
+         FROM device_pairing_tokens WHERE token = $1 \
+         FOR UPDATE",
     )
     .bind(&body.token)
     .fetch_optional(&mut *tx)

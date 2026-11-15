@@ -12,17 +12,16 @@ mod error_codes;
 pub mod errors;
 pub mod gateway;
 pub mod phr;
-mod types;
 pub mod registry;
 pub mod scan_share;
+mod types;
 
 pub use abha::{
     AADHAAR_VERIFY_SCOPE, ABDM_BASE_URL_OVERRIDE, ABHA_LOGIN_SCOPE, AbdmAbhaClient,
-    AbdmEnvironment, AbdmError,
-    AbhaAccountSummary, AbhaIntegrationReadiness, AbhaProfile, LoginHint, MOBILE_VERIFY_SCOPE,
-    OtpSystem, PublicCertificateResponse, RequestOtpRequest, RequestOtpResponse,
-    SessionTokenRequest, SessionTokenResponse, UserToken, VerifyOtpAuthData, VerifyOtpPayload,
-    VerifyOtpRequest, VerifyOtpResponse, VerifyUserRequest, VerifyUserResponse,
+    AbdmEnvironment, AbdmError, AbhaAccountSummary, AbhaIntegrationReadiness, AbhaProfile,
+    LoginHint, MOBILE_VERIFY_SCOPE, OtpSystem, PublicCertificateResponse, RequestOtpRequest,
+    RequestOtpResponse, SessionTokenRequest, SessionTokenResponse, UserToken, VerifyOtpAuthData,
+    VerifyOtpPayload, VerifyOtpRequest, VerifyOtpResponse, VerifyUserRequest, VerifyUserResponse,
 };
 pub use card::{AbhaCard, AbhaImage};
 pub use enrol::{

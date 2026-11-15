@@ -19,7 +19,6 @@ const SIGNATURE_TYPES = [
   { value: "digital_pen", label: "Digital Pen" },
   { value: "aadhaar_esign", label: "Aadhaar e-Sign" },
   { value: "biometric_thumb", label: "Biometric Thumb" },
-  { value: "otp", label: "OTP" },
   { value: "video_consent", label: "Video Consent" },
   { value: "verbal_witness", label: "Verbal (Witness)" },
 ];

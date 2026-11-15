@@ -51,7 +51,9 @@ pub struct CpotResult {
 
 fn validate_domain(name: &str, value: i32) -> Result<(), AppError> {
     if !(0..=2).contains(&value) {
-        return Err(AppError::BadRequest(format!("{name} must be between 0 and 2")));
+        return Err(AppError::BadRequest(format!(
+            "{name} must be between 0 and 2"
+        )));
     }
     Ok(())
 }
@@ -90,7 +92,10 @@ pub async fn cpot_score(
     validate_domain("facial_expression", body.facial_expression)?;
     validate_domain("body_movements", body.body_movements)?;
     validate_domain("muscle_tension", body.muscle_tension)?;
-    validate_domain("ventilator_or_vocalization", body.ventilator_or_vocalization)?;
+    validate_domain(
+        "ventilator_or_vocalization",
+        body.ventilator_or_vocalization,
+    )?;
     Ok(Json(compute_cpot(&body)))
 }
 

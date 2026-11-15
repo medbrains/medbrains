@@ -214,7 +214,8 @@ pub async fn resolve_sendable(
     .await?;
 
     for row in rows {
-        set.decisions.insert(row.contact_id, decide(&row, promotional));
+        set.decisions
+            .insert(row.contact_id, decide(&row, promotional));
     }
 
     // A contact the query did not return is not a refusal — it is a contact
@@ -234,11 +235,20 @@ pub async fn resolve_sendable(
 /// they opted out when the real problem is that no number was ever recorded
 /// sends the desk looking in the wrong place.
 fn decide(row: &GateRow, promotional: bool) -> Sendability {
-    let Some(address) = row.address.as_deref().map(str::trim).filter(|a| !a.is_empty()) else {
-        return Sendability::Blocked { reason: blocked::NO_ADDRESS };
+    let Some(address) = row
+        .address
+        .as_deref()
+        .map(str::trim)
+        .filter(|a| !a.is_empty())
+    else {
+        return Sendability::Blocked {
+            reason: blocked::NO_ADDRESS,
+        };
     };
     if row.suppressed {
-        return Sendability::Blocked { reason: blocked::SUPPRESSED };
+        return Sendability::Blocked {
+            reason: blocked::SUPPRESSED,
+        };
     }
     if promotional {
         return match row.latest_action.as_deref() {
@@ -246,19 +256,27 @@ fn decide(row: &GateRow, promotional: bool) -> Sendability {
             // consent on purpose: a person who never agreed is refused for
             // never agreeing, not for a cap they were never subject to, and
             // the desk reads the reason to decide which conversation to have.
-            Some("granted") if row.over_cap => {
-                Sendability::Blocked { reason: blocked::OVER_CAP }
-            }
-            Some("granted") => Sendability::Sendable { address: address.to_owned() },
-            Some("withdrawn") => Sendability::Blocked { reason: blocked::WITHDRAWN },
+            Some("granted") if row.over_cap => Sendability::Blocked {
+                reason: blocked::OVER_CAP,
+            },
+            Some("granted") => Sendability::Sendable {
+                address: address.to_owned(),
+            },
+            Some("withdrawn") => Sendability::Blocked {
+                reason: blocked::WITHDRAWN,
+            },
             // Never asked. Distinct from withdrawn in the ledger, and the same
             // answer here: silence is not consent under DPDP.
-            _ => Sendability::Blocked { reason: blocked::NO_CONSENT },
+            _ => Sendability::Blocked {
+                reason: blocked::NO_CONSENT,
+            },
         };
     }
     // Service traffic. An appointment reminder is not an offer, and gating it
     // on a marketing opt-in is how a patient stops being told when to come in.
-    Sendability::Sendable { address: address.to_owned() }
+    Sendability::Sendable {
+        address: address.to_owned(),
+    }
 }
 
 /// What is being sent, and under what class.
@@ -545,7 +563,10 @@ mod tests {
     }
 
     fn capped(action: Option<&str>) -> GateRow {
-        GateRow { over_cap: true, ..row(Some("+919000000001"), action, false) }
+        GateRow {
+            over_cap: true,
+            ..row(Some("+919000000001"), action, false)
+        }
     }
 
     /// Silence is not consent. A contact nobody ever asked is refused for
@@ -556,11 +577,15 @@ mod tests {
     fn never_asked_is_refused_and_is_not_the_same_as_withdrawn() {
         assert_eq!(
             decide(&row(Some("+919000000001"), None, false), true),
-            Sendability::Blocked { reason: blocked::NO_CONSENT }
+            Sendability::Blocked {
+                reason: blocked::NO_CONSENT
+            }
         );
         assert_eq!(
             decide(&row(Some("+919000000001"), Some("withdrawn"), false), true),
-            Sendability::Blocked { reason: blocked::WITHDRAWN }
+            Sendability::Blocked {
+                reason: blocked::WITHDRAWN
+            }
         );
     }
 
@@ -583,11 +608,15 @@ mod tests {
     fn suppression_beats_an_existing_grant() {
         assert_eq!(
             decide(&row(Some("+919000000001"), Some("granted"), true), true),
-            Sendability::Blocked { reason: blocked::SUPPRESSED }
+            Sendability::Blocked {
+                reason: blocked::SUPPRESSED
+            }
         );
         assert_eq!(
             decide(&row(Some("+919000000001"), Some("granted"), true), false),
-            Sendability::Blocked { reason: blocked::SUPPRESSED }
+            Sendability::Blocked {
+                reason: blocked::SUPPRESSED
+            }
         );
     }
 
@@ -598,11 +627,15 @@ mod tests {
     fn a_missing_address_is_reported_as_itself() {
         assert_eq!(
             decide(&row(None, Some("granted"), false), true),
-            Sendability::Blocked { reason: blocked::NO_ADDRESS }
+            Sendability::Blocked {
+                reason: blocked::NO_ADDRESS
+            }
         );
         assert_eq!(
             decide(&row(Some("   "), Some("granted"), false), true),
-            Sendability::Blocked { reason: blocked::NO_ADDRESS }
+            Sendability::Blocked {
+                reason: blocked::NO_ADDRESS
+            }
         );
     }
 
@@ -613,7 +646,9 @@ mod tests {
     fn a_contact_over_the_frequency_cap_is_refused_for_that_reason() {
         assert_eq!(
             decide(&capped(Some("granted")), true),
-            Sendability::Blocked { reason: blocked::OVER_CAP }
+            Sendability::Blocked {
+                reason: blocked::OVER_CAP
+            }
         );
     }
 
@@ -624,7 +659,9 @@ mod tests {
     fn never_asked_outranks_the_cap() {
         assert_eq!(
             decide(&capped(None), true),
-            Sendability::Blocked { reason: blocked::NO_CONSENT }
+            Sendability::Blocked {
+                reason: blocked::NO_CONSENT
+            }
         );
     }
 
@@ -642,7 +679,12 @@ mod tests {
     /// the gate never resolved.
     #[test]
     fn unknown_is_not_a_refusal() {
-        assert_ne!(Sendability::Unknown, Sendability::Blocked { reason: blocked::NO_CONSENT });
+        assert_ne!(
+            Sendability::Unknown,
+            Sendability::Blocked {
+                reason: blocked::NO_CONSENT
+            }
+        );
         assert!(!Sendability::Unknown.is_sendable());
     }
 }

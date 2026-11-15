@@ -113,7 +113,10 @@ async fn escalate_breached_callbacks(pool: &PgPool) -> Result<u64, AppError> {
     }
 
     let escalated = breached.len() as u64;
-    let unowned = breached.iter().filter(|b| b.supervisor_id.is_none()).count();
+    let unowned = breached
+        .iter()
+        .filter(|b| b.supervisor_id.is_none())
+        .count();
 
     for callback in &breached {
         // No supervisor, no recipient. The row is still marked, so the
@@ -156,7 +159,10 @@ async fn escalate_breached_callbacks(pool: &PgPool) -> Result<u64, AppError> {
     if unowned > 0 {
         // The ones nobody owns are the ones most likely to stay unanswered,
         // so they are named in the log rather than folded into the total.
-        tracing::warn!(unowned, "breached callbacks with no assignee to escalate to");
+        tracing::warn!(
+            unowned,
+            "breached callbacks with no assignee to escalate to"
+        );
     }
 
     Ok(escalated)

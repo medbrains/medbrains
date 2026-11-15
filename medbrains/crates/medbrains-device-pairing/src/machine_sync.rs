@@ -91,8 +91,16 @@ pub async fn agent_sync(
     let (tenant, hospital) = this_hospital(db).await?;
     let mut tx = begin(&state.db, agent_actor(tenant)).await?;
     if !body.connected.is_empty() {
-        let keys: Vec<String> = body.connected.iter().map(|seen| seen.node_id.clone()).collect();
-        let addresses: Vec<String> = body.connected.iter().map(|seen| seen.address.to_string()).collect();
+        let keys: Vec<String> = body
+            .connected
+            .iter()
+            .map(|seen| seen.node_id.clone())
+            .collect();
+        let addresses: Vec<String> = body
+            .connected
+            .iter()
+            .map(|seen| seen.address.to_string())
+            .collect();
         sqlx::query!(
             "WITH seen AS (UPDATE device_node_keys k SET last_seen_at = now() \
                FROM unnest($2::text[], $3::text[]) AS reported(node_id, address) \
@@ -109,7 +117,8 @@ pub async fn agent_sync(
     }
     expire_unfinished(&mut tx).await?;
     if body.given_up.count > 0 {
-        let details = serde_json::json!({ "count": body.given_up.count, "paused": body.given_up.paused });
+        let details =
+            serde_json::json!({ "count": body.given_up.count, "paused": body.given_up.paused });
         let entry = AuditEntry {
             tenant_id: tenant,
             user_id: None,

@@ -1,8 +1,8 @@
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,9 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -1429,7 +1431,11 @@ pub async fn create_asset_movement(
         asset_current_placement(&mut tx, claims.tenant_id, &body.source_type, body.source_id)
             .await?;
 
-    let status = if complete_now { "completed" } else { "requested" };
+    let status = if complete_now {
+        "completed"
+    } else {
+        "requested"
+    };
     let completed_by = if complete_now { Some(claims.sub) } else { None };
 
     let row = sqlx::query_as::<_, AssetMovement>(&format!(
@@ -1602,10 +1608,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/assets/categories",
             get(list_asset_categories).post(create_asset_category),
         )
-        .route(
-            "/api/assets/categories/{id}",
-            put(update_asset_category),
-        )
+        .route("/api/assets/categories/{id}", put(update_asset_category))
         .route(
             "/api/assets/store-categories",
             get(list_store_categories).post(create_store_category),

@@ -89,7 +89,7 @@ host="$(hostname)"
 
 # ── 1. without a key, S3 is refused and the refusal is recorded ───────
 out="$(backup BACKUP_AGE_RECIPIENTS_FILE="$TMP/none.txt")"; rc=$?
-if [[ $rc -ne 0 && "$out" == *"refusing to send an unencrypted dump"* && -z "$(find "$TMP/s3" -type f)" ]]; then
+if [[ $rc -ne 0 && "$out" == *"refusing to write an unencrypted dump"* && -z "$(find "$TMP/s3" -type f)" ]]; then
     ok "S3 without a public key: refused, nothing uploaded"
 else bad "S3 without a public key (rc=$rc): $out"; fi
 

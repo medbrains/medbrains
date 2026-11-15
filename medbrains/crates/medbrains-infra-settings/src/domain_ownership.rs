@@ -81,8 +81,11 @@ pub async fn verify_domain_ownership(
     if ownership.verified_at.is_some() {
         return Ok(Json(ownership));
     }
-    let found =
-        crate::lookup_text(&ownership.record_name, hickory_resolver::proto::rr::RecordType::TXT).await;
+    let found = crate::lookup_text(
+        &ownership.record_name,
+        hickory_resolver::proto::rr::RecordType::TXT,
+    )
+    .await;
     if !found.iter().any(|v| v.trim() == ownership.token) {
         return Err(AppError::BadRequest(format!(
             "No TXT record at {} says {} yet. DNS changes can take a while to appear; try again shortly.",

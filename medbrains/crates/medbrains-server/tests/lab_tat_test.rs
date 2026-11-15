@@ -137,7 +137,10 @@ async fn an_order_past_its_catalogue_turnaround_is_flagged() {
         "the catalogue's tat_hours must supply the promise when the order \
          carries none -- which is always"
     );
-    assert!(actual.is_some_and(|m| m >= 300), "roughly six hours elapsed");
+    assert!(
+        actual.is_some_and(|m| m >= 300),
+        "roughly six hours elapsed"
+    );
     assert!(
         breached,
         "six hours against a two-hour promise is a breach; reporting false \
@@ -156,7 +159,10 @@ async fn an_order_within_its_turnaround_is_not_flagged() {
 
     let (promised, _, breached) = breach_row(&app.db, tenant_id, order_id).await;
     assert_eq!(promised, Some(1440));
-    assert!(!breached, "one hour against a 24-hour promise is not a breach");
+    assert!(
+        !breached,
+        "one hour against a 24-hour promise is not a breach"
+    );
 }
 
 /// A test with no declared turnaround cannot be breached.

@@ -158,7 +158,9 @@ pub fn on_for_edition(brick: &Brick, edition: &str) -> bool {
     let known = BRICKS
         .iter()
         .any(|b| b.editions.is_some_and(|e| e.contains(&edition)));
-    brick.editions.is_none_or(|editions| editions.contains(&edition) || !known)
+    brick
+        .editions
+        .is_none_or(|editions| editions.contains(&edition) || !known)
 }
 
 /// The bricks `picked` needs, itself included, each once, dependencies first. Unknown ids are

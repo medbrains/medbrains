@@ -48,7 +48,12 @@ async fn an_agreed_channel_is_recorded_with_who_took_it() {
         }),
     )
     .await;
-    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
     let patient: serde_json::Value = resp.json().await.expect("patient json");
     let id = Uuid::parse_str(patient["id"].as_str().expect("id")).expect("uuid");
 
@@ -61,7 +66,10 @@ async fn an_agreed_channel_is_recorded_with_who_took_it() {
     .await
     .expect("consent rows");
     assert_eq!(rows.len(), 1, "only the channel agreed to is recorded");
-    assert_eq!((rows[0].0.as_str(), rows[0].1, rows[0].2.as_str()), ("whatsapp", true, "registration"));
+    assert_eq!(
+        (rows[0].0.as_str(), rows[0].1, rows[0].2.as_str()),
+        ("whatsapp", true, "registration")
+    );
     assert!(rows[0].3.is_some(), "who took the consent is recorded");
 
     let method: Option<String> =

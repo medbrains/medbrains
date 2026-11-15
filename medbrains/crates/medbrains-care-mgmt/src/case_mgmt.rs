@@ -211,8 +211,7 @@ pub async fn create_assignment(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -360,8 +359,7 @@ pub async fn auto_assign(
     // Only a caller-supplied id is available here — the route carries none. This
     // still prevents creating a record against an unreachable patient, but it is
     // weaker than a route-derived check: the caller picks the subject.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

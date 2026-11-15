@@ -43,7 +43,10 @@ pub async fn open_today(
     allowed.push(permissions::billing::invoices::VIEW);
     require_any_permission(&claims, &allowed)?;
     let can_see_names = is_bypass_role(&claims)
-        || claims.permissions.iter().any(|p| p == permissions::patients::VIEW);
+        || claims
+            .permissions
+            .iter()
+            .any(|p| p == permissions::patients::VIEW);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

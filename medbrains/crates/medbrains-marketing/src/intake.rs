@@ -103,7 +103,11 @@ pub async fn public_enquiry(
 ) -> Result<Json<PublicEnquiryResponse>, AppError> {
     // Filled honeypot: answer as though accepted and write nothing. A 400 here
     // tells the author of the bot precisely which field to stop filling in.
-    if body.website.as_deref().is_some_and(|v| !v.trim().is_empty()) {
+    if body
+        .website
+        .as_deref()
+        .is_some_and(|v| !v.trim().is_empty())
+    {
         // No IP here on purpose: `ConnectInfo` is a required extractor that
         // 500s wherever connect info is not wired, and this crate's other
         // callers read the client address from the `client_ip` middleware's
@@ -275,7 +279,11 @@ async fn require_enquiry_form_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<(), AppError> {
-    if web_form_enabled(tx, tenant_id).await? { Ok(()) } else { Err(AppError::NotFound) }
+    if web_form_enabled(tx, tenant_id).await? {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
 }
 
 async fn web_form_enabled(
@@ -367,6 +375,9 @@ mod tests {
         let tamil = "வணக்கம்".repeat(1_000);
         let kept: String = tamil.chars().take(MAX_MESSAGE_CHARS).collect();
         assert_eq!(kept.chars().count(), MAX_MESSAGE_CHARS);
-        assert!(kept.len() > MAX_MESSAGE_CHARS, "multi-byte, so bytes exceed chars");
+        assert!(
+            kept.len() > MAX_MESSAGE_CHARS,
+            "multi-byte, so bytes exceed chars"
+        );
     }
 }

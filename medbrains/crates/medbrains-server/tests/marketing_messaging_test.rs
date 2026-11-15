@@ -3,7 +3,12 @@ use crate::common;
 use uuid::Uuid;
 
 fn mobile(prefix: &str) -> String {
-    let digits: String = Uuid::new_v4().as_u128().to_string().chars().take(8).collect();
+    let digits: String = Uuid::new_v4()
+        .as_u128()
+        .to_string()
+        .chars()
+        .take(8)
+        .collect();
     format!("{prefix}{digits}")
 }
 

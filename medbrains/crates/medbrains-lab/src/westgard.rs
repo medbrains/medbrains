@@ -68,7 +68,10 @@ pub(crate) fn evaluate(sdi: f64, history: &[f64]) -> Evaluation {
     if run_beyond(&series, 2, 2.0) {
         violations.push("2_2s");
     }
-    if series.len() >= 2 && (series[0] - series[1]).abs() > 4.0 && series[0].signum() != series[1].signum() {
+    if series.len() >= 2
+        && (series[0] - series[1]).abs() > 4.0
+        && series[0].signum() != series[1].signum()
+    {
         violations.push("r_4s");
     }
     if run_beyond(&series, 4, 1.0) {

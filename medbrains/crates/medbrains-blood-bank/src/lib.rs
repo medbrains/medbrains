@@ -701,11 +701,12 @@ pub async fn list_crossmatch_requests(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM crossmatch_requests WHERE tenant_id = $1 AND deleted_at IS NULL")
-            .bind(claims.tenant_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM crossmatch_requests WHERE tenant_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     let requests = sqlx::query_as::<_, CrossmatchRequest>(
         "SELECT * FROM crossmatch_requests WHERE tenant_id = $1 AND deleted_at IS NULL \

@@ -41,14 +41,7 @@ fn wrong_code_message(status: &str) -> &'static str {
     }
 }
 
-/// Compares without stopping at the first difference.
-pub(crate) fn constant_time_eq(a: &str, b: &str) -> bool {
-    a.len() == b.len()
-        && a.bytes()
-            .zip(b.bytes())
-            .fold(0_u8, |diff, (x, y)| diff | (x ^ y))
-            == 0
-}
+pub(crate) use medbrains_server_core::codes::constant_time_eq;
 
 /// A machine waiting for a person.
 #[derive(Debug, Serialize)]

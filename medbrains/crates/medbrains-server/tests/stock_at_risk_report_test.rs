@@ -17,10 +17,11 @@ async fn expired_stock_is_not_counted_as_available() {
     let app = common::spawn_app().await;
     let _csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let suffix = &Uuid::new_v4().to_string()[..8];
 

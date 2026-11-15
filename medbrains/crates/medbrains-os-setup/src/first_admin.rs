@@ -48,15 +48,17 @@ pub(crate) enum Finished {
     Failed(String),
 }
 
-/// True if this machine runs Kanidm at all.
-fn provider_runs() -> bool {
+/// Whether this machine runs Kanidm at all. `None` when the guard could not be
+/// asked (it would not start, or ran out of time): not knowing is not "no", or
+/// a fault would skip the administrator's second factor.
+fn provider_runs() -> Option<bool> {
     let may_run = child::run(
         TRANSIENT[0],
         &[&TRANSIENT[1..], &[ENCRYPTION_GUARD]].concat(),
         USUAL_LIMIT,
     )
-    .is_some_and(|done| done.success);
-    if !may_run {
+    .map(|done| done.success);
+    if may_run == Some(false) {
         log_line("the identity provider is off: this disk is not encrypted");
     }
     may_run
@@ -82,8 +84,10 @@ fn failure(done: Option<&child::Finished>) -> String {
 
 /// Makes the person with this password and starts their TOTP. Safe to repeat: each call starts afresh.
 pub(crate) fn begin(username: &str, password: &str) -> Begun {
-    if !provider_runs() {
-        return Begun::NoProviderOnThisDisk;
+    match provider_runs() {
+        Some(true) => {}
+        Some(false) => return Begun::NoProviderOnThisDisk,
+        None => return Begun::Failed(failure(None)),
     }
     let input = Zeroizing::new(format!("{username}\n{password}\n"));
     let Some(done) = run_step("begin", &input) else {
@@ -102,8 +106,15 @@ pub(crate) fn begin(username: &str, password: &str) -> Begun {
 
 /// Checks the code and saves the login. Only then is the machine started.
 pub(crate) fn finish(username: &str, code: &str) -> Finished {
-    if !provider_runs() {
-        return Finished::NoProviderOnThisDisk;
+    finish_when(provider_runs(), username, code)
+}
+
+/// `finish`, given what the encryption guard answered.
+fn finish_when(provider: Option<bool>, username: &str, code: &str) -> Finished {
+    match provider {
+        Some(true) => {}
+        Some(false) => return Finished::NoProviderOnThisDisk,
+        None => return Finished::Failed(failure(None)),
     }
     if !is_code(code) {
         return Finished::WrongCode;
@@ -187,7 +198,7 @@ fn log_line(line: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{enrolment, grouped, is_code};
+    use super::{Finished, enrolment, finish_when, grouped, is_code};
     use serde_json::json;
 
     /// Kanidm's status for a TOTP becomes a secret to type and a QR code, and nothing else.
@@ -224,6 +235,20 @@ mod tests {
         assert!(enrolment(br#"{"mfaregstate":"None"}"#).is_none());
         assert!(enrolment(br#"{"mfaregstate":{"TotpCheck":{"secret":[300]}}}"#).is_none());
         assert!(enrolment(b"not json").is_none());
+    }
+
+    /// A guard that could not be asked is a failure, never "no provider": that
+    /// answer would start the machine without the administrator's code.
+    #[test]
+    fn a_guard_that_cannot_be_asked_does_not_skip_the_code() {
+        assert!(matches!(
+            finish_when(None, "asha_admin", "012345"),
+            Finished::Failed(_)
+        ));
+        assert!(matches!(
+            finish_when(Some(false), "asha_admin", "012345"),
+            Finished::NoProviderOnThisDisk
+        ));
     }
 
     /// Only six digits reach Kanidm.

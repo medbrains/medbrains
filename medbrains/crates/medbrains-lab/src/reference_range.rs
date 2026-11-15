@@ -141,7 +141,10 @@ mod tests {
 
     #[test]
     fn a_value_inside_the_band_is_in_range() {
-        assert_eq!(judge(&adult_band(13.0, 17.0), 15.0, "adult_m", false), RefVerdict::InRange);
+        assert_eq!(
+            judge(&adult_band(13.0, 17.0), 15.0, "adult_m", false),
+            RefVerdict::InRange
+        );
     }
 
     #[test]
@@ -165,7 +168,10 @@ mod tests {
             critical_low: Some(7.0),
             ..adult_band(13.0, 17.0)
         };
-        assert_eq!(judge(&row, 4.0, "adult_m", false), RefVerdict::Flagged("critical_low"));
+        assert_eq!(
+            judge(&row, 4.0, "adult_m", false),
+            RefVerdict::Flagged("critical_low")
+        );
     }
 
     #[test]
@@ -187,9 +193,15 @@ mod tests {
             ..adult_band(13.0, 17.0)
         };
         assert_eq!(judge(&row, 14.0, "neonate", false), RefVerdict::InRange);
-        assert_eq!(judge(&row, 20.0, "neonate", false), RefVerdict::Flagged("high"));
+        assert_eq!(
+            judge(&row, 20.0, "neonate", false),
+            RefVerdict::Flagged("high")
+        );
         // The patient's own band still wins where it exists.
-        assert_eq!(judge(&row, 12.5, "adult_m", false), RefVerdict::Flagged("low"));
+        assert_eq!(
+            judge(&row, 12.5, "adult_m", false),
+            RefVerdict::Flagged("low")
+        );
     }
 
     #[test]
@@ -200,7 +212,10 @@ mod tests {
             critical_high: Some(500.0),
             ..LabRefRow::default()
         };
-        assert_eq!(judge(&row, 900.0, "neonate", false), RefVerdict::Flagged("critical_high"));
+        assert_eq!(
+            judge(&row, 900.0, "neonate", false),
+            RefVerdict::Flagged("critical_high")
+        );
         assert_eq!(judge(&row, 100.0, "neonate", false), RefVerdict::Unknown);
     }
 
@@ -211,7 +226,10 @@ mod tests {
             adult_m_high: Some(5.0),
             ..LabRefRow::default()
         };
-        assert_eq!(judge(&row, 6.0, "adult_m", false), RefVerdict::Flagged("high"));
+        assert_eq!(
+            judge(&row, 6.0, "adult_m", false),
+            RefVerdict::Flagged("high")
+        );
         assert_eq!(judge(&row, 1.0, "adult_m", false), RefVerdict::InRange);
     }
 
@@ -223,7 +241,10 @@ mod tests {
             ..LabRefRow::default()
         };
         assert_eq!(judge(&row, 13.0, "elderly_f", false), RefVerdict::InRange);
-        assert_eq!(judge(&row, 16.0, "elderly_f", false), RefVerdict::Flagged("high"));
+        assert_eq!(
+            judge(&row, 16.0, "elderly_f", false),
+            RefVerdict::Flagged("high")
+        );
     }
 
     #[test]
@@ -253,10 +274,16 @@ mod tenant_override_tests {
             ..LabRefRow::default()
         };
         // Without a tenant rule the global critical fires.
-        assert_eq!(judge(&row, 6.4, "adult_m", false), RefVerdict::Flagged("critical_high"));
+        assert_eq!(
+            judge(&row, 6.4, "adult_m", false),
+            RefVerdict::Flagged("critical_high")
+        );
         // With one that found 6.4 acceptable, it does not -- but the value is
         // still outside the normal band, so it is reported high, not normal.
-        assert_eq!(judge(&row, 6.4, "adult_m", true), RefVerdict::Flagged("high"));
+        assert_eq!(
+            judge(&row, 6.4, "adult_m", true),
+            RefVerdict::Flagged("high")
+        );
     }
 
     #[test]

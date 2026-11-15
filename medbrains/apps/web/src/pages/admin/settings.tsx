@@ -419,7 +419,9 @@ export function SettingsPage() {
       <PageHeader
         title={t("settings.title")}
         subtitle={t("settings.subtitle")}
-        actions={<ConfigTransferButtons />}
+        actions={
+          hasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE) ? <ConfigTransferButtons /> : undefined
+        }
       />
 
       <Card withBorder className={classes.settingsCommandBar}>

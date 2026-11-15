@@ -168,10 +168,15 @@ async fn instalments_work_on_the_request_role() {
         .json()
         .await
         .expect("plan json");
-    let plan_id = plan["id"].as_str().unwrap_or_else(|| panic!("plan created: {plan}"));
+    let plan_id = plan["id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("plan created: {plan}"));
 
     let listed: Value = app
-        .get(&app.client, &format!("/api/billing/installments?invoice_id={invoice}"))
+        .get(
+            &app.client,
+            &format!("/api/billing/installments?invoice_id={invoice}"),
+        )
         .await
         .json()
         .await
@@ -185,11 +190,15 @@ async fn instalments_work_on_the_request_role() {
         .json()
         .await
         .expect("get json");
-    let item = one["items"][0]["id"].as_str().unwrap_or_else(|| panic!("items: {one}"));
+    let item = one["items"][0]["id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("items: {one}"));
 
     let waived = app
         .client
-        .post(app.url(&format!("/api/billing/installments/{plan_id}/items/{item}/waive")))
+        .post(app.url(&format!(
+            "/api/billing/installments/{plan_id}/items/{item}/waive"
+        )))
         .header("x-csrf-token", &csrf)
         .send()
         .await
@@ -212,7 +221,12 @@ async fn a_refresh_token_is_honoured_on_the_request_role() {
         .send()
         .await
         .expect("refresh");
-    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
 }
 
 /// Given a live invitation, When the invitee opens the link as the request

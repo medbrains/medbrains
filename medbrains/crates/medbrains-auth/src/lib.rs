@@ -1281,6 +1281,9 @@ pub async fn change_password(
 
 const RESET_OTP_TTL_MINUTES: i32 = 10;
 const RESET_OTP_MAX_ATTEMPTS: i32 = 5;
+/// Reset codes one account may be sent in `RESET_CODE_WINDOW_MINUTES`: each is an SMS.
+const RESET_CODES_PER_WINDOW: i64 = 3;
+const RESET_CODE_WINDOW_MINUTES: i32 = 15;
 
 fn hash_otp(otp: &str) -> String {
     let mut hasher = Sha256::new();
@@ -1348,6 +1351,20 @@ pub async fn request_password_reset(
         tracing::info!(%user_id, "password reset requested but no phone on file");
         return Ok(ack);
     };
+
+    // One account gets its share of codes per window and no more, answered
+    // with the same ack so the cap cannot be probed.
+    let recent: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM password_reset_otps \
+          WHERE user_id = $1 AND created_at > now() - make_interval(mins => $2)",
+    )
+    .bind(user_id)
+    .bind(RESET_CODE_WINDOW_MINUTES)
+    .fetch_one(&mut *tx)
+    .await?;
+    if recent >= RESET_CODES_PER_WINDOW {
+        return Ok(ack);
+    }
 
     let mut buf = [0u8; 4];
     getrandom::fill(&mut buf)

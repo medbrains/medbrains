@@ -97,7 +97,9 @@ fn normalize_status(status: Option<&str>) -> Result<&'static str, AppError> {
         "draft" => Ok("draft"),
         "published" => Ok("published"),
         "archived" => Ok("archived"),
-        other => Err(AppError::BadRequest(format!("invalid blog status: {other}"))),
+        other => Err(AppError::BadRequest(format!(
+            "invalid blog status: {other}"
+        ))),
     }
 }
 

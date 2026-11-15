@@ -203,9 +203,8 @@ pub fn apply(state: &DisplayState, event: DisplayEvent) -> Result<Option<Display
     // learns the name after it opens); a start for a new one wipes the last.
     // A paid visit is over: only clearing it, or the next patient, changes the
     // screen. Anything else is still validated below, then dropped.
-    let settled = same
-        && state.phase == Phase::Paid
-        && !matches!(event, DisplayEvent::Cleared { .. });
+    let settled =
+        same && state.phase == Phase::Paid && !matches!(event, DisplayEvent::Cleared { .. });
     let mut next = if same {
         state.clone()
     } else if let DisplayEvent::SessionStart { .. } = event {

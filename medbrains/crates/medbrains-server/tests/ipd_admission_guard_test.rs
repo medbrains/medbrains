@@ -88,7 +88,9 @@ async fn double_admission_is_rejected() {
     );
 
     let body: serde_json::Value = second.json().await.expect("conflict json");
-    let msg = serde_json::to_string(&body).unwrap_or_default().to_lowercase();
+    let msg = serde_json::to_string(&body)
+        .unwrap_or_default()
+        .to_lowercase();
     assert!(
         msg.contains("active admission") || msg.contains("already"),
         "the 409 body should explain the existing active admission: {body}"
@@ -104,8 +106,12 @@ async fn an_admission_records_a_real_admitting_doctor() {
     let csrf = app.login_admin().await;
     let doctor = common::provision_staff(&app, &csrf, "doctor", &[]).await;
     let nurse = common::provision_staff(&app, &csrf, "nurse", &[]).await;
-    let depts: serde_json::Value =
-        app.get(&app.client, "/api/setup/departments").await.json().await.expect("departments");
+    let depts: serde_json::Value = app
+        .get(&app.client, "/api/setup/departments")
+        .await
+        .json()
+        .await
+        .expect("departments");
     let department_id = depts[0]["id"].clone();
     let patient: serde_json::Value = app
         .client
@@ -119,7 +125,8 @@ async fn an_admission_records_a_real_admitting_doctor() {
         .await
         .expect("patient json");
     let admit = |doctor_field: Option<(&str, uuid::Uuid)>| {
-        let mut body = serde_json::json!({ "patient_id": patient["id"], "department_id": department_id });
+        let mut body =
+            serde_json::json!({ "patient_id": patient["id"], "department_id": department_id });
         if let Some((key, id)) = doctor_field {
             body[key] = serde_json::json!(id);
         }
@@ -130,13 +137,24 @@ async fn an_admission_records_a_real_admitting_doctor() {
             .send()
     };
 
-    assert_eq!(admit(None).await.expect("no doctor").status(), StatusCode::BAD_REQUEST);
     assert_eq!(
-        admit(Some(("doctor_id", nurse.user_id))).await.expect("nurse").status(),
+        admit(None).await.expect("no doctor").status(),
         StatusCode::BAD_REQUEST
     );
-    let resp = admit(Some(("admitting_doctor_id", doctor.user_id))).await.expect("doctor");
+    assert_eq!(
+        admit(Some(("doctor_id", nurse.user_id)))
+            .await
+            .expect("nurse")
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    let resp = admit(Some(("admitting_doctor_id", doctor.user_id)))
+        .await
+        .expect("doctor");
     assert_eq!(resp.status(), StatusCode::OK);
     let created: serde_json::Value = resp.json().await.expect("admission json");
-    assert_eq!(created["admission"]["admitting_doctor"], doctor.user_id.to_string());
+    assert_eq!(
+        created["admission"]["admitting_doctor"],
+        doctor.user_id.to_string()
+    );
 }

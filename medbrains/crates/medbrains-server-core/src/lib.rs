@@ -5,6 +5,7 @@
 //! OAuth). AppState, middleware and the auth layer follow in subsequent slices.
 
 pub mod clinical_credential;
+pub mod codes;
 pub mod config;
 pub mod error;
 pub mod hospital_time;

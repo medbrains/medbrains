@@ -1,12 +1,12 @@
 #![allow(clippy::too_many_lines)]
 
+use crate::grn::GrnDetailResponse;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
 use medbrains_core::inventory::{SupplierPayment, VendorComparisonRow, VendorPerformanceRow};
 use medbrains_core::permissions;
-use crate::grn::GrnDetailResponse;
 use medbrains_core::procurement::{
     BatchStock, GoodsReceiptNote, GrnItem, PurchaseOrder, PurchaseOrderItem, RateContract,
     RateContractItem, StoreLocation, Vendor,
@@ -190,7 +190,6 @@ pub struct GrnListResponse {
     pub page: i64,
     pub per_page: i64,
 }
-
 
 // ── Rate Contracts ───────────────────────────────────────
 
@@ -931,7 +930,9 @@ pub async fn cancel_purchase_order(
         if !exists {
             return Err(AppError::NotFound);
         }
-        return Err(AppError::BadRequest("PO cannot be cancelled in its current status".into()));
+        return Err(AppError::BadRequest(
+            "PO cannot be cancelled in its current status".into(),
+        ));
     };
 
     tx.commit().await?;
@@ -1037,7 +1038,11 @@ pub async fn get_grn(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(GrnDetailResponse { grn, items, warnings: Vec::new() }))
+    Ok(Json(GrnDetailResponse {
+        grn,
+        items,
+        warnings: Vec::new(),
+    }))
 }
 
 // ══════════════════════════════════════════════════════════

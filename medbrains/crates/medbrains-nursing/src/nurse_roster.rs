@@ -170,11 +170,9 @@ pub async fn create_roster_entry(
         // The unique index added in migration 1014. Rostering the same nurse
         // twice is a double-click, not a failure worth a 500 — and the ward
         // board counts these rows, so a duplicate would show one nurse as two.
-        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
-            AppError::Conflict(
-                "That nurse is already rostered on this ward for that shift.".to_owned(),
-            )
-        }
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => AppError::Conflict(
+            "That nurse is already rostered on this ward for that shift.".to_owned(),
+        ),
         err => err.into(),
     })?;
 
@@ -204,7 +202,7 @@ pub async fn delete_roster_entry(
         id,
         claims.sub,
     )
-        .fetch_optional(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
 

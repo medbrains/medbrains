@@ -46,7 +46,10 @@ async fn todays_opd_does_not_count_admissions() {
     .fetch_one(&app.db)
     .await
     .expect("department");
-    let client = reqwest::Client::builder().cookie_store(true).build().expect("client");
+    let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
     let login: Value = client
         .post(app.url("/api/auth/login"))
         .json(&json!({ "username": format!("tohospital_admin_{}", suffix.to_lowercase()), "password": "admin123", "hospital_code": code }))
@@ -58,7 +61,11 @@ async fn todays_opd_does_not_count_admissions() {
         .expect("login json");
     let csrf = login["csrf_token"].as_str().unwrap_or_default().to_owned();
     let send = |path: String, body: Value| {
-        let req = if path.contains("/widgets/") { client.put(app.url(&path)) } else { client.post(app.url(&path)) };
+        let req = if path.contains("/widgets/") {
+            client.put(app.url(&path))
+        } else {
+            client.post(app.url(&path))
+        };
         req.header("x-csrf-token", &csrf).json(&body).send()
     };
     let ok = |resp: reqwest::Response| async move {
@@ -68,9 +75,12 @@ async fn todays_opd_does_not_count_admissions() {
         body
     };
 
-    ok(send("/api/dashboards/my/widgets/opd_today_count".into(), json!({ "visible": true }))
-        .await
-        .expect("place widget"))
+    ok(send(
+        "/api/dashboards/my/widgets/opd_today_count".into(),
+        json!({ "visible": true }),
+    )
+    .await
+    .expect("place widget"))
     .await;
     let dashboard: Value = client
         .get(app.url("/api/dashboards/my"))

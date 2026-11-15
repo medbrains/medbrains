@@ -18,10 +18,11 @@ async fn a_stage_move_records_the_stage_it_left() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let stages: Vec<Uuid> = sqlx::query_scalar(
         "SELECT id FROM mkt_pipeline_stages WHERE tenant_id = $1 \
@@ -63,7 +64,11 @@ async fn a_stage_move_records_the_stage_it_left() {
             .send()
             .await
             .expect("move stage");
-        assert!(res.status().is_success(), "move rejected: {:?}", res.status());
+        assert!(
+            res.status().is_success(),
+            "move rejected: {:?}",
+            res.status()
+        );
     }
 
     let events: Vec<(Option<Uuid>, Uuid)> = sqlx::query_as(
@@ -77,7 +82,10 @@ async fn a_stage_move_records_the_stage_it_left() {
     .expect("read stage events");
 
     assert_eq!(events.len(), 2, "two moves must leave two events");
-    assert_eq!(events[0].0, None, "the first move is entry and has no origin");
+    assert_eq!(
+        events[0].0, None,
+        "the first move is entry and has no origin"
+    );
     assert_eq!(events[0].1, stages[0]);
     assert_eq!(
         events[1].0,
@@ -108,10 +116,11 @@ async fn an_enquiry_still_in_a_stage_is_excluded_from_its_median() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     // A pipeline of this test's own, so the assertion is not perturbed by
     // seed data or by another test's fixtures sharing the seeded stages.
@@ -218,10 +227,11 @@ async fn a_second_campaign_touch_is_appended_not_dropped() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let camp = insert_campaign(&app.db, tenant_id, "camp").await;
     let hoarding = insert_campaign(&app.db, tenant_id, "hoarding").await;
@@ -257,7 +267,11 @@ async fn a_second_campaign_touch_is_appended_not_dropped() {
         .send()
         .await
         .expect("add touchpoint");
-    assert!(res.status().is_success(), "touchpoint rejected: {:?}", res.status());
+    assert!(
+        res.status().is_success(),
+        "touchpoint rejected: {:?}",
+        res.status()
+    );
 
     let touched: Vec<Uuid> = sqlx::query_scalar(
         "SELECT campaign_id FROM mkt_touchpoints \

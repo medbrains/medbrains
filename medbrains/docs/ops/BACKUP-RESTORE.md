@@ -87,12 +87,12 @@ systemctl list-timers medbrains-pg-backup.timer; ls -lt /var/backups/medbrains |
 ### Client-side encryption (age) — added 2026-10-26
 
 Every dump, and a tarball of `/etc/medbrains`, is sealed with [age](https://age-encryption.org) to the public
-key(s) in `deploy/standalone/backup-recipients.txt` (installed to `/etc/medbrains/backup-recipients.txt`)
+key(s) of the hospital running the install, in `/etc/medbrains/backup-recipients.txt` (written by `install.sh`)
 inside the `pg_dump | age | aws s3 cp -` pipe — no plaintext touches the disk or the bucket. Only a **public** key
 is on the host, so the earlier objection (a second secret on the host to manage and lose) does not apply: the
-private key is kept offline by the founder (generation: `deploy/standalone/README.md`, "Founder's steps"). The
-backup script refuses an S3 destination without a key, and the writer IAM policy only accepts `*.age` keys under
-the dump and secrets prefixes. Locally (`BACKUP_DIR`) dumps are sealed too once the key is installed
+private key is kept offline by the hospital (generation and rotation: `deploy/standalone/README.md`, "Encrypted
+off-site backups"). The backup script refuses to run without a key on either destination, and the writer IAM policy
+only accepts `*.age` keys under the dump and secrets prefixes. Locally (`BACKUP_DIR`) dumps are sealed the same way
 (`*.dump.age`, `*.secrets.tar.age`). The files mirror stays SSE-KMS only (`aws s3 sync` cannot seal per object).
 
 `/etc/medbrains` is backed up because a restored database is not usable without it:

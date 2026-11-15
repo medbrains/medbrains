@@ -310,8 +310,12 @@ pub async fn list_rehab_plans(
     // Dual-mode via ?patient_id.
     let permitted_patients =
         medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -342,10 +346,13 @@ pub async fn create_rehab_plan(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -389,8 +396,12 @@ pub async fn list_rehab_sessions(
         plan_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -420,8 +431,12 @@ pub async fn create_rehab_session(
         plan_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -471,8 +486,12 @@ pub async fn list_audiology_tests(
     // with ?patient_id, otherwise the set the caller may see.
     let permitted_patients =
         medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -499,10 +518,13 @@ pub async fn create_audiology_test(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -550,8 +572,12 @@ pub async fn list_psychometric_tests(
     // with ?patient_id, otherwise the set the caller may see.
     let permitted_patients =
         medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -586,10 +612,13 @@ pub async fn create_psychometric_test(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "pmr",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -682,8 +711,7 @@ pub async fn create_dnr_order(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -807,8 +835,7 @@ pub async fn create_pain_assessment(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1139,8 +1166,7 @@ pub async fn create_nuclear_administration(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1302,8 +1328,7 @@ pub async fn create_specialty_record(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1380,8 +1405,7 @@ pub async fn create_dialysis_session(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1556,8 +1580,7 @@ pub async fn create_chemo_protocol(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1645,8 +1668,7 @@ pub async fn anthracycline_cumulative(
     // patient_id is required here, so this is a record read, not a list: the
     // lifetime anthracycline dose of one named patient and how close it sits
     // to the cardiotoxicity ceiling.
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1852,8 +1874,7 @@ pub async fn create_cancer_staging(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1943,8 +1964,7 @@ pub async fn create_radiation_session(
     // No route-derived id here, so the subject of the check is the id the
     // caller sent. Weaker than a route-derived check, but it stops the record
     // being filed against a patient outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2030,12 +2050,20 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/specialty/oncology/staging",
-            get(list_cancer_stagings)
-                .post(create_cancer_staging),
+            get(list_cancer_stagings).post(create_cancer_staging),
         )
-        .route("/api/specialty/oncology/registry", get(cancer_registry::worklist))
-        .route("/api/specialty/oncology/registry/export", get(cancer_registry::export_sheet))
-        .route("/api/specialty/oncology/registry/codes", get(cancer_registry::code_lists))
+        .route(
+            "/api/specialty/oncology/registry",
+            get(cancer_registry::worklist),
+        )
+        .route(
+            "/api/specialty/oncology/registry/export",
+            get(cancer_registry::export_sheet),
+        )
+        .route(
+            "/api/specialty/oncology/registry/codes",
+            get(cancer_registry::code_lists),
+        )
         .route(
             "/api/specialty/oncology/registry/{staging_id}",
             get(cancer_registry::get_abstract).put(cancer_registry::save_abstract),
@@ -2046,33 +2074,27 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/specialty/oncology/radiation",
-            get(list_radiation_sessions)
-                .post(create_radiation_session),
+            get(list_radiation_sessions).post(create_radiation_session),
         )
         .route(
             "/api/specialty/pmr/rehab-plans",
-            get(list_rehab_plans)
-                .post(create_rehab_plan),
+            get(list_rehab_plans).post(create_rehab_plan),
         )
         .route(
             "/api/specialty/pmr/rehab-plans/{plan_id}/sessions",
-            get(list_rehab_sessions)
-                .post(create_rehab_session),
+            get(list_rehab_sessions).post(create_rehab_session),
         )
         .route(
             "/api/specialty/pmr/audiology",
-            get(list_audiology_tests)
-                .post(create_audiology_test),
+            get(list_audiology_tests).post(create_audiology_test),
         )
         .route(
             "/api/specialty/pmr/psychometric",
-            get(list_psychometric_tests)
-                .post(create_psychometric_test),
+            get(list_psychometric_tests).post(create_psychometric_test),
         )
         .route(
             "/api/specialty/palliative/dnr",
-            get(list_dnr_orders)
-                .post(create_dnr_order),
+            get(list_dnr_orders).post(create_dnr_order),
         )
         .route(
             "/api/specialty/palliative/dnr/{id}/revoke",
@@ -2080,13 +2102,11 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/specialty/palliative/pain",
-            get(list_pain_assessments)
-                .post(create_pain_assessment),
+            get(list_pain_assessments).post(create_pain_assessment),
         )
         .route(
             "/api/specialty/mortuary/records",
-            get(list_mortuary_records)
-                .post(create_mortuary_record),
+            get(list_mortuary_records).post(create_mortuary_record),
         )
         .route(
             "/api/specialty/mortuary/records/{id}",
@@ -2094,28 +2114,23 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/specialty/nuclear-med/sources",
-            get(list_nuclear_sources)
-                .post(create_nuclear_source),
+            get(list_nuclear_sources).post(create_nuclear_source),
         )
         .route(
             "/api/specialty/nuclear-med/administrations",
-            get(list_nuclear_administrations)
-                .post(create_nuclear_administration),
+            get(list_nuclear_administrations).post(create_nuclear_administration),
         )
         .route(
             "/api/specialty/templates",
-            get(list_specialty_templates)
-                .post(create_specialty_template),
+            get(list_specialty_templates).post(create_specialty_template),
         )
         .route(
             "/api/specialty/records",
-            get(list_specialty_records)
-                .post(create_specialty_record),
+            get(list_specialty_records).post(create_specialty_record),
         )
         .route(
             "/api/specialty/dialysis/sessions",
-            get(list_dialysis_sessions)
-                .post(create_dialysis_session),
+            get(list_dialysis_sessions).post(create_dialysis_session),
         )
         .route(
             "/api/specialty/dialysis/sessions/{id}",
@@ -2133,7 +2148,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/specialty/dialysis/slots",
             get(dialysis_machines::list_slots).post(dialysis_machines::book_slot),
         )
-        .route("/api/specialty/dialysis/slots/{id}/cancel", post(dialysis_machines::cancel_slot))
+        .route(
+            "/api/specialty/dialysis/slots/{id}/cancel",
+            post(dialysis_machines::cancel_slot),
+        )
         .route(
             "/api/specialty/dialysis/dialyzers",
             get(dialysis_dialyzers::list_dialyzers).post(dialysis_dialyzers::issue_dialyzer),
@@ -2148,8 +2166,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/specialty/chemo/protocols",
-            get(list_chemo_protocols)
-                .post(create_chemo_protocol),
+            get(list_chemo_protocols).post(create_chemo_protocol),
         )
         .route(
             "/api/specialty/chemo/protocols/{id}",

@@ -419,7 +419,10 @@ pub async fn assign_bed(
         return Err(AppError::NotFound);
     }
     let q = format!("{INSTANCE_SELECT} WHERE id = $1");
-    let row = sqlx::query_as::<_, DeviceInstanceRow>(&q).bind(id).fetch_one(&mut *tx).await?;
+    let row = sqlx::query_as::<_, DeviceInstanceRow>(&q)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -845,7 +848,11 @@ pub async fn ingest_device_data(
     .bind(&device.adapter_code)
     .fetch_one(&mut *tx)
     .await?;
-    let module = if is_monitor { "vitals".to_owned() } else { module };
+    let module = if is_monitor {
+        "vitals".to_owned()
+    } else {
+        module
+    };
 
     // Store message
     let msg_id = sqlx::query_scalar::<_, Uuid>(
@@ -877,8 +884,7 @@ pub async fn ingest_device_data(
     if module == "lab"
         && let Some(reason) = instrument_lock_reason(&mut tx, body.device_instance_id).await?
     {
-        refuse_locked_instrument(&mut tx, (device.tenant_id, claims.sub), msg_id, &reason)
-            .await?;
+        refuse_locked_instrument(&mut tx, (device.tenant_id, claims.sub), msg_id, &reason).await?;
         tx.commit().await?;
         return Err(AppError::Conflict(format!(
             "Results refused: {} is locked — {reason}. Recalibrate it and rerun \
@@ -921,7 +927,14 @@ pub async fn ingest_device_data(
         }
     }
     if module == "vitals" {
-        match vitals::route(&mut tx, (device.tenant_id, device.id), msg_id, &body.mapped_data).await? {
+        match vitals::route(
+            &mut tx,
+            (device.tenant_id, device.id),
+            msg_id,
+            &body.mapped_data,
+        )
+        .await?
+        {
             vitals::Routed::Draft(id) => routed_entity_id = Some(id),
             vitals::Routed::Thinned => {
                 note = Some("normal reading within 15 minutes of one already kept".to_owned());

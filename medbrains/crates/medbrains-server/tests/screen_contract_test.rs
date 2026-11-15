@@ -64,22 +64,38 @@ async fn visitor_analytics_names_the_ward_and_uses_the_hospitals_hour() {
     .await
     .expect("visitor fixture");
 
-    let (status, body) =
-        get_json(&app, &csrf, &format!("/api/front-office/analytics?from={today}&to={today}"))
-            .await;
+    let (status, body) = get_json(
+        &app,
+        &csrf,
+        &format!("/api/front-office/analytics?from={today}&to={today}"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body["total_visitors"].as_i64() >= Some(1), "{body}");
     let wards = body["by_ward"].as_array().expect("by_ward is a list");
     assert!(
-        wards.iter().any(|w| w["ward"] == ward_name.as_str() && w["visitors"] == 1),
+        wards
+            .iter()
+            .any(|w| w["ward"] == ward_name.as_str() && w["visitors"] == 1),
         "the ward is named: {body}"
     );
     let hours = body["by_hour"].as_array().expect("by_hour is a list");
-    assert!(hours.iter().any(|h| h["hour"] == 10), "10:15 local is hour 10: {body}");
+    assert!(
+        hours.iter().any(|h| h["hour"] == 10),
+        "10:15 local is hour 10: {body}"
+    );
 
-    let (status, _) =
-        get_json(&app, &csrf, "/api/front-office/analytics?from=2026-02-02&to=2026-02-01").await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "a backwards range is refused");
+    let (status, _) = get_json(
+        &app,
+        &csrf,
+        "/api/front-office/analytics?from=2026-02-02&to=2026-02-01",
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "a backwards range is refused"
+    );
 }
 
 /// Given an open imaging order scheduled today, Then the day list is a list
@@ -111,8 +127,12 @@ async fn radiology_day_list_is_a_list_of_named_orders() {
     .await
     .expect("imaging fixture");
 
-    let (status, body) =
-        get_json(&app, &csrf, &format!("/api/radiology/appointments?date={today}")).await;
+    let (status, body) = get_json(
+        &app,
+        &csrf,
+        &format!("/api/radiology/appointments?date={today}"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let rows = body.as_array().expect("the day list is a JSON array");
     let row = rows

@@ -125,7 +125,11 @@ mod tests {
     #[test]
     fn only_an_answered_call_counts_as_answered() {
         assert!(CallOutcome::Answered.answered());
-        for missed in [CallOutcome::NoAnswer, CallOutcome::Abandoned, CallOutcome::Rejected] {
+        for missed in [
+            CallOutcome::NoAnswer,
+            CallOutcome::Abandoned,
+            CallOutcome::Rejected,
+        ] {
             assert!(!missed.answered(), "{missed:?}");
         }
     }
