@@ -1,3 +1,4 @@
+import { APP_SCREENS } from "@medbrains/types";
 import {
   IconAmbulance,
   IconAppWindow,
@@ -117,6 +118,17 @@ export interface NavItemConfig {
 export interface NavGroupConfig {
   key: string;
   items: NavItemConfig[];
+}
+
+/** The side-panel screens of a converted app brick, as menu items, from the Rust screen list. */
+function appNavItems(brick: string): NavItemConfig[] {
+  return APP_SCREENS.filter((s) => s.brick === brick).map((s) => ({
+    i18nKey: s.labelKey,
+    moduleCode: s.brick,
+    path: s.path,
+    icon: s.icon,
+    requiredPermission: s.permission,
+  }));
 }
 
 // ── Icon Map ──
@@ -491,71 +503,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         icon: "IconVaccine",
         requiredPermission: "patients.immunizations.due_list",
       },
-      {
-        i18nKey: "opdQueue",
-        path: "/opd",
-        icon: "IconStethoscope",
-        requiredPermission: "opd.queue.list",
-        requiredPermissions: [
-          "opd.queue.list",
-          "opd.queue.view",
-          "opd.visit.create",
-          "opd.visit.update",
-          "opd.token.manage",
-          "opd.appointment.list",
-          "opd.referrals.list",
-          "opd.referrals.create",
-          "opd.vitals.list",
-          "opd.vitals.create",
-          "opd.diagnoses.list",
-          "opd.diagnoses.create",
-          "opd.diagnoses.update",
-          "opd.diagnoses.delete",
-          "opd.procedures.list",
-          "opd.procedures.create",
-          "opd.procedures.cancel",
-          "opd.certificates.list",
-          "opd.certificates.create",
-          "opd.certificates.print",
-          "opd.certificates.reprint",
-          "opd.certificates.void",
-          "opd.reminders.list",
-          "opd.reminders.create",
-          "opd.reminders.update",
-          "opd.feedback.list",
-          "opd.feedback.create",
-          "opd.consents.list",
-          "opd.consents.create",
-          "opd.consents.sign",
-          "opd.consents.print",
-          "opd.consents.reprint",
-          "opd.consents.revoke",
-          "opd.schedule.list",
-          "opd.schedule.manage",
-          "nurse.vitals.record",
-        ],
-      },
-      {
-        i18nKey: "appointments",
-        moduleCode: "opd",
-        path: "/opd/appointments",
-        icon: "IconCalendar",
-        requiredPermission: "opd.appointment.list",
-      },
-      {
-        i18nKey: "telemedicine",
-        moduleCode: "opd",
-        path: "/telemedicine",
-        icon: "IconVideo",
-        requiredPermission: "opd.queue.view",
-      },
-      {
-        i18nKey: "doctorSignoffs",
-        moduleCode: "opd",
-        path: "/doctor/signoffs",
-        icon: "IconSignature",
-        requiredPermission: "doctor.signoffs.view_own",
-      },
+      ...appNavItems("opd"),
       {
         i18nKey: "emergency",
         moduleCode: "emergency",
@@ -592,20 +540,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "emergency.mass_casualty.update",
           "emergency.mass_casualty.close",
         ],
-      },
-      {
-        i18nKey: "orderSets",
-        moduleCode: "opd",
-        path: "/order-sets",
-        icon: "IconListDetails",
-        requiredPermission: "order_sets.templates.list",
-      },
-      {
-        i18nKey: "chronicCare",
-        moduleCode: "opd",
-        path: "/chronic-care",
-        icon: "IconReportMedical",
-        requiredPermission: "chronic.enrollments.list",
       },
       {
         i18nKey: "homeHealthcare",
