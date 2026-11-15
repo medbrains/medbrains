@@ -65,6 +65,7 @@ pub fn check_value(field: Field, value: &Value) -> Result<(), String> {
             _ => Err("Region is an ISO 3166-2 code such as AE-DU".to_owned()),
         },
         Field::Locale => check_locale(text),
+        Field::Timezone => check_zone_name(text),
         Field::Languages => value
             .as_array()
             .into_iter()
@@ -91,6 +92,35 @@ pub fn check_value(field: Field, value: &Value) -> Result<(), String> {
                 })
         }
         _ => Ok(()),
+    }
+}
+
+/// An IANA zone name every platform accepts (`Asia/Kolkata`, `Etc/GMT+4`, `UTC`).
+///
+/// Abbreviations (`IST` is three zones) and POSIX strings (`GMT+4` means four
+/// hours *behind* to Postgres) are refused: `Intl` throws on them and a print
+/// would take a wrong offset. The change set also asks Postgres whether it
+/// knows the name; this is the shape check every writer gets.
+///
+/// # Errors
+/// What is wrong, in words for the form.
+pub fn check_zone_name(zone: &str) -> Result<(), String> {
+    let well_formed = zone == "UTC"
+        || (zone.contains('/')
+            && !zone.starts_with('/')
+            && !zone.ends_with('/')
+            && !zone.contains("//")
+            && !zone.starts_with("posix/")
+            && !zone.starts_with("right/")
+            && zone
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'_' | b'-' | b'+')));
+    if well_formed {
+        Ok(())
+    } else {
+        Err(format!(
+            "\"{zone}\" is not an IANA time zone; use a name such as Asia/Kolkata or America/New_York"
+        ))
     }
 }
 
@@ -127,6 +157,31 @@ mod tests {
         assert!(check_value(Field::Calendars, &hijri).is_ok());
         let wrong = json!({"primary": "islamic", "also": []});
         assert!(check_value(Field::Calendars, &wrong).is_err());
+    }
+
+    #[test]
+    fn only_iana_zone_names_are_accepted() {
+        for good in [
+            "Asia/Kolkata",
+            "America/Argentina/Buenos_Aires",
+            "Etc/GMT+4",
+            "UTC",
+            "America/Port-au-Prince",
+        ] {
+            assert!(check_value(Field::Timezone, &json!(good)).is_ok(), "{good}");
+        }
+        for bad in [
+            "IST",
+            "GMT+4",
+            "EST",
+            "Asia/",
+            "/UTC",
+            "posix/Asia/Kolkata",
+            "Asia Kolkata",
+            "+05:30",
+        ] {
+            assert!(check_value(Field::Timezone, &json!(bad)).is_err(), "{bad}");
+        }
     }
 
     #[test]
