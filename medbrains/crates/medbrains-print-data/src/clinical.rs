@@ -98,7 +98,7 @@ fn formatted_date(date: Option<chrono::NaiveDate>) -> Option<String> {
 
 fn formatted_datetime(
     datetime: Option<chrono::DateTime<Utc>>,
-    tz: chrono::FixedOffset,
+    tz: crate::PrintZone,
 ) -> Option<String> {
     datetime.map(|value| {
         value
@@ -133,7 +133,7 @@ pub async fn get_opd_certificate_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
@@ -327,7 +327,7 @@ pub async fn get_opd_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
@@ -571,7 +571,7 @@ pub async fn get_wristband_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
@@ -798,7 +798,7 @@ pub async fn get_discharge_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, DischargeSummaryRow>(
         "SELECT \
@@ -953,7 +953,7 @@ pub async fn get_er_discharge_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, ErDischargeRow>(
         "SELECT \
@@ -1078,7 +1078,7 @@ pub async fn get_token_slip_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, TokenSlipRow>(
         "SELECT * FROM ( \
@@ -1206,7 +1206,7 @@ pub async fn get_visitor_pass_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
     let row = sqlx::query_as::<_, VisitorPassRow>(
         "SELECT vp.pass_number, r.visitor_name, COALESCE(r.phone, '') AS visitor_phone, \
                 r.id_type::text AS visitor_id_type, r.id_number AS visitor_id_number, r.photo_url, \
@@ -1291,7 +1291,7 @@ pub async fn get_treatment_chart_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     // `admissions.bed_id` points at `locations`, not `beds`.
     let row = sqlx::query_as::<_, TreatmentChartRow>(
@@ -1452,7 +1452,7 @@ pub async fn get_transfer_summary_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     // The log carries the admission; access is decided on the admission.
     let admission_id: Uuid = sqlx::query_scalar(
@@ -1667,7 +1667,7 @@ pub async fn get_registration_card_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, RegistrationCardRow>(
         "SELECT \
@@ -1789,7 +1789,7 @@ pub async fn get_infant_wristband_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     // The maternity module writes `birth_date`, `weight_gm`, `id_band_number`
     // and a nullable `mother_id`; the mother is otherwise reached through the
@@ -1919,7 +1919,7 @@ pub async fn get_opd_prescription_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     // The consultation screen writes `consultations` and `diagnoses`; the
     // encounter's own note columns are read first where a visit filled them.
@@ -2203,7 +2203,7 @@ pub async fn get_lab_report_full_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, LabReportFullRow>(
         "SELECT \
@@ -2483,7 +2483,7 @@ pub async fn get_cumulative_lab_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let patient = sqlx::query_as::<_, CumulativeLabRow>(
         "SELECT \
@@ -2647,7 +2647,7 @@ pub async fn get_radiology_report_full_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     // A draft is not a report: an order with only a draft prints nothing.
     let row = sqlx::query_as::<_, RadiologyReportFullRow>(
@@ -2829,7 +2829,7 @@ pub async fn get_death_certificate_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, DeathCertRow>(
         "SELECT \
@@ -3006,7 +3006,7 @@ pub async fn get_ot_register_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     // A bad date is refused, not silently swapped for today's register.
     let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
@@ -3214,7 +3214,7 @@ pub async fn get_blood_donor_form_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct DonorRow {
@@ -3361,7 +3361,7 @@ pub async fn get_cross_match_requisition_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct ReqRow {
@@ -3510,7 +3510,7 @@ pub async fn get_appointment_slip_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct ApptRow {
@@ -3609,7 +3609,7 @@ pub async fn get_dpdp_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct ConsentRow {
@@ -3713,7 +3713,7 @@ pub async fn get_video_consent_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct VideoRow {
@@ -3831,7 +3831,7 @@ pub async fn get_restraint_documentation_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     // A restraint episode is an `ipd_clinical_documentations` row of type
     // `restraint` (the IPD clinical-docs screen); its rounds are

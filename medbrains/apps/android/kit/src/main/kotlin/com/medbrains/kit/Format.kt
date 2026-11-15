@@ -29,12 +29,15 @@ object Format {
     /** The profile's locale, English when it names none. */
     private fun locale(p: LocaleProfile): Locale = Locale.forLanguageTag(p.values.locale ?: "en")
 
-    /** The facility's zone, UTC when the profile has none or names an unknown one. */
-    private fun zone(p: LocaleProfile): ZoneId =
-        p.values.timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: UTC
+    /** The facility's zone, or null when the profile has none or names one this device does not know. */
+    private fun knownZone(p: LocaleProfile): ZoneId? =
+        p.values.timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() }
 
-    /** " UTC" when the profile has no zone, so a neutral time never reads as local. */
-    private fun zoneLabel(p: LocaleProfile): String = if (p.values.timezone == null) " UTC" else ""
+    /** The zone times are shown in: the facility's, else UTC (labelled). */
+    private fun zone(p: LocaleProfile): ZoneId = knownZone(p) ?: UTC
+
+    /** " UTC" whenever UTC stands in for the facility's zone, so a neutral time or date never reads as local. */
+    private fun zoneLabel(p: LocaleProfile): String = if (knownZone(p) == null) " UTC" else ""
 
     /** The decimals an amount carries, so a bill never hides the paisa it was charged. */
     private fun decimalsIn(amount: BigDecimal): Int = amount.stripTrailingZeros().scale().coerceIn(0, MAX_DECIMALS)
@@ -61,16 +64,19 @@ object Format {
     /** 24- or 12-hour, as the profile's clock says. */
     private fun timePattern(p: LocaleProfile): String = if (p.values.hour_cycle == "h23") "HH:mm" else "hh:mm a"
 
-    /** An instant as a date in the facility's zone. */
-    fun date(value: Instant, p: LocaleProfile): String =
+    /** The date part alone, unlabelled; [date] and [dateTime] add the label once. */
+    private fun plainDate(value: Instant, p: LocaleProfile): String =
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale(p)).format(value.atZone(zone(p)))
+
+    /** An instant as a date in the facility's zone (labelled when UTC stands in: near midnight it can be another day). */
+    fun date(value: Instant, p: LocaleProfile): String = plainDate(value, p) + zoneLabel(p)
 
     /** An instant as a time of day in the facility's zone, never the device's. */
     fun time(value: Instant, p: LocaleProfile): String =
         DateTimeFormatter.ofPattern(timePattern(p), locale(p)).format(value.atZone(zone(p))) + zoneLabel(p)
 
     /** An instant as date and time in the facility's zone. */
-    fun dateTime(value: Instant, p: LocaleProfile): String = "${date(value, p)}, ${time(value, p)}"
+    fun dateTime(value: Instant, p: LocaleProfile): String = "${plainDate(value, p)}, ${time(value, p)}"
 
     /**
      * The instant in each display calendar the profile adds.

@@ -101,3 +101,19 @@ describe("formatName", () => {
     expect(formatName(parts, { name_order: "family_given" })).toBe("Tanaka Mei");
   });
 });
+
+describe("failing soft", () => {
+  it("shows a value that is not a date as it came, never throwing", () => {
+    const p = { locale: "en-IN", timezone: "Asia/Kolkata" };
+    expect(formatDate("not-a-date", p)).toBe("not-a-date");
+    expect(formatDateTime("2026-13-45T99:00", p)).toBe("2026-13-45T99:00");
+    expect(formatTime("", p)).toBe("");
+    expect(formatCalendarDate("31-31-2026", p)).toBe("31-31-2026");
+  });
+
+  it("labels UTC when the zone is unknown to the browser", () => {
+    const bad = { locale: "en-GB", timezone: "Mars/Olympus", hour_cycle: "h23" as const };
+    expect(formatTime("2026-03-05T18:30:00Z", bad)).toBe("18:30 UTC");
+    expect(formatDate("2026-03-05T18:30:00Z", bad)).toBe("5 Mar 2026 UTC");
+  });
+});

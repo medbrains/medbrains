@@ -31,6 +31,20 @@ public struct LocaleProfile: Codable, Equatable, Sendable {
     public struct Calendars: Codable, Equatable, Sendable {
         public var primary: String
         public var also: [String]
+
+        public init(primary: String, also: [String] = []) {
+            self.primary = primary
+            self.also = also
+        }
+
+        private enum CodingKeys: String, CodingKey { case primary, also }
+
+        /// `also` may be absent on the wire: it means none.
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            primary = try c.decode(String.self, forKey: .primary)
+            also = try c.decodeIfPresent([String].self, forKey: .also) ?? []
+        }
     }
 
     public var pack: String
@@ -74,34 +88,38 @@ public final class LocaleProfileStore {
         self.defaults = defaults
     }
 
-    /// One saved profile per hospital: another hospital's is never borrowed.
-    private static func key(_ tenantId: String) -> String { "medbrains.locale_profile.\(tenantId)" }
+    /// One saved profile per person per hospital: it resolves through the
+    /// person's facility, so neither another hospital's nor a colleague's is
+    /// ever borrowed.
+    private static func key(_ tenantId: String, _ userId: String) -> String {
+        "medbrains.locale_profile.\(tenantId).\(userId)"
+    }
 
     private struct Me: Decodable { let localeProfile: LocaleProfile? }
 
     /// Fetch the profile; on any failure fall back to the last good one.
-    public func refresh(client: ApiClient, tenantId: String) async {
+    public func refresh(client: ApiClient, tenantId: String, userId: String) async {
         do {
             let me: Me = try await client.request(.get, "/api/auth/me")
-            guard let fresh = me.localeProfile else { return useLastGood(tenantId) }
-            adopt(fresh, tenantId: tenantId)
+            guard let fresh = me.localeProfile else { return useLastGood(tenantId: tenantId, userId: userId) }
+            adopt(fresh, tenantId: tenantId, userId: userId)
         } catch {
-            useLastGood(tenantId)
+            useLastGood(tenantId: tenantId, userId: userId)
         }
     }
 
     /// A profile the server sent: shown and saved as this tenant's last good.
-    public func adopt(_ fresh: LocaleProfile, tenantId: String) {
+    public func adopt(_ fresh: LocaleProfile, tenantId: String, userId: String) {
         profile = fresh
         state = .ready
         if let data = try? JSONEncoder().encode(fresh) {
-            defaults.set(data, forKey: Self.key(tenantId))
+            defaults.set(data, forKey: Self.key(tenantId, userId))
         }
     }
 
     /// The saved profile for this tenant, else neutral; the state says which.
-    public func useLastGood(_ tenantId: String) {
-        if let data = defaults.data(forKey: Self.key(tenantId)),
+    public func useLastGood(tenantId: String, userId: String) {
+        if let data = defaults.data(forKey: Self.key(tenantId, userId)),
            let saved = try? JSONDecoder().decode(LocaleProfile.self, from: data) {
             profile = saved
             state = .lastGood

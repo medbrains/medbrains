@@ -120,7 +120,7 @@ pub async fn get_pg_logbook_entry(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, PgLogbookRow>(
         "SELECT l.id, l.entry_date, l.entry_type, l.title, l.description, \

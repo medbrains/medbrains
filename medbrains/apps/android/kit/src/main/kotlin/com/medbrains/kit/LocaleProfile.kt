@@ -1,6 +1,7 @@
 package com.medbrains.kit
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -80,26 +81,41 @@ class LocaleProfileStore(private val store: TextStore) {
     private val _state = MutableStateFlow(LocaleProfileState.LOADING)
     val state: StateFlow<LocaleProfileState> = _state.asStateFlow()
 
-    /** One saved profile per hospital: another hospital's is never borrowed. */
-    private fun key(tenantId: String) = "medbrains.locale_profile.$tenantId"
+    /**
+     * One saved profile per person per hospital: it resolves through the
+     * person's facility, so neither another hospital's nor a colleague's is borrowed.
+     */
+    private fun key(tenantId: String, userId: String) = "medbrains.locale_profile.$tenantId.$userId"
 
     /** Fetch the profile; on any failure fall back to the last good one. */
-    suspend fun refresh(client: ApiClient, tenantId: String) {
-        val fresh = runCatching { json.decodeFromString<MeLocale>(client.call("GET", "/api/auth/me")).locale_profile }
-            .getOrNull()
-        if (fresh != null) adopt(fresh, tenantId) else useLastGood(tenantId)
+    suspend fun refresh(client: ApiClient, tenantId: String, userId: String) =
+        refreshWith({ client.call("GET", "/api/auth/me") }, tenantId, userId)
+
+    /**
+     * [refresh] over any fetch. A cancelled coroutine is rethrown, never read
+     * as "the server failed": the screen that asked has gone away.
+     */
+    internal suspend fun refreshWith(fetch: suspend () -> String, tenantId: String, userId: String) {
+        val fresh = try {
+            json.decodeFromString<MeLocale>(fetch()).locale_profile
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        if (fresh != null) adopt(fresh, tenantId, userId) else useLastGood(tenantId, userId)
     }
 
-    /** A profile the server sent: shown and saved as this tenant's last good. */
-    fun adopt(fresh: LocaleProfile, tenantId: String) {
+    /** A profile the server sent: shown and saved as this person's last good. */
+    fun adopt(fresh: LocaleProfile, tenantId: String, userId: String) {
         _profile.value = fresh
         _state.value = LocaleProfileState.READY
-        store.write(key(tenantId), json.encodeToString(LocaleProfile.serializer(), fresh))
+        store.write(key(tenantId, userId), json.encodeToString(LocaleProfile.serializer(), fresh))
     }
 
-    /** The saved profile for this tenant, else neutral; [state] says which. */
-    fun useLastGood(tenantId: String) {
-        val saved = store.read(key(tenantId))?.let { runCatching { json.decodeFromString<LocaleProfile>(it) }.getOrNull() }
+    /** The saved profile for this person at this hospital, else neutral; [state] says which. */
+    fun useLastGood(tenantId: String, userId: String) {
+        val saved = store.read(key(tenantId, userId))?.let { runCatching { json.decodeFromString<LocaleProfile>(it) }.getOrNull() }
         _profile.value = saved ?: LocaleProfile.NEUTRAL
         _state.value = if (saved != null) LocaleProfileState.LAST_GOOD else LocaleProfileState.UNAVAILABLE
     }

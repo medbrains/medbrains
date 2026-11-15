@@ -83,7 +83,7 @@ pub async fn get_incident_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, IncidentReportRow>(concat!(
         "SELECT \
@@ -202,7 +202,7 @@ pub async fn get_rca_template_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, RcaIncidentRow>(concat!(
         "SELECT \
@@ -350,7 +350,7 @@ pub async fn get_capa_form_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, CapaFormRow>(
         "SELECT \
@@ -484,7 +484,7 @@ pub async fn get_adr_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AdrReportRow>(concat!(
         "SELECT \
@@ -645,7 +645,7 @@ pub async fn get_transfusion_reaction_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, TransfusionReactionRow>(
         "SELECT \

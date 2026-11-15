@@ -110,6 +110,29 @@ const STYLE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
   time: { hour: "2-digit", minute: "2-digit" },
 };
 
+const zoneKnown = new Map<string, boolean>();
+
+/**
+ * The profile's zone when this browser knows it, else undefined (UTC stands
+ * in, labelled). The server stores only IANA names, but an older browser may
+ * lack a new zone; `Intl` throws on one, and a screen must never go blank.
+ */
+function zoneOf(profile: FormatProfile): string | undefined {
+  const zone = profile.timezone;
+  if (!zone) return undefined;
+  let known = zoneKnown.get(zone);
+  if (known === undefined) {
+    try {
+      new Intl.DateTimeFormat(NEUTRAL_LOCALE, { timeZone: zone });
+      known = true;
+    } catch {
+      known = false;
+    }
+    if (zoneKnown.size < CACHE_LIMIT) zoneKnown.set(zone, known);
+  }
+  return known ? zone : undefined;
+}
+
 /** A cached date formatter in the profile's locale, zone and clock, optionally in another calendar. */
 function dateFormat(
   profile: FormatProfile,
@@ -117,7 +140,7 @@ function dateFormat(
   calendar?: string,
 ): Intl.DateTimeFormat {
   const locale = localeOf(profile);
-  const timeZone = profile.timezone ?? UTC;
+  const timeZone = zoneOf(profile) ?? UTC;
   const options: Intl.DateTimeFormatOptions = {
     ...STYLE_OPTIONS[style],
     timeZone,
@@ -131,38 +154,60 @@ function dateFormat(
   );
 }
 
-/** " UTC" when the profile has no zone, so a neutral time never reads as local. */
+/** " UTC" whenever UTC stands in for the facility's zone, so a neutral time or date never reads as local. */
 function zoneLabel(profile: FormatProfile): string {
-  return profile.timezone ? "" : ` ${UTC}`;
+  return zoneOf(profile) ? "" : ` ${UTC}`;
 }
 
-/** An instant (ISO string or Date) as a date in the facility's zone. */
+/** The instant a value names, or undefined when it names none. */
+function instantOf(value: string | Date): Date | undefined {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+/**
+ * Format an instant, or show a value that is not one as it came: a bad date
+ * from the server must read as itself, never take the screen down.
+ */
+function formatInstant(value: string | Date, profile: FormatProfile, style: DateStyle): string {
+  const d = instantOf(value);
+  if (!d) return typeof value === "string" ? value : "";
+  return dateFormat(profile, style).format(d) + zoneLabel(profile);
+}
+
+/**
+ * An instant (ISO string or Date) as a date in the facility's zone; labelled
+ * when UTC stands in (near midnight it can be another day).
+ */
 export function formatDate(value: string | Date, profile: FormatProfile): string {
-  return dateFormat(profile, "date").format(new Date(value));
+  return formatInstant(value, profile, "date");
 }
 
 /** An instant as date and time in the facility's zone (RFC §4.1: never the device's). */
 export function formatDateTime(value: string | Date, profile: FormatProfile): string {
-  return dateFormat(profile, "dateTime").format(new Date(value)) + zoneLabel(profile);
+  return formatInstant(value, profile, "dateTime");
 }
 
 /** An instant as a time of day in the facility's zone. */
 export function formatTime(value: string | Date, profile: FormatProfile): string {
-  return dateFormat(profile, "time").format(new Date(value)) + zoneLabel(profile);
+  return formatInstant(value, profile, "time");
 }
 
 /**
  * A date-only value (`YYYY-MM-DD`: a birth date, an LMP). It is a calendar
- * day, not an instant, so no zone ever shifts it.
+ * day, not an instant, so no zone ever shifts it; anything else shows as it came.
  */
 export function formatCalendarDate(day: string, profile: FormatProfile): string {
-  return dateFormat({ ...profile, timezone: UTC }, "date").format(new Date(`${day}T00:00:00Z`));
+  const d = instantOf(`${day}T00:00:00Z`);
+  return d ? dateFormat({ ...profile, timezone: UTC }, "date").format(d) : day;
 }
 
 /** The same instant in each display calendar the profile adds (Hijri beside Gregorian). */
 export function formatDateAlso(value: string | Date, profile: FormatProfile): string[] {
+  const d = instantOf(value);
+  if (!d) return [];
   const also = profile.calendars?.also ?? [];
-  return also.map((calendar) => dateFormat(profile, "date", calendar).format(new Date(value)));
+  return also.map((calendar) => dateFormat(profile, "date", calendar).format(d));
 }
 
 /** A person's name from its parts, in the profile's order; empty parts dropped. */

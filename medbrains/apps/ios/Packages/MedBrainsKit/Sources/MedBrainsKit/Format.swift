@@ -11,19 +11,34 @@ public enum Format {
     /// Most decimals a stored amount carries (money columns are `numeric(_,4)`).
     private static let maxDecimals = 4
 
-    /// The profile's locale, English when it names none.
+    /// The profile's locale, English when it names none, with the profile's
+    /// clock set on it: the hour cycle is a locale preference, so a 24-hour
+    /// hospital in en-US reads 13:30, never "01:30" (patient safety on a MAR).
     private static func locale(_ p: LocaleProfile) -> Locale {
-        Locale(identifier: p.values.locale ?? "en")
+        var parts = Locale.Components(locale: Locale(identifier: p.values.locale ?? "en"))
+        switch p.values.hourCycle {
+        case "h23": parts.hourCycle = .zeroToTwentyThree
+        case "h12": parts.hourCycle = .oneToTwelve
+        default: break
+        }
+        return Locale(components: parts)
     }
 
-    /// The facility's zone, UTC when the profile has none or names an unknown one.
+    /// The facility's zone, or nil when the profile has none or names one this
+    /// device does not know.
+    private static func knownZone(_ p: LocaleProfile) -> TimeZone? {
+        p.values.timezone.flatMap(TimeZone.init(identifier:))
+    }
+
+    /// The zone times are shown in: the facility's, else UTC (labelled).
     private static func zone(_ p: LocaleProfile) -> TimeZone {
-        p.values.timezone.flatMap(TimeZone.init(identifier:)) ?? utc
+        knownZone(p) ?? utc
     }
 
-    /// " UTC" when the profile has no zone, so a neutral time never reads as local.
+    /// " UTC" whenever UTC stands in for the facility's zone (none set, or
+    /// unknown here), so a neutral time or date never reads as local.
     private static func zoneLabel(_ p: LocaleProfile) -> String {
-        p.values.timezone == nil ? " UTC" : ""
+        knownZone(p) == nil ? " UTC" : ""
     }
 
     /// The decimals an amount carries, so a bill never hides the paisa it was charged.
@@ -65,17 +80,15 @@ public enum Format {
     private static func style(_ p: LocaleProfile, date: Bool, time: Bool) -> Date.FormatStyle {
         var s = Date.FormatStyle(locale: locale(p), timeZone: zone(p))
         if date { s = s.year().month(.abbreviated).day() }
-        if time {
-            s = p.values.hourCycle == "h23"
-                ? s.hour(.twoDigits(amPM: .omitted)).minute()
-                : s.hour(.twoDigits(amPM: .abbreviated)).minute()
-        }
+        // The locale carries the hour cycle; AM/PM shows only when it is 12-hour.
+        if time { s = s.hour(.twoDigits(amPM: .abbreviated)).minute() }
         return s
     }
 
-    /// An instant as a date in the facility's zone.
+    /// An instant as a date in the facility's zone (labelled when UTC stands in:
+    /// near midnight it can be a different day).
     public static func date(_ value: Date, _ p: LocaleProfile) -> String {
-        value.formatted(style(p, date: true, time: false))
+        value.formatted(style(p, date: true, time: false)) + zoneLabel(p)
     }
 
     /// An instant as date and time in the facility's zone, never the device's.

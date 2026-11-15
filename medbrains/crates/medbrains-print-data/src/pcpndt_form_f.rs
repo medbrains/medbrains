@@ -44,7 +44,7 @@ pub async fn get_pcpndt_form_f_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let (form_number, woman_at, doctor_at): (String, Option<String>, Option<String>) =
         sqlx::query_as(

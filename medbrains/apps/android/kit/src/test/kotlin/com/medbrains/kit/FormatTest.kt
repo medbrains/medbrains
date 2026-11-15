@@ -78,16 +78,48 @@ class FormatTest {
             override fun write(key: String, value: String) { disk[key] = value }
         }
         val store = LocaleProfileStore(text)
-        store.useLastGood("t1")
+        store.useLastGood("t1", "u1")
         assertEquals(LocaleProfileState.UNAVAILABLE, store.state.value)
         assertEquals(LocaleProfile.NEUTRAL, store.profile.value)
         val dubai = profile("ar-AE", "AED", "Asia/Dubai")
-        store.adopt(dubai, "t1")
+        store.adopt(dubai, "t1", "u1")
         val later = LocaleProfileStore(text)
-        later.useLastGood("t1")
+        later.useLastGood("t1", "u1")
         assertEquals(LocaleProfileState.LAST_GOOD, later.state.value)
         assertEquals(dubai, later.profile.value)
-        later.useLastGood("t2")
+        later.useLastGood("t2", "u1")
         assertEquals("another hospital's profile is never borrowed", LocaleProfileState.UNAVAILABLE, later.state.value)
+    }
+
+    @Test fun anUnknownZoneFallsBackToLabelledUtc() {
+        val bad = profile("en-GB", null, "Mars/Olympus", h23 = true)
+        assertEquals("18:30 UTC", Format.time(instant, bad))
+        assertTrue(Format.date(instant, bad), Format.date(instant, bad).endsWith(" UTC"))
+        assertTrue(Format.date(instant, profile("en-GB", null, null)).endsWith(" UTC"))
+        assertTrue(!Format.date(instant, profile("en-GB", null, "Europe/London")).endsWith(" UTC"))
+    }
+
+    @Test fun theCacheIsPerUserNotOnlyPerHospital() {
+        val disk = mutableMapOf<String, String>()
+        val text = object : TextStore {
+            override fun read(key: String) = disk[key]
+            override fun write(key: String, value: String) { disk[key] = value }
+        }
+        LocaleProfileStore(text).adopt(profile("ar-AE", "AED", "Asia/Dubai"), "t1", "nurse")
+        val other = LocaleProfileStore(text)
+        other.useLastGood("t1", "doctor")
+        assertEquals("a colleague's facility profile is never borrowed", LocaleProfileState.UNAVAILABLE, other.state.value)
+    }
+
+    @Test fun aCancelledRefreshIsRethrownNotReadAsFailure() {
+        val store = LocaleProfileStore(object : TextStore {
+            override fun read(key: String): String? = null
+            override fun write(key: String, value: String) = Unit
+        })
+        val thrown = runCatching {
+            kotlinx.coroutines.runBlocking { store.refreshWith({ throw kotlinx.coroutines.CancellationException("gone") }, "t1", "u1") }
+        }.exceptionOrNull()
+        assertTrue(thrown is kotlinx.coroutines.CancellationException)
+        assertEquals(LocaleProfileState.LOADING, store.state.value)
     }
 }

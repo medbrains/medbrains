@@ -128,9 +128,9 @@ struct RootView: View {
                 .overlay { EmergencyFlashOverlay() }
                 // The hospital's money, clock and dates, refreshed per sign-in;
                 // offline, the last good one this device saw.
-                .task(id: auth.identity?.tenantId) {
-                    guard let tenant = auth.identity?.tenantId, let client else { return }
-                    await locale.refresh(client: client, tenantId: tenant)
+                .task(id: auth.identity?.userId) {
+                    guard let who = auth.identity, let client else { return }
+                    await locale.refresh(client: client, tenantId: who.tenantId, userId: who.userId)
                 }
         }
     }

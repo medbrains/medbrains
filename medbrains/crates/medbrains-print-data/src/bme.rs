@@ -42,7 +42,7 @@ pub async fn get_amc_contract_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct ContractRow {
@@ -153,7 +153,7 @@ pub async fn get_calibration_certificate_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct CalibRow {
@@ -262,7 +262,7 @@ pub async fn get_equipment_breakdown_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct BreakdownReportRow {
@@ -411,7 +411,7 @@ pub async fn get_equipment_history_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct EquipRow {
@@ -627,7 +627,7 @@ pub async fn get_mgps_log_print_data(
 
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct GasRow {
@@ -738,7 +738,7 @@ pub async fn get_water_quality_print_data(
 
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct WaterRow {
@@ -884,7 +884,7 @@ pub async fn get_dg_ups_log_print_data(
 
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct ReadingRow {
@@ -1015,7 +1015,7 @@ pub async fn get_fire_inspection_print_data(
 
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct InspectionRow {
@@ -1125,7 +1125,7 @@ pub async fn get_materiovigilance_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct ReportRow {
@@ -1234,7 +1234,7 @@ pub async fn get_fire_mock_drill_print_data(
 
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     #[derive(sqlx::FromRow)]
     struct DrillRow {

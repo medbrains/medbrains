@@ -80,16 +80,16 @@ final class FormatTests: XCTestCase {
     func testLastGoodProfileIsKeptPerTenant() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "FormatTests.\(UUID())"))
         let store = LocaleProfileStore(defaults: defaults)
-        store.useLastGood("t1")
+        store.useLastGood(tenantId: "t1", userId: "u1")
         XCTAssertEqual(store.state, .unavailable)
         XCTAssertEqual(store.profile, .neutral)
         let dubai = profile("ar-AE", "AED", "Asia/Dubai")
-        store.adopt(dubai, tenantId: "t1")
+        store.adopt(dubai, tenantId: "t1", userId: "u1")
         let later = LocaleProfileStore(defaults: defaults)
-        later.useLastGood("t1")
+        later.useLastGood(tenantId: "t1", userId: "u1")
         XCTAssertEqual(later.state, .lastGood)
         XCTAssertEqual(later.profile, dubai)
-        later.useLastGood("t2")
+        later.useLastGood(tenantId: "t2", userId: "u1")
         XCTAssertEqual(later.state, .unavailable, "another hospital's profile is never borrowed")
     }
 
@@ -99,5 +99,45 @@ final class FormatTests: XCTestCase {
         let me = try JSONDecoder.medbrains.decode(Me.self, from: Data(json.utf8))
         XCTAssertEqual(me.localeProfile?.values.hourCycle, "h12")
         XCTAssertEqual(me.localeProfile?.pack, "in")
+    }
+
+    /// A 24-hour hospital in a 12-hour locale must never read 13:30 as "01:30".
+    func testH23IsEnforcedOnATwelveHourLocale() {
+        let afternoon = ISO8601DateFormatter().date(from: "2026-03-05T13:30:00Z")!
+        let got = Format.time(afternoon, profile("en-US", nil, "UTC", h23: true))
+        XCTAssertTrue(squash(got).hasPrefix("13:30"), got)
+        XCTAssertFalse(got.contains("PM"), got)
+    }
+
+    /// And a 12-hour hospital in a 24-hour locale gets its AM/PM.
+    func testH12IsEnforcedOnATwentyFourHourLocale() {
+        let afternoon = ISO8601DateFormatter().date(from: "2026-03-05T13:30:00Z")!
+        let got = Format.time(afternoon, profile("de-DE", nil, "UTC", h23: false))
+        XCTAssertFalse(got.hasPrefix("13"), got)
+        XCTAssertTrue(got.contains("01:30") || got.contains("1:30"), got)
+    }
+
+    func testCalendarsWithoutAlsoDecode() throws {
+        let json = #"{"pack":"in","values":{"calendars":{"primary":"gregory"}},"missing":[]}"#
+        let p = try JSONDecoder.medbrains.decode(LocaleProfile.self, from: Data(json.utf8))
+        XCTAssertEqual(p.values.calendars?.also, [])
+    }
+
+    func testAnUnknownZoneFallsBackToLabelledUTC() {
+        let bad = profile("en-GB", nil, "Mars/Olympus", h23: true)
+        XCTAssertTrue(Format.time(instant, bad).hasSuffix(" UTC"))
+        XCTAssertTrue(Format.date(instant, bad).hasSuffix(" UTC"))
+        XCTAssertTrue(Format.date(instant, profile("en-GB", nil, nil)).hasSuffix(" UTC"))
+        XCTAssertFalse(Format.date(instant, profile("en-GB", nil, "Europe/London")).hasSuffix(" UTC"))
+    }
+
+    @MainActor
+    func testTheCacheIsPerUserNotOnlyPerHospital() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "FormatTests.\(UUID())"))
+        let store = LocaleProfileStore(defaults: defaults)
+        store.adopt(profile("ar-AE", "AED", "Asia/Dubai"), tenantId: "t1", userId: "nurse")
+        let other = LocaleProfileStore(defaults: defaults)
+        other.useLastGood(tenantId: "t1", userId: "doctor")
+        XCTAssertEqual(other.state, .unavailable, "a colleague's facility profile is never borrowed")
     }
 }

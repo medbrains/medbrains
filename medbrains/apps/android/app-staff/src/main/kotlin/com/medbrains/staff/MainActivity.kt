@@ -112,7 +112,7 @@ private fun Root(auth: AuthStore, locale: LocaleProfileStore, binder: StaffBinde
         // The hospital's money, clock and dates, refreshed per sign-in; offline,
         // the last good one this device saw.
         is AuthState.SignedIn -> CompositionLocalProvider(LocalIdentity provides s.identity, LocalLocaleProfile provides profile) {
-            LaunchedEffect(s.identity.tenantId) { locale.refresh(client, s.identity.tenantId) }
+            LaunchedEffect(s.identity.userId) { locale.refresh(client, s.identity.tenantId, s.identity.userId) }
             Box(Modifier.fillMaxSize()) {
                 ModuleHome(
                     auth = auth,
