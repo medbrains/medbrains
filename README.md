@@ -33,6 +33,17 @@
 [![Paperless](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-paperless.json)](#readiness)
 [![AI clinical flows](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-ai.json)](#readiness)
 
+[![HIPAA readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-hipaa.json)](#regulation-readiness)
+[![GDPR readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-gdpr.json)](#regulation-readiness)
+[![DPDP readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-dpdp.json)](#regulation-readiness)
+[![ABDM readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-abdm.json)](#regulation-readiness)
+[![NABH readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-nabh.json)](#regulation-readiness)
+[![CERT-In readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-cert-in.json)](#regulation-readiness)
+[![EU CRA readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-eu-cra.json)](#regulation-readiness)
+[![EHDS readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-ehds.json)](#regulation-readiness)
+[![FHIR readiness](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-fhir.json)](#regulation-readiness)
+[![Medical device (SaMD) controls](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-samd.json)](#regulation-readiness)
+
 [Website](https://www.medbrains.in) · [Features](#features) · [Releases](#release-status) · [Quick start](#quick-start) · [MedBrains OS](#medbrains-os-a-hospital-in-a-box) · [Roadmap](#roadmap) · [Sponsor](#sponsor-the-work) · [Contribute](#contributing)
 
 </div>
@@ -135,6 +146,170 @@ Done counts in full and partial counts half, by each item's weight. `scripts/rea
 
 </details>
 <!-- readiness:end -->
+
+### Regulation readiness
+
+These meters measure how much of each regulation's requirements MedBrains implements, with evidence merged for every item; they are not certifications or legal advice, and each hospital stays responsible for its own compliance.
+They are counted the same way as the meters above. A grey "not assessed" badge means we have not yet mapped that regulation to evidence, so it shows no number rather than a guess. The SaMD meter is different: it counts the controls that keep AI and decision features assistive, so a clinician always decides.
+
+<!-- regulation:start -->
+| Meter | Measured | Done | Partial | Not started |
+|---|---|---|---|---|
+| HIPAA readiness | **72%** | 8 | 5 | 2 |
+| GDPR readiness | **67%** | 6 | 6 | 1 |
+| DPDP readiness | **74%** | 6 | 5 | 1 |
+| ABDM readiness | **72%** | 8 | 1 | 2 |
+| NABH readiness | not assessed | - | - | - |
+| CERT-In readiness | **68%** | 4 | 2 | 1 |
+| EU CRA readiness | **70%** | 7 | 2 | 2 |
+| EHDS readiness | not assessed | - | - | - |
+| FHIR readiness | **43%** | 4 | 2 | 5 |
+| Medical device (SaMD) controls | **53%** | 4 | 1 | 3 |
+
+<details><summary>HIPAA readiness: 72%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| Unique user identification: one login per person, unique within the hospital (164.312(a)(2)(i)) | 2 | Done | `medbrains/crates/medbrains-db-migrations/src/migrations/0040_auth.sql` |
+| Emergency access: break the glass with a reason, reviewed afterwards (164.312(a)(2)(ii)) | 2 | Done | #4772 |
+| Automatic logoff after inactivity (164.312(a)(2)(iii)); today a 7-day refresh token keeps an idle session alive | 2 | Not started | - |
+| Encryption at rest (164.312(a)(2)(iv)); partial because only the OS appliance encrypts its own disk, other installs rely on the host | 2 | Partial | #5230 |
+| Audit controls: append-only, hash-chained log of changes, refusals and failed sign-ins (164.312(b)) | 3 | Done | #4771, `medbrains/crates/medbrains-db-migrations/src/migrations/1082_audit_append_only.sql` |
+| Integrity: signed records an outsider can check are unchanged (164.312(c)) | 2 | Done | #5241 |
+| Person authentication: TOTP second factor and a fresh step-up before signing (164.312(d)) | 2 | Done | `medbrains/crates/medbrains-mfa/src/lib.rs`, #5241 |
+| Transmission security: TLS at the front and between database nodes (164.312(e)) | 2 | Done | #5234, #5495 |
+| Minimum necessary access: role permissions plus per-patient checks; partial until every module passes the authorization ledger | 3 | Partial | `medbrains/crates/medbrains-authz-gate/src/lib.rs` |
+| Contingency plan: sealed backups with a restore drill (164.308(a)(7)) | 2 | Done | #5066, #5132 |
+| Patient right of access: a copy of their record, downloadable from the portal (164.524) | 1 | Done | #4779, #4773 |
+| Accounting of disclosures (164.528); partial: who opened the record and which insurers received it, not every disclosure | 1 | Partial | #4773 |
+| Breach notification within 60 days (164.404-410); partial: a breach register with clocks, but for the DPDP and CERT-In deadlines, not HIPAA's | 2 | Partial | #4758, `medbrains/crates/medbrains-security/src/breach.rs` |
+| Security risk analysis (164.308(a)(1)); partial: an OS threat model, no HIPAA risk analysis | 2 | Partial | `medbrains/docs/architecture/OS-THREATS.md` |
+| Business associate agreement template for hosted installs (164.308(b)) | 1 | Not started | - |
+
+</details>
+
+<details><summary>GDPR readiness: 67%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| Lawful basis per purpose for health data (Art. 6, 9); partial: consent per purpose and care as a legitimate use, not an Art. 9(2) basis per processing | 3 | Partial | #4769 |
+| Transparent notice at collection (Art. 13); partial: a versioned notice in English, Hindi and Tamil, none in EU languages | 2 | Partial | #4769 |
+| Withdraw consent as easily as giving it, by the patient (Art. 7(3)) | 2 | Done | #4777, #4778 |
+| Right of access: what the hospital holds and who received it (Art. 15) | 2 | Done | #4773, #4777 |
+| Rectification, erasure and restriction (Art. 16-18); partial: requests recorded and answered with a reason, changes made by hand, no restriction request | 2 | Partial | #4773 |
+| Portability: the patient downloads their record as FHIR (Art. 20) | 1 | Done | #4779 |
+| Breach notice to the authority within 72 hours and to the people affected (Art. 33-34); partial: the clocks name India's Board, not an EU supervisory authority | 2 | Partial | #4758 |
+| Processor register with the agreement, data and country of each (Art. 28) | 2 | Done | #4775 |
+| Records of processing activities (Art. 30); partial: processors are registered, the hospital's own processing is not | 1 | Partial | #4775 |
+| Data protection officer named and published (Art. 37-39) | 1 | Done | #5095 |
+| Data protection impact assessment record (Art. 35) | 2 | Not started | - |
+| International transfers under safeguards (Chapter V); partial: processor countries recorded and AI calls pseudonymised, no transfer mechanism record | 2 | Partial | #4775, #5030 |
+| Security and privacy by design: encryption, pseudonymisation, audit (Art. 25, 32) | 2 | Done | #5230, #5030, #4771 |
+
+</details>
+
+<details><summary>DPDP readiness: 74%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| Itemised notice at registration and consent recorded purpose by purpose (s.5-6, r.3) | 3 | Done | #4769, `medbrains/crates/medbrains-server/tests/dpdp_consent_test.rs` |
+| Notice in English and any Eighth Schedule language (s.5(3)); partial: Hindi and Tamil only | 1 | Partial | #4769 |
+| Withdrawal as easy as consent, by the patient from the portal and apps (s.6(4)) | 2 | Done | #4777, #4778 |
+| Rights requests (access, correction, erasure, nominee, grievance) answered within 90 days (s.11-14, r.14) | 3 | Done | #4773, #4777, `medbrains/crates/medbrains-server/tests/privacy_requests_test.rs` |
+| DPO and grievance officer named and published to patients (r.9) | 1 | Done | #5095 |
+| Breach intimation to the Board and each person affected, with the 72-hour report clock (s.8(6), r.7) | 3 | Done | #4758, `medbrains/crates/medbrains-server/tests/security_breach_register_test.rs` |
+| Register of processors with their agreement (s.8(2)) | 1 | Done | #4775 |
+| Verifiable guardian consent for children and no tracking of them (s.9, r.10); partial: a guardian is named, but age does not force it and marketing does not exclude minors | 2 | Partial | #4769 |
+| Erase when the purpose ends, with 48 hours' notice to the person (s.8(7), r.8) | 2 | Not started | - |
+| Security safeguards and access logs kept a year (r.6); partial: encryption and the audit log, but log retention differs by install | 2 | Partial | #4771, #5230 |
+| Consent Manager integration (s.6(7-9), r.4); partial: ABDM consent artefacts are kept, no DPDP Consent Manager | 2 | Partial | #4836 |
+| Cross-border transfers only where allowed (s.16); partial: processor countries recorded and AI calls pseudonymised, no transfer log | 1 | Partial | #4775, #5030 |
+
+</details>
+
+<details><summary>ABDM readiness: 72%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| M1: create an ABHA by Aadhaar OTP, with the Aadhaar number sent encrypted and never kept | 2 | Done | #4831, #4966, `medbrains/crates/medbrains-abdm/src/enrol.rs` |
+| M1: find and verify an ABHA, show its QR and card, link it to the patient | 2 | Done | #4833, #4974 |
+| Scan & Share: counter QR, token on profile share, desk queue, on web and the staff app | 2 | Done | #4840, #4869 |
+| M2: link each visit's records to the ABHA and share them under consent, Fidelius-encrypted | 3 | Done | #4836, `medbrains/crates/medbrains-crypto/src/fidelius.rs` |
+| M3: request and view a patient's records from other hospitals, with consent | 3 | Done | #4837, #4853 |
+| NRCeS IG 6.5.0 record bundles passing the official validator; partial: HealthDocument and Invoice records held until the terminology run passes | 2 | Partial | #4962, #4988, #5078 |
+| Gateway callbacks open only with the gateway's token, each hospital seeing only its own | 2 | Done | #4780, #4966, `medbrains/crates/medbrains-server/tests/abdm_callback_auth_test.rs` |
+| Facility (HFR) and professional (HPR) registry identities | 1 | Done | #4831, `medbrains/crates/medbrains-server/tests/abdm_hfr_hpr_test.rs` |
+| NHCX: eligibility, pre-auth and final claims sent and followed up | 2 | Done | #4835, #4838, #4965 |
+| Passed the ABDM sandbox functional test for M1-M3 | 3 | Not started | - |
+| ABDM certification and production keys | 3 | Not started | - |
+
+</details>
+
+<details><summary>CERT-In readiness: 68%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| An incident assessed as reportable starts a 6-hour clock from discovery, escalated when overdue (direction ii) | 3 | Done | #4758, `medbrains/crates/medbrains-server/tests/security_breach_register_test.rs` |
+| The CERT-In report is recorded once, with its date and reference | 1 | Done | #4758, `medbrains/apps/web/src/pages/security/breach-notices.tsx` |
+| Point of contact named (direction vi) | 1 | Done | #5095 |
+| ICT logs kept 180 days in India (direction iv); partial: standalone installs keep 180 days, the OS image keeps 3 months | 3 | Partial | `medbrains/deploy/standalone/medbrains-log-archive.service`, `medbrains/os/mkosi.extra/etc/systemd/journald.conf.d/10-medbrains.conf` |
+| Clocks synced to NIC or NPL time (direction i); partial: authenticated NTS time, but from other national and public servers | 2 | Partial | #5217, `medbrains/os/mkosi.extra/usr/lib/medbrains/time-role` |
+| Incident response plan, with breach drills recorded | 2 | Done | #5095, `medbrains/docs/compliance/INCIDENT-RESPONSE.md` |
+| Security audit by a CERT-In empanelled auditor | 2 | Not started | - |
+
+</details>
+
+<details><summary>EU CRA readiness: 70%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| Software bill of materials for every build (Annex I part II(1)) | 2 | Done | #5285 |
+| Coordinated vulnerability disclosure policy and a published contact (Annex I part II(5-6)) | 2 | Done | `SECURITY.md`, `medbrains/docs/SECURITY-RELEASE-PROCESS.md` |
+| No known exploitable vulnerabilities: locked builds and dependency audits as gates (Annex I part I(2)(a)) | 2 | Done | #4972, #5512 |
+| Security updates signed, with rollback, and tampered updates refused (Annex I part I(2)(c)) | 3 | Done | #5279 |
+| Support period declared (Art. 13(8)) | 1 | Done | `medbrains/docs/COMPATIBILITY.md` |
+| Secure by default configuration (Annex I part I(2)(b)): default-deny firewall, integrations off without their keys | 2 | Done | #5217, #4970 |
+| Limit attack surface (Annex I part I(2)(j)); partial: kernel and service hardening merged, CIS scoring open | 2 | Partial | #5449, open: #5453 |
+| Confidentiality and integrity of stored data (Annex I part I(2)(e-f)) | 2 | Done | #5230, #4771 |
+| Cybersecurity risk assessment in the technical file (Art. 13(2-3)); partial: a threat model for the OS only | 2 | Partial | `medbrains/docs/architecture/OS-THREATS.md` |
+| Report actively exploited vulnerabilities and severe incidents within 24 hours (Art. 14) | 2 | Not started | - |
+| Conformity assessment, EU declaration of conformity and CE marking (Art. 28-32) | 3 | Not started | - |
+
+</details>
+
+<details><summary>FHIR readiness: 43%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| A CapabilityStatement that says what the server supports | 1 | Done | #5092 |
+| Read core resources; partial: Patient, Encounter, Observation and DiagnosticReport, not Condition, MedicationRequest, AllergyIntolerance or Practitioner | 3 | Partial | #4785, `medbrains/crates/medbrains-fhir-api/src/lib.rs` |
+| Document bundles (Composition) for case sheets and ABDM records | 2 | Done | #4716, #4962 |
+| Bundles gated on the official HL7 validator, and checked again at send time | 2 | Done | #5078, #5084 |
+| A patient's whole record as a FHIR bundle ($everything and the portal download) | 1 | Done | #4779 |
+| Coded with SNOMED CT, LOINC and UCUM; partial: membership is proven only by a nightly terminology run not yet seen green | 2 | Partial | #5078 |
+| Search interactions on the REST API | 2 | Not started | - |
+| Create and update through the REST API | 2 | Not started | - |
+| SMART on FHIR authorization for outside apps | 2 | Not started | - |
+| Bulk data export ($export) | 1 | Not started | - |
+| Conformance to an international profile set (IPS or US Core) | 2 | Not started | - |
+
+</details>
+
+<details><summary>Medical device (SaMD) controls: 53%</summary>
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| AI text reaches a record only when a clinician accepts, edits or rejects each item | 3 | Done | #5258, `medbrains/apps/web/src/components/Clinical/dictation/DictationPanel.test.tsx` |
+| Every screen that shows AI output labels it, checked in CI | 2 | Done | #4907, `medbrains/scripts/check_ai_label.py` |
+| Every accept, edit or reject is kept as an AI-governance record | 2 | Done | #5258, `medbrains/crates/medbrains-dictation/src/review.rs` |
+| AI-suggested medicines become a prescription only through the clinician and the allergy, interaction and dose checks | 2 | Done | #5258, #5244 |
+| Intended use written per AI capability; partial: dictation is written down as a documentation aid, not yet signed off by a regulatory adviser | 2 | Partial | `medbrains/RFCs/modules/RFC-MODULE-ai-dictation.md` |
+| One strict AI component seam (draft cards, flags, never pre-selected, override needs a reason), enforced by a CI check and the server | 3 | Not started | open: medbrains/docs/DECISIONS.md 2026-11-12, RFCs/RFC-AI-CLINICAL-FLOWS.md 10.0 |
+| Claim gate: intended-use statement and risk register before any diagnostic, triage or monitoring claim | 3 | Not started | open: scripts/check_cert_readiness.py (samd-intended-use.md, samd-risk-register.md) |
+| Written classification under CDSCO, EU MDR and US FDA before any device-like feature is built | 2 | Not started | - |
+
+</details>
+<!-- regulation:end -->
 
 ## Why is it free?
 
