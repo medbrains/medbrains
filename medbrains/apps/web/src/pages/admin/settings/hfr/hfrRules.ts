@@ -84,6 +84,7 @@ export const searchSchema = z
   })
   .superRefine((q, ctx) => {
     if (q.facilityId.trim() !== "") return;
+    /** Add `message` on `path` unless `ok`. */
     const need = (ok: boolean, path: keyof HfrFacilitySearch, message: string) => {
       if (!ok) ctx.addIssue({ code: "custom", path: [path], message });
     };
@@ -153,6 +154,7 @@ export const basicSchema = z
     typesOfService: z.array(z.string()),
   })
   .superRefine((b, ctx) => {
+    /** Add `message` on `path` unless `ok`. */
     const need = (ok: boolean, path: string, message: string) => {
       if (!ok) ctx.addIssue({ code: "custom", path: [path], message });
     };
@@ -238,6 +240,7 @@ function dayOf(workingDays: string, hours: string): DayHours {
 export function fromFacilityInformation(i: HfrFacilityInformation): BasicForm {
   const a = i.facilityAddressDetails;
   const c = i.facilityContactInformation;
+  /** A comma-joined code list as an array. */
   const list = (v: string) => v.split(",").filter((x) => x !== "");
   return {
     facilityName: i.facilityName,

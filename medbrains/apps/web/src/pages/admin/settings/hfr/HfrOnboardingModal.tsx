@@ -113,14 +113,17 @@ function OnboardingFlow({ facility, draft, hfrListKey, onClose }: OnboardingFlow
   );
   const manager = sessions.find((s) => s.role === "manager");
 
+  /** Re-read the draft and the facilities list after HFR saved something. */
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: [HFR_ONBOARDING_KEY, facility.id] });
     void queryClient.invalidateQueries({ queryKey: hfrListKey });
   };
+  /** Move to a step, and let the stepper go back to it later. */
   const goTo = (next: number) => {
     setReached((r) => Math.max(r, next));
     setStep(next);
   };
+  /** Replace the session for the role that just signed in to HPR. */
   const signedIn = (view: HprSessionView) =>
     setSessions((cur) => [...cur.filter((s) => s.role !== view.role), view]);
   const link = useMutation({

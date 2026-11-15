@@ -56,6 +56,7 @@ async fn stand_in(reply: Value) -> (String, Log) {
     (format!("http://{addr}"), log)
 }
 
+/// The first call the stand-in saw.
 fn first(log: &Log) -> Seen {
     log.lock()
         .unwrap_or_else(PoisonError::into_inner)

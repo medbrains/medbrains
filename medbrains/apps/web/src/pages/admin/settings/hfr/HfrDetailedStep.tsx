@@ -89,6 +89,7 @@ export function HfrDetailedStep(props: HfrDetailedStepProps) {
     mutationFn: () => abdmRegistryService.saveHfrDetailed(facilityId, detailed),
     onSuccess: onSaved,
   });
+  /** Change one system's entry, leaving the others. */
   const setEntry = (i: number, patch: Partial<HfrSystemSpecialities>) =>
     setEntries((cur) => cur.map((e, j) => (j === i ? { ...e, ...patch } : e)));
 

@@ -28,6 +28,7 @@ export function HfrWorkingDays({ form }: HfrWorkingDaysProps) {
   const days = watch("days");
   const status = watch("operationalStatus");
   const master = useHfrMaster("data", "WORKING-DAYS");
+  /** The HFR name of a working-day code. */
   const labelOf = (code: string) => master.data.find((d) => d.value === code)?.label ?? code;
 
   /** Keep the hours of days still chosen; a new day starts with none. */
@@ -37,6 +38,7 @@ export function HfrWorkingDays({ form }: HfrWorkingDaysProps) {
     );
     setValue("days", next, { shouldValidate: formState.isSubmitted });
   };
+  /** Change one day's hours. */
   const update = (index: number, patch: Partial<DayHours>) => {
     const next = days.map((d, i) => (i === index ? { ...d, ...patch } : d));
     setValue("days", next, { shouldValidate: formState.isSubmitted });
