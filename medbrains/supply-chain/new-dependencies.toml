@@ -26,3 +26,11 @@
 # A reason must name the advisory (RUSTSEC-, GHSA-, CVE-, PYSEC- or GO- id), or the exception is
 # ignored. This file is code-owned (.github/CODEOWNERS): the owner's review of each entry is the
 # gate, the script only checks that an entry exists and is well formed.
+
+[[review]]
+ecosystem = "maven"
+name = "io.opentelemetry:opentelemetry-common"
+reviewed-by = "DomnicAmalan"
+date = "2026-11-15"
+why = "Split out of opentelemetry-api; required by 1.67.0, the first release fixing GHSA-rcgg-9c38-7xpx and GHSA-ccrj-gw8r-854m. Reached only through the Kotlin swift-export build tool, never the app."
+checked = "OpenTelemetry project (CNCF), same maintainers as opentelemetry-api, published from open-telemetry/opentelemetry-java"
