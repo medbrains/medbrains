@@ -9,6 +9,12 @@
 //! other. Confirm is idempotent per transaction: a repeated confirm answers
 //! with the booking already made.
 //!
+//! Search is two-stage: a search through the gateway lists the doctors; the
+//! app's direct search for one of them lists that doctor's slots, each named
+//! by a stable UUID. A physical consultation follows NHA's order contract
+//! (`consultation`): `init` holds the slot for 15 minutes and offers five
+//! terms; `confirm` needs them agreed and answers with the patient's PIN.
+//!
 //! A teleconsultation with a fee, at a hospital that takes payment online,
 //! is paid `ON-ORDER`: the booking is held until the payment comes in
 //! (`payment`). Everything else is paid at the hospital (`ON-FULFILLMENT`);
@@ -19,12 +25,14 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{
+    consult_search,
+    consultation::{self, Holder},
     fees,
     inbound::{Reply, Txn, set_state},
     payment,
-    protocol::{Context, STATE_CANCELLED, STATE_CONFIRMED, Service},
+    protocol::{Context, STATE_CANCELLED, STATE_CONFIRMED, Service, TAG_SLOT_ID},
     settings::Subscription,
-    slots::{self, Filter, Slot},
+    slots::{self, Slot},
 };
 use crate::{
     error::AppError,
@@ -34,7 +42,6 @@ use crate::{
 /// Where the video link rides in the fulfilment — **inferred**; UHI
 /// publishes no field for it.
 const TAG_TELECONF_URL: &str = "@abdm/gov.in/teleconf_url";
-const TAG_SPECIALITY: &str = "@abdm~1gov.in~1speciality";
 const REASON: &str = "Teleconsultation booked through UHI";
 const REASON_PHYSICAL: &str = "Consultation booked through UHI";
 
@@ -47,13 +54,31 @@ pub(super) fn text<'a>(v: &'a Value, pointer: &str) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
-/// The slot an order names: its item or its fulfilment.
+/// The slot UUID an order names: the slot tag, the fulfilment, the item's
+/// fulfilment — never the item id, which NHA's app sends as `"0"`.
 fn slot_id(body: &Value) -> Option<&str> {
-    text(body, "/message/order/items/0/id")
-        .or_else(|| text(body, "/message/order/item/id"))
-        .or_else(|| text(body, "/message/order/fulfillment/id"))
+    let o = "/message/order";
+    let slot_tag = TAG_SLOT_ID.replace('/', "~1");
+    text(body, &format!("{o}/fulfillment/tags/{slot_tag}"))
+        .or_else(|| text(body, &format!("{o}/fulfillment/id")))
+        .or_else(|| text(body, &format!("{o}/item/fulfillment_id")))
+        .or_else(|| text(body, &format!("{o}/items/0/fulfillment_id")))
+        .or_else(|| text(body, &format!("{o}/items/0/id")))
 }
 
+/// One consultation call as it arrived.
+#[derive(Debug, Clone, Copy)]
+pub struct Call<'a> {
+    pub ctx: &'a Context,
+    pub body: &'a Value,
+    pub txn: &'a Txn,
+    /// A search the gateway fanned out (it lists doctors, not slots).
+    pub from_gateway: bool,
+}
+
+/// Answer one consultation call: the `message` of its `on_*`, or `None`
+/// when nothing is sent back (an empty search, an EUA's own callback).
+///
 /// # Errors
 /// A database fault.
 #[tracing::instrument(skip_all, fields(tenant_id = %sub.tenant_id))]
@@ -61,77 +86,21 @@ pub async fn answer(
     tx: &mut Tx<'_>,
     secrets: &dyn SecretResolver,
     sub: &Subscription,
-    ctx: &Context,
-    body: &Value,
-    txn: &Txn,
+    call: Call<'_>,
 ) -> Result<Option<Reply>, AppError> {
+    let Call { ctx, body, txn, .. } = call;
     let physical = txn.service == Service::PhysicalConsultation.code();
     match ctx.action.as_str() {
-        "search" => search(tx, sub, body, physical).await,
-        "select" | "init" => quote(tx, secrets, sub, ctx, body, physical).await.map(Some),
-        "confirm" => confirm(tx, secrets, sub, body, txn, physical).await,
+        "search" => consult_search::search(tx, sub, body, physical, call.from_gateway).await,
+        "init" => quote(tx, secrets, sub, call, physical).await.map(Some),
+        "confirm" => confirm(tx, secrets, sub, call, physical).await,
         "cancel" => cancel(tx, txn).await.map(Some),
         "status" | "update" => Ok(Some(current(txn))),
+        "on_update" => consultation::record_update(tx, txn.id, body)
+            .await
+            .map(|()| None),
         _ => Ok(None),
     }
-}
-
-/// What a search intent narrows to. The speciality comes from the
-/// category (NHA's app sends `intent.category.descriptor.name`) or the
-/// doctor's speciality tag — both verified in NHA's code; a category ID is
-/// one of our own departments, as our catalogue names them.
-fn filter(intent: &Value, physical: bool) -> Filter {
-    Filter {
-        from: text(intent, "/fulfillment/start/time/timestamp").and_then(slots::parse_timestamp),
-        to: text(intent, "/fulfillment/end/time/timestamp").and_then(slots::parse_timestamp),
-        doctor_name: text(intent, "/fulfillment/agent/name").map(str::to_owned),
-        hpr_id: text(intent, "/fulfillment/agent/tags/@abdm~1gov.in~1hpr_id").map(str::to_owned),
-        doctor_id: None,
-        physical,
-        speciality: text(intent, "/category/descriptor/name")
-            .or_else(|| text(intent, "/category/descriptor/code"))
-            .or_else(|| text(intent, &format!("/fulfillment/agent/tags/{TAG_SPECIALITY}")))
-            .map(str::to_owned),
-        department_id: text(intent, "/category/id").and_then(|id| Uuid::parse_str(id).ok()),
-    }
-}
-
-async fn search(
-    tx: &mut Tx<'_>,
-    sub: &Subscription,
-    body: &Value,
-    physical: bool,
-) -> Result<Option<Reply>, AppError> {
-    let intent = body.pointer("/message/intent").unwrap_or(&Value::Null);
-    let filter = filter(intent, physical);
-    let open = slots::open_slots(tx, sub.tenant_id, &filter).await?;
-    if open.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(Reply::message(
-        json!({ "catalog": catalog(sub, &open) }),
-    )))
-}
-
-fn catalog(sub: &Subscription, open: &[Slot]) -> Value {
-    let mut categories: Vec<Value> = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for s in open {
-        if seen.insert(s.department_id) {
-            categories.push(json!({ "id": s.department_id,
-                "descriptor": { "name": s.department, "code": s.department } }));
-        }
-    }
-    json!({
-        "descriptor": { "name": sub.provider_name },
-        "providers": [{
-            "id": sub.provider_id(),
-            "descriptor": { "name": sub.provider_name },
-            "categories": categories,
-            "fulfillments": open.iter().map(Slot::fulfillment).collect::<Vec<_>>(),
-            "items": open.iter().map(Slot::item).collect::<Vec<_>>(),
-        }],
-    })
 }
 
 fn order(sub: &Subscription, slot: &Slot, body: &Value) -> Value {
@@ -150,24 +119,34 @@ fn order(sub: &Subscription, slot: &Slot, body: &Value) -> Value {
     order
 }
 
+/// `on_init`: the order with its quote and payment. A physical consultation
+/// also gets its order id and the five terms, and its slot is held.
 async fn quote(
     tx: &mut Tx<'_>,
     secrets: &dyn SecretResolver,
     sub: &Subscription,
-    ctx: &Context,
-    body: &Value,
+    call: Call<'_>,
     physical: bool,
 ) -> Result<Reply, AppError> {
-    let Some(id) = slot_id(body) else {
+    let Some(id) = slot_id(call.body) else {
         return Ok(Reply::failed("the order names no slot"));
     };
-    let Some(slot) = slots::find_slot(tx, sub.tenant_id, id, physical).await? else {
+    let Some(slot) = slots::find_slot(tx, sub.tenant_id, id, physical, call.txn.id).await? else {
         return Ok(Reply::failed("that slot is no longer available"));
     };
-    let mut order = order(sub, &slot, body);
-    if ctx.action == "init" {
-        let online = payment::pays_online(tx, secrets, sub.tenant_id, &slot).await?;
-        order["payment"] = fees::payment(online, slot.fee.as_ref());
+    let mut order = order(sub, &slot, call.body);
+    let online = payment::pays_online(tx, secrets, sub.tenant_id, &slot).await?;
+    order["payment"] = fees::payment(online, slot.fee.as_ref());
+    if physical {
+        order["id"] = json!(call.txn.id);
+        order["terms"] = consultation::terms(&slot);
+        let p = patient(call.body);
+        let who = Holder {
+            name: p.name,
+            phone: p.phone,
+            abha: p.abha,
+        };
+        consultation::hold(tx, call.txn.id, (&slot, &order), who).await?;
     }
     Ok(Reply::message(json!({ "order": order })))
 }
@@ -189,19 +168,35 @@ fn patient(body: &Value) -> Patient<'_> {
     }
 }
 
+/// A physical consultation's confirm must name the order `on_init` gave and
+/// agree to all five terms; the reason it does not, for the app.
+fn refuse_order(body: &Value, txn: &Txn) -> Option<String> {
+    let order = body.pointer("/message/order").unwrap_or(&Value::Null);
+    if text(order, "/id") != Some(txn.id.to_string().as_str()) {
+        return Some("the order id is not the one on_init gave: send init first".to_owned());
+    }
+    consultation::terms_agreed(order).err()
+}
+
+/// Book the slot (once per transaction); `on_confirm`, or `None` while a
+/// paid-online booking waits for its payment link.
 async fn confirm(
     tx: &mut Tx<'_>,
     secrets: &dyn SecretResolver,
     sub: &Subscription,
-    body: &Value,
-    txn: &Txn,
+    call: Call<'_>,
     physical: bool,
 ) -> Result<Option<Reply>, AppError> {
+    let Call { body, txn, .. } = call;
     if txn.appointment_id.is_some() {
         // Booked already; a held booking answers once its payment link is out.
+        // The stored order carries no PIN: the first on_confirm delivered it.
         return Ok(txn.order_details.is_some().then(|| current(txn)));
     }
     let failed = |m: &str| Ok(Some(Reply::failed(m)));
+    if let Some(why) = physical.then(|| refuse_order(body, txn)).flatten() {
+        return failed(&why);
+    }
     let p = patient(body);
     let (Some(name), Some(phone)) = (p.name, p.phone) else {
         return failed("the patient's name and phone are needed to book");
@@ -209,7 +204,7 @@ async fn confirm(
     let Some(slot) = slot_id(body) else {
         return failed("the order names no slot");
     };
-    let Some(slot) = slots::find_slot(tx, sub.tenant_id, slot, physical).await? else {
+    let Some(slot) = slots::find_slot(tx, sub.tenant_id, slot, physical, txn.id).await? else {
         return failed("that slot is no longer available");
     };
     let known = match p.abha {
@@ -286,7 +281,30 @@ async fn confirm(
         return Ok(None);
     }
     order["state"] = json!(STATE_CONFIRMED);
+    if physical {
+        return confirm_visit(tx, sub, (txn, &slot, body), order).await;
+    }
     set_state(tx, txn.id, "confirmed", &order).await?;
+    Ok(Some(Reply::message(json!({ "order": order }))))
+}
+
+/// A booked visit's `on_confirm`: the agreed terms, the slot, messaging and
+/// helpline tags, and the PIN. The stored order has no token; only the answer
+/// to the app carries it.
+async fn confirm_visit(
+    tx: &mut Tx<'_>,
+    sub: &Subscription,
+    (txn, slot, body): (&Txn, &Slot, &Value),
+    mut order: Value,
+) -> Result<Option<Reply>, AppError> {
+    let given = body.pointer("/message/order/terms").cloned();
+    order["terms"] = given.unwrap_or_else(|| consultation::terms(slot));
+    let helpline = consultation::helpline(tx, sub.tenant_id, sub.facility_id).await?;
+    order["fulfillment"]["tags"] = consultation::confirm_tags(slot, helpline.as_deref());
+    order["authorization"] = consultation::authorization(None, slot.date);
+    set_state(tx, txn.id, "confirmed", &order).await?;
+    let pin = consultation::issue_pin(tx, txn.id).await?;
+    order["authorization"] = consultation::authorization(Some(&pin), slot.date);
     Ok(Some(Reply::message(json!({ "order": order }))))
 }
 

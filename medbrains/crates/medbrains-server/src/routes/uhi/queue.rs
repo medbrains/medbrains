@@ -38,7 +38,8 @@ const PAGE: i64 = 200;
 const COLUMNS: &str = "id, service, state, customer_name, customer_phone, customer_abha, \
     order_details, appointment_id, ambulance_trip_id, decline_reason, confirmed_at, \
     responded_at, updated_at, payment_type, payment_status, amount, hold_expires_at, \
-    lab_order_ids";
+    lab_order_ids, slot_held_until, doctor_no_show_at, (pin_hash IS NOT NULL) AS has_pin, \
+    pin_verified_at, pin_failed_attempts";
 
 #[derive(Debug, sqlx::FromRow)]
 struct Row {
@@ -60,6 +61,11 @@ struct Row {
     amount: Option<rust_decimal::Decimal>,
     hold_expires_at: Option<DateTime<Utc>>,
     lab_order_ids: Vec<Uuid>,
+    slot_held_until: Option<DateTime<Utc>>,
+    doctor_no_show_at: Option<DateTime<Utc>>,
+    has_pin: bool,
+    pin_verified_at: Option<DateTime<Utc>>,
+    pin_failed_attempts: i32,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +96,17 @@ pub struct UhiRequest {
     pub lab_order_ids: Vec<Uuid>,
     /// A lab request for a home collection (accepting it books one).
     pub home_collection: bool,
+    /// A visit's slot is held for the patient until this time (`init`); the
+    /// hold lapses by itself unless the app confirms.
+    pub slot_held_until: Option<DateTime<Utc>>,
+    /// The patient's app reported that the doctor did not see them.
+    pub doctor_no_show_at: Option<DateTime<Utc>>,
+    /// The booking has a PIN for the desk to check (never the PIN itself).
+    pub has_pin: bool,
+    /// When the desk checked the PIN and it matched.
+    pub pin_verified_at: Option<DateTime<Utc>>,
+    /// Wrong PINs tried so far; five lock the check.
+    pub pin_failed_attempts: i32,
 }
 
 fn summary(service: &str, order: &Value) -> String {
@@ -152,6 +169,11 @@ impl From<Row> for UhiRequest {
             hold_expires_at: r.hold_expires_at,
             lab_order_ids: r.lab_order_ids,
             home_collection,
+            slot_held_until: r.slot_held_until,
+            doctor_no_show_at: r.doctor_no_show_at,
+            has_pin: r.has_pin,
+            pin_verified_at: r.pin_verified_at,
+            pin_failed_attempts: r.pin_failed_attempts,
         }
     }
 }
@@ -183,8 +205,8 @@ pub async fn list(
     let rows = sqlx::query_as::<_, Row>(&format!(
         "SELECT {COLUMNS} FROM uhi_transactions \
           WHERE tenant_id = $1 AND deleted_at IS NULL \
-            AND state IN ('awaiting_payment', 'pending', 'confirmed', 'declined', 'cancelled', \
-                          'expired') \
+            AND (state IN ('awaiting_payment', 'pending', 'confirmed', 'declined', 'cancelled', \
+                           'expired') OR (state = 'initialised' AND slot_id IS NOT NULL)) \
             AND (NOT $2 OR state = 'pending') \
           ORDER BY updated_at DESC LIMIT $3"
     ))

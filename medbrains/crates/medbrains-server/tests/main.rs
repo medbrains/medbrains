@@ -354,6 +354,7 @@ mod token_slip_print_test;
 mod token_visit_test;
 mod token_worklist_view_test;
 mod trial_signup_test;
+mod uhi_consultation_test;
 mod uhi_hspa_test;
 mod uhi_payment_test;
 mod uhi_services_test;

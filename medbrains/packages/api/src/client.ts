@@ -2320,6 +2320,7 @@ import type {
   TvAnnouncement,
   // TV Displays & Queue
   TvDisplay,
+  UhiPinResult,
   UhiRequest,
   UhiSettingsView,
   UnbilledScanResult,
@@ -18479,6 +18480,11 @@ export const api = {
     request<UhiRequest>(`/uhi/requests/${id}/decline`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+  checkUhiPin: (id: string, pin: string) =>
+    request<UhiPinResult>(`/uhi/requests/${id}/check-pin`, {
+      method: "POST",
+      body: JSON.stringify({ pin }),
     }),
   startAbhaVerification: (data: StartAbhaVerification) =>
     request<AbhaVerificationStep>("/abdm/abha/verifications", {

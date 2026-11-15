@@ -607,3 +607,16 @@ pub async fn doctor(w: &World) -> (Uuid, String) {
     .expect("schedule");
     (staff.user_id, name)
 }
+
+/// The confirm an app sends after `on_init`: `order` with the order id
+/// `on_init` gave and every one of its terms agreed.
+pub fn agree(order: &Value, on_init: &Value) -> Value {
+    let mut confirm = order.clone();
+    confirm["order"]["id"] = on_init["id"].clone();
+    let mut terms = on_init["terms"].clone();
+    for term in terms.as_array_mut().into_iter().flatten() {
+        term["termsState"] = json!("AGREED");
+    }
+    confirm["order"]["terms"] = terms;
+    confirm
+}

@@ -529,6 +529,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/uhi/requests/{id}/accept", post(uhi::queue::accept))
         .route("/api/uhi/requests/{id}/decline", post(uhi::queue::decline))
         .route(
+            "/api/uhi/requests/{id}/check-pin",
+            post(uhi::consultation::check_pin),
+        )
+        .route(
             "/api/abdm/gateway/callbacks/pending",
             get(abdm::hip_relay::list_pending_callbacks),
         )

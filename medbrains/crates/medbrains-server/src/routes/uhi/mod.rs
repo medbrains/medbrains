@@ -9,8 +9,11 @@
 //! - `keys`        — the signing key pair, generated or imported
 //! - `inbound`     — the public endpoint every UHI call arrives at
 //! - `slots`       — open consultation slots from real schedules
+//! - `slot_ids`    — slot UUIDs and the holds `init` places
 //! - `fees`        — what a consultation costs, and how a quote says it
-//! - `teleconsult` — consultation (online or physical) search → booking
+//! - `teleconsult` — consultation (online or physical) init → booking
+//! - `consult_search` — consultation search: doctors, then their slots
+//! - `consultation` — the physical consultation's terms, hold and PIN
 //! - `payment`     — paying online: the hold, its expiry
 //! - `payment_events` — the payment link and the captured payment
 //! - `labs`        — lab test search → request lab staff accept
@@ -19,6 +22,8 @@
 //! - `outbox`      — the signed `on_*` answers
 
 pub mod auth;
+pub mod consult_search;
+pub mod consultation;
 pub mod fees;
 pub mod inbound;
 pub mod keys;
@@ -30,6 +35,7 @@ pub mod protocol;
 pub mod queue;
 pub mod requests;
 pub mod settings;
+pub mod slot_ids;
 pub mod slots;
 pub mod teleconsult;
 

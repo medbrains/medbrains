@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE uhi_transactions SET pin_verified_at = CASE WHEN $2 THEN now() ELSE pin_verified_at END, pin_verified_by = CASE WHEN $2 THEN $3 ELSE pin_verified_by END, pin_failed_attempts = pin_failed_attempts + CASE WHEN $2 THEN 0 ELSE 1 END WHERE id = $1 RETURNING pin_failed_attempts",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pin_failed_attempts",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3685f75f54cbade2ead7f0d4c97e73b1f53aa25d8b4ff32f1a5ff5f561062f46"
+}

@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1256 permissions, one per constant in the Rust source. */
+/** 1257 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7572,6 +7572,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Tell the patient's app whether the hospital can send the ambulance, has the blood or will do the lab tests. Accepting an ambulance request also needs ambulance trip creation, a blood request blood inventory management, a lab request walk-in lab ordering (and sample management for a home collection).",
     module: "uhi",
   },
+  {
+    code: "uhi.requests.check_pin",
+    label: "Check a UHI booking's PIN at the desk",
+    description: "Enter the four-digit PIN the patient's app shows for a visit booked through UHI, to confirm it is their booking. The PIN itself is never shown or stored; five wrong tries lock the check.",
+    module: "uhi",
+  },
   // knowledge
   {
     code: "knowledge.change_sets.list",
@@ -8332,6 +8338,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.CATALOG.LOOKUP,
       P.SPECIALTY.HEALTH_PACKAGES.LIST,
       P.TERMINOLOGY.SEARCH,
+      P.UHI.REQUESTS.CHECK_PIN,
       P.UHI.REQUESTS.VIEW,
     ],
   },
@@ -9298,6 +9305,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.ACQUISITION.UPDATE,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
       P.PATIENTS.PRIVACY_REQUESTS.LIST,
+      P.UHI.REQUESTS.CHECK_PIN,
       P.UHI.REQUESTS.VIEW,
     ],
   },
