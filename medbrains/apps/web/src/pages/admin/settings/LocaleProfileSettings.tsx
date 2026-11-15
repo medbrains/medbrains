@@ -151,6 +151,7 @@ function Scopes({
   );
 }
 
+/** The Locale profile settings tab: what is in force, each scope, and a request to change one. */
 export function LocaleProfileSettings() {
   useRequirePermission(P.ADMIN.LOCALE_PROFILE.UPDATE);
   const canRequest = useHasAllPermissions([

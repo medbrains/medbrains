@@ -41,6 +41,7 @@ impl LocaleProfileRow {
         self.values.iter().filter(|(_, v)| !v.is_null())
     }
 
+    /// The row's value for a text field, if it sets one.
     pub(crate) fn text(&self, field: Field) -> Option<&str> {
         self.values.get(field.key()).and_then(Value::as_str)
     }

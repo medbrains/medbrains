@@ -89,6 +89,7 @@ impl Field {
         Self::ALL.into_iter().find(|f| f.key() == key)
     }
 
+    /// The JSON shape this field is stored in.
     const fn kind(self) -> Kind {
         match self {
             Self::Languages => Kind::TextList,

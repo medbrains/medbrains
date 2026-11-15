@@ -21,6 +21,7 @@ const HOSPITAL_REQUIRED: [Field; 5] = [
     Field::FiscalYearStart,
 ];
 
+/// Every profile key, for the queries that read or unset them all at once.
 fn keys() -> Vec<String> {
     Field::ALL.iter().map(|f| f.key().to_owned()).collect()
 }

@@ -19,6 +19,7 @@ pub const DISPLAY_CALENDARS: [&str; 8] = [
     "japanese",
 ];
 
+/// Exactly `len` ASCII capitals: the shape of an ISO country or currency code.
 fn upper_code(s: &str, len: usize) -> bool {
     s.len() == len && s.bytes().all(|b| b.is_ascii_uppercase())
 }

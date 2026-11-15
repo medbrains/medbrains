@@ -61,6 +61,7 @@ function FieldControl({
   countries: { value: string; label: string }[];
 }) {
   const common = { label: field.label, description: field.description, error };
+  /** A searchable, clearable select over `data`, sharing the field's label and error. */
   const pick = (data: { value: string; label: string }[]) => (
     <Select
       {...common}
