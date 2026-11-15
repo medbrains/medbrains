@@ -124,6 +124,9 @@ jobs:
         env:
           TRUSTED_PROXIES: 127.0.0.1/32,::1/128
           RUST_LOG: info
+          # Every role signs in from this one address; at the default 5 a minute
+          # the run spent its time waiting on 429s. Production refuses this setting.
+          MEDBRAINS_LOGIN_ATTEMPTS_PER_MINUTE: "600"
         run: |
           chmod +x bin/medbrains-server
           nohup bin/medbrains-server > server.log 2>&1 &

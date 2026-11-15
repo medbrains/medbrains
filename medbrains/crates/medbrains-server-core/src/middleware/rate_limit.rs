@@ -22,7 +22,22 @@ use axum::{
 use super::client_ip::ClientIp;
 
 /// Maximum login attempts per IP within the window.
-const MAX_ATTEMPTS: usize = 5;
+pub const MAX_ATTEMPTS: usize = 5;
+
+/// Raises the sign-in limit for a test run that signs every role in from one
+/// address. Production refuses to start with it set (preflight `env.login_limit`).
+pub const LOGIN_LIMIT_ENV: &str = "MEDBRAINS_LOGIN_ATTEMPTS_PER_MINUTE";
+
+/// The sign-in attempts allowed per address per window: [`MAX_ATTEMPTS`]
+/// unless [`LOGIN_LIMIT_ENV`] holds a larger whole number.
+#[must_use]
+pub fn login_attempts() -> usize {
+    std::env::var(LOGIN_LIMIT_ENV)
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .filter(|n| *n > MAX_ATTEMPTS)
+        .unwrap_or(MAX_ATTEMPTS)
+}
 
 /// Sliding window duration in seconds.
 const WINDOW_SECS: u64 = 60;
@@ -35,13 +50,21 @@ type AttemptLog = HashMap<(IpAddr, &'static str), Vec<Instant>>;
 
 #[derive(Clone, Debug)]
 pub struct RateLimiter {
+    max_attempts: usize,
     attempts: Arc<Mutex<AttemptLog>>,
     last_cleanup: Arc<Mutex<Instant>>,
 }
 
 impl RateLimiter {
     pub fn new() -> Self {
+        Self::with_max_attempts(MAX_ATTEMPTS)
+    }
+
+    /// A limiter allowing `max_attempts` per address per window, for sign-in
+    /// (see [`login_attempts`]).
+    pub fn with_max_attempts(max_attempts: usize) -> Self {
         Self {
+            max_attempts,
             attempts: Arc::new(Mutex::new(HashMap::new())),
             last_cleanup: Arc::new(Mutex::new(Instant::now())),
         }
@@ -49,7 +72,7 @@ impl RateLimiter {
 
     /// Record an attempt and return whether the request is allowed.
     pub fn check_and_record(&self, ip: IpAddr) -> bool {
-        self.check_and_record_class(ip, "default", MAX_ATTEMPTS, WINDOW_SECS)
+        self.check_and_record_class(ip, "default", self.max_attempts, WINDOW_SECS)
     }
 
     /// Class-scoped variant — distinct sliding windows per (ip, class).
@@ -288,7 +311,25 @@ fn extract_client_ip(request: &Request) -> Option<IpAddr> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PAIRING_CALLS_PER_MINUTE, PAIRING_CODES_PER_MINUTE, pairing_budget};
+    use super::{
+        MAX_ATTEMPTS, PAIRING_CALLS_PER_MINUTE, PAIRING_CODES_PER_MINUTE, RateLimiter,
+        pairing_budget,
+    };
+    use std::net::{IpAddr, Ipv4Addr};
+
+    /// How many attempts from one address the limiter lets through in a burst.
+    fn allowed(limiter: &RateLimiter) -> usize {
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        (0..100)
+            .take_while(|_| limiter.check_and_record(ip))
+            .count()
+    }
+
+    #[test]
+    fn sign_in_keeps_five_a_minute_unless_a_test_run_raises_it() {
+        assert_eq!(allowed(&RateLimiter::new()), MAX_ATTEMPTS);
+        assert_eq!(allowed(&RateLimiter::with_max_attempts(60)), 60);
+    }
 
     #[test]
     fn asking_for_a_pairing_code_is_counted_apart_and_tighter() {

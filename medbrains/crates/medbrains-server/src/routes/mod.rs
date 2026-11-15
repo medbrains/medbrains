@@ -72,7 +72,7 @@ use crate::{
         entitlement::gated,
         ip_restrict::ip_restrict_middleware,
         rate_limit::{
-            RateLimiter, device_pairing_rate_limit_middleware, public_verify_rate_limit_middleware,
+            RateLimiter, device_pairing_rate_limit_middleware, login_attempts, public_verify_rate_limit_middleware,
             rate_limit_middleware, storefront_rate_limit_middleware, tiered_rate_limit_middleware,
         },
         system_state::system_state_layer,
@@ -87,8 +87,8 @@ const STORE_RX_BODY_LIMIT: usize = 12 * 1024 * 1024;
 /// Build the application router — auth + health + onboarding + setup + geo + patients.
 #[allow(clippy::too_many_lines, clippy::large_stack_frames)]
 pub fn build_router(state: AppState) -> Router {
-    // Rate limiter for login endpoint (5 attempts per 60s per IP)
-    let login_limiter = RateLimiter::new();
+    // Rate limiter for login endpoint (5 attempts per 60s per IP; a test run may raise it)
+    let login_limiter = RateLimiter::with_max_attempts(login_attempts());
 
     // Rate-limited login route
     let login_route = Router::new()

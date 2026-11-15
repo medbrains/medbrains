@@ -15,6 +15,7 @@ use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use medbrains_core::secrets::SecretResolver;
 use medbrains_infra_settings::preflight::{Finding, Level};
 use medbrains_server_core::config::AppConfig;
+use medbrains_server_core::middleware::rate_limit::{LOGIN_LIMIT_ENV, MAX_ATTEMPTS, login_attempts};
 use sqlx::PgPool;
 
 /// Keys whose development fallback is a value in the source.
@@ -159,6 +160,13 @@ fn env_checks(config: &AppConfig, production: bool) -> Vec<Finding> {
             production,
             "the card machine simulator is on: it marks bills paid that no card paid",
             "Unset MEDBRAINS_POS_SIMULATOR",
+        ),
+        hazard(
+            "env.login_limit",
+            login_attempts() != MAX_ATTEMPTS,
+            production,
+            &format!("{LOGIN_LIMIT_ENV} raises the sign-in limit to {} a minute", login_attempts()),
+            "Unset MEDBRAINS_LOGIN_ATTEMPTS_PER_MINUTE",
         ),
         hazard(
             "env.secure_cookies",
