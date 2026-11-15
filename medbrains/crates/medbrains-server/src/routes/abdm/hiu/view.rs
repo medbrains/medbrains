@@ -1,5 +1,6 @@
 //! Staff screens for records received through ABDM: a patient's consent
-//! requests and the copies other facilities sent, and one copy in full.
+//! requests and the copies other facilities sent, one copy in full, and the
+//! hospital-wide list of consent requests (`HIU_FLOW_104`).
 //!
 //! Every read first erases what is due (bounded), then shows only copies
 //! whose consent still stands and whose erase date has not passed — a
@@ -7,16 +8,18 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
-use serde::Serialize;
+use medbrains_kernel::Actor;
+use medbrains_server_core::pagination::{Paginated, Pagination};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use super::purge::erase_due;
-use super::requests::{AbdmConsentRequest, REQUEST_COLUMNS};
+use super::requests::{AbdmConsentRequest, EFFECTIVE_STATUS, request_select};
 use super::status::{ask_later, claim_stale};
 use crate::{
     error::AppError,
@@ -28,6 +31,27 @@ use crate::{
 
 /// Requests and records listed per patient.
 const LIST_LIMIT: i64 = 100;
+/// The statuses the hospital-wide list filters by — as staff see them
+/// ([`EFFECTIVE_STATUS`]).
+const STATUSES: [&str; 7] = [
+    "requested",
+    "awaiting_patient",
+    "granted",
+    "denied",
+    "revoked",
+    "expired",
+    "failed",
+];
+
+/// The hospital-wide list's filter, after `$1` the tenant: `$2` a status as
+/// staff see it, `$3` the patients the caller may see (NULL for all).
+fn all_filter() -> String {
+    format!(
+        "WHERE r.tenant_id = $1 AND r.deleted_at IS NULL \
+           AND ($2::text IS NULL OR ({EFFECTIVE_STATUS}) = $2) \
+           AND ($3::uuid[] IS NULL OR r.patient_id = ANY($3))"
+    )
+}
 /// Where a received copy may be read: a standing consent, not yet erased.
 const HELD: &str = "x.deleted_at IS NULL AND x.purged_at IS NULL AND x.erase_at > now() \
      AND EXISTS (SELECT 1 FROM abdm_consent_artefacts a WHERE a.id = x.consent_artefact_id \
@@ -55,6 +79,12 @@ pub struct AbdmHiuPatientView {
     pub blocked_reason: Option<String>,
     pub requests: Vec<AbdmConsentRequest>,
     pub records: Vec<AbdmReceivedRecordItem>,
+}
+
+/// `?status=` on the hospital-wide list; absent or empty lists every status.
+#[derive(Debug, Deserialize)]
+pub struct ConsentListFilter {
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -95,9 +125,9 @@ pub async fn patient_view(
         Vec::new()
     };
     let requests = sqlx::query_as::<_, AbdmConsentRequest>(&format!(
-        "SELECT {REQUEST_COLUMNS} FROM abdm_consent_requests r \
-          WHERE r.tenant_id = $1 AND r.patient_id = $2 AND r.deleted_at IS NULL \
-          ORDER BY r.requested_at DESC LIMIT $3"
+        "{} WHERE r.tenant_id = $1 AND r.patient_id = $2 AND r.deleted_at IS NULL \
+          ORDER BY r.requested_at DESC LIMIT $3",
+        request_select()
     ))
     .bind(claims.tenant_id)
     .bind(patient_id)
@@ -162,4 +192,52 @@ pub async fn received_record(
     let row = row.ok_or(AppError::NotFound)?;
     medbrains_authz_gate::require_patient_access(&state, &claims, row.patient_id).await?;
     Ok(Json(row))
+}
+
+/// `GET /api/abdm/consent-requests?status=&page=&limit=` — the hospital's
+/// consent requests as an HIU.
+///
+/// Newest first, one page at a time, limited to the patients the caller may
+/// see. Expiry is derived on read, so a request nobody answered shows
+/// `expired` here without a job.
+///
+/// # Errors
+/// 403 without `abdm.consent.list`; 400 for an unknown status; 503 when the
+/// patients the caller may see cannot be resolved — never an empty page.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
+pub async fn list_requests(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(page): Query<Pagination>,
+    Query(filter): Query<ConsentListFilter>,
+) -> Result<Json<Paginated<AbdmConsentRequest>>, AppError> {
+    require_permission(&claims, permissions::abdm::consent::LIST)?;
+    let status = filter.status.filter(|s| !s.is_empty());
+    if status.as_deref().is_some_and(|s| !STATUSES.contains(&s)) {
+        return Err(AppError::BadRequest("unknown consent status".to_owned()));
+    }
+    let visible = medbrains_authz_gate::visible_patient_ids(&state, &claims).await?;
+    let filter_sql = all_filter();
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
+    let total = sqlx::query_scalar::<_, i64>(&format!(
+        "SELECT count(*) FROM abdm_consent_requests r {filter_sql}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(status.as_deref())
+    .bind(visible.as_deref())
+    .fetch_one(&mut *tx)
+    .await?;
+    let rows = sqlx::query_as::<_, AbdmConsentRequest>(&format!(
+        "{} {filter_sql} ORDER BY r.requested_at DESC, r.id LIMIT $4 OFFSET $5",
+        request_select()
+    ))
+    .bind(claims.tenant_id)
+    .bind(status.as_deref())
+    .bind(visible.as_deref())
+    .bind(page.limit())
+    .bind(page.offset())
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(Paginated::new(rows, total, &page)))
 }

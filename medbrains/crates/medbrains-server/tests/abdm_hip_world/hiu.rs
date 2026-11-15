@@ -95,7 +95,13 @@ pub fn answer_synchronously(
     statuses
 }
 
+/// A doctor asks for OP consultations.
 pub async fn raise(w: &World) -> Value {
+    raise_for(w, &["OPConsultation"]).await
+}
+
+/// A doctor asks for `hi_types`, 2020 to now, kept 30 days.
+pub async fn raise_for(w: &World, hi_types: &[&str]) -> Value {
     w.app
         .client
         .post(w.app.url(&format!(
@@ -103,11 +109,9 @@ pub async fn raise(w: &World) -> Value {
             w.patient_id
         )))
         .header("x-csrf-token", &w.csrf)
-        .json(
-            &json!({ "purpose_code": "CAREMGT", "hi_types": ["OPConsultation"],
+        .json(&json!({ "purpose_code": "CAREMGT", "hi_types": hi_types,
             "date_from": "2020-01-01T00:00:00Z", "date_to": Utc::now().to_rfc3339(),
-            "data_erase_at": (Utc::now() + Duration::days(30)).to_rfc3339() }),
-        )
+            "data_erase_at": (Utc::now() + Duration::days(30)).to_rfc3339() }))
         .send()
         .await
         .expect("raise")
@@ -119,6 +123,11 @@ pub async fn raise(w: &World) -> Value {
 /// Raise and let ABDM accept it; returns ABDM's consent-request id.
 pub async fn accepted(w: &World) -> String {
     raise(w).await;
+    accept_last(w).await
+}
+
+/// ABDM's on-init for the last request raised; returns its consent-request id.
+pub async fn accept_last(w: &World) -> String {
     let init = w.last(paths::CONSENT_INIT_PATH);
     let consent_request = format!("cr-{}", Uuid::new_v4());
     let body = json!({ "consentRequest": { "id": consent_request },
@@ -157,14 +166,24 @@ pub async fn notify_granted(w: &World, consent_request: &str) -> String {
 /// ABDM's on-fetch brings the artefact; returns the health-information
 /// request it was answered with.
 pub async fn on_fetch(w: &World, artefact: &str) -> Call {
+    let permission = json!({ "accessMode": "VIEW", "dateRange": { "from": "2000-01-01T00:00:00.000Z",
+        "to": "2100-01-01T00:00:00.000Z" }, "dataEraseAt": "2100-01-01T00:00:00.000Z" });
+    on_fetch_granting(w, artefact, &["OPConsultation", "Invoice"], permission).await
+}
+
+/// On-fetch with the scope the patient granted: `hi_types` and `permission`.
+pub async fn on_fetch_granting(
+    w: &World,
+    artefact: &str,
+    hi_types: &[&str],
+    permission: Value,
+) -> Call {
     let fetch = w.last(paths::CONSENT_FETCH_PATH);
     let on_fetch = json!({ "consent": { "status": "GRANTED", "signature": "sig", "consentDetail": {
         "consentId": artefact, "hip": { "id": "OTHER-HIP", "name": "City Hospital" },
-        "hiu": { "id": w.hip_id }, "patient": { "id": w.address },
-        "hiTypes": ["OPConsultation", "Invoice"],
+        "hiu": { "id": w.hip_id }, "patient": { "id": w.address }, "hiTypes": hi_types,
         "careContexts": [{ "patientReference": "P1", "careContextReference": REMOTE_CONTEXT }],
-        "permission": { "accessMode": "VIEW", "dateRange": { "from": "2000-01-01T00:00:00.000Z",
-            "to": "2100-01-01T00:00:00.000Z" }, "dataEraseAt": "2100-01-01T00:00:00.000Z" } } },
+        "permission": permission } },
         "response": { "requestId": header(&fetch, "request-id") } });
     let status = hiu_callback(w, paths::CB_HIU_CONSENT_ON_FETCH, &w.gateway_key, on_fetch).await;
     assert_eq!(status, StatusCode::ACCEPTED);

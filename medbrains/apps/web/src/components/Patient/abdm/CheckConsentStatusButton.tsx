@@ -11,7 +11,8 @@ interface CheckConsentStatusButtonProps {
 
 /**
  * Ask ABDM where a consent request stands, for one whose answer never
- * arrived. The status changes when ABDM replies; the list reloads either way.
+ * arrived. The status changes when ABDM replies; the patient's list and the
+ * hospital-wide list reload either way.
  */
 export function CheckConsentStatusButton({ patientId, requestId }: CheckConsentStatusButtonProps) {
   const qc = useQueryClient();
@@ -23,6 +24,7 @@ export function CheckConsentStatusButton({ patientId, requestId }: CheckConsentS
     onError: (e: Error) => toast.error(e.message, { title: "Could not check the status" }),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["abdm", "received-records", patientId] });
+      void qc.invalidateQueries({ queryKey: ["abdm", "consent-requests"] });
     },
   });
   return (

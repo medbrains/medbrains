@@ -1365,6 +1365,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "abdm.dashboard.view",
       },
       {
+        i18nKey: "abdmConsentRequests",
+        path: "/abdm/consent-requests",
+        icon: "IconFileCertificate",
+        requiredPermission: "abdm.consent.list",
+      },
+      {
         i18nKey: "analytics",
         moduleCode: "reports",
         path: "/analytics",

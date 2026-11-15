@@ -462,6 +462,9 @@ const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.A
 const AbdmDashboardPage = lazy(() =>
   import("./pages/abdm/dashboard").then((m) => ({ default: m.AbdmDashboardPage })),
 );
+const AbdmConsentRequestsPage = lazy(() =>
+  import("./pages/abdm/consent-requests").then((m) => ({ default: m.AbdmConsentRequestsPage })),
+);
 const SnomedPage = lazy(() =>
   import("./pages/terminology/snomed").then((m) => ({ default: m.SnomedPage })),
 );
@@ -647,6 +650,7 @@ export function AuthedRoutes() {
         <Route path="audit" element={<AuditPage />} />
         <Route path="terminology/snomed" element={<SnomedPage />} />
         <Route path="abdm/dashboard" element={<AbdmDashboardPage />} />
+        <Route path="abdm/consent-requests" element={<AbdmConsentRequestsPage />} />
         <Route path="regulatory" element={<RegulatoryPage />} />
         <Route path="privacy-compliance" element={<PrivacyCompliancePage />} />
         <Route path="privacy-compliance/notice" element={<PrivacyNoticePrintPage />} />

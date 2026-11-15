@@ -1,5 +1,5 @@
 import { api } from "@medbrains/api";
-import type { RaiseAbdmConsentRequest } from "@medbrains/types";
+import type { AbdmConsentRequestStatus, RaiseAbdmConsentRequest } from "@medbrains/types";
 
 /** ABDM records shared as a Health Information Provider, and received as a User. */
 export const abdmRecordsService = {
@@ -10,6 +10,8 @@ export const abdmRecordsService = {
   dashboard: (month?: string) => api.getAbdmDashboard(month),
   raiseConsentRequest: (patientId: string, data: RaiseAbdmConsentRequest) =>
     api.raiseAbdmConsentRequest(patientId, data),
+  consentRequests: (params: { status?: AbdmConsentRequestStatus; page: number }) =>
+    api.listAbdmConsentRequests(params),
   checkConsentStatus: (id: string) => api.checkAbdmConsentRequestStatus(id),
   receivedRecords: (patientId: string) => api.getAbdmReceivedRecords(patientId),
   receivedRecord: (id: string) => api.getAbdmReceivedRecord(id),

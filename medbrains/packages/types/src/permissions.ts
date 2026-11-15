@@ -26,9 +26,11 @@ export const P = {
     },
     BRIDGE_REGISTER: "abdm.bridge.register",
     CONSENT: {
+      LIST: "abdm.consent.list",
       REQUEST: "abdm.consent.request",
       VIEW: "abdm.consent.view",
     },
+    CONSENT_LIST: "abdm.consent.list",
     CONSENT_REQUEST: "abdm.consent.request",
     CONSENT_VIEW: "abdm.consent.view",
     DASHBOARD: {

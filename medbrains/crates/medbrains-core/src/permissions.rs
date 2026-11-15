@@ -4585,6 +4585,12 @@ pub mod abdm {
         /// The consent requests raised for a patient and the records other
         /// facilities sent under them, until the consent is revoked or expires.
         pub const VIEW: &str = "abdm.consent.view";
+        /// List consent requests across the hospital.
+        ///
+        /// Every consent request this hospital raised as an HIU, newest
+        /// first and filterable by status, with each patient's ABHA number
+        /// and address — limited to the patients the user may see.
+        pub const LIST: &str = "abdm.consent.list";
     }
     /// ABDM Scan & Share: patients scan a counter's QR with their ABHA app
     /// and share their profile instead of queueing to register.
