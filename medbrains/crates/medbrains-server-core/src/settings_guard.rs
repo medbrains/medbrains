@@ -84,9 +84,52 @@ pub fn refuse_admin_only_category(claims: &Claims, category: &str) -> Result<(),
     )))
 }
 
+/// Keys under `locale` that make up the locale profile (RFC-WORLD-READY
+/// §2.2). The same list the database guard holds (`locale_profile_keys()`,
+/// migration 1462); `locale/date_format` is not one of them.
+pub const LOCALE_PROFILE_KEYS: &[&str] = &[
+    "country",
+    "region",
+    "pack_version",
+    "currency",
+    "locale",
+    "languages",
+    "timezone",
+    "calendars",
+    "hour_cycle",
+    "week_start",
+    "fiscal_year_start",
+    "name_order",
+];
+
+/// Refuse a generic write of a locale-profile key with a 400 naming the screen.
+///
+/// Those values change only through a change set a second person approves;
+/// the database refuses the rest too, this says so before it tries.
+///
+/// # Errors
+/// [`AppError::BadRequest`] for `locale/<profile key>`.
+pub fn refuse_locale_profile_key(category: &str, key: &str) -> Result<(), AppError> {
+    if category.trim() == "locale" && LOCALE_PROFILE_KEYS.contains(&key.trim()) {
+        return Err(AppError::BadRequest(format!(
+            "'locale/{}' is part of the locale profile; change it in Settings, Locale profile",
+            key.trim()
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn locale_profile_keys_are_refused_but_date_format_is_not() {
+        assert!(refuse_locale_profile_key("locale", "currency").is_err());
+        assert!(refuse_locale_profile_key(" locale ", "timezone ").is_err());
+        assert!(refuse_locale_profile_key("locale", "date_format").is_ok());
+        assert!(refuse_locale_profile_key("units", "currency").is_ok());
+    }
 
     #[test]
     fn secret_bearing_categories_are_refused_and_ordinary_ones_pass() {

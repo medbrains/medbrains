@@ -1,6 +1,10 @@
 /** Knowledge change sets (`/api/knowledge`), RFC-KNOWLEDGE-CHANGE-SETS. */
 
-export type KnowledgeArea = "drug_interactions" | "critical_value_rules" | "flow_switches";
+export type KnowledgeArea =
+  | "drug_interactions"
+  | "critical_value_rules"
+  | "flow_switches"
+  | "locale_profile";
 
 export type KnowledgeChangeStatus =
   | "draft"
@@ -38,7 +42,10 @@ export interface KnowledgeImpactReport {
 
 /** A row's editable fields, as the area stores them. */
 /** A row's editable fields; a flow track (`track`) is a list of stations. */
-export type KnowledgeRowFields = Record<string, string | number | boolean | null | object[]>;
+export type KnowledgeRowFields = Record<
+  string,
+  string | number | boolean | null | object[] | string[] | { [key: string]: unknown }
+>;
 
 export interface KnowledgeChangeSet {
   id: string;

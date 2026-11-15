@@ -1,0 +1,24 @@
+[package]
+name = "medbrains-country"
+publish = false
+description = "Country packs and the tenant locale profile (RFC-WORLD-READY): pack loading, the security and compliance floor every pack must meet, and profile resolution user › facility › hospital › pack"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+medbrains-kernel = { path = "../medbrains-kernel" }
+# Already in the lockfile (through idna); parses BCP 47 tags the way the
+# browsers' Intl will, so a tag the server accepts never breaks a screen.
+icu_locale_core = { version = "2.4", features = ["alloc"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+toml = "0.8"
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

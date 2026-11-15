@@ -10,6 +10,7 @@ export const AREA_LABEL: Record<KnowledgeArea, string> = {
   drug_interactions: "Drug interactions",
   critical_value_rules: "Critical lab values",
   flow_switches: "Flow switches",
+  locale_profile: "Locale profile",
 };
 
 export const STATUS: Record<KnowledgeChangeStatus, { label: string; tone: BadgeTone }> = {
@@ -89,18 +90,35 @@ export const AREA_FIELDS: Record<KnowledgeArea, FieldDef[]> = {
     { key: "tpa_before_billing", label: "Insurance patients need TPA clearance", kind: "text" },
     { key: "final_signoff", label: "Who signs off the final discharge", kind: "text" },
   ],
+  // Drafted on Settings → Locale profile, never in the generic editor.
+  locale_profile: [
+    { key: "country", label: "Country", kind: "text" },
+    { key: "region", label: "Region", kind: "text" },
+    { key: "currency", label: "Currency", kind: "text" },
+    { key: "timezone", label: "Time zone", kind: "text" },
+    { key: "locale", label: "Formatting locale", kind: "text" },
+    { key: "languages", label: "Languages", kind: "text" },
+    { key: "calendars", label: "Calendars", kind: "text" },
+    { key: "hour_cycle", label: "Clock", kind: "text" },
+    { key: "week_start", label: "Week starts on", kind: "text" },
+    { key: "fiscal_year_start", label: "Fiscal year starts (month)", kind: "number" },
+    { key: "name_order", label: "Name order", kind: "text" },
+  ],
 };
 
 /** Fields shown in diffs but never edited in the row form: a flow's track
- * is built on the Build tab, not typed here. */
+ * is built on the Build tab, not typed here; a locale profile is changed on
+ * Settings → Locale profile. */
 export const DIFF_ONLY_FIELDS: Partial<Record<KnowledgeArea, FieldDef[]>> = {
   flow_switches: [{ key: "track", label: "Track (stations in order)", kind: "text" }],
+  locale_profile: [{ key: "scope_name", label: "Scope", kind: "text" }],
 };
 
 /** A short name for a row, for lists and diffs. */
 export function rowTitle(area: KnowledgeArea, fields: Record<string, unknown> | null): string {
   if (!fields) return "—";
   if (area === "flow_switches") return String(fields.flow_code ?? "");
+  if (area === "locale_profile") return String(fields.scope_name ?? fields.scope_id ?? "");
   return area === "drug_interactions"
     ? `${String(fields.drug_a_name ?? "")} + ${String(fields.drug_b_name ?? "")}`
     : `${String(fields.test_name ?? "")} (${String(fields.test_code ?? "")})`;

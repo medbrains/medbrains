@@ -12,9 +12,40 @@ export interface LocaleConfig {
   weight_unit: WeightUnit;
   height_unit: HeightUnit;
   date_format: string;
-  currency: string;
-  timezone: string;
-  locale: string;
+}
+
+/** Where a profile field's value came from, most specific first. */
+export type LocaleProfileSource = "user" | "facility" | "hospital" | "pack";
+
+/** The profile fields (RFC-WORLD-READY §2.2), stored at `locale/<key>`. */
+export interface LocaleProfileValues {
+  country?: string;
+  region?: string;
+  pack_version?: string;
+  currency?: string;
+  locale?: string;
+  languages?: string[];
+  timezone?: string;
+  calendars?: { primary: string; also: string[] };
+  hour_cycle?: "h12" | "h23";
+  week_start?: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+  fiscal_year_start?: number;
+  name_order?: "given_family" | "family_given";
+}
+
+/**
+ * The resolved locale profile `/api/auth/me` serves: user › facility ›
+ * hospital › country pack. A field in `missing` has no value anywhere and is
+ * rendered neutrally (ISO code, UTC labelled), never guessed.
+ */
+export interface LocaleProfile {
+  /** The pack in force: the country's, or `world`. */
+  pack: string;
+  values: LocaleProfileValues;
+  sources: Partial<Record<keyof LocaleProfileValues, LocaleProfileSource>>;
+  missing: (keyof LocaleProfileValues)[];
+  units: Record<string, unknown>;
+  date_format: string | null;
 }
 
 export interface GeoState {

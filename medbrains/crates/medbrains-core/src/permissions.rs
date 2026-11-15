@@ -3637,6 +3637,20 @@ pub mod admin {
         pub const VIEW: &str = "admin.kernel.view";
     }
 
+    /// The hospital's locale profile (RFC-WORLD-READY §2): its country,
+    /// money, time zone and formatting, for the hospital and each facility.
+    pub mod locale_profile {
+        /// Propose changes to the locale profile.
+        ///
+        /// Draft a change to the hospital's or a facility's country, region,
+        /// currency, time zone, language, calendar or fiscal year. The change
+        /// switches regulatory rules, so a second person approves it before it
+        /// applies, and it is audited with the values before and after. Held
+        /// by the hospital administrator only; kept apart from the general
+        /// settings code so it is never held by accident.
+        pub const UPDATE: &str = "admin.locale_profile.update";
+    }
+
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
     pub mod system_state {
         pub const VIEW: &str = "admin.system_state.view";

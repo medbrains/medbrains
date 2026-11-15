@@ -40,6 +40,7 @@ medbrains-communications not_yet 45 medbrains-db
 medbrains-community-health not_yet 45 medbrains-db
 medbrains-connected-apps on_facade 0 -
 medbrains-consent not_yet 31 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-country on_facade 0 -
 medbrains-crypto not_yet 0 -
 medbrains-cssd not_yet 52 medbrains-db
 medbrains-custom-code not_yet 9 medbrains-db

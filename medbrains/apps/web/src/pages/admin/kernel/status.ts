@@ -75,11 +75,14 @@ export function authzStatus(backend: string): CheckStatus {
       };
 }
 
+/** The settings resolver's scopes, most specific first, as a status line. */
 export function configStatus(scopes: string[]): CheckStatus {
   return {
     label: `${scopes.join(" › ")} scope`,
     tone: "info",
     detail:
-      "Settings resolve at this level only. Ward, department, campus and user levels arrive with the settings tree.",
+      scopes.length > 1
+        ? "Most specific first. The locale profile reads every level listed; other settings move behind it with the settings tree."
+        : "Settings resolve at this level only. Ward, department, campus and user levels arrive with the settings tree.",
   };
 }

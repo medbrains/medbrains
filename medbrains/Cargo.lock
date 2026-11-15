@@ -4364,6 +4364,7 @@ checksum = "25d29b57c17c6528d0dc4c2141cfa2d08200465acb537a3909c8b9b8a4a984c0"
 dependencies = [
  "displaydoc",
  "litemap",
+ "serde",
  "tinystr",
  "writeable",
  "zerovec",
@@ -5849,6 +5850,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hex",
  "medbrains-core",
+ "medbrains-country",
  "medbrains-db",
  "medbrains-mfa",
  "medbrains-outbox",
@@ -6285,6 +6287,21 @@ dependencies = [
  "sqlx",
  "tempfile",
  "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "medbrains-country"
+version = "3.33.2"
+dependencies = [
+ "icu_locale_core",
+ "medbrains-kernel",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "toml 0.8.2",
+ "tracing",
  "uuid",
 ]
 
@@ -7119,6 +7136,7 @@ dependencies = [
  "jsonwebtoken",
  "medbrains-authz",
  "medbrains-core",
+ "medbrains-country",
  "medbrains-db",
  "medbrains-db-topology",
  "medbrains-lab",
@@ -8270,6 +8288,7 @@ dependencies = [
  "medbrains-connected-apps",
  "medbrains-consent",
  "medbrains-core",
+ "medbrains-country",
  "medbrains-crypto",
  "medbrains-cssd",
  "medbrains-custom-code",
@@ -13607,6 +13626,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abc840c238154d58f9e86b2792261edfde565a17696e1cda1a449de27979801a"
 dependencies = [
  "displaydoc",
+ "serde_core",
  "zerovec",
 ]
 
@@ -15691,6 +15711,7 @@ version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f58a2799cfe9a1670c7ea8edbd52ef8edb93cb37a7f83bf31ba9e35d9dae6a40"
 dependencies = [
+ "serde",
  "yoke",
  "zerofrom",
  "zerovec-derive",

@@ -1018,8 +1018,32 @@ pub struct MeResponse {
     /// A rule every user is subject to, so every user reads it here; the
     /// security settings themselves stay admin-only.
     pub restrict_copy: bool,
+    /// How this user's screens format money, dates, times and numbers
+    /// (RFC-WORLD-READY §2.3), resolved user › facility › hospital › pack.
+    /// `None` means it could not be resolved: the client renders neutrally
+    /// and says so, never with a guessed country.
+    pub locale_profile: Option<medbrains_country::LocaleProfile>,
 }
 
+/// The user's resolved locale profile, or `None` when the pack registry
+/// failed to load (a fault the client shows, not a value). A database error
+/// still fails the request like every other read here.
+async fn locale_profile_for(
+    tx: &mut sqlx::PgConnection,
+    claims: &Claims,
+) -> Result<Option<medbrains_country::LocaleProfile>, AppError> {
+    match medbrains_country::for_user(tx, claims.tenant_id, claims.sub).await {
+        Ok(profile) => Ok(Some(profile)),
+        Err(medbrains_country::CountryError::Db(e)) => Err(e.into()),
+        Err(medbrains_country::CountryError::Pack(e)) => {
+            tracing::error!(error = %e, "country packs did not load; locale profile unavailable");
+            Ok(None)
+        }
+    }
+}
+
+/// `GET /api/auth/me`: who the session is, what they may do, and how their
+/// screens format, in one round trip.
 pub async fn me(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1062,6 +1086,7 @@ pub async fn me(
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
+    let locale_profile = locale_profile_for(&mut tx, &claims).await?;
 
     tx.commit().await?;
 
@@ -1117,6 +1142,7 @@ pub async fn me(
         mfa_enrollment_required,
         disabled_modules,
         restrict_copy,
+        locale_profile,
     }))
 }
 

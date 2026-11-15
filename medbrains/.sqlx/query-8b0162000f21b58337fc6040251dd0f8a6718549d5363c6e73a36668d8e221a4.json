@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tenant_settings SET deleted_at = now(), delete_reason = 'locale profile change set' WHERE tenant_id = $1 AND category = 'locale' AND key = ANY($2) AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8b0162000f21b58337fc6040251dd0f8a6718549d5363c6e73a36668d8e221a4"
+}

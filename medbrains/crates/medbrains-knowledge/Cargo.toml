@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-country = { path = "../medbrains-country" }
 medbrains-lab = { path = "../medbrains-lab" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-sop-flows = { path = "../medbrains-sop-flows" }

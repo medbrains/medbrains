@@ -1465,6 +1465,7 @@ import type {
   LmsLearningPathCourse,
   LmsQuiz,
   LmsQuizQuestion,
+  LocaleProfile,
   LocationDirectoryRow,
   LocationRow,
   LocationStockSummary,
@@ -3214,6 +3215,8 @@ export interface MeResponse {
   disabled_modules: string[];
   /** The tenant restricts copying data out of the app (enforced by the DLP guard). */
   restrict_copy: boolean;
+  /** How this user's screens format; `null` when it could not be resolved. */
+  locale_profile: LocaleProfile | null;
 }
 
 export interface RefreshResponse {

@@ -1,6 +1,6 @@
 import type { KnowledgeChangeItem, KnowledgeImpactReport } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { diffItem, groupImpact, impactChips } from "./diff";
+import { diffItem, groupImpact, impactChips, showValue } from "./diff";
 
 const rule = {
   drug_a_name: "Warfarin",
@@ -77,5 +77,15 @@ describe("impact is grouped safety first and never hides a floor", () => {
 
   it("has no chips before a preview, rather than claiming no impact", () => {
     expect(impactChips(null)).toEqual([]);
+  });
+});
+
+describe("showValue on a locale profile", () => {
+  it("joins language codes and names the calendars beside Gregorian", () => {
+    expect(showValue(["ar", "en"])).toBe("ar, en");
+    expect(showValue({ primary: "gregory", also: ["islamic-umalqura"] })).toBe(
+      "Gregorian, also islamic-umalqura",
+    );
+    expect(showValue({ primary: "gregory", also: [] })).toBe("Gregorian");
   });
 });

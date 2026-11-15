@@ -21,7 +21,8 @@ use medbrains_server_core::{
     middleware::auth::Claims,
     middleware::authorization::require_permission,
     settings_guard::{
-        OWN_ENDPOINT_CATEGORIES, refuse_admin_only_category, refuse_own_endpoint_category,
+        OWN_ENDPOINT_CATEGORIES, refuse_admin_only_category, refuse_locale_profile_key,
+        refuse_own_endpoint_category,
     },
     state::AppState,
 };
@@ -171,6 +172,11 @@ pub async fn import_config(
             // An unchanged sign-in policy re-imports, so an exported bundle
             // still round-trips; changing it needs a bypass administrator.
             refuse_admin_only_category(&claims, &entry.category)?;
+            // First set (a new hospital) imports; changing a profile value
+            // needs its change set.
+            if action == "update" {
+                refuse_locale_profile_key(&entry.category, &entry.key)?;
+            }
             diff.push(DiffEntry {
                 kind: "setting",
                 item: format!("{}/{}", entry.category, entry.key),

@@ -13,6 +13,7 @@ import {
   IconHash,
   IconHeartbeat,
   IconHeartRateMonitor,
+  IconLanguage,
   IconMapPin,
   IconMedicalCross,
   IconMicrophone,
@@ -58,6 +59,7 @@ import { FacilitiesSettings } from "@/pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "@/pages/admin/settings/GeneralSettings";
 import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
 import { Hl7AdtSettings } from "@/pages/admin/settings/Hl7AdtSettings";
+import { LocaleProfileSettings } from "@/pages/admin/settings/LocaleProfileSettings";
 import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
@@ -186,6 +188,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconRuler2",
     requiredPermission: "admin.settings.general.manage",
     component: UnitsLocaleSettings,
+  },
+  {
+    value: "locale-profile",
+    i18nKey: "settings.localeProfile",
+    icon: "IconLanguage",
+    requiredPermission: "admin.locale_profile.update",
+    component: LocaleProfileSettings,
   },
   {
     value: "facilities",
@@ -449,6 +458,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 ];
 
 export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
+  IconLanguage,
   IconMicrophone,
   IconBinaryTree,
   IconClockCog,

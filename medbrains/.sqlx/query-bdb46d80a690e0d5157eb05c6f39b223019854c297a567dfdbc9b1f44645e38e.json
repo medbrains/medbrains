@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE scoped_settings SET deleted_at = now(), delete_reason = 'locale profile change set' WHERE tenant_id = $1 AND scope = 'facility' AND scope_id = $2 AND category = 'locale' AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bdb46d80a690e0d5157eb05c6f39b223019854c297a567dfdbc9b1f44645e38e"
+}

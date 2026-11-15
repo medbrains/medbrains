@@ -1,0 +1,37 @@
+# The base pack (RFC-WORLD-READY §3.1, §1a): what a hospital gets in a country
+# that has no pack yet. It is the security and compliance floor itself plus
+# nothing, and it does not pretend to know the country: no currency, no time
+# zone and no country are assumed, so onboarding must choose them.
+
+[pack]
+id = "world"
+name = "World (no country pack yet)"
+version = "1.0.0"
+# "built_for" until an authority certifies a pack (#4917); never "certified".
+status = "built_for"
+
+[defaults]
+locale = "en"
+languages = ["en"]
+timezones = []
+calendars = { primary = "gregory", also = [] }
+fiscal_year_start = 1
+name_order = "given_family"
+
+[rules]
+audit_append_only = true
+audit_phi_reads = true
+consent_required = true
+encryption_at_rest = true
+encryption_in_transit = true
+ai_per_item_accept = true
+
+[rules.retention_years]
+medical_record = 3
+audit_log = 3
+
+[[rules.controlled_schedules]]
+code = "controlled"
+label = "Controlled medicine"
+controlled = true
+gates = ["rx_required", "dual_sign", "register_entry"]

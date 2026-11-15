@@ -20,6 +20,7 @@ use crate::critical_values::CriticalValues;
 use crate::flow_switches::FlowSwitches;
 use crate::flows::{self, Applied};
 use crate::interactions::DrugInteractions;
+use crate::locale_profile::LocaleProfile;
 use crate::model::{
     Area, KnowledgeChangeSet, KnowledgeChangeSetDetail, KnowledgeLiveRow, NewKnowledgeChangeSet, Op,
 };
@@ -33,6 +34,7 @@ macro_rules! by_area {
             Area::DrugInteractions => $($f)::+::<DrugInteractions>($($arg),*).await,
             Area::CriticalValueRules => $($f)::+::<CriticalValues>($($arg),*).await,
             Area::FlowSwitches => $($f)::+::<FlowSwitches>($($arg),*).await,
+            Area::LocaleProfile => $($f)::+::<LocaleProfile>($($arg),*).await,
         }
     };
 }
@@ -43,6 +45,7 @@ const fn manage(area: Area) -> &'static [&'static str] {
         Area::DrugInteractions => DrugInteractions::MANAGE,
         Area::CriticalValueRules => CriticalValues::MANAGE,
         Area::FlowSwitches => FlowSwitches::MANAGE,
+        Area::LocaleProfile => LocaleProfile::MANAGE,
     }
 }
 
@@ -51,6 +54,7 @@ const fn kind(area: Area) -> &'static str {
         Area::DrugInteractions => DrugInteractions::KIND,
         Area::CriticalValueRules => CriticalValues::KIND,
         Area::FlowSwitches => FlowSwitches::KIND,
+        Area::LocaleProfile => LocaleProfile::KIND,
     }
 }
 
@@ -147,6 +151,11 @@ pub async fn create(
     if body.area == Area::FlowSwitches && body.items.iter().any(|i| i.op != Op::Update) {
         return Err(AppError::BadRequest(
             "Switch settings are changed, never added or removed".to_owned(),
+        ));
+    }
+    if body.area == Area::LocaleProfile && body.items.iter().any(|i| i.op != Op::Update) {
+        return Err(AppError::BadRequest(
+            "A locale profile is changed, never added or removed".to_owned(),
         ));
     }
     if body.title.trim().is_empty() || body.reason.trim().is_empty() {
@@ -320,8 +329,14 @@ pub async fn apply(
     require_permission(claims, permissions::knowledge::change_sets::APPLY)?;
     let mut tx = begin(pool, claims).await?;
     let set = store::load_set(&mut tx, claims.tenant_id, id, true).await?;
-    if area_of(&set)? == Area::FlowSwitches {
-        require_permission(claims, permissions::flows::PUBLISH)?;
+    match area_of(&set)? {
+        Area::FlowSwitches => require_permission(claims, permissions::flows::PUBLISH)?,
+        // Switching a hospital's country switches its regulatory rules: only
+        // the hospital administrator applies it, after a second person approved.
+        Area::LocaleProfile => {
+            require_permission(claims, permissions::admin::locale_profile::UPDATE)?;
+        }
+        Area::DrugInteractions | Area::CriticalValueRules => {}
     }
     if set.status != "approved" {
         return Err(AppError::Conflict(format!(

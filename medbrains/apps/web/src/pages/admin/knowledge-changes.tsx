@@ -60,9 +60,10 @@ export function KnowledgeChangesPage() {
     canRollback: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.ROLLBACK),
     canDraft: canCreate && (manageInteractions || manageCriticals || canSwitch),
   };
-  // Flow switches are proposed from the switchboard, not this editor.
+  // Flow switches are proposed from the switchboard and the locale profile
+  // from Settings, not this editor.
   const draftAreas = AREAS.filter((a) =>
-    a === "flow_switches"
+    a === "flow_switches" || a === "locale_profile"
       ? false
       : a === "drug_interactions"
         ? manageInteractions
@@ -92,7 +93,7 @@ export function KnowledgeChangesPage() {
     <Stack gap="md">
       <PageHeader
         title="Knowledge changes"
-        subtitle="Drug interactions and critical lab values: preview who a change affects, approve, apply, roll back"
+        subtitle="Drug interactions, critical lab values, flow switches and the locale profile: preview who a change affects, approve, apply, roll back"
         actions={
           can.canDraft && draftAreas.length > 0 ? (
             <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={editor.open}>

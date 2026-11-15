@@ -1,64 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Group, Loader, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { type GeneralSettingsFormInput, generalSettingsFormSchema } from "@medbrains/schemas";
 import type { TenantSummary } from "@medbrains/types";
 import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
+import { Link } from "react-router";
 import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
-
-const TIMEZONE_OPTIONS = [
-  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST, UTC+5:30)" },
-  { value: "Asia/Dhaka", label: "Asia/Dhaka (BST, UTC+6:00)" },
-  { value: "Asia/Karachi", label: "Asia/Karachi (PKT, UTC+5:00)" },
-  { value: "Asia/Colombo", label: "Asia/Colombo (IST, UTC+5:30)" },
-  { value: "Asia/Kathmandu", label: "Asia/Kathmandu (NPT, UTC+5:45)" },
-  { value: "Asia/Dubai", label: "Asia/Dubai (GST, UTC+4:00)" },
-  { value: "Asia/Singapore", label: "Asia/Singapore (SGT, UTC+8:00)" },
-  { value: "Asia/Tokyo", label: "Asia/Tokyo (JST, UTC+9:00)" },
-  { value: "Asia/Shanghai", label: "Asia/Shanghai (CST, UTC+8:00)" },
-  { value: "Europe/London", label: "Europe/London (GMT/BST, UTC+0/+1)" },
-  { value: "Europe/Berlin", label: "Europe/Berlin (CET, UTC+1:00)" },
-  { value: "America/New_York", label: "America/New_York (EST, UTC-5:00)" },
-  { value: "America/Chicago", label: "America/Chicago (CST, UTC-6:00)" },
-  { value: "America/Los_Angeles", label: "America/Los_Angeles (PST, UTC-8:00)" },
-  { value: "Africa/Nairobi", label: "Africa/Nairobi (EAT, UTC+3:00)" },
-  { value: "Australia/Sydney", label: "Australia/Sydney (AEST, UTC+10:00)" },
-  { value: "Pacific/Auckland", label: "Pacific/Auckland (NZST, UTC+12:00)" },
-  { value: "UTC", label: "UTC (Coordinated Universal Time)" },
-];
-
-const CURRENCY_OPTIONS = [
-  { value: "INR", label: "INR - Indian Rupee" },
-  { value: "USD", label: "USD - US Dollar" },
-  { value: "GBP", label: "GBP - British Pound" },
-  { value: "EUR", label: "EUR - Euro" },
-  { value: "AED", label: "AED - UAE Dirham" },
-  { value: "BDT", label: "BDT - Bangladeshi Taka" },
-  { value: "PKR", label: "PKR - Pakistani Rupee" },
-  { value: "LKR", label: "LKR - Sri Lankan Rupee" },
-  { value: "NPR", label: "NPR - Nepalese Rupee" },
-  { value: "SGD", label: "SGD - Singapore Dollar" },
-  { value: "AUD", label: "AUD - Australian Dollar" },
-];
-
-const MONTH_OPTIONS = [
-  { value: "1", label: "January" },
-  { value: "2", label: "February" },
-  { value: "3", label: "March" },
-  { value: "4", label: "April" },
-  { value: "5", label: "May" },
-  { value: "6", label: "June" },
-  { value: "7", label: "July" },
-  { value: "8", label: "August" },
-  { value: "9", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" },
-];
 
 const EMPTY_FORM: GeneralSettingsFormInput = {
   address_line1: "",
@@ -70,9 +21,6 @@ const EMPTY_FORM: GeneralSettingsFormInput = {
   website: "",
   registration_no: "",
   accreditation: "",
-  timezone: "Asia/Kolkata",
-  currency: "INR",
-  fy_start_month: "4",
   custom_domain: "",
 };
 
@@ -87,9 +35,6 @@ function tenantToFormState(tenant: TenantSummary): GeneralSettingsFormInput {
     website: tenant.website ?? "",
     registration_no: tenant.registration_no ?? "",
     accreditation: tenant.accreditation ?? "",
-    timezone: tenant.timezone,
-    currency: tenant.currency,
-    fy_start_month: String(tenant.fy_start_month),
     custom_domain: tenant.custom_domain ?? "",
   };
 }
@@ -105,9 +50,6 @@ function formStateToPayload(form: GeneralSettingsFormInput): Partial<TenantSumma
     website: form.website.trim() || null,
     registration_no: form.registration_no.trim() || null,
     accreditation: form.accreditation.trim() || null,
-    timezone: form.timezone,
-    currency: form.currency,
-    fy_start_month: Number(form.fy_start_month),
     // Empty string clears the domain (backend NULLIFs it); a value sets it.
     custom_domain: form.custom_domain.trim(),
   };
@@ -127,7 +69,6 @@ export function GeneralSettings() {
   const formValues = useMemo(() => (tenant ? tenantToFormState(tenant) : EMPTY_FORM), [tenant]);
 
   const {
-    control,
     formState: { errors },
     handleSubmit,
     register,
@@ -289,56 +230,14 @@ export function GeneralSettings() {
       <Text fw={600} size="lg" mt="md">
         Regional & Financial
       </Text>
-
-      <Group grow align="flex-start">
-        <Controller
-          control={control}
-          name="timezone"
-          render={({ field }) => (
-            <Select
-              label="Timezone"
-              data={TIMEZONE_OPTIONS}
-              value={field.value}
-              onChange={(value) => field.onChange(value ?? "UTC")}
-              error={errors.timezone?.message}
-              searchable
-              allowDeselect={false}
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="currency"
-          render={({ field }) => (
-            <Select
-              label="Currency"
-              data={CURRENCY_OPTIONS}
-              value={field.value}
-              onChange={(value) => field.onChange(value ?? "INR")}
-              error={errors.currency?.message}
-              searchable
-              allowDeselect={false}
-            />
-          )}
-        />
-      </Group>
-
-      <Controller
-        control={control}
-        name="fy_start_month"
-        render={({ field }) => (
-          <Select
-            label="Financial Year Start Month"
-            description="The month when your hospital's financial year begins."
-            data={MONTH_OPTIONS}
-            value={field.value}
-            onChange={(value) => field.onChange(value ?? "4")}
-            error={errors.fy_start_month?.message}
-            allowDeselect={false}
-            maw={300}
-          />
-        )}
-      />
+      <Text size="sm">
+        Time zone {tenant.timezone}, currency {tenant.currency}, fiscal year from month{" "}
+        {tenant.fy_start_month}. These are part of the locale profile and change on{" "}
+        <Anchor component={Link} to="/admin/settings#locale-profile">
+          Locale profile
+        </Anchor>
+        , where a second person approves each change.
+      </Text>
 
       <Group mt="md">
         <Button

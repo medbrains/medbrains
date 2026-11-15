@@ -12,6 +12,8 @@ pub enum Area {
     CriticalValueRules,
     /// A hospital's switch settings on a library SOP flow (RFC-SOP-FLOWS).
     FlowSwitches,
+    /// The hospital's and its facilities' locale profile (RFC-WORLD-READY §2.4).
+    LocaleProfile,
 }
 
 impl Area {
@@ -21,6 +23,7 @@ impl Area {
             Self::DrugInteractions => "drug_interactions",
             Self::CriticalValueRules => "critical_value_rules",
             Self::FlowSwitches => "flow_switches",
+            Self::LocaleProfile => "locale_profile",
         }
     }
 
@@ -30,6 +33,7 @@ impl Area {
             "drug_interactions" => Some(Self::DrugInteractions),
             "critical_value_rules" => Some(Self::CriticalValueRules),
             "flow_switches" => Some(Self::FlowSwitches),
+            "locale_profile" => Some(Self::LocaleProfile),
             _ => None,
         }
     }

@@ -1,9 +1,11 @@
 //! Configuration: one resolver for settings by path.
 //!
 //! The RFC's tree (RFC-HOSPITAL-OS §3.1) resolves most specific scope first.
-//! K1 reads the **tenant-wide** scope only, from `tenant_settings` through
-//! [`setting_in`]; the narrower scopes arrive with K3. The path syntax is already the tree's: `category/key`, and
-//! deeper paths parse today (they simply find nothing until K3 stores them).
+//! [`get`] reads the **tenant-wide** scope, from `tenant_settings` through
+//! [`setting_in`]. [`categories_in`] also reads the facility and user scopes
+//! (`scoped_settings`), built first for the locale profile (RFC-WORLD-READY
+//! §2.2); the rest of the tree moves behind it with K3. The path syntax is
+//! already the tree's: `category/key`, and deeper paths parse today.
 
 use std::fmt;
 
@@ -13,8 +15,26 @@ use uuid::Uuid;
 
 use crate::{KernelError, Tx};
 
-/// Scopes the resolver consults today, most specific first.
-pub const RESOLVED_SCOPES: [&str; 1] = ["hospital"];
+/// Scopes the resolver consults, most specific first.
+pub const RESOLVED_SCOPES: [&str; 3] = ["user", "facility", "hospital"];
+
+/// The narrower scopes one caller sits in: their own user and the facility
+/// they work at. `None` skips that scope.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Scopes {
+    pub user: Option<Uuid>,
+    pub facility: Option<Uuid>,
+}
+
+/// One stored value and the scope that set it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedValue {
+    pub category: String,
+    pub key: String,
+    /// One of [`RESOLVED_SCOPES`].
+    pub scope: &'static str,
+    pub value: Value,
+}
 
 /// A parsed setting path: the first segment is the category, the rest the key.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +99,60 @@ pub async fn setting_in(
     .bind(key)
     .fetch_optional(conn)
     .await
+}
+
+/// The scope name for a rank `categories_in` sorts by (0 = most specific).
+const fn scope_name(rank: i32) -> &'static str {
+    match rank {
+        0 => RESOLVED_SCOPES[0],
+        1 => RESOLVED_SCOPES[1],
+        _ => RESOLVED_SCOPES[2],
+    }
+}
+
+/// Every live value of `categories` in the named scopes and the tenant-wide one.
+///
+/// Ordered by category and key, then most specific scope first, in one round
+/// trip however many categories a screen needs. Callers
+/// that apply per-field scope rules (the locale profile) pick the first value
+/// a rule allows; others take the first per key.
+///
+/// # Errors
+/// The database error, never an empty answer in its place.
+pub async fn categories_in(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+    categories: &[&str],
+    scopes: Scopes,
+) -> Result<Vec<ScopedValue>, sqlx::Error> {
+    let categories: Vec<String> = categories.iter().map(|c| (*c).to_owned()).collect();
+    let rows = sqlx::query!(
+        r#"SELECT category AS "category!", key AS "key!", value AS "value!", rank AS "rank!"
+             FROM (
+             SELECT category, key, value, CASE scope WHEN 'user' THEN 0 ELSE 1 END AS rank
+               FROM scoped_settings
+              WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL
+                AND ((scope = 'user' AND scope_id = $3) OR (scope = 'facility' AND scope_id = $4))
+             UNION ALL
+             SELECT category, key, value, 2 FROM tenant_settings
+              WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL
+           ) s ORDER BY category, key, rank"#,
+        tenant_id,
+        &categories,
+        scopes.user,
+        scopes.facility,
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ScopedValue {
+            category: r.category,
+            key: r.key,
+            scope: scope_name(r.rank),
+            value: r.value,
+        })
+        .collect())
 }
 
 #[cfg(test)]

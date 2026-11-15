@@ -41,6 +41,7 @@ import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { HelpButton } from "@/components/HelpButton";
 import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
 import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
+import { LocaleProfileBanner } from "@/components/LocaleProfileBanner";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { NotesButton } from "@/components/notes/NotesButton";
@@ -698,6 +699,7 @@ export function AppLayout() {
           own heading in place of the breadcrumb. */}
       <AppShell.Main pb={isWorkspace ? 0 : "calc(var(--mantine-spacing-xl) * 4)"}>
         <VerifyEmailBanner />
+        <LocaleProfileBanner />
         <PageQueryErrorBanner />
         {breadcrumbItems.length > 0 && !isWorkspace && (
           <div className={classes.breadcrumbs}>

@@ -163,7 +163,12 @@ const SETTINGS_NAV_META: Record<
   },
   units: {
     group: "Operations",
-    description: "Units, locale, timezone, and currency",
+    description: "Measurement units and date format",
+    kind: "configuration",
+  },
+  "locale-profile": {
+    group: "Operations",
+    description: "Country, currency, time zone and formatting, with approval",
     kind: "configuration",
   },
   compliance: {

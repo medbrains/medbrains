@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { auditChainStatus, rlsStatus } from "./status";
+import { auditChainStatus, configStatus, rlsStatus } from "./status";
 
 const NOW = Date.parse("2026-11-01T12:00:00Z");
 const verdict = (completed_at: string, valid = true) => ({
@@ -30,5 +30,13 @@ describe("row level security status", () => {
   it("is danger when the request role bypasses RLS", () => {
     expect(rlsStatus({ role: "medbrains", enforced: false }).tone).toBe("danger");
     expect(rlsStatus({ role: "medbrains_app", enforced: true }).tone).toBe("success");
+  });
+});
+
+describe("configStatus", () => {
+  it("names the scopes most specific first and says who reads them", () => {
+    const s = configStatus(["user", "facility", "hospital"]);
+    expect(s.label).toBe("user › facility › hospital scope");
+    expect(s.detail).toContain("locale profile");
   });
 });

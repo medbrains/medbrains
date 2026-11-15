@@ -26,7 +26,7 @@ use medbrains_server_core::permissions::{
     refuse_bypass_target, refuse_escalation_now, refuse_roles_beyond_own, refuse_self_change,
 };
 use medbrains_server_core::settings_guard::{
-    refuse_admin_only_category, refuse_own_endpoint_category,
+    refuse_admin_only_category, refuse_locale_profile_key, refuse_own_endpoint_category,
 };
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
@@ -3082,6 +3082,9 @@ pub struct UpdateSettingRequest {
     pub value: Value,
 }
 
+/// `PUT /api/setup/settings`: write one generic tenant setting. Categories
+/// with their own screen, the sign-in policy and the locale profile's keys
+/// are refused here, each with the place where they are changed.
 pub async fn update_setting(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3090,6 +3093,7 @@ pub async fn update_setting(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     refuse_own_endpoint_category(&body.category)?;
     refuse_admin_only_category(&claims, &body.category)?;
+    refuse_locale_profile_key(&body.category, &body.key)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -3624,6 +3628,9 @@ async fn upsert_setting_in_tx(
 
 // ── PUT /api/setup/tenant/geo (enhanced — auto-populates defaults) ──
 
+/// `PUT /api/setup/tenant/geo`: save the hospital's location and, on a
+/// country, fill units and date format from it, and the locale profile's
+/// zone and currency where the profile has none yet.
 pub async fn update_tenant_geo_with_presets(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3659,17 +3666,25 @@ pub async fn update_tenant_geo_with_presets(
             .await?;
 
         if let Some(c) = country {
-            // Update tenant-level fields
-            sqlx::query(
-                "UPDATE tenants SET \
-                 timezone = $1, currency = COALESCE($2, currency), \
-                 locale = $3 \
-                 WHERE id = $4",
+            // The country's zone and currency become the locale profile only
+            // where it has no value yet (a new hospital). A value already set
+            // changes through a locale-profile change set a second person
+            // approves; the locale follows the country's pack.
+            let (keys, values): (Vec<String>, Vec<Value>) = [
+                ("timezone", Some(c.default_timezone.clone())),
+                ("currency", c.currency.clone()),
+            ]
+            .into_iter()
+            .filter_map(|(k, v)| v.map(|v| (k.to_owned(), Value::String(v))))
+            .unzip();
+            sqlx::query!(
+                "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+                 SELECT $1, 'locale', k, v FROM unnest($2::text[], $3::jsonb[]) AS t(k, v) \
+                 ON CONFLICT (tenant_id, category, key) DO NOTHING",
+                claims.tenant_id,
+                &keys,
+                &values,
             )
-            .bind(&c.default_timezone)
-            .bind(&c.currency)
-            .bind(&c.default_locale)
-            .bind(claims.tenant_id)
             .execute(&mut *tx)
             .await?;
 
