@@ -1,13 +1,15 @@
 # Asks every outside contributor to sign CLA.md before their pull request can merge.
 # Signatures are stored in signatures/cla.json on the cla-signatures branch of this repo.
-# pull_request_target is used so the bot can comment on PRs from forks; this workflow
-# never checks out or runs code from the pull request.
+# pull_request_target and issue_comment are used so the bot can comment on, and set a status
+# for, pull requests from forks, which a pull_request token cannot. Both triggers are safe here
+# only while the job stays as it is: one pinned action, no checkout, no PR-controlled text in an
+# expression or a shell, and the comment trigger matched against two fixed strings. Keep it so.
 name: CLA
 
 on:
-  issue_comment:
+  issue_comment: # zizmor: ignore[dangerous-triggers] (see the header)
     types: [created]
-  pull_request_target:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] (see the header)
     types: [opened, closed, synchronize]
 
 permissions:
@@ -26,7 +28,9 @@ jobs:
         (github.event.comment.body == 'recheck' ||
          github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
     steps:
-      - uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+      # StepSecurity's maintained drop-in for contributor-assistant/github-action, archived in
+      # 2026: same inputs and signature file. Free for public repositories (no API call then).
+      - uses: step-security/contributor-assistant-github-action@b9bd60bf1b766fa48dae03427059187137236239 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

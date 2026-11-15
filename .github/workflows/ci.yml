@@ -311,9 +311,13 @@ jobs:
         with:
           package_json_file: medbrains/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        # zizmor: ignore[cache-poisoning] (zizmor cannot read the `cache:` expression below)
         with:
           node-version-file: medbrains/.nvmrc
-          cache: pnpm
+          # No dependency cache on a release or hotfix push: the release is verified from a
+          # clean install, never from a cache another branch's run could have written.
+          package-manager-cache: false
+          cache: ${{ !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.ref, 'refs/heads/hotfix/') && 'pnpm' || '' }}
           cache-dependency-path: medbrains/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
@@ -367,9 +371,13 @@ jobs:
         with:
           package_json_file: medbrains/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        # zizmor: ignore[cache-poisoning] (zizmor cannot read the `cache:` expression below)
         with:
           node-version-file: medbrains/.nvmrc
-          cache: pnpm
+          # No dependency cache on a release or hotfix push: the release is verified from a
+          # clean install, never from a cache another branch's run could have written.
+          package-manager-cache: false
+          cache: ${{ !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.ref, 'refs/heads/hotfix/') && 'pnpm' || '' }}
           cache-dependency-path: medbrains/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run lint --filter=@medbrains/web...
@@ -392,12 +400,15 @@ jobs:
         with:
           components: clippy
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # zizmor: ignore[cache-poisoning] (zizmor cannot read the `lookup-only:` expression below)
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             medbrains/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/**/Cargo.toml') }}
+          # Restore nothing on a release or hotfix push (cache poisoning; see the web job).
+          lookup-only: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/hotfix/') }}
 
       # Library code is clean and is the bar worth holding first.
       # Every crate except the desktop GUI tree, which needs GTK on the runner.
@@ -465,12 +476,15 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # zizmor: ignore[cache-poisoning] (zizmor cannot read the `lookup-only:` expression below)
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             medbrains/target
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
+          # Restore nothing on a release or hotfix push (cache poisoning; see the web job).
+          lookup-only: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/hotfix/') }}
 
       # Non-blocking until it has been seen to pass on a runner.
       # CUPS headers and PostgreSQL 17 for the integration suite (no Docker, per the OS rule).
