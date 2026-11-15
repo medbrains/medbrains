@@ -21,6 +21,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | What we learnt from big OS platforms | `medbrains/docs/research/OS-PLATFORM-LESSONS.md` |
 | Building the OS image | `medbrains/os/README.md` (arrives with D1) |
 | SOP flows and the track builder | `medbrains/RFCs/RFC-SOP-FLOWS.md` |
+| Locale profile and country packs | `medbrains/RFCs/RFC-WORLD-READY.md` |
 | Knowledge change sets | `medbrains/RFCs/RFC-KNOWLEDGE-CHANGE-SETS.md` |
 | AI-native MedBrains | `medbrains/RFCs/RFC-AI-NATIVE.md` |
 | AI in clinical flows, voice first | `medbrains/RFCs/RFC-AI-CLINICAL-FLOWS.md` |
@@ -97,6 +98,7 @@ built. *Proposed* is waiting for the owner. *Rejected* was considered and turned
 | 2026-11-01 | SOP flows: staff flip switches like a railway pointsman; safety signals stay locked | Non-technical staff can adapt a process without breaking safety | A free-form workflow editor | Done (#5153) |
 | 2026-11-01 | A full track builder, bounded by checks and dry runs | Hospitals asked for more than switches | Switches only | Done (#5174) |
 | 2026-11-01 | No database changes at runtime from the builder | Schema changes must stay accurate and reviewed; AI may help draft them | Runtime DDL | Plan (RFC-SOP-FLOWS §11.3a) |
+| 2026-11-15 | Build for the world (`medbrains/RFCs/RFC-WORLD-READY.md`, #5925): one locale profile at `locale/*` paths in the kernel configuration tree (hospital › facility › user), sent in `/auth/me`; India becomes a country pack; packs are data compiled into a new `medbrains-country` service crate, with safety gates, checksums and tax schemes as code the pack names; one formatting helper set per platform over its own CLDR engine (Intl, Foundation, ICU, ICU4X); a ratchet on India literals; currency fixed after the first financial row; no silent India fallback | Four sources of locale disagree today and default to India; 1,485 rupee lines and 348 bare `toLocaleString()` calls; rules must stay testable and India must see no change | Per-country forks of screens; packs as runtime-editable database rows; rules as free configuration (safety gates must be code, RFC-HOSPITAL-OS §3.3); keeping the `tenants` locale columns as a second source | Proposed; owner to review |
 
 ### The OS
 
