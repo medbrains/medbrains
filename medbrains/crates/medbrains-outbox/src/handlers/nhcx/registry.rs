@@ -310,17 +310,19 @@ pub(super) async fn recipient_cert(
     force: bool,
 ) -> Result<String, HandlerError> {
     let mut tx = tenant_tx(ctx).await?;
-    let stored: Option<(Option<String>, Option<DateTime<Utc>>)> = sqlx::query_as(
+    let stored = sqlx::query!(
         "SELECT encryption_cert, cert_fetched_at FROM nhcx_participants \
          WHERE tenant_id = $1 AND participant_code = $2 AND is_active",
+        ctx.tenant_id,
+        recipient,
     )
-    .bind(ctx.tenant_id)
-    .bind(recipient)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|e| transient(&e))?;
     tx.commit().await.map_err(|e| transient(&e))?;
-    let (cert, fetched_at) = stored.unwrap_or_default();
+    let (cert, fetched_at) = stored
+        .map(|r| (r.encryption_cert, r.cert_fetched_at))
+        .unwrap_or_default();
     let cert = cert.filter(|c| !c.trim().is_empty());
     let fresh =
         fetched_at.is_some_and(|t| Utc::now() - t < chrono::Duration::hours(CERT_MAX_AGE_HOURS));
@@ -372,7 +374,7 @@ async fn store_cert(
     recipient: &str,
     pem: &str,
 ) -> Result<(), HandlerError> {
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO nhcx_participants \
              (tenant_id, participant_code, participant_name, source, encryption_cert, \
               cert_fetched_at) \
@@ -380,10 +382,10 @@ async fn store_cert(
          ON CONFLICT (tenant_id, participant_code) DO UPDATE SET \
              encryption_cert = EXCLUDED.encryption_cert, cert_fetched_at = now(), \
              updated_at = now()",
+        tenant_id,
+        recipient,
+        pem,
     )
-    .bind(tenant_id)
-    .bind(recipient)
-    .bind(pem)
     .execute(&mut **tx)
     .await
     .map_err(|e| transient(&e))?;

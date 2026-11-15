@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE outbox_events SET status = 'pending', attempts = 1, next_retry_at = now(), claimed_at = NULL, claimed_by = NULL, last_error = $4, payload = payload || '{\"key_retry\": true}'::jsonb WHERE id = (SELECT id FROM outbox_events WHERE tenant_id = $1 AND event_type LIKE 'nhcx.%' AND payload->>'correlation_id' = $2 AND payload->>'recipient_code' = $3 AND status = 'sent' AND NOT (payload ? 'key_retry') AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1 FOR UPDATE) RETURNING payload->>'record' AS record, (payload->>'record_id')::uuid AS record_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "record",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "record_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "91615e62c956766f3353c1b65a38a78013ec6654a0f3b49240716f71ddfb32f9"
+}

@@ -38,7 +38,7 @@ pub(crate) fn is_key_refusal(status: &str, response: &Value) -> bool {
 /// # Errors
 /// Database errors only.
 pub(crate) async fn resend(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<bool, AppError> {
-    let armed: Option<(Option<String>, Option<Uuid>)> = sqlx::query_as(
+    let armed = sqlx::query!(
         "UPDATE outbox_events SET status = 'pending', attempts = 1, next_retry_at = now(), \
                 claimed_at = NULL, claimed_by = NULL, last_error = $4, \
                 payload = payload || '{\"key_retry\": true}'::jsonb \
@@ -49,33 +49,100 @@ pub(crate) async fn resend(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<bool, App
                          AND status = 'sent' AND NOT (payload ? 'key_retry') \
                          AND deleted_at IS NULL \
                        ORDER BY created_at DESC LIMIT 1 FOR UPDATE) \
-          RETURNING payload->>'record', (payload->>'record_id')::uuid",
+          RETURNING payload->>'record' AS record, (payload->>'record_id')::uuid AS record_id",
+        m.tenant_id,
+        m.correlation_id.to_string(),
+        m.sender,
+        RESENDING,
     )
-    .bind(m.tenant_id)
-    .bind(m.correlation_id.to_string())
-    .bind(m.sender)
-    .bind(RESENDING)
     .fetch_optional(&mut **tx)
     .await?;
-    let Some((Some(record), Some(record_id))) = armed else {
+    let Some((Some(record), Some(record_id))) = armed.map(|r| (r.record, r.record_id)) else {
         return Ok(false);
     };
-    let Ok(record) = serde_json::from_value::<NhcxRecord>(Value::String(record)) else {
-        return Ok(true);
-    };
-    // The table name comes from a closed enum, never from the payload text.
-    let sql = format!(
-        "UPDATE {} SET nhcx_status = 'queued', nhcx_disposition = $1 \
-          WHERE id = $2 AND tenant_id = $3",
-        record.table()
-    );
-    sqlx::query(&sql)
-        .bind(RESENDING)
-        .bind(record_id)
-        .bind(m.tenant_id)
-        .execute(&mut **tx)
-        .await?;
+    if let Ok(record) = serde_json::from_value::<NhcxRecord>(Value::String(record)) {
+        mark_queued(tx, record, record_id, m.tenant_id).await?;
+    }
     Ok(true)
+}
+
+/// Show the record as waiting to send again, with why. One statement per
+/// table, so each is checked at compile time.
+async fn mark_queued(
+    tx: &mut Tx<'_>,
+    record: NhcxRecord,
+    id: Uuid,
+    tenant_id: Uuid,
+) -> Result<(), AppError> {
+    let done =
+        match record {
+            NhcxRecord::InsuranceClaim => {
+                sqlx::query!(
+                    "UPDATE insurance_claims SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                    RESENDING,
+                    id,
+                    tenant_id
+                )
+                .execute(&mut **tx)
+                .await
+            }
+            NhcxRecord::PriorAuth => {
+                sqlx::query!(
+                    "UPDATE prior_auth_requests SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                    RESENDING,
+                    id,
+                    tenant_id
+                )
+                .execute(&mut **tx)
+                .await
+            }
+            NhcxRecord::Verification => sqlx::query!(
+                "UPDATE insurance_verifications SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                RESENDING,
+                id,
+                tenant_id
+            )
+            .execute(&mut **tx)
+            .await,
+            NhcxRecord::PayerQuery => {
+                sqlx::query!(
+                    "UPDATE nhcx_payer_queries SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                    RESENDING,
+                    id,
+                    tenant_id
+                )
+                .execute(&mut **tx)
+                .await
+            }
+            NhcxRecord::Task => {
+                sqlx::query!(
+                    "UPDATE nhcx_tasks SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                    RESENDING,
+                    id,
+                    tenant_id
+                )
+                .execute(&mut **tx)
+                .await
+            }
+            NhcxRecord::PaymentNotice => {
+                sqlx::query!(
+                    "UPDATE nhcx_payment_notices SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                    RESENDING,
+                    id,
+                    tenant_id
+                )
+                .execute(&mut **tx)
+                .await
+            }
+        };
+    done?;
+    Ok(())
 }
 
 #[cfg(test)]

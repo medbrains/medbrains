@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE insurance_claims SET nhcx_status = 'queued', nhcx_disposition = $1 WHERE id = $2 AND tenant_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8d13b4c15a8bf952e8bb5b3d11bc5bf2e4becf7cd7184e48928f5c94a7d79599"
+}

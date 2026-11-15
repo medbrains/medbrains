@@ -198,7 +198,8 @@ pub async fn refresh_nhcx_participants(
     require_permission(&claims, permissions::insurance::nhcx::REFRESH_DIRECTORY)?;
     let http = nhcx_common::registry_http()?;
     let registry = nhcx_common::registry(&state, &http, claims.tenant_id).await?;
-    let (mut codes, mut names, mut roles, mut entities) = (vec![], vec![], vec![], vec![]);
+    let (mut codes, mut names): (Vec<String>, Vec<String>) = (vec![], vec![]);
+    let (mut roles, mut entities): (Vec<&str>, Vec<&str>) = (vec![], vec![]);
     let mut failed = Vec::new();
     for (role, entity) in LISTS {
         match registry.participants(role, entity, Utc::now()).await {
@@ -222,7 +223,7 @@ pub async fn refresh_nhcx_participants(
     let listed = codes.len();
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO nhcx_participants \
              (tenant_id, participant_code, participant_name, role, entity_type, source, synced_at) \
          SELECT DISTINCT ON (code) $1, code, name, role, entity, 'registry', now() \
@@ -231,22 +232,25 @@ pub async fn refresh_nhcx_participants(
              participant_name = EXCLUDED.participant_name, role = EXCLUDED.role, \
              entity_type = EXCLUDED.entity_type, source = 'registry', synced_at = now(), \
              is_active = true, updated_at = now()",
+        claims.tenant_id,
+        &codes,
+        &names,
+        &roles as &[&str],
+        &entities as &[&str],
     )
-    .bind(claims.tenant_id)
-    .bind(&codes)
-    .bind(&names)
-    .bind(&roles)
-    .bind(&entities)
     .execute(&mut *tx)
     .await?;
-    let sql = format!(
-        "SELECT {PARTICIPANT_COLUMNS} FROM nhcx_participants \
-         WHERE tenant_id = $1 AND is_active ORDER BY participant_name"
-    );
-    let directory = sqlx::query_as::<_, NhcxParticipant>(&sql)
-        .bind(claims.tenant_id)
-        .fetch_all(&mut *tx)
-        .await?;
+    let directory = sqlx::query_as!(
+        NhcxParticipant,
+        r#"SELECT id, participant_code, participant_name, role, is_active,
+                  COALESCE(btrim(encryption_cert), '') <> '' AS "has_encryption_cert!",
+                  source, entity_type, synced_at
+             FROM nhcx_participants
+            WHERE tenant_id = $1 AND is_active ORDER BY participant_name"#,
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(DirectoryRefresh {
         listed,

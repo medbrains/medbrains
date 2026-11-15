@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE nhcx_tasks SET nhcx_status = 'queued', nhcx_disposition = $1 WHERE id = $2 AND tenant_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9392c35ec3aa9c3526a816e3410561e5eba5aea4e0fc78da96a80d7ba77964f6"
+}

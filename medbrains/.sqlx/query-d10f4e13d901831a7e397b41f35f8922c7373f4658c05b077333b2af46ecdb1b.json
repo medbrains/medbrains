@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE prior_auth_requests SET nhcx_status = 'queued', nhcx_disposition = $1 WHERE id = $2 AND tenant_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d10f4e13d901831a7e397b41f35f8922c7373f4658c05b077333b2af46ecdb1b"
+}

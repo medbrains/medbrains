@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, participant_code, participant_name, role, is_active,\n                  COALESCE(btrim(encryption_cert), '') <> '' AS \"has_encryption_cert!\",\n                  source, entity_type, synced_at\n             FROM nhcx_participants\n            WHERE tenant_id = $1 AND is_active ORDER BY participant_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "participant_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "participant_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "has_encryption_cert!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "source",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "entity_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "synced_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "6ad2e8ebf9c667fd04228f327034bf81b5ef4f830829d09a393a58e4e84a0a8b"
+}

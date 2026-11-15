@@ -10,7 +10,6 @@ use axum::Json;
 use axum::extract::{Extension, Query, State};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use uuid::Uuid;
 
 use medbrains_core::nhcx_wire::hyphenated_abha;
@@ -24,7 +23,7 @@ use medbrains_server_core::state::AppState;
 use crate::nhcx_common::{self, Tx};
 
 /// One policy as the desk sees it, with the names the directory holds.
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, Serialize)]
 pub struct NhcxPatientPolicy {
     pub id: Uuid,
     pub identifier_type: String,
@@ -53,30 +52,29 @@ pub struct PatientPoliciesQuery {
     pub patient_id: Uuid,
 }
 
-const POLICY_COLUMNS: &str = "p.id, p.identifier_type, p.payer_id, pay.participant_name AS payer_name, \
-     p.processing_id, proc.participant_name AS processor_name, p.member_id, p.product_id, \
-     p.product_name, p.fetched_at";
-
 /// The patient's kept policies, processor named.
 async fn kept(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     patient_id: Uuid,
 ) -> Result<Vec<NhcxPatientPolicy>, AppError> {
-    let sql = format!(
-        "SELECT {POLICY_COLUMNS} FROM nhcx_patient_policies p \
-           LEFT JOIN nhcx_participants pay \
-                  ON pay.tenant_id = p.tenant_id AND pay.participant_code = p.payer_id \
-           LEFT JOIN nhcx_participants proc \
-                  ON proc.tenant_id = p.tenant_id AND proc.participant_code = p.processing_id \
-          WHERE p.tenant_id = $1 AND p.patient_id = $2 \
-          ORDER BY p.fetched_at DESC, p.product_name LIMIT 50"
-    );
-    Ok(sqlx::query_as::<_, NhcxPatientPolicy>(&sql)
-        .bind(tenant_id)
-        .bind(patient_id)
-        .fetch_all(&mut **tx)
-        .await?)
+    Ok(sqlx::query_as!(
+        NhcxPatientPolicy,
+        r#"SELECT p.id, p.identifier_type, p.payer_id, pay.participant_name AS "payer_name?",
+                  p.processing_id, proc.participant_name AS "processor_name?", p.member_id,
+                  p.product_id, p.product_name, p.fetched_at
+             FROM nhcx_patient_policies p
+             LEFT JOIN nhcx_participants pay
+                    ON pay.tenant_id = p.tenant_id AND pay.participant_code = p.payer_id
+             LEFT JOIN nhcx_participants proc
+                    ON proc.tenant_id = p.tenant_id AND proc.participant_code = p.processing_id
+            WHERE p.tenant_id = $1 AND p.patient_id = $2
+            ORDER BY p.fetched_at DESC, p.product_name LIMIT 50"#,
+        tenant_id,
+        patient_id,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
 }
 
 /// `GET /api/insurance/nhcx/policies?patient_id=` — the last registry lookup.
@@ -209,14 +207,16 @@ async fn keep(
     patient_id: Uuid,
     (kind, policies): (&str, &[LinkedPolicy]),
 ) -> Result<(), AppError> {
-    sqlx::query("DELETE FROM nhcx_patient_policies WHERE tenant_id = $1 AND patient_id = $2")
-        .bind(claims.tenant_id)
-        .bind(patient_id)
-        .execute(&mut **tx)
-        .await?;
+    sqlx::query!(
+        "DELETE FROM nhcx_patient_policies WHERE tenant_id = $1 AND patient_id = $2",
+        claims.tenant_id,
+        patient_id,
+    )
+    .execute(&mut **tx)
+    .await?;
     let rows =
         serde_json::to_value(policies).map_err(|e| AppError::Internal(format!("policies: {e}")))?;
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO nhcx_patient_policies \
              (tenant_id, patient_id, identifier_type, payer_id, processing_id, member_id, \
               product_id, product_name, fetched_by) \
@@ -224,12 +224,12 @@ async fn keep(
                 r.product_name, $4 \
            FROM jsonb_to_recordset($5) AS r(payer_id text, processing_id text, \
                 member_id text, product_id text, product_name text)",
+        claims.tenant_id,
+        patient_id,
+        kind,
+        claims.sub,
+        rows,
     )
-    .bind(claims.tenant_id)
-    .bind(patient_id)
-    .bind(kind)
-    .bind(claims.sub)
-    .bind(rows)
     .execute(&mut **tx)
     .await?;
     Ok(())

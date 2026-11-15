@@ -59,15 +59,16 @@ pub(crate) async fn require_payer_certificate(
     tenant_id: Uuid,
     recipient: &str,
 ) -> Result<(), AppError> {
-    let reachable: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM nhcx_participants \
-                         WHERE tenant_id = $1 AND participant_code = $2 AND is_active \
-                           AND (COALESCE(btrim(encryption_cert), '') <> '' OR source = 'registry')) \
-             OR EXISTS (SELECT 1 FROM nhcx_patient_policies \
-                         WHERE tenant_id = $1 AND processing_id = $2)",
+    let reachable = sqlx::query_scalar!(
+        r#"SELECT (EXISTS (SELECT 1 FROM nhcx_participants
+                            WHERE tenant_id = $1 AND participant_code = $2 AND is_active
+                              AND (COALESCE(btrim(encryption_cert), '') <> ''
+                                   OR source = 'registry'))
+                OR EXISTS (SELECT 1 FROM nhcx_patient_policies
+                            WHERE tenant_id = $1 AND processing_id = $2)) AS "reachable!""#,
+        tenant_id,
+        recipient,
     )
-    .bind(tenant_id)
-    .bind(recipient)
     .fetch_one(&mut **tx)
     .await?;
     if reachable {
@@ -89,14 +90,14 @@ pub(crate) async fn processor_for(
     patient_id: Uuid,
     payer: &str,
 ) -> Result<String, AppError> {
-    let processor: Option<String> = sqlx::query_scalar(
+    let processor = sqlx::query_scalar!(
         "SELECT processing_id FROM nhcx_patient_policies \
           WHERE tenant_id = $1 AND patient_id = $2 AND (payer_id = $3 OR processing_id = $3) \
           ORDER BY fetched_at DESC LIMIT 1",
+        tenant_id,
+        patient_id,
+        payer,
     )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .bind(payer)
     .fetch_optional(&mut **tx)
     .await?;
     Ok(processor.unwrap_or_else(|| payer.to_owned()))

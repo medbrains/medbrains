@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1459_nhcx_registry.sql
+-- Migration: 1460_nhcx_registry.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: nhcx_patient_policies
