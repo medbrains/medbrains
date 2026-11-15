@@ -6,8 +6,9 @@
 //!   - link an ID the hospital already holds — confirmed against HFR search
 //!     when ABDM keys are configured (`verified`), recorded as `registered`
 //!     when they are not;
-//!   - submit a registration through the HFR API (`submitted`), recorded in
-//!     `abdm_hfr_registrations` with the request and HFR's answer.
+//!   - register through HFR's official onboarding flow (`hfr_onboarding`):
+//!     each call is recorded in `abdm_hfr_registrations`, and a submitted
+//!     campus moves to `submitted`.
 //!
 //! Registry hosts and the session token come from `registry_access`.
 
@@ -16,10 +17,9 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::{DateTime, Utc};
-use medbrains_abdm::{AbdmError, registry};
+use medbrains_abdm::registry;
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use uuid::Uuid;
 
 use super::registry_access::{Registry, registry_access, registry_configured, registry_fault};
@@ -83,20 +83,6 @@ pub struct LinkHfrRequest {
     pub hfr_bed_count: Option<i32>,
     #[serde(default)]
     pub hfr_ipd: bool,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RegisterHfrRequest {
-    /// `government` | `private` | `trust`.
-    pub ownership: String,
-    pub state_lgd_code: String,
-    pub district_lgd_code: String,
-    pub pincode: String,
-    pub hfr_bed_count: Option<i32>,
-    #[serde(default)]
-    pub hfr_ipd: bool,
-    #[serde(default)]
-    pub specializations: Vec<String>,
 }
 
 pub async fn list_registrations(
@@ -214,111 +200,6 @@ async fn verify_hfr_id(
     Ok(("verified", Some(Utc::now())))
 }
 
-/// `POST /api/abdm/hfr/facilities/{id}/register` — submit a new registration.
-#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
-pub async fn register_facility(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<RegisterHfrRequest>,
-) -> Result<Json<FacilityHfr>, AppError> {
-    require_permission(&claims, permissions::abdm::hfr::REGISTER)?;
-    validate_register(&body)?;
-    let Some(access) = registry_access(&state, &claims.tenant_id, Registry::Hfr).await? else {
-        return Err(AppError::ServiceUnavailable(
-            "ABDM keys are not configured — register on facility.abdm.gov.in and link the ID"
-                .to_owned(),
-        ));
-    };
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let facility: (
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    ) = sqlx::query_as(
-        "SELECT name, address_line1, city, phone, email FROM facilities \
-             WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    tx.commit().await?;
-
-    let (name, address, city, phone, email) = facility;
-    let payload = json!({
-        "facilityName": name, "ownership": body.ownership, "address": address,
-        "city": city, "pincode": body.pincode, "stateLGDCode": body.state_lgd_code,
-        "districtLGDCode": body.district_lgd_code, "contactNumber": phone, "email": email,
-        "bedCount": body.hfr_bed_count, "hasIpd": body.hfr_ipd,
-        "specializations": body.specializations,
-    });
-    let outcome =
-        registry::hfr_register(&access.http, &access.base_url, &access.token, &payload).await;
-    record_registration(&state, &claims, id, &payload, &body, outcome).await
-}
-
-/// Every attempt is kept — a failed one with HFR's reason — and a success
-/// moves the campus to `submitted` (NHA approval is out of band).
-async fn record_registration(
-    state: &AppState,
-    claims: &Claims,
-    facility_id: Uuid,
-    payload: &serde_json::Value,
-    body: &RegisterHfrRequest,
-    outcome: Result<(Option<String>, serde_json::Value), AbdmError>,
-) -> Result<Json<FacilityHfr>, AppError> {
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let (status, nha_id, response, error) = match &outcome {
-        Ok((nha_id, resp)) => ("submitted", nha_id.clone(), Some(resp.clone()), None),
-        Err(e) => ("failed", None, None, Some(e.to_string())),
-    };
-    sqlx::query(
-        "INSERT INTO abdm_hfr_registrations \
-            (tenant_id, facility_id, status, payload, response, nha_facility_id, error_message) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    )
-    .bind(claims.tenant_id)
-    .bind(facility_id)
-    .bind(status)
-    .bind(payload)
-    .bind(response)
-    .bind(nha_id.as_deref())
-    .bind(error.as_deref())
-    .execute(&mut *tx)
-    .await?;
-    if let Err(e) = outcome {
-        tx.commit().await?;
-        return Err(match e {
-            AbdmError::Status { status, message } if status.is_client_error() => {
-                AppError::BadRequest(format!("HFR refused the registration: {message}"))
-            }
-            other => registry_fault(&other),
-        });
-    }
-    let issued = nha_id.and_then(|v| normalize_hfr_id(&v).ok());
-    let row = sqlx::query_as::<_, FacilityHfr>(&format!(
-        "UPDATE facilities SET hfr_status = 'submitted', \
-                hfr_facility_id = COALESCE($3, hfr_facility_id), \
-                hfr_bed_count = $4, hfr_ipd = $5 \
-         WHERE id = $1 AND tenant_id = $2 RETURNING {FACILITY_COLUMNS}"
-    ))
-    .bind(facility_id)
-    .bind(claims.tenant_id)
-    .bind(issued)
-    .bind(body.hfr_bed_count)
-    .bind(body.hfr_ipd)
-    .fetch_one(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(Json(row.with_dhis()))
-}
-
 /// HFR IDs are `IN` + 10 alphanumerics (e.g. `IN0410000183`).
 fn normalize_hfr_id(raw: &str) -> Result<String, AppError> {
     let id = raw.trim().to_ascii_uppercase();
@@ -337,25 +218,6 @@ fn normalize_hfr_id(raw: &str) -> Result<String, AppError> {
 fn validate_beds(beds: Option<i32>) -> Result<(), AppError> {
     if beds.is_some_and(|b| b < 0) {
         return Err(AppError::BadRequest("bed count cannot be negative".into()));
-    }
-    Ok(())
-}
-
-fn validate_register(body: &RegisterHfrRequest) -> Result<(), AppError> {
-    validate_beds(body.hfr_bed_count)?;
-    if body.pincode.len() != 6 || !body.pincode.chars().all(|c| c.is_ascii_digit()) {
-        return Err(AppError::BadRequest("pincode must be 6 digits".into()));
-    }
-    if !matches!(body.ownership.as_str(), "government" | "private" | "trust") {
-        return Err(AppError::BadRequest(
-            "ownership must be government | private | trust".into(),
-        ));
-    }
-    let lgd = |v: &str| !v.is_empty() && v.chars().all(|c| c.is_ascii_digit());
-    if !lgd(&body.state_lgd_code) || !lgd(&body.district_lgd_code) {
-        return Err(AppError::BadRequest(
-            "LGD state and district codes are numeric".into(),
-        ));
     }
     Ok(())
 }

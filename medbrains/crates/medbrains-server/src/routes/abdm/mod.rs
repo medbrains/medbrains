@@ -3,7 +3,10 @@
 //! Phase 11 of the hybrid roadmap.
 //! - `bridge` — where ABDM delivers callbacks, and which campuses it serves.
 //! - `dashboard` — the management dashboard; `dhis` — the incentive rules.
-//! - `hfr` — Health Facility Registry, one HFR ID per campus.
+//! - `hfr` — Health Facility Registry, one HFR ID per campus;
+//!   `hfr_onboarding` + `hfr_steps` the official registration/update flow,
+//!   and
+//!   `hpr_session` the HPR sign-in it needs.
 //! - `hpr` — Healthcare Professionals Registry IDs on doctor profiles.
 //! - `hip` — ABDM Milestone 2: this hospital as a Health Information Provider.
 //! - `hiu` — ABDM Milestone 3: this hospital as a Health Information User.
@@ -29,10 +32,13 @@ mod bridge_rules;
 pub mod dashboard;
 pub mod dhis;
 pub mod hfr;
+pub mod hfr_onboarding;
+pub mod hfr_steps;
 pub mod hip;
 pub mod hip_relay;
 pub mod hiu;
 pub mod hpr;
+pub mod hpr_session;
 pub mod mental_health_sharing;
 mod registry_access;
 pub mod scan_share;

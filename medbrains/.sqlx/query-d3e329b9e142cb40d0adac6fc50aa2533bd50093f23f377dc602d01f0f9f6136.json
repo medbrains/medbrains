@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO abdm_hfr_registrations (tenant_id, facility_id, status, step, tracking_id, payload, response, error_message) VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d3e329b9e142cb40d0adac6fc50aa2533bd50093f23f377dc602d01f0f9f6136"
+}

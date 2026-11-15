@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT ON (step) step AS \"step!\", payload, submitted_at\n           FROM abdm_hfr_registrations\n           WHERE tenant_id = $1 AND facility_id = $2 AND tracking_id = $3\n             AND step IS NOT NULL AND status IN ('saved', 'submitted') AND deleted_at IS NULL\n           ORDER BY step, submitted_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "step!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "payload",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d22c5e3daefd5bcb9b010353dd526c26420e771f6a17cfe0487c8b470a5c0b93"
+}

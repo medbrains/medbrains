@@ -10,7 +10,8 @@
 
 use crate::common;
 
-use axum::{Json, Router, http::StatusCode as MockStatus, routing::post};
+use axum::http::StatusCode as MockStatus;
+use axum::{Json, Router, extract::Path, routing::get, routing::post};
 use medbrains_abdm::registry::{HFR_SEARCH_PATH, HPR_SEARCH_PATH};
 use reqwest::{Client, Method, StatusCode};
 use serde_json::{Value, json};
@@ -29,12 +30,11 @@ async fn spawn_registry_mock() -> String {
         };
         Json(json!({ "totalFacilities": facilities.len(), "facilities": facilities }))
     }
-    async fn hpr(Json(body): Json<Value>) -> (MockStatus, Json<Value>) {
-        let id = body["hprId"].as_str().unwrap_or_default().to_owned();
+    async fn hpr(Path(id): Path<String>) -> (MockStatus, Json<Value>) {
         if id.starts_with("21") {
             (
                 MockStatus::OK,
-                Json(json!({ "hprIdNumber": id, "name": "Dr Mock" })),
+                Json(json!([{ "hprIdNumber": id, "name": "Dr Mock" }])),
             )
         } else if id.starts_with("40") {
             // A registry that answers 404 is a fault, never "not registered".
@@ -43,12 +43,12 @@ async fn spawn_registry_mock() -> String {
                 Json(json!({ "message": "no such path" })),
             )
         } else {
-            (MockStatus::OK, Json(json!({ "results": [] })))
+            (MockStatus::OK, Json(json!([])))
         }
     }
     let app = Router::new()
         .route(HFR_SEARCH_PATH, post(hfr))
-        .route(HPR_SEARCH_PATH, post(hpr));
+        .route(&format!("{HPR_SEARCH_PATH}/{{id}}"), get(hpr));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind mock");
@@ -399,18 +399,15 @@ async fn registry_screens_refuse_callers_without_the_permission() {
     let hr = common::provision_staff(&app, &csrf, "hr_officer", &[]).await;
     let nil = Uuid::nil();
     let hfr_link = format!("/api/abdm/hfr/facilities/{nil}");
-    let hfr_register = format!("{hfr_link}/register");
     let hpr_set = format!("/api/abdm/hpr/doctors/{nil}");
     let hpr_verify = format!("{hpr_set}/verify");
     // Valid for every endpoint below, so each refusal is the permission's,
     // not a body the extractor rejected first.
-    let body = json!({ "hpr_id": null, "hfr_facility_id": null, "ownership": "private",
-        "state_lgd_code": "33", "district_lgd_code": "571", "pincode": "600001" });
+    let body = json!({ "hpr_id": null, "hfr_facility_id": null });
 
     for (method, path) in [
         (Method::GET, "/api/abdm/hfr/facilities"),
         (Method::PUT, hfr_link.as_str()),
-        (Method::POST, hfr_register.as_str()),
         (Method::GET, "/api/abdm/hpr/coverage"),
         (Method::PUT, hpr_set.as_str()),
         (Method::POST, hpr_verify.as_str()),

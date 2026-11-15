@@ -37,6 +37,7 @@ mod abdm_bridge_test;
 mod abdm_callback_auth_test;
 mod abdm_dashboard_test;
 mod abdm_hfr_hpr_test;
+mod abdm_hfr_onboarding_test;
 mod abdm_hip_consent_test;
 mod abdm_link_followups_test;
 mod abdm_link_status_test;

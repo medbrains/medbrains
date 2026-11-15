@@ -348,9 +348,28 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/abdm/hfr", get(abdm::hfr::list_registrations))
         .route("/api/abdm/hfr/facilities", get(abdm::hfr::list_facilities))
         .route("/api/abdm/hfr/facilities/{id}", put(abdm::hfr::link_facility))
+        .route("/api/abdm/hfr/hpr-session", post(abdm::hpr_session::sign_in))
+        .route("/api/abdm/hfr/masters/{kind}", get(abdm::hfr_onboarding::masters))
+        .route("/api/abdm/hfr/search", post(abdm::hfr_onboarding::search))
         .route(
-            "/api/abdm/hfr/facilities/{id}/register",
-            post(abdm::hfr::register_facility),
+            "/api/abdm/hfr/facilities/{id}/onboarding",
+            get(abdm::hfr_onboarding::draft),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/basic",
+            post(abdm::hfr_steps::save_basic),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/additional",
+            post(abdm::hfr_steps::save_additional),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/detailed",
+            post(abdm::hfr_steps::save_detailed),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/submit",
+            post(abdm::hfr_steps::submit),
         )
         .route("/api/abdm/hpr/coverage", get(abdm::hpr::coverage))
         .route("/api/abdm/hpr/doctors/{id}", put(abdm::hpr::set_hpr_id))

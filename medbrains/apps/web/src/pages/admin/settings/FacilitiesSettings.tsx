@@ -31,6 +31,7 @@ import { abdmRegistryService } from "@/services/abdmRegistry.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { FacilityHfrCell } from "./FacilityHfrCell";
 import { FacilityHfrModal, HFR_QUERY_KEY } from "./FacilityHfrModal";
+import { HfrOnboardingModal } from "./hfr/HfrOnboardingModal";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -450,6 +451,7 @@ export function FacilitiesSettings() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState<Facility | null>(null);
   const [hfrFacilityId, setHfrFacilityId] = useState<string | null>(null);
+  const [hfrOnboarding, setHfrOnboarding] = useState(false);
 
   const { data: facilities, isLoading } = useQuery({
     queryKey: ["setup-facilities"],
@@ -623,11 +625,22 @@ export function FacilitiesSettings() {
         </Table.Tbody>
       </Table>
 
-      {hfrFacility && (
+      {hfrFacility && !hfrOnboarding && (
         <FacilityHfrModal
           facility={hfrFacility}
           registryConfigured={hfrQuery.data?.registry_configured ?? false}
           onClose={() => setHfrFacilityId(null)}
+          onOnboard={() => setHfrOnboarding(true)}
+        />
+      )}
+      {hfrFacility && hfrOnboarding && (
+        <HfrOnboardingModal
+          facility={hfrFacility}
+          hfrListKey={HFR_QUERY_KEY}
+          onClose={() => {
+            setHfrOnboarding(false);
+            setHfrFacilityId(null);
+          }}
         />
       )}
 

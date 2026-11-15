@@ -1224,7 +1224,17 @@ import type {
   HealthResponse,
   HeldAnalyserMessage,
   HemovigilanceReport,
+  HfrDetailedInformation,
+  HfrFacilityInformation,
+  HfrFacilitySearch,
+  HfrLinkedProgramIds,
+  HfrMasterKind,
+  HfrMasterOption,
+  HfrOnboardingDraft,
   HfrRegistration,
+  HfrSearchPage,
+  HfrStepSaved,
+  HfrSubmitResult,
   HistopathReportPrintData,
   HistoryImportBatch,
   HistoryImportBatchRequest,
@@ -1252,6 +1262,8 @@ import type {
   HostelAllotmentOrderPrintData,
   HourlyFlowRow,
   HprCoverage,
+  HprSessionView,
+  HprSignInRequest,
   HrmsEntityOutcome,
   HrmsSyncStatus,
   HsnSummaryRow,
@@ -2028,7 +2040,6 @@ import type {
   RefundGatewayResponse,
   RefundReceiptPrintData,
   RegisterAbdmBridge,
-  RegisterHfrRequest,
   RegistrationCardPrintData,
   RegistryCase,
   RegistryCodeLists,
@@ -18588,11 +18599,37 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  registerFacilityHfr: (id: string, data: RegisterHfrRequest) =>
-    request<FacilityHfr>(`/abdm/hfr/facilities/${id}/register`, {
+  /** Sign a professional in to HPR for the HFR onboarding headers; the token stays on the server. */
+  signInHpr: (data: HprSignInRequest) =>
+    request<HprSessionView>("/abdm/hfr/hpr-session", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getHfrMaster: (kind: HfrMasterKind, code = "", code2 = "") =>
+    request<HfrMasterOption[]>(
+      `/abdm/hfr/masters/${kind}?${new URLSearchParams({ code, code2 }).toString()}`,
+    ),
+  searchHfrFacilities: (data: HfrFacilitySearch) =>
+    request<HfrSearchPage>("/abdm/hfr/search", { method: "POST", body: JSON.stringify(data) }),
+  getHfrOnboarding: (id: string) =>
+    request<HfrOnboardingDraft>(`/abdm/hfr/facilities/${id}/onboarding`),
+  saveHfrBasic: (id: string, data: HfrFacilityInformation) =>
+    request<HfrStepSaved>(`/abdm/hfr/facilities/${id}/onboarding/basic`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  saveHfrAdditional: (id: string, data: HfrLinkedProgramIds) =>
+    request<HfrStepSaved>(`/abdm/hfr/facilities/${id}/onboarding/additional`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  saveHfrDetailed: (id: string, data: HfrDetailedInformation) =>
+    request<HfrStepSaved>(`/abdm/hfr/facilities/${id}/onboarding/detailed`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  submitHfrFacility: (id: string) =>
+    request<HfrSubmitResult>(`/abdm/hfr/facilities/${id}/onboarding/submit`, { method: "POST" }),
   getHprCoverage: () => request<HprCoverage>("/abdm/hpr/coverage"),
   setDoctorHprId: (id: string, data: SetHprRequest) =>
     request<DoctorHpr>(`/abdm/hpr/doctors/${id}`, {
