@@ -130,5 +130,6 @@ export interface KnowledgeProof {
 
 export interface KnowledgeChangeSetFilter {
   area?: KnowledgeArea;
-  status?: KnowledgeChangeStatus;
+  /** One status, or several comma-separated ("previewed,approved"). */
+  status?: KnowledgeChangeStatus | `${KnowledgeChangeStatus},${KnowledgeChangeStatus}`;
 }

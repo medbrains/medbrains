@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO tenant_settings (tenant_id, category, key, value) SELECT $1, c, k, v FROM unnest($2::text[], $3::text[], $4::jsonb[]) AS t(c, k, v) ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "TextArray",
+        "JsonbArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "43f1ce6f51186da922841825f61e7b121d47324b8d7e59dc79799aad727a1fb1"
+}

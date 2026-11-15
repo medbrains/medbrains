@@ -2666,7 +2666,6 @@ pub async fn delete_service(
 // ── Bed Types CRUD ───────────────────────────────────────────
 
 use axum::extract::Query;
-use medbrains_core::geo::GeoCountry;
 use medbrains_core::onboarding::{BedType, PaymentMethod, TaxCategory};
 
 pub async fn list_bed_types(
@@ -3599,53 +3598,25 @@ fn normalize_secure_device_setting(
     Ok(normalized)
 }
 
-// ── Helper: upsert a single tenant setting within a transaction ──
-
-async fn upsert_setting_in_tx(
+/// Name the hospital's country through the one shared path (onboarding uses
+/// it too): `true` when this set it for the first time and brought its
+/// presets. A different country than the one set is refused with 409.
+pub async fn name_country(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
-    category: &str,
-    key: &str,
-    value: &str,
-) -> Result<(), AppError> {
-    let json_val = Value::String(value.to_owned());
-    sqlx::query(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, $2, $3, $4) \
-         ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, \
-                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
-    )
-    .bind(tenant_id)
-    .bind(category)
-    .bind(key)
-    .bind(&json_val)
-    .execute(&mut **tx)
-    .await?;
-
-    Ok(())
-}
-
-/// Whether `new` sets the hospital's country for the first time. Naming a
-/// different country than the one set is refused before anything is written:
-/// the country switches regulatory rules, so it changes only through a
-/// locale-profile change set a second person approves (RFC-WORLD-READY §2.4).
-async fn country_is_first_set(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    new: Option<Uuid>,
+    country_id: Option<Uuid>,
 ) -> Result<bool, AppError> {
-    let current = sqlx::query_scalar!("SELECT country_id FROM tenants WHERE id = $1", tenant_id)
-        .fetch_one(&mut **tx)
-        .await?;
-    match (current, new) {
-        (Some(old), Some(new)) if old != new => Err(AppError::Conflict(
+    let Some(country_id) = country_id else {
+        return Ok(false);
+    };
+    match medbrains_country::presets::set_country_once(tx, tenant_id, country_id).await? {
+        medbrains_country::presets::CountrySet::FirstSet => Ok(true),
+        medbrains_country::presets::CountrySet::Unchanged => Ok(false),
+        medbrains_country::presets::CountrySet::Refused => Err(AppError::Conflict(
             "The country is part of the locale profile; change it in Settings, Locale profile, \
              where a second person approves it"
                 .to_owned(),
         )),
-        (None, Some(_)) => Ok(true),
-        _ => Ok(false),
     }
 }
 
@@ -3665,109 +3636,19 @@ pub async fn update_tenant_geo_with_presets(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let first_country = country_is_first_set(&mut tx, claims.tenant_id, body.country_id).await?;
-    // Save geo IDs. An absent country keeps the one set: clearing it, like
-    // changing it, is a locale-profile change set.
-    sqlx::query(
-        "UPDATE tenants SET \
-         country_id = COALESCE($1, country_id), state_id = $2, district_id = $3, \
-         latitude = $4, longitude = $5 \
-         WHERE id = $6",
+    let defaults_applied = name_country(&mut tx, claims.tenant_id, body.country_id).await?;
+    // The rest of the location; the country is set once, above.
+    sqlx::query!(
+        "UPDATE tenants SET state_id = $1, district_id = $2, latitude = $3, longitude = $4 \
+          WHERE id = $5",
+        body.state_id,
+        body.district_id,
+        body.latitude,
+        body.longitude,
+        claims.tenant_id,
     )
-    .bind(body.country_id)
-    .bind(body.state_id)
-    .bind(body.district_id)
-    .bind(body.latitude)
-    .bind(body.longitude)
-    .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
-
-    // A country set for the first time brings its presets; later saves keep
-    // whatever the hospital has chosen since.
-    let mut defaults_applied = false;
-    if let Some(country_id) = body.country_id.filter(|_| first_country) {
-        let country = sqlx::query_as::<_, GeoCountry>("SELECT * FROM geo_countries WHERE id = $1")
-            .bind(country_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-        if let Some(c) = country {
-            // The country's zone and currency become the locale profile only
-            // where it has no value yet (a new hospital). A value already set
-            // changes through a locale-profile change set a second person
-            // approves; the locale follows the country's pack.
-            let (keys, values): (Vec<String>, Vec<Value>) = [
-                ("timezone", Some(c.default_timezone.clone())),
-                ("currency", c.currency.clone()),
-            ]
-            .into_iter()
-            .filter_map(|(k, v)| v.map(|v| (k.to_owned(), Value::String(v))))
-            .unzip();
-            sqlx::query!(
-                "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-                 SELECT $1, 'locale', k, v FROM unnest($2::text[], $3::jsonb[]) AS t(k, v) \
-                 ON CONFLICT (tenant_id, category, key) DO NOTHING",
-                claims.tenant_id,
-                &keys,
-                &values,
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            // Determine units from measurement system
-            let is_imperial = c.measurement_system == "imperial";
-            let temp_unit = if is_imperial { "fahrenheit" } else { "celsius" };
-            let weight_unit = if is_imperial { "lbs" } else { "kg" };
-            let height_unit = if is_imperial { "in" } else { "cm" };
-
-            // Upsert units settings
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "measurement_system",
-                &c.measurement_system,
-            )
-            .await?;
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "temperature_unit",
-                temp_unit,
-            )
-            .await?;
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "weight_unit",
-                weight_unit,
-            )
-            .await?;
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "height_unit",
-                height_unit,
-            )
-            .await?;
-
-            // Upsert locale settings
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "locale",
-                "date_format",
-                &c.date_format,
-            )
-            .await?;
-
-            defaults_applied = true;
-        }
-    }
 
     tx.commit().await?;
 

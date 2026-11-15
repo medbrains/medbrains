@@ -1,6 +1,6 @@
 import { Divider, Group, Loader, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useLocaleProfile, useLocaleStore } from "@medbrains/stores";
+import { useLocaleProfile } from "@medbrains/stores";
 import type { GeoCountry, GeoDistrict, GeoState } from "@medbrains/types";
 import {
   IconCheck,
@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PinCodeInput } from "@/components/PinCodeInput";
 import { Button } from "@/components/ui";
+import { refreshLocaleProfile } from "@/services/localeProfile.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 // ── GeoSettings ──────────────────────────────────────────
@@ -101,28 +102,10 @@ export function GeoSettings() {
       void queryClient.invalidateQueries({ queryKey: ["setup-tenant"] });
 
       if (result.defaults_applied) {
-        // Refresh locale settings in store
-        Promise.all([
-          tenantSettingsService.getTenantSettings("units"),
-          tenantSettingsService.getTenantSettings("locale"),
-        ])
-          .then(([units, locale]) => {
-            useLocaleStore.getState().setFromTenantSettings(
-              [...units, ...locale].map((r) => ({
-                category: r.category,
-                key: r.key,
-                value: r.value,
-              })),
-            );
-          })
-          // The defaults are saved; only this screen's copy is stale until reload.
-          .catch(() =>
-            notifications.show({
-              title: "Reload to see the new units",
-              message: "The defaults were saved, but this screen could not read them back.",
-              color: "yellow",
-            }),
-          );
+        // The first country brought the profile's country, zone, currency
+        // and units: reload it so every screen formats with them now (a
+        // failed reload shows the "did not load" banner, never stale values).
+        void refreshLocaleProfile();
 
         void queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
 

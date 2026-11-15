@@ -82,12 +82,11 @@ async fn access_patterns_raise_one_alert_each() {
             .expect("hour");
     let offset = (23 - utc_hour).rem_euclid(24);
     let offset = if offset > 12 { offset - 24 } else { offset };
-    // Etc/GMT signs are inverted: Etc/GMT-5 is UTC+5.
-    let zone = format!("Etc/GMT{:+}", -offset);
-    let previous = common::set_hospital_timezone(db, tenant, &zone).await;
+    let zone = common::zone_at_offset(offset);
+    let previous = common::set_hospital_timezone(db, tenant, zone).await;
 
     let raised = scan_once(db).await;
-    common::set_hospital_timezone(db, tenant, &previous).await;
+    common::restore_hospital_timezone(db, tenant, previous).await;
     raised.expect("scan");
 
     assert_eq!(

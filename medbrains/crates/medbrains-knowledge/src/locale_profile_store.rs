@@ -112,9 +112,10 @@ pub(crate) async fn check_row(tx: &mut Tx<'_>, tenant: Uuid, row: &LocaleProfile
     if pure.is_err() {
         return Ok(pure);
     }
-    let zone = check_zone(tx, row).await?;
-    if zone.is_err() || scope.kind != HOSPITAL {
-        return Ok(zone);
+    // Whether Postgres knows the zone is the database guard's one check
+    // (migration 1462); it runs on preview's trial write and on apply.
+    if scope.kind != HOSPITAL {
+        return Ok(Ok(()));
     }
     check_currency(tx, tenant, row, &live).await
 }
@@ -162,24 +163,6 @@ fn check_region_and_pack(
             pack.pack.id, pack.pack.version
         ))
     }
-}
-
-/// The zone is one Postgres (and so every print) knows.
-async fn check_zone(tx: &mut Tx<'_>, row: &LocaleProfileRow) -> Check {
-    let Some(tz) = row.text(Field::Timezone) else {
-        return Ok(Ok(()));
-    };
-    let known = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = $1) AS "known!""#,
-        tz,
-    )
-    .fetch_one(&mut **tx)
-    .await?;
-    Ok(if known {
-        Ok(())
-    } else {
-        Err(format!("\"{tz}\" is not an IANA time zone"))
-    })
 }
 
 /// The currency is fixed once money has moved: stored amounts carry no

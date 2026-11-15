@@ -22,19 +22,22 @@ const SET_SELECT: &str = "SELECT s.id, s.area, s.title, s.reason, s.status, s.au
 /// Most sets one list returns.
 const LIST_LIMIT: i64 = 200;
 
+/// Sets in `area` (all when `None`) with any of `statuses` (all when `None`),
+/// newest first, at most [`LIST_LIMIT`].
 pub(crate) async fn list_sets(
     tx: &mut Tx<'_>,
     tenant: Uuid,
     area: Option<&str>,
-    status: Option<&str>,
+    statuses: Option<&[String]>,
 ) -> Result<Vec<KnowledgeChangeSet>, sqlx::Error> {
     sqlx::query_as::<_, KnowledgeChangeSet>(&format!(
-        "{SET_SELECT} AND ($2::text IS NULL OR s.area = $2) AND ($3::text IS NULL OR s.status = $3) \
+        "{SET_SELECT} AND ($2::text IS NULL OR s.area = $2) \
+         AND ($3::text[] IS NULL OR s.status = ANY($3)) \
          ORDER BY s.created_at DESC LIMIT $4"
     ))
     .bind(tenant)
     .bind(area)
-    .bind(status)
+    .bind(statuses)
     .bind(LIST_LIMIT)
     .fetch_all(&mut **tx)
     .await

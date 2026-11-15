@@ -95,31 +95,45 @@ pub fn check_value(field: Field, value: &Value) -> Result<(), String> {
     }
 }
 
-/// An IANA zone name every platform accepts (`Asia/Kolkata`, `Etc/GMT+4`, `UTC`).
+/// The IANA areas real region zones live under.
+const ZONE_AREAS: [&str; 9] = [
+    "Africa",
+    "America",
+    "Antarctica",
+    "Asia",
+    "Atlantic",
+    "Australia",
+    "Europe",
+    "Indian",
+    "Pacific",
+];
+
+/// A real region zone (`Asia/Kolkata`, `America/Argentina/Buenos_Aires`) or
+/// `UTC` / `Etc/UTC`: the names every platform accepts and reads right.
 ///
-/// Abbreviations (`IST` is three zones) and POSIX strings (`GMT+4` means four
-/// hours *behind* to Postgres) are refused: `Intl` throws on them and a print
-/// would take a wrong offset. The change set also asks Postgres whether it
-/// knows the name; this is the shape check every writer gets.
+/// Refused: abbreviations (`IST` is three zones), POSIX strings (`GMT+4`
+/// means four hours *behind* to Postgres) and `Etc/GMT±N`, whose sign is
+/// inverted. The database guard applies the same rule and also asks
+/// Postgres whether it knows the name (migration 1462 `locale_profile_zone_ok`).
 ///
 /// # Errors
 /// What is wrong, in words for the form.
 pub fn check_zone_name(zone: &str) -> Result<(), String> {
-    let well_formed = zone == "UTC"
-        || (zone.contains('/')
-            && !zone.starts_with('/')
-            && !zone.ends_with('/')
-            && !zone.contains("//")
-            && !zone.starts_with("posix/")
-            && !zone.starts_with("right/")
-            && zone
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'_' | b'-' | b'+')));
-    if well_formed {
+    let mut parts = zone.split('/');
+    let area = parts.next().unwrap_or_default();
+    let rest: Vec<&str> = parts.collect();
+    let region = ZONE_AREAS.contains(&area)
+        && !rest.is_empty()
+        && rest.iter().all(|p| {
+            !p.is_empty()
+                && p.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'+'))
+        });
+    if region || matches!(zone, "UTC" | "Etc/UTC") {
         Ok(())
     } else {
         Err(format!(
-            "\"{zone}\" is not an IANA time zone; use a name such as Asia/Kolkata or America/New_York"
+            "\"{zone}\" is not a time zone every screen accepts; use a region name such as Asia/Kolkata"
         ))
     }
 }
@@ -164,8 +178,8 @@ mod tests {
         for good in [
             "Asia/Kolkata",
             "America/Argentina/Buenos_Aires",
-            "Etc/GMT+4",
             "UTC",
+            "Etc/UTC",
             "America/Port-au-Prince",
         ] {
             assert!(check_value(Field::Timezone, &json!(good)).is_ok(), "{good}");
@@ -174,6 +188,8 @@ mod tests {
             "IST",
             "GMT+4",
             "EST",
+            "Etc/GMT+4",
+            "Etc/GMT-5",
             "Asia/",
             "/UTC",
             "posix/Asia/Kolkata",

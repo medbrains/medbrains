@@ -170,10 +170,11 @@ export function LocaleProfileSettings() {
     queryFn: () => svc.liveRows("locale_profile"),
     enabled: canRequest,
   });
-  // Bounded by the list's own limit; split here, not with two requests.
+  // Only what waits, filtered by the server in one call: a count from a
+  // capped list of everything could miss the ones that matter.
   const open = useQuery({
-    queryKey: ["knowledge-changes", "list", "locale_profile", null],
-    queryFn: () => svc.list({ area: "locale_profile" }),
+    queryKey: ["knowledge-changes", "list", "locale_profile", "previewed,approved"],
+    queryFn: () => svc.list({ area: "locale_profile", status: "previewed,approved" }),
     enabled: canList,
   });
   const waiting = open.data?.filter((s) => s.status === "previewed").length;

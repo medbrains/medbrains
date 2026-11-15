@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT category AS \"category!\", key AS \"key!\", value AS \"value!\", rank AS \"rank!\"\n             FROM (\n             SELECT category, key, value, CASE scope WHEN 'user' THEN 0 ELSE 1 END AS rank\n               FROM scoped_settings\n              WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL\n                AND ((scope = 'user' AND scope_id = $3) OR (scope = 'facility' AND scope_id = $4))\n             UNION ALL\n             SELECT category, key, value, 2 FROM tenant_settings\n              WHERE tenant_id = $1 AND category = ANY($2) AND deleted_at IS NULL\n           ) s ORDER BY category, key, rank",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "value!",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "rank!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "fc0a170f30063b74da54242583c52722a268c87e59146d06eaaca9b7afe1352f"
+}

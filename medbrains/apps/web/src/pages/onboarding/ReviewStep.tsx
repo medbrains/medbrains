@@ -137,7 +137,8 @@ export function ReviewStep({ onBack }: Props) {
             {hospitalDetails.pincode ? `, ${hospitalDetails.pincode}` : ""}
           </div>
           <Text size="sm" c="dimmed">
-            {hospitalDetails.timezone} &middot; {hospitalDetails.currency}
+            {hospitalDetails.timezone ?? "Country's time zone"} &middot;{" "}
+            {hospitalDetails.currency ?? "country's currency"}
           </Text>
         </div>
       )}

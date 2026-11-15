@@ -3,8 +3,12 @@ import { Select, Stack, TextInput } from "@mantine/core";
 import type { UpdateTenantInput } from "@medbrains/schemas";
 import { updateTenantSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Controller, type Resolver, useForm } from "react-hook-form";
 import { Button } from "@/components/ui";
+import { MONTH_OPTIONS } from "@/pages/admin/settings/locale-profile/fields";
+import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -12,30 +16,28 @@ interface Props {
   onBack: () => void;
 }
 
-const timezones = [
-  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST)" },
-  { value: "Asia/Dubai", label: "Asia/Dubai (GST)" },
-  { value: "America/New_York", label: "America/New_York (EST)" },
-  { value: "Europe/London", label: "Europe/London (GMT)" },
-];
-
-const currencies = [
-  { value: "INR", label: "INR - Indian Rupee" },
-  { value: "USD", label: "USD - US Dollar" },
-  { value: "EUR", label: "EUR - Euro" },
-  { value: "GBP", label: "GBP - British Pound" },
-];
-
-const fyMonths = [
-  { value: "1", label: "January" },
-  { value: "4", label: "April" },
-  { value: "7", label: "July" },
-  { value: "10", label: "October" },
-];
+/** Every zone or currency the browser's Intl knows, with `current` kept if it lists it under another name. */
+function intlOptions(kind: "timeZone" | "currency", current?: string | null) {
+  const all = Intl.supportedValuesOf(kind);
+  const values = current && !all.includes(current) ? [current, ...all] : all;
+  return values.map((v) => ({ value: v, label: v }));
+}
 
 export function HospitalStep({ onNext, onBack }: Props) {
   const stored = useOnboardingStore((s) => s.hospitalDetails);
   const setHospitalDetails = useOnboardingStore((s) => s.setHospitalDetails);
+  // The country chosen on the Geography step decides the starting zone and
+  // currency; nothing here assumes one.
+  const countryId = useOnboardingStore((s) => s.geo?.country_id);
+  const countries = useQuery({
+    queryKey: ["geo-countries"],
+    queryFn: () => onboardingService.geoCountries(),
+  });
+  const country = useMemo(
+    () => countries.data?.find((c) => c.id === countryId),
+    [countries.data, countryId],
+  );
+  const fromCountry = country ? `${country.name}'s` : "the country's";
 
   const form = useForm<UpdateTenantInput>({
     resolver: zodResolver(updateTenantSchema) as Resolver<UpdateTenantInput>,
@@ -49,9 +51,9 @@ export function HospitalStep({ onNext, onBack }: Props) {
       website: stored?.website ?? "",
       registration_no: stored?.registration_no ?? "",
       accreditation: stored?.accreditation ?? "",
-      timezone: stored?.timezone ?? "Asia/Kolkata",
-      currency: stored?.currency ?? "INR",
-      fy_start_month: stored?.fy_start_month ?? 4,
+      timezone: stored?.timezone ?? null,
+      currency: stored?.currency ?? null,
+      fy_start_month: stored?.fy_start_month ?? null,
     },
   });
 
@@ -66,9 +68,10 @@ export function HospitalStep({ onNext, onBack }: Props) {
       website: data.website || null,
       registration_no: data.registration_no || null,
       accreditation: data.accreditation || null,
-      timezone: data.timezone,
-      currency: data.currency,
-      fy_start_month: data.fy_start_month,
+      // Empty means "the country's": the server applies its presets.
+      timezone: data.timezone || null,
+      currency: data.currency || null,
+      fy_start_month: data.fy_start_month ?? null,
     });
     onNext();
   });
@@ -140,10 +143,14 @@ export function HospitalStep({ onNext, onBack }: Props) {
             name="timezone"
             render={({ field }) => (
               <Select
-                label="Timezone"
-                data={timezones}
-                value={field.value}
-                onChange={(v) => field.onChange(v ?? "Asia/Kolkata")}
+                label="Time zone"
+                description={`Empty uses ${fromCountry} zone`}
+                placeholder={country?.default_timezone ?? "Choose the country first"}
+                data={intlOptions("timeZone", field.value)}
+                searchable
+                clearable
+                value={field.value ?? null}
+                onChange={(v) => field.onChange(v)}
                 error={form.formState.errors.timezone?.message}
               />
             )}
@@ -154,9 +161,13 @@ export function HospitalStep({ onNext, onBack }: Props) {
             render={({ field }) => (
               <Select
                 label="Currency"
-                data={currencies}
-                value={field.value}
-                onChange={(v) => field.onChange(v ?? "INR")}
+                description={`Empty uses ${fromCountry} currency`}
+                placeholder={country?.currency ?? "Choose the country first"}
+                data={intlOptions("currency", field.value)}
+                searchable
+                clearable
+                value={field.value || null}
+                onChange={(v) => field.onChange(v)}
                 error={form.formState.errors.currency?.message}
               />
             )}
@@ -166,10 +177,13 @@ export function HospitalStep({ onNext, onBack }: Props) {
             name="fy_start_month"
             render={({ field }) => (
               <Select
-                label="Financial Year Start"
-                data={fyMonths}
-                value={String(field.value)}
-                onChange={(v) => field.onChange(Number(v ?? "4"))}
+                label="Financial year starts"
+                description={`Empty uses ${fromCountry} usual start`}
+                placeholder="Country's usual start"
+                data={MONTH_OPTIONS}
+                clearable
+                value={field.value ? String(field.value) : null}
+                onChange={(v) => field.onChange(v ? Number(v) : null)}
                 error={form.formState.errors.fy_start_month?.message}
               />
             )}

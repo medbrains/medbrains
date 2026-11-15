@@ -403,9 +403,29 @@ pub struct SetupHospitalDetails {
     pub website: Option<String>,
     pub registration_no: Option<String>,
     pub accreditation: Option<String>,
-    pub timezone: String,
-    pub currency: String,
-    pub fy_start_month: i32,
+    /// Left out, the country's pack decides (RFC-WORLD-READY §2.2): nothing
+    /// is assumed about where a hospital is.
+    pub timezone: Option<String>,
+    pub currency: Option<String>,
+    pub fy_start_month: Option<i32>,
+}
+
+/// Refuse a zone or currency every screen could not format, before writing.
+fn check_locale_choices(details: &SetupHospitalDetails) -> Result<(), AppError> {
+    use medbrains_country::{Field, validate::check_value};
+    let pairs = [
+        (Field::Timezone, details.timezone.as_deref()),
+        (Field::Currency, details.currency.as_deref()),
+    ];
+    for (field, value) in pairs {
+        if let Some(v) = value {
+            check_value(field, &serde_json::Value::String(v.to_owned())).map_err(AppError::BadRequest)?;
+        }
+    }
+    if details.fy_start_month.is_some_and(|m| !(1..=12).contains(&m)) {
+        return Err(AppError::BadRequest("The fiscal year starts in a month, 1 to 12".to_owned()));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -795,11 +815,15 @@ pub async fn setup(
 
     // 1. Update tenant details
     if let Some(ref details) = body.hospital_details {
+        check_locale_choices(details)?;
+        // A zone, currency or fiscal year written here is the profile's first
+        // value (migration 1462); one left out keeps the column and the pack decides.
         sqlx::query(
             "UPDATE tenants SET \
              address_line1 = $1, address_line2 = $2, city = $3, pincode = $4, \
              phone = $5, email = $6, website = $7, registration_no = $8, \
-             accreditation = $9, timezone = $10, currency = $11, fy_start_month = $12 \
+             accreditation = $9, timezone = COALESCE($10, timezone), \
+             currency = COALESCE($11, currency), fy_start_month = COALESCE($12, fy_start_month) \
              WHERE id = $13",
         )
         .bind(&details.address_line1)
@@ -819,16 +843,25 @@ pub async fn setup(
         .await?;
     }
 
-    // 2. Update tenant geo
+    // 2. Update tenant geo. The country goes through the one shared path:
+    // the first set brings the country's presets, a different one is refused.
     if let Some(ref geo) = body.geo {
-        sqlx::query(
-            "UPDATE tenants SET country_id = $1, state_id = $2, district_id = $3 \
-             WHERE id = $4",
+        if let Some(country_id) = geo.country_id {
+            let set =
+                medbrains_country::presets::set_country_once(&mut tx, claims.tenant_id, country_id)
+                    .await?;
+            if set == medbrains_country::presets::CountrySet::Refused {
+                return Err(AppError::Conflict(
+                    "The country is already set; change it in Settings, Locale profile".to_owned(),
+                ));
+            }
+        }
+        sqlx::query!(
+            "UPDATE tenants SET state_id = $1, district_id = $2 WHERE id = $3",
+            geo.state_id,
+            geo.district_id,
+            claims.tenant_id,
         )
-        .bind(geo.country_id)
-        .bind(geo.state_id)
-        .bind(geo.district_id)
-        .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
     }

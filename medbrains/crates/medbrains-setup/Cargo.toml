@@ -9,6 +9,7 @@ rust-version.workspace = true
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-vpn = { path = "../medbrains-vpn" }
 medbrains-core = { path = "../medbrains-core" }
+medbrains-country = { path = "../medbrains-country" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-authz = { path = "../medbrains-authz" }

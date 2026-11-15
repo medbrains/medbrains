@@ -80,6 +80,8 @@ fn require_drafting(claims: &Claims, area: Area, is_rollback: bool) -> Result<()
     require_any_permission(claims, manage(area))
 }
 
+/// Change sets, optionally by area and by one or more statuses.
+///
 /// # Errors
 /// Forbidden without `list`.
 pub async fn list(
@@ -89,8 +91,12 @@ pub async fn list(
     status: Option<&str>,
 ) -> Result<Vec<KnowledgeChangeSet>, AppError> {
     require_permission(claims, permissions::knowledge::change_sets::LIST)?;
+    // `status` may name several, comma-separated ("previewed,approved"), so a
+    // screen counts what waits in one call instead of filtering a capped list.
+    let statuses: Option<Vec<String>> =
+        status.map(|s| s.split(',').map(|p| p.trim().to_owned()).filter(|p| !p.is_empty()).collect());
     let mut tx = begin(pool, claims).await?;
-    let sets = store::list_sets(&mut tx, claims.tenant_id, area, status).await?;
+    let sets = store::list_sets(&mut tx, claims.tenant_id, area, statuses.as_deref()).await?;
     tx.commit().await?;
     Ok(sets)
 }

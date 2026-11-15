@@ -523,25 +523,51 @@ pub fn handler_ctx(
     }
 }
 
-/// Set the hospital's time zone the way an applied locale-profile change set
-/// does, and return the zone it had. A direct `UPDATE tenants SET timezone`
-/// is refused once the profile holds a zone (migration 1462), so a test that
-/// moves the clock and puts it back goes through the profile; the trigger
-/// keeps `tenants.timezone` in step for readers not yet moved.
-pub async fn set_hospital_timezone(db: &sqlx::PgPool, tenant_id: uuid::Uuid, zone: &str) -> String {
+/// The hospital's zone as it was before a test moved it: the profile's value
+/// (none when the profile held no zone) and the column's.
+#[derive(Debug, Clone)]
+pub struct PreviousZone {
+    profile: Option<String>,
+    column: String,
+}
+
+/// A transaction scoped to `tenant_id` and marked as the change-set writer,
+/// which the migration 1462 guards let through.
+async fn profile_writer(db: &sqlx::PgPool, tenant_id: uuid::Uuid) -> sqlx::Transaction<'static, sqlx::Postgres> {
     let mut tx = db.begin().await.expect("tx");
-    let previous: String = sqlx::query_scalar("SELECT timezone FROM tenants WHERE id = $1")
+    sqlx::query(
+        "SELECT set_config('app.tenant_id', $1, true), \
+                set_config('medbrains.locale_profile_writer', 'change_set', true)",
+    )
+    .bind(tenant_id.to_string())
+    .execute(&mut *tx)
+    .await
+    .expect("writer");
+    tx
+}
+
+/// Set the hospital's time zone the way an applied locale-profile change set
+/// does, and return what it was, for [`restore_hospital_timezone`]. A direct
+/// `UPDATE tenants SET timezone` is refused once the profile holds a zone
+/// (migration 1462); the trigger keeps the column in step.
+pub async fn set_hospital_timezone(db: &sqlx::PgPool, tenant_id: uuid::Uuid, zone: &str) -> PreviousZone {
+    let mut tx = profile_writer(db, tenant_id).await;
+    let column: String = sqlx::query_scalar("SELECT timezone FROM tenants WHERE id = $1")
         .bind(tenant_id)
         .fetch_one(&mut *tx)
         .await
         .expect("current zone");
-    sqlx::query("SELECT set_config('app.tenant_id', $1, true), set_config('medbrains.locale_profile_writer', 'change_set', true)")
-        .bind(tenant_id.to_string())
-        .execute(&mut *tx)
-        .await
-        .expect("writer");
+    let profile: Option<String> = sqlx::query_scalar(
+        "SELECT value #>> '{}' FROM tenant_settings \
+          WHERE tenant_id = $1 AND category = 'locale' AND key = 'timezone' AND deleted_at IS NULL",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .expect("profile zone");
     sqlx::query(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) VALUES ($1, 'locale', 'timezone', to_jsonb($2::text)) \
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'locale', 'timezone', to_jsonb($2::text)) \
          ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, deleted_at = NULL",
     )
     .bind(tenant_id)
@@ -550,5 +576,65 @@ pub async fn set_hospital_timezone(db: &sqlx::PgPool, tenant_id: uuid::Uuid, zon
     .await
     .expect("set zone");
     tx.commit().await.expect("commit");
-    previous
+    PreviousZone { profile, column }
+}
+
+/// Put the hospital's zone back as [`set_hospital_timezone`] found it: the
+/// profile row removed if there was none, and the column restored.
+pub async fn restore_hospital_timezone(db: &sqlx::PgPool, tenant_id: uuid::Uuid, previous: PreviousZone) {
+    if let Some(zone) = previous.profile {
+        set_hospital_timezone(db, tenant_id, &zone).await;
+        return;
+    }
+    let mut tx = profile_writer(db, tenant_id).await;
+    sqlx::query(
+        "UPDATE tenant_settings SET deleted_at = now(), delete_reason = 'test restore' \
+          WHERE tenant_id = $1 AND category = 'locale' AND key = 'timezone' AND deleted_at IS NULL",
+    )
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await
+    .expect("remove zone");
+    sqlx::query("UPDATE tenants SET timezone = $2 WHERE id = $1")
+        .bind(tenant_id)
+        .bind(&previous.column)
+        .execute(&mut *tx)
+        .await
+        .expect("restore column");
+    tx.commit().await.expect("commit");
+}
+
+/// A region zone with no daylight saving at each whole-hour offset from
+/// UTC-11 to UTC+14: the profile takes region names only, and these keep
+/// their offset all year, so a test that needs "23:00 at the hospital" can
+/// pick one.
+pub fn zone_at_offset(hours: i32) -> &'static str {
+    match hours {
+        -11 => "Pacific/Pago_Pago",
+        -10 => "Pacific/Honolulu",
+        -9 => "Pacific/Gambier",
+        -8 => "Pacific/Pitcairn",
+        -7 => "America/Phoenix",
+        -6 => "America/Regina",
+        -5 => "America/Panama",
+        -4 => "America/Puerto_Rico",
+        -3 => "America/Argentina/Buenos_Aires",
+        -2 => "Atlantic/South_Georgia",
+        -1 => "Atlantic/Cape_Verde",
+        1 => "Africa/Lagos",
+        2 => "Africa/Johannesburg",
+        3 => "Asia/Riyadh",
+        4 => "Asia/Dubai",
+        5 => "Asia/Karachi",
+        6 => "Asia/Dhaka",
+        7 => "Asia/Bangkok",
+        8 => "Asia/Singapore",
+        9 => "Asia/Tokyo",
+        10 => "Australia/Brisbane",
+        11 => "Pacific/Guadalcanal",
+        12 => "Pacific/Tarawa",
+        13 => "Pacific/Fakaofo",
+        14 => "Pacific/Kiritimati",
+        _ => "Africa/Abidjan",
+    }
 }

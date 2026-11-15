@@ -263,18 +263,18 @@ async fn the_punch_is_dated_by_the_hospitals_clock() {
     let tenant_id = tenant(&app).await;
 
     // Pick a zone whose date is not UTC's right now: UTC+14 late in the UTC
-    // day, UTC-12 early in it.
+    // day, UTC-11 early in it (region zones only: the profile refuses Etc/GMT±N).
     let now = Utc::now();
     let (zone, offset_h) = if now.hour() >= 10 {
         ("Pacific/Kiritimati", 14)
     } else {
-        ("Etc/GMT+12", -12)
+        ("Pacific/Pago_Pago", -11)
     };
     let previous = common::set_hospital_timezone(&app.db, tenant_id, zone).await;
 
     let (status, body) = start(&app, &w, &at(CAMPUS, 20.0)).await;
 
-    common::set_hospital_timezone(&app.db, tenant_id, &previous).await;
+    common::restore_hospital_timezone(&app.db, tenant_id, previous).await;
 
     assert_eq!(status, StatusCode::OK, "{body}");
     let local = (now + Duration::hours(offset_h)).date_naive();

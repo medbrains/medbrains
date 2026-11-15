@@ -17,7 +17,7 @@ async fn a_token_slip_prints_in_the_hospitals_zone() {
             .fetch_one(&app.db)
             .await
             .expect("tenant");
-    common::set_hospital_timezone(&app.db, tenant, "Asia/Kolkata").await;
+    let previous = common::set_hospital_timezone(&app.db, tenant, "Asia/Kolkata").await;
     let token: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO tokens (tenant_id, module, scope, number, seq, token_date, created_at) \
          VALUES ($1, 'registration', 'global', 'TZ-001', 1, '2026-10-12', \
@@ -31,10 +31,8 @@ async fn a_token_slip_prints_in_the_hospitals_zone() {
     let resp = app
         .get(&app.client, &format!("/api/print-data/token-slip/{token}"))
         .await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    let slip: Value = resp.json().await.expect("json");
-    assert_eq!(slip["token_date"], "12-Oct-2026", "{slip}");
-    assert_eq!(slip["token_time"], "01:30", "{slip}");
+    let status = resp.status();
+    let slip: Value = resp.json().await.unwrap_or_default();
 
     // The offset handed to Rust-side formatting agrees with the SQL side.
     let mut tx = app.db.begin().await.expect("tx");
@@ -44,11 +42,14 @@ async fn a_token_slip_prints_in_the_hospitals_zone() {
     let instant = chrono::DateTime::parse_from_rfc3339("2026-10-11T20:00:00Z")
         .expect("instant")
         .with_timezone(&chrono::Utc);
-    assert_eq!(
-        instant
-            .with_timezone(&tz)
-            .format("%d-%b-%Y %H:%M")
-            .to_string(),
-        "12-Oct-2026 01:30"
-    );
+    let rust_side = instant.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string();
+    tx.rollback().await.expect("rollback");
+    // Put the hospital's zone back before asserting, so a failure here never
+    // leaves the next test in Kolkata.
+    common::restore_hospital_timezone(&app.db, tenant, previous).await;
+
+    assert_eq!(status, StatusCode::OK, "{slip}");
+    assert_eq!(slip["token_date"], "12-Oct-2026", "{slip}");
+    assert_eq!(slip["token_time"], "01:30", "{slip}");
+    assert_eq!(rust_side, "12-Oct-2026 01:30");
 }
