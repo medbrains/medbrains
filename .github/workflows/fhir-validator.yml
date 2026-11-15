@@ -74,7 +74,7 @@ jobs:
           path: |
             ~/.cache/medbrains-fhir
             ~/.fhir/packages
-          key: fhir-validator-6.3.11-ndhm.in-6.5.0
+          key: fhir-validator-7.0.4-ndhm.in-6.5.0
       - name: Validate (offline terminology)
         if: github.event_name == 'pull_request'
         run: python3 scripts/check_fhir_validator.py
