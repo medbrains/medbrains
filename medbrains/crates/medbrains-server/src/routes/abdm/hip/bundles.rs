@@ -10,6 +10,7 @@ use medbrains_fhir::mapper::PatientView;
 use medbrains_fhir::nrces::{
     DiagnosisLine, DocumentInput, EncounterInfo, LabResult, Party, RecordKind, document_bundle,
 };
+use medbrains_print::gotenberg::GotenbergClient;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -43,6 +44,7 @@ struct PatientRow {
     gender: String,
     date_of_birth: Option<NaiveDate>,
     phone: Option<String>,
+    abha_address: Option<String>,
 }
 
 const AUTHOR_JOIN: &str = "LEFT JOIN users u ON u.id = {author} \
@@ -247,15 +249,18 @@ async fn items(
     Ok(())
 }
 
+/// The patient as the bundles name them, and their ABHA address (which
+/// only the printed copy shows).
 async fn patient(
     tx: Tx<'_, '_>,
     tenant_id: Uuid,
     patient_id: Uuid,
-) -> Result<PatientView, AppError> {
+) -> Result<(PatientView, Option<String>), AppError> {
     let r = sqlx::query_as::<_, PatientRow>(
         "SELECT p.id, p.uhid, COALESCE(l.abha_number, p.abha_id) AS abha_id, p.first_name, p.last_name, \
-                p.gender::text AS gender, p.date_of_birth, p.phone \
-           FROM patients p LEFT JOIN LATERAL (SELECT abha_number FROM patient_abha_links l \
+                p.gender::text AS gender, p.date_of_birth, p.phone, \
+                COALESCE(NULLIF(l.abha_address, ''), NULLIF(p.abha_address, '')) AS abha_address \
+           FROM patients p LEFT JOIN LATERAL (SELECT abha_number, abha_address FROM patient_abha_links l \
                 WHERE l.tenant_id = p.tenant_id AND l.patient_id = p.id AND l.verified_at IS NOT NULL \
                   AND l.deleted_at IS NULL ORDER BY l.verified_at DESC LIMIT 1) l ON true \
           WHERE p.tenant_id = $1 AND p.id = $2",
@@ -265,7 +270,7 @@ async fn patient(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    Ok(PatientView {
+    let view = PatientView {
         id: r.id,
         uhid: r.uhid,
         abha_id: r.abha_id,
@@ -278,7 +283,8 @@ async fn patient(
         phone: r.phone,
         email: None,
         is_active: true,
-    })
+    };
+    Ok((view, r.abha_address))
 }
 
 /// The campus records are shared as; a hospital with no campus row yet is
@@ -305,7 +311,8 @@ async fn custodian(tx: Tx<'_, '_>, tenant_id: Uuid) -> Result<Party, AppError> {
 
 /// One NRCeS bundle per care context, keyed by its reference number. A care
 /// context whose record no longer exists — or a document whose bytes are
-/// not in `files` — is left out.
+/// not in `files` — is left out. Each structured record also carries its
+/// PDF, printed by `renderer` (rustenberg); see `bundle_pdf`.
 ///
 /// # Errors
 /// Database faults; 404 for an unknown patient.
@@ -316,8 +323,9 @@ pub async fn build(
     patient_id: Uuid,
     contexts: &[ContextRow],
     files: &Files,
+    renderer: Option<&GotenbergClient>,
 ) -> Result<Vec<(String, Value)>, AppError> {
-    let patient = patient(tx, tenant_id, patient_id).await?;
+    let (patient, abha_address) = patient(tx, tenant_id, patient_id).await?;
     let custodian = custodian(tx, tenant_id).await?;
     let mut out = Vec::with_capacity(contexts.len());
     for kind in [
@@ -389,5 +397,11 @@ pub async fn build(
         custodian: &custodian,
     };
     build_later(tx, &common, contexts, files, &mut out).await?;
+    let print = super::bundle_pdf::Print {
+        tenant_id,
+        renderer,
+        abha_address: abha_address.as_deref(),
+    };
+    super::bundle_pdf::attach(tx, &print, &mut out).await?;
     Ok(out)
 }

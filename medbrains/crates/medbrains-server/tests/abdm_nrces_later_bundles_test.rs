@@ -138,7 +138,7 @@ async fn the_later_hi_types_are_captured_and_meet_their_profiles() {
         ),
     );
     let mut tx = db.begin().await.expect("tx");
-    let bundles = build(&mut tx, tenant, p, &captured, &files)
+    let bundles = build(&mut tx, tenant, p, &captured, &files, None)
         .await
         .expect("bundles");
     tx.rollback().await.ok();
@@ -190,7 +190,7 @@ async fn the_later_hi_types_are_captured_and_meet_their_profiles() {
     );
 
     let mut tx = db.begin().await.expect("tx");
-    let without = build(&mut tx, tenant, p, &captured, &Files::new())
+    let without = build(&mut tx, tenant, p, &captured, &Files::new(), None)
         .await
         .expect("bundles");
     tx.rollback().await.ok();

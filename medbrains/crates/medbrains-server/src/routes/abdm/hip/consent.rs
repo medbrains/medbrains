@@ -388,8 +388,15 @@ async fn transfer(
     let patient_id = a.patient_id.ok_or(AppError::NotFound)?;
     let files =
         super::bundle_records::document_files(state, &mut tx, caller.tenant_id, &contexts).await?;
-    let documents =
-        bundles::build(&mut tx, caller.tenant_id, patient_id, &contexts, &files).await?;
+    let documents = bundles::build(
+        &mut tx,
+        caller.tenant_id,
+        patient_id,
+        &contexts,
+        &files,
+        state.gotenberg.as_ref(),
+    )
+    .await?;
     super::bundle_check::record(&mut tx, caller.tenant_id, patient_id, &documents).await?;
     tx.commit().await?;
 

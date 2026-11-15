@@ -10,6 +10,7 @@
 
 pub mod conformance;
 mod records;
+mod rendition;
 mod resources;
 pub mod sections;
 
@@ -19,6 +20,8 @@ mod drift_tests;
 mod golden;
 #[cfg(test)]
 mod records_tests;
+#[cfg(test)]
+mod rendition_tests;
 #[cfg(test)]
 mod tests;
 
@@ -30,6 +33,7 @@ pub use records::{
     DocumentLine, ImmunizationLine, InvoiceHeader, InvoiceItem, VitalsLine, document_reference,
     immunization, invoice, vital_observations,
 };
+pub use rendition::{attach_pdf, has_rendition, rendition};
 pub use resources::{
     Clinical, DiagnosisLine, LabReport, LabResult, condition, diagnostic_report,
     medication_request, observation,

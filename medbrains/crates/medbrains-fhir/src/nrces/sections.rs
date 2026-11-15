@@ -47,3 +47,14 @@ pub const HOSPITAL_COURSE: SectionCode =
 pub const IMMUNIZATION: SectionCode = sct("41000179103", "Immunization record");
 /// HealthDocumentRecord's one section (DocumentReference).
 pub const HEALTH_DOCUMENT: SectionCode = sct("419891008", "Record artifact");
+
+// Where a record's PDF rendition goes (`rendition`).
+
+/// OPConsultRecord `DocumentReference` (the consultation's PDF).
+pub const OP_DOCUMENT: SectionCode = sct("371530004", "Clinical consultation report");
+/// DischargeSummaryRecord `DocumentReference` (the summary's PDF).
+pub const DISCHARGE_DOCUMENT: SectionCode = sct("373942005", "Discharge summary");
+/// WellnessRecord's `DocumentReference` slice, told by its title.
+pub const WELLNESS_DOCUMENT_TITLE: &str = "Document Reference";
+/// The trailing narratives above: a sliced section must come before them.
+pub const UNSLICED: [SectionCode; 2] = [OP_ADVICE, HOSPITAL_COURSE];

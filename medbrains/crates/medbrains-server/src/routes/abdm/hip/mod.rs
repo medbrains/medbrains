@@ -9,6 +9,7 @@
 //! - `bundles`   — the NRCeS FHIR bundles a transfer carries;
 //!   `bundle_sections` maps a record's rows to the IG's sections, and
 //!   `bundle_check` records what the profile check found on each one sent.
+//!   `bundle_pdf` prints each structured record's PDF rendition.
 //! - `profile_share` — Scan & Share: a patient shares their ABHA profile at a
 //!   counter and is given a token.
 //! - `records`   — the staff screens: a patient's ABDM records, sharing totals.
@@ -20,6 +21,7 @@
 pub mod bundle_bills;
 pub mod bundle_check;
 pub mod bundle_files;
+pub mod bundle_pdf;
 pub mod bundle_records;
 pub mod bundle_sections;
 pub mod bundles;
