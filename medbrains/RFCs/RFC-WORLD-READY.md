@@ -155,7 +155,7 @@ a pack typo cannot remove the NDPS dual-lock, because the India pack's golden te
 
 **A base pack, `world`,** applies when a country has no pack yet: passport and generic national ID,
 E.164 phone, free-text address with postal code, tax off, controlled flag with `rx_required` +
-`dual_sign`, no accreditation framework (JCI selectable), retention at the strictest common minimum,
+`dual_sign` + `register_entry` (the §1a floor), no accreditation framework (JCI selectable), retention at the strictest common minimum,
 no exchange adapters. It is honest about what it lacks: those capabilities are not offered
 (#4917).
 
@@ -206,7 +206,7 @@ no exchange adapters. It is honest about what it lacks: those capabilities are n
 | Web | `@medbrains/utils` `format/` (`formatMoney`, `formatDate`, `formatDateTime`, `formatTime`, `formatNumber`, `formatName`, `formatAddress`, `formatIdentifier`) reading the profile from the locale store | `Intl.*` (installed, free) | `formatDate`/`formatDateTime` hard-coded to `en-IN` in `packages/utils/src/index.ts`; 7 local copies (`formatInr` ×3, `formatMoney` ×3, `formatRupee` ×1); 348 bare `toLocaleString()` |
 | iOS | `MedBrainsKit` `Format` | Foundation `FormatStyle` | `₹` literals in Patient app views |
 | Android | `kit` `Format` | `android.icu` / `java.time` | `"₹%.2f".format(...)` in 9 files, which also does money in `Double` |
-| Server / print | `medbrains-country::format` | ICU4X 2.x (`icu_locale_core` 2.4 is already in the lockfile via `idna`; adds `icu_decimal`, `icu_datetime`, `icu_calendar` with baked data for pack locales only, inside the OS size budget, RFC-HOSPITAL-OS §3a) and `chrono-tz` | `IST_OFFSET_SECONDS`-style constants (22 lines), the single-offset ceiling noted in `set_print_timezone` |
+| Server / print | `medbrains-country::format` | ICU4X 2.x numbers (`icu_locale_core` 2.4 is already in the lockfile via `idna`; adds `icu_decimal` with baked data for pack locales only, inside the OS size budget, RFC-HOSPITAL-OS §3a). Stable ICU4X has no currency formatter, so each pack declares its currency symbol and placement; the zone maths runs in Postgres (`PrintZone`, one offset per timestamp) | `IST_OFFSET_SECONDS`-style constants (22 lines), the single-offset ceiling noted in `set_print_timezone` |
 
 Rules:
 
@@ -353,3 +353,13 @@ All resolved 2026-11-15 by owner principle (§0).
 | 5 | Second pack? | UAE (#5426) | Different currency, RTL, Hijri, VAT, a region split, a controlled-drug platform and data localisation: it exercises every row |
 | 6 | Dated legal changes? | Apply automatically on their date only from a pack version approved beforehand through a change set (§3.3) | The law's date is met, and nothing changes silently |
 | 7 | Who changes the locale profile? | `hospital_admin` only, plus second-person approval, audited (§2.4) | It switches regulatory rules; separation of privilege |
+
+### 7a. Decided 2026-11-15 while building #5926 (owner: "do all things cleanly")
+
+| # | Question | Resolution | Reason |
+|---|---|---|---|
+| 8 | Server and print money formatting | ICU4X number formatting, with the currency symbol and its placement declared per pack. Experimental ICU4X currency data and Postgres `to_char` were rejected | Stable API only; Postgres cannot format other countries' money well. The new crates still go through the owner's supply-chain review |
+| 9 | Retention floor | 3 years for medical records and for audit logs; India 5 years for medical records (today's MRD default). Packs may raise these, never lower them | The lowest common legal minimum, with the existing India practice kept |
+| 10 | Controlled drugs in the world pack | `rx_required` + `dual_sign` + `register_entry`, as in §1a; §3.1 is aligned | The floor decides and the text follows it |
+| 11 | Tenant with no country | Left without a country and shown as incomplete until a change set sets one; never inferred from INR | Guessing a country would pick its regulatory rules silently |
+| 12 | Second approver of a locale change | Any holder of `knowledge.change_sets.approve`; the applier stays `hospital_admin` | Requiring a second hospital administrator would block hospitals that have only one |
