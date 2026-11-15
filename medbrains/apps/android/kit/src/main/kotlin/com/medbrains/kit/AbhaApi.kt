@@ -59,6 +59,7 @@ class AbhaApi(private val client: ApiClient) {
 
     suspend fun enrolmentMobileOtp(id: String, otp: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "mobile-otp"), OtpBody(otp))
 
+    /** Create the ABHA address the desk chose or typed, and finish the new ABHA. */
     suspend fun chooseAddress(id: String, address: String): AbhaVerificationStep = client.post(AbdmEndpoint.enrolment(id, "address"), AddressBody(address, false))
 
     /** After "ABHA address already exists.": finish on the address the new ABHA already has (CRT_ABHA_112). */

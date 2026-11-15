@@ -37,6 +37,7 @@ public enum AbhaRules {
         return c == 0
     }
 
+    /// The typed text without spaces — the only separator the desk may type.
     private static func withoutSpaces(_ typed: String) -> String { typed.filter { !$0.isWhitespace } }
 
     /// A valid Aadhaar number: 12 digits (spaces allowed) passing Verhoeff (CRT_ABHA_104).

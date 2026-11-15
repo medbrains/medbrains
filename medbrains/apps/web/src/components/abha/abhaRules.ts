@@ -48,6 +48,7 @@ export function verhoeffOk(digits: string): boolean {
   return c === 0;
 }
 
+/** The typed text without spaces — the only separator the desk may type. */
 const withoutSpaces = (typed: string) => typed.replace(/\s/g, "");
 
 /** A valid Aadhaar number: 12 digits (spaces allowed) passing Verhoeff (CRT_ABHA_104). */
@@ -72,11 +73,13 @@ export interface AddressRule {
   met: boolean;
 }
 
+/** A dot or underscore: the only characters besides letters and digits. */
 const special = (c: string | undefined) => c === "." || c === "_";
 
 /** Each CRT_ABHA_112 rule for `name@{domain}`, in the words and order shown. */
 export function addressChecklist(name: string, domain: string): AddressRule[] {
   const total = [...name].length + 1 + domain.length;
+  /** How many times `c` appears in the name. */
   const count = (c: string) => name.split(c).length - 1;
   return [
     { label: `8–18 characters, including @${domain}`, met: total >= 8 && total <= 18 },
