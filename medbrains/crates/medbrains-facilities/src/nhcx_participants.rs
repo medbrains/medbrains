@@ -1,13 +1,16 @@
 //! NHCX payer directory — the payer/TPA participants (HCX codes) used as the
 //! `recipient_code` when submitting a claim.
 //!
-//! Maintained here by an NHCX administrator. The submit flow takes the
-//! `recipient_code` from this directory, and the outbox handler encrypts each
-//! message to the payer's `encryption_cert` — a certificate is a trust
-//! decision, so changing the directory needs `insurance.nhcx.configure`.
+//! Filled from the NHCX registry (`/fetch/participants/list`, refreshed on
+//! demand under `insurance.nhcx.refresh_directory`); a payer typed in by an
+//! administrator is the fallback. The outbox fetches each recipient's
+//! certificate from `/fetch/certs` and keeps it here; a certificate typed in
+//! by hand is a trust decision, so manual entry needs
+//! `insurance.nhcx.configure`.
 
 use axum::Json;
 use axum::extract::{Extension, Query, State};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -18,6 +21,8 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
+use crate::nhcx_common;
+
 #[derive(Debug, Serialize, FromRow)]
 pub struct NhcxParticipant {
     pub id: Uuid,
@@ -25,10 +30,21 @@ pub struct NhcxParticipant {
     pub participant_name: String,
     pub role: String,
     pub is_active: bool,
-    /// Whether the payer's encryption certificate is on file; without it
-    /// nothing can be sent to this payer.
+    /// Whether the payer's encryption certificate is on file. A registry
+    /// payer without one gets it from `/fetch/certs` on the first send.
     pub has_encryption_cert: bool,
+    /// `registry` (listed by NHCX) or `manual` (typed in here).
+    pub source: String,
+    /// `Gov` or `Pvt`: the registry list it came from.
+    pub entity_type: Option<String>,
+    /// When the registry last listed it.
+    pub synced_at: Option<DateTime<Utc>>,
 }
+
+/// What a directory row reads back.
+const PARTICIPANT_COLUMNS: &str = "id, participant_code, participant_name, role, is_active, \
+     COALESCE(btrim(encryption_cert), '') <> '' AS has_encryption_cert, source, entity_type, \
+     synced_at";
 
 #[derive(Debug, Deserialize)]
 pub struct NhcxParticipantQuery {
@@ -51,17 +67,16 @@ pub async fn list_nhcx_participants(
     require_permission(&claims, permissions::insurance::nhcx::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, NhcxParticipant>(
-        "SELECT id, participant_code, participant_name, role, is_active, \
-                COALESCE(btrim(encryption_cert), '') <> '' AS has_encryption_cert \
-         FROM nhcx_participants \
+    let sql = format!(
+        "SELECT {PARTICIPANT_COLUMNS} FROM nhcx_participants \
          WHERE tenant_id = $1 AND ($2::text IS NULL OR role = $2) AND is_active = true \
-         ORDER BY participant_name",
-    )
-    .bind(claims.tenant_id)
-    .bind(q.role.as_deref())
-    .fetch_all(&mut *tx)
-    .await?;
+         ORDER BY participant_name"
+    );
+    let rows = sqlx::query_as::<_, NhcxParticipant>(&sql)
+        .bind(claims.tenant_id)
+        .bind(q.role.as_deref())
+        .fetch_all(&mut *tx)
+        .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -112,7 +127,7 @@ pub async fn upsert_nhcx_participant(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, NhcxParticipant>(
+    let sql = format!(
         "INSERT INTO nhcx_participants \
            (tenant_id, participant_code, participant_name, role, encryption_cert) \
          VALUES ($1, $2, $3, $4, $5) \
@@ -120,16 +135,16 @@ pub async fn upsert_nhcx_participant(
            participant_name = EXCLUDED.participant_name, role = EXCLUDED.role, \
            encryption_cert = COALESCE(EXCLUDED.encryption_cert, nhcx_participants.encryption_cert), \
            is_active = true, updated_at = now() \
-         RETURNING id, participant_code, participant_name, role, is_active, \
-                   COALESCE(btrim(encryption_cert), '') <> '' AS has_encryption_cert",
-    )
-    .bind(claims.tenant_id)
-    .bind(code)
-    .bind(name)
-    .bind(role)
-    .bind(cert)
-    .fetch_one(&mut *tx)
-    .await?;
+         RETURNING {PARTICIPANT_COLUMNS}"
+    );
+    let row = sqlx::query_as::<_, NhcxParticipant>(&sql)
+        .bind(claims.tenant_id)
+        .bind(code)
+        .bind(name)
+        .bind(role)
+        .bind(cert)
+        .fetch_one(&mut *tx)
+        .await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -146,4 +161,96 @@ fn check_encryption_cert(pem: &str) -> Result<(), AppError> {
                     .to_owned(),
             )
         })
+}
+
+/// The registry lists a provider asks for: payers and TPAs, each on the
+/// government and the private list (a request without `entitytype` answers
+/// the private list only).
+const LISTS: [(&str, &str); 4] = [
+    ("PAYER", "Gov"),
+    ("PAYER", "Pvt"),
+    ("TPA", "Gov"),
+    ("TPA", "Pvt"),
+];
+
+/// What a refresh did.
+#[derive(Debug, Serialize)]
+pub struct DirectoryRefresh {
+    /// Participants the registry listed, across the lists that answered.
+    pub listed: usize,
+    /// The lists that did not answer, each with the reason.
+    pub failed: Vec<String>,
+    pub directory: Vec<NhcxParticipant>,
+}
+
+/// `POST /api/nhcx/participants/refresh` — fill the directory from the
+/// registry's `/fetch/participants/list`. Certificates and hand-entered
+/// rows' certificates are kept; a listed row is marked `registry`.
+///
+/// # Errors
+/// 403 without `insurance.nhcx.refresh_directory`; 503 until NHCX is set up,
+/// or when no list answered.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
+pub async fn refresh_nhcx_participants(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<DirectoryRefresh>, AppError> {
+    require_permission(&claims, permissions::insurance::nhcx::REFRESH_DIRECTORY)?;
+    let http = nhcx_common::registry_http()?;
+    let registry = nhcx_common::registry(&state, &http, claims.tenant_id).await?;
+    let (mut codes, mut names, mut roles, mut entities) = (vec![], vec![], vec![], vec![]);
+    let mut failed = Vec::new();
+    for (role, entity) in LISTS {
+        match registry.participants(role, entity, Utc::now()).await {
+            Ok(found) => {
+                for p in found {
+                    codes.push(p.code);
+                    names.push(p.name);
+                    roles.push(role);
+                    entities.push(entity);
+                }
+            }
+            Err(e) => failed.push(format!("{role} {entity}: {e}")),
+        }
+    }
+    if failed.len() == LISTS.len() {
+        return Err(AppError::ServiceUnavailable(format!(
+            "the NHCX registry did not answer — the directory is unchanged ({})",
+            failed.join("; ")
+        )));
+    }
+    let listed = codes.len();
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    sqlx::query(
+        "INSERT INTO nhcx_participants \
+             (tenant_id, participant_code, participant_name, role, entity_type, source, synced_at) \
+         SELECT DISTINCT ON (code) $1, code, name, role, entity, 'registry', now() \
+           FROM unnest($2::text[], $3::text[], $4::text[], $5::text[]) AS r(code, name, role, entity) \
+         ON CONFLICT (tenant_id, participant_code) DO UPDATE SET \
+             participant_name = EXCLUDED.participant_name, role = EXCLUDED.role, \
+             entity_type = EXCLUDED.entity_type, source = 'registry', synced_at = now(), \
+             is_active = true, updated_at = now()",
+    )
+    .bind(claims.tenant_id)
+    .bind(&codes)
+    .bind(&names)
+    .bind(&roles)
+    .bind(&entities)
+    .execute(&mut *tx)
+    .await?;
+    let sql = format!(
+        "SELECT {PARTICIPANT_COLUMNS} FROM nhcx_participants \
+         WHERE tenant_id = $1 AND is_active ORDER BY participant_name"
+    );
+    let directory = sqlx::query_as::<_, NhcxParticipant>(&sql)
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Json(DirectoryRefresh {
+        listed,
+        failed,
+        directory,
+    }))
 }

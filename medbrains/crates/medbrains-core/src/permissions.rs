@@ -3256,6 +3256,16 @@ pub mod insurance {
         /// Ask a payer through NHCX to cancel a claim, or to reprocess one
         /// after its deductions or rejection have been answered.
         pub const CANCEL: &str = "insurance.nhcx.cancel";
+        /// Refresh the NHCX payer directory.
+        ///
+        /// Fetch the list of payers and TPAs from the NHCX participant
+        /// registry into this hospital's payer directory.
+        pub const REFRESH_DIRECTORY: &str = "insurance.nhcx.refresh_directory";
+        /// Look up a patient's NHCX policies.
+        ///
+        /// Ask the NHCX registry which policies are linked to a patient's
+        /// ABHA number or member id, and which payer or TPA processes each.
+        pub const LOOKUP_POLICIES: &str = "insurance.nhcx.lookup_policies";
         /// See and post NHCX payments.
         ///
         /// The payment notices payers send through NHCX — amount, UTR and

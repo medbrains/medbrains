@@ -50,6 +50,43 @@ export interface NhcxParticipant {
   role: string;
   is_active: boolean;
   has_encryption_cert: boolean;
+  /** `registry` (listed by NHCX) or `manual` (typed in by an administrator). */
+  source: "registry" | "manual";
+  /** `Gov` or `Pvt`: the registry list it came from. */
+  entity_type: "Gov" | "Pvt" | null;
+  /** When the registry last listed it. */
+  synced_at: string | null;
+}
+
+/** What a payer-directory refresh from the NHCX registry did. */
+export interface NhcxDirectoryRefresh {
+  listed: number;
+  /** Registry lists that did not answer, each with its reason. */
+  failed: string[];
+  directory: NhcxParticipant[];
+}
+
+/** One policy the NHCX registry links to a patient. */
+export interface NhcxPatientPolicy {
+  id: string;
+  identifier_type: "AbhaNumber" | "MemberId";
+  payer_id: string | null;
+  payer_name: string | null;
+  /** Who processes claims for it — every message is addressed here. */
+  processing_id: string;
+  processor_name: string | null;
+  member_id: string | null;
+  product_id: string | null;
+  product_name: string | null;
+  fetched_at: string;
+}
+
+/** The last registry lookup of a patient's policies. */
+export interface NhcxPolicyLookup {
+  patient_id: string;
+  policies: NhcxPatientPolicy[];
+  /** Why nothing was found, when nothing was. */
+  note: string | null;
 }
 
 export interface UpsertNhcxParticipantRequest {

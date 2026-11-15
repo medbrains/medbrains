@@ -10,7 +10,7 @@ import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 import { NhcxPayerSelect } from "./NhcxPayerSelect";
 import { NhcxSetupAlert } from "./NhcxSetupAlert";
 import { NhcxSlaBadge } from "./NhcxSlaBadge";
-import { nhcxDecisionLabel, nhcxStatusLabel } from "./nhcxSummary";
+import { canSendTo, nhcxDecisionLabel, nhcxStatusLabel } from "./nhcxSummary";
 import { PayerQueryList } from "./PayerQueryList";
 import { PreauthStatusCheck } from "./PreauthStatusCheck";
 
@@ -75,7 +75,7 @@ function SendSection({ priorAuthId }: { priorAuthId: string }) {
           <Button
             size="xs"
             loading={send.isPending}
-            disabled={status.data?.ready !== true || !payer?.has_encryption_cert}
+            disabled={status.data?.ready !== true || !canSendTo(payer)}
             onClick={() => send.mutate()}
           >
             Send pre-auth

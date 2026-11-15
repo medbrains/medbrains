@@ -38,7 +38,8 @@ pub(crate) struct Parties<'a> {
     pub(crate) provider: &'a ProviderParty,
     /// The treating doctor (an eligibility check's: the staff member asking).
     pub(crate) doctor: Option<&'a Party>,
-    /// The payer's HCX participant code.
+    /// The insurer's HCX participant code (the policy's `payerid`), named in
+    /// the bundle — not the envelope's recipient when a TPA processes.
     pub(crate) recipient: &'a str,
 }
 

@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1256 permissions, one per constant in the Rust source. */
+/** 1258 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5353,6 +5353,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "insurance",
   },
   {
+    code: "insurance.nhcx.refresh_directory",
+    label: "Refresh the NHCX payer directory",
+    description: "Fetch the list of payers and TPAs from the NHCX participant registry into this hospital's payer directory.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.nhcx.lookup_policies",
+    label: "Look up a patient's NHCX policies",
+    description: "Ask the NHCX registry which policies are linked to a patient's ABHA number or member id, and which payer or TPA processes each.",
+    module: "insurance",
+  },
+  {
     code: "insurance.nhcx.payments",
     label: "See and post NHCX payments",
     description: "The payment notices payers send through NHCX — amount, UTR and TDS against each claim — and posting an unmatched one to its claim.",
@@ -8570,6 +8582,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.DASHBOARD.VIEW,
       P.INSURANCE.ENHANCEMENT.REQUEST,
       P.INSURANCE.ENHANCEMENT.VIEW,
+      P.INSURANCE.NHCX.LOOKUP_POLICIES,
       P.INSURANCE.NHCX.PAYMENTS,
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
@@ -9497,7 +9510,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.ENHANCEMENT.REQUEST,
       P.INSURANCE.ENHANCEMENT.VIEW,
       P.INSURANCE.NHCX.CANCEL,
+      P.INSURANCE.NHCX.LOOKUP_POLICIES,
       P.INSURANCE.NHCX.PAYMENTS,
+      P.INSURANCE.NHCX.REFRESH_DIRECTORY,
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,

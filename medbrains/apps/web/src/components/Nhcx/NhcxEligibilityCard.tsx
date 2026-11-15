@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Alert, Badge, Button, Card, Table } from "@/components/ui";
 import { formatBenefitValue, summariseEligibility } from "./eligibilitySummary";
 import { NhcxEligibilityCheckModal } from "./NhcxEligibilityCheckModal";
+import { NhcxPolicyCard } from "./NhcxPolicyCard";
 
 interface NhcxEligibilityCardProps {
   patientId: string;
@@ -139,6 +140,7 @@ export function NhcxEligibilityCard({
             No eligibility check has been sent through NHCX for this patient.
           </Text>
         )}
+        <NhcxPolicyCard patientId={patientId} />
         {canCheck && (
           <Group justify="flex-end">
             <Button

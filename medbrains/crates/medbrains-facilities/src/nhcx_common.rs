@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use medbrains_core::nhcx::{NhcxOperation, NhcxRecord};
 use medbrains_fhir::nrces::Party;
+use medbrains_outbox::handlers::nhcx::registry::{Registry, RegistryError};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 
@@ -49,28 +50,89 @@ pub(crate) async fn require_nhcx_onboarded(
     Ok(())
 }
 
-/// Refuse a payer the handler could not encrypt for — before anything is queued.
+/// Refuse a recipient nothing can be encrypted for — before anything is
+/// queued. A certificate on file will do; so will a recipient the registry
+/// knows (listed in the directory, or a policy's processor), since the outbox
+/// fetches its certificate from `/fetch/certs` before sending.
 pub(crate) async fn require_payer_certificate(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     recipient: &str,
 ) -> Result<(), AppError> {
-    let has_cert: Option<bool> = sqlx::query_scalar(
-        "SELECT COALESCE(btrim(encryption_cert), '') <> '' FROM nhcx_participants \
-         WHERE tenant_id = $1 AND participant_code = $2 AND is_active",
+    let reachable: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM nhcx_participants \
+                         WHERE tenant_id = $1 AND participant_code = $2 AND is_active \
+                           AND (COALESCE(btrim(encryption_cert), '') <> '' OR source = 'registry')) \
+             OR EXISTS (SELECT 1 FROM nhcx_patient_policies \
+                         WHERE tenant_id = $1 AND processing_id = $2)",
     )
     .bind(tenant_id)
     .bind(recipient)
+    .fetch_one(&mut **tx)
+    .await?;
+    if reachable {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(format!(
+        "payer {recipient} is not in the NHCX payer directory — refresh the directory from \
+         NHCX, or add it with its encryption certificate"
+    )))
+}
+
+/// Where a message about this patient goes: the processor (`processingid`)
+/// of the patient's policy with the chosen payer, from the last registry
+/// lookup — a TPA, when one processes for the insurer. The chosen code itself
+/// when no lookup names it.
+pub(crate) async fn processor_for(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    payer: &str,
+) -> Result<String, AppError> {
+    let processor: Option<String> = sqlx::query_scalar(
+        "SELECT processing_id FROM nhcx_patient_policies \
+          WHERE tenant_id = $1 AND patient_id = $2 AND (payer_id = $3 OR processing_id = $3) \
+          ORDER BY fetched_at DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .bind(payer)
     .fetch_optional(&mut **tx)
     .await?;
-    match has_cert {
-        Some(true) => Ok(()),
-        Some(false) => Err(AppError::BadRequest(format!(
-            "payer {recipient} has no encryption certificate — add it in the NHCX payer directory"
-        ))),
-        None => Err(AppError::BadRequest(format!(
-            "payer {recipient} is not in the NHCX payer directory"
-        ))),
+    Ok(processor.unwrap_or_else(|| payer.to_owned()))
+}
+
+/// How long a registry call may take while the desk waits.
+const REGISTRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// The registry, signed in with this hospital's NHCX credentials.
+pub(crate) async fn registry<'h>(
+    state: &medbrains_server_core::state::AppState,
+    http: &'h reqwest::Client,
+    tenant_id: Uuid,
+) -> Result<Registry<'h>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
+    Registry::connect(http, &mut conn, tenant_id, state.secret_resolver.as_ref())
+        .await
+        .map_err(|e| registry_error(&e))
+}
+
+/// A client for registry calls, bounded by [`REGISTRY_TIMEOUT`].
+pub(crate) fn registry_http() -> Result<reqwest::Client, AppError> {
+    reqwest::Client::builder()
+        .timeout(REGISTRY_TIMEOUT)
+        .build()
+        .map_err(|e| AppError::Internal(format!("http client: {e}")))
+}
+
+/// A registry error in the desk's words: setup missing or an outage is 503,
+/// a refusal 409 carrying the registry's reason.
+pub(crate) fn registry_error(e: &RegistryError) -> AppError {
+    match e {
+        RegistryError::Refused(_) => AppError::Conflict(e.to_string()),
+        RegistryError::NotSetUp(_) | RegistryError::Unavailable(_) => {
+            AppError::ServiceUnavailable(e.to_string())
+        }
     }
 }
 

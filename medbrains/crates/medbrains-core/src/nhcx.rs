@@ -50,6 +50,15 @@ impl NhcxEnvironment {
         }
     }
 
+    /// The participant service (registry) base for this environment.
+    #[must_use]
+    pub const fn participant_service(self) -> &'static str {
+        match self {
+            Self::Sandbox => PARTICIPANT_SERVICE_SANDBOX,
+            Self::Production => PARTICIPANT_SERVICE_PROD,
+        }
+    }
+
     /// The `X-CM-ID` the v3 gateway reads on sessions.
     #[must_use]
     pub const fn cm_id(self) -> &'static str {
@@ -283,9 +292,10 @@ pub fn preauth_sla(
 /// participants list, fetch certs, get/link/delink policies.
 pub const PARTICIPANT_SERVICE_SANDBOX: &str =
     "https://apisbx.abdm.gov.in/pmjay/sbxhcx/participanthcxservice";
-/// Participant service base — production (v2).
+/// Participant service base — production. No `/v2` here: the base-URLs
+/// page gives the bare service, and `v2` is part of individual paths.
 pub const PARTICIPANT_SERVICE_PROD: &str =
-    "https://apisprod.nha.gov.in/pmjay/hcx/participanthcxservice/v2";
+    "https://apisprod.nha.gov.in/pmjay/hcx/participanthcxservice";
 
 // ── FHIR profile / system URIs used in NHCX bundles ─────────────────────────
 // (generic FHIR base systems — SNOMED, UHID, ABHA, process-priority — are reused

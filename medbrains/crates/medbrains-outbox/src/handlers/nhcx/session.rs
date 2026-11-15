@@ -23,19 +23,24 @@ const MAX_CACHED_SESSIONS: usize = 4096;
 pub struct Endpoints {
     pub gateway: String,
     pub sessions: String,
+    /// The participant service: participants, certificates, policies.
+    pub registry: String,
 }
 
 impl Endpoints {
+    /// The environment's real endpoints, or all under the test override.
     #[must_use]
     pub fn new(environment: NhcxEnvironment, base_url_override: Option<&str>) -> Self {
         base_url_override.map_or_else(
             || Self {
                 gateway: environment.gateway_host().to_owned(),
                 sessions: environment.sessions_url().to_owned(),
+                registry: environment.participant_service().to_owned(),
             },
             |base| Self {
                 gateway: base.to_owned(),
                 sessions: format!("{base}/sessions"),
+                registry: format!("{base}/participanthcxservice"),
             },
         )
     }

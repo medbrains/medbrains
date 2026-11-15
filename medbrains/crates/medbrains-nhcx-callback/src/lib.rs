@@ -7,6 +7,7 @@ mod apply_claim;
 mod gateway_auth;
 #[cfg(test)]
 mod golden_tests;
+mod key_retry;
 mod parse;
 mod parse_claim;
 mod payments;

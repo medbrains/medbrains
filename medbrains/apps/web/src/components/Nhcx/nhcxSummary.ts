@@ -1,4 +1,4 @@
-import type { NhcxDecision } from "@medbrains/types";
+import type { NhcxDecision, NhcxParticipant, NhcxPatientPolicy } from "@medbrains/types";
 import type { BadgeTone } from "@/components/ui";
 
 interface Label {
@@ -91,4 +91,35 @@ export function summariseNhcxResponse(payload: unknown): NhcxResponseSummary | n
     disposition: asText(resource?.disposition),
     error: isObject(errorDetails) ? asText(errorDetails.message) : null,
   };
+}
+
+/** A directory row's certificate, in the desk's words. A registry payer
+ * without one is fine: its certificate is fetched from NHCX on the first send. */
+export function directoryCertLabel(p: NhcxParticipant): Label {
+  if (p.has_encryption_cert) {
+    return { label: p.source === "registry" ? "From NHCX" : "Typed in", tone: "success" };
+  }
+  if (p.source === "registry") return { label: "Fetched on first send", tone: "info" };
+  return { label: "Missing — claims cannot be sent", tone: "warning" };
+}
+
+/** When the registry last listed any payer here; `null` if it never has. */
+export function lastSynced(directory: NhcxParticipant[]): string | null {
+  // ISO-8601 timestamps sort as text.
+  const times = directory.map((p) => p.synced_at).filter((t): t is string => t !== null);
+  return times.sort().at(-1) ?? null;
+}
+
+/** Whether a message can be addressed to this directory row: its certificate
+ * is on file, or NHCX lists it and supplies one on the first send. */
+export function canSendTo(p: NhcxParticipant | undefined): boolean {
+  return !!p && (p.has_encryption_cert || p.source === "registry");
+}
+
+/** Where a message to `payerCode` about this patient goes: the processor of
+ * their policy with that insurer (a TPA, when one processes for it), as the
+ * server routes it; the payer itself when no looked-up policy names it. */
+export function routedTo(policies: NhcxPatientPolicy[], payerCode: string): string {
+  const policy = policies.find((p) => p.payer_id === payerCode || p.processing_id === payerCode);
+  return policy?.processing_id ?? payerCode;
 }

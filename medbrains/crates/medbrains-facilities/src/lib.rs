@@ -21,6 +21,7 @@ mod nhcx_final_claim;
 mod nhcx_golden_tests;
 pub mod nhcx_participants;
 mod nhcx_parties;
+pub mod nhcx_policies;
 pub mod nhcx_preauth;
 pub mod nhcx_queries;
 pub mod nhcx_sla;
@@ -253,5 +254,17 @@ pub fn router() -> Router<AppState> {
             "/api/nhcx/participants",
             get(nhcx_participants::list_nhcx_participants)
                 .post(nhcx_participants::upsert_nhcx_participant),
+        )
+        .route(
+            "/api/nhcx/participants/refresh",
+            post(nhcx_participants::refresh_nhcx_participants),
+        )
+        .route(
+            "/api/insurance/nhcx/policies",
+            get(nhcx_policies::list_patient_policies),
+        )
+        .route(
+            "/api/insurance/nhcx/policies/lookup",
+            post(nhcx_policies::lookup_patient_policies),
         )
 }

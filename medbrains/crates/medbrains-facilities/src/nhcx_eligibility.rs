@@ -102,13 +102,17 @@ pub async fn check_nhcx_eligibility(
     Json(body): Json<CheckNhcxEligibilityRequest>,
 ) -> Result<Json<NhcxEligibilityCheck>, AppError> {
     require_permission(&claims, permissions::insurance::nhcx::SUBMIT)?;
-    let recipient = nhcx_common::required_recipient(&body.recipient_code)?;
+    let payer = nhcx_common::required_recipient(&body.recipient_code)?;
     let asked = categories(body.service_categories.as_deref())?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     nhcx_common::require_nhcx_onboarded(&mut tx, claims.tenant_id).await?;
     // Asking a payer about a named person's policy discloses that person.
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
+    // The envelope goes to the policy's processor; the bundle names the insurer.
+    let recipient =
+        nhcx_common::processor_for(&mut tx, claims.tenant_id, body.patient_id, payer).await?;
+    let recipient = recipient.as_str();
     nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
     let patient = nhcx_common::load_patient(&mut tx, claims.tenant_id, body.patient_id).await?;
     let (policy_id, policy) = nhcx_common::load_policy(
@@ -133,7 +137,7 @@ pub async fn check_nhcx_eligibility(
              (tenant_id, patient_id, patient_insurance_id, trigger_point, trigger_entity_id, \
               status, payer_name, payer_id, verified_by, nhcx_correlation_id, nhcx_api_call_id, \
               nhcx_recipient_code, nhcx_status) \
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $7, 'queued') \
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $10, $11, 'queued') \
          RETURNING id",
     )
     .bind(claims.tenant_id)
@@ -142,10 +146,11 @@ pub async fn check_nhcx_eligibility(
     .bind(body.trigger_point.as_deref().unwrap_or("manual"))
     .bind(body.trigger_entity_id)
     .bind(&policy.insurance_provider)
-    .bind(recipient)
+    .bind(payer)
     .bind(claims.sub)
     .bind(correlation_id)
     .bind(api_call_id)
+    .bind(recipient)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -154,7 +159,7 @@ pub async fn check_nhcx_eligibility(
         policy: &policy,
         provider: &provider,
         doctor: enterer.as_ref(),
-        recipient,
+        recipient: payer,
     };
     let bundle = nhcx_bundle::eligibility_bundle(&parties, id, &asked);
     let msg = Outbound {

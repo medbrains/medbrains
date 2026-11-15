@@ -96,7 +96,7 @@ async fn build(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     pa: &PaRow,
-    recipient: &str,
+    insurer: &str,
 ) -> Result<serde_json::Value, AppError> {
     let patient = nhcx_common::load_patient(tx, tenant_id, pa.patient_id).await?;
     let (_, policy) =
@@ -130,7 +130,7 @@ async fn build(
         policy: &policy,
         provider: &provider,
         doctor: doctor.as_ref(),
-        recipient,
+        recipient: insurer,
     };
     let content = ClaimContent {
         id: pa.id,
@@ -161,7 +161,7 @@ pub async fn submit_preauth_to_nhcx(
     Json(body): Json<SubmitPreauthToNhcxRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::insurance::nhcx::SUBMIT)?;
-    let recipient = nhcx_common::required_recipient(&body.recipient_code)?;
+    let payer = nhcx_common::required_recipient(&body.recipient_code)?;
     let stage = body.request_stage.as_deref().unwrap_or("initial");
     if !STAGES.contains(&stage) {
         return Err(AppError::BadRequest(format!(
@@ -179,8 +179,12 @@ pub async fn submit_preauth_to_nhcx(
             pa.status
         )));
     }
+    // The envelope goes to the policy's processor; the bundle names the insurer.
+    let recipient =
+        nhcx_common::processor_for(&mut tx, claims.tenant_id, pa.patient_id, payer).await?;
+    let recipient = recipient.as_str();
     nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
-    let bundle = build(&mut tx, claims.tenant_id, &pa, recipient).await?;
+    let bundle = build(&mut tx, claims.tenant_id, &pa, payer).await?;
 
     // A request's correlation id is its own api call id.
     let api_call_id = Uuid::new_v4();
