@@ -178,7 +178,7 @@ export function LocaleProfileSettings() {
   // The first live row is the hospital; the server lists it before facilities.
   const hospitalId = live.data?.[0]?.id;
   const rows = useMemo(
-    () => (live.data ?? []).map((r) => toScopeRow(r, hospitalId)),
+    () => live.data?.map((r) => toScopeRow(r, hospitalId)),
     [live.data, hospitalId],
   );
 
@@ -227,12 +227,16 @@ export function LocaleProfileSettings() {
             </Button>
           </Group>
         </Alert>
-      ) : live.isLoading ? (
+      ) : !canRequest ? (
+        <Text size="sm" c="dimmed">
+          The profile by scope is shown to those who can also draft knowledge changes.
+        </Text>
+      ) : rows ? (
+        <Scopes rows={rows} canRequest={canRequest} onRequest={setTarget} />
+      ) : (
         <Text size="sm" c="dimmed">
           Loading the profile by scope…
         </Text>
-      ) : (
-        <Scopes rows={rows} canRequest={canRequest} onRequest={setTarget} />
       )}
       <RequestChangeModal
         target={target}
