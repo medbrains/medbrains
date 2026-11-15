@@ -6022,6 +6022,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  /** Ask the payer to withdraw a pre-authorisation (a `cancel` Task under PC01). */
+  cancelNhcxPreauth: (id: string, data: NhcxClaimTaskRequest) =>
+    request<NhcxQueuedResponse>(`/insurance/prior-auths/${id}/nhcx/cancel`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   /** Ask the payer where a pre-authorisation stands (`hcx/status`). */
   checkPreauthNhcxStatus: (id: string) =>
     request<NhcxQueuedResponse>(`/insurance/prior-auths/${id}/nhcx/status`, {

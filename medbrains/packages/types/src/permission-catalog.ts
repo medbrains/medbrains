@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1256 permissions, one per constant in the Rust source. */
+/** 1257 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5353,6 +5353,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "insurance",
   },
   {
+    code: "insurance.nhcx.cancel_preauth",
+    label: "Cancel NHCX pre-authorisations",
+    description: "Ask a payer through NHCX to withdraw a pre-authorisation it has received — the patient was not admitted, or the plan changed.",
+    module: "insurance",
+  },
+  {
     code: "insurance.nhcx.payments",
     label: "See and post NHCX payments",
     description: "The payment notices payers send through NHCX — amount, UTR and TDS against each claim — and posting an unmatched one to its claim.",
@@ -9497,6 +9503,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.ENHANCEMENT.REQUEST,
       P.INSURANCE.ENHANCEMENT.VIEW,
       P.INSURANCE.NHCX.CANCEL,
+      P.INSURANCE.NHCX.CANCEL_PREAUTH,
       P.INSURANCE.NHCX.PAYMENTS,
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,

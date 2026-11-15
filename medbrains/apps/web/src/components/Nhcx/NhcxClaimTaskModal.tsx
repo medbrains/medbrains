@@ -4,10 +4,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, Modal, TextArea, toast } from "@/components/ui";
 
-export type ClaimTaskAction = "cancel" | "reprocess";
+/** What the desk asks the payer: about a claim, or to withdraw a pre-auth. */
+export type ClaimTaskAction = "cancel" | "reprocess" | "cancel-preauth";
 
 interface NhcxClaimTaskModalProps {
-  claimId: string;
+  /** The claim, or for `cancel-preauth` the pre-authorisation. */
+  subjectId: string;
   action: ClaimTaskAction | null;
   onClose: () => void;
 }
@@ -26,20 +28,31 @@ const COPY: Record<ClaimTaskAction, { title: string; prompt: string; send: strin
     prompt: "What was answered or corrected since the payer's decision? The payer sees this.",
     send: "Ask the payer to reprocess",
   },
+  "cancel-preauth": {
+    title: "Cancel pre-auth",
+    prompt: "Why is this pre-auth being withdrawn? The payer sees this.",
+    send: "Ask the payer to cancel",
+  },
 };
 
-/** Ask the payer, through NHCX, to cancel or reprocess a claim — with the reason. */
-export function NhcxClaimTaskModal({ claimId, action, onClose }: NhcxClaimTaskModalProps) {
+/** Send the ask for one action. */
+function sendTask(action: ClaimTaskAction, id: string, reason: string) {
+  if (action === "cancel-preauth") return api.cancelNhcxPreauth(id, { reason });
+  if (action === "cancel") return api.cancelNhcxClaim(id, { reason });
+  return api.reprocessNhcxClaim(id, { reason });
+}
+
+/** Ask the payer, through NHCX, to cancel or reprocess a claim, or to cancel a
+ * pre-auth — with the reason. */
+export function NhcxClaimTaskModal({ subjectId, action, onClose }: NhcxClaimTaskModalProps) {
   const queryClient = useQueryClient();
   const [reason, setReason] = useState("");
   const send = useMutation({
-    mutationFn: (a: ClaimTaskAction) =>
-      a === "cancel"
-        ? api.cancelNhcxClaim(claimId, { reason: reason.trim() })
-        : api.reprocessNhcxClaim(claimId, { reason: reason.trim() }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["claim-nhcx", claimId] });
-      toast.success("The payer's answer will appear on the claim.", { title: "Request sent" });
+    mutationFn: (a: ClaimTaskAction) => sendTask(a, subjectId, reason.trim()),
+    onSuccess: (_, a) => {
+      const key = a === "cancel-preauth" ? "preauth-nhcx" : "claim-nhcx";
+      void queryClient.invalidateQueries({ queryKey: [key, subjectId] });
+      toast.success("The payer's answer will appear here.", { title: "Request sent" });
       setReason("");
       onClose();
     },
@@ -60,6 +73,11 @@ export function NhcxClaimTaskModal({ claimId, action, onClose }: NhcxClaimTaskMo
           minRows={3}
           required
         />
+        {action === "cancel-preauth" && (
+          <Text size="xs" c="dimmed">
+            The payer confirms the cancellation; until then the pre-auth stays as it is.
+          </Text>
+        )}
         {action === "cancel" && (
           <Text size="xs" c="dimmed">
             A claim the payer has already paid is not undone by a cancellation.
@@ -70,7 +88,7 @@ export function NhcxClaimTaskModal({ claimId, action, onClose }: NhcxClaimTaskMo
             Close
           </Button>
           <Button
-            tone={action === "cancel" ? "danger" : "primary"}
+            tone={action === "reprocess" ? "primary" : "danger"}
             loading={send.isPending}
             disabled={!valid}
             onClick={() => action && send.mutate(action)}

@@ -99,7 +99,7 @@ export function NhcxClaimActions({ claim, isReady, onSubmit }: NhcxClaimActionsP
           </Button>
         </>
       )}
-      <NhcxClaimTaskModal claimId={claim.id} action={action} onClose={() => setAction(null)} />
+      <NhcxClaimTaskModal subjectId={claim.id} action={action} onClose={() => setAction(null)} />
     </Group>
   );
 }

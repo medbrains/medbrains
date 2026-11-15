@@ -242,6 +242,10 @@ pub fn router() -> Router<AppState> {
             post(nhcx_tasks::preauth_status),
         )
         .route(
+            "/api/insurance/prior-auths/{id}/nhcx/cancel",
+            post(nhcx_tasks::cancel_preauth),
+        )
+        .route(
             "/api/insurance/nhcx/search",
             post(nhcx_tasks::search_claims),
         )

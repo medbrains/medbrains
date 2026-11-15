@@ -98,7 +98,8 @@ async fn eligibility(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched, AppErr
     Ok(id.map(|id| ("insurance_verifications", id)))
 }
 
-async fn log_status(
+/// One row of the pre-authorisation status history, written by the callback.
+pub(crate) async fn log_status(
     tx: &mut Tx<'_>,
     m: &Inbound<'_>,
     pa_id: Uuid,
