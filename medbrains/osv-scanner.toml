@@ -1,0 +1,78 @@
+# osv-scanner reads this file for the lockfiles in this folder (security.yml, osv-scanner job).
+# The same advisories, with the same reasons, are ignored in deny.toml for cargo-deny and
+# cargo-audit; keep the two lists equal. Each has no fixed release reachable from our tree.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0089"
+ignoreUntil = 2027-02-15
+reason = "atomic-polyfill unmaintained; via heapless 0.7 <- postcard 1.1.3 (latest) <- iroh-relay, loro. Only compiled for targets without native atomics; no release of postcard drops it"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0374"
+ignoreUntil = 2027-02-15
+reason = "basic-toml unmaintained; build-time only, via askama_derive 0.16.1 <- uniffi_bindgen 0.32.2 (both latest), reads our own binding templates"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0247"
+ignoreUntil = 2027-02-15
+reason = "bitmaps unmaintained; via im/sized-chunks <- loro-internal 1.17.1 (latest), edge CRDT sync. Re-decide when loro moves to imbl"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0248"
+ignoreUntil = 2027-02-15
+reason = "im unmaintained; via loro-internal 1.17.1 (latest), edge CRDT sync. Re-decide when loro moves to imbl"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0126"
+ignoreUntil = 2027-02-15
+reason = "im OrdSet aliasing unsoundness, no fixed im release; via loro-internal 1.17.1 (latest). Re-decide when loro moves to imbl"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0251"
+ignoreUntil = 2027-02-15
+reason = "sized-chunks unmaintained; via im <- loro-internal 1.17.1 (latest). Re-decide when loro moves to imbl"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0255"
+ignoreUntil = 2027-02-15
+reason = "sized-chunks panic-in-Drop unsoundness, no fixed release; needs an element whose Drop panics, via im <- loro-internal 1.17.1 (latest). Re-decide when loro moves to imbl"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+ignoreUntil = 2027-02-15
+reason = "paste unmaintained; proc macro, compile time only, via netlink-packet-core 0.8 <- netwatch 0.19 <- iroh 1.4.1 (latest pins netwatch ^0.19; 0.20 drops paste)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+ignoreUntil = 2027-02-15
+reason = "proc-macro-error unmaintained; proc macro, compile time only, via glib-macros/gtk3-macros 0.18 <- tauri 2 Linux desktop shell"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0134"
+ignoreUntil = 2027-02-15
+reason = "rustls-pemfile unmaintained, no flaw (thin wrapper over rustls-pki-types); via pingora-rustls 0.9.1 (latest) <- medbrains-proxy"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0449"
+ignoreUntil = 2027-02-15
+reason = "unsafe-libyaml unmaintained; via serde_yaml <- pingora-core 0.9.1 (latest), parses only the proxy's own operator-written config"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+ignoreUntil = 2027-02-15
+reason = "zvariant unmaintained (merged into zbus 6), no flaw; via zbus 5 <- notify-rust, tauri-plugin-notification/single-instance (Linux desktop)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+ignoreUntil = 2027-02-15
+reason = "zbus_names unmaintained (merged into zbus 6), no flaw; via zbus 5 <- notify-rust, tauri-plugin-notification/single-instance (Linux desktop)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+ignoreUntil = 2027-02-15
+reason = "zvariant_derive unmaintained (merged into zbus 6), no flaw; via zbus 5 <- notify-rust, tauri-plugin-notification/single-instance (Linux desktop)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+ignoreUntil = 2027-02-15
+reason = "glib 0.18 VariantStrIter unsoundness, fixed in 0.20; tauri 2 / webkit2gtk still require gtk-rs 0.18 (Linux desktop only), our code never iterates a GVariant"

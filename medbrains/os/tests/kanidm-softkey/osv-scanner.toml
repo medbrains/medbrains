@@ -1,0 +1,8 @@
+# osv-scanner reads this file for this test harness's Cargo.lock (security.yml, osv-scanner job).
+# The harness is outside the workspace, never ships, and must link Kanidm's client at the exact
+# release the OS image runs, so its Kanidm-owned dependencies move only with that release.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0249"
+ignoreUntil = 2027-02-15
+reason = "smartstring unmaintained, no fixed release; required by kanidm_proto at the pinned image release (git rev a52b723c). Re-decide when the image moves Kanidm"
