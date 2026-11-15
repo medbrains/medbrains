@@ -1,0 +1,3255 @@
+{
+ "apps/android/app-patient/src/main/kotlin/com/medbrains/patient/DeliveryScreens.kt": {
+  "PIN code": 3,
+  "rupee sign": 2
+ },
+ "apps/android/app-patient/src/main/kotlin/com/medbrains/patient/HospitalScreens.kt": {
+  "rupee sign": 2
+ },
+ "apps/android/app-patient/src/main/kotlin/com/medbrains/patient/PortalApi.kt": {
+  "PIN code": 1
+ },
+ "apps/android/app-patient/src/main/kotlin/com/medbrains/patient/StoreScreens.kt": {
+  "rupee sign": 4
+ },
+ "apps/android/app-staff/src/main/kotlin/com/medbrains/staff/abdm/AbhaFlowSheet.kt": {
+  "Aadhaar": 17
+ },
+ "apps/android/app-staff/src/main/kotlin/com/medbrains/staff/abdm/AbhaVerified.kt": {
+  "Aadhaar": 2
+ },
+ "apps/android/app-staff/src/main/kotlin/com/medbrains/staff/deliveries/DeliveriesApi.kt": {
+  "PIN code": 2
+ },
+ "apps/android/app-staff/src/main/kotlin/com/medbrains/staff/deliveries/DeliveriesModule.kt": {
+  "rupee sign": 1
+ },
+ "apps/android/app-staff/src/main/kotlin/com/medbrains/staff/deliveries/HandoverScreen.kt": {
+  "rupee sign": 1
+ },
+ "apps/android/app-staff/src/main/kotlin/com/medbrains/staff/reception/FindPatientScreens.kt": {
+  "rupee sign": 1
+ },
+ "apps/android/app-staff/src/main/kotlin/com/medbrains/staff/reception/RegisterPatientScreen.kt": {
+  "Aadhaar": 1
+ },
+ "apps/android/kit/src/main/kotlin/com/medbrains/kit/Abha.kt": {
+  "Aadhaar": 11,
+  "PIN code": 2
+ },
+ "apps/android/kit/src/main/kotlin/com/medbrains/kit/AbhaApi.kt": {
+  "Aadhaar": 8
+ },
+ "apps/android/kit/src/main/kotlin/com/medbrains/kit/HomeDelivery.kt": {
+  "PIN code": 3
+ },
+ "apps/android/kit/src/main/kotlin/com/medbrains/kit/ScanShare.kt": {
+  "PIN code": 1
+ },
+ "apps/android/kit/src/main/kotlin/com/medbrains/kit/UhiRequests.kt": {
+  "rupee sign": 1
+ },
+ "apps/ios/MedBrainsPatient/Features/DeliveryViews.swift": {
+  "PIN code": 3,
+  "rupee sign": 2
+ },
+ "apps/ios/MedBrainsPatient/Features/HospitalViews.swift": {
+  "rupee sign": 3
+ },
+ "apps/ios/MedBrainsPatient/Features/PortalApi.swift": {
+  "PIN code": 1
+ },
+ "apps/ios/MedBrainsPatient/Features/StoreCartView.swift": {
+  "PIN code": 1,
+  "rupee sign": 2
+ },
+ "apps/ios/MedBrainsPatient/Features/StoreViews.swift": {
+  "rupee sign": 2
+ },
+ "apps/ios/MedBrainsStaff/Features/Abdm/AbhaControls.swift": {
+  "Aadhaar": 2
+ },
+ "apps/ios/MedBrainsStaff/Features/Abdm/AbhaFlowSheet.swift": {
+  "Aadhaar": 22
+ },
+ "apps/ios/MedBrainsStaff/Features/Deliveries/DeliveriesApi.swift": {
+  "PIN code": 2
+ },
+ "apps/ios/MedBrainsStaff/Features/Deliveries/DeliveriesHomeView.swift": {
+  "rupee sign": 1
+ },
+ "apps/ios/MedBrainsStaff/Features/Deliveries/HandoverView.swift": {
+  "rupee sign": 1
+ },
+ "apps/ios/MedBrainsStaff/Features/Nurse/CodeBlueView.swift": {
+  "NABH": 1
+ },
+ "apps/ios/MedBrainsStaff/Features/Reception/FindPatientView.swift": {
+  "rupee sign": 1
+ },
+ "apps/ios/MedBrainsStaff/Features/Reception/RegisterPatientView.swift": {
+  "Aadhaar": 1
+ },
+ "apps/ios/Packages/MedBrainsKit/Sources/MedBrainsKit/Abha.swift": {
+  "Aadhaar": 13,
+  "PIN code": 2
+ },
+ "apps/ios/Packages/MedBrainsKit/Sources/MedBrainsKit/AbhaApi.swift": {
+  "Aadhaar": 9
+ },
+ "apps/ios/Packages/MedBrainsKit/Sources/MedBrainsKit/HomeDelivery.swift": {
+  "PIN code": 3
+ },
+ "apps/ios/Packages/MedBrainsKit/Sources/MedBrainsKit/ScanShare.swift": {
+  "PIN code": 1
+ },
+ "apps/ios/Packages/MedBrainsKit/Sources/MedBrainsKit/UhiRequests.swift": {
+  "rupee sign": 1
+ },
+ "apps/web/src/AuthedRoutes.tsx": {
+  "NABH": 3
+ },
+ "apps/web/src/components/BuildVersion.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Clinical/DiagnosisPanel.tsx": {
+  "new Intl. outside the format helpers": 1
+ },
+ "apps/web/src/components/Clinical/PatientConsumablesPanel.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/Clinical/PrescriptionPrint.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/components/Clinical/VisitSummaryPrint.tsx": {
+  "en-IN": 2
+ },
+ "apps/web/src/components/DataTable.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/DataTableBulkBar.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Devices/BindingQrSheet.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Doctor/CriticalValueInbox.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Doctor/SignWorkspace.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/Doctor/StoreSubstitutionDecision.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/Doctor/VerbalOrderRegister.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/DocumentPreview/DocumentRenderer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/DrugSearchSelect.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/EarlyWarning/EwsResultCard.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Emergency/ErDischargeSummaryPanel.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/components/Emergency/ErObservationPanel.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/components/Emergency/ErTriageAssessmentPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/EncounterSelect.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/components/FrontOffice/GateCheck.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Handoff/StationHandoffPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Integration/ConnectorsTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Integration/ControlRoom.tsx": {
+  "bare toLocaleString()": 1,
+  "en-IN": 1
+ },
+ "apps/web/src/components/Integration/ExecutionPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Integration/JobsTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Integration/PipelineLedger.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Integration/RecipeShelf.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/Ipd/DischargeWorkflowWizard.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Ipd/MarkDeathModal.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/components/Ipd/TransferOutModal.tsx": {
+  "+91": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Ipd/WristbandPrintModal.tsx": {
+  "NABH": 2
+ },
+ "apps/web/src/components/Lab/LabOrderHistoryTable.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/LabTestSearchSelect.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/LiveUpiQrPanel.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/Materials/AddProductModal.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/components/Materials/RequisitionsInbox.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/MedReconciliationPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/MessageSimulator/MessageBubble.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Mrd/RoiTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Mrd/SignatureVerifyPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Mrd/file-requests/BackscanTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Mrd/mrdShared.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Nhcx/NhcxEligibilityCard.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Nhcx/NhcxExchangeCard.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/Nhcx/NhcxTaskList.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Nhcx/PayerQueryList.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Nhcx/PreauthNhcxDrawer.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/Nhcx/claimNhcx.ts": {
+  "rupee sign": 2
+ },
+ "apps/web/src/components/Nhcx/eligibilitySummary.ts": {
+  "INR": 1,
+  "en-IN": 1,
+  "new Intl. outside the format helpers": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/Nurse/BedsideTransfusionsPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Nurse/MonitorReadingsPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/OnlineCheckoutPanel.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/OrderBasket/BasketItemRow.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/OrderBasket/OrderBasketWorkspace.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/components/OrderBasket/WarningsPanel.tsx": {
+  "INR": 1
+ },
+ "apps/web/src/components/OrderBasket/pickers/DrugPickerForm.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/components/Ot/OtImplantRegisterPanel.tsx": {
+  "NABH": 1,
+  "en-IN": 1
+ },
+ "apps/web/src/components/Patient/AbhaLinkPanel.tsx": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/components/Patient/ActivePackagesSection.tsx": {
+  "bare toLocaleString()": 2,
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/Patient/ClinicalTimelineTab.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/components/Patient/ContactConsentCard.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Patient/DpdpConsentCard.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Patient/PatientAccessLogSection.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Patient/PatientContextBanner.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/Patient/PatientRegisterForm.tsx": {
+  "Aadhaar": 6
+ },
+ "apps/web/src/components/Patient/abdm/AbdmSmsLinkPanel.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/components/Patient/groupIdentity/GroupIdentitySection.tsx": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/components/Patient/groupIdentity/groupIdentityLabels.ts": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/components/Pharmacy/CreditNotesTab.tsx": {
+  "bare toLocaleString()": 3,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/Pharmacy/DispenseModal.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 11
+ },
+ "apps/web/src/components/Pharmacy/MedicineOrderLineCard.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/components/Pharmacy/MiniAddDrug.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 4
+ },
+ "apps/web/src/components/Pharmacy/OutsidePrintSheet.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/Pharmacy/StoreIndentsTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/PinCodeInput.tsx": {
+  "PIN code": 8
+ },
+ "apps/web/src/components/Print/PrintRegisterButton.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/components/PrintSignatureBlock.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/Procurement/ConsignmentPanel.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/Radiology/PatientDoseHistory.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Radiology/RadiologyReportList.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/Radiology/ShareStudyModal.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/Reports/NabhIndicatorMatrix.tsx": {
+  "NABH": 5
+ },
+ "apps/web/src/components/Reports/ReportDetailPanel.tsx": {
+  "NABH": 1,
+  "PIN code": 2
+ },
+ "apps/web/src/components/Reports/report-export.ts": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/SepsisBundlePanel.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/components/Sharing/ShareDrawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/TableValueBadge.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 6
+ },
+ "apps/web/src/components/VirtualAccountPanel.tsx": {
+  "INR": 1
+ },
+ "apps/web/src/components/VteAssessmentPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/abha/AbhaCloseModal.tsx": {
+  "Aadhaar": 2
+ },
+ "apps/web/src/components/abha/AbhaCompare.tsx": {
+  "Aadhaar": 2
+ },
+ "apps/web/src/components/abha/AbhaCreateDrawer.tsx": {
+  "Aadhaar": 15
+ },
+ "apps/web/src/components/abha/AbhaProfileActions.tsx": {
+  "Aadhaar": 5
+ },
+ "apps/web/src/components/abha/AbhaVerifyDrawer.tsx": {
+  "Aadhaar": 11
+ },
+ "apps/web/src/components/abha/abhaConsent.ts": {
+  "Aadhaar": 2
+ },
+ "apps/web/src/components/abha/scanShare.ts": {
+  "PIN code": 1
+ },
+ "apps/web/src/components/admin/DoctorHprModal.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/admin/DoctorRegistrationModal.tsx": {
+  "Indian state names": 1
+ },
+ "apps/web/src/components/ai/MessageMeta.tsx": {
+  "en-IN": 1,
+  "new Intl. outside the format helpers": 1
+ },
+ "apps/web/src/components/ai/transport/types.ts": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/ai/widgets/format.ts": {
+  "INR": 1,
+  "en-IN": 2,
+  "new Intl. outside the format helpers": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/counter-display/display-machine.ts": {
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/crdt/HandoffPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/crdt/NursingNotesPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/crdt/TriagePanel.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/components/dashboard/SeriesMetrics.tsx": {
+  "new Intl. outside the format helpers": 1
+ },
+ "apps/web/src/components/dashboard/TrendChart.tsx": {
+  "lakh/crore": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/dashboard/chart-format.ts": {
+  "INR": 1,
+  "en-IN": 2,
+  "lakh/crore": 4,
+  "new Intl. outside the format helpers": 2,
+  "rupee sign": 6
+ },
+ "apps/web/src/components/dashboard/kpi-reading.ts": {
+  "new Intl. outside the format helpers": 1
+ },
+ "apps/web/src/components/dashboard/widget-data.ts": {
+  "INR": 1,
+  "new Intl. outside the format helpers": 2
+ },
+ "apps/web/src/components/field-access-display.ts": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/inputs/CountryPhoneInput.tsx": {
+  "+91": 2
+ },
+ "apps/web/src/components/login/SignInStage.tsx": {
+  "NABH": 2,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/components/notes/NoteCard.tsx": {
+  "en-IN": 1,
+  "new Intl. outside the format helpers": 1
+ },
+ "apps/web/src/components/payments/CardTerminalPanel.tsx": {
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/components/payments/ResolveCardSaleModal.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/payments/collect/CashTender.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/payments/collect/CollectBody.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/payments/collect/DueChip.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/components/payments/collect/collect-math.ts": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/components/payments/collect/tender-tiles.ts": {
+  "INR": 1,
+  "en-IN": 1
+ },
+ "apps/web/src/components/payments/links/LinkStatusCard.tsx": {
+  "en-IN": 2
+ },
+ "apps/web/src/components/payments/links/link-status.ts": {
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/config/navigation.ts": {
+  "NABH": 2,
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/data/checklist-templates.ts": {
+  "NABH": 3
+ },
+ "apps/web/src/features/prescription/RxCompose.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/features/prescription/RxDoctor.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/features/prescription/RxPrint.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2,
+  "en-IN": 1
+ },
+ "apps/web/src/features/prescription/RxRefillTerms.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/features/prescription/RxSuiteWriter.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/features/prescription/RxTable.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/features/prescription/rxAdapter.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 3
+ },
+ "apps/web/src/features/prescription/rxModel.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 6
+ },
+ "apps/web/src/forms/camp.form.ts": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/forms/front-office.form.ts": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/forms/ipd.form.ts": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/forms/marketing.form.ts": {
+  "PIN code": 1
+ },
+ "apps/web/src/forms/patientRegistration.form.ts": {
+  "PIN code": 1
+ },
+ "apps/web/src/layouts/AppLayout.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/lib/abdm-dashboard.ts": {
+  "en-IN": 3,
+  "rupee sign": 1
+ },
+ "apps/web/src/lib/board-voice.ts": {
+  "en-IN": 2
+ },
+ "apps/web/src/lib/print/print-registry.ts": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/lib/radiology-exams.ts": {
+  "rupee sign": 1
+ },
+ "apps/web/src/lib/route-preload.ts": {
+  "NABH": 2
+ },
+ "apps/web/src/pages/admin/DeviceMessagesDrawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/InviteUsersPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/access-requests.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "en-IN": 1
+ },
+ "apps/web/src/pages/admin/api-keys.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/coverage.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/admin/devices.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/doctor-packages.tsx": {
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/admin/doctors.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/admin/flows/control-room.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/flows/switch-line.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/groups.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/history-import.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/history-import/batches-table.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/hospital-binding.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/kernel/status.ts": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/admin/knowledge-changes/change-sets-table.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/knowledge-changes/diff.ts": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/knowledge-changes/impact-panel.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/admin/machines.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/admin/message-simulator.tsx": {
+  "+91": 1
+ },
+ "apps/web/src/pages/admin/nabh-indicators.tsx": {
+  "NABH": 4
+ },
+ "apps/web/src/pages/admin/paired-devices.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/admin/queues.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/admin/research-exports/exports-table.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/admin/settings.tsx": {
+  "NABH": 2
+ },
+ "apps/web/src/pages/admin/settings/AbdmSharingSettings.tsx": {
+  "en-IN": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/admin/settings/AccessMatrixSettings.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/admin/settings/BackupStatusCard.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/admin/settings/BedTypesSettings.tsx": {
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/admin/settings/ComplianceSettings.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 8
+ },
+ "apps/web/src/pages/admin/settings/ErrorTrackingSettings.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/settings/FacilitiesSettings.tsx": {
+  "+91": 1
+ },
+ "apps/web/src/pages/admin/settings/FacilityHfrModal.tsx": {
+  "PIN code": 3
+ },
+ "apps/web/src/pages/admin/settings/GeneralSettings.tsx": {
+  "+91": 1,
+  "Asia/Kolkata or +05:30": 2,
+  "INR": 3,
+  "NABH": 1,
+  "PIN code": 6
+ },
+ "apps/web/src/pages/admin/settings/GeoSettings.tsx": {
+  "PIN code": 2
+ },
+ "apps/web/src/pages/admin/settings/Icd10CatalogueSection.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/admin/settings/MasterDataStatusSettings.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/pages/admin/settings/OperationsSettings.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/admin/settings/PaymentExceptionsSettings.tsx": {
+  "en-IN": 2,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/admin/settings/PaymentTerminalsSettings.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/admin/settings/PrintTemplateSettings.tsx": {
+  "+91": 1
+ },
+ "apps/web/src/pages/admin/settings/ServicesSettings.tsx": {
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/admin/settings/SimulatedSaleRow.tsx": {
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/admin/settings/SnomedSettings.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/admin/settings/TokenCallSmsCard.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/settings/UhiFeesCard.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/admin/settings/report-event-coverage.ts": {
+  "NABH": 11,
+  "NDPS/CDSCO/Schedule H/H1/X": 5
+ },
+ "apps/web/src/pages/admin/simulator.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/storage.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/admin/test-cycles/CycleProgress.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/test-cycles/index.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/admin/users.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/ambulance/maintenance-tab.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/analytics/IpdCensusTab.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/analytics/LabTatTab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/analytics/OpdBedTab.tsx": {
+  "bare toLocaleString()": 6
+ },
+ "apps/web/src/pages/analytics/RevenueTab.tsx": {
+  "INR": 1,
+  "bare toLocaleString()": 3,
+  "en-IN": 1
+ },
+ "apps/web/src/pages/approvals/index.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/audit/AccessAlertsTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/audit/AccessLogTab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/audit/AuditLogTab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/audit/AuditStatsTab.tsx": {
+  "bare toLocaleString()": 5
+ },
+ "apps/web/src/pages/audit/ChainIntegrityTab.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/audit/EntityTimelineTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/audit/PrivacyRequestsTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/bedside-portal/operations-panel.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/billing-tpa-pipeline.tsx": {
+  "en-IN": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing-worklist.tsx": {
+  "en-IN": 1,
+  "rupee sign": 4
+ },
+ "apps/web/src/pages/billing/PayerSplitPanel.tsx": {
+  "INR": 1,
+  "en-IN": 1
+ },
+ "apps/web/src/pages/billing/PaymentLinkSettingsCard.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/accounting-tabs.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 18,
+  "bare toLocaleString()": 36,
+  "rupee sign": 36
+ },
+ "apps/web/src/pages/billing/advances.tsx": {
+  "bare toLocaleString()": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/apply-credit-note-modal.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/audit-log.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/billing-entity-modal.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 9
+ },
+ "apps/web/src/pages/billing/billing-lane-modal.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/charge-attention/ChargeAttentionTab.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/charge-attention/ChargeAttentionTotal.tsx": {
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/billing/charge-attention/charge-attention-columns.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/charge-attention/charge-attention-labels.ts": {
+  "INR": 2,
+  "en-IN": 1,
+  "new Intl. outside the format helpers": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/charge-master.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/claim-detail-drawer.tsx": {
+  "bare toLocaleString()": 2,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/billing/corporate-detail.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "bare toLocaleString()": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/corporate.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/credit-patients.tsx": {
+  "bare toLocaleString()": 6,
+  "rupee sign": 5
+ },
+ "apps/web/src/pages/billing/day-close.tsx": {
+  "rupee sign": 8
+ },
+ "apps/web/src/pages/billing/gateway-refund-modal.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/installment-pay-modal.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/installments.tsx": {
+  "bare toLocaleString()": 6,
+  "rupee sign": 6
+ },
+ "apps/web/src/pages/billing/insurance-claims.tsx": {
+  "rupee sign": 7
+ },
+ "apps/web/src/pages/billing/invoice-detail.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 6,
+  "bare toLocaleString()": 4,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/lanes-settings.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 4,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/packages.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/billing/page-inner.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/billing/rate-plans.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/refunds-credits.tsx": {
+  "bare toLocaleString()": 2,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/billing/reports.tsx": {
+  "INR": 1,
+  "en-IN": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/billing/revenue-alerts/EnhancementModal.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/revenue-alerts/revenue-alerts-labels.ts": {
+  "INR": 3,
+  "en-IN": 1,
+  "new Intl. outside the format helpers": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/billing/settings.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 7,
+  "Indian state names": 1
+ },
+ "apps/web/src/pages/billing/shared.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 5,
+  "en-IN": 2,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/blood-bank/TransfusionMonitorDrawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/blood-bank/TtiResultsDrawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/blood-bank/cold-chain-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/blood-bank/crossmatch-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/blood-bank/donors-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/blood-bank/inventory-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/blood-bank/transfusions-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/bme/breakdowns-tab.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/bme/contracts-tab.tsx": {
+  "bare toLocaleString()": 3,
+  "rupee sign": 4
+ },
+ "apps/web/src/pages/bme/shared.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/camp/analytics-tab.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/camp/camp-create.tsx": {
+  "PIN code": 4
+ },
+ "apps/web/src/pages/camp/camp-detail.tsx": {
+  "NABH": 2,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/camp/shared.tsx": {
+  "PIN code": 1
+ },
+ "apps/web/src/pages/care-view/ChildPughTab.tsx": {
+  "INR": 2
+ },
+ "apps/web/src/pages/care-view/DischargeTrackerTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/care-view/HasBledTab.tsx": {
+  "INR": 1
+ },
+ "apps/web/src/pages/care-view/HypoglycemiaTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/care-view/MeldTab.tsx": {
+  "INR": 2
+ },
+ "apps/web/src/pages/care-view/MyTasksTab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/care-view/NutritionTab.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/care-view/PatientGridTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/case-sheet-review.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/chronic-care/drug-ogram-tab.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/chronic-care/outcomes-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/chronic-care/treatment-summary-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/clinical-kb/nikshay-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/clinical-kb/reports-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/clinical-trials/ae-modal.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/clinical-trials/consents-modal.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/clinical-trials/irb-modal.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/clinical-trials/visits-modal.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/command-center/shared.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/communications/feedback-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/communications/messages-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/components-inputs.tsx": {
+  "+91": 1
+ },
+ "apps/web/src/pages/consent/audit-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/consent/signatures-tab.tsx": {
+  "Aadhaar": 5,
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/cssd/LoadRecallPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/cssd/equipment-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/cssd/issuance-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/cssd/sterilization-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/doctor-payouts/policy-tab.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/doctor-payouts/shared.ts": {
+  "INR": 1,
+  "en-IN": 1,
+  "new Intl. outside the format helpers": 1
+ },
+ "apps/web/src/pages/doctor/my-day.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/doctor/profile.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/pages/doctor/signoffs.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/documents/outputs-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/documents/print-queue-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/documents/print-routing-tab.tsx": {
+  "NABH": 10
+ },
+ "apps/web/src/pages/documents/review-schedule-tab.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/emergency/codes.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/emergency/mass-casualty.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/emergency/mlc-case-detail.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 8
+ },
+ "apps/web/src/pages/emergency/mlc.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/emergency/police-contact-settings.tsx": {
+  "+91": 1
+ },
+ "apps/web/src/pages/emergency/resuscitation-visit-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/emergency/resuscitation.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/emergency/visit-context-rail.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/emergency/visits.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/errors/access-denied.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/facilities/energy-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/facilities/mgps-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/facilities/work-orders-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/flow/flow-board.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/flow/flow-state.ts": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/flow/live-tab.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/flow/zone-detail.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/front-office/enquiry-desk-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/front-office/visitor-management-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/health-packages.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/home-healthcare.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/home-healthcare/bereavement-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/home-healthcare/billing-panel.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/home-healthcare/caregiver-education-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/home-healthcare/escalations-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/home-healthcare/remote-vitals-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/hospital-groups.tsx": {
+  "en-IN": 3,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/housekeeping/bmw-tab.tsx": {
+  "NABH": 5,
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/housekeeping/linen-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/housekeeping/room-bed-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/hr/attendance-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/hr/compliance-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/hr/employee-detail-drawer.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/hr/payroll.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/icu/devices-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/icu/flowsheets-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/icu/neonatal-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/icu/nutrition-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/icu/scores-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/icu/ventilator-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/indent/analytics-panel.tsx": {
+  "bare toLocaleString()": 2,
+  "rupee sign": 6
+ },
+ "apps/web/src/pages/indent/assets-implants-panel.tsx": {
+  "bare toLocaleString()": 3,
+  "rupee sign": 4
+ },
+ "apps/web/src/pages/indent/catalog-panel.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/indent/flow-tracker-panel.tsx": {
+  "bare toLocaleString()": 2,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/indent/indent-list-panel.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/indent/patient-consumables-panel.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/indent/stock-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/infection-control/InvasiveDevicesPanel.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/infection-control/biowaste-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/infection-control/hygiene-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/infection-control/meetings-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/infection-control/outbreak-tab.tsx": {
+  "bare toLocaleString()": 6
+ },
+ "apps/web/src/pages/infection-control/sharps-safety-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/infection-control/stewardship-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/infection-control/surveillance-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/insurance/appeals-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/insurance/dashboard-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/insurance/prior-auth-tab.tsx": {
+  "bare toLocaleString()": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/insurance/rules-tab.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/insurance/verification-tab.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/inter-hospital-stock.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/inter-hospital-transfers.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/admission-detail.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ipd/admissions.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ipd/assessments.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/bed-dashboard.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ipd/bed-turnaround.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/ipd/billing.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/ipd/checklist.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/clinical-docs.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ipd/consents.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/discharge-medicines-editor.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/pages/ipd/discharge-summary.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/discharge-tat.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/expected-discharges.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/generate-discharge-summary-modal.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ipd/insurance-pa.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/investigations.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ipd/io-chart.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/mar.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/nursing-assessment-form.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/ipd/nursing-assessment-section.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/nursing-forms.ts": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/ipd/overview.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/patient-scores.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/print-admission-button.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ipd/room-above-limit.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/ipd/room-limit-modal.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/ipd/transfer-log.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab/AnalyserReviewTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab/b2b-clients.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/lab/b2b-rates.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/lab/bench-worklist.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab/catalog.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/lab/critical-call.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab/cumulative-drawer.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/lab/dispatch.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/lab/home-collections.tsx": {
+  "PIN code": 7
+ },
+ "apps/web/src/pages/lab/order-create.form.ts": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/lab/order-detail.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab/outsourced.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/lab/panels.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/lab/phlebotomy.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab/referral-credit.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/lab/sample-archive.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lab/shared.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/lab/tat-analytics.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/lms/certificates-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/lms/my-learning-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/long-term-care.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/long-term-care/family-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/long-term-care/medications-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/long-term-care/readmission-risk-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/long-term-care/rehab-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/long-term-care/snf-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/marketing/attribution-panel.tsx": {
+  "en-IN": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/marketing/callbacks-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/marketing/campaigns-tab.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/marketing/camps-panel.tsx": {
+  "bare toLocaleString()": 1,
+  "en-IN": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/marketing/catchment-map.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/marketing/channels-tab.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/marketing/distribution-form.tsx": {
+  "PIN code": 4,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/marketing/distributions-tab.tsx": {
+  "bare toLocaleString()": 1,
+  "en-IN": 5,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/marketing/enquiries-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/marketing/enquiry-detail-drawer.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/marketing/funnel-tab.tsx": {
+  "en-IN": 3,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/marketing/run-detail-drawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/marketing/screen-pop-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/marketing/suppression-list.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/marketing/touchpoint-strip.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/microsite-settings.tsx": {
+  "+91": 1
+ },
+ "apps/web/src/pages/nurse-activities/code-blue-tab.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/nurse-activities/equipment-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/nurse-activities/shared.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/occupational-health/ExposuresPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/occupational-health/screenings-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/onboarding/BedConfigStep.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/onboarding/HospitalStep.tsx": {
+  "+91": 1,
+  "Asia/Kolkata or +05:30": 3,
+  "INR": 3,
+  "NABH": 1,
+  "PIN code": 5
+ },
+ "apps/web/src/pages/onboarding/ReviewStep.tsx": {
+  "PIN code": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/onboarding/UsersStep.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/opd/investigations.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/opd/prescriptions.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/opd/vitals.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/opd/workflow-tabs.tsx": {
+  "bare toLocaleString()": 16,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/order-sets/activations-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ot/BookingConsentPanel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ot/EmergencyConsentCard.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ot/anesthesia-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/ot/case-record-tab.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/ot/checklist-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ot/handoff-cards.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/ot/overview-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ot/postop-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/ot/preop-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/paperless/labels.ts": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/paperless/paper-card.tsx": {
+  "en-IN": 2
+ },
+ "apps/web/src/pages/patient-detail/billing-tab.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1
+ },
+ "apps/web/src/pages/patient-detail/chronic-care-tab.tsx": {
+  "bare toLocaleString()": 3,
+  "en-IN": 1
+ },
+ "apps/web/src/pages/patient-detail/documents-tab.tsx": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/pages/patient-detail/imaging-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/patient-detail/print-card.ts": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/patient-detail/shared.tsx": {
+  "en-IN": 2,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/patients.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/patients/group-identity-queue.tsx": {
+  "Aadhaar": 1
+ },
+ "apps/web/src/pages/pg-logbook.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy-finance/cash-drawer-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy-finance/close-drawer-modal.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/pharmacy-finance/day-close-form.tsx": {
+  "rupee sign": 6
+ },
+ "apps/web/src/pages/pharmacy-finance/day-close-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy-finance/free-dispensing-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy-finance/open-drawer-modal.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy-finance/shared.ts": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/pages/pharmacy/arrange-delivery-drawer.tsx": {
+  "PIN code": 4,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/catalog-duplicates.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/pages/pharmacy/catalog.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/pages/pharmacy/counter-drawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/counter-rx-fields.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/pages/pharmacy/create-return-modal.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy/dead-stock-view.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/deliveries.tsx": {
+  "PIN code": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/delivery-actions.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/delivery-settings.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/dispatch-view.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/expired-stock-panel.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/pages/pharmacy/formulary-picker.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/fulfilment-queue.tsx": {
+  "INR": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/h1-register.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/ndps-register.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 13,
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy/nppa-ceilings.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/pharmacy/online-order-review.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 3
+ },
+ "apps/web/src/pages/pharmacy/online-refunds.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/online-returns.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy/online-stores.tsx": {
+  "PIN code": 10
+ },
+ "apps/web/src/pages/pharmacy/order-detail.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy/order-safety-record.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/orders.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/page-inner.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 8
+ },
+ "apps/web/src/pages/pharmacy/pos-checkout.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 10,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/pos-counter.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "bare toLocaleString()": 3,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/prescription-audit-trail.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/pharmacy/quarantine.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 8
+ },
+ "apps/web/src/pages/pharmacy/refill-policy-select.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "apps/web/src/pages/pharmacy/returns.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy/rx-billing-estimate.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/rx-queue.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy/shared.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/stock.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/pages/pharmacy/storefront-rules.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/pharmacy/substitute-panel.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/pharmacy/transfers-view.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/pharmacy/write-off-expired-modal.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/pages/portal/PortalHome.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/portal/portal-deliveries.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/portal/portal-delivery.ts": {
+  "PIN code": 4
+ },
+ "apps/web/src/pages/portal/portal-pay.tsx": {
+  "en-IN": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/portal/portal-refill-choice.tsx": {
+  "PIN code": 2,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/privacy-compliance/PoliciesTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/procurement/batch-stock-panel.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/procurement/grn-create-form.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/procurement/grn-detail.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/procurement/grn-panel.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/procurement/grn-scan-line.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/procurement/grn-scan-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/procurement/grn-scan-review.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "rupee sign": 3
+ },
+ "apps/web/src/pages/procurement/purchase-order-panel.tsx": {
+  "rupee sign": 7
+ },
+ "apps/web/src/pages/procurement/supplier-payments-panel.tsx": {
+  "rupee sign": 4
+ },
+ "apps/web/src/pages/procurement/vendor-panel.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/procurement/vendor-performance-panel.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/profile.tsx": {
+  "PIN code": 5
+ },
+ "apps/web/src/pages/quality/accreditation-tab.tsx": {
+  "NABH": 5
+ },
+ "apps/web/src/pages/quality/analytics-reviews-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/quality/audits-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/quality/committees-tab.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/quality/documents-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/quality/incidents-tab.tsx": {
+  "NABH": 3,
+  "bare toLocaleString()": 6
+ },
+ "apps/web/src/pages/quality/indicators-tab.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/radiology/appointments-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/radiology/dicom-studies-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/radiology/dose-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/radiology/link-study-modal.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/radiology/order-detail-drawer.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/radiology/pregnancy-check-card.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/radiology/radiology-orders-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/radiology/shared.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/radiology/unmatched-studies-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/regulatory/adr-tab.tsx": {
+  "NDPS/CDSCO/Schedule H/H1/X": 5
+ },
+ "apps/web/src/pages/regulatory/create-checklist-drawer.tsx": {
+  "NABH": 2
+ },
+ "apps/web/src/pages/regulatory/mock-surveys-tab.tsx": {
+  "NABH": 3
+ },
+ "apps/web/src/pages/regulatory/shared.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/regulatory/submissions-tab.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/remote-access.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/reports.tsx": {
+  "NABH": 2,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "apps/web/src/pages/reports/domain-briefs.ts": {
+  "NABH": 2,
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "PIN code": 1
+ },
+ "apps/web/src/pages/reports/report-catalog.ts": {
+  "NABH": 5,
+  "NDPS/CDSCO/Schedule H/H1/X": 4,
+  "PIN code": 1
+ },
+ "apps/web/src/pages/reports/report-family-panel.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/reports/report-helpers.tsx": {
+  "NABH": 1,
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/reports/report-tile.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/retrospective.tsx": {
+  "bare toLocaleString()": 5
+ },
+ "apps/web/src/pages/scheduling/analytics-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/scheduling/conflicts-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/scheduling/shared.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/access-control-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/breach-drawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/breach-notices.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/code-debriefs-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/incidents-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/intelligence/checks-panel.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/medbrains-access/grant-events.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/security/patient-safety-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/setup/deployment.tsx": {
+  "INR": 1,
+  "NABH": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/setup/domain-ownership-card.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/setup/domains-email.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/shared-images.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/specialty/cancer-registry/index.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/specialty/cath-lab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/specialty/dental.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/specialty/dental/PerioTab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/specialty/endoscopy.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/specialty/maternity.tsx": {
+  "bare toLocaleString()": 5
+ },
+ "apps/web/src/pages/specialty/ophtho.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/specialty/ophtho/ExamDrawer.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/specialty/other.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/specialty/palliative.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/specialty/pmr.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/specialty/psychiatry/RestraintTab.tsx": {
+  "NABH": 1
+ },
+ "apps/web/src/pages/specialty/psychiatry/labels.ts": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/store/store-cart.tsx": {
+  "PIN code": 2,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/store/store-checkout-hold.tsx": {
+  "PIN code": 8
+ },
+ "apps/web/src/pages/store/store-footer.tsx": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1
+ },
+ "apps/web/src/pages/store/store-item-card.tsx": {
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/store/store-item-modal.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/store/store-orders.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/store/store-sign-in.tsx": {
+  "PIN code": 5
+ },
+ "apps/web/src/pages/store/storefront-p2.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "PIN code": 6
+ },
+ "apps/web/src/pages/telemedicine.tsx": {
+  "en-IN": 1
+ },
+ "apps/web/src/pages/telemedicine/waiting-room.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/terminology/SnomedAnalyticsTab.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/terminology/SnomedBrowseTab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/trial/sizing-preview.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/tv-displays/queue-tokens-tab.tsx": {
+  "bare toLocaleString()": 2
+ },
+ "apps/web/src/pages/uhi-payment-cell.tsx": {
+  "rupee sign": 1
+ },
+ "apps/web/src/pages/utilization-review/los-monitoring-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/utilization-review/payer-log-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/utilization-review/reviews-tab.tsx": {
+  "bare toLocaleString()": 4
+ },
+ "apps/web/src/pages/utilization-review/status-tracking-tab.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/verify-bill.tsx": {
+  "bare toLocaleString()": 1,
+  "rupee sign": 2
+ },
+ "apps/web/src/pages/verify-prescription.tsx": {
+  "bare toLocaleString()": 1
+ },
+ "apps/web/src/pages/verify-signature.tsx": {
+  "bare toLocaleString()": 3
+ },
+ "apps/web/src/pages/ward-stock.tsx": {
+  "en-IN": 1,
+  "rupee sign": 1
+ },
+ "apps/web/src/services/portal.service.ts": {
+  "PIN code": 2
+ },
+ "crates/medbrains-adapter-sdk/src/hl7/tests.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-admin/src/multi_hospital.rs": {
+  "Asia/Kolkata or +05:30": 1,
+  "INR": 1
+ },
+ "crates/medbrains-ai-eval/src/graders/tests.rs": {
+  "rupee sign": 3
+ },
+ "crates/medbrains-ai/src/contact_access.rs": {
+  "Aadhaar": 2,
+  "PIN code": 1
+ },
+ "crates/medbrains-ai/src/redaction.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-analytics/src/paperless.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-analytics/src/paperless/read.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-ancillary/src/clinical_trials.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-approvals-core/src/controls.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-approvals-core/src/model.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-approvals-core/src/rules.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-approvals/src/plug.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-authz/src/field_class.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 5
+ },
+ "crates/medbrains-billing/src/accounting.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 20
+ },
+ "crates/medbrains-billing/src/advances.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1
+ },
+ "crates/medbrains-billing/src/charge_attention.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-billing/src/collect/settings.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 7
+ },
+ "crates/medbrains-billing/src/insurance.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-billing/src/journal_rules.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-billing/src/leakage.rs": {
+  "rupee sign": 3
+ },
+ "crates/medbrains-billing/src/leakage/sql.rs": {
+  "rupee sign": 2
+ },
+ "crates/medbrains-billing/src/lib.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 27
+ },
+ "crates/medbrains-billing/src/revenue_alerts.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-blood-bank/src/issue_gates.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-blood-bank/src/lib.rs": {
+  "NABH": 6,
+  "rupee sign": 1
+ },
+ "crates/medbrains-bme/src/calibration_lock.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-bme/src/lib.rs": {
+  "NABH": 3
+ },
+ "crates/medbrains-camp/src/lib.rs": {
+  "NABH": 25,
+  "NDPS/CDSCO/Schedule H/H1/X": 2,
+  "PIN code": 6
+ },
+ "crates/medbrains-camp/src/pharmacy_sync.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 12
+ },
+ "crates/medbrains-care-mgmt/src/nurse_calls.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-catalog-import/src/lib.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 4
+ },
+ "crates/medbrains-clinical-core/src/registration/fields_intake.rs": {
+  "Aadhaar": 3
+ },
+ "crates/medbrains-clinical-core/src/registration/fields_more.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-clinical-core/src/registration/mod.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-ops/src/hypoglycemia.rs": {
+  "NABH": 2
+ },
+ "crates/medbrains-clinical-ops/src/med_reconciliation.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-ops/src/nutrition_screening.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-ops/src/sepsis_bundle.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/aldrete.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/cam_icu.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/cha2ds2_vasc.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/child_pugh.rs": {
+  "INR": 2,
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/ciwa_ar.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/cpot.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/curb65.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/glasgow_blatchford.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/has_bled.rs": {
+  "INR": 4,
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/meld.rs": {
+  "INR": 3,
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/meows.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/news2.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/pews.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/sepsis.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/sofa.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/wells_dvt.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-clinical-scores/src/wells_pe.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-consent/src/lib.rs": {
+  "Aadhaar": 7
+ },
+ "crates/medbrains-core/src/access/roles.rs": {
+  "NABH": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 3
+ },
+ "crates/medbrains-core/src/ai_guard/mod.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-core/src/ai_guard/patterns.rs": {
+  "Aadhaar": 1,
+  "PIN code": 1
+ },
+ "crates/medbrains-core/src/ai_guard/placeholders.rs": {
+  "rupee sign": 3
+ },
+ "crates/medbrains-core/src/ai_guard/tests.rs": {
+  "Aadhaar": 12
+ },
+ "crates/medbrains-core/src/ai_redact/checks.rs": {
+  "Aadhaar": 8
+ },
+ "crates/medbrains-core/src/ai_redact/mod.rs": {
+  "Aadhaar": 6,
+  "GST (CGST/SGST/IGST/GSTIN)": 3,
+  "PIN code": 2
+ },
+ "crates/medbrains-core/src/ai_redact/patterns.rs": {
+  "+91": 2,
+  "Aadhaar": 5,
+  "GST (CGST/SGST/IGST/GSTIN)": 3,
+  "PIN code": 3,
+  "rupee sign": 1
+ },
+ "crates/medbrains-core/src/ai_redact/sensitive.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-core/src/ai_redact/tests.rs": {
+  "+91": 1,
+  "Aadhaar": 4,
+  "Asia/Kolkata or +05:30": 2,
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "PIN code": 2,
+  "rupee sign": 4
+ },
+ "crates/medbrains-core/src/ai_widgets.rs": {
+  "rupee sign": 2
+ },
+ "crates/medbrains-core/src/analytics.rs": {
+  "NABH": 6
+ },
+ "crates/medbrains-core/src/audit_sink/local.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-core/src/billing.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 10,
+  "INR": 1
+ },
+ "crates/medbrains-core/src/boundary_filter.rs": {
+  "+91": 2,
+  "Aadhaar": 17,
+  "NABH": 1,
+  "PIN code": 1
+ },
+ "crates/medbrains-core/src/camp.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-core/src/clinical_events.rs": {
+  "NABH": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 5
+ },
+ "crates/medbrains-core/src/consent.rs": {
+  "Aadhaar": 2
+ },
+ "crates/medbrains-core/src/document.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-core/src/facility.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-core/src/fatigue.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-core/src/geo.rs": {
+  "PIN code": 3
+ },
+ "crates/medbrains-core/src/gst_invoice_print.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 6,
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-core/src/hr.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-core/src/lab.rs": {
+  "NABH": 1,
+  "PIN code": 1
+ },
+ "crates/medbrains-core/src/patient.rs": {
+  "Aadhaar": 5,
+  "NABH": 1
+ },
+ "crates/medbrains-core/src/permissions.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "NABH": 4,
+  "NDPS/CDSCO/Schedule H/H1/X": 11
+ },
+ "crates/medbrains-core/src/pharmacy_delivery.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 3,
+  "rupee sign": 1
+ },
+ "crates/medbrains-core/src/pharmacy_holds.rs": {
+  "PIN code": 22
+ },
+ "crates/medbrains-core/src/pharmacy_phase2.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-core/src/pharmacy_phase3.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 3
+ },
+ "crates/medbrains-core/src/pharmacy_returns.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 8
+ },
+ "crates/medbrains-core/src/pharmacy_storefront.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 10
+ },
+ "crates/medbrains-core/src/print_data.rs": {
+  "Aadhaar": 1,
+  "GST (CGST/SGST/IGST/GSTIN)": 11,
+  "NABH": 3,
+  "NDPS/CDSCO/Schedule H/H1/X": 4,
+  "PIN code": 1
+ },
+ "crates/medbrains-core/src/privacy.rs": {
+  "+91": 1
+ },
+ "crates/medbrains-core/src/procurement.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-core/src/quality.rs": {
+  "NABH": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-core/src/regulatory.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-core/src/rx_refills.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-core/src/simulator.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-crypto/src/abha.rs": {
+  "Aadhaar": 1
+ },
+ "crates/medbrains-dashboard/src/lib.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-db/src/pool.rs": {
+  "Asia/Kolkata or +05:30": 2
+ },
+ "crates/medbrains-device-pairing/src/counter_display.rs": {
+  "lakh/crore": 1,
+  "rupee sign": 1
+ },
+ "crates/medbrains-doctor-payouts/src/payout_ops.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-doctor-payouts/src/provider.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-documents/src/documents.rs": {
+  "Aadhaar": 3
+ },
+ "crates/medbrains-documents/src/signable.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-emergency/src/alerts.rs": {
+  "+91": 2,
+  "Asia/Kolkata or +05:30": 3
+ },
+ "crates/medbrains-error-tracking/src/phi_tests.rs": {
+  "Aadhaar": 4
+ },
+ "crates/medbrains-facilities/src/facilities.rs": {
+  "NABH": 2
+ },
+ "crates/medbrains-facilities/src/nhcx_bundle.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-facilities/src/nhcx_bundle_tests.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-facilities/src/nhcx_final_claim.rs": {
+  "INR": 5
+ },
+ "crates/medbrains-facilities/src/nhcx_golden_tests.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-fhir/src/nrces/mod.rs": {
+  "en-IN": 1
+ },
+ "crates/medbrains-fhir/src/nrces/records.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 14,
+  "en-IN": 1
+ },
+ "crates/medbrains-fhir/src/nrces/records_tests.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 4,
+  "INR": 1
+ },
+ "crates/medbrains-fhir/src/r4/claim.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-flow/src/lib.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-history-import/src/lib.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-history-import/src/money.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 2
+ },
+ "crates/medbrains-history-import/src/orders.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-hr/src/lib.rs": {
+  "Aadhaar": 16
+ },
+ "crates/medbrains-identity/src/iam.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-infection-control/src/infection_control.rs": {
+  "NABH": 2
+ },
+ "crates/medbrains-ipd-post-discharge/src/lib.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-ipd/src/discharge_medicines.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-ipd/src/lib.rs": {
+  "NABH": 5
+ },
+ "crates/medbrains-lab/src/critical_call.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-lab/src/lib.rs": {
+  "NABH": 1,
+  "PIN code": 3,
+  "lakh/crore": 1
+ },
+ "crates/medbrains-lab/src/units.rs": {
+  "lakh/crore": 9
+ },
+ "crates/medbrains-loadtest/src/generated.rs": {
+  "NABH": 3,
+  "NDPS/CDSCO/Schedule H/H1/X": 6
+ },
+ "crates/medbrains-marketing/src/camp_acquisition.rs": {
+  "+91": 4
+ },
+ "crates/medbrains-marketing/src/consent.rs": {
+  "+91": 7,
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-marketing/src/distribution.rs": {
+  "PIN code": 6
+ },
+ "crates/medbrains-marketing/src/phone.rs": {
+  "+91": 6
+ },
+ "crates/medbrains-marketing/src/telephony.rs": {
+  "+91": 1
+ },
+ "crates/medbrains-materials/src/catalog_merge.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 3
+ },
+ "crates/medbrains-materials/src/grn_scan.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 7
+ },
+ "crates/medbrains-materials/src/grn_scan_contract.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 10,
+  "rupee sign": 1
+ },
+ "crates/medbrains-materials/src/grn_validate.rs": {
+  "rupee sign": 3
+ },
+ "crates/medbrains-materials/src/housekeeping.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-materials/src/procurement.rs": {
+  "PIN code": 6
+ },
+ "crates/medbrains-mrd/src/crs.rs": {
+  "Asia/Kolkata or +05:30": 3,
+  "PIN code": 1
+ },
+ "crates/medbrains-nabh/src/compliance.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-nabh/src/lib.rs": {
+  "NABH": 12
+ },
+ "crates/medbrains-nabh/src/norms.rs": {
+  "NABH": 10
+ },
+ "crates/medbrains-nursing/src/code_blue_response.rs": {
+  "NABH": 4
+ },
+ "crates/medbrains-nursing/src/code_blue_routing.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-nursing/src/nurse_handoff.rs": {
+  "NABH": 3
+ },
+ "crates/medbrains-offline-core/src/authz_cache.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-onboarding/src/lib.rs": {
+  "PIN code": 5
+ },
+ "crates/medbrains-onboarding/src/sizing.rs": {
+  "INR": 4
+ },
+ "crates/medbrains-opd/src/lib.rs": {
+  "NABH": 7,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-opd/src/rx_policy.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-opd/src/rx_terms.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-order-basket/src/lib.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 4
+ },
+ "crates/medbrains-os-setup/src/status.rs": {
+  "Asia/Kolkata or +05:30": 4
+ },
+ "crates/medbrains-ot/src/emergency_consent.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-ot/src/lib.rs": {
+  "NABH": 4
+ },
+ "crates/medbrains-outbox/src/handlers/twilio.rs": {
+  "+91": 2
+ },
+ "crates/medbrains-outbox/src/handlers/whatsapp.rs": {
+  "+91": 1
+ },
+ "crates/medbrains-outbox/src/simulator.rs": {
+  "+91": 1
+ },
+ "crates/medbrains-patients/src/abha_link.rs": {
+  "Aadhaar": 3
+ },
+ "crates/medbrains-patients/src/group_identity.rs": {
+  "Aadhaar": 2
+ },
+ "crates/medbrains-patients/src/group_identity_store.rs": {
+  "Aadhaar": 2
+ },
+ "crates/medbrains-patients/src/identifier_key.rs": {
+  "Aadhaar": 11
+ },
+ "crates/medbrains-patients/src/lib.rs": {
+  "Aadhaar": 22
+ },
+ "crates/medbrains-payment-gateway/src/balance_link/issue.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-payment-gateway/src/balance_link/parts.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-payment-gateway/src/balance_link/settings.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-payment-gateway/src/checkout.rs": {
+  "INR": 4
+ },
+ "crates/medbrains-payment-gateway/src/lib.rs": {
+  "INR": 2
+ },
+ "crates/medbrains-payment-gateway/src/online/cashfree.rs": {
+  "INR": 2
+ },
+ "crates/medbrains-payment-gateway/src/online/razorpay.rs": {
+  "INR": 2
+ },
+ "crates/medbrains-payment-gateway/src/payment_settings.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-payment-gateway/src/payment_settings_notice.rs": {
+  "rupee sign": 2
+ },
+ "crates/medbrains-payment-gateway/src/pos/ezetap.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-payment-gateway/src/pos/start.rs": {
+  "INR": 1,
+  "rupee sign": 1
+ },
+ "crates/medbrains-payment-gateway/src/pos/view.rs": {
+  "rupee sign": 3
+ },
+ "crates/medbrains-payment-gateway/src/upi_qr.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-payroll/src/lib.rs": {
+  "rupee sign": 2
+ },
+ "crates/medbrains-pharmacy-cash-drawer/src/day_close_rules.rs": {
+  "rupee sign": 4
+ },
+ "crates/medbrains-pharmacy-delivery/src/arrange.rs": {
+  "PIN code": 6
+ },
+ "crates/medbrains-pharmacy-delivery/src/choice.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "PIN code": 13
+ },
+ "crates/medbrains-pharmacy-delivery/src/door.rs": {
+  "rupee sign": 2
+ },
+ "crates/medbrains-pharmacy-delivery/src/facts.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "PIN code": 2
+ },
+ "crates/medbrains-pharmacy-delivery/src/lib.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-pharmacy-delivery/src/pay.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-pharmacy-fulfilment/src/lib.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy-repeats/src/requests.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy-safety/src/lib.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/buy_outside.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 3
+ },
+ "crates/medbrains-pharmacy/src/credit_notes.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 2
+ },
+ "crates/medbrains-pharmacy/src/discharge_rx.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-pharmacy/src/expired.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-pharmacy/src/h1_register.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/lib.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 10,
+  "NDPS/CDSCO/Schedule H/H1/X": 104,
+  "rupee sign": 1
+ },
+ "crates/medbrains-pharmacy/src/pos_returns.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 2,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/pos_scheduled.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 6
+ },
+ "crates/medbrains-pharmacy/src/quarantine.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 18
+ },
+ "crates/medbrains-pharmacy/src/rx_quantity.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/rx_safety.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 17
+ },
+ "crates/medbrains-pharmacy/src/safety_record.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/schedule_gate.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 24
+ },
+ "crates/medbrains-pharmacy/src/schedule_gate/cap.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 8
+ },
+ "crates/medbrains-pharmacy/src/storefront/cart.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/storefront/catalog.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/storefront/checkout.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "PIN code": 1,
+  "rupee sign": 1
+ },
+ "crates/medbrains-pharmacy/src/storefront/hold_cart.rs": {
+  "PIN code": 5
+ },
+ "crates/medbrains-pharmacy/src/storefront/invoice.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 6
+ },
+ "crates/medbrains-pharmacy/src/storefront/limits.rs": {
+  "PIN code": 2,
+  "rupee sign": 1
+ },
+ "crates/medbrains-pharmacy/src/storefront/returns_desk.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-pharmacy/src/storefront/rules.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-pharmacy/src/storefront/settings.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 4
+ },
+ "crates/medbrains-pharmacy/src/storefront/stores.rs": {
+  "PIN code": 44
+ },
+ "crates/medbrains-pharmacy/src/storefront/verify.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-platform/src/disclosure.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-platform/src/facility_codes.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-platform/src/geo.rs": {
+  "PIN code": 6
+ },
+ "crates/medbrains-platform/src/ihip.rs": {
+  "Asia/Kolkata or +05:30": 4
+ },
+ "crates/medbrains-platform/src/lib.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-platform/src/nikshay.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-platform/src/nikshay_sheet.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-print-data/src/academic.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "NABH": 1,
+  "PIN code": 1
+ },
+ "crates/medbrains-print-data/src/admin.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 7,
+  "NDPS/CDSCO/Schedule H/H1/X": 19,
+  "PIN code": 2,
+  "lakh/crore": 8
+ },
+ "crates/medbrains-print-data/src/billing.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 20,
+  "lakh/crore": 7
+ },
+ "crates/medbrains-print-data/src/bme.rs": {
+  "NABH": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 6
+ },
+ "crates/medbrains-print-data/src/clinical.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-print-data/src/gst_invoice.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 10,
+  "INR": 2,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-print-data/src/hr.rs": {
+  "Aadhaar": 1,
+  "NABH": 1
+ },
+ "crates/medbrains-print-data/src/mrd.rs": {
+  "NABH": 2
+ },
+ "crates/medbrains-print-data/src/pcpndt_form_f.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-print-data/src/quality.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-print-data/src/regulatory.rs": {
+  "NABH": 11
+ },
+ "crates/medbrains-print-data/src/surgical.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-print/examples/render_samples.rs": {
+  "+91": 1,
+  "Indian state names": 1
+ },
+ "crates/medbrains-print/src/templates.rs": {
+  "+91": 1,
+  "GST (CGST/SGST/IGST/GSTIN)": 10,
+  "NDPS/CDSCO/Schedule H/H1/X": 3,
+  "rupee sign": 7
+ },
+ "crates/medbrains-print/src/thermal.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-quality/src/lib.rs": {
+  "NABH": 5
+ },
+ "crates/medbrains-radiology/src/lib.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-radiology/src/pregnancy_check.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-radiology/src/share.rs": {
+  "+91": 1
+ },
+ "crates/medbrains-radiology/src/share_public.rs": {
+  "+91": 1
+ },
+ "crates/medbrains-regulatory/src/dpdp_templates.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-regulatory/src/lib.rs": {
+  "NABH": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 4
+ },
+ "crates/medbrains-reports/src/analytics.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-reports/src/lib.rs": {
+  "NABH": 2
+ },
+ "crates/medbrains-reports/src/nabh_indicators.rs": {
+  "NABH": 86
+ },
+ "crates/medbrains-reports/src/reports.rs": {
+  "Aadhaar": 1,
+  "NABH": 8,
+  "NDPS/CDSCO/Schedule H/H1/X": 7,
+  "PIN code": 1
+ },
+ "crates/medbrains-research/src/datasets.rs": {
+  "PIN code": 5
+ },
+ "crates/medbrains-research/src/deid.rs": {
+  "PIN code": 12
+ },
+ "crates/medbrains-research/src/deid_tests.rs": {
+  "PIN code": 9
+ },
+ "crates/medbrains-research/src/omop.rs": {
+  "PIN code": 4
+ },
+ "crates/medbrains-research/src/omop_tests.rs": {
+  "PIN code": 2
+ },
+ "crates/medbrains-research/src/trial_export.rs": {
+  "Aadhaar": 4
+ },
+ "crates/medbrains-research/src/trial_subject.rs": {
+  "+91": 1,
+  "Aadhaar": 5
+ },
+ "crates/medbrains-security/src/code_pink.rs": {
+  "NABH": 2
+ },
+ "crates/medbrains-seed/src/demo_patients.rs": {
+  "Indian state names": 8,
+  "NABH": 1,
+  "PIN code": 4
+ },
+ "crates/medbrains-seed/src/lab_catalog.rs": {
+  "INR": 3,
+  "lakh/crore": 2
+ },
+ "crates/medbrains-seed/src/role_dashboards.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 5
+ },
+ "crates/medbrains-seed/src/tax_categories.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-server-core/src/middleware/audit.rs": {
+  "NABH": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-server-core/src/middleware/field_access.rs": {
+  "Aadhaar": 4
+ },
+ "crates/medbrains-server-core/src/payload_log.rs": {
+  "Aadhaar": 3,
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "PIN code": 1
+ },
+ "crates/medbrains-server-core/src/permissions.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "crates/medbrains-server-core/src/tenant_config.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-server-core/src/validation.rs": {
+  "PIN code": 4
+ },
+ "crates/medbrains-server-services/src/billing.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 12,
+  "NABH": 1
+ },
+ "crates/medbrains-server-services/src/billing_lanes.rs": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1
+ },
+ "crates/medbrains-server-services/src/patient_match/model.rs": {
+  "+91": 1
+ },
+ "crates/medbrains-server-services/src/pharmacy_customer.rs": {
+  "+91": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "PIN code": 2
+ },
+ "crates/medbrains-server-services/src/room_eligibility.rs": {
+  "rupee sign": 3
+ },
+ "crates/medbrains-server-services/src/room_eligibility/record.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-server/src/main.rs": {
+  "Aadhaar": 2,
+  "NABH": 3
+ },
+ "crates/medbrains-server/src/middleware/field_access.rs": {
+  "Aadhaar": 8
+ },
+ "crates/medbrains-server/src/routes/message_simulator.rs": {
+  "+91": 3
+ },
+ "crates/medbrains-server/src/routes/mod.rs": {
+  "NABH": 3
+ },
+ "crates/medbrains-server/src/routes/patients.rs": {
+  "Aadhaar": 19
+ },
+ "crates/medbrains-server/src/routes/portal_store.rs": {
+  "PIN code": 6
+ },
+ "crates/medbrains-server/src/routes/uhi/fees.rs": {
+  "INR": 7,
+  "rupee sign": 2
+ },
+ "crates/medbrains-server/src/routes/uhi/labs.rs": {
+  "INR": 2
+ },
+ "crates/medbrains-server/src/routes/uhi/payment.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-server/src/routes/uhi/payment_events.rs": {
+  "INR": 1
+ },
+ "crates/medbrains-server/src/routes/uhi/requests.rs": {
+  "INR": 1,
+  "rupee sign": 1
+ },
+ "crates/medbrains-server/src/routes/uhi/teleconsult.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-server/src/services/access_alert_scan.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-server/src/services/calibration_lock.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-server/src/services/critical_alert_escalation.rs": {
+  "+91": 1,
+  "NABH": 1
+ },
+ "crates/medbrains-server/src/services/crs_registration_escalation.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-server/src/services/nurse_call_escalation.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-server/src/services/restraint_observation_escalation.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-server/src/services/simulator/sweep_endpoints.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "crates/medbrains-server/src/services/verbal_order_escalation.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-setup/src/lib.rs": {
+  "NDPS/CDSCO/Schedule H/H1/X": 3,
+  "PIN code": 9
+ },
+ "crates/medbrains-shell/src/api.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-shell/src/setup.rs": {
+  "Asia/Kolkata or +05:30": 1
+ },
+ "crates/medbrains-shell/src/timezone.rs": {
+  "Asia/Kolkata or +05:30": 4
+ },
+ "crates/medbrains-sop-flows/src/discharge.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-specialty-other/src/cancer_registry_export.rs": {
+  "PIN code": 1
+ },
+ "crates/medbrains-specialty-other/src/lib.rs": {
+  "NABH": 1,
+  "rupee sign": 1
+ },
+ "crates/medbrains-specialty/src/specialty_psychiatry.rs": {
+  "NABH": 2
+ },
+ "crates/medbrains-vte/src/lib.rs": {
+  "NABH": 1
+ },
+ "crates/medbrains-ward-stock/src/consume.rs": {
+  "rupee sign": 1
+ },
+ "crates/medbrains-workflow/src/orchestration/default_pipelines.rs": {
+  "+91": 4,
+  "Asia/Kolkata or +05:30": 1,
+  "NABH": 6,
+  "NDPS/CDSCO/Schedule H/H1/X": 19
+ },
+ "packages/api/src/client.ts": {
+  "Aadhaar": 4,
+  "NABH": 3,
+  "NDPS/CDSCO/Schedule H/H1/X": 7,
+  "PIN code": 5,
+  "rupee sign": 1
+ },
+ "packages/expressions/src/functions.ts": {
+  "+91": 1,
+  "INR": 3,
+  "en-IN": 2,
+  "new Intl. outside the format helpers": 2
+ },
+ "packages/schemas/src/hms-forms.ts": {
+  "Aadhaar": 3,
+  "NABH": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 3,
+  "PIN code": 3
+ },
+ "packages/schemas/src/onboarding.ts": {
+  "PIN code": 2
+ },
+ "packages/schemas/src/primitives.ts": {
+  "+91": 2,
+  "Aadhaar": 4,
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "PIN code": 4
+ },
+ "packages/schemas/src/responses.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 6
+ },
+ "packages/stores/src/locale-store.ts": {
+  "Asia/Kolkata or +05:30": 1,
+  "INR": 1
+ },
+ "packages/stores/src/onboarding-store.ts": {
+  "PIN code": 1
+ },
+ "packages/types/src/abdm-hip.ts": {
+  "rupee sign": 2
+ },
+ "packages/types/src/abdm-integration.ts": {
+  "Aadhaar": 5,
+  "PIN code": 1
+ },
+ "packages/types/src/abdm-registry.ts": {
+  "PIN code": 1
+ },
+ "packages/types/src/abdm-scan-share.ts": {
+  "PIN code": 1
+ },
+ "packages/types/src/access-matrix.ts": {
+  "NABH": 59,
+  "NDPS/CDSCO/Schedule H/H1/X": 13
+ },
+ "packages/types/src/admin-forms.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 5
+ },
+ "packages/types/src/collect.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 2
+ },
+ "packages/types/src/documents-module.ts": {
+  "Aadhaar": 2
+ },
+ "packages/types/src/emergency-drug-kits.ts": {
+  "Aadhaar": 1
+ },
+ "packages/types/src/event-actions.ts": {
+  "NABH": 20,
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "packages/types/src/field-access-catalogue.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 5
+ },
+ "packages/types/src/grn-scan.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1
+ },
+ "packages/types/src/group-identity.ts": {
+  "Aadhaar": 1
+ },
+ "packages/types/src/index.ts": {
+  "Aadhaar": 3,
+  "NABH": 3,
+  "PIN code": 2
+ },
+ "packages/types/src/ipd-clinical-expansion.ts": {
+  "Aadhaar": 5,
+  "NABH": 1,
+  "PIN code": 3
+ },
+ "packages/types/src/ipd-phase2.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "packages/types/src/locale-units.ts": {
+  "PIN code": 2
+ },
+ "packages/types/src/marketing.ts": {
+  "PIN code": 2
+ },
+ "packages/types/src/medication-timing.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 14,
+  "INR": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 2,
+  "PIN code": 3
+ },
+ "packages/types/src/patient-journey-i18n.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "packages/types/src/patient-registration.ts": {
+  "Aadhaar": 2
+ },
+ "packages/types/src/permission-catalog.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "NABH": 4,
+  "NDPS/CDSCO/Schedule H/H1/X": 16
+ },
+ "packages/types/src/pharmacy-delivery.ts": {
+  "PIN code": 5
+ },
+ "packages/types/src/pharmacy-phase2.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "packages/types/src/pharmacy-phase3.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 3,
+  "NDPS/CDSCO/Schedule H/H1/X": 1
+ },
+ "packages/types/src/pharmacy-storefront-p2.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2,
+  "PIN code": 4
+ },
+ "packages/types/src/pharmacy-storefront.ts": {
+  "GST (CGST/SGST/IGST/GSTIN)": 1,
+  "NDPS/CDSCO/Schedule H/H1/X": 1,
+  "PIN code": 1
+ },
+ "packages/types/src/procurement-request.ts": {
+  "PIN code": 2
+ },
+ "packages/types/src/regulatory-compliance.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "packages/types/src/schema-registry.ts": {
+  "NDPS/CDSCO/Schedule H/H1/X": 2
+ },
+ "packages/types/src/tenant-facility.ts": {
+  "PIN code": 1
+ },
+ "packages/types/src/token-board-surfaces.ts": {
+  "Aadhaar": 1,
+  "NABH": 5
+ },
+ "packages/utils/src/index.ts": {
+  "en-IN": 2
+ }
+}

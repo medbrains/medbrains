@@ -4,8 +4,10 @@
 Each meter is a weighted checklist: done counts in full, partial counts half,
 not-started counts nothing. An item counts only with evidence: a PR squash-merged
 on main, a file that exists, or a named test in a file. This writes the
-shields.io endpoint badges (.github/badges/readiness-<id>.json) and the README
-table between the readiness markers, so no percentage is ever typed by hand.
+shields.io endpoint badges (.github/badges/readiness-<id>.json), the README badge
+row and the README tables between the readiness markers, so no percentage is
+ever typed by hand. A meter with a `group` gets its own table under that name; a
+meter with `live` adds a measured line (LIVE below) to its summary.
 
     python3 scripts/readiness.py            # regenerate badges + README table
     python3 scripts/readiness.py --check    # CI: fail on missing evidence or stale files
@@ -14,6 +16,7 @@ table between the readiness markers, so no percentage is ever typed by hand.
 --check needs the full history (fetch-depth: 0) to find merged PRs.
 """
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -24,7 +27,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "medbrains/docs/readiness.json"
 BADGES = ROOT / ".github/badges"
 README = ROOT / "README.md"
+COUNTRIES = ROOT / "data/geo/countries.json"
+WORLD_LITERALS = ROOT / "medbrains/scripts/check_world_literals.py"
 START, END = "<!-- readiness:start -->", "<!-- readiness:end -->"
+BADGE_START, BADGE_END = "<!-- readiness-badges:start -->", "<!-- readiness-badges:end -->"
+BADGE_URL = "https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-{}.json"
 CREDIT = {"done": 1.0, "partial": 0.5, "not-started": 0.0}
 LABEL = {"done": "Done", "partial": "Partial", "not-started": "Not started"}
 
@@ -50,6 +57,8 @@ def evidence_errors(data, merged, root=ROOT):
     """Every reason an item's status is not backed by evidence, as readable lines."""
     errors = []
     for meter in data["meters"]:
+        if meter.get("live") and meter["live"] not in LIVE:
+            errors.append(f"{meter['id']}: unknown live line {meter['live']!r}")
         for item in meter["items"]:
             where = f"{meter['id']}/{item['id']}"
             status = item.get("status")
@@ -79,6 +88,37 @@ def check_one(ev, merged, root):
     return None
 
 
+def world_literals_text(live, baseline):
+    """The ratchet line for the world meter from (lines, files) now and in the baseline."""
+    return (f"India literals outside the India pack: {live[0]:,} lines in {live[1]:,} files "
+            f"(baseline {baseline[0]:,} in {baseline[1]:,}; it may only go down, "
+            "`make check-world-literals`).")
+
+
+def world_literals():
+    """Measures the #5935 ratchet now and reads its committed baseline."""
+    spec = importlib.util.spec_from_file_location("check_world_literals", WORLD_LITERALS)
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    baseline = json.loads(check.BASELINE.read_text(encoding="utf-8"))
+    return world_literals_text(check.totals(check.measure()), check.totals(baseline))
+
+
+def countries_text(countries):
+    """How many countries have research, from the country list's `research` fields."""
+    done = sum(1 for c in countries if c.get("research"))
+    return (f"{done} of {len(countries)} countries researched (research only, not built; "
+            "counted from `data/geo/countries.json`), never counted in the percentage.")
+
+
+def countries_researched():
+    """The research line for the country-pack meter, from the committed country list."""
+    return countries_text(json.loads(COUNTRIES.read_text(encoding="utf-8")))
+
+
+LIVE = {"world-literals": world_literals, "countries-researched": countries_researched}
+
+
 def badge(meter):
     """The shields.io endpoint JSON for one meter."""
     return json.dumps({"schemaVersion": 1, "label": meter["title"],
@@ -93,29 +133,58 @@ def evidence_text(item):
     return ", ".join(parts) or "-"
 
 
-def table(data):
-    """The README section: a summary row per meter and its item list."""
+def summary_table(meters):
+    """A summary row per meter: measured percentage and item counts by state."""
     lines = ["| Meter | Measured | Done | Partial | Not started |", "|---|---|---|---|---|"]
-    for m in data["meters"]:
+    for m in meters:
         n = {s: sum(i["status"] == s for i in m["items"]) for s in CREDIT}
         lines.append(f"| {m['title']} | **{percent(m)}%** | {n['done']} | {n['partial']} | {n['not-started']} |")
+    return lines
+
+
+def table(data, live=None):
+    """The README section: summary tables (ungrouped, then one per group) and item lists.
+
+    `live` maps a meter's `live` key to its measured line; the default measures them.
+    """
+    live = live if live is not None else {k: f() for k, f in LIVE.items()}
+    groups = {}
     for m in data["meters"]:
-        lines += ["", f"<details><summary>{m['title']}: {percent(m)}%</summary>", "",
-                  "| Item | Weight | State | Evidence |", "|---|---|---|---|"]
+        groups.setdefault(m.get("group"), []).append(m)
+    lines = summary_table(groups.pop(None, []))
+    for name, meters in groups.items():
+        lines += ["", f"**{name}**", "", *summary_table(meters)]
+        notes = [f"- {m['title']}: {live[m['live']]}" for m in meters if m.get("live")]
+        lines += ["", *notes] if notes else []
+    for m in data["meters"]:
+        lines += ["", f"<details><summary>{m['title']}: {percent(m)}%</summary>", ""]
+        if m.get("live"):
+            lines += [f"{m['summary']} {live[m['live']]}", ""]
+        lines += ["| Item | Weight | State | Evidence |", "|---|---|---|---|"]
         lines += [f"| {i['title']} | {i['weight']} | {LABEL[i['status']]} | {evidence_text(i)} |"
                   for i in m["items"]]
         lines += ["", "</details>"]
     return "\n".join(lines)
 
 
-def outputs(data, readme_text):
+def badge_row(data):
+    """The README badge row: one shields.io endpoint badge per meter."""
+    return "\n".join(f"[![{m['title']}]({BADGE_URL.format(m['id'])})](#readiness)" for m in data["meters"])
+
+
+def between(text, start, end, body):
+    """`text` with everything between the two markers replaced by `body`."""
+    head, sep, rest = text.partition(start)
+    if not sep or end not in rest:
+        raise SystemExit(f"README.md has no {start} ... {end} markers")
+    return f"{head}{start}\n{body}\n{end}{rest.partition(end)[2]}"
+
+
+def outputs(data, readme_text, live=None):
     """Every generated file and its expected content, keyed by path."""
     files = {BADGES / f"readiness-{m['id']}.json": badge(m) for m in data["meters"]}
-    head, sep, rest = readme_text.partition(START)
-    tail = rest.partition(END)[2]
-    if not sep:
-        raise SystemExit(f"README.md has no {START} marker")
-    files[README] = f"{head}{START}\n{table(data)}\n{END}{tail}"
+    readme = between(readme_text, BADGE_START, BADGE_END, badge_row(data))
+    files[README] = between(readme, START, END, table(data, live))
     return files
 
 
@@ -137,8 +206,18 @@ def self_test():
     assert "not found" in evidence_errors(data, {1})[0]
     meter["items"][1]["evidence"] = [{"path": "nope/missing.txt"}]
     assert "does not exist" in evidence_errors(data, {1})[0]
-    assert "| T | **88%** | 2 | 1 | 0 |" in table(data)
+    assert "| T | **88%** | 2 | 1 | 0 |" in table(data, {})
     assert '"message": "88%"' in badge(meter)
+    # Grouped meters get their own table, and their live line shows under it.
+    meter.update(group="World", live="countries-researched", summary="S.")
+    grouped = table({"meters": [meter]}, {"countries-researched": "2 of 3."})
+    assert "**World**" in grouped and "- T: 2 of 3." in grouped and "S. 2 of 3." in grouped
+    assert evidence_errors({"meters": [dict(meter, live="nope")]}, {1})[0].endswith("unknown live line 'nope'")
+    countries = [{"code": "IN", "research": 5696}, {"code": "AE", "research": 5426}, {"code": "FR"}]
+    assert countries_text(countries).startswith("2 of 3 countries researched (research only, not built")
+    line = world_literals_text((3400, 980), (3492, 986))
+    assert "3,400 lines in 980 files (baseline 3,492 in 986;" in line, line
+    assert "[![T](" in badge_row(data) and "readiness-t.json" in badge_row(data)
     real = json.loads(SOURCE.read_text(encoding="utf-8"))
     assert all(0 <= percent(m) <= 100 for m in real["meters"])
     print("readiness self-test: ok")

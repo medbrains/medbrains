@@ -27,3 +27,7 @@
 # New-dependency reviews and cooldown exceptions (#5500): the owner reviews every entry.
 /medbrains/supply-chain/                                @DomnicAmalan
 /scripts/check_supply_chain.py                          @DomnicAmalan
+
+# World-ready ratchet (#5935): raising the baseline or widening the allow-list is an owner decision.
+/medbrains/scripts/world_literals.baseline.json          @DomnicAmalan
+/medbrains/scripts/check_world_literals.py               @DomnicAmalan

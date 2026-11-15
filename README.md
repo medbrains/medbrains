@@ -29,9 +29,13 @@
 [![Rust](https://img.shields.io/badge/Rust-2024_·_1.95+-0F62FE?logo=rust&logoColor=white)](#why-rust)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-0F62FE.svg)](./CONTRIBUTING.md)
 
+<!-- readiness-badges:start -->
 [![OS strength](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-os.json)](#readiness)
 [![Paperless](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-paperless.json)](#readiness)
 [![AI clinical flows](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-ai.json)](#readiness)
+[![World-ready core](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-world.json)](#readiness)
+[![Country packs](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-countries.json)](#readiness)
+<!-- readiness-badges:end -->
 
 [Website](https://www.medbrains.in) · [Features](#features) · [Releases](#release-status) · [Quick start](#quick-start) · [MedBrains OS](#medbrains-os-a-hospital-in-a-box) · [Roadmap](#roadmap) · [Sponsor](#sponsor-the-work) · [Contribute](#contributing)
 
@@ -72,6 +76,16 @@ Done counts in full and partial counts half, by each item's weight. `scripts/rea
 | OS strength | **45%** | 9 | 0 | 9 |
 | Paperless | **38%** | 4 | 1 | 7 |
 | AI clinical flows | **38%** | 4 | 0 | 7 |
+
+**World**
+
+| Meter | Measured | Done | Partial | Not started |
+|---|---|---|---|---|
+| World-ready core | **4%** | 1 | 0 | 10 |
+| Country packs | **2%** | 0 | 1 | 21 |
+
+- World-ready core: India literals outside the India pack: 3,492 lines in 986 files (baseline 3,492 in 986; it may only go down, `make check-world-literals`).
+- Country packs: 22 of 194 countries researched (research only, not built; counted from `data/geo/countries.json`), never counted in the percentage.
 
 <details><summary>OS strength: 45%</summary>
 
@@ -132,6 +146,57 @@ Done counts in full and partial counts half, by each item's weight. `scripts/rea
 | Speech in local languages and mixed-language dictation | 2 | Not started | - |
 | Patient consent captured before a consultation is recorded | 2 | Not started | - |
 | Dictation that works with no network | 1 | Not started | - |
+
+</details>
+
+<details><summary>World-ready core: 4%</summary>
+
+MedBrains' core assumes no country: one locale profile, and India becomes one country pack (#5936, RFC-WORLD-READY). India literals outside the India pack: 3,492 lines in 986 files (baseline 3,492 in 986; it may only go down, `make check-world-literals`).
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| RFC for the locale profile, country packs and regulatory profiles (RFC-WORLD-READY) | 1 | Not started | open: #5925, PR #5939 |
+| Ratchet check: India literals outside the India pack only go down, in CI with a baseline | 1 | Done | `medbrains/scripts/world_literals.baseline.json`, `.github/workflows/ci.yml` |
+| One tenant locale profile sent in /auth/me, format helpers on web, iOS, Android and print, India and world packs | 3 | Not started | open: #5926 |
+| No hard-coded rupee sign or INR outside the India pack; money in any currency, 4-decimal columns | 3 | Not started | open: #5927 |
+| No hard-coded en-IN, Asia/Kolkata, +05:30 or bare toLocaleString(); per-facility time zones | 3 | Not started | open: #5928 |
+| Identity schemes per country; Aadhaar becomes one of many | 2 | Not started | open: #5929 |
+| Addresses by the pack's admin levels and postal codes; phones stored as E.164 | 2 | Not started | open: #5930 |
+| One tax engine; India GST becomes one configuration beside VAT | 2 | Not started | open: #5931 |
+| Controlled-drug and medicine schedules per country from a fixed gate vocabulary | 3 | Not started | open: #5932 |
+| Accreditation frameworks as data; NABH becomes one of many | 2 | Not started | open: #5933 |
+| Translations and right-to-left: Arabic end to end on web, iOS, Android and print | 3 | Not started | open: #5934 |
+
+</details>
+
+<details><summary>Country packs: 2%</summary>
+
+One item per country pack: done when its pack passes its tests and its adapters pass their stand-ins; partial when at least one adapter is built (#4917). 22 of 194 countries researched (research only, not built; counted from `data/geo/countries.json`), never counted in the percentage.
+
+| Item | Weight | State | Evidence |
+|---|---|---|---|
+| India: ABDM (ABHA, M1-M3, Scan & Share) and NHCX adapters built; pack, floor test and goldens not yet | 1 | Partial | #4833, #4836, #4837, #4838, #4974, `medbrains/crates/medbrains-abdm/Cargo.toml`, open: #5696 |
+| United Arab Emirates | 1 | Not started | open: #5426 |
+| Saudi Arabia | 1 | Not started | open: #5427 |
+| Qatar | 1 | Not started | open: #5429 |
+| Oman | 1 | Not started | open: #5428 |
+| Bahrain | 1 | Not started | open: #5430 |
+| Kuwait | 1 | Not started | open: #5431 |
+| United Kingdom | 1 | Not started | open: #5442 |
+| United States | 1 | Not started | open: #5446 |
+| Canada | 1 | Not started | open: #5445 |
+| Australia | 1 | Not started | open: #5441 |
+| Germany | 1 | Not started | open: #5443 |
+| France | 1 | Not started | open: #5444 |
+| Singapore | 1 | Not started | open: #5440 |
+| Malaysia | 1 | Not started | open: #5437 |
+| Indonesia | 1 | Not started | open: #5435 |
+| Philippines | 1 | Not started | open: #5436 |
+| Kenya | 1 | Not started | open: #5438 |
+| Nigeria | 1 | Not started | open: #5439 |
+| Bangladesh | 1 | Not started | open: #5432 |
+| Nepal | 1 | Not started | open: #5434 |
+| Sri Lanka | 1 | Not started | open: #5433 |
 
 </details>
 <!-- readiness:end -->

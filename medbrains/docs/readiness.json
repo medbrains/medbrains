@@ -1,5 +1,5 @@
 {
-  "about": "Readiness meters. Each item counts only when it is merged on main with evidence. done = full weight, partial = half, not-started = none. Edit this file, then run `python3 scripts/readiness.py` to regenerate the badges and the README table; CI runs `--check`. Evidence: {\"pr\": N} (squash-merged on main), {\"path\": \"repo/relative\"} (must exist), {\"test\": \"name\", \"path\": \"file\"} (file must contain the name). `tracking` names the open PR or issue for work not yet done.",
+  "about": "Readiness meters. Each item counts only when it is merged on main with evidence. done = full weight, partial = half, not-started = none. Edit this file, then run `python3 scripts/readiness.py` to regenerate the badges and the README table; CI runs `--check`. Evidence: {\"pr\": N} (squash-merged on main), {\"path\": \"repo/relative\"} (must exist), {\"test\": \"name\", \"path\": \"file\"} (file must contain the name). `tracking` names the open PR or issue for work not yet done. `group` puts a meter in its own README table; `live` names a measured line from scripts/readiness.py LIVE (the world-literals ratchet, countries researched) shown in its summary.",
   "meters": [
     {
       "id": "os",
@@ -299,6 +299,256 @@
           "title": "Dictation that works with no network",
           "weight": 1,
           "status": "not-started"
+        }
+      ]
+    },
+    {
+      "id": "world",
+      "title": "World-ready core",
+      "group": "World",
+      "live": "world-literals",
+      "summary": "MedBrains' core assumes no country: one locale profile, and India becomes one country pack (#5936, RFC-WORLD-READY).",
+      "items": [
+        {
+          "id": "rfc",
+          "title": "RFC for the locale profile, country packs and regulatory profiles (RFC-WORLD-READY)",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5925, PR #5939"
+        },
+        {
+          "id": "ratchet",
+          "title": "Ratchet check: India literals outside the India pack only go down, in CI with a baseline",
+          "weight": 1,
+          "status": "done",
+          "evidence": [{ "path": "medbrains/scripts/world_literals.baseline.json" }, { "test": "No new India assumptions outside the India pack", "path": ".github/workflows/ci.yml" }]
+        },
+        {
+          "id": "locale-profile",
+          "title": "One tenant locale profile sent in /auth/me, format helpers on web, iOS, Android and print, India and world packs",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5926"
+        },
+        {
+          "id": "currency",
+          "title": "No hard-coded rupee sign or INR outside the India pack; money in any currency, 4-decimal columns",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5927"
+        },
+        {
+          "id": "dates-times",
+          "title": "No hard-coded en-IN, Asia/Kolkata, +05:30 or bare toLocaleString(); per-facility time zones",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5928"
+        },
+        {
+          "id": "identity",
+          "title": "Identity schemes per country; Aadhaar becomes one of many",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "#5929"
+        },
+        {
+          "id": "address-phone",
+          "title": "Addresses by the pack's admin levels and postal codes; phones stored as E.164",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "#5930"
+        },
+        {
+          "id": "tax",
+          "title": "One tax engine; India GST becomes one configuration beside VAT",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "#5931"
+        },
+        {
+          "id": "drug-schedules",
+          "title": "Controlled-drug and medicine schedules per country from a fixed gate vocabulary",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5932"
+        },
+        {
+          "id": "accreditation",
+          "title": "Accreditation frameworks as data; NABH becomes one of many",
+          "weight": 2,
+          "status": "not-started",
+          "tracking": "#5933"
+        },
+        {
+          "id": "translations-rtl",
+          "title": "Translations and right-to-left: Arabic end to end on web, iOS, Android and print",
+          "weight": 3,
+          "status": "not-started",
+          "tracking": "#5934"
+        }
+      ]
+    },
+    {
+      "id": "countries",
+      "title": "Country packs",
+      "group": "World",
+      "live": "countries-researched",
+      "summary": "One item per country pack: done when its pack passes its tests and its adapters pass their stand-ins; partial when at least one adapter is built (#4917).",
+      "items": [
+        {
+          "id": "in",
+          "title": "India: ABDM (ABHA, M1-M3, Scan & Share) and NHCX adapters built; pack, floor test and goldens not yet",
+          "weight": 1,
+          "status": "partial",
+          "tracking": "#5696",
+          "evidence": [{ "pr": 4833 }, { "pr": 4836 }, { "pr": 4837 }, { "pr": 4838 }, { "pr": 4974 }, { "path": "medbrains/crates/medbrains-abdm/Cargo.toml" }]
+        },
+        {
+          "id": "ae",
+          "title": "United Arab Emirates",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5426"
+        },
+        {
+          "id": "sa",
+          "title": "Saudi Arabia",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5427"
+        },
+        {
+          "id": "qa",
+          "title": "Qatar",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5429"
+        },
+        {
+          "id": "om",
+          "title": "Oman",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5428"
+        },
+        {
+          "id": "bh",
+          "title": "Bahrain",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5430"
+        },
+        {
+          "id": "kw",
+          "title": "Kuwait",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5431"
+        },
+        {
+          "id": "gb",
+          "title": "United Kingdom",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5442"
+        },
+        {
+          "id": "us",
+          "title": "United States",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5446"
+        },
+        {
+          "id": "ca",
+          "title": "Canada",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5445"
+        },
+        {
+          "id": "au",
+          "title": "Australia",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5441"
+        },
+        {
+          "id": "de",
+          "title": "Germany",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5443"
+        },
+        {
+          "id": "fr",
+          "title": "France",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5444"
+        },
+        {
+          "id": "sg",
+          "title": "Singapore",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5440"
+        },
+        {
+          "id": "my",
+          "title": "Malaysia",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5437"
+        },
+        {
+          "id": "id",
+          "title": "Indonesia",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5435"
+        },
+        {
+          "id": "ph",
+          "title": "Philippines",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5436"
+        },
+        {
+          "id": "ke",
+          "title": "Kenya",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5438"
+        },
+        {
+          "id": "ng",
+          "title": "Nigeria",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5439"
+        },
+        {
+          "id": "bd",
+          "title": "Bangladesh",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5432"
+        },
+        {
+          "id": "np",
+          "title": "Nepal",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5434"
+        },
+        {
+          "id": "lk",
+          "title": "Sri Lanka",
+          "weight": 1,
+          "status": "not-started",
+          "tracking": "#5433"
         }
       ]
     }
