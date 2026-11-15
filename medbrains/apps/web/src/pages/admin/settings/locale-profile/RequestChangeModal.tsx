@@ -62,16 +62,24 @@ function FieldControl({
 }) {
   const common = { label: field.label, description: field.description, error };
   /** A searchable, clearable select over `data`, sharing the field's label and error. */
-  const pick = (data: { value: string; label: string }[]) => (
-    <Select
-      {...common}
-      data={data}
-      searchable
-      clearable
-      value={value || null}
-      onChange={(v) => onChange(v ?? "")}
-    />
-  );
+  const pick = (options: { value: string; label: string }[]) => {
+    // A stored value the platform lists under another name (Chrome lists
+    // Asia/Calcutta for Asia/Kolkata) stays selectable, never silently blank.
+    const data =
+      value && !options.some((o) => o.value === value)
+        ? [{ value, label: value }, ...options]
+        : options;
+    return (
+      <Select
+        {...common}
+        data={data}
+        searchable
+        clearable
+        value={value || null}
+        onChange={(v) => onChange(v ?? "")}
+      />
+    );
+  };
   switch (field.kind) {
     case "country":
       return pick(countries);

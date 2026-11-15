@@ -77,7 +77,7 @@ function InForce({ profile }: { profile: LocaleProfile }) {
               <Table.Tr key={f.key}>
                 <Table.Th scope="row">{f.label}</Table.Th>
                 <Table.Td>
-                  {profile.missing.includes(f.key)
+                  {profile.values[f.key] === undefined
                     ? "Not set"
                     : cellText(f.key, profile.values[f.key])}
                 </Table.Td>
