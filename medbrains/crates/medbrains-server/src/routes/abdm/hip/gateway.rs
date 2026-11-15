@@ -3,8 +3,10 @@
 //! Every gateway callback must carry the gateway's own JWT: signature (RS256
 //! or RS512) against the keys at the gateway's `/certs`, expiry, issuer and
 //! the gateway's identity. The hospital is the one whose campus holds the HFR
-//! ID in `X-HIP-ID` (or `X-HIU-ID`, on the M3 callbacks: the campus is both)
-//! — never a query string, never a session.
+//! ID in `X-HIP-ID` on an HIP callback, or in `X-HIU-ID` on an HIU (M3)
+//! callback — never the other header, never a query string, never a session.
+//! The campus is both, but a callback addressed to the HIU must not drive the
+//! HIP's handlers, nor the reverse.
 //!
 //! The v3 `/certs` needs a session (nha-in/docs integration learnings 1.5),
 //! so on a cold key cache the HFR ID is looked up to borrow its hospital's
@@ -239,23 +241,58 @@ fn header(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// Authenticate a gateway callback.
+/// Which side of the hospital a callback is addressed to, by its header.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Addressee {
+    /// `X-HIP-ID` only: M2 callbacks.
+    Hip,
+    /// `X-HIU-ID` only: M3 callbacks.
+    Hiu,
+    /// Either: the cloud relay, which stores any callback for the on-prem server.
+    Either,
+}
+
+impl Addressee {
+    /// The facility id the callback names, from the header this side reads.
+    fn facility_id(self, headers: &HeaderMap) -> Option<String> {
+        match self {
+            Self::Hip => header(headers, "x-hip-id"),
+            Self::Hiu => header(headers, "x-hiu-id"),
+            Self::Either => header(headers, "x-hip-id").or_else(|| header(headers, "x-hiu-id")),
+        }
+    }
+}
+
+/// Authenticate an HIP (M2) gateway callback, named by `X-HIP-ID`.
+///
+/// # Errors
+/// As [`authenticate_as`].
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
+pub async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<Caller, AppError> {
+    authenticate_as(state, headers, Addressee::Hip).await
+}
+
+/// Authenticate a gateway callback addressed to `to`.
 ///
 /// # Errors
 /// 401 without a gateway JWT that verifies and names the gateway — whatever
-/// the `X-HIP-ID`, known or not; 404 for an `X-HIP-ID` (or `X-HIU-ID`) no
-/// hospital holds; 409 for one two hospitals both claim; 503 when the
-/// gateway's keys cannot be fetched (an outage, not a refusal).
+/// the facility header, known or not — and without the header `to` reads
+/// (an HIU callback carrying only `X-HIP-ID` is refused, and the reverse);
+/// 404 for a facility id no hospital holds; 409 for one two hospitals both
+/// claim; 503 when the gateway's keys cannot be fetched (an outage, not a
+/// refusal).
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
-pub async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<Caller, AppError> {
+pub async fn authenticate_as(
+    state: &AppState,
+    headers: &HeaderMap,
+    to: Addressee,
+) -> Result<Caller, AppError> {
     let token = headers
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
-    let hip_id = header(headers, "x-hip-id")
-        .or_else(|| header(headers, "x-hiu-id"))
-        .ok_or(AppError::Unauthorized)?;
+    let hip_id = to.facility_id(headers).ok_or(AppError::Unauthorized)?;
     let owners = sqlx::query_as::<_, (Uuid, Uuid)>(
         "SELECT tenant_id, facility_id FROM app_abdm_hip_tenant($1) LIMIT 2",
     )
@@ -473,7 +510,32 @@ fn refused(why: &'static str) -> AppError {
 mod tests {
     use serde_json::json;
 
-    use super::Trust;
+    use axum::http::{HeaderMap, HeaderValue};
+
+    use super::{Addressee, Trust};
+
+    /// An HIP callback reads only `X-HIP-ID`, an HIU callback only
+    /// `X-HIU-ID`: the two headers are not interchangeable (#5711).
+    #[test]
+    fn each_side_reads_only_its_own_header() {
+        let mut hip_only = HeaderMap::new();
+        hip_only.insert("x-hip-id", HeaderValue::from_static("IN1410000232"));
+        let mut hiu_only = HeaderMap::new();
+        hiu_only.insert("x-hiu-id", HeaderValue::from_static("IN1410000232"));
+        assert_eq!(
+            Addressee::Hip.facility_id(&hip_only).as_deref(),
+            Some("IN1410000232")
+        );
+        assert_eq!(Addressee::Hip.facility_id(&hiu_only), None);
+        assert_eq!(
+            Addressee::Hiu.facility_id(&hiu_only).as_deref(),
+            Some("IN1410000232")
+        );
+        assert_eq!(Addressee::Hiu.facility_id(&hip_only), None);
+        assert!(Addressee::Either.facility_id(&hip_only).is_some());
+        assert!(Addressee::Either.facility_id(&hiu_only).is_some());
+        assert_eq!(Addressee::Hip.facility_id(&HeaderMap::new()), None);
+    }
 
     fn trust() -> Trust {
         Trust {

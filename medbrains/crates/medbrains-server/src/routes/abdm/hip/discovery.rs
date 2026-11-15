@@ -3,9 +3,14 @@
 //! then links them with an OTP the hospital sends to the registered mobile.
 //!
 //! Matching never leaks another patient: a verified ABHA (address or number)
-//! first; otherwise the verified mobile, gender, year of birth and full name
-//! must all agree and pick out exactly one patient. Anything else is "not
-//! found".
+//! first; otherwise the verified mobile, then (NHA USER_INIT_LINK_603/606)
+//! among the patients on that mobile a fuzzy name match (the registration
+//! desk's matcher: spellings, typos, initials, word order), the same gender
+//! and an age within five years either way. Exactly one patient must survive;
+//! anything else is "not found" — a family shares a phone.
+//!
+//! A repeated link-init or link-confirm (same `REQUEST-ID`) gets the answer
+//! already sent and changes nothing: no second OTP or SMS (`replay`).
 
 use axum::{
     Json,
@@ -13,18 +18,24 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use chrono::{Duration, SecondsFormat, Utc};
-use medbrains_abdm::gateway::{ON_DISCOVER_PATH, ON_LINK_CONFIRM_PATH, ON_LINK_INIT_PATH};
+use medbrains_abdm::gateway::{
+    CB_LINK_CONFIRM, CB_LINK_INIT, ON_DISCOVER_PATH, ON_LINK_CONFIRM_PATH, ON_LINK_INIT_PATH,
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use super::discovery_match::{Candidate, pick_by_demographics};
 use super::gateway::{Caller, Hip, authenticate};
 use super::linking::{mark_linked, patient_entries};
+use super::replay;
 use crate::{error::AppError, state::AppState};
 
 const OTP_MINUTES: i64 = 10;
 const OTP_MAX_ATTEMPTS: i32 = 5;
 const CONTEXT_LIMIT: i64 = 100;
+/// Patients on one mobile looked at: a family shares a phone, rarely more.
+const MOBILE_CANDIDATES: i64 = 20;
 const NOT_FOUND: (&str, &str) = ("ABDM-1010", "Patient not found");
 const WRONG_OTP: (&str, &str) = ("ABDM-1035", "Incorrect OTP");
 
@@ -78,26 +89,38 @@ async fn match_patient(
         Some("O") => "other",
         _ => return Ok(None),
     };
-    let by_demographics = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM patients \
-          WHERE tenant_id = $1 AND deleted_at IS NULL AND length($2) >= 10 \
-            AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = right($2, 10) \
-            AND gender::text = $3 AND date_part('year', date_of_birth) = $4 \
-            AND lower(regexp_replace(btrim(first_name || ' ' || last_name), '\\s+', ' ', 'g')) \
-                = lower(regexp_replace(btrim($5), '\\s+', ' ', 'g')) \
-          LIMIT 2",
+    let year = patient["yearOfBirth"]
+        .as_i64()
+        .or_else(|| patient["yearOfBirth"].as_str()?.trim().parse().ok());
+    let Some(year) = year.and_then(|y| i32::try_from(y).ok()) else {
+        return Ok(None);
+    };
+    // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+    let on_mobile = sqlx::query!(
+        r#"SELECT id, concat_ws(' ', first_name, last_name) AS "name!",
+                  date_part('year', date_of_birth)::int AS year
+             FROM patients
+            WHERE tenant_id = $1 AND deleted_at IS NULL AND length($2) >= 10
+              AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right($2, 10)
+              AND gender::text = $3
+            ORDER BY created_at LIMIT $4"#,
+        tenant_id,
+        mobile,
+        gender,
+        MOBILE_CANDIDATES,
     )
-    .bind(tenant_id)
-    .bind(&mobile)
-    .bind(gender)
-    .bind(patient["yearOfBirth"].as_f64().unwrap_or(-1.0))
-    .bind(patient["name"].as_str().unwrap_or_default())
     .fetch_all(&mut **tx)
     .await?;
-    Ok(match by_demographics.as_slice() {
-        [one] => Some((*one, "MOBILE")),
-        _ => None,
-    })
+    let candidates: Vec<Candidate> = on_mobile
+        .into_iter()
+        .map(|r| Candidate {
+            id: r.id,
+            name: r.name,
+            year: r.year,
+        })
+        .collect();
+    let name = patient["name"].as_str().unwrap_or_default();
+    Ok(pick_by_demographics(name, year, &candidates).map(|id| (id, "MOBILE")))
 }
 
 /// The patient's UHID, name and unlinked care contexts (reference, display, HI type).
@@ -193,7 +216,8 @@ fn otp_hash(link_ref: Uuid, otp: &str) -> String {
     hex::encode(Sha256::digest(format!("{link_ref}:{otp}").as_bytes()))
 }
 
-/// `POST /api/v3/hip/link/care-context/init` — send the OTP.
+/// `POST /api/v3/hip/link/care-context/init` — send the OTP. A repeat of
+/// one already handled re-sends the same answer and sends no new OTP.
 ///
 /// # Errors
 /// 401 without a valid gateway JWT; 503 when the answer cannot be sent.
@@ -226,6 +250,12 @@ pub async fn link_init(
     });
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &caller.tenant_id).await?;
+    // A redelivery: the same answer, the same OTP still valid, no new SMS.
+    if let Some(sent) = replay::answered(&mut tx, &caller).await? {
+        tx.commit().await?;
+        reply(&state, &caller, ON_LINK_INIT_PATH, &sent).await?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     // The patient by UHID, refusing one whose verified ABHA is someone else's.
     let patient = sqlx::query_as::<_, (Uuid, Option<String>)>(
         "SELECT p.id, p.phone FROM patients p \
@@ -278,6 +308,11 @@ pub async fn link_init(
     } else {
         answer["error"] = error_body(NOT_FOUND);
     }
+    // Another delivery of this REQUEST-ID won the race: its OTP stands, ours goes.
+    if !replay::claim(&mut tx, &caller, CB_LINK_INIT, &answer).await? {
+        tx.rollback().await?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     tx.commit().await?;
     reply(&state, &caller, ON_LINK_INIT_PATH, &answer).await?;
     Ok(StatusCode::ACCEPTED)
@@ -320,6 +355,7 @@ async fn queue_otp_sms(
 }
 
 /// `POST /api/v3/hip/link/care-context/confirm` — check the OTP and link.
+/// A repeat of one already handled re-sends the same verdict.
 ///
 /// # Errors
 /// 401 without a valid gateway JWT; 503 when the answer cannot be sent.
@@ -343,6 +379,12 @@ pub async fn link_confirm(
     let mut answer = json!({ "response": { "requestId": caller.request_id } });
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &caller.tenant_id).await?;
+    // A redelivery: the same verdict again, no OTP attempt counted.
+    if let Some(sent) = replay::answered(&mut tx, &caller).await? {
+        tx.commit().await?;
+        reply(&state, &caller, ON_LINK_CONFIRM_PATH, &sent).await?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     let request = sqlx::query_as::<_, (Uuid, Uuid, Vec<String>, String)>(
         "UPDATE abdm_link_requests SET attempts = attempts + 1 \
           WHERE tenant_id = $1 AND link_ref_number = $2 AND status = 'pending' \
@@ -372,6 +414,10 @@ pub async fn link_confirm(
             linked = rows.iter().map(|r| r.0).collect();
         }
         _ => answer["error"] = error_body(WRONG_OTP),
+    }
+    if !replay::claim(&mut tx, &caller, CB_LINK_CONFIRM, &answer).await? {
+        tx.rollback().await?;
+        return Ok(StatusCode::ACCEPTED);
     }
     tx.commit().await?;
     if !linked.is_empty() {

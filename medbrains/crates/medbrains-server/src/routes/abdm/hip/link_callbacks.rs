@@ -16,9 +16,10 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use super::gateway::{Hip, authenticate};
+use super::link_token::{clear_token_request, link_with, recover, recoverable};
 use super::linking::{
     LINK_BATCH, TOKEN_CONTEXT, TOKEN_DAYS, error_code, load_patient, mark, mark_linked,
-    note_refusal, send_links,
+    note_refusal,
 };
 use crate::{error::AppError, routes::abdm::abha::secret_key, state::AppState};
 
@@ -104,6 +105,8 @@ pub async fn on_generate_token(
     };
     let token = body["linkToken"].as_str().filter(|t| !t.is_empty());
     let (Some(token), None) = (token, error_of(&body)) else {
+        // Answered: the patient's next record asks afresh, not joins this one.
+        clear_token_request(&state.db, caller.tenant_id, patient_id).await?;
         let reason = match note_refusal(&state.db, caller.tenant_id, patient_id, &body).await? {
             Some(why) => why.to_owned(),
             None => error_of(&body).unwrap_or_else(|| "ABDM sent no link token".to_owned()),
@@ -129,7 +132,8 @@ pub async fn on_generate_token(
     if let Some(link_id) = patient.link_id {
         // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
         sqlx::query(
-            "UPDATE patient_abha_links SET linking_token = $3, token_expiry = $4 \
+            "UPDATE patient_abha_links SET linking_token = $3, token_expiry = $4, \
+                    token_request_id = NULL, token_requested_at = NULL \
               WHERE tenant_id = $1 AND id = $2",
         )
         .bind(caller.tenant_id)
@@ -142,7 +146,7 @@ pub async fn on_generate_token(
     tx.commit().await?;
     let hip = Hip::connect(&state.db, secrets, caller.tenant_id, &caller.hip_id).await?;
     // A refusal is recorded on the care contexts; the gateway still gets 202.
-    if let Err(e) = send_links(&state.db, &hip, caller.tenant_id, &patient, token).await {
+    if let Err(e) = link_with(&state.db, &hip, &patient, token).await {
         tracing::warn!(error = %e, "abdm: linking after the token arrived failed");
     }
     Ok(StatusCode::ACCEPTED)
@@ -170,11 +174,19 @@ pub async fn on_link_care_context(
     // "Already linked" is the outcome we wanted (care-abdm treats it so too).
     let already = error_code(&body) == Some("ABDM-1056");
     let refusal = match (error_of(&body), already) {
-        (Some(reason), false) => Some(
-            note_refusal(&state.db, caller.tenant_id, patient_id, &body)
-                .await?
-                .map_or(reason, str::to_owned),
-        ),
+        (Some(reason), false) => {
+            match note_refusal(&state.db, caller.tenant_id, patient_id, &body).await? {
+                Some(why) => Some(why.to_owned()),
+                // Recovered (a new token asked for, or the link queued again
+                // in order): the care contexts already say so.
+                None => match recover_refusal(&state, &caller, (patient_id, &ids), (&body, reason))
+                    .await?
+                {
+                    None => return Ok(StatusCode::ACCEPTED),
+                    words => words,
+                },
+            }
+        }
         (_, true) => None,
         (None, false) => link_status_refusal(&body),
     };
@@ -192,4 +204,22 @@ pub async fn on_link_care_context(
     }
     mark_linked(&state.db, caller.tenant_id, &ids, "hip_initiated").await?;
     Ok(StatusCode::ACCEPTED)
+}
+
+/// A link refusal ABDM sent to `on_carecontext`, recovered from where it can
+/// be: a rejected token (ABDM-1026/1038) is cleared and a new one asked for;
+/// an out-of-order link (ABDM-2406) is queued again. Returns `None` when
+/// recovered, else the words to leave on the care contexts.
+async fn recover_refusal(
+    state: &AppState,
+    caller: &super::gateway::Caller,
+    (patient_id, ids): (Uuid, &[Uuid]),
+    (body, reason): (&Value, String),
+) -> Result<Option<String>, AppError> {
+    let Some(code) = error_code(body).filter(|c| recoverable(c)) else {
+        return Ok(Some(reason));
+    };
+    let secrets = state.secret_resolver.as_ref();
+    let hip = Hip::connect(&state.db, secrets, caller.tenant_id, &caller.hip_id).await?;
+    recover(&state.db, &hip, (patient_id, ids), (code, reason)).await
 }

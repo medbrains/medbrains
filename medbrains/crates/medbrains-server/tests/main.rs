@@ -39,6 +39,7 @@ mod abdm_dashboard_test;
 mod abdm_hfr_hpr_test;
 mod abdm_hip_consent_test;
 mod abdm_link_followups_test;
+mod abdm_link_recovery_test;
 mod abdm_link_status_test;
 mod abdm_m1_find_test;
 mod abdm_m1_profile_test;
