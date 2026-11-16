@@ -117,10 +117,13 @@ pub fn dsn_host_is_own(host: &str, own_domain: Option<&str>) -> bool {
     let host = host.trim_start_matches('[').trim_end_matches(']');
     let loopback = host.eq_ignore_ascii_case("localhost")
         || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback());
+    // A cookie domain may carry a leading dot and any case; the suffix stays
+    // anchored on a dot so `evilhims.example.in` is not ours.
+    let host = host.to_ascii_lowercase();
     let under_own = own_domain
-        .map(str::trim)
+        .map(|d| d.trim().trim_start_matches('.').to_ascii_lowercase())
         .filter(|d| !d.is_empty())
-        .is_some_and(|d| host.eq_ignore_ascii_case(d) || host.ends_with(&format!(".{d}")));
+        .is_some_and(|d| host == d || host.ends_with(&format!(".{d}")));
     loopback || under_own
 }
 
@@ -137,6 +140,19 @@ mod tests {
         assert!(!dsn_host_is_own("o123.ingest.sentry.io", own));
         assert!(!dsn_host_is_own("evilhims.example.in", own));
         assert!(!dsn_host_is_own("errors.hims.example.in", None));
+        assert!(dsn_host_is_own(
+            "errors.hims.example.in",
+            Some(".hims.example.in")
+        ));
+        assert!(dsn_host_is_own(
+            "errors.hims.example.in",
+            Some("HIMS.EXAMPLE.IN")
+        ));
+        assert!(dsn_host_is_own("Errors.HIMS.example.in", own));
+        assert!(!dsn_host_is_own(
+            "evilhims.example.in",
+            Some(".HIMS.example.in")
+        ));
     }
 
     #[test]
