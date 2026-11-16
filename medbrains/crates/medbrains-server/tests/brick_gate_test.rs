@@ -169,20 +169,56 @@ async fn an_invalidation_shows_a_change_inside_the_cache_lifetime() {
     );
 }
 
-/// Sets the tenant's `opd` row straight in `module_config` (the Modules screen would refuse while
-/// a specialty brick needs it) and drops the cached statuses so the gate sees it at once.
-async fn set_opd(app: &common::TestApp, tenant: Uuid, status: &str) {
-    let done = sqlx::query(
-        "UPDATE module_config SET status = $2::module_status \
-         WHERE tenant_id = $1 AND code = 'opd' AND deleted_at IS NULL",
+/// A hospital of its own with the EMR (`opd`) switched off, and its admin signed in.
+///
+/// Its own tenant so no other test that runs at the same time on the shared admin tenant can see
+/// the OPD desk refuse. The row is written straight (the Modules screen would refuse while a
+/// specialty brick needs `opd`); a new tenant has no cached statuses to invalidate.
+async fn emr_off_hospital(app: &common::TestApp) -> (reqwest::Client, String, Uuid) {
+    let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
+    let code = format!("BG{suffix}");
+    let tenant: Uuid = sqlx::query_scalar(
+        "INSERT INTO tenants (code, name, hospital_type) \
+         VALUES ($1, 'Ward Only Hospital', 'standalone_clinic') RETURNING id",
+    )
+    .bind(&code)
+    .fetch_one(&app.db)
+    .await
+    .expect("hospital");
+    sqlx::query(
+        "INSERT INTO module_config (tenant_id, code, name, status) \
+         VALUES ($1, 'opd', 'OPD / Outpatient', 'disabled')",
     )
     .bind(tenant)
-    .bind(status)
     .execute(&app.db)
     .await
-    .expect("set opd");
-    assert_eq!(done.rows_affected(), 1, "the tenant has one opd row");
-    invalidate_modules(tenant);
+    .expect("emr off");
+    let username = format!("bgadmin_{}", suffix.to_lowercase());
+    sqlx::query(
+        "INSERT INTO users (tenant_id, username, email, full_name, role, password_hash) \
+         SELECT $1, $2, $2 || '@brick-gate.example.org', 'Ward Admin', 'hospital_admin', \
+                password_hash FROM users WHERE username = 'admin'",
+    )
+    .bind(tenant)
+    .bind(&username)
+    .execute(&app.db)
+    .await
+    .expect("admin");
+    let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+    let login: serde_json::Value = client
+        .post(app.url("/api/auth/login"))
+        .json(&json!({ "username": username, "password": "admin123", "hospital_code": code }))
+        .send()
+        .await
+        .expect("login")
+        .json()
+        .await
+        .expect("login json");
+    let csrf = login["csrf_token"].as_str().expect("csrf").to_owned();
+    (client, csrf, tenant)
 }
 
 /// An IPD encounter for a fresh patient, made the way the IPD crate makes one.
@@ -214,19 +250,9 @@ async fn ipd_encounter(app: &common::TestApp, tenant: Uuid) -> Uuid {
 #[tokio::test]
 async fn opd_off_closes_the_desk_but_an_ipd_encounter_still_charts() {
     let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
-    let tenant = tenant_of_admin(&app).await;
+    let (client, csrf, tenant) = emr_off_hospital(&app).await;
     let encounter = ipd_encounter(&app, tenant).await;
-    let before: String = sqlx::query_scalar(
-        "SELECT status::text FROM module_config WHERE tenant_id = $1 AND code = 'opd'",
-    )
-    .bind(tenant)
-    .fetch_one(&app.db)
-    .await
-    .expect("opd status");
 
-    set_opd(&app, tenant, "disabled").await;
-    let mut desk = Vec::new();
     for path in [
         "/api/opd/queue",
         "/api/opd/queue/wait-estimate",
@@ -234,10 +260,10 @@ async fn opd_off_closes_the_desk_but_an_ipd_encounter_still_charts() {
         "/api/opd/reminders",
         "/api/opd/encounters",
     ] {
-        desk.push((path, app.get(&app.client, path).await.status()));
+        let status = app.get(&client, path).await.status();
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path} is the OPD desk");
     }
-    let vitals = app
-        .client
+    let vitals = client
         .post(app.url(&format!("/api/opd/encounters/{encounter}/vitals")))
         .header("x-csrf-token", &csrf)
         .json(&json!({ "pulse": 88, "systolic_bp": 128, "diastolic_bp": 82, "spo2": 97 }))
@@ -245,31 +271,22 @@ async fn opd_off_closes_the_desk_but_an_ipd_encounter_still_charts() {
         .await
         .expect("vitals request")
         .status();
-    let read_vitals = app
-        .get(
-            &app.client,
-            &format!("/api/opd/encounters/{encounter}/vitals"),
-        )
-        .await
-        .status();
-    let prescriptions = app
-        .get(
-            &app.client,
-            &format!("/api/opd/encounters/{encounter}/prescriptions"),
-        )
-        .await
-        .status();
-    // Put it back before asserting, so a failure cannot leave other tests without the EMR.
-    set_opd(&app, tenant, &before).await;
-
-    for (path, status) in desk {
-        assert_eq!(status, StatusCode::FORBIDDEN, "{path} is the OPD desk");
-    }
     assert!(
         vitals.is_success(),
         "IPD vitals must still record: {vitals}"
     );
-    assert_eq!(read_vitals, StatusCode::OK, "IPD vitals must still read");
+    let read = app
+        .get(&client, &format!("/api/opd/encounters/{encounter}/vitals"))
+        .await
+        .status();
+    assert_eq!(read, StatusCode::OK, "IPD vitals must still read");
+    let prescriptions = app
+        .get(
+            &client,
+            &format!("/api/opd/encounters/{encounter}/prescriptions"),
+        )
+        .await
+        .status();
     assert_eq!(
         prescriptions,
         StatusCode::OK,
