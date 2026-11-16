@@ -88,7 +88,9 @@ impl Visit for StatementText {
 fn is_type_lookup(event: &Event<'_>) -> bool {
     let mut text = StatementText::default();
     event.record(&mut text);
-    TYPE_LOOKUP_TABLES.iter().any(|table| text.0.contains(table))
+    TYPE_LOOKUP_TABLES
+        .iter()
+        .any(|table| text.0.contains(table))
 }
 
 /// Install the counting layer as the process's tracing subscriber, once.
