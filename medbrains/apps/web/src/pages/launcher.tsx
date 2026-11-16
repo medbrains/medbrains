@@ -144,7 +144,7 @@ function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoo
  * person can already open. Someone with one app and no Administration is taken
  * straight into the app.
  */
-export function LauncherPage() {
+export default function LauncherPage() {
   const { t } = useTranslation("nav");
   const userName = useAuthStore((s) => s.user?.full_name);
   const doors = useViewerDoors();

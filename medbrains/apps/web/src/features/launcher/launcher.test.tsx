@@ -5,7 +5,7 @@ import { initReactI18next } from "react-i18next";
 import { Route, Routes } from "react-router";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { NAV_GROUPS } from "@/config/navigation";
-import { LauncherPage } from "@/pages/launcher";
+import LauncherPage from "@/pages/launcher";
 import { server } from "@/test/server";
 import { render, screen } from "@/test/test-utils";
 import nav from "../../../public/locales/en/nav.json";

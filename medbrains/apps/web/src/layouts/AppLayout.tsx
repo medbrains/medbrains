@@ -24,7 +24,6 @@ import {
   IconLogout,
   IconSearch,
   IconSettings,
-  IconStar,
   IconUser,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,11 +57,13 @@ import {
   type NavItemConfig,
   resolveIcon,
 } from "@/config/navigation";
-import { useLauncherData, useToggleFavourite } from "@/features/launcher/useFavourites";
+import { usePanelFavourites } from "@/features/launcher/usePanelFavourites";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
+import { FavouriteStar } from "./FavouriteStar";
 import { OnDemandOverlays } from "./OnDemandOverlays";
+import { PanelFavouritesGroup } from "./PanelFavourites";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
@@ -114,14 +115,7 @@ export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // The same starred list as the launcher, kept on the server for the person.
-  const launcherData = useLauncherData();
-  const favouriteToggle = useToggleFavourite();
-  const favoriteSet = useMemo(() => new Set(launcherData.data?.favourites), [launcherData.data]);
-  // One star change at a time, so a double click cannot send "star" twice.
-  const toggleFavorite = (path: string) => {
-    if (favouriteToggle.isPending) return;
-    favouriteToggle.mutate({ path, starred: !favoriteSet.has(path) });
-  };
+  const favourites = usePanelFavourites();
 
   const location = useLocation();
   const isWorkspace = location.pathname === "/assistant";
@@ -372,7 +366,6 @@ export function AppLayout() {
     }
 
     const active = isLeafActive(item.path);
-    const pinned = favoriteSet.has(item.path);
     return (
       <NavLink
         key={item.path}
@@ -381,32 +374,7 @@ export function AppLayout() {
         label={item.label}
         style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         leftSection={<span className={classes.navIcon}>{item.icon}</span>}
-        rightSection={
-          <Tooltip
-            label={pinned ? t("favouriteUnpin") : t("favouritePin")}
-            withArrow
-            openDelay={400}
-          >
-            <ActionIcon
-              component="div"
-              role="button"
-              tabIndex={-1}
-              size="sm"
-              variant="subtle"
-              color={pinned ? "warning" : "gray"}
-              className={pinned ? classes.favStarOn : classes.favStar}
-              aria-label={pinned ? t("favouriteUnpin") : t("favouritePin")}
-              aria-disabled={favouriteToggle.isPending || undefined}
-              onClick={(event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                toggleFavorite(item.path);
-              }}
-            >
-              <IconStar size={13} fill={pinned ? "currentColor" : "none"} />
-            </ActionIcon>
-          </Tooltip>
-        }
+        rightSection={<FavouriteStar path={item.path} favourites={favourites} />}
         active={active}
         aria-current={active ? "page" : undefined}
         onFocus={() => handleNavigationIntent(item.path)}
@@ -427,24 +395,17 @@ export function AppLayout() {
       .filter((g) => g.items.length > 0);
 
     const favoriteItems = allLeafItems.filter(
-      (item) => favoriteSet.has(item.path) && filterItem(item),
+      (item) => favourites.isStarred(item.path) && filterItem(item),
     );
 
     if (isExpanded) {
       return (
         <>
-          {launcherData.isError && (
-            <Text className={classes.navGroupLabel} role="alert">
-              {t("favouritesLoadFailed")}
-            </Text>
-          )}
-          {favoriteItems.length > 0 && (
-            <div>
-              <Text className={classes.navGroupLabel}>{t("groupFavorites")}</Text>
-              {favoriteItems.map(renderExpandedItem)}
-              <Divider my={4} className={classes.railDivider} />
-            </div>
-          )}
+          <PanelFavouritesGroup
+            items={favoriteItems}
+            isError={favourites.isError}
+            renderItem={renderExpandedItem}
+          />
           {groups.map((group, gi) => (
             <div key={group.key}>
               {gi > 0 && <Divider my={4} className={classes.railDivider} />}
