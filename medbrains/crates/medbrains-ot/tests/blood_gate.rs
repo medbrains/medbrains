@@ -213,3 +213,96 @@ async fn another_patients_crossmatch_does_not_count() {
     mark_compatible(&db, &other, xm, None).await;
     assert_eq!(gap(&db, &c, None).await, Some(NO_CROSSMATCH));
 }
+
+/// Runs one update on the case's rows, binding the tenant and an id.
+async fn set(db: &PgPool, sql: &str, id: Uuid, other: Uuid) {
+    sqlx::query(sql)
+        .bind(id)
+        .bind(other)
+        .execute(db)
+        .await
+        .expect(sql);
+}
+
+/// Backdate the crossmatch test to `hours` before the case's start.
+async fn tested_before_start(db: &PgPool, c: &Case, xm: Uuid, hours: i32) {
+    sqlx::query(
+        "UPDATE crossmatch_requests SET tested_at = \
+           (SELECT scheduled_start FROM ot_bookings WHERE id = $1) - make_interval(hours => $2) \
+         WHERE id = $3",
+    )
+    .bind(c.booking)
+    .bind(hours)
+    .bind(xm)
+    .execute(db)
+    .await
+    .expect("backdate");
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn the_72_hour_edge_is_measured_from_the_start() {
+    let db = pool().await;
+    let c = fixture(&db).await;
+    let xm = raise_crossmatch(&db, &c).await;
+    mark_compatible(&db, &c, xm, None).await;
+    tested_before_start(&db, &c, xm, 71).await;
+    assert_eq!(gap(&db, &c, None).await, None, "71 hours before the start");
+    tested_before_start(&db, &c, xm, 73).await;
+    assert_eq!(
+        gap(&db, &c, None).await,
+        Some(NO_CROSSMATCH),
+        "73 hours before the start"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_unit_that_expires_before_the_start_does_not_count() {
+    let db = pool().await;
+    let c = fixture(&db).await;
+    let xm = raise_crossmatch(&db, &c).await;
+    let bag = unit(&db, &c, "crossmatched").await;
+    // The case starts in two hours; the bag expires in one.
+    set(
+        &db,
+        "UPDATE blood_components SET expiry_at = now() + interval '1 hour' \
+         WHERE id = $1 AND tenant_id = $2",
+        bag,
+        c.tenant,
+    )
+    .await;
+    mark_compatible(&db, &c, xm, Some(bag)).await;
+    assert_eq!(gap(&db, &c, None).await, Some(NO_CROSSMATCH));
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn a_unit_issued_to_another_patient_does_not_count() {
+    let db = pool().await;
+    let c = fixture(&db).await;
+    let other = fixture(&db).await;
+    let xm = raise_crossmatch(&db, &c).await;
+    let bag = unit(&db, &c, "issued").await;
+    set(
+        &db,
+        "UPDATE blood_components SET issued_to_patient = $2 WHERE id = $1",
+        bag,
+        other.patient,
+    )
+    .await;
+    mark_compatible(&db, &c, xm, Some(bag)).await;
+    assert_eq!(
+        gap(&db, &c, None).await,
+        Some(NO_CROSSMATCH),
+        "issued elsewhere"
+    );
+    set(
+        &db,
+        "UPDATE blood_components SET issued_to_patient = $2 WHERE id = $1",
+        bag,
+        c.patient,
+    )
+    .await;
+    assert_eq!(gap(&db, &c, None).await, None, "issued to this patient");
+}

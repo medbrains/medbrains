@@ -917,11 +917,16 @@ pub struct CrossmatchReportPrintData {
     pub requesting_doctor: Option<String>,
     pub units_requested: i32,
     pub component_type: String,
+    /// The bank's crossmatch status: requested, testing, compatible, ...
+    pub status: String,
+    pub result: Option<String>,
+    /// When the sample was tested, in the tenant's zone.
+    pub tested_at: Option<String>,
+    /// The tied bag, or "No unit allocated yet": the web never ties one.
+    pub unit_allocation: String,
     pub crossmatch_results: Vec<CrossmatchUnit>,
-    pub antibody_screen: Option<String>,
     pub special_requirements: Option<String>,
     pub technician_name: Option<String>,
-    pub verified_by: Option<String>,
     pub hospital_name: Option<String>,
 }
 

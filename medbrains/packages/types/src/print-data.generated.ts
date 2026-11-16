@@ -845,11 +845,16 @@ export interface CrossmatchReportPrintData {
   requesting_doctor: string | null;
   units_requested: number;
   component_type: string;
+  /** The bank's crossmatch status: requested, testing, compatible, ... */
+  status: string;
+  result: string | null;
+  /** When the sample was tested, in the tenant's zone. */
+  tested_at: string | null;
+  /** The tied bag, or "No unit allocated yet": the web never ties one. */
+  unit_allocation: string;
   crossmatch_results: CrossmatchUnit[];
-  antibody_screen: string | null;
   special_requirements: string | null;
   technician_name: string | null;
-  verified_by: string | null;
   hospital_name: string | null;
 }
 
