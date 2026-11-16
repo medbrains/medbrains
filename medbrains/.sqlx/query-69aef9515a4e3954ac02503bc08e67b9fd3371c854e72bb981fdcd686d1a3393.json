@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone)\n         VALUES ($1, $2, 'Test', 'Patient', 'unknown', '0000000000') RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "69aef9515a4e3954ac02503bc08e67b9fd3371c854e72bb981fdcd686d1a3393"
+}

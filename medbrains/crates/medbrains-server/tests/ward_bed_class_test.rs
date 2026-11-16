@@ -14,28 +14,27 @@ async fn a_mapped_bed_takes_a_class_and_the_board_shows_it() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let wards: Value = app
-        .get(&app.client, "/api/ipd/wards")
+    // Its own ward and bed (#5989): the seed's beds belong to no ward, so taking
+    // "the first ward with a bed" took whatever an earlier test left behind, and
+    // failed when that bed was not on the board.
+    let tenant: uuid::Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("admin tenant");
+    let (ward, _) = common::vacant_ward_bed(&app, tenant).await;
+    let ward_id = ward.to_string();
+    let beds: Value = app
+        .get(&app.client, &format!("/api/ipd/wards/{ward_id}/beds"))
         .await
         .json()
         .await
-        .expect("wards");
-    let wards = wards.as_array().cloned().unwrap_or_default();
-    let mut target = None;
-    for ward in &wards {
-        let ward_id = ward["id"].as_str().expect("ward id").to_owned();
-        let beds: Value = app
-            .get(&app.client, &format!("/api/ipd/wards/{ward_id}/beds"))
-            .await
-            .json()
-            .await
-            .expect("ward beds");
-        if let Some(bed) = beds.as_array().and_then(|b| b.first()).cloned() {
-            target = Some((ward_id, bed));
-            break;
-        }
-    }
-    let (ward_id, bed) = target.expect("a ward with a bed");
+        .expect("ward beds");
+    let bed = beds
+        .as_array()
+        .and_then(|b| b.first())
+        .cloned()
+        .expect("the ward's bed");
     let bed_types: Value = app
         .get(&app.client, "/api/setup/bed-types")
         .await

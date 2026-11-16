@@ -5,10 +5,11 @@
 //
 // Steps map 1:1 to the DB columns: each click stamps `<step>_at` and
 // `<step>_by`. Idempotent on the server — re-clicking is harmless.
-import { Alert, Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { type IpdDischargeStep, type IpdDischargeWorkflow, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 const STEPS: { key: IpdDischargeStep; label: string; description: string }[] = [
@@ -101,12 +102,12 @@ export function DischargeWorkflowWizard({ admissionId }: DischargeWorkflowWizard
         re-clicking a completed step is a no-op.
       </Text>
       {!canViewWorkflow && (
-        <Alert color="orange" variant="light">
+        <Alert tone="warning">
           Discharge workflow details require discharge-checklist permission.
         </Alert>
       )}
       {canViewWorkflow && !canUpdateWorkflow && (
-        <Alert color="gray" variant="light">
+        <Alert tone="neutral">
           You can review this workflow, but marking steps complete requires discharge-checklist
           update permission.
         </Alert>
@@ -114,6 +115,12 @@ export function DischargeWorkflowWizard({ admissionId }: DischargeWorkflowWizard
       {STEPS.map((step) => {
         const at = stamp(workflow, step.key);
         const done = !!at;
+        // A refused step says why on its own card, not only in a toast that
+        // fades: for take-home meds it means no pharmacy order exists (#5953).
+        const failure =
+          !done && stepMutation.isError && stepMutation.variables === step.key
+            ? stepMutation.error.message
+            : null;
         return (
           <Card key={step.key} withBorder padding="sm">
             <Group justify="space-between" align="flex-start">
@@ -149,6 +156,16 @@ export function DischargeWorkflowWizard({ admissionId }: DischargeWorkflowWizard
                 </Button>
               )}
             </Group>
+            {failure && (
+              <Alert
+                tone="danger"
+                mt="xs"
+                title={step.key === "rx_dispensed" ? "No pharmacy order was made" : "Not marked"}
+                data-testid={`discharge-step-error-${step.key}`}
+              >
+                {failure}
+              </Alert>
+            )}
           </Card>
         );
       })}
