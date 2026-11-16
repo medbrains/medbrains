@@ -27,8 +27,7 @@ export function CertificatesTab({ patientId, encounterId, canUpdate }: Certifica
   // empty and both animations still play.
   const [formKey, setFormKey] = useState(0);
   const {
-    data: certificates = [],
-    isLoading,
+    data: certificates,
     error,
     isLoadingError,
     isRefetchError,
@@ -38,7 +37,8 @@ export function CertificatesTab({ patientId, encounterId, canUpdate }: Certifica
     queryFn: () => opdService.listCertificates(patientId),
   });
 
-  if (isLoading) {
+  // No data and no error means the first read is still in flight.
+  if (certificates === undefined && !isLoadingError) {
     return (
       <Text size="sm" c="dimmed">
         Loading certificates...
@@ -57,10 +57,11 @@ export function CertificatesTab({ patientId, encounterId, canUpdate }: Certifica
       {(isLoadingError || isRefetchError) && (
         <LoadFailed what="Certificates" error={error} onRetry={refetch} stale={isRefetchError} />
       )}
-      {certificates.map((cert) => (
+      {certificates?.map((cert) => (
         <CertificateCard key={cert.id} cert={cert} />
       ))}
-      {certificates.length === 0 && !createOpen && (
+      {/* Only a successful read may say there are none; a failed one is not a fact about the patient. */}
+      {certificates?.length === 0 && !createOpen && (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No certificates issued for this patient.
         </Text>

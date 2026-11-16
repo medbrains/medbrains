@@ -52,30 +52,24 @@ function toChartRow(p: VitalHistoryPoint) {
  * pressure or weight is moving across visits. A failed read is a fault, never "no vitals".
  */
 export function ChartsTab({ patientId }: { patientId: string }) {
-  const {
-    data = [],
-    isLoading,
-    error,
-    isLoadingError,
-    isRefetchError,
-    refetch,
-  } = useQuery({
+  const { data, error, isLoadingError, isRefetchError, refetch } = useQuery({
     queryKey: ["patient-vitals-history", patientId],
     queryFn: () => opdService.listPatientVitalsHistory(patientId),
   });
-  const rows = useMemo(() => (data as VitalHistoryPoint[]).map(toChartRow), [data]);
+  const rows = useMemo(() => (data as VitalHistoryPoint[] | undefined)?.map(toChartRow), [data]);
   // Held here, not in VitalsTrend, so the doctor's choice survives a refetch that briefly empties.
   const [metric, setMetric] = useState<string | null>("bp");
 
-  if (isLoading) {
+  if (isLoadingError) {
+    return <LoadFailed what={WHAT} error={error} onRetry={refetch} />;
+  }
+  // No rows and no error means the first read is still in flight; never a stand-in empty list.
+  if (rows === undefined) {
     return (
       <Text size="sm" c="dimmed">
         Loading vitals history...
       </Text>
     );
-  }
-  if (isLoadingError) {
-    return <LoadFailed what={WHAT} error={error} onRetry={refetch} />;
   }
   return (
     <Stack gap="sm">
@@ -99,6 +93,7 @@ interface VitalsTrendProps {
 
 /** The metric picker and the trend line for the chosen metric. */
 function VitalsTrend({ rows, metric, onMetric }: VitalsTrendProps) {
+  /** The chosen metric's lines; an unknown or cleared choice falls back to blood pressure. */
   const series = (METRICS.find((m) => m.value === metric) ?? METRICS[0]).series;
   return (
     <>

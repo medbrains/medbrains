@@ -126,10 +126,11 @@ describe("CertificatesTab", () => {
     expect(await screen.findByRole("button", { name: /New Certificate/ })).toBeInTheDocument();
   });
 
-  it("shows a failed read as a fault", async () => {
+  it("shows a failed read as a fault, never as 'No certificates issued'", async () => {
     opd.listCertificates.mockImplementation(fail);
     renderTab(<CertificatesTab patientId={PATIENT} encounterId={ENC} canUpdate />);
     expect(await screen.findByText("Certificates didn't load")).toBeInTheDocument();
+    expect(screen.queryByText(/No certificates issued/)).not.toBeInTheDocument();
   });
 
   it("issues a certificate for this visit, closes the form, and opens a fresh one next time", async () => {
