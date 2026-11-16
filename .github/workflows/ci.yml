@@ -346,6 +346,11 @@ jobs:
           VITEST_REPORT_DIR: test-results
       - name: Web first-load JS stays under its ceiling
         run: python3 scripts/check_size_budgets.py
+      # Class A size rules (docs/SOFTWARE-CLASSES.md): web functions and files only shrink.
+      - name: Web functions and files only shrink
+        run: |
+          python3 scripts/check_web_size.py --self-test
+          python3 scripts/check_web_size.py
       - name: Publish the per-test summary
         if: ${{ !cancelled() }}
         uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
