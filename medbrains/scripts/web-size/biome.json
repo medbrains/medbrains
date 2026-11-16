@@ -1,0 +1,12 @@
+{
+  "root": true,
+  "linter": {
+    "rules": {
+      "recommended": false,
+      "complexity": {
+        "noExcessiveLinesPerFunction": { "level": "error", "options": { "maxLines": 60, "skipBlankLines": true } },
+        "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 15 } }
+      }
+    }
+  }
+}
