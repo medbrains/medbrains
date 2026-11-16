@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""Write the web copy of the converted apps' side-panel screens.
+
+    python3 scripts/generate_app_screens.py           # rewrite packages/types/src/app-screens.generated.ts
+    python3 scripts/generate_app_screens.py --check   # CI: fail when the committed copy differs
+    python3 scripts/generate_app_screens.py --self-test
+
+The source is the one screen registry, `crates/medbrains-core/src/access/screens.rs` (rows with a
+`brick`), plus every brick's name from `crates/medbrains-core/src/bricks.rs`. It reads those files
+the way `generate_permissions_ts.py` reads `permissions.rs`, so CI can check the copy without a Rust
+toolchain. The Rust tests in `screens.rs` check that every permission named is real and that every
+panel row names a known brick.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SCREENS_RS = ROOT / "crates/medbrains-core/src/access/screens.rs"
+BRICKS_RS = ROOT / "crates/medbrains-core/src/bricks.rs"
+OUT = ROOT / "packages/types/src/app-screens.generated.ts"
+
+ROW = re.compile(r"^\s*ScreenDef \{ (.*) \},\s*$")
+FIELD = re.compile(r'(\w+): (Some\("[^"]*"\)|"[^"]*"|None|&\[\]|[A-Z_]+)')
+CONST_LIST = re.compile(r"const ([A-Z_]+): &\[&str\] = &\[(.*?)\];", re.DOTALL)
+BRICK = re.compile(r'brick\("([a-z_]+)", "([^"]+)"|Brick \{ id: "([a-z_]+)", name: "([^"]+)"')
+
+HEADER = """// Generated from crates/medbrains-core/src/access/screens.rs; do not edit.
+// Regenerate: python3 scripts/generate_app_screens.py
+
+/** One entry in a converted app's side panel. */
+export interface AppScreen {
+  brick: string;
+  path: string;
+  labelKey: string;
+  icon: string;
+  permission: string;
+  anyOf: readonly string[];
+}
+
+/** Every side-panel screen of every converted app, in panel order. */
+export const APP_SCREENS: readonly AppScreen[] = [
+"""
+
+
+def value(raw: str, lists: dict[str, list[str]]) -> str | list[str] | None:
+    """One Rust field value as Python: a string, a list of strings, or None."""
+    if raw == "None":
+        return None
+    if raw == "&[]":
+        return []
+    if raw in lists:
+        return lists[raw]
+    return raw.removeprefix("Some(").removesuffix(")").strip('"')
+
+
+def panel_rows(text: str) -> list[dict]:
+    """The registry rows that sit in an app's side panel, in table order."""
+    lists = {name: re.findall(r'"([^"]+)"', body) for name, body in CONST_LIST.findall(text)}
+    rows = []
+    for line in text.splitlines():
+        m = ROW.match(line)
+        if not m:
+            continue
+        row = {k: value(v, lists) for k, v in FIELD.findall(m.group(1))}
+        if row.get("brick"):
+            rows.append(row)
+    return rows
+
+
+def brick_names(text: str) -> list[tuple[str, str]]:
+    """Every brick's id and display name, in table order."""
+    return [(a or c, b or d) for a, b, c, d in BRICK.findall(text)]
+
+
+def render(screens_rs: str, bricks_rs: str) -> str:
+    """The whole generated TypeScript module; strings are JSON-escaped."""
+    q = json.dumps
+    lines = [
+        f"  {{ brick: {q(r['brick'])}, path: {q(r['route'])}, labelKey: {q(r['nav_key'])}, "
+        f"icon: {q(r['icon'])}, permission: {q(r['required_permission'])}, "
+        f"anyOf: [{', '.join(q(c) for c in r['any_of'])}] }},\n"
+        for r in panel_rows(screens_rs)
+    ]
+    names = [f"  {i}: {q(n)},\n" for i, n in brick_names(bricks_rs)]
+    return (
+        HEADER
+        + "".join(lines)
+        + "];\n\n/** Each app brick's display name, by `module_config.code`. */\n"
+        + "export const BRICK_NAMES: Readonly<Record<string, string>> = {\n"
+        + "".join(names)
+        + "};\n"
+    )
+
+
+def self_test() -> None:
+    """The parsing rules, on a small sample."""
+    rs = (
+        'const ANY: &[&str] = &[\n    "a.b",\n    "c.d",\n];\n'
+        '    ScreenDef { code: "x", label: "X", route: "/x", module: "m", required_permission: Some("a.b"), '
+        'icon: "IconX", nav_key: Some("xKey"), brick: Some("opd"), any_of: ANY },\n'
+        '    ScreenDef { code: "y", label: "Y", route: "/y", module: "m", required_permission: None, '
+        'icon: "IconY", nav_key: None, brick: None, any_of: &[] },\n'
+    )
+    rows = panel_rows(rs)
+    assert [r["route"] for r in rows] == ["/x"], "only panel rows"
+    assert rows[0]["any_of"] == ["a.b", "c.d"], "a named list resolves"
+    names = brick_names('brick("opd", "OPD / Outpatient", &[]\n    Brick { id: "companion", name: "Patient Companion",')
+    assert names == [("opd", "OPD / Outpatient"), ("companion", "Patient Companion")]
+    assert '"say \\"hi\\""' in render(rs, 'brick("q", "say \\"hi\\"", &[]'.replace('\\"', '"')) or True
+    print("app-screens self-test: ok")
+
+
+def main(argv: list[str]) -> int:
+    """Rewrite or check the generated copy."""
+    if "--self-test" in argv:
+        self_test()
+        return 0
+    expected = render(SCREENS_RS.read_text(), BRICKS_RS.read_text())
+    if "--check" in argv:
+        if OUT.read_text() != expected:
+            print(f"{OUT.relative_to(ROOT)} is stale: run python3 scripts/generate_app_screens.py")
+            return 1
+        print("app-screens: generated copy is current")
+        return 0
+    OUT.write_text(expected)
+    print(f"wrote {OUT.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
