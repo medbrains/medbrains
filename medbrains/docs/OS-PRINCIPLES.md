@@ -81,7 +81,10 @@ claim NASA approval, compliance or flight-grade quality to anyone.
 | Class | Code | If it fails | Rules |
 |---|---|---|---|
 | **A** | boot and update slot switch, first boot and reset, permission decision, audit chain, key handling, node pairing, backup and restore | The machine does not start, data is lost, or the wrong person gets in | All below, strictly |
-| **B** | the rest of the OS and server | One feature stops | All below, with a written reason for any exception |
+
+Since 2026-11-15 every part of MedBrains is class A, not only these OS rows
+([SOFTWARE-CLASSES](SOFTWARE-CLASSES.md)). There is no class B: the class A rules below apply to all
+code, and that file orders the work, riskiest first.
 
 ### The Power of Ten, for Rust
 
