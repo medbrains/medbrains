@@ -44,6 +44,7 @@ export {
 export * from "./admin-forms";
 export * from "./ambulance-fleet";
 export * from "./analytics-dashboards";
+export * from "./app-screens.generated";
 export * from "./approvals";
 export type {
   BedBoardSignalPhase,
