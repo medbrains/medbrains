@@ -4602,7 +4602,8 @@ export const api = {
     return request<TokenBoardMetrics>(`/tokens/board/metrics?${qs.toString()}`);
   },
   getTokenCallSmsStatus: () => request<TokenCallSmsStatus>("/tokens/call-sms/status"),
-  myTokens: (patientId: string) => request<ModuleToken[]>(`/tokens/mine?patient_id=${patientId}`),
+  patientTokens: (patientId: string) =>
+    request<ModuleToken[]>(`/tokens/by-patient?patient_id=${encodeURIComponent(patientId)}`),
   callToken: (id: string, counterLabel?: string) =>
     request<ModuleToken>(`/tokens/${id}/call`, {
       method: "POST",

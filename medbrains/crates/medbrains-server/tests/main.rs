@@ -341,6 +341,7 @@ mod tenant_secret_names_test;
 mod tenant_settings_upsert_test;
 mod todays_opd_widget_test;
 mod token_board_privacy_test;
+mod token_by_patient_scope_test;
 mod token_call_sms_test;
 mod token_hold_test;
 mod token_number_recycling_test;
