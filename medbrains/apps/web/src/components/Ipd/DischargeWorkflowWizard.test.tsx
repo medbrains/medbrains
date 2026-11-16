@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, userEvent } from "@/test/test-utils";
+import { render, screen, userEvent, within } from "@/test/test-utils";
 import { DischargeWorkflowWizard } from "./DischargeWorkflowWizard";
 
 const ipd = vi.hoisted(() => ({
@@ -15,7 +15,7 @@ vi.mock("@medbrains/stores", async (importOriginal) => ({
 
 const REFUSAL =
   "No pharmacy order was made for the take-home medicines, so this step is not marked. " +
-  "Insufficient stock for Paracetamol. Pharmacy staff have been notified.";
+  "Insufficient stock for Paracetamol. Notified 2 of the staff who can raise pharmacy orders (administrators included).";
 
 describe("Discharge workflow: take-home medicines", () => {
   beforeEach(() => {
@@ -29,10 +29,11 @@ describe("Discharge workflow: take-home medicines", () => {
     ipd.updateIpdDischargeStep.mockRejectedValue(new Error(REFUSAL));
     render(<DischargeWorkflowWizard admissionId="adm-1" />);
 
-    const buttons = await screen.findAllByRole("button", { name: "Mark complete" });
-    await userEvent.click(buttons[2] as HTMLElement); // the third step is rx_dispensed
+    const label = await screen.findByText("Take-home meds dispensed");
+    const card = label.closest(".mantine-Card-root") as HTMLElement;
+    await userEvent.click(within(card).getByRole("button", { name: "Mark complete" }));
 
-    const alert = await screen.findByTestId("discharge-step-error-rx_dispensed");
+    const alert = await within(card).findByTestId("discharge-step-error-rx_dispensed");
     expect(alert).toHaveTextContent("No pharmacy order was made");
     expect(alert).toHaveTextContent("Insufficient stock for Paracetamol");
     expect(ipd.updateIpdDischargeStep).toHaveBeenCalledWith("adm-1", { step: "rx_dispensed" });

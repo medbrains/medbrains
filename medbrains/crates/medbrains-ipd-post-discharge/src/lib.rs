@@ -186,19 +186,28 @@ pub async fn update_discharge_step(
     // `discharge_summary_id` on the order and skip if one already
     // exists for this summary. A failure refuses the step (#5953): see
     // `refuse_unbagged_step`.
-    let bagged = if body.step == "rx_dispensed" {
-        match autobag_discharge_meds(&mut tx, &claims, admission_id).await {
-            Ok(order_id) => order_id,
-            Err(err) => {
-                drop(tx);
-                return Err(refuse_unbagged_step(&state, &claims, admission_id, err).await);
-            }
-        }
-    } else {
-        None
-    };
+    if body.step == "rx_dispensed"
+        && let Err(err) = bag_and_route(&state, &mut tx, &claims, admission_id).await
+    {
+        drop(tx);
+        return Err(refuse_unbagged_step(&state, &claims, admission_id, err).await);
+    }
 
-    let event_name = match body.step.as_str() {
+    queue_step_event(&mut tx, &claims, admission_id, &row, &body.step).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Queues the clinical event for the steps other modules follow (discharge
+/// initiated and completed), in the step's transaction.
+async fn queue_step_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    admission_id: Uuid,
+    row: &DischargeWorkflow,
+    step: &str,
+) -> Result<(), AppError> {
+    let event_name = match step {
         "discharge_ordered" => Some(ClinicalEventName::IpdDischargeInitiated),
         "completed" => Some(ClinicalEventName::IpdDischargeCompleted),
         _ => None,
@@ -209,7 +218,7 @@ pub async fn update_discharge_step(
             admission_id,
             claims.tenant_id,
         )
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?
         .ok_or(AppError::NotFound)?;
 
@@ -223,7 +232,7 @@ pub async fn update_discharge_step(
                 "patient_id": admission.patient_id,
                 "encounter_id": admission.encounter_id,
                 "workflow_id": row.id,
-                "step": body.step.as_str(),
+                "step": step,
                 "discharge_ordered_at": row
                     .discharge_ordered_at
                     .as_ref()
@@ -234,16 +243,47 @@ pub async fn update_discharge_step(
         .with_patient(admission.patient_id)
         .with_admission(admission_id)
         .with_encounter(admission.encounter_id);
-        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
     }
 
-    tx.commit().await?;
-    if let Some(order_id) = bagged {
-        // The pharmacy reaches the order the way it reaches one raised at
-        // its own counter; without this its staff could not open it.
-        medbrains_pharmacy::hand_order_to_pharmacy(&state, &claims, order_id).await?;
+    Ok(())
+}
+
+/// Bags the discharge medicines and hands the order to the pharmacy, the way
+/// an order raised at its counter is, so its staff can open it. Routing runs
+/// before the step commits: a routing failure after commit would leave the
+/// step done and the order unreachable with nothing left to retry. Here it
+/// refuses the step like any other failure, and a retry repeats both (the
+/// hand-off is idempotent; an existing order is routed again, which also
+/// heals one bagged before routing existed).
+async fn bag_and_route(
+    state: &AppState,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    admission_id: Uuid,
+) -> Result<(), AppError> {
+    if let Some(order_id) = autobag_discharge_meds(tx, claims, admission_id).await? {
+        medbrains_pharmacy::hand_order_to_pharmacy(state, claims, order_id).await?;
     }
-    Ok(Json(row))
+    Ok(())
+}
+
+/// Sorts an autobag error into its kind, for the log (never the message,
+/// which can name a drug), and the reason staff can act on, or `None` for a
+/// fault. `NotFound` (the visit on the summary is gone) is a refusal: as a
+/// bare 404 on the step the nurse would read the admission as missing.
+fn classify_bag_error(err: &AppError) -> (&'static str, Option<String>) {
+    match err {
+        AppError::BadRequest(m) => ("bad_request", Some(m.clone())),
+        AppError::Conflict(m) => ("conflict", Some(m.clone())),
+        AppError::ForbiddenReason(m) => ("forbidden", Some(m.clone())),
+        AppError::NotFound => (
+            "not_found",
+            Some("A record the order needs, such as the visit, was not found.".to_owned()),
+        ),
+        AppError::Database(_) => ("database", None),
+        _ => ("other", None),
+    }
 }
 
 /// The answer when the take-home medicines could not become a pharmacy
@@ -258,46 +298,47 @@ async fn refuse_unbagged_step(
     admission_id: Uuid,
     err: AppError,
 ) -> AppError {
+    let (kind, refusal) = classify_bag_error(&err);
     tracing::error!(
         tenant_id = %claims.tenant_id,
         admission_id = %admission_id,
         user_id = %claims.sub,
-        error = %err,
+        error_kind = kind,
         "discharge medicines could not become a pharmacy order; rx_dispensed refused"
     );
-    let reason = match &err {
-        AppError::BadRequest(m) | AppError::Conflict(m) | AppError::ForbiddenReason(m) => m.clone(),
-        AppError::Forbidden => "The order needs a safety override you cannot give.".to_owned(),
-        _ => "The system could not create the order.".to_owned(),
-    };
+    let reason = refusal
+        .clone()
+        .unwrap_or_else(|| "The system could not create the order.".to_owned());
     let told = match tell_pharmacy_unbagged(state, claims, admission_id, &reason).await {
         Ok(told) => told,
         Err(notify_err) => {
             tracing::error!(
                 tenant_id = %claims.tenant_id,
                 admission_id = %admission_id,
-                error = %notify_err,
+                error_kind = classify_bag_error(&notify_err).0,
                 "could not notify pharmacy of a discharge order that was not made"
             );
             0
         }
     };
+    // Administrators always hold the permission, so `told` can count only
+    // them: say who, not "pharmacy staff".
     let who = if told > 0 {
-        "Pharmacy staff have been notified."
+        format!(
+            "Notified {told} of the staff who can raise pharmacy orders (administrators included)."
+        )
     } else {
-        "Nobody in pharmacy could be notified: call the pharmacy."
+        "Nobody who can raise pharmacy orders could be notified: call the pharmacy.".to_owned()
     };
     let message = format!(
         "No pharmacy order was made for the take-home medicines, so this step is not marked. \
          {reason} {who}"
     );
-    match err {
-        AppError::BadRequest(_)
-        | AppError::Conflict(_)
-        | AppError::Forbidden
-        | AppError::ForbiddenReason(_) => AppError::Conflict(message),
-        // A fault stays a fault (500), never dressed up as a refusal.
-        fault => fault,
+    // A fault stays a fault (500), never dressed up as a refusal.
+    if refusal.is_some() {
+        AppError::Conflict(message)
+    } else {
+        err
     }
 }
 
@@ -345,8 +386,9 @@ struct DischargeMedItem {
 }
 
 /// Builds the discharge pharmacy order from the summary's medicines list.
-/// `Ok(Some(order))` when it made one, `Ok(None)` when there was nothing to
-/// make (no summary, already bagged, nothing sold here).
+/// `Ok(Some(order))` when it made one or one already exists for the
+/// summary, `Ok(None)` when there was nothing to make (no summary, nothing
+/// sold here).
 async fn autobag_discharge_meds(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
@@ -378,7 +420,7 @@ async fn autobag_discharge_meds(
     .fetch_optional(&mut **tx)
     .await?;
     if existing.is_some() {
-        return Ok(None);
+        return Ok(existing); // routed again by the caller; the hand-off is idempotent
     }
 
     // An unreadable list is a failure, not "nothing to bag": reading it as
