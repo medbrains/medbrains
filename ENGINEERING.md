@@ -205,7 +205,7 @@ medbrains/
 
 ### Rust
 
-- **Edition 2024**, minimum Rust version **1.95** (workspace `rust-version`; toolchain pinned to 1.100.0)
+- **Edition 2024**, minimum Rust version **1.97.1** (workspace `rust-version`; toolchain pinned to 1.100.0)
 - `unsafe` code is **forbidden**
 - **Strict clippy** — `clippy::all` denied, `clippy::pedantic` + `clippy::nursery` warned
 - The following are **denied** (will not compile):
