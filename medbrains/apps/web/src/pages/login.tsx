@@ -65,7 +65,7 @@ export function LoginPage() {
     retry: false,
   });
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/home" replace />;
 
   const hospital = choosing ? null : options.data;
   return (

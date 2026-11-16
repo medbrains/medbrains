@@ -33,7 +33,8 @@ test("a nurse names her hospital first, then signs in with its password", async 
   await page.getByLabel("Username").fill(nurse.username);
   await page.getByRole("textbox", { name: "Password" }).fill(nurse.password);
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  // Sign-in lands on the launcher, or straight in the app for a role with one app.
+  await expect(page).not.toHaveURL(/\/login/);
   // Remembered as the hospital's own code, however it was typed.
   expect(await page.evaluate(() => localStorage.getItem("medbrains.hospital_code"))).toBe(
     options.code,
