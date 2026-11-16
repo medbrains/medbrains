@@ -1,16 +1,16 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor } from "@/test/test-utils";
+import { ChartsTab } from "./tabs/charts-tab";
+import { RxHistoryTab } from "./tabs/rx-history-tab";
 import {
   CertificatesTab,
-  ChartsTab,
   ConsentsTab,
   DocketTab,
   FeedbackTab,
   ProceduresTab,
   ReferralsTab,
   RemindersTab,
-  RxHistoryTab,
   TimelineTab,
 } from "./workflow-tabs";
 
