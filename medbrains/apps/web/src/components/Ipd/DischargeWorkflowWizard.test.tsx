@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@/test/test-utils";
+import { render, screen, userEvent } from "@/test/test-utils";
 import { DischargeWorkflowWizard } from "./DischargeWorkflowWizard";
 
 const ipd = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ describe("Discharge workflow: take-home medicines", () => {
     render(<DischargeWorkflowWizard admissionId="adm-1" />);
 
     const buttons = await screen.findAllByRole("button", { name: "Mark complete" });
-    fireEvent.click(buttons[2] as HTMLElement); // the third step is rx_dispensed
+    await userEvent.click(buttons[2] as HTMLElement); // the third step is rx_dispensed
 
     const alert = await screen.findByTestId("discharge-step-error-rx_dispensed");
     expect(alert).toHaveTextContent("No pharmacy order was made");

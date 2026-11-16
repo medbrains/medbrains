@@ -266,9 +266,7 @@ async fn refuse_unbagged_step(
         "discharge medicines could not become a pharmacy order; rx_dispensed refused"
     );
     let reason = match &err {
-        AppError::BadRequest(m) | AppError::Conflict(m) | AppError::ForbiddenReason(m) => {
-            m.clone()
-        }
+        AppError::BadRequest(m) | AppError::Conflict(m) | AppError::ForbiddenReason(m) => m.clone(),
         AppError::Forbidden => "The order needs a safety override you cannot give.".to_owned(),
         _ => "The system could not create the order.".to_owned(),
     };
@@ -686,7 +684,7 @@ pub struct SendSurveyRequest {
 
 /// POST /api/ipd/post-discharge/{admission_id}/survey/send
 ///
-/// Stamps survey_sent_at; the actual outbound message is delivered by
+/// Stamps `survey_sent_at`; the actual outbound message is delivered by
 /// the orchestration layer (DLT/SMS provider) reading this row.
 pub async fn send_survey(
     State(state): State<AppState>,
@@ -890,7 +888,7 @@ pub async fn submit_mortality_review(
     Ok(Json(row))
 }
 
-/// ipd_post_discharge routes.
+/// `ipd_post_discharge` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
