@@ -1,10 +1,11 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { todayDateString } from "@/lib/date-utils";
 import { render, screen, userEvent, waitFor } from "@/test/test-utils";
+import { CertificatesTab } from "./tabs/certificates-tab";
 import { ChartsTab } from "./tabs/charts-tab";
 import { RxHistoryTab } from "./tabs/rx-history-tab";
 import {
-  CertificatesTab,
   ConsentsTab,
   DocketTab,
   FeedbackTab,
@@ -125,10 +126,40 @@ describe("CertificatesTab", () => {
     expect(await screen.findByRole("button", { name: /New Certificate/ })).toBeInTheDocument();
   });
 
-  it("shows a failed read as a fault", async () => {
+  it("shows a failed read as a fault, never as 'No certificates issued'", async () => {
     opd.listCertificates.mockImplementation(fail);
     renderTab(<CertificatesTab patientId={PATIENT} encounterId={ENC} canUpdate />);
     expect(await screen.findByText("Certificates didn't load")).toBeInTheDocument();
+    expect(screen.queryByText(/No certificates issued/)).not.toBeInTheDocument();
+  });
+
+  it("issues a certificate for this visit, closes the form, and opens a fresh one next time", async () => {
+    const user = userEvent.setup();
+    opd.listCertificates.mockResolvedValue([]);
+    opd.createCertificate.mockResolvedValue({
+      id: "c1",
+      certificate_number: "MC-1",
+      certificate_type: "medical",
+      encounter_id: ENC,
+      issued_date: "2026-11-16",
+      patient_id: PATIENT,
+    });
+    renderTab(<CertificatesTab patientId={PATIENT} encounterId={ENC} canUpdate />);
+    await user.click(await screen.findByRole("button", { name: /New Certificate/ }));
+    await user.type(await screen.findByLabelText("Diagnosis"), "Viral fever");
+    await user.click(screen.getByRole("button", { name: /Create Certificate/ }));
+
+    await waitFor(() => expect(opd.createCertificate).toHaveBeenCalled());
+    expect(opd.createCertificate.mock.calls[0]?.[0]).toMatchObject({
+      patient_id: PATIENT,
+      encounter_id: ENC,
+      diagnosis: "Viral fever",
+    });
+    await waitFor(() => expect(screen.queryByLabelText("Diagnosis")).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: /New Certificate/ }));
+    expect(await screen.findByLabelText("Diagnosis")).toHaveValue("");
+    expect(screen.getByLabelText(/Issued Date/)).toHaveValue(todayDateString());
   });
 });
 
