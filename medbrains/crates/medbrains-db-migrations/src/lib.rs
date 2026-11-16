@@ -18,13 +18,19 @@
 //! is the exact cost this split exists to remove. Import it only where
 //! migrations are actually executed.
 
+#[cfg(feature = "testing")]
+pub mod testing;
+
+/// The embedded migrations, embedded once for every caller in this crate.
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("src/migrations");
+
 /// Run the embedded migrations against `pool`.
 ///
 /// Returns `MigrateError` rather than `medbrains-db`'s `DbError`: depending
 /// on that crate for an error type would re-couple the two and undo the
 /// point of the split.
 pub async fn run(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    sqlx::migrate!("src/migrations").run(pool).await?;
+    MIGRATOR.run(pool).await?;
     tracing::info!("Database migrations applied");
     Ok(())
 }
@@ -46,7 +52,7 @@ pub async fn pending(pool: &sqlx::PgPool) -> Result<usize, sqlx::Error> {
         Vec::new()
     };
     let applied: std::collections::HashSet<i64> = applied.into_iter().collect();
-    Ok(sqlx::migrate!("src/migrations")
+    Ok(MIGRATOR
         .iter()
         .filter(|m| !applied.contains(&m.version))
         .count())

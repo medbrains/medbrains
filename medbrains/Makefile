@@ -14,7 +14,7 @@
        check-migration-headers check-migration-immutable perf-web e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
-       test-rust test-unit test-ts test-all test-coverage \
+       test-rust test-unit test-db test-ts test-all test-coverage \
        ship ship-quick ship-cold hotpush-ui ship-help \
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
@@ -830,6 +830,9 @@ test-rust: ## Run all Rust tests + export results
 
 test-unit: ## Run Rust unit tests only (no DB needed)
 	cargo test -p medbrains-adapter-sdk -p medbrains-core 2>&1 | python3 qa/reporters/cargo-kiwi-report.py
+
+test-db: ## Start (or reuse) the machine's PostgreSQL 17 for DB tests; prints its URL (docs/TESTING-DB.md)
+	@bash scripts/test_db.sh
 
 test-ts: ## Run TypeScript unit tests (Vitest)
 	pnpm run test

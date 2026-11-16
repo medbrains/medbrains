@@ -19,3 +19,11 @@ sudo pg_ctlcluster 17 main start
 pg_lsclusters
 sudo -u postgres psql -c "CREATE ROLE medbrains SUPERUSER LOGIN PASSWORD 'ci_only'"
 sudo -u postgres createdb -O medbrains medbrains
+# Per-test databases (medbrains-db-migrations `testing`) log in as the roles the migrations
+# create, which have no password. Trust on loopback only; this runner holds nothing else.
+HBA=$(sudo -u postgres psql -Atc "SHOW hba_file")
+sudo sed -i '1i host all all 127.0.0.1/32 trust' "$HBA"
+sudo pg_ctlcluster 17 main reload
+if [[ -n "${GITHUB_ENV:-}" ]]; then
+  echo "MEDBRAINS_TEST_PG=postgres://medbrains:ci_only@127.0.0.1:5432/postgres" >>"$GITHUB_ENV"
+fi

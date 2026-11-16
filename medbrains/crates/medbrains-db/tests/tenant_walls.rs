@@ -1,15 +1,16 @@
 //! One hospital cannot reach another's rows through the tables that route files
 //! query with raw SQL (OS-BUILD-PLAN X13).
 //!
-//!   cargo test -p medbrains-db --test tenant_walls -- --ignored
+//!   `make test-db && cargo test -p medbrains-db --test tenant_walls`
 //!
 //! Many of those queries say only `WHERE id = $1`, so the database policy is the
-//! only wall between hospitals. This runs the attack as the request role.
+//! only wall between hospitals. This runs the attack as the request role, on a
+//! fresh copy of the migrated schema holding two hospitals.
 
-#![allow(clippy::expect_used, clippy::print_stderr)]
+#![allow(clippy::expect_used)]
 
 use medbrains_db::pool::set_tenant_context;
-use uuid::Uuid;
+use medbrains_db_migrations::testing::{APP_ROLE, add_patient, add_tenant, fresh_db};
 
 /// Every tenant-owned table the X13 route files read or write.
 const TABLES: &[&str] = &[
@@ -49,24 +50,10 @@ const TABLES: &[&str] = &[
     "users",
 ];
 
-/// Connects to the dev database as `role`, or `None` if it is not there.
-async fn as_role(role: &str) -> Option<sqlx::PgPool> {
-    sqlx::PgPool::connect(&format!(
-        "postgres://{role}:medbrains_dev@localhost:5435/medbrains"
-    ))
-    .await
-    .ok()
-}
-
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn every_table_has_row_level_security_and_a_policy() {
-    // Holds on an empty database, so it still means something without a second
-    // hospital's rows to attack.
-    let Some(owner) = as_role("medbrains").await else {
-        eprintln!("dev database unavailable — skipping");
-        return;
-    };
+    let db = fresh_db().await.expect("test database");
+    let owner = db.owner().await.expect("owner pool");
     for table in TABLES {
         let (enabled, policies): (bool, i64) = sqlx::query_as(
             "SELECT c.relrowsecurity,
@@ -85,17 +72,14 @@ async fn every_table_has_row_level_security_and_a_policy() {
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn the_request_role_cannot_read_or_change_another_hospitals_rows() {
-    let (Some(owner), Some(app)) = (as_role("medbrains").await, as_role("medbrains_app").await)
-    else {
-        eprintln!("both roles are needed for this test — skipping");
-        return;
-    };
-    let tenant: Uuid = sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at LIMIT 1")
-        .fetch_one(&owner)
-        .await
-        .expect("a tenant");
+    let db = fresh_db().await.expect("test database");
+    let owner = db.owner().await.expect("owner pool");
+    let app = db.connect(APP_ROLE).await.expect("request role");
+    // The victim's rows: a patient, plus what onboarding seeds per hospital.
+    let tenant = add_tenant(&owner, "ATTACKER").await.expect("tenant");
+    let victim = add_tenant(&owner, "VICTIM").await.expect("tenant");
+    add_patient(&owner, victim, "UH-V").await.expect("patient");
 
     let mut attacked = 0_i64;
     for table in TABLES {
@@ -131,7 +115,6 @@ async fn the_request_role_cannot_read_or_change_another_hospitals_rows() {
             "{table}: changed {changed} of another hospital's rows"
         );
     }
-    if attacked == 0 {
-        eprintln!("no other hospital's rows in this database — the attack proved nothing");
-    }
+    // An attack on empty tables proves nothing, and must not pass as if it did.
+    assert!(attacked > 0, "no other hospital's rows to attack");
 }
