@@ -200,6 +200,11 @@ jobs:
         run: |
           python3 medbrains/scripts/check_query_in_loop.py --self-test
           python3 medbrains/scripts/check_query_in_loop.py --check
+      # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
+      - name: Rust functions and files only shrink
+        run: |
+          python3 medbrains/scripts/check_rust_size.py --self-test
+          python3 medbrains/scripts/check_rust_size.py
       # Apps reach tenancy, authz, audit, sequences, storage and config only
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
