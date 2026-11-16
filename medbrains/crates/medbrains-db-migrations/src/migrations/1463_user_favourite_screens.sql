@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1459_user_favourite_screens.sql
+-- Migration: 1463_user_favourite_screens.sql
 -- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: user_favourite_screens

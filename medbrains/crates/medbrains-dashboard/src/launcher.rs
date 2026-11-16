@@ -59,6 +59,17 @@ fn is_screen_path(path: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'_' | b'-'))
 }
 
+/// A star that the list after the write does not hold was refused by the cap:
+/// say so as a 400, rather than answering 200 with the star silently missing.
+fn refuse_unwritten_star(body: &SetFavourite, favourites: &[String]) -> Result<(), AppError> {
+    if body.starred && !favourites.contains(&body.path) {
+        return Err(AppError::BadRequest(format!(
+            "You can keep up to {MAX_FAVOURITES} favourites. Unstar one first."
+        )));
+    }
+    Ok(())
+}
+
 /// One person's starred paths, oldest first, in the caller's open transaction.
 ///
 /// # Errors
@@ -152,17 +163,13 @@ pub async fn set_favourite(
     let owner = (claims.tenant_id, claims.sub);
     let favourites = write_favourite(&mut tx, owner, &body.path, body.starred).await?;
     tx.commit().await?;
-    if body.starred && !favourites.contains(&body.path) {
-        return Err(AppError::BadRequest(format!(
-            "You can keep up to {MAX_FAVOURITES} favourites. Unstar one first."
-        )));
-    }
+    refuse_unwritten_star(&body, &favourites)?;
     Ok(Json(FavouritesResponse { favourites }))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::is_screen_path;
+    use super::{SetFavourite, is_screen_path, refuse_unwritten_star};
 
     #[test]
     fn only_route_paths_are_accepted() {
@@ -171,5 +178,21 @@ mod tests {
         assert!(!is_screen_path("/x?next=https://evil"));
         assert!(!is_screen_path("javascript:alert(1)"));
         assert!(!is_screen_path(&format!("/{}", "a".repeat(200))));
+    }
+
+    #[test]
+    fn a_star_the_cap_kept_out_is_a_400() {
+        let star = |path: &str| SetFavourite {
+            path: path.to_owned(),
+            starred: true,
+        };
+        let full: Vec<String> = (0..50).map(|n| format!("/s{n}")).collect();
+        assert!(refuse_unwritten_star(&star("/s51"), &full).is_err());
+        assert!(refuse_unwritten_star(&star("/s1"), &full).is_ok());
+        let unstar = SetFavourite {
+            path: "/s51".to_owned(),
+            starred: false,
+        };
+        assert!(refuse_unwritten_star(&unstar, &full).is_ok());
     }
 }

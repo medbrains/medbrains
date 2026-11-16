@@ -12,6 +12,10 @@ interface LauncherTileProps {
   icon: string;
   /** Shown on a favourite: takes the star off. */
   onUnstar?: () => void;
+  /** The unstar control's accessible name. */
+  unstarLabel?: string;
+  /** A star change is in flight: the control waits, so a double click sends one. */
+  isUnstarPending?: boolean;
 }
 
 /**
@@ -19,7 +23,8 @@ interface LauncherTileProps {
  * The unstar control sits beside the link, never inside it, so each has its
  * own focus stop and name.
  */
-export function LauncherTile({ label, path, icon, onUnstar }: LauncherTileProps) {
+export function LauncherTile(props: LauncherTileProps) {
+  const { label, path, icon, onUnstar, unstarLabel, isUnstarPending } = props;
   const badge = getModuleBadge(path);
   return (
     <Card padding={0} pattern={false} className={styles.tile}>
@@ -41,7 +46,8 @@ export function LauncherTile({ label, path, icon, onUnstar }: LauncherTileProps)
             tone="accent"
             size="xl"
             className={styles.unstar}
-            aria-label={`Remove ${label} from favourites`}
+            aria-label={unstarLabel ?? label}
+            disabled={isUnstarPending}
             onClick={onUnstar}
           >
             <IconStarFilled size={20} />

@@ -117,8 +117,11 @@ export function AppLayout() {
   const launcherData = useLauncherData();
   const favouriteToggle = useToggleFavourite();
   const favoriteSet = useMemo(() => new Set(launcherData.data?.favourites), [launcherData.data]);
-  const toggleFavorite = (path: string) =>
+  // One star change at a time, so a double click cannot send "star" twice.
+  const toggleFavorite = (path: string) => {
+    if (favouriteToggle.isPending) return;
     favouriteToggle.mutate({ path, starred: !favoriteSet.has(path) });
+  };
 
   const location = useLocation();
   const isWorkspace = location.pathname === "/assistant";
@@ -380,7 +383,11 @@ export function AppLayout() {
         style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         leftSection={<span className={classes.navIcon}>{item.icon}</span>}
         rightSection={
-          <Tooltip label={pinned ? "Unpin" : "Pin to favorites"} withArrow openDelay={400}>
+          <Tooltip
+            label={pinned ? t("favouriteUnpin") : t("favouritePin")}
+            withArrow
+            openDelay={400}
+          >
             <ActionIcon
               component="div"
               role="button"
@@ -389,7 +396,8 @@ export function AppLayout() {
               variant="subtle"
               color={pinned ? "warning" : "gray"}
               className={pinned ? classes.favStarOn : classes.favStar}
-              aria-label={pinned ? "Unpin from favorites" : "Pin to favorites"}
+              aria-label={pinned ? t("favouriteUnpin") : t("favouritePin")}
+              aria-disabled={favouriteToggle.isPending || undefined}
               onClick={(event) => {
                 event.stopPropagation();
                 event.preventDefault();
@@ -428,7 +436,7 @@ export function AppLayout() {
         <>
           {launcherData.isError && (
             <Text className={classes.navGroupLabel} role="alert">
-              Favourites didn't load
+              {t("favouritesLoadFailed")}
             </Text>
           )}
           {favoriteItems.length > 0 && (

@@ -14,9 +14,9 @@ export interface LauncherApp {
 }
 
 /**
- * Whether the viewer may see `item`: the same rule as the side panel and
- * Spotlight. It needs its permission, any one of its alternative permissions,
- * and its brick switched on.
+ * Whether the viewer may see `item`: the side panel's rule. It needs its
+ * permission, any one of its alternative permissions, and its brick switched
+ * on. (Spotlight checks permissions only and still ignores bricks: #5995.)
  */
 export function isItemVisible(item: NavItemConfig, viewer: Viewer): boolean {
   return (
@@ -31,29 +31,22 @@ export function isItemVisible(item: NavItemConfig, viewer: Viewer): boolean {
  * when its parent entry is visible too, so a hidden section hides its pages.
  */
 export function visibleScreens(groups: readonly NavGroupConfig[], viewer: Viewer): NavItemConfig[] {
+  // ponytail: the menu nests one level (entry -> pages), so two bounded loops,
+  // no recursion; a deeper menu needs this and taggedBricks walked again.
   const out: NavItemConfig[] = [];
-  const walk = (items: readonly NavItemConfig[]) => {
-    for (const item of items) {
-      if (!isItemVisible(item, viewer)) continue;
-      if (item.children) walk(item.children);
-      else out.push(item);
-    }
-  };
-  for (const group of groups) walk(group.items);
+  for (const item of groups.flatMap((group) => group.items)) {
+    if (!isItemVisible(item, viewer)) continue;
+    if (!item.children) out.push(item);
+    else out.push(...item.children.filter((child) => isItemVisible(child, viewer)));
+  }
   return out;
 }
 
 /** Every brick code the side panel tags a screen with. */
 export function taggedBricks(groups: readonly NavGroupConfig[]): Set<string> {
-  const out = new Set<string>();
-  const walk = (items: readonly NavItemConfig[]) => {
-    for (const item of items) {
-      if (item.moduleCode) out.add(item.moduleCode);
-      if (item.children) walk(item.children);
-    }
-  };
-  for (const group of groups) walk(group.items);
-  return out;
+  const items = groups.flatMap((group) => group.items);
+  const all = [...items, ...items.flatMap((item) => item.children ?? [])];
+  return new Set(all.flatMap((item) => item.moduleCode ?? []));
 }
 
 /**
@@ -94,4 +87,16 @@ export function visibleFavourites(
 ) {
   const byPath = new Map(screens.map((item) => [item.path, item]));
   return favourites.flatMap((path) => byPath.get(path) ?? []);
+}
+
+/**
+ * The first Administration screen the viewer can open, if any. Administration
+ * belongs to no brick, so it is not an app, but for someone whose work is all
+ * there it is the door the launcher should offer.
+ */
+export function administrationEntry(groups: readonly NavGroupConfig[], viewer: Viewer) {
+  return visibleScreens(
+    groups.filter((group) => group.key === "admin"),
+    viewer,
+  )[0];
 }

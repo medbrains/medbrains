@@ -10,6 +10,7 @@ import type { NavItemConfig } from "@/config/navigation";
 import { NAV_GROUPS } from "@/config/navigation";
 import { LauncherTile } from "@/features/launcher/LauncherTile";
 import {
+  administrationEntry,
   type LauncherApp,
   launcherApps,
   taggedBricks,
@@ -23,20 +24,30 @@ const BRICKS = taggedBricks(NAV_GROUPS);
 /** One tile per column on a phone, more as the screen widens. */
 const GRID_COLS = { base: 1, xs: 2, md: 4, xl: 6 };
 
+/** What the signed-in person may open now, by the side panel's rule. */
+interface ViewerDoors {
+  screens: NavItemConfig[];
+  apps: LauncherApp[];
+  /** Their first Administration screen, when they have one. */
+  admin?: NavItemConfig;
+}
+
 /**
- * The screens the signed-in person may open now, by the side panel's rule.
- * It reads the permission set and the switched-off bricks so a change to
- * either redraws the launcher.
+ * The screens, apps and Administration door the person may open now. It reads
+ * the permission set and the switched-off bricks, so a change to either
+ * redraws the launcher.
  */
-function useVisibleScreens(): NavItemConfig[] {
+function useViewerDoors(): ViewerDoors {
   const permissions = usePermissionStore((s) => s.userPermissions);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
   const disabledModules = useModuleStore((s) => s.disabledModules);
   // biome-ignore lint/correctness/useExhaustiveDependencies: permissions drives hasPermission's answer
-  return useMemo(
-    () => visibleScreens(NAV_GROUPS, { hasPermission, disabledModules }),
-    [permissions, hasPermission, disabledModules],
-  );
+  return useMemo(() => {
+    const viewer = { hasPermission, disabledModules };
+    const screens = visibleScreens(NAV_GROUPS, viewer);
+    const admin = administrationEntry(NAV_GROUPS, viewer);
+    return { screens, apps: launcherApps(screens, BRICKS), admin };
+  }, [permissions, hasPermission, disabledModules]);
 }
 
 /** A section heading and its tiles. */
@@ -53,8 +64,9 @@ function LauncherSection({ title, children }: { title: string; children: React.R
 
 /** Skeleton tiles while the launcher loads. */
 function TileSkeletons() {
+  const { t } = useTranslation("nav");
   return (
-    <SimpleGrid cols={GRID_COLS} aria-busy="true" aria-label="Loading">
+    <SimpleGrid cols={GRID_COLS} aria-busy="true" aria-label={t("launcherLoading")}>
       {[0, 1, 2, 3].map((n) => (
         <Skeleton key={n} height={72} />
       ))}
@@ -62,57 +74,66 @@ function TileSkeletons() {
   );
 }
 
-interface LauncherBodyProps {
+/** The person's starred screens they can still open, each with its unstar control. */
+function FavouritesSection({
+  data,
+  screens,
+}: {
   data: LauncherResponse;
   screens: NavItemConfig[];
-  apps: LauncherApp[];
-}
-
-/** The two sections, drawn only from a successful read. */
-function LauncherBody({ data, screens, apps }: LauncherBodyProps) {
+}) {
   const { t } = useTranslation("nav");
   const toggle = useToggleFavourite();
-  const names = useMemo(() => new Map(data.bricks.map((b) => [b.id, b.name])), [data.bricks]);
   const favourites = useMemo(
     () => visibleFavourites(data.favourites, screens),
     [data.favourites, screens],
   );
   return (
-    <>
-      <LauncherSection title="Favourites">
-        {favourites.length === 0 ? (
-          <Text c="dimmed">Star a screen in the side panel to keep it here.</Text>
-        ) : (
-          <SimpleGrid cols={GRID_COLS}>
-            {favourites.map((item) => (
-              <LauncherTile
-                key={item.path}
-                label={t(item.i18nKey)}
-                path={item.path}
-                icon={item.icon}
-                onUnstar={() => toggle.mutate({ path: item.path, starred: false })}
-              />
-            ))}
-          </SimpleGrid>
-        )}
-      </LauncherSection>
-      <LauncherSection title="Your apps">
-        {apps.length === 0 ? (
-          <Text c="dimmed">No apps are switched on for your role. Ask your administrator.</Text>
-        ) : (
-          <SimpleGrid cols={GRID_COLS}>
-            {apps.map((app) => (
-              <LauncherTile
-                key={app.brick}
-                label={names.get(app.brick) ?? t(app.home.i18nKey)}
-                path={app.home.path}
-                icon={app.home.icon}
-              />
-            ))}
-          </SimpleGrid>
-        )}
-      </LauncherSection>
-    </>
+    <LauncherSection title={t("groupFavorites")}>
+      {favourites.length === 0 ? (
+        <Text c="dimmed">{t("launcherNoFavourites")}</Text>
+      ) : (
+        <SimpleGrid cols={GRID_COLS}>
+          {favourites.map((item) => (
+            <LauncherTile
+              key={item.path}
+              label={t(item.i18nKey)}
+              path={item.path}
+              icon={item.icon}
+              unstarLabel={t("favouriteRemoveNamed", { label: t(item.i18nKey) })}
+              isUnstarPending={toggle.isPending}
+              onUnstar={() => toggle.mutate({ path: item.path, starred: false })}
+            />
+          ))}
+        </SimpleGrid>
+      )}
+    </LauncherSection>
+  );
+}
+
+/** One tile per app, then Administration for those who have it; hidden, never greyed. */
+function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoors }) {
+  const { t } = useTranslation("nav");
+  const names = useMemo(() => new Map(data.bricks.map((b) => [b.id, b.name])), [data.bricks]);
+  const { apps, admin } = doors;
+  return (
+    <LauncherSection title={t("launcherApps")}>
+      {apps.length === 0 && !admin ? (
+        <Text c="dimmed">{t("launcherNoApps")}</Text>
+      ) : (
+        <SimpleGrid cols={GRID_COLS}>
+          {apps.map((app) => (
+            <LauncherTile
+              key={app.brick}
+              label={names.get(app.brick) ?? t(app.home.i18nKey)}
+              path={app.home.path}
+              icon={app.home.icon}
+            />
+          ))}
+          {admin && <LauncherTile label={t("admin")} path={admin.path} icon="IconSettings" />}
+        </SimpleGrid>
+      )}
+    </LauncherSection>
   );
 }
 
@@ -120,30 +141,37 @@ function LauncherBody({ data, screens, apps }: LauncherBodyProps) {
  * The web home after sign-in: the screens the person starred, then the apps
  * their roles and the hospital's switched-on bricks allow, hidden, never
  * greyed. Open to every signed-in user, like Approvals: it shows only what the
- * person can already open. Someone with one app is taken straight into it.
+ * person can already open. Someone with one app and no Administration is taken
+ * straight into the app.
  */
 export function LauncherPage() {
+  const { t } = useTranslation("nav");
   const userName = useAuthStore((s) => s.user?.full_name);
-  const screens = useVisibleScreens();
-  const apps = useMemo(() => launcherApps(screens, BRICKS), [screens]);
+  const doors = useViewerDoors();
   const launcher = useLauncherData();
 
-  const onlyApp = apps.length === 1 ? apps[0] : undefined;
+  const onlyApp = doors.apps.length === 1 && !doors.admin ? doors.apps[0] : undefined;
   if (onlyApp) return <Navigate to={onlyApp.home.path} replace />;
 
   return (
     <Stack gap="xl">
-      <PageHeader title={userName ? `Welcome, ${userName}` : "Welcome"} divider={false} />
+      <PageHeader
+        title={userName ? t("launcherWelcomeName", { name: userName }) : t("launcherWelcome")}
+        divider={false}
+      />
       {launcher.isError ? (
         <QueryError
           error={launcher.error}
           onRetry={() => void launcher.refetch()}
-          title="Your favourites and apps didn't load"
+          title={t("launcherLoadFailed")}
         />
       ) : launcher.isPending ? (
         <TileSkeletons />
       ) : (
-        <LauncherBody data={launcher.data} screens={screens} apps={apps} />
+        <>
+          <FavouritesSection data={launcher.data} screens={doors.screens} />
+          <AppsSection data={launcher.data} doors={doors} />
+        </>
       )}
     </Stack>
   );

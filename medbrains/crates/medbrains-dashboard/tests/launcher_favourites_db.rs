@@ -5,7 +5,7 @@
 
 #![allow(clippy::panic)]
 
-use medbrains_dashboard::launcher::{list_favourites, write_favourite};
+use medbrains_dashboard::launcher::{MAX_FAVOURITES, list_favourites, write_favourite};
 use uuid::Uuid;
 
 /// What a list holds when it shows nobody's stars.
@@ -76,6 +76,24 @@ async fn another_persons_favourites_are_invisible() {
     assert_eq!(leaked.unwrap_or_else(|e| panic!("{e}")), NONE);
     let other = list_favourites(&mut tx, t2, c).await;
     assert_eq!(other.unwrap_or_else(|e| panic!("{e}")), NONE);
+    drop(tx);
+
+    // The 51st star is not written: the list stays at the cap without it.
+    let mut tx = as_app(&db, t1).await;
+    for n in 0..60 {
+        let path = format!("/cap-{n}");
+        let list = write_favourite(&mut tx, (t1, b), &path, true).await;
+        let list = list.unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(list.contains(&path), n < MAX_FAVOURITES, "star {n}");
+    }
+    // Counted without the read's LIMIT, so a 51st row could not hide behind it.
+    let stored: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM user_favourite_screens WHERE user_id = $1")
+            .bind(b)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(stored, MAX_FAVOURITES);
     drop(tx);
 
     // Unstarring removes it.
