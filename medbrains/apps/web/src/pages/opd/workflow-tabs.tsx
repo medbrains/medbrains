@@ -1,7 +1,6 @@
 // OPD workflow & patient-history tabs, extracted from opd.tsx (split phase 1).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LineChart } from "@mantine/charts";
 import {
   Card,
   Group,
@@ -45,7 +44,6 @@ import {
   type ProcedureOrderWithName,
   type ReferralUrgency,
   type ReferralWithNames,
-  type VitalHistoryPoint,
 } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -71,7 +69,6 @@ import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/co
 import { DiagnosisCodeSelect } from "@/components/Clinical/DiagnosisCodeSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { loadFailedTitle, QueryError } from "@/components/QueryError";
 import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
@@ -96,6 +93,7 @@ import { opdService } from "@/services/opd.service";
 import { ConsentAnswersModal } from "./ConsentAnswersModal";
 import { NewConsentModal } from "./NewConsentModal";
 import { ReferralActions } from "./referral-actions";
+import { LoadFailed } from "./tabs/load-failed";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
 
@@ -107,117 +105,6 @@ const referralUrgencyValues = [
 
 function toReferralUrgency(value: string | null): ReferralUrgency | undefined {
   return referralUrgencyValues.find((candidate) => candidate === value);
-}
-
-interface LoadFailedProps {
-  what: string;
-  error: unknown;
-  onRetry: () => unknown;
-  /** An earlier copy stays on screen under the banner (a failed background refetch). */
-  stale?: boolean;
-}
-
-/**
- * A patient-history list whose read failed, with a retry. With no data it replaces the list's
- * empty state, which would read as a fact about the patient ("no prescriptions"); after a failed
- * refetch it sits above the last good copy and says it may be out of date.
- */
-function LoadFailed({ what, error, onRetry, stale = false }: LoadFailedProps) {
-  return (
-    <QueryError error={error} onRetry={() => void onRetry()} title={loadFailedTitle(what, stale)} />
-  );
-}
-
-// ── Rx History ──────────────────────────────────────────
-
-export function RxHistoryTab({ patientId }: { patientId: string }) {
-  const {
-    data: history = [],
-    isLoading,
-    error,
-    isLoadingError,
-    isRefetchError,
-    refetch,
-  } = useQuery({
-    queryKey: ["patient-prescriptions", patientId],
-    queryFn: () => opdService.listPatientPrescriptions(patientId),
-  });
-
-  if (isLoading) {
-    return (
-      <Text size="sm" c="dimmed">
-        Loading prescription history...
-      </Text>
-    );
-  }
-  if (isLoadingError) {
-    return <LoadFailed what="Prescription history" error={error} onRetry={refetch} />;
-  }
-  const stale = isRefetchError && (
-    <LoadFailed what="Prescription history" error={error} onRetry={refetch} stale />
-  );
-
-  if (history.length === 0) {
-    return (
-      <Stack gap="sm">
-        {stale}
-        <Text size="sm" c="dimmed" ta="center" py="md">
-          No previous prescriptions found for this patient.
-        </Text>
-      </Stack>
-    );
-  }
-
-  return (
-    <Stack gap="sm">
-      {stale}
-      {(history as PrescriptionHistoryItem[]).map((h) => (
-        <Card key={h.prescription.id} padding="sm" withBorder>
-          <Group gap={8} mb="xs">
-            <Badge size="xs">{new Date(h.encounter_date).toLocaleDateString()}</Badge>
-            {h.doctor_name && (
-              <Text size="xs" c="dimmed">
-                Dr. {h.doctor_name}
-              </Text>
-            )}
-            {h.prescription.notes && (
-              <Text size="xs" c="dimmed" fs="italic">
-                — {h.prescription.notes}
-              </Text>
-            )}
-          </Group>
-          <Table striped>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Drug</Table.Th>
-                <Table.Th>Dosage</Table.Th>
-                <Table.Th>Freq</Table.Th>
-                <Table.Th>Duration</Table.Th>
-                <Table.Th>Route</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {h.items.map((item) => (
-                <Table.Tr key={item.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {item.drug_name}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>{item.dosage}</Table.Td>
-                  <Table.Td>
-                    <Badge size="xs">{item.frequency}</Badge>
-                  </Table.Td>
-                  <Table.Td>{item.duration}</Table.Td>
-                  <Table.Td>{item.route ?? "—"}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
-      ))}
-    </Stack>
-  );
 }
 
 // ── Medical Certificates ────────────────────────────────
@@ -491,118 +378,6 @@ export function CertificatesTab({
           </Group>
         </Stack>
       </Modal>
-    </Stack>
-  );
-}
-
-// ── Vitals/Lab Trend Charts ─────────────────────────────
-
-export function ChartsTab({ patientId }: { patientId: string }) {
-  const [metric, setMetric] = useState<string | null>("bp");
-
-  const {
-    data: history = [],
-    isLoading,
-    error,
-    isLoadingError,
-    isRefetchError,
-    refetch,
-  } = useQuery({
-    queryKey: ["patient-vitals-history", patientId],
-    queryFn: () => opdService.listPatientVitalsHistory(patientId),
-  });
-
-  const chartData = useMemo(() => {
-    return (history as VitalHistoryPoint[]).map((p) => ({
-      date: new Date(p.recorded_at).toLocaleDateString(),
-      Systolic: p.systolic_bp,
-      Diastolic: p.diastolic_bp,
-      Pulse: p.pulse,
-      Temp: p.temperature ? Number(p.temperature) : null,
-      SpO2: p.spo2,
-      RR: p.respiratory_rate,
-      Weight: p.weight_kg ? Number(p.weight_kg) : null,
-      BMI: p.bmi ? Number(p.bmi) : null,
-    }));
-  }, [history]);
-
-  if (isLoading) {
-    return (
-      <Text size="sm" c="dimmed">
-        Loading vitals history...
-      </Text>
-    );
-  }
-
-  if (isLoadingError) {
-    return <LoadFailed what="Vitals history" error={error} onRetry={refetch} />;
-  }
-  const stale = isRefetchError && (
-    <LoadFailed what="Vitals history" error={error} onRetry={refetch} stale />
-  );
-
-  if (chartData.length === 0) {
-    return (
-      <Stack gap="sm">
-        {stale}
-        <Text size="sm" c="dimmed" ta="center" py="md">
-          No vitals history available for trend charts.
-        </Text>
-      </Stack>
-    );
-  }
-
-  const bpSeries = [
-    { name: "Systolic", color: "red.6" },
-    { name: "Diastolic", color: "blue.6" },
-  ];
-  const pulseSeries = [{ name: "Pulse", color: "pink.6" }];
-  const tempSeries = [{ name: "Temp", color: "orange.6" }];
-  const spo2Series = [{ name: "SpO2", color: "teal.6" }];
-  const weightSeries = [
-    { name: "Weight", color: "primary.4" },
-    { name: "BMI", color: "violet.6" },
-  ];
-
-  const seriesMap: Record<string, { name: string; color: string }[]> = {
-    bp: bpSeries,
-    pulse: pulseSeries,
-    temp: tempSeries,
-    spo2: spo2Series,
-    weight: weightSeries,
-  };
-
-  const activeSeries = seriesMap[metric ?? "bp"] ?? bpSeries;
-
-  return (
-    <Stack gap="sm">
-      {stale}
-      <Group>
-        <Select
-          value={metric}
-          onChange={setMetric}
-          data={[
-            { value: "bp", label: "Blood Pressure" },
-            { value: "pulse", label: "Pulse" },
-            { value: "temp", label: "Temperature" },
-            { value: "spo2", label: "SpO2" },
-            { value: "weight", label: "Weight & BMI" },
-          ]}
-          w={200}
-          size="sm"
-        />
-      </Group>
-      <LineChart
-        h={300}
-        data={chartData}
-        dataKey="date"
-        series={activeSeries}
-        curveType="monotone"
-        connectNulls
-        withLegend
-        withTooltip
-        tooltipAnimationDuration={200}
-      />
     </Stack>
   );
 }
