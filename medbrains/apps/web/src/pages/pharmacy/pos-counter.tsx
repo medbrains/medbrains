@@ -408,8 +408,10 @@ export function PosCounterTab({
     });
   }
 
-  /** Switch the sale's patient; overrides given for the previous patient no longer apply. */
+  /** Switch the sale's patient; overrides and prescription details for the previous one no longer apply. */
   function changePatient(patientId: string, onChange: (value: string) => void) {
+    // The prescription's prescriber and address belong to the previous patient too.
+    setCounterRx(EMPTY_COUNTER_RX);
     setPosAllergyReason("");
     setSafetyBlock(null);
     setSafetyReason("");

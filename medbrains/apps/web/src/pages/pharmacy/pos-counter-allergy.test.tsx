@@ -21,6 +21,16 @@ const AMOXICILLIN = {
   tax_percent: "12",
 };
 
+const CEFIXIME = {
+  id: "d2",
+  name: "Cefixime 200 mg tablet",
+  drug_schedule: "H1",
+  is_controlled: false,
+  current_stock: "80",
+  base_price: "8",
+  tax_percent: "12",
+};
+
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useHasPermission: () => true,
@@ -38,16 +48,21 @@ vi.mock("@/components/payments/collect/collect-store", () => ({
 }));
 vi.mock("@/components/DrugSearchSelect", () => ({
   DrugSearchSelect: ({ onChange }: { onChange: (id: string, drug: unknown) => void }) => (
-    <button type="button" onClick={() => onChange(AMOXICILLIN.id, AMOXICILLIN)}>
-      Add amoxicillin
-    </button>
+    <>
+      <button type="button" onClick={() => onChange(AMOXICILLIN.id, AMOXICILLIN)}>
+        Add amoxicillin
+      </button>
+      <button type="button" onClick={() => onChange(CEFIXIME.id, CEFIXIME)}>
+        Add Schedule H1 drug
+      </button>
+    </>
   ),
 }));
 vi.mock("./counter-patient-select", async () => ({
-  CounterPatientSelect: (await import("./test-patient-picker")).PatientPicker,
+  CounterPatientSelect: (await import("@/test/patient-picker-stub")).PatientPicker,
 }));
 vi.mock("@/components/PatientSearchSelect", async () => ({
-  PatientSearchSelect: (await import("./test-patient-picker")).PatientPicker,
+  PatientSearchSelect: (await import("@/test/patient-picker-stub")).PatientPicker,
 }));
 vi.mock("./counter-drawer", () => ({
   CounterDrawer: () => null,
@@ -90,6 +105,21 @@ beforeEach(() => {
     total_amount: "10",
     change_due: "0",
     billing_invoice_id: null,
+  });
+});
+
+describe("PosCounterTab patient change", () => {
+  it("clears the previous patient's prescription address and prescriber", async () => {
+    const user = userEvent.setup();
+    svc.listPatientAllergies.mockResolvedValue([]);
+    renderCounter();
+    await user.click(screen.getByRole("button", { name: "Pick patient A" }));
+    await user.click(screen.getByRole("button", { name: "Add Schedule H1 drug" }));
+    await user.type(await screen.findByLabelText(/Patient's address/), "12 Gandhi Road");
+    await user.type(screen.getByLabelText(/Prescriber/), "Dr Rao");
+    await user.click(screen.getByRole("button", { name: "Pick patient B" }));
+    expect(screen.getByLabelText(/Patient's address/)).toHaveValue("");
+    expect(screen.getByLabelText(/Prescriber/)).toHaveValue("");
   });
 });
 
