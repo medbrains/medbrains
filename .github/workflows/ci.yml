@@ -325,7 +325,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
-          cache: pnpm
+          # No dependency cache on a release or hotfix push: that run is verified from a clean
+          # install, never from a cache another run could have written (cache poisoning).
+          package-manager-cache: false
+          cache: ${{ !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.ref, 'refs/heads/hotfix/') && 'pnpm' || '' }}
           cache-dependency-path: medbrains/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
@@ -386,7 +389,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
-          cache: pnpm
+          # No dependency cache on a release or hotfix push: that run is verified from a clean
+          # install, never from a cache another run could have written (cache poisoning).
+          package-manager-cache: false
+          cache: ${{ !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.ref, 'refs/heads/hotfix/') && 'pnpm' || '' }}
           cache-dependency-path: medbrains/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run lint --filter=@medbrains/web...
@@ -415,6 +421,8 @@ jobs:
             ~/.cargo/git
             medbrains/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/**/Cargo.toml') }}
+          # Restore nothing on a release or hotfix push (cache poisoning; see the web job).
+          lookup-only: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/hotfix/') }}
 
       # Library code is clean and is the bar worth holding first.
       # Every crate except the desktop GUI tree, which needs GTK on the runner.
@@ -488,6 +496,8 @@ jobs:
             ~/.cargo/git
             medbrains/target
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
+          # Restore nothing on a release or hotfix push (cache poisoning; see the web job).
+          lookup-only: ${{ startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/hotfix/') }}
 
       # Non-blocking until it has been seen to pass on a runner.
       # CUPS headers and PostgreSQL 17 for the integration suite (no Docker, per the OS rule).
