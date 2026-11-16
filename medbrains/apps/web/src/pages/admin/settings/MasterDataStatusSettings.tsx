@@ -77,6 +77,7 @@ import { reportsService } from "@/services/reports.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { specialtyService } from "@/services/specialty.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
+import { type GapRow, gapPriority, useInstalledGaps } from "./master-data-gaps";
 
 interface MasterDataItem {
   key: string;
@@ -107,7 +108,7 @@ interface MasterDataCsvImport {
   permission: string;
 }
 
-interface MasterDataGapItem {
+interface MasterDataGapItem extends GapRow {
   key: string;
   label: string;
   module: string;
@@ -116,8 +117,6 @@ interface MasterDataGapItem {
   actionHref: string;
   actionLabel: string;
   icon: ReactNode;
-  priority?: "P0" | "P1" | "P2";
-  targetType?: "settings" | "module" | "governance";
 }
 
 type SettingsCleanupStatus = "keep" | "advanced" | "move" | "retired";
@@ -323,7 +322,7 @@ const SETTINGS_CLEANUP_DECISIONS: SettingsCleanupItem[] = [
   },
 ];
 
-const MASTER_DATA_GAPS: MasterDataGapItem[] = [
+export const MASTER_DATA_GAPS: MasterDataGapItem[] = [
   {
     key: "patient-categories",
     label: "Patient categories, identity and document types",
@@ -374,6 +373,7 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
     icon: <IconStethoscope size={24} />,
     priority: "P0",
     targetType: "governance",
+    brick: "opd",
   },
   {
     key: "holiday-calendar-demand-rules",
@@ -387,6 +387,7 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
     icon: <IconChecklist size={24} />,
     priority: "P1",
     targetType: "governance",
+    brick: "opd",
   },
   {
     key: "lab-specimens",
@@ -697,10 +698,6 @@ function masterCountText(item: MasterDataItem) {
   return String(item.count ?? 0);
 }
 
-function gapPriority(item: MasterDataGapItem) {
-  return item.priority ?? "P1";
-}
-
 function gapPriorityColor(priority: NonNullable<MasterDataGapItem["priority"]>) {
   if (priority === "P0") return "red";
   if (priority === "P1") return "orange";
@@ -753,6 +750,8 @@ export function MasterDataStatusSettings() {
   const [importItem, setImportItem] = useState<MasterDataItem | null>(null);
   // A selector, not the hook: the import permission is read per row inside a map.
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
+  const { gapItems, missingP0Count, missingSettingsTargetCount, p0GapItems } =
+    useInstalledGaps(MASTER_DATA_GAPS);
   const canManageGeneralSettings = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const canViewFacilities = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.LIST);
   const canViewPharmacyCatalog = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
@@ -2024,11 +2023,7 @@ export function MasterDataStatusSettings() {
       ).length,
     [masterItems],
   );
-  const missingMasterCount = MASTER_DATA_GAPS.length;
-  const missingP0Count = MASTER_DATA_GAPS.filter((item) => gapPriority(item) === "P0").length;
-  const missingSettingsTargetCount = MASTER_DATA_GAPS.filter(
-    (item) => item.targetType === "settings" || item.targetType === "governance",
-  ).length;
+  const missingMasterCount = gapItems.length;
   const settingsOwnedAttentionItems = useMemo(
     () =>
       masterItems
@@ -2050,10 +2045,6 @@ export function MasterDataStatusSettings() {
         )
         .slice(0, 5),
     [masterItems],
-  );
-  const p0GapItems = useMemo(
-    () => MASTER_DATA_GAPS.filter((item) => gapPriority(item) === "P0").slice(0, 8),
-    [],
   );
   const visibleMasterItems = useMemo(
     () => masterItems.filter((item) => item.status !== "restricted"),
@@ -2086,7 +2077,7 @@ export function MasterDataStatusSettings() {
     if (filter !== "all" && filter !== "missing" && filter !== "module" && filter !== "settings") {
       return [];
     }
-    return MASTER_DATA_GAPS.filter((item) => {
+    return gapItems.filter((item) => {
       const matchesFilter =
         filter === "all" ||
         filter === "missing" ||
@@ -2100,7 +2091,7 @@ export function MasterDataStatusSettings() {
         .toLowerCase()
         .includes(searchText);
     });
-  }, [filter, search]);
+  }, [filter, gapItems, search]);
 
   if (isLoading) {
     return (

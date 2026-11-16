@@ -31,6 +31,7 @@ mod policy;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests_pews;
 
 pub use policy::{BandMinutes, EwsPolicy, PolicyError};

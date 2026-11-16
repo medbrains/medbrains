@@ -11,6 +11,7 @@
 //! (payment providers, ABDM mock addresses, the NHCX participant code) and their
 //! per-file `SERIAL` locks do not reach across files. Give them their own tenant
 //! and the default parallelism comes back.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 mod abdm_abha_world;
 mod abdm_hip_world;

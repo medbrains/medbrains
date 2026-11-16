@@ -8,6 +8,7 @@
 //!
 //! Verifies write → check → list_accessible → revoke against the
 //! schema in `infra/spicedb/schema.zed`.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use medbrains_authz::{AuthzBackend, AuthzContext, Subject, relations::Relation};
 use medbrains_authz_spicedb::backend_spicedb::SpiceDbBackend;

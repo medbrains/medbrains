@@ -1,5 +1,6 @@
 import { userSchema } from "@medbrains/schemas";
 import {
+  clearSession,
   useAuthStore,
   useLocaleStore,
   useModuleStore,
@@ -25,12 +26,9 @@ const REFRESH_INTERVAL_MS = 13 * 60 * 1000; // 13 minutes
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const hasHydrated = useHasHydrated();
   const user = useAuthStore((s) => s.user);
-  const clearAuth = useAuthStore((s) => s.clearAuth);
   const setPermissions = usePermissionStore((s) => s.setPermissions);
-  const clearPermissions = usePermissionStore((s) => s.clearPermissions);
   const setDisabledModules = useModuleStore((s) => s.setDisabledModules);
   const setRestrictCopy = useModuleStore((s) => s.setRestrictCopy);
-  const clearModules = useModuleStore((s) => s.clearModules);
   const [verified, setVerified] = useState<boolean | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [mfaEnrollmentRequired, setMfaEnrollmentRequired] = useState(false);
@@ -93,9 +91,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         // "session_expired" = refresh was already attempted and failed → truly expired
         const msg = err instanceof Error ? err.message : "";
         if (msg === "session_expired") {
-          clearAuth();
-          clearPermissions();
-          clearModules();
+          clearSession();
           setVerified(false);
           return;
         }
@@ -104,9 +100,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           (err as { status?: number }).status ??
           (err as { response?: { status?: number } }).response?.status;
         if (status === 401) {
-          clearAuth();
-          clearPermissions();
-          clearModules();
+          clearSession();
           setVerified(false);
         } else {
           // Backend unreachable (network error) — trust stored auth if present,
@@ -118,15 +112,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [
-    hasHydrated,
-    clearAuth,
-    clearPermissions,
-    setPermissions,
-    clearModules,
-    setDisabledModules,
-    setRestrictCopy,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasHydrated, setPermissions, setDisabledModules, setRestrictCopy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Proactive token refresh — keeps session alive during continuous work ──
   useEffect(() => {
@@ -137,9 +123,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     refreshTimer.current = setInterval(() => {
       sessionService.refreshToken().catch(() => {
         // Refresh failed — session expired, force re-login
-        clearAuth();
-        clearPermissions();
-        clearModules();
+        clearSession();
         setVerified(false);
       });
     }, REFRESH_INTERVAL_MS);
@@ -153,9 +137,6 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [
     verified,
     user, // Refresh failed — session expired, force re-login
-    clearAuth,
-    clearPermissions,
-    clearModules,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wait for store hydration + the /auth/me verification (which also hydrates the
