@@ -283,10 +283,7 @@ pub fn build_router(state: AppState) -> Router {
         // Dashboard — summary
         // Dashboard — widget data
         // ── OPD + OPD Appointments ──────────────────────────
-        // The clinical-visit core stays on without the EMR: IPD and ER chart on the same
-        // encounters through it. Only the outpatient desk switches off with `opd`.
         .merge(medbrains_opd::router())
-        .merge(gated("opd", medbrains_opd::opd_only_router(), &state))
         // Minted when a prescription is printed; the QR on the paper points at
         // the token this returns.
         .route(
@@ -297,7 +294,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/queue-tokens/{id}/status-link",
             get(appointments::queue_token_status_link),
         )
-        .merge(gated("opd", appointments::router(), &state))
+        .merge(gated("opd", appointments::router().merge(medbrains_opd::opd_only_router()), &state))
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────
