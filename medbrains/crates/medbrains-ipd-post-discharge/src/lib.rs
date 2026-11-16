@@ -184,11 +184,19 @@ pub async fn update_discharge_step(
     // summary's `medications_on_discharge` JSONB so the dispenser
     // doesn't manually re-enter every drug. Idempotent — we set
     // `discharge_summary_id` on the order and skip if one already
-    // exists for this summary. Failures are logged but do not roll
-    // back the wizard step (operators can re-enter the order manually).
-    if body.step == "rx_dispensed" {
-        let _ = autobag_discharge_meds(&mut tx, &claims, admission_id).await;
-    }
+    // exists for this summary. A failure refuses the step (#5953): see
+    // `refuse_unbagged_step`.
+    let bagged = if body.step == "rx_dispensed" {
+        match autobag_discharge_meds(&mut tx, &claims, admission_id).await {
+            Ok(order_id) => order_id,
+            Err(err) => {
+                drop(tx);
+                return Err(refuse_unbagged_step(&state, &claims, admission_id, err).await);
+            }
+        }
+    } else {
+        None
+    };
 
     let event_name = match body.step.as_str() {
         "discharge_ordered" => Some(ClinicalEventName::IpdDischargeInitiated),
@@ -230,7 +238,102 @@ pub async fn update_discharge_step(
     }
 
     tx.commit().await?;
+    if let Some(order_id) = bagged {
+        // The pharmacy reaches the order the way it reaches one raised at
+        // its own counter; without this its staff could not open it.
+        medbrains_pharmacy::hand_order_to_pharmacy(&state, &claims, order_id).await?;
+    }
     Ok(Json(row))
+}
+
+/// The answer when the take-home medicines could not become a pharmacy
+/// order (#5953). The step is refused, not stamped: "meds dispensed" ticked
+/// with no order behind it is how a patient went home without them. The
+/// request's transaction is already dropped, so no half-made order stays.
+/// The failure is logged by id and the pharmacy is told through its inbox;
+/// the nurse gets the reason and whether pharmacy was reached.
+async fn refuse_unbagged_step(
+    state: &AppState,
+    claims: &Claims,
+    admission_id: Uuid,
+    err: AppError,
+) -> AppError {
+    tracing::error!(
+        tenant_id = %claims.tenant_id,
+        admission_id = %admission_id,
+        user_id = %claims.sub,
+        error = %err,
+        "discharge medicines could not become a pharmacy order; rx_dispensed refused"
+    );
+    let reason = match &err {
+        AppError::BadRequest(m) | AppError::Conflict(m) | AppError::ForbiddenReason(m) => {
+            m.clone()
+        }
+        AppError::Forbidden => "The order needs a safety override you cannot give.".to_owned(),
+        _ => "The system could not create the order.".to_owned(),
+    };
+    let told = match tell_pharmacy_unbagged(state, claims, admission_id, &reason).await {
+        Ok(told) => told,
+        Err(notify_err) => {
+            tracing::error!(
+                tenant_id = %claims.tenant_id,
+                admission_id = %admission_id,
+                error = %notify_err,
+                "could not notify pharmacy of a discharge order that was not made"
+            );
+            0
+        }
+    };
+    let who = if told > 0 {
+        "Pharmacy staff have been notified."
+    } else {
+        "Nobody in pharmacy could be notified: call the pharmacy."
+    };
+    let message = format!(
+        "No pharmacy order was made for the take-home medicines, so this step is not marked. \
+         {reason} {who}"
+    );
+    match err {
+        AppError::BadRequest(_)
+        | AppError::Conflict(_)
+        | AppError::Forbidden
+        | AppError::ForbiddenReason(_) => AppError::Conflict(message),
+        // A fault stays a fault (500), never dressed up as a refusal.
+        fault => fault,
+    }
+}
+
+/// Puts the unbagged discharge in the inbox of everyone who can raise a
+/// pharmacy order, in its own transaction since the request's rolled back.
+/// Returns how many were told.
+async fn tell_pharmacy_unbagged(
+    state: &AppState,
+    claims: &Claims,
+    admission_id: Uuid,
+    reason: &str,
+) -> Result<usize, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let told = medbrains_notifications::notify_permission_holders(
+        &mut tx,
+        claims.tenant_id,
+        permissions::pharmacy::dispensing::CREATE,
+        claims.sub,
+        |user_id| medbrains_notifications::NewNotification {
+            user_id,
+            kind: "warning",
+            title: "Discharge medicines have no pharmacy order",
+            body: Some(reason),
+            category: Some("Pharmacy"),
+            entity_type: Some("admission"),
+            entity_id: Some(admission_id),
+            action_url: Some("/pharmacy"),
+        },
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(told)
 }
 
 #[derive(serde::Deserialize)]
@@ -243,11 +346,14 @@ struct DischargeMedItem {
     buy_outside: bool,
 }
 
+/// Builds the discharge pharmacy order from the summary's medicines list.
+/// `Ok(Some(order))` when it made one, `Ok(None)` when there was nothing to
+/// make (no summary, already bagged, nothing sold here).
 async fn autobag_discharge_meds(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     admission_id: Uuid,
-) -> Result<(), AppError> {
+) -> Result<Option<Uuid>, AppError> {
     let summary: Option<(Uuid, Option<Uuid>, serde_json::Value)> = sqlx::query_as(
         "SELECT ds.id, a.encounter_id, ds.medications_on_discharge \
          FROM ipd_discharge_summaries ds \
@@ -261,7 +367,7 @@ async fn autobag_discharge_meds(
     .await?;
 
     let Some((summary_id, encounter_id, meds_json)) = summary else {
-        return Ok(()); // no discharge summary — nothing to bag
+        return Ok(None); // no discharge summary — nothing to bag
     };
 
     // Idempotency: skip if a discharge order already exists for this summary.
@@ -274,12 +380,22 @@ async fn autobag_discharge_meds(
     .fetch_optional(&mut **tx)
     .await?;
     if existing.is_some() {
-        return Ok(());
+        return Ok(None);
     }
 
-    let meds: Vec<DischargeMedItem> = serde_json::from_value(meds_json).unwrap_or_default();
+    // An unreadable list is a failure, not "nothing to bag": reading it as
+    // empty sent patients home with no order and no word (#5953).
+    let meds: Vec<DischargeMedItem> = if meds_json.is_null() {
+        Vec::new()
+    } else {
+        serde_json::from_value(meds_json).map_err(|_| {
+            AppError::BadRequest(
+                "The medicines list on the discharge summary could not be read.".to_owned(),
+            )
+        })?
+    };
     if meds.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
 
     // A medicine bought outside goes on the bag's order as such: listed for
@@ -303,7 +419,7 @@ async fn autobag_discharge_meds(
         .collect();
     // Nothing to bag when nothing on the list is sold here.
     if !items.iter().any(|i| i.catalog_item_id.is_some()) {
-        return Ok(());
+        return Ok(None);
     }
 
     let req = medbrains_pharmacy::CreateOrderRequest {
@@ -331,13 +447,13 @@ async fn autobag_discharge_meds(
             .await?;
 
     let Some(patient_id) = patient_id else {
-        return Ok(());
+        return Ok(None);
     };
 
     let req = medbrains_pharmacy::CreateOrderRequest { patient_id, ..req };
 
-    let _ = medbrains_pharmacy::create_order_in_tx(tx, claims, &req).await?;
-    Ok(())
+    let made = medbrains_pharmacy::create_order_in_tx(tx, claims, &req).await?;
+    Ok(Some(made.order.id))
 }
 
 // ── DAMA / LAMA records ──────────────────────────────────────────
