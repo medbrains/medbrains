@@ -24,6 +24,7 @@ import { PageHeader, useClinicalEmit } from "@/components";
 import { shareRegistrationValues } from "@/components/abha/scanShare";
 import type { PatientRegistrationLinkedServicesOptions } from "@/components/Patient/PatientRegisterForm";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
+import { useOpdVisitGates } from "@/components/Patient/useOpdVisitGates";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
@@ -105,6 +106,7 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** The registration screen: registers the patient, then files them to a camp or the OPD queue. */
 export function PatientRegisterPageInner() {
   // A hospital without the EMR registers patients for other apps; never hand off into it.
   const opdOn = useModuleStore((st) => !st.disabledModules.has("opd"));
@@ -126,7 +128,8 @@ export function PatientRegisterPageInner() {
   // report a successful registration while the patient was never filed to the
   // camp and never queued.
   const canRegisterToCamp = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
-  const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  // Off while the EMR is: registration must not leave a visit in an app nobody can open.
+  const { canCreateOpdVisit } = useOpdVisitGates();
   const isCampRegistration = source === "camp" && Boolean(sourceCampId);
   const { data: camps = [], isLoading: campContextLoading } = useQuery({
     queryKey: ["camp-camps", "patient-registration-page", sourceCampId],
@@ -149,8 +152,9 @@ export function PatientRegisterPageInner() {
         camp_name: selectedCamp?.name,
         department_id: selectedCamp?.organizing_department_id ?? undefined,
         referred_by_facility: selectedCamp?.venue_name ?? selectedCamp?.name,
-        create_opd_visit: true,
-        open_opd_after_registration: true,
+        // The camp queues to its OPD only where the hospital has one.
+        create_opd_visit: opdOn,
+        open_opd_after_registration: opdOn,
       }
     : undefined;
   const shareProfile = scanShare?.step.profile;

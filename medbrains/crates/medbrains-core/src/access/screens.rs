@@ -3,8 +3,8 @@
 //! Adding or changing a screen: edit this file. `navigation.ts` is still written by hand for apps
 //! not yet converted, and `scripts/check_nav_drift.py` keeps it in line with this table. A
 //! screen that names its app `brick` is a converted app's side-panel screen: the web reads it
-//! from `packages/types/src/app-screens.generated.ts`, which `render_ts` writes and a test keeps
-//! current, and its route opens only while the hospital has that app on.
+//! from `packages/types/src/app-screens.generated.ts`, which `scripts/generate_app_screens.py`
+//! writes (CI runs it with `--check`), and its route opens only while the hospital has that app on.
 
 #[derive(Debug, Clone)]
 pub struct ScreenDef {
@@ -103,7 +103,7 @@ pub const SCREENS: &[ScreenDef] = &[
     ScreenDef { code: "admin-users", label: "Users", route: "/admin/users", module: "admin", required_permission: Some("admin.users.list"), icon: "IconUsers", nav_key: None, brick: None, any_of: &[] },
     ScreenDef { code: "admin-roles", label: "Roles", route: "/admin/roles", module: "admin", required_permission: Some("admin.roles.list"), icon: "IconLockAccess", nav_key: None, brick: None, any_of: &[] },
     ScreenDef { code: "admin-groups", label: "Groups", route: "/admin/groups", module: "admin", required_permission: Some("admin.users.list"), icon: "IconUsersGroup", nav_key: None, brick: None, any_of: &[] },
-    ScreenDef { code: "admin-sso", label: "Single Sign-On", route: "/admin/sso", module: "admin", required_permission: Some("admin.settings.general.manage"), icon: "IconLockSquareRounded", nav_key: None, brick: None, any_of: &[] },
+    ScreenDef { code: "admin-sso", label: "Single Sign-On", route: "/admin/sso", module: "admin", required_permission: Some("admin.sso.providers.manage"), icon: "IconLockSquareRounded", nav_key: None, brick: None, any_of: &[] },
     ScreenDef { code: "admin-integration", label: "Integration Hub", route: "/admin/integration-hub", module: "admin", required_permission: Some("integration.list"), icon: "IconPlug", nav_key: None, brick: None, any_of: &[] },
     ScreenDef { code: "admin-devices", label: "Devices", route: "/admin/devices", module: "admin", required_permission: Some("devices.list"), icon: "IconDevices", nav_key: None, brick: None, any_of: &[] },
     ScreenDef { code: "admin-settings", label: "Settings", route: "/admin/settings", module: "admin", required_permission: Some("admin.settings.general.manage"), icon: "IconSettings", nav_key: None, brick: None, any_of: &[] },
@@ -114,44 +114,11 @@ pub const SCREENS: &[ScreenDef] = &[
     ScreenDef { code: "opd.chronic_care", label: "Chronic care", route: "/chronic-care", module: "opd", required_permission: Some("chronic.enrollments.list"), icon: "IconReportMedical", nav_key: Some("chronicCare"), brick: Some("opd"), any_of: &[] },
 ];
 
-/// The web copy of the converted apps' side-panel screens and every brick's name, as a
-/// TypeScript module. Strings go out through `{:?}`, so a quote in a name cannot break the file.
-#[must_use]
-pub fn render_ts() -> String {
-    let mut out = String::from(
-        "// Generated from crates/medbrains-core/src/access/screens.rs; do not edit.\n\
-         // Regenerate: UPDATE_APP_SCREENS=1 cargo test -p medbrains-core access::screens\n\n\
-         /** One entry in a converted app's side panel. */\n\
-         export interface AppScreen {\n  brick: string;\n  path: string;\n  labelKey: string;\n  icon: string;\n  permission: string;\n  anyOf: readonly string[];\n}\n\n\
-         /** Every side-panel screen of every converted app, in panel order. */\n\
-         export const APP_SCREENS: readonly AppScreen[] = [\n",
-    );
-    out.extend(SCREENS.iter().filter_map(|s| {
-        Some(format!(
-            "  {{ brick: {:?}, path: {:?}, labelKey: {:?}, icon: {:?}, permission: {:?}, anyOf: {:?} }},\n",
-            s.brick?, s.route, s.nav_key?, s.icon, s.required_permission?, s.any_of
-        ))
-    }));
-    out.push_str(
-        "];\n\n/** Each app brick's display name, by `module_config.code`. */\n\
-         export const BRICK_NAMES: Readonly<Record<string, string>> = {\n",
-    );
-    out.extend(
-        crate::bricks::BRICKS
-            .iter()
-            .map(|b| format!("  {:?}: {:?},\n", b.id, b.name)),
-    );
-    out.push_str("};\n");
-    out
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{SCREENS, render_ts};
+    use super::SCREENS;
     use crate::access::catalogue::all_codes;
     use crate::bricks::find;
-
-    const GENERATED: &str = "../../packages/types/src/app-screens.generated.ts";
 
     #[test]
     fn routes_are_unique_and_permissions_are_real() {
@@ -188,21 +155,5 @@ mod tests {
                 screen.route
             );
         }
-    }
-
-    /// The web reads the generated copy; a stale copy would show screens this table no longer lists.
-    #[test]
-    fn the_web_copy_is_current() -> std::io::Result<()> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GENERATED);
-        if std::env::var_os("UPDATE_APP_SCREENS").is_some() {
-            std::fs::write(&path, render_ts())?;
-        }
-        let committed = std::fs::read_to_string(&path)?;
-        assert_eq!(
-            committed,
-            render_ts(),
-            "run UPDATE_APP_SCREENS=1 cargo test -p medbrains-core access::screens"
-        );
-        Ok(())
     }
 }

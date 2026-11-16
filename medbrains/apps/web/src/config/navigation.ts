@@ -810,7 +810,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       {
         i18nKey: "careView",
-        moduleCode: "opd",
         path: "/care-view",
         icon: "IconHeartbeat",
         requiredPermission: "care_view.view",

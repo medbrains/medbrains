@@ -87,17 +87,8 @@ def parse_app_screens_ts() -> list[tuple[str, str, str, str]]:
     return APP_SCREEN_RE.findall(APP_SCREENS_TS.read_text())
 
 
-def stale_app_screens(screens: list[dict]) -> list[str]:
-    """Brick screens in SCREENS that the generated copy lacks, or that it lists differently.
-
-    CI's Rust test that rewrites the copy does not block a merge, so this static check does.
-    """
-    generated = {(b, p, perm) for b, p, perm, _ in parse_app_screens_ts()}
-    wanted = {(s["brick"], s["route"], s["required_permission"]) for s in screens if s.get("brick")}
-    return sorted(f"{b} {p} {perm}" for b, p, perm in wanted ^ generated)
-
-
 def main() -> int:
+    """Fail when a SCREENS row has no menu entry, or its menu entry asks for another permission."""
     fix = "--fix" in sys.argv
 
     screens = parse_screens_rs()
@@ -132,13 +123,7 @@ def main() -> int:
             # Nested or detail routes aren't in SCREENS — fine.
             continue
 
-    stale = stale_app_screens(screens)
-    if stale:
-        print(f"\n❌ app-screens.generated.ts is stale ({len(stale)} entries differ); run"
-              " UPDATE_APP_SCREENS=1 cargo test -p medbrains-core access::screens")
-        for line in stale:
-            print(f"  • {line}")
-    has_drift = bool(missing or perm_mismatch or stale)
+    has_drift = bool(missing or perm_mismatch)
 
     if missing:
         print(f"\n❌ {len(missing)} screen(s) in SCREENS missing from navigation.ts:")

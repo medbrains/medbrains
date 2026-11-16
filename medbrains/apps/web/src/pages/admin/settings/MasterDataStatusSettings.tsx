@@ -10,7 +10,7 @@ import {
   TextInput,
   ThemeIcon,
 } from "@mantine/core";
-import { useHasPermission, usePermissionStore } from "@medbrains/stores";
+import { useHasPermission, useModuleStore, usePermissionStore } from "@medbrains/stores";
 import type { CsvImportRequest, CsvImportResult } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -118,6 +118,8 @@ interface MasterDataGapItem {
   icon: ReactNode;
   priority?: "P0" | "P1" | "P2";
   targetType?: "settings" | "module" | "governance";
+  /** The app the row's screen belongs to; the row is hidden while the hospital has it off. */
+  brick?: string;
 }
 
 type SettingsCleanupStatus = "keep" | "advanced" | "move" | "retired";
@@ -374,6 +376,7 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
     icon: <IconStethoscope size={24} />,
     priority: "P0",
     targetType: "governance",
+    brick: "opd",
   },
   {
     key: "holiday-calendar-demand-rules",
@@ -387,6 +390,7 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
     icon: <IconChecklist size={24} />,
     priority: "P1",
     targetType: "governance",
+    brick: "opd",
   },
   {
     key: "lab-specimens",
@@ -660,6 +664,11 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
   },
 ];
 
+/** The gap rows whose screen the hospital can open: a row for a switched-off app leads nowhere. */
+export function installedGaps(disabledModules: ReadonlySet<string>): MasterDataGapItem[] {
+  return MASTER_DATA_GAPS.filter((item) => !item.brick || !disabledModules.has(item.brick));
+}
+
 function isMasterDataFilter(value: string): value is MasterDataFilter {
   return MASTER_DATA_FILTER_OPTIONS.some((option) => option.value === value);
 }
@@ -753,6 +762,8 @@ export function MasterDataStatusSettings() {
   const [importItem, setImportItem] = useState<MasterDataItem | null>(null);
   // A selector, not the hook: the import permission is read per row inside a map.
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
+  const disabledModules = useModuleStore((state) => state.disabledModules);
+  const gapItems = useMemo(() => installedGaps(disabledModules), [disabledModules]);
   const canManageGeneralSettings = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const canViewFacilities = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.LIST);
   const canViewPharmacyCatalog = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
@@ -2024,9 +2035,9 @@ export function MasterDataStatusSettings() {
       ).length,
     [masterItems],
   );
-  const missingMasterCount = MASTER_DATA_GAPS.length;
-  const missingP0Count = MASTER_DATA_GAPS.filter((item) => gapPriority(item) === "P0").length;
-  const missingSettingsTargetCount = MASTER_DATA_GAPS.filter(
+  const missingMasterCount = gapItems.length;
+  const missingP0Count = gapItems.filter((item) => gapPriority(item) === "P0").length;
+  const missingSettingsTargetCount = gapItems.filter(
     (item) => item.targetType === "settings" || item.targetType === "governance",
   ).length;
   const settingsOwnedAttentionItems = useMemo(
@@ -2052,8 +2063,8 @@ export function MasterDataStatusSettings() {
     [masterItems],
   );
   const p0GapItems = useMemo(
-    () => MASTER_DATA_GAPS.filter((item) => gapPriority(item) === "P0").slice(0, 8),
-    [],
+    () => gapItems.filter((item) => gapPriority(item) === "P0").slice(0, 8),
+    [gapItems],
   );
   const visibleMasterItems = useMemo(
     () => masterItems.filter((item) => item.status !== "restricted"),
@@ -2086,7 +2097,7 @@ export function MasterDataStatusSettings() {
     if (filter !== "all" && filter !== "missing" && filter !== "module" && filter !== "settings") {
       return [];
     }
-    return MASTER_DATA_GAPS.filter((item) => {
+    return gapItems.filter((item) => {
       const matchesFilter =
         filter === "all" ||
         filter === "missing" ||
@@ -2100,7 +2111,7 @@ export function MasterDataStatusSettings() {
         .toLowerCase()
         .includes(searchText);
     });
-  }, [filter, search]);
+  }, [filter, gapItems, search]);
 
   if (isLoading) {
     return (

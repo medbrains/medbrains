@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
-import { useAuthStore } from "@medbrains/stores";
+import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
 import { IconLock } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -79,6 +79,9 @@ export function ForcePasswordChangePage() {
       // Password change revokes every refresh token server-side —
       // a fresh login is required.
       useAuthStore.getState().clearAuth();
+      // Signed out: the next sign-in may be another hospital's, so drop this one's apps and rights.
+      useModuleStore.getState().clearModules();
+      usePermissionStore.getState().clearPermissions();
       void navigate("/login", { replace: true });
     },
   });
