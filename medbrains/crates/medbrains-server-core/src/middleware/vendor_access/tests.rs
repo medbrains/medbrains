@@ -1,7 +1,6 @@
 //! The pure halves of MedBrains access: what a scope opens, what a masked
 //! session sees, which addresses are vendor addresses, and how refusals are
 //! counted.
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};

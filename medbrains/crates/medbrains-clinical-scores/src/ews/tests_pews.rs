@@ -1,6 +1,5 @@
 //! PEWS (HQSC Aotearoa NZ 2023, Table 1): every zone edge of every age
 //! chart, the rows the four charts share, and the bands.
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use super::*;
 
