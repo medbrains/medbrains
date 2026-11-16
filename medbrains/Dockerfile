@@ -47,6 +47,9 @@ COPY apps/desktop/src-tauri/ apps/desktop/src-tauri/
 COPY .sqlx/ .sqlx/
 COPY docs/openapi.json docs/openapi.json
 COPY packages/privacy/ packages/privacy/
+# The release error reports carry (crates/medbrains-error-tracking): the
+# release workflow passes medbrains@<version>; unset, the crate version.
+ARG MEDBRAINS_RELEASE
 # The release profile already strips the binary.
 RUN cargo build --locked --release --bin medbrains-server
 

@@ -92,6 +92,25 @@ sha256sum -c SHA256SUMS
 gh attestation verify medbrains-server-linux-x64.tar.gz --repo medbrains/medbrains
 ```
 
+### Error tracking (Sentry)
+
+A tagged release is tracked in Sentry (org `medbrains`) so a crash report names the
+release it came from and its stack trace reads as source. Everything runs from
+`.github/workflows/release.yml`, only with the `SENTRY_AUTH_TOKEN` repository secret; without
+it every Sentry step is skipped, and a Sentry failure is a warning, never a failed release.
+
+| When | Job | What goes to Sentry |
+|---|---|---|
+| Tag | `build-frontend` | The web build's hidden source maps, project `medbrains-web` (the vite plugin in `apps/web/vite.config.ts`). The maps never ship in `web-dist`. |
+| Tag | `sentry` | Release `medbrains@<version>` in `medbrains`, `medbrains-web`, `medbrains-android`, `medbrains-ios` and `medbrains-desktop`, its commits (`set-commits --auto`), the Android R8 `mapping.txt` per app, and the iOS dSYMs from each archive. |
+| Publish | `sentry-deploy` | A `prod` deploy for the release, which is then finalized. |
+
+The server and desktop binaries are built with `strip = true` and no split debug info, so
+there are no Rust debug files to upload. The server, the web app and the Docker image all
+report the same release name, `MEDBRAINS_RELEASE` (`medbrains@<version>` on a tag; a hospital
+deploy's commit otherwise). What is uploaded is code maps and symbols only: no patient data,
+no configuration, no secrets. The sentry-cli binary is pinned by version and SHA-256 digest.
+
 ## 5. Accepted risks
 
 Sometimes an advisory cannot be fixed yet: no patched version upstream, or the vulnerable code is
