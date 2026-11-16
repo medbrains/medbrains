@@ -46,6 +46,8 @@ pub(crate) struct Session {
 }
 
 impl Session {
+    /// Feed bytes off the wire; returns the ACK/NAK replies to send and any
+    /// transmission completed by EOT, in order.
     pub(crate) fn feed(&mut self, bytes: &[u8]) -> Vec<Event> {
         self.pending.extend_from_slice(bytes);
         let mut events = Vec::new();

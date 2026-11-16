@@ -188,6 +188,7 @@ pub(crate) async fn send_pending(
     Ok(accepted_count)
 }
 
+/// Forever: send the analyzer its pending orders, then wait `every`.
 pub(crate) async fn poll_loop(
     client: &reqwest::Client,
     cfg: &BridgeConfig,

@@ -21,6 +21,7 @@ pub(crate) struct HeadscaleTransport {
 }
 
 impl HeadscaleTransport {
+    /// A Headscale tunnel to `login_server`, using the `tailscale` CLI on PATH.
     pub(crate) fn new(login_server: String, cloud_hostname_override: Option<String>) -> Self {
         Self {
             login_server,
@@ -29,6 +30,7 @@ impl HeadscaleTransport {
         }
     }
 
+    /// Use a stand-in tailscale binary, so tests need no real tunnel.
     #[cfg(test)]
     pub(crate) fn with_tailscale_bin(mut self, bin: impl Into<String>) -> Self {
         self.tailscale_bin = bin.into();

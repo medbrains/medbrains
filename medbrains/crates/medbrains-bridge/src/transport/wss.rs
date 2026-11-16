@@ -22,6 +22,7 @@ pub(crate) struct WssTransport {
 }
 
 impl WssTransport {
+    /// A transport that proxies through the bridge ingress at `bridge_ingress_url`.
     pub(crate) fn new(bridge_ingress_url: String) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))

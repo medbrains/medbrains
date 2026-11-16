@@ -10,6 +10,7 @@ pub(crate) struct MessageBuffer {
 }
 
 impl MessageBuffer {
+    /// Open (or create) the SQLite buffer at `path`.
     pub(crate) fn open(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch(
