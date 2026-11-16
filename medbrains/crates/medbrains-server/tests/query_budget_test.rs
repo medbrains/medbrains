@@ -18,14 +18,6 @@ type R<T> = Result<T, Box<dyn std::error::Error>>;
 /// The rows a test adds after its 1-row read, to reach 50.
 const MORE: i64 = 49;
 
-/// Statements the 50-row read may cost over the 1-row read (#5990).
-///
-/// A query per row costs `MORE` (49) extra. The invoice list once read 10
-/// statements at 1 row and 14 at 50 on a branch that did not touch billing, and
-/// passed everywhere else: background work, not the list. Half of `MORE` still
-/// fails any per-row query.
-const NOISE: u32 = 24;
-
 /// A signed-in admin plus the ids every seed needs.
 #[derive(Debug)]
 struct World {
@@ -112,7 +104,7 @@ async fn cost(w: &World, path: &str) -> R<(u32, Value)> {
     Ok((fewest, last))
 }
 
-/// Read `path` warm at 1 row and again at 50; 50 rows must cost no more, give or take `NOISE`.
+/// Read `path` warm at 1 row and again at 50; 50 rows must cost no more.
 ///
 /// The counts go to stderr so a run's log is the per-endpoint budget record.
 #[allow(clippy::print_stderr)]
@@ -136,7 +128,7 @@ async fn assert_flat(
     assert_eq!(rows(&body, key), 50, "{path} at 50 rows");
     eprintln!("query budget {path}: {one} statements at 1 row, {fifty} at 50");
     assert!(
-        fifty <= one + NOISE,
+        fifty <= one,
         "{path}: {one} statements at 1 row, {fifty} at 50 — a query per row"
     );
     Ok(())

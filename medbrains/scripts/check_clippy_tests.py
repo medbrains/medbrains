@@ -12,8 +12,10 @@ this landed, nearly all `expect_used` in test helpers. Integration-test crate
 roots now allow `expect`/`unwrap`/`panic`, as the repo's other test crates do;
 what is left is `scripts/clippy_tests.baseline.json`, counted per file and lint.
 
-A count above its baseline fails, and so does any error the baseline does not
-name, including a compile error. A count below its baseline also fails until the
+Counts are per file and lint, not per site: fixing one `expect` and adding
+another in the same file nets out and passes. A count above its baseline
+fails, and so does any error the baseline does not name, including a compile
+error (counted under its code, or `error` when rustc gives none). A count below its baseline also fails until the
 baseline is tightened with `--update`, so the slack cannot be spent again.
 `--update` only lowers counts and drops cleared entries; it never raises one.
 Raising a count means editing the JSON by hand, which the owner reviews.
@@ -101,6 +103,10 @@ def self_test() -> int:
     assert found == {"a.rs": {"clippy::expect_used": 1}}, found
     assert compare(found, {}) == (["  a.rs: clippy::expect_used x1 (baseline 0)"], [])
     assert compare({}, found) == ([], ["  a.rs: clippy::expect_used x0 (baseline 1)"])
+    bare = {"reason": "compiler-message", "message": {**msg["message"], "code": None}}
+    assert count_errors([json.dumps(bare)]) == {"a.rs": {"error": 1}}
+    assert compare(count_errors([json.dumps(bare)]), found)[0] == ["  a.rs: error x1 (baseline 0)"]
+    assert tighten(found, None) == found
     assert tighten({}, found) == {}
     assert tighten({"a.rs": {"clippy::expect_used": 5}}, found) == found
     print("check-clippy-tests: self-test passed")

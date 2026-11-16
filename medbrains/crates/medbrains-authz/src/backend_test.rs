@@ -3,7 +3,7 @@
 //! `Mutex::lock().expect("…poisoned")` is acceptable here: this backend is
 //! test-only, lock poisoning means a prior test thread panicked, and the
 //! correct response is to fail the next test loudly.
-#![allow(clippy::expect_used, clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use std::sync::Mutex;
@@ -234,6 +234,7 @@ impl AuthzBackend for InMemoryBackend {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
