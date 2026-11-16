@@ -10,7 +10,7 @@ import {
   TextInput,
   ThemeIcon,
 } from "@mantine/core";
-import { useHasPermission, useModuleStore, usePermissionStore } from "@medbrains/stores";
+import { useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type { CsvImportRequest, CsvImportResult } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -77,6 +77,7 @@ import { reportsService } from "@/services/reports.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { specialtyService } from "@/services/specialty.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
+import { type GapRow, gapPriority, useInstalledGaps } from "./master-data-gaps";
 
 interface MasterDataItem {
   key: string;
@@ -107,7 +108,7 @@ interface MasterDataCsvImport {
   permission: string;
 }
 
-interface MasterDataGapItem {
+interface MasterDataGapItem extends GapRow {
   key: string;
   label: string;
   module: string;
@@ -116,10 +117,6 @@ interface MasterDataGapItem {
   actionHref: string;
   actionLabel: string;
   icon: ReactNode;
-  priority?: "P0" | "P1" | "P2";
-  targetType?: "settings" | "module" | "governance";
-  /** The app the row's screen belongs to; the row is hidden while the hospital has it off. */
-  brick?: string;
 }
 
 type SettingsCleanupStatus = "keep" | "advanced" | "move" | "retired";
@@ -325,7 +322,7 @@ const SETTINGS_CLEANUP_DECISIONS: SettingsCleanupItem[] = [
   },
 ];
 
-const MASTER_DATA_GAPS: MasterDataGapItem[] = [
+export const MASTER_DATA_GAPS: MasterDataGapItem[] = [
   {
     key: "patient-categories",
     label: "Patient categories, identity and document types",
@@ -664,11 +661,6 @@ const MASTER_DATA_GAPS: MasterDataGapItem[] = [
   },
 ];
 
-/** The gap rows whose screen the hospital can open: a row for a switched-off app leads nowhere. */
-export function installedGaps(disabledModules: ReadonlySet<string>): MasterDataGapItem[] {
-  return MASTER_DATA_GAPS.filter((item) => !item.brick || !disabledModules.has(item.brick));
-}
-
 function isMasterDataFilter(value: string): value is MasterDataFilter {
   return MASTER_DATA_FILTER_OPTIONS.some((option) => option.value === value);
 }
@@ -704,10 +696,6 @@ function masterCountText(item: MasterDataItem) {
   if (item.status === "restricted") return "Restricted";
   if (item.status === "error") return "Error";
   return String(item.count ?? 0);
-}
-
-function gapPriority(item: MasterDataGapItem) {
-  return item.priority ?? "P1";
 }
 
 function gapPriorityColor(priority: NonNullable<MasterDataGapItem["priority"]>) {
@@ -762,8 +750,8 @@ export function MasterDataStatusSettings() {
   const [importItem, setImportItem] = useState<MasterDataItem | null>(null);
   // A selector, not the hook: the import permission is read per row inside a map.
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
-  const disabledModules = useModuleStore((state) => state.disabledModules);
-  const gapItems = useMemo(() => installedGaps(disabledModules), [disabledModules]);
+  const { gapItems, missingP0Count, missingSettingsTargetCount, p0GapItems } =
+    useInstalledGaps(MASTER_DATA_GAPS);
   const canManageGeneralSettings = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const canViewFacilities = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.LIST);
   const canViewPharmacyCatalog = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
@@ -2036,10 +2024,6 @@ export function MasterDataStatusSettings() {
     [masterItems],
   );
   const missingMasterCount = gapItems.length;
-  const missingP0Count = gapItems.filter((item) => gapPriority(item) === "P0").length;
-  const missingSettingsTargetCount = gapItems.filter(
-    (item) => item.targetType === "settings" || item.targetType === "governance",
-  ).length;
   const settingsOwnedAttentionItems = useMemo(
     () =>
       masterItems
@@ -2061,10 +2045,6 @@ export function MasterDataStatusSettings() {
         )
         .slice(0, 5),
     [masterItems],
-  );
-  const p0GapItems = useMemo(
-    () => gapItems.filter((item) => gapPriority(item) === "P0").slice(0, 8),
-    [gapItems],
   );
   const visibleMasterItems = useMemo(
     () => masterItems.filter((item) => item.status !== "restricted"),

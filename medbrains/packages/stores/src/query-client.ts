@@ -1,7 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "./auth-store.js";
-import { useModuleStore } from "./module-store.js";
-import { usePermissionStore } from "./permission-store.js";
+import { clearSession } from "./session.js";
 
 export interface QueryClientCallbacks {
   /**
@@ -12,15 +10,10 @@ export interface QueryClientCallbacks {
   onMutationError?: (error: Error) => void;
 }
 
-/**
- * An expired session signs the user out. The app and permission stores go with it, so the next
- * person to sign in on this workstation never sees this session's apps or rights while theirs load.
- */
+/** An expired session signs the user out of every store (see `clearSession`). */
 function handleGlobalError(error: Error): void {
   if (error.message === "session_expired") {
-    useAuthStore.getState().clearAuth();
-    useModuleStore.getState().clearModules();
-    usePermissionStore.getState().clearPermissions();
+    clearSession();
   }
 }
 

@@ -567,6 +567,7 @@ export function AuthedRoutes() {
           <Route path="telemedicine" element={<TelemedicinePage />} />
           <Route path="chronic-care" element={<ChronicCarePage />} />
           <Route path="scheduling" element={<SchedulingPage />} />
+          <Route path="admin/doctor-schedules" element={<DoctorSchedulesPage />} />
         </Route>
         <Route path="order-sets" element={<OrderSetsPage />} />
         <Route path="lab" element={<LabPage />} />
@@ -733,17 +734,10 @@ export function AuthedRoutes() {
           <Route path="forms" element={<FormTemplatesPage />} />
           <Route path="webhooks" element={<WebhooksPage />} />
           <Route
-            path="integration-builder"
-            element={<Navigate to="/admin/integration-hub" replace />}
-          />
-          <Route
-            path="integration-builder/:id"
+            path="integration-builder/*"
             element={<Navigate to="/admin/integration-hub" replace />}
           />
           <Route path="tv-displays" element={<TvDisplaysPage />} />
-          <Route element={<AppRoute brick="opd" />}>
-            <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
-          </Route>
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="devices" element={<DevicesPage />} />
           <Route path="paired-devices" element={<PairedDevicesPage />} />

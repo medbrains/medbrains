@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { installedGaps } from "./MasterDataStatusSettings";
+import { MASTER_DATA_GAPS } from "./MasterDataStatusSettings";
+import { installedGaps } from "./master-data-gaps";
 
+const gaps = (disabled: string[]) => installedGaps(MASTER_DATA_GAPS, new Set(disabled));
 const scheduleRows = (disabled: string[]) =>
-  installedGaps(new Set(disabled)).filter((item) => item.actionHref === "/admin/doctor-schedules");
+  gaps(disabled).filter((item) => item.actionHref === "/admin/doctor-schedules");
 
 describe("installedGaps", () => {
   it("lists the doctor-schedule setup rows while the hospital has the EMR", () => {
@@ -11,6 +13,6 @@ describe("installedGaps", () => {
 
   it("hides the doctor-schedule rows while the EMR is off, since their screen will not open", () => {
     expect(scheduleRows(["opd"])).toHaveLength(0);
-    expect(installedGaps(new Set(["opd"])).length).toBe(installedGaps(new Set()).length - 2);
+    expect(gaps(["opd"]).length).toBe(gaps([]).length - 2);
   });
 });

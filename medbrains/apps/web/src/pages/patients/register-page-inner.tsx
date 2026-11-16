@@ -3,7 +3,6 @@
 import { Card, Divider, Grid, Group, Modal, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type { PatientRegistrationInitialValues } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -35,6 +34,7 @@ import { patientsService } from "@/services/patients.service";
 import type { ScanShareRegistrationState } from "../front-office/scan-share-tab";
 import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow";
 import classes from "../patients.module.scss";
+import { campRegistrationValues } from "./campRegistration";
 import { DuplicateMatchTable } from "./DuplicateMatchTable";
 import { registrationAction } from "./registrationGate";
 
@@ -142,17 +142,8 @@ export function PatientRegisterPageInner() {
   const registrationModeLabel = isCampRegistration
     ? (selectedCamp?.name ?? t("registrationPage.mode.camp"))
     : t("registrationPage.mode.hospital");
-  const campInitialValues: PatientRegistrationInitialValues | undefined = isCampRegistration
-    ? {
-        registration_type: "camp",
-        registration_source: "camp",
-        camp_id: sourceCampId,
-        camp_name: selectedCamp?.name,
-        department_id: selectedCamp?.organizing_department_id ?? undefined,
-        referred_by_facility: selectedCamp?.venue_name ?? selectedCamp?.name,
-        create_opd_visit: opdOn,
-        open_opd_after_registration: opdOn,
-      }
+  const campInitialValues = isCampRegistration
+    ? campRegistrationValues(sourceCampId, selectedCamp, opdOn)
     : undefined;
   const shareProfile = scanShare?.step.profile;
   const initialValues = shareProfile ? shareRegistrationValues(shareProfile) : campInitialValues;

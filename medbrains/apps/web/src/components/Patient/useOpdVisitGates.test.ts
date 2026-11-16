@@ -14,19 +14,27 @@ describe("useOpdVisitGates", () => {
       .getState()
       .setPermissions("receptionist", ["opd.visit.create", "opd.visit.update"]);
     const { result } = renderHook(() => useOpdVisitGates());
-    expect(result.current).toEqual({ canCreateOpdVisit: true, canWorkOpdVisit: true });
+    expect(result.current).toEqual({ opdOn: true, canCreateOpdVisit: true, canWorkOpdVisit: true });
   });
 
   it("never creates an OPD visit while the hospital has the EMR off, even for an admin", () => {
     usePermissionStore.getState().setPermissions("super_admin", []);
     useModuleStore.getState().setDisabledModules(["opd"]);
     const { result } = renderHook(() => useOpdVisitGates());
-    expect(result.current).toEqual({ canCreateOpdVisit: false, canWorkOpdVisit: false });
+    expect(result.current).toEqual({
+      opdOn: false,
+      canCreateOpdVisit: false,
+      canWorkOpdVisit: false,
+    });
   });
 
   it("queues without opening the visit when the user may not update it", () => {
     usePermissionStore.getState().setPermissions("receptionist", ["opd.visit.create"]);
     const { result } = renderHook(() => useOpdVisitGates());
-    expect(result.current).toEqual({ canCreateOpdVisit: true, canWorkOpdVisit: false });
+    expect(result.current).toEqual({
+      opdOn: true,
+      canCreateOpdVisit: true,
+      canWorkOpdVisit: false,
+    });
   });
 });
