@@ -3,6 +3,8 @@ import { P } from "@medbrains/types";
 
 /** Whether registration may queue an OPD visit, and whether it may open that visit afterwards. */
 export interface OpdVisitGates {
+  /** The hospital has the EMR switched on. */
+  opdOn: boolean;
   canCreateOpdVisit: boolean;
   canWorkOpdVisit: boolean;
 }
@@ -18,6 +20,7 @@ export function useOpdVisitGates(): OpdVisitGates {
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
   return {
+    opdOn,
     canCreateOpdVisit: opdOn && canCreate,
     canWorkOpdVisit: opdOn && canCreate && canUpdate,
   };
