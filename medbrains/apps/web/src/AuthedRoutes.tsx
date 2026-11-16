@@ -1,5 +1,6 @@
 import { lazy } from "react";
 import { Navigate, Route, Routes } from "react-router";
+import { AppRoute } from "./components/AppRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SpotlightProvider } from "./components/SpotlightProvider";
 import { AppLayout } from "./layouts/AppLayout";
@@ -554,13 +555,21 @@ export function AuthedRoutes() {
         <Route path="patients/group-identity" element={<GroupIdentityQueuePage />} />
         <Route path="patients/:id/edit" element={<PatientEditPage />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />
-        <Route path="opd" element={<OpdPage />} />
-        <Route path="opd/new" element={<OpdNewVisitPage />} />
-        <Route path="opd/encounters/:encounterId" element={<OpdEncounterPage />} />
-        <Route path="opd/queue/:queueEntryId/vitals" element={<OpdVitalsPage />} />
-        <Route path="opd/appointments" element={<AppointmentsPage />} />
-        <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
-        <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
+        {/* EMR: only while the hospital has the app switched on. */}
+        <Route element={<AppRoute brick="opd" />}>
+          <Route path="opd" element={<OpdPage />} />
+          <Route path="opd/new" element={<OpdNewVisitPage />} />
+          <Route path="opd/encounters/:encounterId" element={<OpdEncounterPage />} />
+          <Route path="opd/queue/:queueEntryId/vitals" element={<OpdVitalsPage />} />
+          <Route path="opd/appointments" element={<AppointmentsPage />} />
+          <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
+          <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
+          <Route path="telemedicine" element={<TelemedicinePage />} />
+          <Route path="chronic-care" element={<ChronicCarePage />} />
+          <Route path="scheduling" element={<SchedulingPage />} />
+          <Route path="admin/doctor-schedules" element={<DoctorSchedulesPage />} />
+        </Route>
+        <Route path="order-sets" element={<OrderSetsPage />} />
         <Route path="lab" element={<LabPage />} />
         <Route path="lab/dispatch/new" element={<LabDispatchCreatePage />} />
         <Route path="lab/orders/new" element={<LabOrderCreatePage />} />
@@ -607,7 +616,6 @@ export function AuthedRoutes() {
         <Route path="communications" element={<CommunicationsPage />} />
         <Route path="camp" element={<CampPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
-        <Route path="telemedicine" element={<TelemedicinePage />} />
         <Route path="camp/new" element={<CampCreatePage />} />
         <Route path="camp/:campId" element={<CampDetailPage />} />
         <Route path="camp/:campId/work" element={<CampWorkPage />} />
@@ -650,13 +658,10 @@ export function AuthedRoutes() {
         <Route path="regulatory" element={<RegulatoryPage />} />
         <Route path="privacy-compliance" element={<PrivacyCompliancePage />} />
         <Route path="privacy-compliance/notice" element={<PrivacyNoticePrintPage />} />
-        <Route path="order-sets" element={<OrderSetsPage />} />
-        <Route path="chronic-care" element={<ChronicCarePage />} />
         <Route path="occupational-health" element={<OccupationalHealthPage />} />
         <Route path="immunization-clinic" element={<ImmunizationClinicPage />} />
         <Route path="utilization-review" element={<UtilizationReviewPage />} />
         <Route path="case-management" element={<CaseManagementPage />} />
-        <Route path="scheduling" element={<SchedulingPage />} />
         <Route path="lms" element={<LmsPage />} />
         <Route path="retrospective" element={<RetrospectivePage />} />
         <Route path="specialty">
@@ -729,15 +734,10 @@ export function AuthedRoutes() {
           <Route path="forms" element={<FormTemplatesPage />} />
           <Route path="webhooks" element={<WebhooksPage />} />
           <Route
-            path="integration-builder"
-            element={<Navigate to="/admin/integration-hub" replace />}
-          />
-          <Route
-            path="integration-builder/:id"
+            path="integration-builder/*"
             element={<Navigate to="/admin/integration-hub" replace />}
           />
           <Route path="tv-displays" element={<TvDisplaysPage />} />
-          <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="devices" element={<DevicesPage />} />
           <Route path="paired-devices" element={<PairedDevicesPage />} />

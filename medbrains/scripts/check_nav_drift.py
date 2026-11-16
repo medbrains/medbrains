@@ -29,6 +29,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCREENS_RS = ROOT / "crates/medbrains-core/src/access/screens.rs"
 NAV_TS = ROOT / "apps/web/src/config/navigation.ts"
+APP_SCREENS_TS = ROOT / "packages/types/src/app-screens.generated.ts"
+APP_SCREEN_RE = re.compile(
+    r'\{ brick: "([^"]+)", path: "([^"]+)", labelKey: "[^"]+", icon: "[^"]+", '
+    r'permission: "([^"]+)", anyOf: \[([^\]]*)\] \}'
+)
 
 
 def parse_screens_rs() -> list[dict]:
@@ -70,10 +75,20 @@ def parse_navigation_ts() -> list[dict]:
             "requiredPermission": perm_m.group(1) if perm_m else None,
             "requiredPermissions": any_of,
         })
+    out.extend(
+        {"path": path, "requiredPermission": perm, "requiredPermissions": re.findall(r'"([^"]+)"', any_of)}
+        for _brick, path, perm, any_of in parse_app_screens_ts()
+    )
     return out
 
 
+def parse_app_screens_ts() -> list[tuple[str, str, str, str]]:
+    """The converted apps' menu entries, which navigation.ts spreads in from the generated copy."""
+    return APP_SCREEN_RE.findall(APP_SCREENS_TS.read_text())
+
+
 def main() -> int:
+    """Fail when a SCREENS row has no menu entry, or its menu entry asks for another permission."""
     fix = "--fix" in sys.argv
 
     screens = parse_screens_rs()

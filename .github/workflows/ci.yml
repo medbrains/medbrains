@@ -214,6 +214,11 @@ jobs:
         run: |
           python3 medbrains/scripts/check_query_in_loop.py --self-test
           python3 medbrains/scripts/check_query_in_loop.py --check
+      # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
+      - name: Rust functions and files only shrink
+        run: |
+          python3 medbrains/scripts/check_rust_size.py --self-test
+          python3 medbrains/scripts/check_rust_size.py
       # Apps reach tenancy, authz, audit, sequences, storage and config only
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
@@ -232,6 +237,14 @@ jobs:
         run: |
           python3 medbrains/scripts/check_size_budgets.py --self-test
           python3 medbrains/scripts/check_size_budgets.py
+      # The converted apps' menu entries come from the one screen registry; a stale copy would
+      # show the web screens screens.rs no longer lists, and a nav entry whose permission differs
+      # from its screen's shows a menu item the screen then refuses.
+      - name: App screens copy is current and the menu matches the screen registry
+        run: |
+          python3 medbrains/scripts/generate_app_screens.py --self-test
+          python3 medbrains/scripts/generate_app_screens.py --check
+          python3 medbrains/scripts/check_nav_drift.py
       # The committed MedBrains Sans files must be exactly what the pinned build makes, so nobody
       # edits a font by hand and the IBM Plex source stays recorded.
       - name: Committed fonts match their build

@@ -78,6 +78,7 @@ import { CampaignSelect } from "./CampaignSelect";
 import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
 import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
 import { LocalNameRow } from "./LocalNameRow";
+import { useOpdVisitGates } from "./useOpdVisitGates";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
@@ -313,13 +314,11 @@ export function PatientRegisterForm({
   // `opd.visit.create` — which registering a patient does not imply. Without it
   // the patient was registered, the queue step failed into a warning, and the
   // patient simply was not in the queue. Every time, because it is the default.
-  const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
   // Opening the visit after registering only helps someone who works the
   // visit. A front desk that may queue a patient but not update the visit was
   // dropped on the doctor's workup screen, every read on it refused, with no
-  // way to print the patient's card from there.
-  const canUpdateOpdVisit = useHasPermission(P.OPD.VISIT_UPDATE);
-  const canWorkOpdVisit = canCreateOpdVisit && canUpdateOpdVisit;
+  // way to print the patient's card from there. Both are off while the EMR is.
+  const { canCreateOpdVisit, canWorkOpdVisit } = useOpdVisitGates();
   const canVerifyAbha = useHasPermission(P.ABDM.ABHA.MANAGE);
   const {
     register,

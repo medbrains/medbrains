@@ -16,7 +16,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
-import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
+import { clearSession, useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
 import {
   IconLanguage,
   IconLayoutSidebarLeftCollapse,
@@ -140,7 +140,6 @@ export function AppLayout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const clearAuth = useAuthStore((s) => s.clearAuth);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
   // Select the set, not the stable `isModuleEnabled` function, so the menu re-renders when a
   // brick is switched on or off.
@@ -173,7 +172,7 @@ export function AppLayout() {
     } catch {
       // ignore
     }
-    clearAuth();
+    clearSession();
     // Wipe the in-memory query cache — it holds PHI/clinical data from this
     // session. Without this, the next user on a shared workstation could be
     // served the previous user's cached records before a refetch.
