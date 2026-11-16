@@ -7,7 +7,7 @@ fallback until this has been used for a while.
 | Service | Runs as | Listens on (127.0.0.1 only) | Data |
 |---|---|---|---|
 | PostgreSQL 17 | Homebrew `postgresql@17` | **5436** (Docker used 5435, the test cluster uses 54317) | `~/.local/share/medbrains-dev/pg17` |
-| SpiceDB v1.56.0 | official release binary | gRPC 50051, metrics 9091 | the `spicedb` database in the cluster above |
+| SpiceDB v1.56.0 | official release binary | gRPC 50051, HTTP API 8453, metrics 9091 | the `spicedb` database in the cluster above |
 | rustenberg | the PDF renderer from the rustenberg repo (Gotenberg-compatible) | 3005 (Gotenberg's old dev port) | none |
 | Stalwart v0.15.5 | official release binary | SMTP 1587 / 1465, IMAPS 1993, admin + JMAP https 8086 | `~/.local/share/medbrains-dev/stalwart` |
 | Headscale v0.23.0 (opt-in) | official release binary | 8089, STUN 3478/udp | `~/.local/share/medbrains-dev/headscale` |

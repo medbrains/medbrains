@@ -105,7 +105,8 @@ start_postgres() {
   echo "postgres: ready on 127.0.0.1:$PG_PORT"
 }
 
-# Migrate SpiceDB's datastore to head, then serve gRPC on 50051.
+# Migrate SpiceDB's datastore to head, then serve gRPC on 50051 and the
+# HTTP API on 8453 (compose's host port for it), handy for curl checks.
 start_spicedb() {
   [[ -x "$BIN/spicedb" ]] || die "spicedb missing in $BIN (docs/DEV-SETUP.md, step 1)"
   if ! is_running spicedb; then
@@ -113,13 +114,14 @@ start_spicedb() {
       --datastore-conn-uri="$SPICEDB_URI" >>"$LOGS/spicedb.log" 2>&1 \
       || die "spicedb migrate failed; see $LOGS/spicedb.log"
     spawn spicedb "$BIN/spicedb" serve --grpc-preshared-key="$SPICEDB_TOKEN" \
-      --grpc-addr=127.0.0.1:50051 --datastore-engine=postgres \
+      --grpc-addr=127.0.0.1:50051 --http-enabled --http-addr=127.0.0.1:8453 \
+      --datastore-engine=postgres \
       --datastore-conn-uri="$SPICEDB_URI" --metrics-addr=127.0.0.1:9091 \
       --dispatch-cluster-enabled=false --telemetry-endpoint=""
   fi
   wait_until 30 curl -sf http://127.0.0.1:9091/metrics || die "spicedb not ready; see $LOGS/spicedb.log"
   wait_until 15 nc -z 127.0.0.1 50051 || die "spicedb gRPC not listening; see $LOGS/spicedb.log"
-  echo "spicedb: ready on 127.0.0.1:50051"
+  echo "spicedb: ready on 127.0.0.1:50051 (HTTP API 8453)"
 }
 
 # The repo's Gotenberg-compatible PDF renderer, on Gotenberg's dev port.
@@ -234,6 +236,9 @@ stop_one() {
   fi
   if is_running "$name"; then
     local pid; pid="$(cat "$RUN/$name.pid")"
+    # rustenberg's headless Chrome outlives a TERM to its parent, so stop the
+    # children first (Chrome's own helpers exit with it).
+    pkill -TERM -P "$pid" 2>/dev/null || true
     kill -TERM "$pid"
     wait_until 20 bash -c "! kill -0 $pid" || echo "$name: still running after 20s (pid $pid)"
     echo "$name: stopped"
