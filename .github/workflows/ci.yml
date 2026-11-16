@@ -17,6 +17,8 @@
 #
 # The `continue-on-error` jobs are the backlog. Each should become blocking as
 # its debt is paid; none should be deleted to make this file look better.
+# Rust clippy and Rust tests were paid off and block since #5978; test-target
+# clippy errors are a ratchet that only falls (scripts/check_clippy_tests.py).
 
 name: CI
 
@@ -392,7 +394,6 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     name: "Rust clippy"
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: medbrains
@@ -416,6 +417,14 @@ jobs:
       # Denied lints fail on their own; pedantic and nursery are warnings by
       # project policy (ENGINEERING.md), so -D warnings would overrule it.
       - run: cargo clippy --locked --workspace --exclude medbrains-desktop
+      # Test targets: no new denied lint, and the baseline only falls (#5978).
+      # cargo exits non-zero on the baseline's own errors; the script decides.
+      - name: Clippy on test targets (ratchet)
+        run: |
+          python3 scripts/check_clippy_tests.py --self-test
+          { cargo clippy --locked --workspace --exclude medbrains-desktop --all-targets \
+              --keep-going --message-format=json || true; } |
+            python3 scripts/check_clippy_tests.py
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -463,7 +472,6 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     name: "Rust tests"
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
       # The per-test summary check run.
@@ -484,7 +492,8 @@ jobs:
             medbrains/target
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
 
-      # Non-blocking until it has been seen to pass on a runner.
+      # Blocking since #5978. A test that flakes is fixed, or quarantined by name in
+      # .config/nextest.toml with its issue; never left to fail here.
       # CUPS headers and PostgreSQL 17 for the integration suite (no Docker, per the OS rule).
       - name: System packages and PostgreSQL
         run: bash scripts/ci_postgres.sh
