@@ -24,7 +24,6 @@ import {
   IconLogout,
   IconSearch,
   IconSettings,
-  IconStar,
   IconUser,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,10 +57,13 @@ import {
   type NavItemConfig,
   resolveIcon,
 } from "@/config/navigation";
+import { usePanelFavourites } from "@/features/launcher/usePanelFavourites";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
+import { FavouriteStar } from "./FavouriteStar";
 import { OnDemandOverlays } from "./OnDemandOverlays";
+import { PanelFavouritesGroup } from "./PanelFavourites";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
@@ -109,31 +111,11 @@ function groupLabelKey(key: string) {
   return entry?.[1] ?? key;
 }
 
-const FAVORITES_STORAGE_KEY = "medbrains.favnav";
-
-function storedFavorites(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(FAVORITES_STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [favorites, setFavorites] = useState<string[]>(storedFavorites);
-
-  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
-  const toggleFavorite = useCallback((path: string) => {
-    setFavorites((prev) => {
-      const next = prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path];
-      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  // The same starred list as the launcher, kept on the server for the person.
+  const favourites = usePanelFavourites();
 
   const location = useLocation();
   const isWorkspace = location.pathname === "/assistant";
@@ -384,7 +366,6 @@ export function AppLayout() {
     }
 
     const active = isLeafActive(item.path);
-    const pinned = favoriteSet.has(item.path);
     return (
       <NavLink
         key={item.path}
@@ -393,27 +374,7 @@ export function AppLayout() {
         label={item.label}
         style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         leftSection={<span className={classes.navIcon}>{item.icon}</span>}
-        rightSection={
-          <Tooltip label={pinned ? "Unpin" : "Pin to favorites"} withArrow openDelay={400}>
-            <ActionIcon
-              component="div"
-              role="button"
-              tabIndex={-1}
-              size="sm"
-              variant="subtle"
-              color={pinned ? "warning" : "gray"}
-              className={pinned ? classes.favStarOn : classes.favStar}
-              aria-label={pinned ? "Unpin from favorites" : "Pin to favorites"}
-              onClick={(event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                toggleFavorite(item.path);
-              }}
-            >
-              <IconStar size={13} fill={pinned ? "currentColor" : "none"} />
-            </ActionIcon>
-          </Tooltip>
-        }
+        rightSection={<FavouriteStar path={item.path} favourites={favourites} />}
         active={active}
         aria-current={active ? "page" : undefined}
         onFocus={() => handleNavigationIntent(item.path)}
@@ -434,19 +395,17 @@ export function AppLayout() {
       .filter((g) => g.items.length > 0);
 
     const favoriteItems = allLeafItems.filter(
-      (item) => favoriteSet.has(item.path) && filterItem(item),
+      (item) => favourites.isStarred(item.path) && filterItem(item),
     );
 
     if (isExpanded) {
       return (
         <>
-          {favoriteItems.length > 0 && (
-            <div>
-              <Text className={classes.navGroupLabel}>{t("groupFavorites")}</Text>
-              {favoriteItems.map(renderExpandedItem)}
-              <Divider my={4} className={classes.railDivider} />
-            </div>
-          )}
+          <PanelFavouritesGroup
+            items={favoriteItems}
+            isError={favourites.isError}
+            renderItem={renderExpandedItem}
+          />
           {groups.map((group, gi) => (
             <div key={group.key}>
               {gi > 0 && <Divider my={4} className={classes.railDivider} />}
@@ -497,7 +456,7 @@ export function AppLayout() {
               wrap="nowrap"
               miw={0}
               className={classes.logoArea}
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/home")}
             >
               <Brand surface="header" />
             </Group>
