@@ -89,7 +89,10 @@ def strip(text: str) -> str:
 
 
 def item_end(code: str, i: int) -> int:
-    """The index just past the item starting at `i`: its closing brace, or its `;` outside brackets."""
+    """The index just past the item starting at `i`: its closing brace, or its `;` outside brackets.
+
+    A field, variant or match arm ends at its `,`, or just before the `}` that encloses it.
+    """
     braces = parens = 0
     for j in range(i, len(code)):
         c = code[j]
@@ -101,11 +104,42 @@ def item_end(code: str, i: int) -> int:
             braces += 1
         elif c == "}":
             braces -= 1
+            if braces < 0:
+                return j
             if braces == 0:
                 return j + 1
-        elif c == ";" and braces == 0 and parens == 0:
+        elif c in ";," and braces == 0 and parens == 0:
             return j + 1
     return len(code)
+
+
+def enclosing_brace(code: str, i: int) -> int:
+    """The index of the unmatched `{` before `i`, or -1 at the top level."""
+    depth = 0
+    for j in range(i - 1, -1, -1):
+        if code[j] == "}":
+            depth += 1
+        elif code[j] == "{":
+            if depth == 0:
+                return j
+            depth -= 1
+    return -1
+
+
+def skip_inner_test_modules(code: str) -> str | None:
+    """`code` with each `#![cfg(test)]` module body blanked, or None when the whole file is test.
+
+    It is file-wide only before the first item; inside `mod t { … }` it covers that module alone.
+    """
+    marker = "#![cfg(test)]"
+    while (i := code.find(marker)) >= 0:
+        if re.fullmatch(r"(?:\s|#!\[[^\]]*\])*", code[:i]):
+            return None
+        start = enclosing_brace(code, i)
+        j = item_end(code, start) - 1 if start >= 0 else i + len(marker)
+        start = start + 1 if start >= 0 else i
+        code = code[:start] + "\n" * code.count("\n", start, j) + code[j:]
+    return code
 
 
 def non_test_lines(code: str) -> list[str]:
@@ -114,7 +148,8 @@ def non_test_lines(code: str) -> list[str]:
     Only the item the attribute applies to is skipped, so code after a test module still counts.
     A file-wide `#![cfg(test)]` is test code throughout.
     """
-    if "#![cfg(test)]" in code:
+    code = skip_inner_test_modules(code)
+    if code is None:
         return []
     marker = "#[cfg(test)]"
     while (i := code.find(marker)) >= 0:
@@ -264,6 +299,15 @@ def self_test() -> None:
     test_fn = "#[cfg(test)]\nfn helper(x: [u8; 4]) {\n" + long_body + "\n}\nfn real() {\n" + long_body + "\n}\n"
     assert excess_of(test_fn) == 10, "only the one cfg(test) fn is skipped"
     assert excess_of("#[cfg(test)]\nuse std::fmt;\nfn real() {\n" + long_body + "\n}\n") == 10
+    tail = "fn real() {\n" + long_body + "\n}\n"
+    field = "struct A {\n    #[cfg(test)]\n    x: u8,\n    y: u8,\n}\n"
+    assert excess_of(field + tail) == 10, "a cfg(test) field ends at its comma"
+    assert excess_of("struct B {\n    #[cfg(test)]\n    x: u8\n}\n" + tail) == 10, "or at the enclosing brace"
+    variant = "enum E {\n    #[cfg(test)]\n    T(u8),\n    R,\n}\n"
+    assert excess_of(variant + tail) == 10, "a cfg(test) variant ends at its comma"
+    inner = "mod t {\n    #![cfg(test)]\n    fn x() {\n" + long_body + "\n    }\n}\n"
+    assert excess_of(inner + tail) == 10, "an inner #![cfg(test)] skips only its module"
+    assert non_test_lines("#![allow(x)]\n#![cfg(test)]\nfn a() {}\n") == [], "file-wide before the first item"
     assert excess_of('pub extern "C" fn c() {\n' + long_body + "\n}\n") == 10, "extern \"C\" fn counts"
     assert excess_of("extern fn c() {\n" + long_body + "\n}\n") == 10, "extern fn counts"
     assert excess_of("default fn d() {\n" + long_body + "\n}\n") == 10, "default fn counts"
