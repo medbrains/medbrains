@@ -45,7 +45,7 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Language | Rust (edition 2024, MSRV 1.95; toolchain pinned 1.100.0) |
+| Language | Rust (edition 2024, MSRV 1.97.1; toolchain pinned 1.100.0) |
 | Web framework | Axum 0.8 + Tower 0.5 |
 | Async runtime | Tokio 1.54.1+ (full features; 1.54.0 is yanked and denied) |
 | Serialization | serde + serde_json |
