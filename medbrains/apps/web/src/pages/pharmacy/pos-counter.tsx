@@ -47,6 +47,7 @@ import { CounterDrawer, useActiveCashDrawer } from "./counter-drawer";
 import { CounterPatientSelect } from "./counter-patient-select";
 import { CounterReturnPolicy } from "./counter-return-policy";
 import { CounterRxFields } from "./counter-rx-fields";
+import { CounterSafetyBlock } from "./counter-safety-block";
 import { CounterSettings } from "./counter-settings";
 import {
   type CounterRx,
@@ -793,36 +794,12 @@ export function PosCounterTab({
             )}
 
             {safetyBlock && (
-              <Alert
-                tone="danger"
-                icon={<IconAlertTriangle size={16} />}
-                title="Stopped by the medication safety check"
-                mb="sm"
-              >
-                <Stack gap={4}>
-                  <Text size="sm">{safetyBlock}</Text>
-                  {canOverrideSafety ? (
-                    <Textarea
-                      label="Override reason"
-                      required
-                      autosize
-                      minRows={2}
-                      value={safetyReason}
-                      onChange={(e) => setSafetyReason(e.currentTarget.value)}
-                      error={
-                        safetyReason.trim().length < 5
-                          ? "A clinical reason (≥5 chars) is needed to sell past this"
-                          : undefined
-                      }
-                    />
-                  ) : (
-                    <Text size="sm">
-                      Only a pharmacist with override rights can sell this. Change the basket or ask
-                      them.
-                    </Text>
-                  )}
-                </Stack>
-              </Alert>
+              <CounterSafetyBlock
+                message={safetyBlock}
+                canOverride={canOverrideSafety}
+                reason={safetyReason}
+                onReasonChange={setSafetyReason}
+              />
             )}
 
             {cart.length > 0 && (
