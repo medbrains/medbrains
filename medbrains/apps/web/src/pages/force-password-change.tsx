@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
-import { useAuthStore } from "@medbrains/stores";
+import { clearSession, useAuthStore } from "@medbrains/stores";
 import { IconLock } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -78,7 +78,7 @@ export function ForcePasswordChangePage() {
     onSuccess: () => {
       // Password change revokes every refresh token server-side —
       // a fresh login is required.
-      useAuthStore.getState().clearAuth();
+      clearSession();
       void navigate("/login", { replace: true });
     },
   });

@@ -8,3 +8,8 @@ test-threads = 1
 
 [profile.ci.junit]
 path = "junit.xml"
+
+# Quarantine (#5978): CI's Rust tests block merges, so a test that flakes is fixed or
+# listed here by exact name with its issue, never skipped quietly. Empty today: the two
+# failures seen on 2026-11-14..16 were fixed (#5989, #5990). To quarantine, add under
+# [profile.ci]:  default-filter = "not test(=module::test_name)"  # #issue
