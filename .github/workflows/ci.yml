@@ -231,6 +231,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_kernel_no_domain.py --self-test
           python3 medbrains/scripts/check_kernel_no_domain.py
+      # A crate without `[lints] workspace = true` escapes every denied lint
+      # (unwrap, panic, print); eleven did, authz-gate and signing among them (#5976).
+      - name: Every crate inherits the workspace lints
+        run: |
+          python3 medbrains/scripts/check_lints_inheritance.py --self-test
+          python3 medbrains/scripts/check_lints_inheritance.py
       # Kernel lines and dependencies, package and crate counts. Reads files only.
       # This job has no web build, so the web job re-runs it for first-load JS.
       - name: Size budgets hold
