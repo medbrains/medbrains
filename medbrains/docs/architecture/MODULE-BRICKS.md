@@ -63,6 +63,12 @@ Setup asks which apps the hospital needs, and installs only those bricks with th
 - **Can grow later:** adding an app from the Software Center (O14) installs its brick and dependencies on the machines whose roles fit, with no reinstall.
 - **Shows the same everywhere:** web, OS launcher, edge machines and native apps all read the one installed set, then the person's permissions.
 
+## The web launcher (2026-11-16)
+
+The web home after sign-in is `/home` (`apps/web/src/pages/launcher.tsx`). It shows the person's **Favourites**, then **Your apps**: one tile per brick in which they can open at least one screen, named from `bricks.rs` (served by `GET /api/users/me/launcher`). A screen counts by the side panel's rule, `isItemVisible` in `apps/web/src/features/launcher/launcherModel.ts`: its permission, any one of its alternative permissions, its brick on, and its parent entry visible. Apps the person cannot use are hidden, never greyed. Someone with exactly one app goes straight into it.
+
+Favourites are stored per person on the server (`user_favourite_screens`, tenant RLS plus `user_id`), starred from the side panel and unstarred on the launcher. A star on a screen the person has lost access to stays stored but is not shown, and it returns with the access. Still to come: Waiting for you, Recent patients, and the one top bar.
+
 ## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
 
 Some screens gather work from several apps: the patient record shows EMR, Billing, Lab and Pharmacy tabs. Each of those tabs belongs to its own brick, and is plugged in, never imported:

@@ -58,6 +58,7 @@ import {
   type NavItemConfig,
   resolveIcon,
 } from "@/config/navigation";
+import { useLauncherData, useToggleFavourite } from "@/features/launcher/useFavourites";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
@@ -109,31 +110,15 @@ function groupLabelKey(key: string) {
   return entry?.[1] ?? key;
 }
 
-const FAVORITES_STORAGE_KEY = "medbrains.favnav";
-
-function storedFavorites(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(FAVORITES_STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [favorites, setFavorites] = useState<string[]>(storedFavorites);
-
-  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
-  const toggleFavorite = useCallback((path: string) => {
-    setFavorites((prev) => {
-      const next = prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path];
-      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  // The same starred list as the launcher, kept on the server for the person.
+  const launcherData = useLauncherData();
+  const favouriteToggle = useToggleFavourite();
+  const favoriteSet = useMemo(() => new Set(launcherData.data?.favourites), [launcherData.data]);
+  const toggleFavorite = (path: string) =>
+    favouriteToggle.mutate({ path, starred: !favoriteSet.has(path) });
 
   const location = useLocation();
   const isWorkspace = location.pathname === "/assistant";
@@ -441,6 +426,11 @@ export function AppLayout() {
     if (isExpanded) {
       return (
         <>
+          {launcherData.isError && (
+            <Text className={classes.navGroupLabel} role="alert">
+              Favourites didn't load
+            </Text>
+          )}
           {favoriteItems.length > 0 && (
             <div>
               <Text className={classes.navGroupLabel}>{t("groupFavorites")}</Text>
@@ -498,7 +488,7 @@ export function AppLayout() {
               wrap="nowrap"
               miw={0}
               className={classes.logoArea}
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/home")}
             >
               <Brand surface="header" />
             </Group>

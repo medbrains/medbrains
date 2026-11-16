@@ -7,6 +7,7 @@ use axum::{
 use std::collections::HashMap;
 
 mod as_of;
+pub mod launcher;
 pub mod management_doctors;
 pub mod management_kpis;
 pub mod my_widgets;
@@ -2879,9 +2880,11 @@ mod variant_tests {
     }
 }
 
-/// Dashboards + widget templates + widget data routes.
+/// Dashboards, widget templates, widget data and the launcher routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route("/api/users/me/launcher", get(launcher::get_launcher))
+        .route("/api/users/me/favourites", put(launcher::set_favourite))
         .route("/api/dashboards", get(list_dashboards))
         .route("/api/dashboards/my", get(get_my_dashboard))
         .route(

@@ -5863,6 +5863,23 @@ export interface UnreadCountResponse {
   unread_count: number;
 }
 
+/** An app brick's code and the name the launcher shows for it (`bricks.rs`). */
+export interface BrickName {
+  id: string;
+  name: string;
+}
+
+/** `GET /users/me/launcher`: my starred screen paths and every app's name. */
+export interface LauncherResponse {
+  favourites: string[];
+  bricks: BrickName[];
+}
+
+/** `PUT /users/me/favourites`: my starred screen paths after the change. */
+export interface FavouritesResponse {
+  favourites: string[];
+}
+
 // ── Unified token / queue system ──
 /**
  * One queue row as the clinician working it sees it.

@@ -8,6 +8,9 @@ import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 const DemoDicomFixturesPage = lazy(() =>
   import("./pages/demo-dicom-fixtures").then((m) => ({ default: m.DemoDicomFixturesPage })),
 );
+const LauncherPage = lazy(() =>
+  import("./pages/launcher").then((m) => ({ default: m.LauncherPage })),
+);
 const DashboardPage = lazy(() =>
   import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })),
 );
@@ -532,6 +535,7 @@ export function AuthedRoutes() {
           </ProtectedRoute>
         }
       >
+        <Route path="home" element={<LauncherPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="forbidden" element={<AccessDeniedPage />} />
         {/* Inside the shell, after every real route: an unknown address. */}
