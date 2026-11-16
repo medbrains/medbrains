@@ -48,6 +48,16 @@ COLLAPSE = re.compile(
     r"\.unwrap_or(?:_default\(\)|\(\s*(?:None|false|0|Decimal::ZERO)\s*\))"
 )
 
+# The same collapse spelt as control flow: `if let Ok(rows) = sqlx::query..
+# .fetch_all(..).await { .. }` drops the error and carries on as if the read
+# had found nothing. The pending sign-offs list did this on every branch, so a
+# failed read showed a doctor "nothing to sign" (#6009). `[^;]*?` keeps the
+# match inside one statement.
+IF_LET_OK = re.compile(
+    r"if let Ok\([^;]*?\.fetch_(?:all|optional|one)\([^;]*?\)\s*\.await\s*\{",
+    re.S,
+)
+
 # Reviewed and deliberately left degrading, with the reason.
 #
 # All five are the demo simulator and the push-notification worker: developer
@@ -112,7 +122,7 @@ def offenders() -> list[tuple[str, int, str, bool]]:
             except OSError:
                 continue
             fns = [(m.start(), m.group(0), m.group(1)) for m in FN.finditer(text)]
-            for match in COLLAPSE.finditer(text):
+            for match in [*COLLAPSE.finditer(text), *IF_LET_OK.finditer(text)]:
                 prior = [f for f in fns if f[0] < match.start()]
                 signature, handler = (prior[-1][1], prior[-1][2]) if prior else ("", "?")
                 if f"{rel}::{handler}" in ACCEPTED:
