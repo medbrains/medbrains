@@ -1,7 +1,8 @@
 //! A core brick switched off is off at the API too, not only in the menu: its routes answer 403,
 //! a public route of the same app still answers, and the Modules screen's server refuses to
 //! switch off a brick another switched-on brick needs. The module-status cache shows a change at
-//! once after an invalidation, inside its 30 s lifetime.
+//! once after an invalidation, inside its 30 s lifetime. With the EMR (`opd`) off, the outpatient
+//! desk answers 403 while an IPD encounter still charts through the shared clinical-visit routes.
 
 use crate::common;
 
@@ -165,5 +166,113 @@ async fn an_invalidation_shows_a_change_inside_the_cache_lifetime() {
         fresh,
         Outcome::Deny,
         "after an invalidation the change shows at once"
+    );
+}
+
+/// Sets the tenant's `opd` row straight in `module_config` (the Modules screen would refuse while
+/// a specialty brick needs it) and drops the cached statuses so the gate sees it at once.
+async fn set_opd(app: &common::TestApp, tenant: Uuid, status: &str) {
+    let done = sqlx::query(
+        "UPDATE module_config SET status = $2::module_status \
+         WHERE tenant_id = $1 AND code = 'opd' AND deleted_at IS NULL",
+    )
+    .bind(tenant)
+    .bind(status)
+    .execute(&app.db)
+    .await
+    .expect("set opd");
+    assert_eq!(done.rows_affected(), 1, "the tenant has one opd row");
+    invalidate_modules(tenant);
+}
+
+/// An IPD encounter for a fresh patient, made the way the IPD crate makes one.
+async fn ipd_encounter(app: &common::TestApp, tenant: Uuid) -> Uuid {
+    let suffix = &Uuid::new_v4().simple().to_string()[..8];
+    let patient: Uuid = sqlx::query_scalar(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+         VALUES ($1, $2, 'Ward', 'Only', 'other'::gender, $3) RETURNING id",
+    )
+    .bind(tenant)
+    .bind(format!("UH-BG-{suffix}"))
+    .bind(format!("9{}", &Uuid::new_v4().as_u128().to_string()[..9]))
+    .fetch_one(&app.db)
+    .await
+    .expect("patient");
+    sqlx::query_scalar(
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type) \
+         VALUES ($1, $2, 'ipd') RETURNING id",
+    )
+    .bind(tenant)
+    .bind(patient)
+    .fetch_one(&app.db)
+    .await
+    .expect("ipd encounter")
+}
+
+/// Decision recorded in docs/DECISIONS.md: the EMR off closes the outpatient desk, not the chart.
+/// IPD and ER chart on the same encounters through `/api/opd/encounters/{id}/…`.
+#[tokio::test]
+async fn opd_off_closes_the_desk_but_an_ipd_encounter_still_charts() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let tenant = tenant_of_admin(&app).await;
+    let encounter = ipd_encounter(&app, tenant).await;
+    let before: String = sqlx::query_scalar(
+        "SELECT status::text FROM module_config WHERE tenant_id = $1 AND code = 'opd'",
+    )
+    .bind(tenant)
+    .fetch_one(&app.db)
+    .await
+    .expect("opd status");
+
+    set_opd(&app, tenant, "disabled").await;
+    let mut desk = Vec::new();
+    for path in [
+        "/api/opd/queue",
+        "/api/opd/queue/wait-estimate",
+        "/api/opd/docket",
+        "/api/opd/reminders",
+        "/api/opd/encounters",
+    ] {
+        desk.push((path, app.get(&app.client, path).await.status()));
+    }
+    let vitals = app
+        .client
+        .post(app.url(&format!("/api/opd/encounters/{encounter}/vitals")))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "pulse": 88, "systolic_bp": 128, "diastolic_bp": 82, "spo2": 97 }))
+        .send()
+        .await
+        .expect("vitals request")
+        .status();
+    let read_vitals = app
+        .get(
+            &app.client,
+            &format!("/api/opd/encounters/{encounter}/vitals"),
+        )
+        .await
+        .status();
+    let prescriptions = app
+        .get(
+            &app.client,
+            &format!("/api/opd/encounters/{encounter}/prescriptions"),
+        )
+        .await
+        .status();
+    // Put it back before asserting, so a failure cannot leave other tests without the EMR.
+    set_opd(&app, tenant, &before).await;
+
+    for (path, status) in desk {
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path} is the OPD desk");
+    }
+    assert!(
+        vitals.is_success(),
+        "IPD vitals must still record: {vitals}"
+    );
+    assert_eq!(read_vitals, StatusCode::OK, "IPD vitals must still read");
+    assert_eq!(
+        prescriptions,
+        StatusCode::OK,
+        "IPD prescriptions must still read"
     );
 }
