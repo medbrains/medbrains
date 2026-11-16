@@ -6371,6 +6371,7 @@ dependencies = [
  "hex",
  "log",
  "medbrains-core",
+ "medbrains-db-migrations",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -6387,6 +6388,7 @@ name = "medbrains-db-migrations"
 version = "0.1.0"
 dependencies = [
  "sqlx",
+ "tokio",
  "tracing",
 ]
 
