@@ -7,10 +7,10 @@
 //!
 //! The migrations run once per migration set, into a template database named
 //! by their fingerprint (`mb_tpl_<hash>`). Every test then gets its own copy
-//! (`CREATE DATABASE … TEMPLATE`): about a second, where migrating takes six
-//! seconds on the tuned test cluster and minutes on a stock one. The copy is dropped when the [`TestDb`] is
-//! dropped, panics included; copies a crashed run left behind are swept by a
-//! later one.
+//! (`CREATE DATABASE … TEMPLATE`): about a second, where migrating takes four
+//! seconds on the tuned test cluster and minutes on a stock one. The copy is
+//! dropped when the [`TestDb`] is dropped, panics included; copies a crashed
+//! run left behind are swept by a later one.
 //!
 //! Tests connect as the roles production uses — [`APP_ROLE`] is not a
 //! superuser and does not bypass row level security — so a tenant wall the
@@ -18,11 +18,14 @@
 //!
 //! The server comes from `MEDBRAINS_TEST_PG`, else the machine's test cluster
 //! (`make test-db`). An unreachable server is an error, never a skip: a skipped
-//! safety test reports the same as a passing one.
+//! safety test reports the same as a passing one. A server that is not a test
+//! cluster is refused (see [`refuse_unsafe_server`]): this creates, migrates
+//! and drops databases, and must never do that to the dev or a live cluster.
 //!
-//! Database names are generated here from digits and hex only, which is why
-//! the DDL below can be formatted into `raw_sql`: `CREATE DATABASE` takes no
-//! bind parameters.
+//! Database names are generated here from digits, `a-z` and `_` only, and
+//! names read back from the server are checked against that ([`is_ours`])
+//! before use, which is why the DDL below can be formatted into `raw_sql`:
+//! `CREATE DATABASE` takes no bind parameters.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::str::FromStr;
@@ -37,7 +40,14 @@ use sqlx::{ConnectOptions, Connection, Executor, PgConnection, PgPool};
 /// Environment variable naming the server's admin URL (a superuser).
 pub const SERVER_ENV: &str = "MEDBRAINS_TEST_PG";
 /// The cluster `scripts/test_db.sh` starts.
-pub const DEFAULT_SERVER: &str = "postgres://medbrains@127.0.0.1:54317/postgres";
+pub const DEFAULT_SERVER: &str = "postgres://medbrains:medbrains_test@127.0.0.1:54317/postgres";
+/// Set to `1` to use a server [`refuse_unsafe_server`] would refuse.
+pub const ALLOW_ANY_ENV: &str = "MEDBRAINS_TEST_PG_ALLOW_ANY";
+/// The database that marks a server as a test cluster. `scripts/test_db.sh`
+/// and `scripts/ci_postgres.sh` create it; no dev or live cluster has it.
+pub const MARKER_DB: &str = "medbrains_test_cluster";
+/// The dev database's port (docker-compose); never a test target.
+const DEV_PORT: u16 = 5435;
 /// The request role: row level security applies to it (migration 0981).
 pub const APP_ROLE: &str = "medbrains_app";
 /// The background worker's role, which bypasses row level security (0984).
@@ -100,16 +110,43 @@ impl TestDb {
         self.options(role).to_url_lossy().to_string()
     }
 
-    /// A small pool on this database as `role`.
+    /// A small pool on this database as `role`. For [`APP_ROLE`] and
+    /// [`WORKER_ROLE`] it first proves the role is what production relies on:
+    /// roles are cluster-wide, so one test, agent or operator altering them
+    /// would otherwise turn every RLS test into a superuser's.
     ///
     /// # Errors
-    /// The role cannot log in (it is created by the migrations).
+    /// The role cannot log in (it is created by the migrations), or it is a
+    /// superuser, or its row level security bypass is not as expected.
     pub async fn connect(&self, role: &str) -> Result<PgPool, TestDbError> {
-        PgPoolOptions::new()
+        let pool = PgPoolOptions::new()
             .max_connections(4)
             .connect_with(self.options(role))
             .await
-            .map_err(fail("connect to the copy"))
+            .map_err(fail("connect to the copy"))?;
+        if role == APP_ROLE || role == WORKER_ROLE {
+            let r = sqlx::query!(
+                r#"SELECT rolsuper AS "superuser!", rolbypassrls AS "bypass!"
+                     FROM pg_roles WHERE rolname = current_user"#
+            )
+            .fetch_one(&pool)
+            .await
+            .map_err(fail("read the role"))?;
+            if r.superuser || r.bypass != (role == WORKER_ROLE) {
+                return Err(TestDbError(format!(
+                    "test database: {role} has superuser={} bypassrls={}; \
+                     the migrations make it NOSUPERUSER and {}",
+                    r.superuser,
+                    r.bypass,
+                    if role == WORKER_ROLE {
+                        "BYPASSRLS"
+                    } else {
+                        "NOBYPASSRLS"
+                    }
+                )));
+            }
+        }
+        Ok(pool)
     }
 
     /// A pool as the server's admin, which owns the schema — for fixtures
@@ -192,27 +229,70 @@ pub async fn fresh_db() -> Result<TestDb, TestDbError> {
     let url = std::env::var(SERVER_ENV).unwrap_or_else(|_| DEFAULT_SERVER.to_owned());
     let server = PgConnectOptions::from_str(&url)
         .map_err(|e| TestDbError(format!("{SERVER_ENV}={url} is not a URL: {e}")))?;
+    refuse_unsafe_server(&server)?;
     let mut admin = PgConnection::connect_with(&server).await.map_err(|e| {
         TestDbError(format!(
-            "no test PostgreSQL at {url}: {e}\n\
-             Run `make test-db` (from medbrains/), or set {SERVER_ENV}."
+            "no test PostgreSQL at {}:{}: {e}\n\
+             Run `make test-db` (from medbrains/), or set {SERVER_ENV}.",
+            server.get_host(),
+            server.get_port()
         ))
     })?;
-
-    let template = ensure_template(&mut admin, &server).await?;
+    if !allow_any() && !db_exists(&mut admin, MARKER_DB).await? {
+        return Err(TestDbError(format!(
+            "refusing {}:{}: it has no `{MARKER_DB}` database, so it is not a \
+             test cluster. Run `make test-db`, or set {ALLOW_ANY_ENV}=1.",
+            server.get_host(),
+            server.get_port()
+        )));
+    }
     sweep_stale_copies(&mut admin).await?;
-
     let name = copy_name();
-    admin
-        .execute(sqlx::raw_sql(&format!(
-            // FILE_COPY: a third faster than the default WAL_LOG with eight
-            // tests copying at once (measured 3.4 s against 5.1 s, 88 MB).
-            "CREATE DATABASE \"{name}\" TEMPLATE \"{template}\" STRATEGY FILE_COPY"
-        )))
-        .await
-        .map_err(fail("copy the template"))?;
+    // Twice at most: a template can be trimmed by another worktree between
+    // the check and the copy, and the second pass rebuilds it.
+    let mut copied = Err(TestDbError(String::new()));
+    for _ in 0..2 {
+        let template = ensure_template(&mut admin, &server).await?;
+        copied = admin
+            .execute(sqlx::raw_sql(&format!(
+                // FILE_COPY: a third faster than the default WAL_LOG with eight
+                // tests copying at once (measured 3.4 s against 5.1 s, 88 MB).
+                "CREATE DATABASE \"{name}\" TEMPLATE \"{template}\" STRATEGY FILE_COPY"
+            )))
+            .await
+            .map(drop)
+            .map_err(fail("copy the template"));
+        if copied.is_ok() {
+            break;
+        }
+    }
+    copied?;
     admin.close().await.map_err(fail("close"))?;
     Ok(TestDb { server, name })
+}
+
+/// Whether the operator has asked for the safety checks to be skipped.
+fn allow_any() -> bool {
+    std::env::var(ALLOW_ANY_ENV).is_ok_and(|v| v == "1")
+}
+
+/// Refuse a server that is not on loopback, or is the dev database's port,
+/// before connecting. The marker database is checked after connecting.
+///
+/// # Errors
+/// The server could be somebody's dev or live cluster.
+pub fn refuse_unsafe_server(server: &PgConnectOptions) -> Result<(), TestDbError> {
+    let host = server.get_host();
+    let loopback = matches!(host, "127.0.0.1" | "localhost" | "::1");
+    if allow_any() || (loopback && server.get_port() != DEV_PORT) {
+        return Ok(());
+    }
+    Err(TestDbError(format!(
+        "refusing {host}:{}: test databases go only to a loopback test cluster, \
+         never the dev port {DEV_PORT} or another host. Set {ALLOW_ANY_ENV}=1 \
+         to override.",
+        server.get_port()
+    )))
 }
 
 /// `mb_tpl_<hash of every embedded migration's version and checksum>`: what
@@ -328,7 +408,7 @@ async fn trim_templates(admin: &mut PgConnection) -> Result<(), TestDbError> {
     .fetch_all(&mut *admin)
     .await
     .map_err(fail("list templates"))?;
-    for name in old {
+    for name in old.into_iter().filter(|n| is_ours(n)) {
         let _ = admin
             .execute(sqlx::raw_sql(&format!(
                 "DROP DATABASE IF EXISTS \"{name}\""
@@ -350,7 +430,10 @@ async fn sweep_stale_copies(admin: &mut PgConnection) -> Result<(), TestDbError>
     .fetch_all(&mut *admin)
     .await
     .map_err(fail("list copies"))?;
-    for name in copies.into_iter().filter(|n| is_stale(n, now)) {
+    for name in copies
+        .into_iter()
+        .filter(|n| is_ours(n) && is_stale(n, now))
+    {
         let _ = admin
             .execute(sqlx::raw_sql(&format!(
                 "DROP DATABASE IF EXISTS \"{name}\""
@@ -358,6 +441,19 @@ async fn sweep_stale_copies(admin: &mut PgConnection) -> Result<(), TestDbError>
             .await;
     }
     Ok(())
+}
+
+/// Whether `name` is one this module generates (`^mb_(t|tpl)_[0-9a-z_]+$`),
+/// and so safe to format into DDL. Anything else on the server is not ours.
+fn is_ours(name: &str) -> bool {
+    let rest = name
+        .strip_prefix("mb_tpl_")
+        .or_else(|| name.strip_prefix("mb_t_"));
+    rest.is_some_and(|r| {
+        !r.is_empty()
+            && r.bytes()
+                .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase() || b == b'_')
+    })
 }
 
 /// Whether a copy's name says it is older than [`STALE_COPY_SECS`]. A name
@@ -371,7 +467,38 @@ fn is_stale(name: &str, now: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_stale;
+    use super::{is_ours, is_stale, refuse_unsafe_server};
+    use sqlx::postgres::PgConnectOptions;
+    use std::str::FromStr;
+
+    #[test]
+    fn only_generated_names_are_ours() {
+        assert!(is_ours("mb_t_1794801574_16854_0"));
+        assert!(is_ours("mb_tpl_b208f42319df739e"));
+        assert!(!is_ours("mb_t_"));
+        assert!(!is_ours("mb_t_x\"; DROP DATABASE medbrains; --"));
+        assert!(!is_ours("mb_t_ABC"));
+        assert!(!is_ours("medbrains"));
+        assert!(!is_ours("mb_build_abc"));
+    }
+
+    #[test]
+    fn only_a_loopback_non_dev_server_is_accepted() {
+        let ok = |url: &str| {
+            PgConnectOptions::from_str(url).is_ok_and(|o| refuse_unsafe_server(&o).is_ok())
+        };
+        assert!(ok("postgres://u@127.0.0.1:54317/postgres"));
+        assert!(ok("postgres://u@localhost:5432/postgres"));
+        assert!(
+            !ok("postgres://u@localhost:5435/postgres"),
+            "the dev database"
+        );
+        assert!(
+            !ok("postgres://u@db.example.org:5432/postgres"),
+            "another host"
+        );
+        assert!(!ok("postgres://u@10.0.0.5:54317/postgres"), "another host");
+    }
 
     #[test]
     fn only_an_old_parseable_copy_is_stale() {

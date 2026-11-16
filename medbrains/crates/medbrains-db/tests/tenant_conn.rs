@@ -30,7 +30,13 @@ async fn two_hospitals() -> (TestDb, sqlx::PgPool, Uuid, Uuid) {
 }
 
 /// The server's own pool (with its `after_release` hook), as the request role.
+/// `connect` first, for its proof that the role is NOSUPERUSER, NOBYPASSRLS.
 async fn app_pool(db: &TestDb, max: u32) -> sqlx::PgPool {
+    db.connect(APP_ROLE)
+        .await
+        .expect("the request role")
+        .close()
+        .await;
     let config = PoolConfig {
         max_connections: max,
         min_connections: 1,

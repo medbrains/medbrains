@@ -15,12 +15,20 @@ make test-db            # starts or reuses the test cluster, prints its URL
 It is one cluster per machine, shared by every worktree and agent:
 
 - data in `~/.local/share/medbrains-test-pg` (outside the repo), log in `server.log` there
-- `127.0.0.1:54317` only, trust auth, durability off (`fsync`, `full_page_writes`)
+- `127.0.0.1:54317` only, durability off (`fsync`, `full_page_writes`)
+- auth: the superuser `medbrains` needs the fixed test password `medbrains_test`; only
+  `medbrains_app` and `medbrains_outbox_worker` (the migrations' two login roles, which have no
+  password) are trusted on loopback. The unix socket sits in the 0700 data dir. `pg_hba.conf` is
+  rewritten on every `make test-db`
+- a marker database, `medbrains_test_cluster`, which the helper insists on
 - never Docker, never the dev database (5435), never `infra/.env`
 - `bash scripts/test_db.sh stop` stops it; `make test-db` again starts it in under a second
 
-Another server: set `MEDBRAINS_TEST_PG` to a superuser URL on its `postgres` database. The roles
-the migrations create must be able to log in without a password (trust on loopback), as in CI.
+Another server: set `MEDBRAINS_TEST_PG` to a superuser URL on its `postgres` database. The helper
+refuses it unless it is on loopback, is not the dev port 5435, and has a `medbrains_test_cluster`
+database: it creates, migrates and drops databases, and must never do that to a dev or live
+cluster. `MEDBRAINS_TEST_PG_ALLOW_ANY=1` overrides, deliberately. The two app roles must be able to
+log in without a password (trust on loopback for those two only), as in CI.
 
 ## Running
 
@@ -60,7 +68,11 @@ async fn the_request_role_sees_only_its_hospital() {
 - Add `medbrains-db-migrations = { path = "../medbrains-db-migrations", features = ["testing"] }`
   under `[dev-dependencies]`. Never as a normal dependency: every migration would rebuild you.
 - Assert through `APP_ROLE` (or `WORKER_ROLE` for background passes), not the owner, which is a
-  superuser and skips row level security.
+  superuser and skips row level security. `connect` checks, every time, that `APP_ROLE` is
+  NOSUPERUSER NOBYPASSRLS (and the worker NOSUPERUSER BYPASSRLS): roles are cluster-wide, so one
+  `ALTER ROLE` anywhere would otherwise make every RLS test a superuser's.
+- An isolation test must put a victim row in **every** table it attacks and assert each one is
+  non-empty (`tenant_walls.rs`). Counting rows over all tables lets an empty table pass.
 - `db.url(role)` gives a URL for code that builds its own pool, e.g.
   `medbrains_db::pool::create_pool_with_config`.
 - No clean-up code and no shared fixtures: the database is yours alone and is dropped after.
@@ -72,13 +84,16 @@ async fn the_request_role_sees_only_its_hospital() {
    lock, then renames it, so a template that exists is complete. The newest 3 are kept for
    other worktrees; older ones are dropped.
 2. Each test runs `CREATE DATABASE mb_t_<secs>_<pid>_<n> TEMPLATE mb_tpl_<hash>`.
+   If another worktree trimmed the template in between, it is rebuilt and the copy retried once.
 3. Dropping the `TestDb` drops the copy (`WITH (FORCE)`), panics included. Copies older than an
-   hour that nobody is connected to (a killed run) are swept by the next test.
+   hour that nobody is connected to (a killed run) are swept by the next test. Only names matching
+   `^mb_(t|tpl)_[0-9a-z_]+$` are ever formatted into DDL.
 
 A session connected to a template (say `psql` left open on `mb_tpl_…`) makes every copy fail with
 "source database is being accessed by other users". Close it.
 
 ## CI
 
-`scripts/ci_postgres.sh` (used by the Rust test, coverage and E2E jobs) adds loopback trust and
+`scripts/ci_postgres.sh` (used by the Rust test, coverage and E2E jobs) trusts the two app roles on
+loopback (the superuser and the E2E server keep their password), creates the marker database and
 exports `MEDBRAINS_TEST_PG`, so the converted tests run in the ordinary `cargo nextest` step.
