@@ -4,7 +4,7 @@ import { Card, Divider, Grid, Group, Modal, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { PatientRegistrationInitialValues } from "@medbrains/schemas";
-import { useHasPermission, useModuleStore } from "@medbrains/stores";
+import { useHasPermission } from "@medbrains/stores";
 import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -108,8 +108,6 @@ function errorMessage(error: unknown, fallback: string): string {
 
 /** The registration screen: registers the patient, then files them to a camp or the OPD queue. */
 export function PatientRegisterPageInner() {
-  // A hospital without the EMR registers patients for other apps; never hand off into it.
-  const opdOn = useModuleStore((st) => !st.disabledModules.has("opd"));
   const { t } = useTranslation("patients");
   const emit = useClinicalEmit();
   const navigate = useNavigate();
@@ -128,8 +126,8 @@ export function PatientRegisterPageInner() {
   // report a successful registration while the patient was never filed to the
   // camp and never queued.
   const canRegisterToCamp = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
-  // Off while the EMR is: registration must not leave a visit in an app nobody can open.
-  const { canCreateOpdVisit } = useOpdVisitGates();
+  // Both off while the EMR is: registration must not leave a visit in an app nobody can open.
+  const { opdOn, canCreateOpdVisit } = useOpdVisitGates();
   const isCampRegistration = source === "camp" && Boolean(sourceCampId);
   const { data: camps = [], isLoading: campContextLoading } = useQuery({
     queryKey: ["camp-camps", "patient-registration-page", sourceCampId],
@@ -152,7 +150,6 @@ export function PatientRegisterPageInner() {
         camp_name: selectedCamp?.name,
         department_id: selectedCamp?.organizing_department_id ?? undefined,
         referred_by_facility: selectedCamp?.venue_name ?? selectedCamp?.name,
-        // The camp queues to its OPD only where the hospital has one.
         create_opd_visit: opdOn,
         open_opd_after_registration: opdOn,
       }
