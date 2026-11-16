@@ -206,6 +206,12 @@ jobs:
       # same 404 / empty list it answers a real refusal with.
       - name: No authorization check collapses its error
         run: python3 medbrains/scripts/check_authz_collapse.py
+      # A database read whose error becomes an empty result shows an outage as
+      # "nothing there": no medications due, nothing to sign (#6009).
+      - name: No database read collapses its error
+        run: |
+          python3 medbrains/scripts/check_query_collapse.py --self-test
+          python3 medbrains/scripts/check_query_collapse.py
       # A query inside a loop is one round trip per row; existing sites are
       # baselined per function, never grown (#5462).
       - name: No new database query inside a loop

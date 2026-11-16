@@ -51,11 +51,12 @@ COLLAPSE = re.compile(
 # The same collapse spelt as control flow: `if let Ok(rows) = sqlx::query..
 # .fetch_all(..).await { .. }` drops the error and carries on as if the read
 # had found nothing. The pending sign-offs list did this on every branch, so a
-# failed read showed a doctor "nothing to sign" (#6009). `[^;]*?` keeps the
-# match inside one statement.
+# failed read showed a doctor "nothing to sign" (#6009). `\blet Ok(` covers
+# `if let`, `while let` and `let .. else`. `[^;{]*?` keeps the match inside
+# one statement and stops it at a block, so an `if let Ok(..)` on something
+# else, with a query in its body, is not mistaken for one.
 IF_LET_OK = re.compile(
-    r"if let Ok\([^;]*?\.fetch_(?:all|optional|one)\([^;]*?\)\s*\.await\s*\{",
-    re.S,
+    r"\blet Ok\([^;{]*?\.fetch_(?:all|optional|one)\([^;{]*?\)\s*\.await\s*(?:else\s*)?\{"
 )
 
 # Reviewed and deliberately left degrading, with the reason.
@@ -65,6 +66,8 @@ IF_LET_OK = re.compile(
 # or answers a clinician. `send_push` additionally sits in a function that
 # returns nothing, so it has no error to propagate.
 ACCEPTED: dict[str, str] = {
+    "crates/medbrains-workflow/src/orchestration/default_pipelines.rs::on_transfusion_reaction":
+        "fixed by #6010, remove on merge",
     "crates/medbrains-server/src/routes/admin_simulator.rs::preview":
         "simulator preview — developer tooling, not a clinical read",
     "crates/medbrains-server/src/services/notification_listener.rs::send_push":
@@ -132,7 +135,26 @@ def offenders() -> list[tuple[str, int, str, bool]]:
     return found
 
 
+def self_test() -> None:
+    """Fail if the control-flow pattern stops telling a dropped read from a guarded one."""
+    q = 'sqlx::query_as!(Row, "SELECT 1", t).fetch_all(&mut *tx).await'
+    assert IF_LET_OK.search(f"if let Ok(rows) = {q} {{ out.extend(rows); }}")
+    assert IF_LET_OK.search(f"while let Ok(row) = {q} {{ n += 1; }}")
+    assert IF_LET_OK.search(f"let Ok(rows) = {q} else {{ return Ok(vec![]); }};")
+    assert IF_LET_OK.search(f"if let Ok(rows) =\n    {q}\n{{")
+    # A guard on something else, whose body branches on a read: the `{` ends it.
+    assert not IF_LET_OK.search(f"if let Ok(id) = Uuid::parse_str(s) {{ for r in {q}? {{ }} }}")
+    assert not IF_LET_OK.search(f"if let Ok(id) = parse(s) {{ if let Some(r) = {q} {{ }} }}")
+    # A lock guard whose body matches on a read: the `{` ends the condition.
+    assert not IF_LET_OK.search(f"if let Ok(map) = cache.lock() {{ match {q} {{ Ok(r) => r }} }}")
+    assert not IF_LET_OK.search(f"let rows = {q}?;")
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        self_test()
+        print("✓ check_query_collapse self-test")
+        return 0
     found = offenders()
     if not found:
         print(

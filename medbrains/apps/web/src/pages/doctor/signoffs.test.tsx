@@ -30,6 +30,7 @@ describe("SignoffsPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("The sign-off list didn't load");
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
     expect(screen.queryByText("Nothing pending. All caught up.")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /All/ })).toHaveTextContent("All —");
   });
 
   it("still says all caught up when the queue really is empty", async () => {

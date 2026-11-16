@@ -49,9 +49,8 @@ export function SignoffsPage() {
     refetchInterval: 30_000,
   });
 
-  const grouped = useMemo(() => groupByType(items), [items]);
-
-  const totalCount = items.length;
+  // A failed load shows no per-type counts, which would be stale or zero.
+  const grouped = useMemo(() => (error ? {} : groupByType(items)), [items, error]);
 
   return (
     <div>
@@ -77,7 +76,7 @@ export function SignoffsPage() {
           <Tabs.Tab value="all">
             All{" "}
             <Badge ml="xs" size="xs">
-              {totalCount}
+              {error ? "—" : items.length}
             </Badge>
           </Tabs.Tab>
           {Object.entries(grouped).map(([type, list]) => (

@@ -81,10 +81,8 @@ pub async fn my_day(
     .fetch_all(&mut *tx)
     .await?;
 
-    // Today counts — best-effort against existing tables
-    let today = compute_today_counts(&mut tx, &claims)
-        .await
-        .unwrap_or_default();
+    // Today's counts; a failed read fails the request, never shows zeros.
+    let today = compute_today_counts(&mut tx, &claims).await?;
 
     tx.commit().await?;
 
@@ -95,6 +93,16 @@ pub async fn my_day(
         on_call: OnCallStatus::default(),
         coverage,
     }))
+}
+
+/// Whether the caller may decide refill requests, so whether they are listed
+/// (and counted) among the doctor's pending items.
+fn may_decide_refills(claims: &Claims) -> bool {
+    is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|p| p == permissions::doctor::refill_requests::DECIDE)
 }
 
 /// Counts of the requesting doctor's own pending sign-offs, for the My Day tile.
@@ -109,7 +117,8 @@ async fn compute_pending_signoffs(
     let mine = sqlx::query_scalar!(
         r#"SELECT (
               (SELECT COUNT(*) FROM prescriptions
-                WHERE tenant_id = $1 AND doctor_id = $2 AND is_signed = FALSE)
+                WHERE tenant_id = $1 AND doctor_id = $2 AND is_signed = FALSE
+                  AND deleted_at IS NULL)
             + (SELECT COUNT(*) FROM lab_results lr
                  JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id
                 WHERE lr.tenant_id = $1 AND lo.verified_by = $2 AND lr.is_signed = FALSE
@@ -120,12 +129,13 @@ async fn compute_pending_signoffs(
             + (SELECT COUNT(*) FROM ipd_discharge_summaries
                 WHERE tenant_id = $1 AND COALESCE(verified_by, prepared_by) = $2
                   AND is_signed = FALSE AND deleted_at IS NULL)
-            + (SELECT COUNT(*) FROM prescription_refill_requests
+            + CASE WHEN $3 THEN (SELECT COUNT(*) FROM prescription_refill_requests
                 WHERE tenant_id = $1 AND doctor_id = $2 AND status = 'with_doctor'
-                  AND deleted_at IS NULL)
+                  AND deleted_at IS NULL) ELSE 0 END
            )::bigint AS "count!""#,
         claims.tenant_id,
         claims.sub,
+        may_decide_refills(claims),
     )
     .fetch_one(&mut **tx)
     .await?;
@@ -138,6 +148,7 @@ async fn compute_pending_signoffs(
     })
 }
 
+/// Today's workload counts for the My Day tiles: the doctor's appointments.
 async fn compute_today_counts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
@@ -154,33 +165,23 @@ async fn compute_today_counts(
     // the patient currently in the room: a doctor reading "remaining" wants
     // the work still in front of them, and the count should not drop the
     // moment somebody walks in.
-    let counts = sqlx::query_as::<_, (i64, i64)>(
-        "SELECT \
-            COUNT(*)::bigint, \
-            COUNT(*) FILTER (WHERE status::text IN \
-              ('scheduled','confirmed','checked_in','in_consultation'))::bigint \
-         FROM appointments \
-         WHERE tenant_id = $1 AND doctor_id = $2 \
-           AND appointment_date = current_date",
+    // A failed read fails the request: zeros on a fault would tell a doctor
+    // their day is empty.
+    let counts = sqlx::query!(
+        r#"SELECT
+              COUNT(*)::bigint AS "total!",
+              COUNT(*) FILTER (WHERE status::text IN
+                ('scheduled','confirmed','checked_in','in_consultation'))::bigint AS "remaining!"
+           FROM appointments
+           WHERE tenant_id = $1 AND doctor_id = $2
+             AND appointment_date = current_date AND deleted_at IS NULL"#,
+        claims.tenant_id,
+        claims.sub,
     )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
     .fetch_one(&mut **tx)
-    .await;
-
-    match counts {
-        Ok((total, remaining)) => {
-            t.appointments_total = total;
-            t.appointments_remaining = remaining;
-        }
-        // Left as zero, but said out loud. Swallowing this is how it went
-        // unnoticed that the query named a table that does not exist.
-        Err(err) => tracing::error!(
-            doctor_id = %claims.sub,
-            error = %err,
-            "doctor day: today's appointment counts could not be read"
-        ),
-    }
+    .await?;
+    t.appointments_total = counts.total;
+    t.appointments_remaining = counts.remaining;
 
     Ok(t)
 }
@@ -233,12 +234,7 @@ pub async fn list_my_pending_signoffs(
     entries.extend(discharge_summaries_to_sign(&mut tx, tenant, me).await?);
     // Refills patients asked for on this doctor's prescriptions. A decision,
     // not a signature; listed only for a doctor who may make it.
-    let may_decide = is_bypass_role(&claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|p| p == permissions::doctor::refill_requests::DECIDE);
-    if may_decide {
+    if may_decide_refills(&claims) {
         entries.extend(refills_to_decide(&mut tx, tenant, me).await?);
     }
     entries.extend(crate::substitution_signoffs::pending(&mut tx, &claims).await?);
@@ -288,6 +284,7 @@ async fn prescriptions_to_sign(
          LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id
             AND pat.id = COALESCE(p.patient_id, e.patient_id)
          WHERE p.tenant_id = $1 AND p.doctor_id = $2 AND p.is_signed = FALSE
+           AND p.deleted_at IS NULL
          ORDER BY p.created_at
          LIMIT 200"#,
         tenant,
