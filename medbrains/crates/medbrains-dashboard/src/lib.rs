@@ -11,6 +11,8 @@ pub mod launcher;
 pub mod management_doctors;
 pub mod management_kpis;
 pub mod my_widgets;
+mod router;
+pub use router::router;
 
 use chrono::{NaiveDate, Utc};
 use medbrains_core::dashboard::{
@@ -20,7 +22,6 @@ use medbrains_core::form::FieldAccessLevel;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
@@ -2878,33 +2879,4 @@ mod variant_tests {
         );
         assert_eq!(variant_match_score(None, "nurse", "u1", &[]), None);
     }
-}
-
-/// Dashboards, widget templates, widget data and the launcher routes.
-pub fn router() -> axum::Router<AppState> {
-    axum::Router::new()
-        .route("/api/users/me/launcher", get(launcher::get_launcher))
-        .route("/api/users/me/favourites", put(launcher::set_favourite))
-        .route("/api/dashboards", get(list_dashboards))
-        .route("/api/dashboards/my", get(get_my_dashboard))
-        .route(
-            "/api/dashboards/my/personalize",
-            post(personalize_dashboard),
-        )
-        .route(
-            "/api/dashboards/my/widgets/{code}",
-            put(my_widgets::set_my_widget),
-        )
-        .route(
-            "/api/dashboards/my/report-widgets/{report_id}",
-            put(my_widgets::set_my_report_widget),
-        )
-        .route("/api/dashboards/{id}", get(get_dashboard))
-        .route("/api/widget-templates", get(list_widget_templates))
-        .route("/api/dashboard/summary", get(dashboard_summary))
-        .route("/api/dashboard/widget-data/batch", post(batch_widget_data))
-        .route(
-            "/api/dashboard/widget-data/{widget_id}",
-            get(get_widget_data),
-        )
 }
