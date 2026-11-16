@@ -17,6 +17,8 @@
 #
 # The `continue-on-error` jobs are the backlog. Each should become blocking as
 # its debt is paid; none should be deleted to make this file look better.
+# Rust clippy and Rust tests were paid off and block since #5978; test-target
+# clippy errors are a ratchet that only falls (scripts/check_clippy_tests.py).
 
 name: CI
 
@@ -212,6 +214,11 @@ jobs:
         run: |
           python3 medbrains/scripts/check_query_in_loop.py --self-test
           python3 medbrains/scripts/check_query_in_loop.py --check
+      # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
+      - name: Rust functions and files only shrink
+        run: |
+          python3 medbrains/scripts/check_rust_size.py --self-test
+          python3 medbrains/scripts/check_rust_size.py
       # Apps reach tenancy, authz, audit, sequences, storage and config only
       # through medbrains-kernel; existing direct access is baselined, never grown.
       - name: Kernel boundary only gets better
@@ -236,6 +243,14 @@ jobs:
         run: |
           python3 medbrains/scripts/check_size_budgets.py --self-test
           python3 medbrains/scripts/check_size_budgets.py
+      # The converted apps' menu entries come from the one screen registry; a stale copy would
+      # show the web screens screens.rs no longer lists, and a nav entry whose permission differs
+      # from its screen's shows a menu item the screen then refuses.
+      - name: App screens copy is current and the menu matches the screen registry
+        run: |
+          python3 medbrains/scripts/generate_app_screens.py --self-test
+          python3 medbrains/scripts/generate_app_screens.py --check
+          python3 medbrains/scripts/check_nav_drift.py
       # The committed MedBrains Sans files must be exactly what the pinned build makes, so nobody
       # edits a font by hand and the IBM Plex source stays recorded.
       - name: Committed fonts match their build
@@ -352,6 +367,11 @@ jobs:
           VITEST_REPORT_DIR: test-results
       - name: Web first-load JS stays under its ceiling
         run: python3 scripts/check_size_budgets.py
+      # Class A size rules (docs/SOFTWARE-CLASSES.md): web functions and files only shrink.
+      - name: Web functions and files only shrink
+        run: |
+          python3 scripts/check_web_size.py --self-test
+          python3 scripts/check_web_size.py
       - name: Publish the per-test summary
         if: ${{ !cancelled() }}
         uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
@@ -398,7 +418,6 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     name: "Rust clippy"
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: medbrains
@@ -422,6 +441,14 @@ jobs:
       # Denied lints fail on their own; pedantic and nursery are warnings by
       # project policy (ENGINEERING.md), so -D warnings would overrule it.
       - run: cargo clippy --locked --workspace --exclude medbrains-desktop
+      # Test targets: no new denied lint, and the baseline only falls (#5978).
+      # cargo exits non-zero on the baseline's own errors; the script decides.
+      - name: Clippy on test targets (ratchet)
+        run: |
+          python3 scripts/check_clippy_tests.py --self-test
+          { cargo clippy --locked --workspace --exclude medbrains-desktop --all-targets \
+              --keep-going --message-format=json || true; } |
+            python3 scripts/check_clippy_tests.py
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -469,7 +496,6 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     name: "Rust tests"
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
       # The per-test summary check run.
@@ -490,7 +516,8 @@ jobs:
             medbrains/target
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
 
-      # Non-blocking until it has been seen to pass on a runner.
+      # Blocking since #5978. A test that flakes is fixed, or quarantined by name in
+      # .config/nextest.toml with its issue; never left to fail here.
       # CUPS headers and PostgreSQL 17 for the integration suite (no Docker, per the OS rule).
       - name: System packages and PostgreSQL
         run: bash scripts/ci_postgres.sh

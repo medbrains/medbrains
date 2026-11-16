@@ -14,7 +14,7 @@
        check-migration-headers check-migration-immutable perf-web e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
-       test-rust test-unit test-ts test-all test-coverage \
+       test-rust test-unit test-db test-ts test-all test-coverage \
        ship ship-quick ship-cold hotpush-ui ship-help \
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
@@ -345,6 +345,10 @@ check-circular: ## Fail on circular imports in the web app (prevents TDZ-class b
 check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
 	python3 scripts/check_nav_drift.py
 
+check-app-screens: ## Fail if app-screens.generated.ts is stale against screens.rs
+	python3 scripts/generate_app_screens.py --self-test
+	python3 scripts/generate_app_screens.py --check
+
 check-ui-slop: ## Decorative effects in the web app only ever go down
 	python3 scripts/check_ui_slop.py
 
@@ -361,7 +365,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-shell-theme check-raw-key-bytes check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-app-screens check-shell-theme check-raw-key-bytes check-web-size check-rust-size check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -449,6 +453,14 @@ check-kernel-boundary: ## Ratchet: apps reach the trusted core only through medb
 hooks: ## Install the repo git hooks (rustfmt staged Rust files, migration checks) for this clone
 	git config core.hooksPath medbrains/.githooks
 	@echo "git hooks installed: medbrains/.githooks"
+
+check-web-size: ## Ratchet: web functions (60 lines, complexity 15) and files (300 lines) only shrink
+	python3 scripts/check_web_size.py --self-test
+	python3 scripts/check_web_size.py
+
+check-rust-size: ## Ratchet: Rust functions (60 code lines) and files (300) only shrink
+	python3 scripts/check_rust_size.py --self-test
+	python3 scripts/check_rust_size.py
 
 check-size-budgets: ## Ratchet: kernel lines and deps, package and crate counts, web first load
 	python3 scripts/check_size_budgets.py --self-test
@@ -834,6 +846,9 @@ test-rust: ## Run all Rust tests + export results
 
 test-unit: ## Run Rust unit tests only (no DB needed)
 	cargo test -p medbrains-adapter-sdk -p medbrains-core 2>&1 | python3 qa/reporters/cargo-kiwi-report.py
+
+test-db: ## Start (or reuse) the machine's PostgreSQL 17 for DB tests; prints its URL (docs/TESTING-DB.md)
+	@bash scripts/test_db.sh
 
 test-ts: ## Run TypeScript unit tests (Vitest)
 	pnpm run test

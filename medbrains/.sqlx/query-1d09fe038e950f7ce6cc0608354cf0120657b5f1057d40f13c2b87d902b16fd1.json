@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT datname::text AS \"n!\" FROM pg_database\n            WHERE datname LIKE 'mb\\_tpl\\_%' ORDER BY oid DESC OFFSET $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1d09fe038e950f7ce6cc0608354cf0120657b5f1057d40f13c2b87d902b16fd1"
+}
