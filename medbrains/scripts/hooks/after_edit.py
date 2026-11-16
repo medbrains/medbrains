@@ -6,7 +6,7 @@ and reports a violation back to the agent at once (exit 2, the reason on
 stderr) — so a rule is met when the code is written, not at the merge gate.
 Silent when everything passes or the file is outside the checked areas.
 
-    route / handler Rust  → authz collapse, soft-delete filter, partial upserts,
+    route / handler Rust  → authz collapse, soft-delete filter, partial upserts, size ratchet,
                             API contract (when it registers routes)
     migration SQL         → migration headers, RLS coverage, partial upserts
     web TS/TSX            → Biome on the file, raw HTML, UI seam, AI label, size ratchet
@@ -43,6 +43,7 @@ def checks_for(path: str) -> dict[str, list[str]]:
         checks["authz-collapse"] = py("scripts/check_authz_collapse.py")
         checks["soft-delete-filter"] = py("scripts/check_soft_delete_filter.py")
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py", path)
+        checks["rust-size"] = py("scripts/check_rust_size.py", path)
         with open(path, encoding="utf-8") as fh:
             if ".route(" in fh.read():
                 checks["api-contract"] = py("../scripts/check_api_contract.py")
