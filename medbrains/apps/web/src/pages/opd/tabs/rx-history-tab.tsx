@@ -13,27 +13,21 @@ const WHAT = "Prescription history";
  * "no previous prescriptions", which would be a false statement about the patient.
  */
 export function RxHistoryTab({ patientId }: { patientId: string }) {
-  const {
-    data = [],
-    isLoading,
-    error,
-    isLoadingError,
-    isRefetchError,
-    refetch,
-  } = useQuery({
+  const { data, error, isLoadingError, isRefetchError, refetch } = useQuery({
     queryKey: ["patient-prescriptions", patientId],
     queryFn: () => opdService.listPatientPrescriptions(patientId),
   });
 
-  if (isLoading) {
+  if (isLoadingError) {
+    return <LoadFailed what={WHAT} error={error} onRetry={refetch} />;
+  }
+  // No data and no error means the first read is still in flight; never a stand-in empty list.
+  if (data === undefined) {
     return (
       <Text size="sm" c="dimmed">
         Loading prescription history...
       </Text>
     );
-  }
-  if (isLoadingError) {
-    return <LoadFailed what={WHAT} error={error} onRetry={refetch} />;
   }
   const history = data as PrescriptionHistoryItem[];
   return (
