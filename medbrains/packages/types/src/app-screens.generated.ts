@@ -1,51 +1,51 @@
-// Generated from crates/medbrains-core/src/app_screens.rs; do not edit.
-// Regenerate: UPDATE_APP_SCREENS=1 cargo test -p medbrains-core app_screens
+// Generated from crates/medbrains-core/src/access/screens.rs; do not edit.
+// Regenerate: UPDATE_APP_SCREENS=1 cargo test -p medbrains-core access::screens
 
-/** One entry in an app's side panel. */
+/** One entry in a converted app's side panel. */
 export interface AppScreen {
   brick: string;
   path: string;
   labelKey: string;
   icon: string;
   permission: string;
+  anyOf: readonly string[];
 }
 
-/** Every screen of every converted app, in panel order. */
+/** Every side-panel screen of every converted app, in panel order. */
 export const APP_SCREENS: readonly AppScreen[] = [
-  { brick: "opd", path: "/opd", labelKey: "opdQueue", icon: "IconStethoscope", permission: "opd.queue.list" },
-  { brick: "opd", path: "/opd/appointments", labelKey: "appointments", icon: "IconCalendar", permission: "opd.appointment.list" },
-  { brick: "opd", path: "/telemedicine", labelKey: "telemedicine", icon: "IconVideo", permission: "opd.queue.view" },
-  { brick: "opd", path: "/doctor/signoffs", labelKey: "doctorSignoffs", icon: "IconSignature", permission: "doctor.signoffs.view_own" },
-  { brick: "opd", path: "/order-sets", labelKey: "orderSets", icon: "IconListDetails", permission: "order_sets.templates.list" },
-  { brick: "opd", path: "/chronic-care", labelKey: "chronicCare", icon: "IconReportMedical", permission: "chronic.enrollments.list" },
+  { brick: "opd", path: "/opd", labelKey: "opdQueue", icon: "IconStethoscope", permission: "opd.queue.list", anyOf: ["opd.queue.list", "opd.queue.view", "opd.visit.create", "opd.visit.update", "opd.token.manage", "opd.appointment.list", "opd.referrals.list", "opd.referrals.create", "opd.vitals.list", "opd.vitals.create", "opd.diagnoses.list", "opd.diagnoses.create", "opd.diagnoses.update", "opd.diagnoses.delete", "opd.procedures.list", "opd.procedures.create", "opd.procedures.cancel", "opd.certificates.list", "opd.certificates.create", "opd.certificates.print", "opd.certificates.reprint", "opd.certificates.void", "opd.reminders.list", "opd.reminders.create", "opd.reminders.update", "opd.feedback.list", "opd.feedback.create", "opd.consents.list", "opd.consents.create", "opd.consents.sign", "opd.consents.print", "opd.consents.reprint", "opd.consents.revoke", "opd.schedule.list", "opd.schedule.manage", "nurse.vitals.record"] },
+  { brick: "opd", path: "/opd/appointments", labelKey: "appointments", icon: "IconCalendar", permission: "opd.appointment.list", anyOf: [] },
+  { brick: "opd", path: "/telemedicine", labelKey: "telemedicine", icon: "IconVideo", permission: "opd.queue.view", anyOf: [] },
+  { brick: "opd", path: "/doctor/signoffs", labelKey: "doctorSignoffs", icon: "IconSignature", permission: "doctor.signoffs.view_own", anyOf: [] },
+  { brick: "opd", path: "/chronic-care", labelKey: "chronicCare", icon: "IconReportMedical", permission: "chronic.enrollments.list", anyOf: [] },
 ];
 
 /** Each app brick's display name, by `module_config.code`. */
 export const BRICK_NAMES: Readonly<Record<string, string>> = {
-  registration: "Patient Registration",
-  billing: "Billing & Finance",
-  opd: "OPD / Outpatient",
-  ipd: "IPD / Inpatient",
-  lab: "Laboratory (LIS)",
-  pharmacy: "Pharmacy",
-  radiology: "Radiology (RIS)",
-  blood_bank: "Blood Bank",
-  ot: "Operation Theatre",
-  emergency: "Emergency / Casualty",
-  nursing: "Nursing Station",
-  diet: "Diet & Nutrition",
-  hr: "Human Resources",
-  inventory: "Inventory & Stores",
-  reports: "Reports & Analytics",
-  maternity: "Maternity",
-  ophthalmology: "Ophthalmology",
-  dental: "Dental",
-  cath_lab: "Cath Lab",
-  endoscopy: "Endoscopy",
-  psychiatry: "Psychiatry",
-  palliative: "Palliative Care",
-  pmr: "Physical Medicine & Rehabilitation",
-  specialty_other: "Other Specialties",
-  flow: "MedBrains Flow",
-  companion: "Patient Companion",
+  "registration": "Patient Registration",
+  "billing": "Billing & Finance",
+  "opd": "OPD / Outpatient",
+  "ipd": "IPD / Inpatient",
+  "lab": "Laboratory (LIS)",
+  "pharmacy": "Pharmacy",
+  "radiology": "Radiology (RIS)",
+  "blood_bank": "Blood Bank",
+  "ot": "Operation Theatre",
+  "emergency": "Emergency / Casualty",
+  "nursing": "Nursing Station",
+  "diet": "Diet & Nutrition",
+  "hr": "Human Resources",
+  "inventory": "Inventory & Stores",
+  "reports": "Reports & Analytics",
+  "maternity": "Maternity",
+  "ophthalmology": "Ophthalmology",
+  "dental": "Dental",
+  "cath_lab": "Cath Lab",
+  "endoscopy": "Endoscopy",
+  "psychiatry": "Psychiatry",
+  "palliative": "Palliative Care",
+  "pmr": "Physical Medicine & Rehabilitation",
+  "specialty_other": "Other Specialties",
+  "flow": "MedBrains Flow",
+  "companion": "Patient Companion",
 };

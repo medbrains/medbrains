@@ -141,6 +141,8 @@ export function AppLayout() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const clearModules = useModuleStore((s) => s.clearModules);
+  const clearPermissions = usePermissionStore((s) => s.clearPermissions);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
   // Select the set, not the stable `isModuleEnabled` function, so the menu re-renders when a
   // brick is switched on or off.
@@ -174,6 +176,10 @@ export function AppLayout() {
       // ignore
     }
     clearAuth();
+    // The next person on this workstation may belong to another hospital: never show them this
+    // one's switched-off apps or permissions while their own load.
+    clearModules();
+    clearPermissions();
     // Wipe the in-memory query cache — it holds PHI/clinical data from this
     // session. Without this, the next user on a shared workstation could be
     // served the previous user's cached records before a refetch.

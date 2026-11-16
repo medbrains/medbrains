@@ -4,7 +4,7 @@ import { Card, Divider, Grid, Group, Modal, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { PatientRegistrationInitialValues } from "@medbrains/schemas";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasPermission, useModuleStore } from "@medbrains/stores";
 import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -106,6 +106,8 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function PatientRegisterPageInner() {
+  // A hospital without the EMR registers patients for other apps; never hand off into it.
+  const opdOn = useModuleStore((st) => !st.disabledModules.has("opd"));
   const { t } = useTranslation("patients");
   const emit = useClinicalEmit();
   const navigate = useNavigate();
@@ -329,7 +331,7 @@ export function PatientRegisterPageInner() {
       if (campId) {
         void queryClient.invalidateQueries({ queryKey: ["camp-registrations"] });
       }
-      if (encounterId && linkedServices?.openOpdAfterRegistration) {
+      if (encounterId && linkedServices?.openOpdAfterRegistration && opdOn) {
         void navigate(
           patientRegistrationOpdHandoffRoute({
             campId,

@@ -565,9 +565,10 @@ export function AuthedRoutes() {
           <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
           <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
           <Route path="telemedicine" element={<TelemedicinePage />} />
-          <Route path="order-sets" element={<OrderSetsPage />} />
           <Route path="chronic-care" element={<ChronicCarePage />} />
+          <Route path="scheduling" element={<SchedulingPage />} />
         </Route>
+        <Route path="order-sets" element={<OrderSetsPage />} />
         <Route path="lab" element={<LabPage />} />
         <Route path="lab/dispatch/new" element={<LabDispatchCreatePage />} />
         <Route path="lab/orders/new" element={<LabOrderCreatePage />} />
@@ -660,7 +661,6 @@ export function AuthedRoutes() {
         <Route path="immunization-clinic" element={<ImmunizationClinicPage />} />
         <Route path="utilization-review" element={<UtilizationReviewPage />} />
         <Route path="case-management" element={<CaseManagementPage />} />
-        <Route path="scheduling" element={<SchedulingPage />} />
         <Route path="lms" element={<LmsPage />} />
         <Route path="retrospective" element={<RetrospectivePage />} />
         <Route path="specialty">
@@ -741,7 +741,9 @@ export function AuthedRoutes() {
             element={<Navigate to="/admin/integration-hub" replace />}
           />
           <Route path="tv-displays" element={<TvDisplaysPage />} />
-          <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
+          <Route element={<AppRoute brick="opd" />}>
+            <Route path="doctor-schedules" element={<DoctorSchedulesPage />} />
+          </Route>
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="devices" element={<DevicesPage />} />
           <Route path="paired-devices" element={<PairedDevicesPage />} />

@@ -128,6 +128,7 @@ function appNavItems(brick: string): NavItemConfig[] {
     path: s.path,
     icon: s.icon,
     requiredPermission: s.permission,
+    ...(s.anyOf.length > 0 ? { requiredPermissions: s.anyOf } : {}),
   }));
 }
 
@@ -504,6 +505,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "patients.immunizations.due_list",
       },
       ...appNavItems("opd"),
+      {
+        // Order sets serve OPD, admission and pre-operative care, so they belong to no one app.
+        i18nKey: "orderSets",
+        path: "/order-sets",
+        icon: "IconListDetails",
+        requiredPermission: "order_sets.templates.list",
+      },
       {
         i18nKey: "emergency",
         moduleCode: "emergency",

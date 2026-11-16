@@ -17,7 +17,6 @@
 //! - [`audit`] — Audit log entry types with SHA-256 chain
 
 pub mod access;
-pub mod app_screens;
 pub mod ai_drug_check;
 pub mod ai_guard;
 pub mod ai_history;

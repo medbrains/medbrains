@@ -72,7 +72,7 @@ const fn brick(
 pub const BRICKS: &[Brick] = &[
     brick("registration", "Patient Registration", &[], &["patients", "front_office", "consent"], None),
     brick("billing", "Billing & Finance", &["registration"], &["billing", "insurance", "patient_packages", "doctor_payouts"], None),
-    brick("opd", "OPD / Outpatient", &["registration"], &["opd", "doctor", "scheduling", "order_basket", "order_sets", "clinical_notes", "notes", "care_view", "chronic"], Some(EVERY_EDITION)),
+    brick("opd", "OPD / Outpatient", &["registration"], &["opd", "doctor", "scheduling", "order_basket", "clinical_notes", "notes", "care_view", "chronic"], Some(EVERY_EDITION)),
     brick("ipd", "IPD / Inpatient", &["registration"], &["ipd", "bedside", "icu", "case_mgmt", "ur", "mrd"], Some(PUBLIC)),
     brick("lab", "Laboratory (LIS)", &["registration"], &["lab"], Some(EVERY_EDITION)),
     brick("pharmacy", "Pharmacy", &["registration"], &["pharmacy", "pharmacy_finance", "pharmacy_improvements"], Some(EVERY_EDITION)),
@@ -127,6 +127,9 @@ pub const BASE_PLATE: &[&str] = &[
     "regulatory",
     "quality",
     "infection_control",
+    // Order sets serve OPD, admission and pre-operative care alike, so no one app owns them:
+    // an IPD-only hospital still authors its admission and theatre sets.
+    "order_sets",
 ];
 
 /// Groups that are apps in their own right but have no module switch yet. Each one is a brick

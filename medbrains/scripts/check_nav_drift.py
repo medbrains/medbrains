@@ -29,6 +29,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCREENS_RS = ROOT / "crates/medbrains-core/src/access/screens.rs"
 NAV_TS = ROOT / "apps/web/src/config/navigation.ts"
+APP_SCREENS_TS = ROOT / "packages/types/src/app-screens.generated.ts"
+APP_SCREEN_RE = re.compile(
+    r'\{ brick: "([^"]+)", path: "([^"]+)", labelKey: "[^"]+", icon: "[^"]+", '
+    r'permission: "([^"]+)", anyOf: \[([^\]]*)\] \}'
+)
 
 
 def parse_screens_rs() -> list[dict]:
@@ -70,7 +75,26 @@ def parse_navigation_ts() -> list[dict]:
             "requiredPermission": perm_m.group(1) if perm_m else None,
             "requiredPermissions": any_of,
         })
+    out.extend(
+        {"path": path, "requiredPermission": perm, "requiredPermissions": re.findall(r'"([^"]+)"', any_of)}
+        for _brick, path, perm, any_of in parse_app_screens_ts()
+    )
     return out
+
+
+def parse_app_screens_ts() -> list[tuple[str, str, str, str]]:
+    """The converted apps' menu entries, which navigation.ts spreads in from the generated copy."""
+    return APP_SCREEN_RE.findall(APP_SCREENS_TS.read_text())
+
+
+def stale_app_screens(screens: list[dict]) -> list[str]:
+    """Brick screens in SCREENS that the generated copy lacks, or that it lists differently.
+
+    CI's Rust test that rewrites the copy does not block a merge, so this static check does.
+    """
+    generated = {(b, p, perm) for b, p, perm, _ in parse_app_screens_ts()}
+    wanted = {(s["brick"], s["route"], s["required_permission"]) for s in screens if s.get("brick")}
+    return sorted(f"{b} {p} {perm}" for b, p, perm in wanted ^ generated)
 
 
 def main() -> int:
@@ -108,7 +132,13 @@ def main() -> int:
             # Nested or detail routes aren't in SCREENS — fine.
             continue
 
-    has_drift = bool(missing or perm_mismatch)
+    stale = stale_app_screens(screens)
+    if stale:
+        print(f"\n❌ app-screens.generated.ts is stale ({len(stale)} entries differ); run"
+              " UPDATE_APP_SCREENS=1 cargo test -p medbrains-core access::screens")
+        for line in stale:
+            print(f"  • {line}")
+    has_drift = bool(missing or perm_mismatch or stale)
 
     if missing:
         print(f"\n❌ {len(missing)} screen(s) in SCREENS missing from navigation.ts:")
