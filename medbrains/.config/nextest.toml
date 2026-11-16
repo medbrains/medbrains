@@ -1,0 +1,10 @@
+# cargo-nextest settings. The `ci` profile is what ci.yml's Rust tests job runs: every
+# failure reported (no fail-fast) and a JUnit file for the PR's per-test summary.
+[profile.ci]
+fail-fast = false
+# One test at a time, as `cargo test` runs them under .cargo/config.toml's
+# RUST_TEST_THREADS=1: the server's integration tests share one hospital in one database.
+test-threads = 1
+
+[profile.ci.junit]
+path = "junit.xml"
