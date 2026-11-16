@@ -222,6 +222,8 @@ export function PosCounterTab({
       drugSearchRef.current?.focus();
       setSafetyBlock(null);
       setSafetyReason("");
+      // An override reason belongs to one sale for one patient; never carry it to the next.
+      setPosAllergyReason("");
       toast.success(
         patientId && billingInvoiceId
           ? "Pharmacy sale recorded and linked to the Billing invoice workbench"
@@ -404,6 +406,14 @@ export function PosCounterTab({
           }
         : {}),
     });
+  }
+
+  /** Switch the sale's patient; overrides given for the previous patient no longer apply. */
+  function changePatient(patientId: string, onChange: (value: string) => void) {
+    setPosAllergyReason("");
+    setSafetyBlock(null);
+    setSafetyReason("");
+    onChange(patientId);
   }
 
   function openCancelSale(row: PharmacyPosSale) {
@@ -714,7 +724,7 @@ export function PosCounterTab({
                   canCounterSearch ? (
                     <CounterPatientSelect
                       value={field.value}
-                      onChange={field.onChange}
+                      onChange={(id) => changePatient(id, field.onChange)}
                       error={fieldState.error?.message}
                     />
                   ) : (
@@ -722,7 +732,7 @@ export function PosCounterTab({
                       size="xs"
                       label="Registered patient"
                       value={field.value}
-                      onChange={field.onChange}
+                      onChange={(id) => changePatient(id, field.onChange)}
                       error={fieldState.error?.message}
                     />
                   )
