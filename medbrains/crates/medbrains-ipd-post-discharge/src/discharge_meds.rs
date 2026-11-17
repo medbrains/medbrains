@@ -113,9 +113,8 @@ async fn tell_pharmacy_unbagged(
     admission_id: Uuid,
     reason: &str,
 ) -> Result<usize, AppError> {
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx =
+        medbrains_kernel::begin(&state.db, medbrains_kernel::Actor::from_claims(claims)).await?;
     let told = medbrains_notifications::notify_permission_holders(
         &mut tx,
         claims.tenant_id,
