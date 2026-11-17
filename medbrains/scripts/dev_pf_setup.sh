@@ -9,6 +9,7 @@
 #
 #   80  -> 8080
 #   443 -> 8443
+#   587, 465, 993 -> 1587, 1465, 1993 (native Stalwart, no Docker)
 #
 # The proxy then binds 8080/8443 as your normal user and every
 # https://*.medbrains.localhost URL keeps working unchanged.
@@ -59,6 +60,10 @@ rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port ${HTTP_
 rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port ${HTTPS_LISTEN}
 rdr pass on lo0 inet6 proto tcp from any to any port 80 -> ::1 port ${HTTP_LISTEN}
 rdr pass on lo0 inet6 proto tcp from any to any port 443 -> ::1 port ${HTTPS_LISTEN}
+# Native Stalwart (scripts/dev/native_stack.sh) listens unprivileged on 1587/1465/1993.
+rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port 587 -> 127.0.0.1 port 1587
+rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port 465 -> 127.0.0.1 port 1465
+rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port 993 -> 127.0.0.1 port 1993
 EOF
 chmod 644 "$ANCHOR_FILE"
 
@@ -89,7 +94,7 @@ fi
 pfctl -E >/dev/null 2>&1 || true
 
 echo
-echo "Installed: ports 80->${HTTP_LISTEN} and 443->${HTTPS_LISTEN} on loopback."
+echo "Installed: ports 80->${HTTP_LISTEN}, 443->${HTTPS_LISTEN} and mail 587/465/993->1587/1465/1993 on loopback."
 echo "Rules persist across reboots via ${PF_CONF}. Remove anytime with:"
 echo "  sudo scripts/dev_pf_setup.sh --remove"
 echo

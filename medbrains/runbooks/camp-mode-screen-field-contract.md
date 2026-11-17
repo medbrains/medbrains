@@ -485,7 +485,7 @@ MedBrains already has three related execution paths:
 | Runtime | Current repo path | Use for Camp |
 |---|---|---|
 | Web WASM | `packages/crdt` uses `loro-crdt`; proxy/CSP allows the Loro WASM asset | Browser/PWA fallback, CRDT docs, shared validation helpers that need to run in web |
-| Mobile native Rust | `crates/medbrains-edge-rn` + `packages/edge-rn-bindings` through UniFFI | Primary mobile Camp app. Prefer this over browser WASM on iOS/Android |
+| Mobile native Rust | `crates/medbrains-edge-rn` through UniFFI (Swift and Kotlin) | Primary mobile Camp app. Prefer this over browser WASM on iOS/Android |
 | Device adapter WASM | `crates/medbrains-adapter-sdk` | Lab/radiology/device simulators and machine adapters, not patient UI storage |
 
 Camp should not run its primary mobile offline database through browser-style WASM. The native app

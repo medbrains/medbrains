@@ -150,7 +150,7 @@ medbrains-spicedb-proto not_yet 0 -
 medbrains-sso-login not_yet 11 medbrains-db
 medbrains-telehealth not_yet 119 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-terminology not_yet 24 medbrains-db
-medbrains-tokens not_yet 56 medbrains-db
+medbrains-tokens partial 56 medbrains-db
 medbrains-tv not_yet 12 medbrains-db
 medbrains-upload not_yet 2 medbrains-db
 medbrains-vpn not_yet 11 medbrains-db
