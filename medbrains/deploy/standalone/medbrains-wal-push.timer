@@ -1,0 +1,11 @@
+[Unit]
+Description=Ship MedBrains WAL every minute (opt-in point-in-time recovery)
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1min
+AccuracySec=10s
+Unit=medbrains-wal-push.service
+
+[Install]
+WantedBy=timers.target

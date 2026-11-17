@@ -29,6 +29,16 @@ variable "company_backup_lock_days" {
   default     = 30
 }
 
+variable "company_wal_retention_days" {
+  description = "Days the wal-g/ prefix (WAL + base backups) is kept. Point-in-time restore reaches back about this minus 7 days (a full base backup is at most 7 days old)."
+  type        = number
+  default     = 35
+  validation {
+    condition     = var.company_wal_retention_days >= 14 && var.company_wal_retention_days <= 400
+    error_message = "company_wal_retention_days must be 14-400 (below 14 a full base backup and its WAL may not both survive)."
+  }
+}
+
 variable "company_wal_archiving" {
   description = "Grant the prod host WAL-G access (wal-g/ prefix). Opt-in: BACKUP-RESTORE.md, 'WAL archiving'."
   type        = bool
@@ -287,7 +297,7 @@ resource "aws_s3_bucket_policy" "prod_backups" {
 #   file-backups/  a mirror (`aws s3 sync`, never --delete): current objects
 #                  are kept while they exist on the host; an overwritten or
 #                  replaced file's old version stays 90 days.
-#   wal-g/         WAL + base backups: 35 days. Base backups are at most 7
+#   wal-g/         WAL + base backups: company_wal_retention_days (35). Base backups are at most 7
 #                  days apart, so every point in the last ~28 days keeps its
 #                  base and its WAL. The host never deletes - WAL-G's own
 #                  `delete` would need s3:DeleteObject; lifecycle does it.
@@ -335,7 +345,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "prod_backups" {
     id     = "wal-g"
     status = "Enabled"
     filter { prefix = "${local.wal_prefix}/" }
-    expiration { days = 35 }
+    expiration { days = var.company_wal_retention_days }
     noncurrent_version_expiration { noncurrent_days = 7 }
     abort_incomplete_multipart_upload { days_after_initiation = 1 }
   }
@@ -428,6 +438,9 @@ resource "aws_iam_policy" "prod_wal_g" {
         Effect   = "Allow"
         Action   = ["kms:GenerateDataKey", "kms:Encrypt", "kms:Decrypt"]
         Resource = aws_kms_key.prod_backups.arn
+        Condition = {
+          StringEquals = { "kms:ViaService" = "s3.${var.company_region}.amazonaws.com" }
+        }
       },
     ]
   })

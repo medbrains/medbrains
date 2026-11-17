@@ -1,6 +1,6 @@
 # Backup and restore — production (app.medbrains.in)
 
-Last reviewed 2026-10-26 (age client-side encryption, monthly retention, Object Lock, pre-deploy backup, restore drill script). Read before any prod change, and before you need it.
+Last reviewed 2026-11-17 (quality matrix, point-in-time recovery on both tiers, shared-cluster refusal); before that 2026-10-26 (age client-side encryption, monthly retention, Object Lock, pre-deploy backup, restore drill script). Read before any prod change, and before you need it.
 
 ## What prod actually is
 
@@ -111,78 +111,157 @@ Set all four in `/etc/medbrains/env` under an allowed prefix, for example `BACKU
 `BACKUP_MONTHLY_PREFIX=pg/monthly`, `BACKUP_SECRETS_PREFIX=pg/secrets`, `BACKUP_FILES_PREFIX=pg/files`, then
 `sudo systemctl start medbrains-pg-backup.service` to prove it. The vault's retention then applies to those keys.
 
-## RPO / RTO
+## Backup quality matrix
 
-| | Today | After the fix |
-|---|---|---|
-| **RPO** (data you can lose) | up to 24 h, and **everything** if the disk is lost | up to 24 h with dumps only; **≤ 5 min** (≤ 15 min target) with WAL archiving opted in |
-| **RTO** (time to serve again) | restore itself ≈ 1 min per 0.5 GB (drill below); unbounded if the host is gone | new host + deploy (~30-60 min incl. build) + restore (minutes) + DNS (TTL 600 s) ≈ **2 h target** |
+What each method protects against, what you can lose (RPO) and how long until the hospital works again (RTO). The
+methods are independent. Losing one key, one tool or one prefix leaves the others.
 
-## WAL archiving (opt-in, RPO ≤ 15 min)
+| Method | What it is | RPO | RTO | Protects against | Needs to restore |
+|---|---|---|---|---|---|
+| Nightly dump (`medbrains-pg-backup`) | `pg_dump` sealed with age to the hospital's **offline** key; Object Lock 30 d | ≤ 24 h | ≈ 1 min per 0.5 GB to restore; ≈ 2 h for a lost host | lost host or disk, ransomware (the host cannot read or delete it), a bad deploy | the offline age key, operator credentials |
+| Point-in-time recovery (WAL-G, **opt-in**, `PITR_ENABLED=1`) | WAL every ≤ 5 min plus a daily base backup (full weekly), sealed with WAL-G's libsodium key | **≤ 6 min** | base fetch + WAL replay: minutes for a small hospital; ≈ 1 h for a lost host | everything above, **plus** "restore to 10:41": a wrong bulk update, a dropped table, ransomware inside the database | `/etc/medbrains/walg.key` (on the host, and in the sealed secrets backup) |
+| Lightsail / EBS snapshots (per-hospital servers) | whole disk, daily, 7 kept | ≤ 24 h | ≈ 15 min (new instance from snapshot) | a lost instance | the AWS account |
+| Per-hospital export (`medbrains-tenant-export`) | one tenant, weekly, sealed | ≤ 7 d | hours (a new install plus import) | a hand-over or a move. **Not** disaster recovery | the receiving key |
 
-Not enabled by default. Nothing runs until an operator applies terraform with the flag **and** runs the setup script.
+Before PITR the data-loss window is the day since 02:30. With PITR it is the last few minutes.
 
-**Tool: WAL-G** (`v3.0.9`, pinned), not pgBackRest. Both stream WAL to S3 with SSE-KMS from an instance role. The
-deciding point is retention without delete rights: the host here may never delete backups. pgBackRest keeps
-`backup.info` / `archive.info` catalogues and expects to expire backups itself (`s3:DeleteObject`); if an S3 lifecycle
-deletes underneath it, the catalogue references missing sets and `info`/`expire` fail. WAL-G discovers backups by
-listing the prefix, so an S3 lifecycle can own retention and the host keeps write+read only. WAL-G is also one static
-binary with an official Ubuntu 24.04 Postgres build for both `aarch64` (prod is `t4g`) and `amd64`; pgBackRest would
-come from PGDG/universe apt and add a repo dependency to a host we share with the hospital. Availability check: the
-release ships `wal-g-pg-24.04-aarch64` / `-amd64` with published SHA-256 digests (pinned in the script).
+## Point-in-time recovery (opt-in, RPO ≤ 6 min)
 
-As code:
+Off by default. Nothing changes on any server until its env file says `PITR_ENABLED=1` and `install.sh` runs (or
+`medbrains-wal-g-setup --apply` is run by hand). It works on both tiers: the host's own Postgres (attach), and the
+dedicated tier's `medbrains-postgres` container (Rishi's Lightsail server, `postgres:17-alpine`).
 
-| Piece | File |
-|---|---|
-| IAM grant on `wal-g/` (Put/Get/List, KMS encrypt+decrypt; no delete) behind `company_wal_archiving = false` | `infra/terraform/envs/medbrains-in/ops.tf` (`aws_iam_policy.prod_wal_g`) |
-| Retention: `wal-g/` expires at 35 days (lifecycle rule `wal-g`) | same |
-| Installer: pinned + checksum-verified `wal-g`, `/etc/medbrains/walg.yaml` (no secrets), `ALTER SYSTEM` `archive_mode=on`, `archive_command='/usr/local/bin/wal-g --config /etc/medbrains/walg.yaml wal-push %p'`, `archive_timeout=300`, preflight `wal-g st ls`, `WAL_ARCHIVING=1`; dry run by default | `deploy/standalone/medbrains-wal-g-setup` |
-| Daily base backup 03:00 UTC, delta chain ≤ 6 (weekly full), `OnFailure` alert | `deploy/standalone/medbrains-wal-g-backup.{service,timer}` |
-| Alert when `pg_stat_archiver` shows a failure newer than the last success (not on idle) | `deploy/standalone/medbrains-host-check` |
+**Tool: WAL-G** (`v3.0.9`, pinned and checksum-verified; the Ubuntu 22.04 build also runs on Debian 12), not
+pgBackRest. Both stream WAL to S3. The deciding point is retention **without delete rights**: the host may never
+delete backups. pgBackRest keeps `backup.info` / `archive.info` catalogues and expects to expire backups itself, which
+needs `s3:DeleteObject`. If a lifecycle deletes underneath it, the catalogue references missing sets and `info` /
+`expire` fail. WAL-G finds backups by listing the prefix, so the bucket's lifecycle owns retention, and the host keeps
+put, get and list only. On an Object Lock bucket a delete from the host would only add a delete marker anyway: the
+versions stay billed until their lock date. Storage is about retention × WAL volume either way. Neither tool runs
+inside the alpine container (musl; both ship glibc builds), which is why the spool below exists.
 
-RPO: a segment is archived when full (16 MB) or after `archive_timeout` (300 s) with any activity, so ≤ 5 min of WAL
-is at risk, inside the 15 min target. Cost: one segment per 5 busy minutes is ≤ 288 × 16 MB/day before compression —
-small. Not on the starter tier (Postgres in a container); this is for the native-Postgres attach host.
+**How it works.**
 
-Enable (yours, a prod change):
+1. `archive_command` copies each finished WAL segment into `<data directory>/medbrains-wal-spool/`: cp, fsync,
+   rename, fsync. An identical earlier copy counts as done; a different one fails loudly. The data directory is the
+   one place both the container and the host see, so enabling this never recreates the container.
+2. `medbrains-wal-push.timer`, every minute on the host, runs `wal-g wal-push` on each spooled file and deletes it
+   only once WAL-G has accepted it.
+3. `medbrains-wal-g-backup.timer` runs daily at 03:00 local, after the dump. `WALG_DELTA_MAX_STEPS=6`, so a full
+   base goes up weekly with deltas in between.
+4. RPO: `archive_timeout` 300 s plus the 60 s push.
+5. `medbrains-host-check` pages when `pg_stat_archiver` shows a current failure, or when a spooled file is older than
+   15 minutes (WAL that is not off-site). The push unit itself does not page, because an S3 outage would page every
+   minute.
+
+**Encryption, and how it relates to the age dumps.** WAL and base backups are sealed on the host by WAL-G's libsodium
+crypter, a 32-byte key in `/etc/medbrains/walg.key` (`WALG_LIBSODIUM_KEY_PATH`, hex). The key is made once by the
+setup and never replaced. The bucket adds SSE (SSE-S3 or SSE-KMS), Object Lock, deny-delete and TLS-only on top. This
+is a **symmetric key on the host**, unlike the dumps, whose private key is offline. That is deliberate: the host must
+read its own WAL archive to take delta backups and to run the monthly restore test, and the host can read the live
+database anyway. What root on the host gains is access to history (rows already deleted). The dumps stay sealed to
+the offline key as an **independent second method**: a stolen host key opens the PITR archive and nothing else, and a
+lost host key loses PITR and nothing else. `walg.key` lives in `/etc/medbrains`, so the nightly sealed secrets backup
+carries it. A replacement host gets it back with the offline key. Keep a second copy with the age key.
+
+**Shared cluster: check first, every time.** WAL archiving and base backups work per **cluster**, not per database.
+On a server whose Postgres also holds another application's databases, enabling it would copy that application's
+data into MedBrains' bucket. The setup therefore **refuses** when the cluster holds any database other than
+MedBrains' own (`POSTGRES_DB` or the one in `DATABASE_URL`, `spicedb`, and `PITR_ALLOWED_DATABASES`), or when
+`archive_command` is already set by another tool. Check by hand as well:
 
 ```sh
-cd infra/terraform/envs/medbrains-in
-( set -a; source ../../../.env; set +a
-  terraform plan -var company_wal_archiving=true -var 'company_alarm_email=…' -out wal.tfplan && terraform apply wal.tfplan )
-terraform output prod_ops        # WALG_S3_PREFIX, WALG_S3_SSE_KMS_ID
-# on the host, with deploy/standalone/ copied up:
-sudo WALG_S3_PREFIX=… WALG_S3_SSE_KMS_ID=… bash medbrains-wal-g-setup            # dry run
-sudo WALG_S3_PREFIX=… WALG_S3_SSE_KMS_ID=… bash medbrains-wal-g-setup --apply
-sudo systemctl restart postgresql   # at a quiet moment — archive_mode needs it; the script says when
-sudo -u postgres wal-g --config /etc/medbrains/walg.yaml backup-list
+sudo -u postgres psql -c '\l'                                         # the host's own Postgres
+sudo docker exec medbrains-postgres psql -U medbrains -c '\l'         # the container
+sudo -u postgres psql -XAtc 'SHOW archive_mode; SHOW archive_command'   # someone else archiving?
 ```
 
-Disable: `ALTER SYSTEM SET archive_mode = off` + restart, `systemctl disable --now medbrains-wal-g-backup.timer`,
-`WAL_ARCHIVING=0`. While archiving is on, a broken `archive_command` makes `pg_wal` grow until the disk fills — the
-host check pages on the first failure for that reason.
+A per-hospital server (its own Postgres, nothing else on it) passes. **The shared production host does not.** Its
+cluster also serves another client's ERP and HR databases, and that client archives the whole cluster with its own
+tooling. There, PITR for MedBrains first needs **its own Postgres cluster** on the same machine. Outline, not yet
+planned in detail:
 
-### Point-in-time restore (WAL-G)
+1. `pg_createcluster 17 medbrains --port 5433` (its own data directory and unit, `postgresql@17-medbrains`).
+2. Roles with `db-roles.sh`, then `pg_dump -Fc` from 5432 and `pg_restore` into 5433. Compare row counts with
+   `medbrains-restore-drill`'s checks.
+3. Cutover: stop the server, take a final dump and restore it, point every `*DATABASE_URL` and SpiceDB's URI at
+   5433, start, verify.
+4. Rollback: point the URLs back. The 5432 database is untouched until the hospital confirms.
+5. Then `WAL_PGPORT=5433` and `PITR_ENABLED=1`.
+6. Drop the 5432 copy, so the other client's base backups stop carrying MedBrains' data. Their **existing** archives
+   still hold it until their retention passes.
 
-On the host (its role can read `wal-g/` once opted in) or a replacement with the same role:
+Until that is done, the shared host has dumps only.
+
+**Credentials.** The setup uses the instance role (prod EC2) or root's `~/.aws/credentials` beside the container
+(Lightsail has no instance role; the units run as root with `HOME=/root` so the SDK finds it). No static key is
+written by this kit.
+
+**IAM and retention, per bucket.**
+
+| Bucket | Prefix | Grant | Retention |
+|---|---|---|---|
+| prod, `infra/terraform/envs/medbrains-in/ops.tf` | `wal-g/<host>/` | `company_wal_archiving = true` attaches `prod_wal_g`: Put/Get/AbortMultipartUpload on `wal-g/*`, List on the prefix, KMS via S3 only; no delete | lifecycle `wal-g`: `company_wal_retention_days` (default 35, 14-400) |
+| per-hospital, private repo `hospital-backups` | `<slug>/pitr/<host>/` | put, get, list on `<slug>/pitr/*` for the writer user (source IP pinned); no delete; objects are not `.age` (WAL-G seals them itself) | lifecycle on `<slug>/pitr/` |
+
+Restore reaches back about **retention minus 7 days**, because a full base backup is at most 7 days old and the
+deltas need it. Get is needed because WAL-G reads its own archive: delta backups read the previous backup's metadata,
+`wal-push` checks for an existing segment, and the restore test fetches everything.
+
+**Enable (yours, a prod change):**
 
 ```sh
-PGDATA=$(sudo -u postgres psql -XAtc 'SHOW data_directory')   # Ubuntu PGDG: /var/lib/postgresql/17/main
-sudo systemctl stop medbrains-server postgresql
-sudo mv "$PGDATA" "${PGDATA}.broken-$(date -u +%F)" && sudo install -d -o postgres -m 0700 "$PGDATA"
-sudo -u postgres wal-g --config /etc/medbrains/walg.yaml backup-fetch "$PGDATA" LATEST
-sudo -u postgres touch "$PGDATA/recovery.signal"
-sudo -u postgres tee -a "$PGDATA/postgresql.auto.conf" <<'CONF'
-restore_command = '/usr/local/bin/wal-g --config /etc/medbrains/walg.yaml wal-fetch %f %p'
-recovery_target_time = '2026-10-12 09:41:00+05:30'   # just before the incident; omit to replay everything
+# 1. The bucket grants (prod: terraform apply with company_wal_archiving = true; per-hospital: the module).
+# 2. On the server, in /etc/medbrains/env:
+#      PITR_ENABLED=1
+#      WALG_S3_PREFIX=s3://<bucket>/<slug>/pitr     # prod: terraform output prod_ops (…/wal-g)
+#      WALG_S3_SSE_KMS_ID=<key arn>                 # SSE-KMS buckets only
+sudo bash /tmp/standalone/medbrains-wal-g-setup              # dry run: refuses a shared cluster, prints the plan
+sudo bash /tmp/standalone/install.sh <domain> <ops-email> <bucket>   # or: medbrains-wal-g-setup --apply --restart-if-needed
+sudo medbrains-wal-g list                                     # the first base backup
+sudo systemctl start medbrains-host-check && journalctl -u medbrains-host-check -n 20   # "wal: spool drained"
+```
+
+The setup checks the archive before Postgres depends on it. It lists the prefix and round-trips a sealed canary
+(`canary/…`), which also proves Object Lock accepts WAL-G's uploads. If the canary is refused, nothing is changed.
+Beside the container, `--restart-if-needed` restarts it once for `archive_mode`. The host's own Postgres is never
+restarted for you.
+
+**Disable:** `ALTER SYSTEM SET archive_mode = off`, restart Postgres,
+`systemctl disable --now medbrains-wal-push.timer medbrains-wal-g-backup.timer`, set `WAL_ARCHIVING=0` and
+`PITR_ENABLED=0`, and empty `medbrains-wal-spool/`. While archiving is on and pushing fails, the spool grows until the
+disk fills, which is why the host check pages after 15 minutes.
+
+### Point-in-time restore ("restore to 10:41")
+
+On the server, or a replacement holding the same `walg.key` and bucket access. Restore beside nothing: this replaces
+the cluster, so take the evidence dump first (runbook step 2).
+
+```sh
+sudo systemctl stop medbrains-server
+SPOOL=$(sudo medbrains-wal-g spool); DATA=${SPOOL%/medbrains-wal-spool}
+sudo docker stop medbrains-postgres          # host's own Postgres: sudo systemctl stop postgresql
+OWNER=$(sudo stat -c %u:%g "$DATA")
+sudo mv "$DATA" "$DATA.broken-$(date -u +%F)" && sudo install -d -o "${OWNER%:*}" -g "${OWNER#*:}" -m 0700 "$DATA"
+sudo medbrains-wal-g fetch-base "$DATA"
+sudo rm -rf "$DATA/medbrains-wal-spool" && sudo install -d -m 0700 "$DATA/medbrains-wal-spool" "$DATA/medbrains-wal-restore"
+sudo medbrains-wal-g fetch-wals "$DATA/medbrains-wal-restore"      # prints how many segments it fetched
+sudo chown -R "$OWNER" "$DATA"
+sudo touch "$DATA/recovery.signal"
+sudo tee -a "$DATA/postgresql.auto.conf" <<'CONF'
+restore_command = 'cp medbrains-wal-restore/%f %p'
+recovery_target_time = '2026-11-17 10:41:00+05:30'   # just before the incident; omit to replay everything
 recovery_target_action = 'promote'
 CONF
-sudo systemctl start postgresql    # replays WAL, then promotes; watch the server log
+sudo chown "$OWNER" "$DATA/postgresql.auto.conf" "$DATA/recovery.signal"
+sudo docker start medbrains-postgres         # or: sudo systemctl start postgresql; replays, then promotes
 ```
 
-Then step 7 (verify) of the runbook below, remove the `restore_command`/`recovery_target_*` lines, start the server.
-Take a fresh base backup straight after (`systemctl start medbrains-wal-g-backup`): the timeline changed.
+`restore_command` copies from a prefetched directory instead of calling WAL-G, so the same steps work in the
+container. When the log says `database system is ready to accept connections`, do step 7 (verify) of the runbook
+below. Then delete the three recovery lines and `medbrains-wal-restore/`, start the server, and take a fresh base
+backup straight away (`systemctl start medbrains-wal-g-backup`): the timeline changed. Keep `$DATA.broken-*` until the
+hospital confirms.
 
 ## Restore runbook
 
@@ -308,10 +387,14 @@ fails, and the drill also runs in its own throwaway container. 15/15 on 2026-10-
 
 ## Known gaps
 
-- The files mirror and WAL archiving are code only — inert until `ops.tf` is applied and the host steps are run.
+- The files mirror and point-in-time recovery are code only — inert until the bucket grants are applied and the host
+  steps are run. PITR has not yet run against a real bucket: the setup's canary is the first proof, and the monthly
+  restore test the second.
 - The files mirror runs once a day: up to 24 h of generated documents can be lost even with WAL archiving on.
 - The restore drill is run by hand (it needs the offline key, so it cannot be scheduled on the host by design).
   Quarterly, and after any change to the backup script.
 - Losing the offline key (and any second recipient) makes every sealed backup unreadable. Keep two copies.
-- Object Lock requires a checksum on every PUT; the backup script sends one, WAL-G is untested against it — run
-  `wal-g st put` once before opting WAL archiving in.
+- Object Lock requires a checksum on every PUT. The backup script sends one. WAL-G's SDK sends one by default
+  (`AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_SUPPORTED`), and the setup's canary upload proves it before anything
+  depends on it.
+- The shared production host cannot have PITR until MedBrains has its own cluster there (see "Shared cluster").
