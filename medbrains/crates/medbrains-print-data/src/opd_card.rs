@@ -248,7 +248,6 @@ struct VisitRow {
     doctor: Option<String>,
     token_number: Option<String>,
     is_repeat: bool,
-    follow_up_date: Option<NaiveDate>,
 }
 
 /// The visit, its department and doctor, and the token the board calls.
@@ -269,8 +268,7 @@ async fn visit_row(
            EXISTS (SELECT 1 FROM encounters prev \
              WHERE prev.tenant_id = e.tenant_id AND prev.patient_id = e.patient_id \
                AND prev.encounter_type = 'opd' AND prev.deleted_at IS NULL \
-               AND prev.id <> e.id AND prev.created_at < e.created_at) AS \"is_repeat!\", \
-           e.follow_up_date \
+               AND prev.id <> e.id AND prev.created_at < e.created_at) AS \"is_repeat!\" \
          FROM encounters e \
          LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          LEFT JOIN users doc ON doc.id = e.doctor_id AND doc.tenant_id = e.tenant_id \
@@ -302,7 +300,6 @@ fn visit_of(row: VisitRow, tz: FixedOffset) -> OpdCardVisit {
         doctor: row.doctor,
         token_number: row.token_number,
         is_repeat: row.is_repeat,
-        follow_up_date: row.follow_up_date.map(|d| d.format("%d-%b-%Y").to_string()),
     }
 }
 

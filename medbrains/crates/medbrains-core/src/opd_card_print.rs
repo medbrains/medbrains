@@ -41,6 +41,4 @@ pub struct OpdCardVisit {
     pub token_number: Option<String>,
     /// True when the patient has an earlier OPD visit here.
     pub is_repeat: bool,
-    /// The next visit, once the doctor has set one.
-    pub follow_up_date: Option<String>,
 }

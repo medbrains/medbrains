@@ -83,12 +83,6 @@ function visitBlock(visit: OpdCardVisit): string {
   );
 }
 
-/** The box the doctor or desk writes the next visit in, filled once one is set. */
-function followUp(visit: OpdCardVisit | null): string {
-  const date = visit?.follow_up_date ? esc(visit.follow_up_date) : "";
-  return `<div class="follow"><span class="label">Next visit</span><span class="follow-date">${date}</span></div>`;
-}
-
 const SHARED_CSS = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: "IBM Plex Sans", "MedBrains Sans", system-ui, sans-serif; color: #161616; }
@@ -97,7 +91,7 @@ const SHARED_CSS = `
   .logo { object-fit: contain; }
   .hospital { font-weight: 700; }
   .contact { color: #393939; }
-  .patient { display: flex; justify-content: space-between; }
+  .patient { display: flex; justify-content: space-between; align-items: center; flex: 1; }
   .name { font-weight: 600; }
   .uhid { font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 700; }
   .label { color: #525252; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 4px; }
@@ -107,7 +101,6 @@ const SHARED_CSS = `
   .token-number { font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 700; }
   .fields { display: grid; grid-template-columns: 1fr 1fr; flex: 1; }
   .field { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .follow { border: 1px solid #161616; display: flex; align-items: center; }
   @media print { .card { break-inside: avoid; } }
 `;
 
@@ -118,16 +111,15 @@ const SLIP_CSS = `
   .logo { max-height: 16mm; max-width: 30mm; }
   .hospital { font-size: 18pt; }
   .contact { font-size: 9pt; margin-top: 1mm; }
-  .name { font-size: 15pt; }
-  .uhid { font-size: 16pt; margin: 1mm 0; }
-  .line { margin-top: 1mm; }
+  .name { font-size: 20pt; }
+  .uhid { font-size: 22pt; margin: 2mm 0; }
+  .line { margin-top: 1.5mm; font-size: 13pt; }
   .label { font-size: 8pt; }
-  .qr { width: 30mm; height: 30mm; }
+  .qr { width: 42mm; height: 42mm; }
   .visit { padding-top: 3mm; gap: 5mm; }
   .token { padding-right: 5mm; min-width: 34mm; }
   .token-number { font-size: 28pt; }
   .fields { gap: 2mm 6mm; }
-  .follow { margin-top: auto; padding: 3mm; height: 14mm; gap: 4mm; font-size: 12pt; }
 `;
 
 const ID_CARD_CSS = `
@@ -146,7 +138,6 @@ const ID_CARD_CSS = `
   .token { padding-right: 2mm; }
   .token-number { font-size: 12pt; }
   .fields { grid-template-columns: 1fr; font-size: 5.5pt; }
-  .follow { margin-top: auto; padding: 0.8mm 1.5mm; gap: 2mm; }
 `;
 
 /** The page for `data` on the paper `format` names. */
@@ -160,7 +151,6 @@ export function renderOpdCard(data: OpdCardPrintData, format: OpdCardFormat = "s
       letterhead(data) +
       patientBlock(data, isCard ? 96 : 160) +
       visit +
-      followUp(data.visit) +
       `</main>`,
   };
 }
