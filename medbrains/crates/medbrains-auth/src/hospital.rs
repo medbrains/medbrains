@@ -13,7 +13,7 @@
 //! hospital is the answer, and sign-in never asks for a code.
 
 use axum::http::HeaderMap;
-use medbrains_server_core::error::AppError;
+use medbrains_server_core::{error::AppError, validation::PasswordCheck};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -123,5 +123,17 @@ mod tests {
         assert!(matches!(account(vec![1, 2]), Account::Ambiguous));
         assert!(matches!(account(vec![1]), Account::One(1)));
         assert!(matches!(account(Vec::<i32>::new()), Account::None));
+    }
+}
+
+impl<'a> From<&'a crate::PasswordResetConfirmBody> for PasswordCheck<'a> {
+    /// A self-service reset's new password, with the username and the hospital code it named.
+    fn from(body: &'a crate::PasswordResetConfirmBody) -> Self {
+        Self {
+            password: &body.new_password,
+            username: &body.username,
+            hospital_code: body.hospital_code.as_deref().unwrap_or_default(),
+            ..Self::default()
+        }
     }
 }
