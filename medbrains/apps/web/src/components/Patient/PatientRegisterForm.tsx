@@ -25,7 +25,6 @@ import { useHasPermission } from "@medbrains/stores";
 import type {
   Camp,
   CreatePatientRequest,
-  DepartmentRow,
   Facility,
   PharmacyCatalog,
   SetupUser,
@@ -68,6 +67,7 @@ import {
   registrationTypeOptions,
   trimOrUndefined,
 } from "@/forms/patientRegistration.form";
+import { pickDepartment } from "@/lib/sole-option";
 import { joinRuns, withoutTrailingParenthesised } from "@/lib/text-shape";
 import { abhaService } from "@/services/abha.service";
 import { lookupsService } from "@/services/lookups.service";
@@ -78,7 +78,9 @@ import { CampaignSelect } from "./CampaignSelect";
 import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
 import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
 import { LocalNameRow } from "./LocalNameRow";
+import { RegistrationDepartmentCol } from "./RegistrationDepartmentCol";
 import { useOpdVisitGates } from "./useOpdVisitGates";
+import { useRegistrationDepartments } from "./useRegistrationDepartments";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
@@ -394,8 +396,10 @@ export function PatientRegisterForm({
       // call went out and 403'd into a swallowed queueWarning, leaving a
       // patient registered and silently not queued.
       create_opd_visit: (initialValues?.create_opd_visit ?? !isEdit) && canCreateOpdVisit,
+      // Unticked by default: the desk stays on the registered patient (with
+      // "Print OPD card") instead of being sent into the OPD screen. Opt-in remains.
       open_opd_after_registration:
-        (initialValues?.open_opd_after_registration ?? !isEdit) && canWorkOpdVisit,
+        (initialValues?.open_opd_after_registration ?? false) && canWorkOpdVisit,
     },
   });
   const [activeStep, setActiveStep] = useState(0);
@@ -422,11 +426,6 @@ export function PatientRegisterForm({
   const dateOfBirthAgeHint = ageHintAsOfToday(dateOfBirthValue, ageYearsValue, dobEstimated, t);
   const fieldError = (message: string | undefined) => translatedError(t, message);
 
-  const { data: departments = [] } = useQuery<DepartmentRow[]>({
-    queryKey: ["setup-departments"],
-    queryFn: () => patientsService.listDepartments(),
-    staleTime: 5 * 60 * 1000,
-  });
   const { data: doctors = [] } = useQuery<SetupUser[]>({
     queryKey: ["setup-doctors"],
     queryFn: () => patientsService.listDoctors(),
@@ -461,16 +460,7 @@ export function PatientRegisterForm({
     staleTime: 60_000,
   });
 
-  const departmentOptions = useMemo(
-    () =>
-      departments
-        .filter((department) => department.is_active)
-        .map((department) => ({
-          value: department.id,
-          label: `${department.name} (${department.code})`,
-        })),
-    [departments],
-  );
+  const departmentOptions = useRegistrationDepartments();
   const consultantOptions = useMemo(
     () =>
       doctors
@@ -822,6 +812,8 @@ export function PatientRegisterForm({
   ];
 
   const validateImmediateStep = async (): Promise<boolean> => {
+    // The picker is hidden in a one-department hospital; its department is filled in here.
+    setValue("department_id", pickDepartment(departmentOptions, getValues("department_id")));
     const ok = await trigger(STEP1_FIELDS);
     return ok;
   };
@@ -1573,25 +1565,11 @@ export function PatientRegisterForm({
           <FormSection num="05" name={t("registrationForm.section.clinicalOwnership")}>
             <FormRow label={t("registrationForm.row.departmentConsultant")}>
               <Grid>
-                <Grid.Col span={{ base: 12, sm: 5 }}>
-                  <Controller
-                    control={control}
-                    name="department_id"
-                    render={({ field }) => (
-                      <Select
-                        aria-label={t("registrationForm.aria.department")}
-                        placeholder={t("registrationForm.placeholder.department")}
-                        data-testid="picker-department"
-                        data={departmentOptions}
-                        value={field.value ?? null}
-                        onChange={(v) => field.onChange(v ?? undefined)}
-                        error={fieldError(errors.department_id?.message)}
-                        searchable
-                        clearable
-                      />
-                    )}
-                  />
-                </Grid.Col>
+                <RegistrationDepartmentCol
+                  control={control}
+                  options={departmentOptions}
+                  error={fieldError(errors.department_id?.message)}
+                />
                 <Grid.Col span={{ base: 12, sm: 5 }}>
                   <Controller
                     control={control}
