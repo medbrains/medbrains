@@ -3,6 +3,11 @@
 //!
 //! Two routes, one card. Registration prints it for the patient; the OPD queue
 //! prints it for a visit. Neither reads a clinical field.
+//!
+//! A relationship with the patient (`patients.view` and the access check)
+//! prints the whole card. Failing that, the desk's `patients.card.reprint`
+//! prints either card for any patient of this hospital, whoever registered
+//! them, without the address.
 
 use axum::routing::get;
 use axum::{
@@ -31,8 +36,9 @@ pub async fn get_opd_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<OpdCardPrintData>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    require_patient_access(&state, &claims, patient_id).await?;
+    if !crate::general::holds_card_reprint(&claims) {
+        require_permission(&claims, permissions::patients::VIEW)?;
+    }
     print_card(&state, &claims, CardFor::Patient(patient_id))
         .await
         .map(Json)
@@ -48,7 +54,9 @@ pub async fn get_opd_visit_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdCardPrintData>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    if !crate::general::holds_card_reprint(&claims) {
+        require_permission(&claims, permissions::patients::VIEW)?;
+    }
     print_card(&state, &claims, CardFor::Visit(encounter_id))
         .await
         .map(Json)
@@ -61,10 +69,51 @@ enum CardFor {
     Visit(Uuid),
 }
 
+/// How the caller reaches the card, recorded with the print.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Via {
+    /// `patients.view` and a relationship with the patient.
+    Relationship,
+    /// `patients.card.reprint`: the desk, for any patient of this hospital.
+    DeskReprint,
+}
+
+impl Via {
+    /// The relationship first, so the desk's own patients keep their address;
+    /// only its refusal (`NotFound`, or `Forbidden` without `patients.view`)
+    /// falls to the desk grant. A fault in the check is returned as it is,
+    /// never read as a refusal or as an allow.
+    async fn decide(state: &AppState, claims: &Claims, patient_id: Uuid) -> Result<Self, AppError> {
+        let ordinary = match require_permission(claims, permissions::patients::VIEW) {
+            Ok(()) => require_patient_access(state, claims, patient_id).await,
+            Err(refused) => Err(refused.into()),
+        };
+        match ordinary {
+            Ok(()) => Ok(Self::Relationship),
+            Err(AppError::NotFound | AppError::Forbidden)
+                if crate::general::holds_card_reprint(claims) =>
+            {
+                Ok(Self::DeskReprint)
+            }
+            Err(outcome) => Err(outcome),
+        }
+    }
+
+    /// The audit marker and the permission the print went through.
+    const fn audit(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Relationship => ("relationship", permissions::patients::VIEW),
+            Self::DeskReprint => ("desk_reprint", permissions::patients::card::REPRINT),
+        }
+    }
+}
+
 /// Reads the card in one transaction and records that it was printed.
 ///
 /// On the visit route the visit is read first, because it names the patient
-/// whose gate then decides; nothing is returned before it has.
+/// whose gate then decides; nothing is returned before it has. The desk path
+/// skips the relationship, never the tenant: both reads are this tenant's,
+/// under its RLS, and a deleted record is not found.
 async fn print_card(
     state: &AppState,
     claims: &Claims,
@@ -77,17 +126,26 @@ async fn print_card(
         CardFor::Patient(id) => (id, None),
         CardFor::Visit(encounter_id) => {
             let row = visit_row(&mut tx, claims.tenant_id, encounter_id).await?;
-            require_patient_access(state, claims, row.patient_id).await?;
             (row.patient_id, Some(row))
         }
     };
+    let via = Via::decide(state, claims, patient_id).await?;
     let hospital = hospital_row(&mut tx, claims.tenant_id).await?;
     let patient = patient_row(&mut tx, claims.tenant_id, patient_id).await?;
     let encounter_id = match card_for {
         CardFor::Visit(id) => Some(id),
         CardFor::Patient(_) => None,
     };
-    queue_printed(&mut tx, claims, patient_id, encounter_id).await?;
+    queue_printed(
+        &mut tx,
+        claims,
+        Printed {
+            patient_id,
+            encounter_id,
+            via,
+        },
+    )
+    .await?;
     tx.commit().await?;
 
     let today = Utc::now().with_timezone(&tz).date_naive();
@@ -102,7 +160,8 @@ async fn print_card(
         age: patient.date_of_birth.map(|dob| age_label(dob, today)),
         gender: patient.gender,
         phone: patient.phone,
-        address: patient.address,
+        // The reprint grant promises the desk never the address.
+        address: patient.address.filter(|_| via == Via::Relationship),
         registered_on: patient
             .created_at
             .with_timezone(&tz)
@@ -261,14 +320,27 @@ fn age_label(dob: NaiveDate, today: NaiveDate) -> String {
     )
 }
 
+/// One print: whose card, for which visit, and through which gate.
+struct Printed {
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+    via: Via,
+}
+
 /// Records the print on the clinical event stream, the same event the
-/// registration card raises, so the patient's access history shows it.
+/// registration card raises, so the patient's access history shows who
+/// printed it and under which permission.
 async fn queue_printed(
     conn: &mut PgConnection,
     claims: &Claims,
-    patient_id: Uuid,
-    encounter_id: Option<Uuid>,
+    printed: Printed,
 ) -> Result<(), AppError> {
+    let Printed {
+        patient_id,
+        encounter_id,
+        via,
+    } = printed;
+    let (via, permission) = via.audit();
     let print_request_id = Uuid::new_v4();
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -280,6 +352,8 @@ async fn queue_printed(
             "encounter_id": encounter_id,
             "print_request_id": print_request_id,
             "artifact": "opd_card",
+            "via": via,
+            "permission": permission,
         }),
     )
     .with_patient(patient_id);
