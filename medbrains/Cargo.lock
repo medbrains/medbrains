@@ -7996,6 +7996,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-print",
  "medbrains-server-core",
  "medbrains-signing",

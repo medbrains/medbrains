@@ -741,6 +741,9 @@ export type CommitteeFrequencyType =
   | "annual"
   | "as_needed";
 
+/** Which way an indicator's value meets its target. */
+export type IndicatorDirection = "higher_better" | "lower_better";
+
 export interface QualityIndicator {
   id: string;
   tenant_id: string;
@@ -758,7 +761,8 @@ export interface QualityIndicator {
   threshold_critical?: number;
   benchmark_national?: number;
   benchmark_international?: number;
-  auto_calculated: boolean;
+  /** `null` until set; the NABH report never calls such an indicator met. */
+  direction: IndicatorDirection | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -993,7 +997,7 @@ export interface CreateQualityIndicatorRequest {
   target_value?: number;
   threshold_warning?: number;
   threshold_critical?: number;
-  auto_calculated?: boolean;
+  direction: IndicatorDirection;
 }
 
 export interface RecordIndicatorValueRequest {
