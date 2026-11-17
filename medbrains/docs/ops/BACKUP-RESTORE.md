@@ -237,6 +237,91 @@ Whole host lost: launch a replacement in the same VPC/subnet, run the terraform 
 then steps 3-8. Repoint `app.medbrains.in` (`envs/medbrains-in/app.tf` reads the instance id — change
 `company_prod_instance_id`) and the old name.
 
+## Per-hospital export (one tenant)
+
+`deploy/standalone/medbrains-tenant-export` writes **one hospital's rows and no other hospital's** as an age-sealed
+psql script. It exists for two cases: a hospital asks for its data, or it moves off a shared server to its own. The
+nightly dump cannot do either, because it carries every tenant.
+
+```sh
+sudo sh -c 'set -a; . /etc/medbrains/env; . /etc/medbrains/.compose-env 2>/dev/null; medbrains-tenant-export RISHI'
+# weekly instead: TENANT_EXPORT="RISHI" (space-separated codes) in /etc/medbrains/env, then re-run install.sh,
+# which enables medbrains-tenant-export.timer (Sunday 04:00 local). Unset = off, the default.
+```
+
+Where it goes: `s3://$BACKUP_BUCKET/$TENANT_EXPORT_PREFIX/<code>/<host>-<code>-<UTC>.sql.age` (default prefix
+`tenants`; on a per-hospital bucket it must sit under the slug, for example `rishi/tenants`), plus a sealed
+`.counts.age` with the row count of every table. Without a bucket it goes to `BACKUP_DIR`, or `--to DIR`. It is sealed
+to `backup-recipients.txt` unless `TENANT_EXPORT_RECIPIENTS` names the receiving hospital's public key. The prod
+writer policy (`ops.tf`) accepts `tenants/*.age` only, kept 35 days.
+
+Two fences, each enough alone:
+
+- It reads as the **app role** (`DATABASE_URL`, `medbrains_app`) with `app.tenant_id` set, so row level security
+  applies, and refuses a role that is superuser or `BYPASSRLS`.
+- Every table is read with an explicit `WHERE tenant_id = <id>` as well. RLS alone is not enough: in a branch group
+  with `share_clinical_records`, `app_visible_tenants()` shows each member the others' rows. The test below shows
+  that leak.
+
+All tables are read in one `REPEATABLE READ READ ONLY` transaction, so the export is one consistent moment.
+
+**It carries** the `tenants` row and every `public` table with a `tenant_id` that the app role can read (965 at
+schema 1470), without generated columns. **It leaves out:**
+
+- shared reference rows (`tenant_id IS NULL`): the target's migrations seed them;
+- the 43 tables without `tenant_id`: reference data, plus `hospital_groups` and the cross-hospital tables
+  (`patient_transfers`, `cross_hospital_appointments`, `inter_hospital_stock_transfers*`, `lab_sample_routes`),
+  which name a second hospital;
+- tables the app role cannot read (`security_honeytokens`).
+
+It also does not carry the files tree (`/var/lib/medbrains`) or the SpiceDB index.
+
+### Import into a new server
+
+The script checks itself. It runs in one transaction with `session_replication_role = replica`, so tenant
+triggers, the audit chain and foreign keys do not fire row by row. It refuses a server at a different schema
+version. After loading it checks **every table's row count** and **every foreign key** of the loaded tables. Any
+failure rolls the whole import back.
+
+1. Install the **same MedBrains version** on the new server (`install.sh`). The first start migrates. Do not
+   finish onboarding: the server must have no tenant. Then `sudo systemctl stop medbrains-server`.
+2. Copy the secrets the rows depend on from the old server's `/etc/medbrains/env`, which is also in the sealed
+   secrets backup. Without `MEDBRAINS_IDENTIFIER_HMAC_KEY`, identifier search breaks. Without
+   `MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY`, `MEDBRAINS_OAUTH_TOKEN_KEY` and the ABDM/NHCX keys, encrypted columns
+   do not open. **On a shared server these keys belong to the whole installation.** Handing them over lets the
+   receiver compute fingerprints that match other hospitals' identifiers. Prefer re-keying when one exists; until
+   then it is the owner's call, recorded in DECISIONS.
+3. Load it as the database superuser. Decrypt on your machine, so the offline key never reaches a server:
+   ```sh
+   age -d -i key.txt <host>-<code>-<UTC>.sql.age \
+     | ssh newhost 'sudo docker exec -i medbrains-postgres psql -X -q -U medbrains -d medbrains'
+   # host's own Postgres: … | ssh newhost 'sudo -u postgres psql -X -q -d medbrains'
+   ```
+   No output means it loaded. `rows point at rows this server does not have: <table>.<fk> -> <parent>` means a
+   row references something the target lacks. Nothing was written. For example, a tenant in a branch group needs
+   its `hospital_groups` row created first. Create it, then load again.
+4. Rebuild the SpiceDB index from `relation_tuples` (which was carried): `install-spicedb.sh`, "the tuples must be
+   backfilled first". Then copy the hospital's documents from the old files tree, if it is wanted.
+5. `sudo systemctl start medbrains-server`, sign in as the hospital's admin, and open a patient, a bill and the
+   audit log.
+
+### Test — 2026-11-17 (throwaway Homebrew PostgreSQL 17.5)
+
+The cluster ran on 127.0.0.1:55417 from a scratch directory, was migrated with all 350 migrations (schema 1470) and
+was deleted afterwards. It held two tenants, `RISHI` (2 patients) and `OTHER` (3 patients), in one branch group with
+`share_clinical_records = true`. The tenant trigger seeded 161 rows for each.
+
+| Check | Result |
+|---|---|
+| RLS alone, as `medbrains_app` with `app.tenant_id` = RISHI: `SELECT count(*) FROM patients` | **5**: the group leak the explicit filter exists for |
+| `medbrains-tenant-export RISHI --to …` | 965 tables, 164 rows (1 tenant, 161 seeded, 2 patients) |
+| Decrypted script: occurrences of OTHER's tenant id, or of `Other` | **0**, and 0 |
+| Run as the superuser URL / with an unknown code | refused, exit 1 / refused, exit 1 |
+| Import into a freshly migrated database without the group row | refused: `tenants.tenants_group_id_fkey -> hospital_groups: 1 rows`; 0 tenants afterwards |
+| Same, after creating the group row | loaded; `tenants` = RISHI only; patients = RishiA, RishiB |
+| One data row removed from the script, then imported | refused: `public.patients: expected 2 rows` |
+| Imported into a database still migrating (schema 1463) | refused: `this server is not at schema 1470` |
+
 ## Restore drill — 2026-10-12 (local dev DB)
 
 Environment: `docker compose` service `postgres` (`postgres:17-alpine`, PostgreSQL 17.11), database `medbrains`,
