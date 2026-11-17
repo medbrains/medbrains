@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT value FROM tenant_settings WHERE tenant_id = $1 AND category = 'opd' AND key = 'auto_close_after_minutes' AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "856c89595c123211391aa836a51ceb9b0c756d75f2005d29f58592472fba4de4"
+}
