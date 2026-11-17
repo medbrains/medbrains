@@ -69,4 +69,19 @@ describe("OpdVisitForm department", () => {
     // The required picker blocks the submit until a department is chosen.
     expect(createEncounter).not.toHaveBeenCalled();
   });
+
+  it("says the departments failed to load rather than offering an empty picker", async () => {
+    listDepartments.mockRejectedValue(new Error("Request failed: 500"));
+    renderForm();
+    expect(
+      await screen.findByText(
+        "Departments could not be loaded. Reload the page to try again.",
+        undefined,
+        {
+          timeout: 10_000,
+        },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /^Department/ })).toBeInTheDocument();
+  });
 });

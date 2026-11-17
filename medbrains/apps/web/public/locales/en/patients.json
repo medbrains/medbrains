@@ -428,6 +428,7 @@
   "registrationForm.row.cityDistrictStatePin": "City · district · state · pin",
   "registrationForm.row.defaultAttendantPassCount": "Default attendant pass count",
   "registrationForm.row.departmentConsultant": "Department · consultant",
+  "registrationForm.departmentsUnavailable": "Departments could not be loaded. Reload the page to try again.",
   "registrationForm.row.dietaryPreference": "Dietary preference",
   "registrationForm.row.drugAllergies": "Drug allergies",
   "registrationForm.row.email": "Email",

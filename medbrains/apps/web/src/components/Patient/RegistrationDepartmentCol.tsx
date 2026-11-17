@@ -8,6 +8,8 @@ interface RegistrationDepartmentColProps {
   control: Control<PatientRegistrationFormInput>;
   options: { value: string; label: string }[];
   error?: string;
+  /** Shown when the department look-up failed, so the desk is not offered an empty list. */
+  unavailable?: string;
 }
 
 /**
@@ -18,6 +20,7 @@ export function RegistrationDepartmentCol({
   control,
   options,
   error,
+  unavailable,
 }: RegistrationDepartmentColProps) {
   const { t } = useTranslation("patients");
   const current = useWatch({ control, name: "department_id" });
@@ -35,7 +38,7 @@ export function RegistrationDepartmentCol({
             data={options}
             value={field.value ?? null}
             onChange={(v) => field.onChange(v ?? undefined)}
-            error={error}
+            error={error ?? unavailable}
             searchable
             clearable
           />
