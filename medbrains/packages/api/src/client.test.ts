@@ -42,8 +42,53 @@ beforeEach(() => {
   mockFetch.mockReset();
   mockFetch.mockResolvedValue(jsonResponse(200));
   setApiBase("/api");
+  // A token seats a fresh session (so refresh is allowed), then clear it.
+  setCsrfToken("session");
   setCsrfToken(null);
   documentStub.cookie = "";
+});
+
+describe("the refresh storm after a session ends", () => {
+  /** How many times `/auth/refresh` was called. */
+  const refreshCalls = () =>
+    mockFetch.mock.calls.filter(([url]) => String(url).endsWith("/auth/refresh")).length;
+
+  it("sends one refresh for six concurrent 401s", async () => {
+    mockFetch.mockImplementation(async () => jsonResponse(401));
+    const calls = Array.from({ length: 6 }, () => api.me());
+    const results = await Promise.allSettled(calls);
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    expect(refreshCalls()).toBe(1);
+  });
+
+  it("sends no refresh after the server refused one, until a new session", async () => {
+    mockFetch.mockImplementation(async () => jsonResponse(401));
+    await expect(api.me()).rejects.toThrow("session_expired");
+    await expect(api.me()).rejects.toThrow("session_expired");
+    await expect(api.health()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(1);
+
+    setCsrfToken("new-session");
+    await expect(api.me()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(2);
+  });
+
+  it("sends no refresh after logout", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { status: "ok" }));
+    await api.logout();
+    mockFetch.mockImplementation(async () => jsonResponse(401));
+    await expect(api.me()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(0);
+  });
+
+  it("keeps refreshing after a 429, which is not a refusal", async () => {
+    mockFetch.mockImplementation(async (url: string) =>
+      jsonResponse(String(url).endsWith("/auth/refresh") ? 429 : 401),
+    );
+    await expect(api.me()).rejects.toThrow("session_expired");
+    await expect(api.me()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(2);
+  });
 });
 
 describe("request() error handling", () => {

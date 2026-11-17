@@ -2773,6 +2773,11 @@ function loadCsrfToken(): string | null {
 
 let _csrfToken: string | null = loadCsrfToken();
 let refreshInFlight: Promise<RefreshResponse | null> | null = null;
+// Set when the session is over: the person signed out, or the server refused
+// a refresh. Until a new session is seated no request may try to refresh —
+// otherwise every screen still mounted asks again, and the storm used up the
+// per-IP sign-in limit so the login page itself was refused.
+let sessionEnded = false;
 
 const NATIVE_AUTH_STORAGE_KEY = "medbrains_native_auth";
 
@@ -2846,10 +2851,12 @@ function setNativeAuthTokens(accessToken?: string | null, refreshToken?: string 
   }
 }
 
+/** Seat a native app's stored or freshly issued tokens; a token means a live session again. */
 export function setNativeAuthSession(
   accessToken?: string | null,
   refreshToken?: string | null,
 ): void {
+  if (accessToken) sessionEnded = false;
   setNativeAuthTokens(accessToken, refreshToken);
 }
 
@@ -2873,7 +2880,9 @@ export function configureNativeAuth(clientName: string | null): void {
   nativeRefreshToken = stored?.refreshToken ?? null;
 }
 
+/** Hold the session's CSRF token; a new token comes only with a new session, so refresh is allowed again. */
 export function setCsrfToken(token: string | null): void {
+  if (token) sessionEnded = false;
   _csrfToken = token;
   persistCsrfToken(token);
 }
@@ -3133,7 +3142,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/**
+ * Ask the server for a new access token, once for all callers: concurrent
+ * 401s share one in-flight refresh, and after the server refuses one (or the
+ * person signs out) no refresh is sent until a new session is seated.
+ */
 async function refreshSession(): Promise<RefreshResponse | null> {
+  if (sessionEnded) return null;
   if (!refreshInFlight) {
     const current = (async (): Promise<RefreshResponse | null> => {
       try {
@@ -3149,7 +3164,11 @@ async function refreshSession(): Promise<RefreshResponse | null> {
           body: JSON.stringify(nativeRefreshToken ? { refresh_token: nativeRefreshToken } : {}),
         });
 
-        if (!resp.ok) return null;
+        if (!resp.ok) {
+          // A refusal ends the session; a 429 or a 5xx is not a refusal.
+          if (resp.status === 401) sessionEnded = true;
+          return null;
+        }
 
         const data = (await resp.json()) as RefreshResponse;
         setCsrfToken(data.csrf_token);
@@ -3433,6 +3452,9 @@ export const api = {
       body: JSON.stringify(data ?? {}),
     }),
   logout: async () => {
+    // Synchronously, before the request leaves: a screen's 401 from here on
+    // must not try to refresh the session being ended.
+    sessionEnded = true;
     try {
       return await request<{ status: string }>("/auth/logout", {
         method: "POST",

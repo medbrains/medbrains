@@ -117,7 +117,7 @@ export function LoginPage() {
             <HospitalCodeStep
               initialCode={code ?? ""}
               unknownCode={!choosing && code && options.data === null ? code : null}
-              failed={!choosing && options.isError}
+              lookupError={!choosing && options.error}
               checking={options.isFetching}
               onSubmit={(next) => {
                 setChoosing(false);
