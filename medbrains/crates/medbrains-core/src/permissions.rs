@@ -291,6 +291,12 @@ pub mod opd {
 
     pub const TOKEN_MANAGE: &str = "opd.token.manage";
 
+    /// View OPD reports.
+    ///
+    /// Counts of visits, registrations and new and repeat patients by day
+    /// and by doctor, inside the OPD app. Counts only, no patient details.
+    pub const REPORTS_VIEW: &str = "opd.reports.view";
+
     pub mod appointment {
         pub const LIST: &str = "opd.appointment.list";
         pub const CREATE: &str = "opd.appointment.create";

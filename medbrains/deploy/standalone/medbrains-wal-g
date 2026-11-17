@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-wal-g — runs WAL-G for this server's Postgres, on
+# either tier: the host's own Postgres (attach) or the medbrains-postgres
+# container (dedicated tier, postgres:17-alpine). Opt-in point-in-time
+# recovery, set up by medbrains-wal-g-setup; docs/ops/BACKUP-RESTORE.md.
+#
+#   medbrains-wal-g push                 ship spooled WAL to S3 (timer, every minute)
+#   medbrains-wal-g backup               base backup; WALG_DELTA_MAX_STEPS makes 6 of 7 a delta
+#   medbrains-wal-g check                list the prefix, then a sealed canary round trip
+#   medbrains-wal-g list                 base backups in the archive
+#   medbrains-wal-g spool                the spool directory, as this host sees it
+#   medbrains-wal-g fetch-base DIR       the newest base backup into DIR
+#   medbrains-wal-g fetch-wal NAME FILE  one archived WAL file (exit 1 when absent)
+#   medbrains-wal-g fetch-wals DIR [MAX] every segment since the newest base backup
+#
+# Why a spool: Postgres runs archive_command where Postgres runs. In the
+# alpine container that is musl, and WAL-G ships glibc builds only, so
+# archive_command copies each finished segment into medbrains-wal-spool/
+# inside the data directory (the one place the container and the host both
+# see without a new mount, so enabling this never recreates the container)
+# and `push` uploads it from the host. The host's own Postgres uses the same
+# spool: one archiving path to test. RPO = archive_timeout (300 s) + the push
+# interval (60 s). A restored data directory carries a stale spool: empty it.
+
+set -euo pipefail
+
+CONF=/etc/medbrains/walg.yaml
+BIN=/usr/local/bin/wal-g
+SPOOL_NAME=medbrains-wal-spool
+CONTAINER=medbrains-postgres
+# The AWS SDK in WAL-G finds ~/.aws/credentials through $HOME only, and a
+# systemd unit without User= sets none (the Lightsail tier's key is root's).
+[[ $EUID -eq 0 ]] && export HOME=/root
+
+# Whether Postgres is the dedicated tier's container (else the host's own).
+is_container() {
+    command -v docker >/dev/null 2>&1 && docker container inspect "$CONTAINER" >/dev/null 2>&1
+}
+
+# WAL-G as whoever owns the data: postgres over the socket on the host's own
+# Postgres (peer auth), root beside the container (TCP as its superuser; the
+# password comes from .compose-env through the environment, never argv).
+walg() {
+    if is_container; then
+        PGHOST=127.0.0.1 PGPORT="${PG_PORT:-5432}" PGUSER="${POSTGRES_USER:-medbrains}" \
+            PGPASSWORD="${POSTGRES_PASSWORD:-}" PGDATABASE=postgres "$BIN" --config "$CONF" "$@"
+    else
+        runuser -u postgres -- env PGHOST=/var/run/postgresql PGPORT="${WAL_PGPORT:-5432}" \
+            PGDATABASE=postgres "$BIN" --config "$CONF" "$@"
+    fi
+}
+
+# The data directory as this host sees it (the container's volume on disk).
+data_dir() {
+    if is_container; then
+        docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Source}}{{end}}{{end}}' "$CONTAINER"
+    else
+        runuser -u postgres -- psql -XAtq -p "${WAL_PGPORT:-5432}" -c 'SHOW data_directory'
+    fi
+}
+
+# Uploads every finished file in the spool, oldest name first, and removes
+# each only after WAL-G accepted it. Stops at the first failure so the RPO
+# gap is one contiguous run; medbrains-host-check pages when the oldest file
+# waits longer than 15 minutes.
+push() {
+    local f spool
+    spool="$(data_dir)/$SPOOL_NAME"
+    [[ -d "$spool" ]] || { echo "no $spool: run medbrains-wal-g-setup --apply" >&2; return 1; }
+    while IFS= read -r f; do
+        walg wal-push "$spool/$f" || { echo "wal-push $f failed; it stays in $spool" >&2; return 1; }
+        rm -f "$spool/$f"
+    done < <(find "$spool" -maxdepth 1 -type f ! -name '*.part' -printf '%f\n' | sort)
+}
+
+# Proves the archive is usable before Postgres depends on it: the prefix
+# lists, and a canary goes up sealed with the libsodium key and comes back
+# identical (this also proves Object Lock accepts WAL-G's PUTs).
+check() {
+    local tmp name
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' RETURN
+    chmod 0755 "$tmp"
+    is_container || chown postgres "$tmp"
+    walg st ls >/dev/null || { echo "cannot list the archive prefix" >&2; return 1; }
+    name="canary/$(date -u +%Y%m%dT%H%M%SZ).txt"
+    echo "medbrains wal-g canary $name" > "$tmp/up"
+    walg st put --no-compress "$tmp/up" "$name" || { echo "canary upload refused" >&2; return 1; }
+    walg st get --no-decompress "$name" "$tmp/down" || { echo "canary download failed" >&2; return 1; }
+    cmp -s "$tmp/up" "$tmp/down" || { echo "canary came back different" >&2; return 1; }
+    echo "archive ok: listed, canary $name sealed and read back"
+}
+
+# Every archived WAL segment from the newest base backup's start onward, into
+# DIR, so a server that cannot run WAL-G (the alpine container) can replay
+# with restore_command = 'cp <DIR>/%f %p'. Walks segment names (timeline, log,
+# segment; 256 segments of 16 MB per log) until the first one the archive
+# does not have, capped at MAX (default 10000, 160 GB). Prints the count.
+fetch_wals() {
+    local dir="$1" max="${2:-10000}" start tli log seg n=0
+    start="$(walg backup-list 2>/dev/null | awk '$1 ~ /^base_/ {b = $1} END {print substr(b, 6, 24)}')"
+    [[ "$start" =~ ^[0-9A-F]{24}$ ]] || { echo "no base backup in the archive" >&2; return 1; }
+    tli="${start:0:8}" log=$((16#${start:8:8})) seg=$((16#${start:16:8}))
+    while (( n < max )); do
+        walg wal-fetch "$(printf '%s%08X%08X' "$tli" "$log" "$seg")" \
+            "$dir/$(printf '%s%08X%08X' "$tli" "$log" "$seg")" 2>/dev/null || break
+        n=$((n + 1)) seg=$((seg + 1))
+        (( seg > 255 )) && { seg=0; log=$((log + 1)); }
+    done
+    echo "$n"
+}
+
+case "${1:-}" in
+    push) push ;;
+    spool) echo "$(data_dir)/$SPOOL_NAME" ;;
+    backup) walg backup-push "$(data_dir)" ;;
+    check) check ;;
+    list) walg backup-list --detail ;;
+    fetch-base) walg backup-fetch "${2:?fetch-base DIR}" LATEST ;;
+    fetch-wal) walg wal-fetch "${2:?fetch-wal NAME FILE}" "${3:?fetch-wal NAME FILE}" ;;
+    fetch-wals) fetch_wals "${2:?fetch-wals DIR [MAX]}" "${3:-}" ;;
+    *) sed -n '2,14p' "$0" >&2; exit 2 ;;
+esac

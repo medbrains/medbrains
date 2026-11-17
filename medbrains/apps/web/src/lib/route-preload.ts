@@ -6,6 +6,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/patients": () => import("@/pages/patients"),
   "/opd": () => import("@/pages/opd"),
   "/opd/appointments": () => import("@/pages/appointments"),
+  "/opd/reports": () => import("@/pages/opd/reports"),
   "/opd/pg-logbook": () => import("@/pages/pg-logbook"),
   "/doctor/signoffs": () => import("@/pages/doctor/signoffs"),
   "/lab": () => import("@/pages/lab"),

@@ -3,6 +3,7 @@ import { api } from "@medbrains/api";
 export const opdService = {
   getEncounter: (...args: Parameters<typeof api.getEncounter>) => api.getEncounter(...args),
   getLastOpdVisit: (patientId: string) => api.getLastOpdVisit(patientId),
+  opdReportSummary: (from: string, to: string) => api.opdReportSummary(from, to),
   getRegistrationPolicy: () => api.getRegistrationPolicy(),
   updateRegistrationPolicy: (data: Parameters<typeof api.updateRegistrationPolicy>[0]) =>
     api.updateRegistrationPolicy(data),
