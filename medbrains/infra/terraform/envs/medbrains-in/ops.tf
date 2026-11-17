@@ -372,10 +372,17 @@ resource "aws_iam_policy" "prod_backup_writer" {
         ] } }
       },
       {
+        # Multipart uploads (`aws s3 cp -` streams in parts) need kms:Decrypt
+        # to complete: S3 decrypts the data key to assemble the parts (#6054).
+        # ViaService pins every use of the key to S3; the host can never
+        # call KMS Decrypt on it directly.
         Sid      = "EncryptDumps"
         Effect   = "Allow"
-        Action   = ["kms:GenerateDataKey", "kms:Encrypt"]
+        Action   = ["kms:GenerateDataKey", "kms:Encrypt", "kms:Decrypt"]
         Resource = aws_kms_key.prod_backups.arn
+        Condition = {
+          StringEquals = { "kms:ViaService" = "s3.${var.company_region}.amazonaws.com" }
+        }
       },
       {
         Sid      = "PageOnFailure"
