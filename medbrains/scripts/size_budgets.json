@@ -11,7 +11,7 @@
     "tracing",
     "uuid"
   ],
-  "kernel_closure": 263,
+  "kernel_closure": 259,
   "packages": 1262,
   "crates": 164,
   "web_first_load_gzip_limit": 342479
