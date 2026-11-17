@@ -37,6 +37,7 @@ export function OpdCardPrintMenu({
   const [printing, setPrinting] = useState(false);
   if (!def || !allowed || !recordId) return null;
 
+  /** Prints on the chosen paper and says so when it could not. */
   const print = async (format: OpdCardFormat) => {
     setPrinting(true);
     const result = await printDocument(documentKey, recordId, { format });
