@@ -1290,6 +1290,7 @@ import type {
   IndentRequisitionDetailResponse,
   // Indent / Store
   IndentRequisitionListResponse,
+  IndicatorDirection,
   IndwellingDevice,
   InfantWristbandPrintData,
   InfectionDeviceDay,
@@ -10839,9 +10840,10 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  calculateIndicator: (id: string) =>
-    request<Record<string, unknown>>(`/quality/indicators/${id}/calculate`, {
-      method: "POST",
+  setQualityIndicatorDirection: (id: string, direction: IndicatorDirection) =>
+    request<void>(`/quality/indicators/${id}/direction`, {
+      method: "PUT",
+      body: JSON.stringify({ direction }),
     }),
   listPendingAcks: (documentId: string) =>
     request<PendingAckUser[]>(`/quality/documents/${documentId}/pending-acks`),
