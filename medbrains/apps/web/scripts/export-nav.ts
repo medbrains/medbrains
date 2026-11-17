@@ -9,6 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { BRICK_NAMES } from "@medbrains/types";
 import labels from "../public/locales/en/nav.json";
 import { NAV_GROUPS, type NavItemConfig } from "../src/config/navigation";
 
@@ -16,7 +17,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, "../../../docs/testing/nav-menu.json");
 const text = labels as Record<string, string>;
 
-const groupLabel = (key: string) => text[`group${key[0].toUpperCase()}${key.slice(1)}`] ?? key;
+/** A group's English heading: the brick's name when the group is a brick, else its nav.json label. */
+const groupLabel = (key: string) =>
+  BRICK_NAMES[key] ?? text[`group${key[0].toUpperCase()}${key.slice(1)}`] ?? key;
 
 const entry = (group: string, item: NavItemConfig, parent: string | null) => ({
   group,

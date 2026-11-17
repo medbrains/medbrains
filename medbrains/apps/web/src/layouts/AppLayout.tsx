@@ -16,13 +16,15 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
 import { clearSession, useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
+import { BRICK_NAMES } from "@medbrains/types";
 import { IconLanguage, IconLogout, IconSearch, IconSettings, IconUser } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
+import { AppRoute } from "@/components/AppRoute";
 import { AiAssistantMount } from "@/components/ai/AiAssistantMount";
 import { Brand } from "@/components/Brand";
 import { DlpGuard } from "@/components/DlpGuard";
@@ -52,15 +54,18 @@ import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
 import { AppNavbar, hasSidePanel } from "./AppNavbar";
+import { panelFor } from "./appPanel";
 import { FavouriteStar } from "./FavouriteStar";
 import { OnDemandOverlays } from "./OnDemandOverlays";
-import { PanelFavouritesGroup } from "./PanelFavourites";
+import { PanelHeader } from "./PanelHeader";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
 interface ResolvedNavItem {
   label: string;
   path: string;
+  /** The Tabler icon name, for the panel header (the first entry's, as on the launcher tile). */
+  iconName: string;
   icon: ReactNode;
   /** Module badge colour — drives the per-item hover/active tint. */
   color?: string;
@@ -75,20 +80,6 @@ const RAIL_WIDTH = 48;
 const EXPANDED_WIDTH = 256;
 const UUID_SEGMENT_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const GROUP_LABEL_KEYS = {
-  main: "groupMain",
-  clinical: "groupClinical",
-  diagnostics: "groupDiagnostics",
-  inpatient: "groupInpatient",
-  finance: "groupFinance",
-  operations: "groupOperations",
-  network: "groupNetwork",
-  marketing: "groupMarketing",
-  compliance: "groupCompliance",
-  specialty: "groupSpecialty",
-  admin: "groupAdmin",
-} satisfies Record<string, string>;
-
 function routeObjectLabel(previousSegment: string | undefined, nextSegment: string | undefined) {
   if (previousSegment === "patients") return "Patient";
   if (previousSegment === "encounters") return "OPD Visit";
@@ -97,15 +88,11 @@ function routeObjectLabel(previousSegment: string | undefined, nextSegment: stri
   return "Record";
 }
 
-function groupLabelKey(key: string) {
-  const entry = Object.entries(GROUP_LABEL_KEYS).find(([groupKey]) => groupKey === key);
-  return entry?.[1] ?? key;
-}
-
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // The same starred list as the launcher, kept on the server for the person.
+  // The same starred list as the launcher, kept on the server for the person: each panel entry
+  // can be starred, and the stars show on the launcher.
   const favourites = usePanelFavourites();
 
   const location = useLocation();
@@ -115,6 +102,7 @@ export function AppLayout() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
+  const permissions = usePermissionStore((s) => s.userPermissions);
   // Select the set, not the stable `isModuleEnabled` function, so the menu re-renders when a
   // brick is switched on or off.
   const disabledModules = useModuleStore((s) => s.disabledModules);
@@ -194,6 +182,7 @@ export function AppLayout() {
       return {
         label: t(cfg.i18nKey),
         path: cfg.path,
+        iconName: cfg.icon,
         color: badge?.color,
         icon: badge ? (
           <ModuleBadge abbr={badge.abbr} color={badge.color} size={size} title={t(cfg.i18nKey)} />
@@ -209,18 +198,22 @@ export function AppLayout() {
     [t],
   );
 
-  // Build nav groups from static config
+  // Only the current app's screens, or the core ones: never the whole menu (search has that).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: permissions drives hasPermission's answer
+  const panel = useMemo(
+    () => panelFor(location.pathname, { hasPermission, disabledModules }),
+    [location.pathname, hasPermission, disabledModules, permissions],
+  );
   const navGroups = useMemo(
     () =>
-      NAV_GROUPS.map((group) => ({
+      panel.groups.map((group) => ({
         key: group.key,
         items: group.items.map((item) => resolveItem(item)),
       })),
-    [resolveItem],
+    [panel, resolveItem],
   );
 
-  // Flattened leaf modules (children replace their parent) — used to
-  // resolve pinned favorites back to renderable items.
+  // Flattened leaf modules (children replace their parent), for the active-leaf rule.
   const allLeafItems = useMemo(() => {
     const out: ResolvedNavItem[] = [];
     for (const group of navGroups) {
@@ -377,7 +370,7 @@ export function AppLayout() {
     );
   };
 
-  // ── Render sidebar content ──
+  // ── Render sidebar content: the app's name and the way back, then its screens ──
   const renderSidebar = () => {
     const groups = navGroups
       .map((group) => ({
@@ -385,23 +378,23 @@ export function AppLayout() {
         items: group.items.filter(filterItem),
       }))
       .filter((g) => g.items.length > 0);
-
-    const favoriteItems = allLeafItems.filter(
-      (item) => favourites.isStarred(item.path) && filterItem(item),
+    const first = groups[0]?.items[0];
+    const header = (
+      <PanelHeader
+        title={panel.app ? (BRICK_NAMES[panel.app] ?? panel.app) : t("groupCore")}
+        icon={resolveIcon(panel.app && first ? first.iconName : "IconDashboard", 20, 1.5)}
+        isExpanded={isExpanded}
+        onNavigate={closeMobile}
+      />
     );
 
     if (isExpanded) {
       return (
         <>
-          <PanelFavouritesGroup
-            items={favoriteItems}
-            isError={favourites.isError}
-            renderItem={renderExpandedItem}
-          />
+          {header}
           {groups.map((group, gi) => (
             <div key={group.key}>
               {gi > 0 && <Divider my={4} className={classes.railDivider} />}
-              <Text className={classes.navGroupLabel}>{t(groupLabelKey(group.key))}</Text>
               {group.items.map(renderExpandedItem)}
             </div>
           ))}
@@ -410,19 +403,24 @@ export function AppLayout() {
     }
 
     // Rail mode
-    return groups.map((group, gi) => (
-      <div key={group.key} className={classes.railGroup}>
-        {gi > 0 && <Divider my={4} className={classes.railDivider} />}
-        {group.items.map((item) => {
-          const visibleChildren = item.children?.filter(filterItem);
-          const targetPath = visibleChildren?.[0]?.path ?? item.path;
-          const active = visibleChildren
-            ? visibleChildren.some((child) => isActive(child.path))
-            : isLeafActive(item.path);
-          return renderRailItem({ ...item, path: targetPath }, active);
-        })}
-      </div>
-    ));
+    return (
+      <>
+        {header}
+        {groups.map((group, gi) => (
+          <div key={group.key} className={classes.railGroup}>
+            {gi > 0 && <Divider my={4} className={classes.railDivider} />}
+            {group.items.map((item) => {
+              const visibleChildren = item.children?.filter(filterItem);
+              const targetPath = visibleChildren?.[0]?.path ?? item.path;
+              const active = visibleChildren
+                ? visibleChildren.some((child) => isActive(child.path))
+                : isLeafActive(item.path);
+              return renderRailItem({ ...item, path: targetPath }, active);
+            })}
+          </div>
+        ))}
+      </>
+    );
   };
 
   return (
@@ -605,7 +603,8 @@ export function AppLayout() {
 
         <Suspense fallback={<PageSkeleton />}>
           <PageTransition>
-            <Outlet />
+            {/* A switched-off app's screens do not open, whichever route reaches them. */}
+            <AppRoute />
           </PageTransition>
         </Suspense>
       </AppShell.Main>

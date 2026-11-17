@@ -12,12 +12,10 @@ import nav from "../../../public/locales/en/nav.json";
 import {
   administrationEntry,
   launcherApps,
-  taggedBricks,
   visibleFavourites,
   visibleScreens,
 } from "./launcherModel";
 
-const BRICKS = taggedBricks(NAV_GROUPS);
 const BRICK_NAMES = [
   { id: "lab", name: "Laboratory (LIS)" },
   { id: "pharmacy", name: "Pharmacy" },
@@ -71,9 +69,9 @@ describe("launcher access", () => {
 
   it("shows no app for a brick the hospital switched off, even with the permission", () => {
     const codes = ["lab.orders.list", "pharmacy.prescriptions.list"];
-    const on = launcherApps(visibleScreens(NAV_GROUPS, viewer(codes)), BRICKS);
+    const on = launcherApps(visibleScreens(NAV_GROUPS, viewer(codes)));
     expect(on.map((a) => a.brick)).toEqual(["lab", "pharmacy"]);
-    const off = launcherApps(visibleScreens(NAV_GROUPS, viewer(codes, ["pharmacy"])), BRICKS);
+    const off = launcherApps(visibleScreens(NAV_GROUPS, viewer(codes, ["pharmacy"])));
     expect(off.map((a) => a.brick)).toEqual(["lab"]);
   });
 

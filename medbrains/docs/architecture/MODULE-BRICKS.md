@@ -69,6 +69,12 @@ The web home after sign-in is `/home` (`apps/web/src/pages/launcher.tsx`). It sh
 
 Favourites are stored per person on the server (`user_favourite_screens`, tenant RLS plus `user_id`), starred from the side panel and unstarred on the launcher. A star on a screen the person has lost access to stays stored but is not shown, and it returns with the access. Stars kept in a browser's `localStorage` before this change are not carried over; people re-star once. Still to come: Waiting for you, Recent patients, and the one top bar.
 
+## The side panel shows one app (owner 2026-11-17)
+
+Every screen lives in one registry, `crates/medbrains-core/src/access/screens.rs`: its route, label key, icon, permission, any-of list and the brick that owns it (`brick: None` for a core screen: dashboard, compliance, administration). `scripts/generate_app_screens.py` writes the web copy, and `apps/web/src/config/navigation.ts` builds the whole menu from it; `scripts/check_nav_drift.py` refuses a menu entry written by hand.
+
+Inside an app the side panel (`apps/web/src/layouts/appPanel.ts`) lists **only that app's screens** the person may open, under the app's name and icon, with an **All apps** link to `/home`. The app is the one owning the closest registered route above the current one (`/pharmacy/orders/42` is Pharmacy's, `/admin/doctor-schedules` is OPD's). A core screen, an unknown route, a switched-off app, or an app in which the person can open nothing shows the **core panel**: the core screens and Administration. The full menu is never shown; ⌘K search still covers every screen the person may open, with switched-off apps left out. Switching apps is the launcher's job, or search's, or favourites'. The shell also refuses a switched-off app's routes, whichever route reaches them (`AppRoute` with no `brick`).
+
 ## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
 
 Some screens gather work from several apps: the patient record shows EMR, Billing, Lab and Pharmacy tabs. Each of those tabs belongs to its own brick, and is plugged in, never imported:
