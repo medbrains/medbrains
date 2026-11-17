@@ -8720,6 +8720,7 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-health-services",
  "medbrains-server-core",
  "medbrains-workflow",
  "serde",

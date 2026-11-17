@@ -1,12 +1,8 @@
-.PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db dev-db-roles db-stop db-reset db-icd \
+.PHONY: maestro maestro-staff help dev dev-docker dev-stop dev-status dev-extras dev-extras-stop dev-vpn dev-import-docker icd-up-docker dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db dev-db-roles db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https dev-pf-setup dev-pf-remove \
        build build-backend build-frontend \
-       camp-mobile camp-mobile-ios camp-mobile-android \
-       mobile-camp-start mobile-camp-start-lan mobile-camp-ios mobile-camp-android mobile-camp-prebuild mobile-camp-typecheck \
-       mobile-staff-start mobile-staff-start-lan \
-       mobile-staff-ios mobile-staff-ios-https mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
-       mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
+       ios-devices ios-doctor ios-platform \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
        check-field-classes check-authz-collapse check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
@@ -27,16 +23,24 @@
 # - Normal build/check/test/deploy uses the committed .sqlx cache with SQLX_OFFLINE=true.
 # - Only prepare-sqlx/check-sqlx connect to a schema database, and that database must be local/CI/staging.
 # - Never run cargo sqlx prepare against production; deployment only runs embedded migrations at app startup.
-LOCAL_SQLX_DATABASE_URL ?= postgres://medbrains:medbrains_dev@localhost:5435/medbrains
+# Local dev runs natively (scripts/dev/native_stack.sh, docs/DEV-SETUP.md):
+# PostgreSQL 17 on 5436, so Docker's 5435 and the test cluster's 54317 can
+# run beside it. `make dev-docker` is the Docker fallback.
+DEV_PG_PORT ?= 5436
+PG_BIN ?= /opt/homebrew/opt/postgresql@17/bin
+NATIVE_STACK = DEV_PG_PORT=$(DEV_PG_PORT) PG_BIN=$(PG_BIN) scripts/dev/native_stack.sh
+DEV_PSQL = PGPASSWORD=medbrains_dev $(PG_BIN)/psql -h 127.0.0.1 -p $(DEV_PG_PORT) -U medbrains -d medbrains
+# Exported to the server for native dev. These win over .env (dotenvy never
+# overrides a variable already set), so an .env still on 5435 keeps working.
+NATIVE_ENV = DATABASE_URL=postgres://medbrains_app:medbrains_dev@127.0.0.1:$(DEV_PG_PORT)/medbrains \
+	MIGRATION_DATABASE_URL=postgres://medbrains:medbrains_dev@127.0.0.1:$(DEV_PG_PORT)/medbrains \
+	WORKER_DATABASE_URL=postgres://medbrains_outbox_worker:medbrains_dev@127.0.0.1:$(DEV_PG_PORT)/medbrains \
+	GOTENBERG_URL=http://127.0.0.1:3005 SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret
+SPICEDB_SCHEMA = SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret \
+	SPICEDB_INSTANCE_ID="$$($(NATIVE_STACK) spicedb-id)" scripts/spicedb_local_schema.sh
+LOCAL_SQLX_DATABASE_URL ?= postgres://medbrains:medbrains_dev@localhost:$(DEV_PG_PORT)/medbrains
 SQLX_DATABASE_URL ?= $(if $(DATABASE_URL),$(DATABASE_URL),$(LOCAL_SQLX_DATABASE_URL))
 SQLX_PREPARE_CARGO_ARGS ?= --package medbrains-server
-IOS_DEVICE ?=
-ANDROID_DEVICE ?=
-CAMP_MOBILE_PORT ?= 8083
-IOS_RUN_ARGS = -- --port 8082 $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
-ANDROID_RUN_ARGS = -- --port 8082 $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
-CAMP_IOS_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
-CAMP_ANDROID_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
 DEV_HTTPS_DOMAIN ?= medbrains.localhost
 DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
 DEV_DESKTOP_HTTPS_DOMAIN ?= medbrains-desktop.localhost
@@ -70,7 +74,12 @@ help: ## Show this help
 
 # ── Development ──────────────────────────────────────────────
 
-dev: local-https-cert icd-up ## Start everything with local HTTPS proxy and local ICD-11
+dev: local-https-cert ## Start everything natively (postgres, spicedb, rustenberg, stalwart) with the HTTPS proxy; ICD-11 is `make dev-extras`
+	@$(NATIVE_STACK) start
+	@$(SPICEDB_SCHEMA)
+	@MEDBRAINS_LOG_PAYLOAD_SIZES=1 $(NATIVE_ENV) WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_SIMULATOR_HTTPS_DOMAIN=$(DEV_SIMULATOR_HTTPS_DOMAIN) DEV_SIMULATOR_HTTPS_ORIGIN=$(DEV_SIMULATOR_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+
+dev-docker: local-https-cert icd-up-docker ## Fallback: the old Docker stack (postgres on 5435, gotenberg, ICD in Docker)
 	@echo "Starting PostgreSQL and local SpiceDB..."
 	@docker compose up -d postgres spicedb gotenberg stalwart
 	@echo "Waiting for PostgreSQL..."
@@ -78,26 +87,49 @@ dev: local-https-cert icd-up ## Start everything with local HTTPS proxy and loca
 	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
 	@MEDBRAINS_LOG_PAYLOAD_SIZES=1 WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_SIMULATOR_HTTPS_DOMAIN=$(DEV_SIMULATOR_HTTPS_DOMAIN) DEV_SIMULATOR_HTTPS_ORIGIN=$(DEV_SIMULATOR_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
+dev-stop: ## Stop the native dev services (data is kept)
+	@$(NATIVE_STACK) stop
+
+dev-status: ## Show which native dev services are up
+	@$(NATIVE_STACK) status
+
+dev-extras: ## Start Orthanc, WHO ICD-API and Kiwi TCMS under Apple container
+	ICD_API_ACCEPT_LICENSE=true ICD_API_SAVE_ANALYTICS=$(ICD_API_SAVE_ANALYTICS) ICD_API_INCLUDE=$(ICD_API_INCLUDE) ICD_API_PORT=$(ICD_API_PORT) scripts/dev/icd_api.sh start
+	scripts/dev/orthanc.sh start
+	scripts/dev/kiwi.sh start
+
+dev-extras-stop: ## Stop the Apple container extras (their volumes are kept)
+	scripts/dev/kiwi.sh stop
+	scripts/dev/orthanc.sh stop
+	scripts/dev/icd_api.sh stop
+
+dev-vpn: ## Start native Headscale on 127.0.0.1:8089 (opt-in, like compose's vpn profile)
+	@$(NATIVE_STACK) start headscale
+
+dev-import-docker: ## Copy the running Docker dev database into native postgres (Docker volume untouched)
+	@$(NATIVE_STACK) import-docker
+
 dev-watch: ## Same as `make dev` but the BACKEND auto-rebuilds+restarts on save (cargo-watch; only the changed crate recompiles)
 	@DEV_BACKEND_WATCH=true $(MAKE) dev
 
-dev-fast: local-https-cert icd-up ## Start everything with HTTPS proxy and ICD-11, skip compile check
-	@docker compose up -d postgres spicedb gotenberg stalwart 2>/dev/null
-	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
-	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	@SKIP_BACKEND_BUILD=true WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_SIMULATOR_HTTPS_DOMAIN=$(DEV_SIMULATOR_HTTPS_DOMAIN) DEV_SIMULATOR_HTTPS_ORIGIN=$(DEV_SIMULATOR_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+dev-fast: local-https-cert ## Start everything natively with the HTTPS proxy, skip compile check
+	@$(NATIVE_STACK) start
+	@$(SPICEDB_SCHEMA)
+	@SKIP_BACKEND_BUILD=true $(NATIVE_ENV) WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_SIMULATOR_HTTPS_DOMAIN=$(DEV_SIMULATOR_HTTPS_DOMAIN) DEV_SIMULATOR_HTTPS_ORIGIN=$(DEV_SIMULATOR_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
 dev-icd: dev ## Alias for make dev; ICD-11 is now part of the default dev stack
 
 dev-backend: db ## Start database + backend only
-	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	MAKEFLAGS= cargo run -p medbrains-server --bin medbrains-server
+	$(SPICEDB_SCHEMA)
+	MAKEFLAGS= $(NATIVE_ENV) cargo run -p medbrains-server --bin medbrains-server
 
 dev-backend-reload: db ## Backend only, RN-Metro style: press `r` to rebuild+restart, `q` to quit
-	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/dev_backend_reload.sh
+	$(SPICEDB_SCHEMA)
+	$(NATIVE_ENV) scripts/dev_backend_reload.sh
 
 dev-backend-watch: db ## Backend auto-rebuild+restart on save (incremental — only the changed crate recompiles + relink, thanks to the crate split)
-	MAKEFLAGS= SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret \
+	$(SPICEDB_SCHEMA)
+	MAKEFLAGS= $(NATIVE_ENV) \
 	cargo watch --why --watch crates --exec 'run -p medbrains-server --bin medbrains-server'
 
 dev-mail-mailboxes: ## Create a local Stalwart mailbox for every seeded user (via the app API)
@@ -129,10 +161,9 @@ dev-pf-remove: ## Remove the dev pf port-forward rules
 dev-https: dev ## Alias for make dev
 
 dev-split: ## Start backend + web without local HTTPS proxy
-	@docker compose up -d postgres 2>/dev/null
-	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
+	@$(NATIVE_STACK) start postgres
 	@trap 'kill 0' EXIT; \
-		MAKEFLAGS= cargo run -p medbrains-server --bin medbrains-server & \
+		MAKEFLAGS= $(NATIVE_ENV) cargo run -p medbrains-server --bin medbrains-server & \
 		pnpm dev:web & \
 		wait
 
@@ -145,84 +176,37 @@ sim-hospital-batch: ## Bulk-generate synthetic hospital traffic quickly
 sim-hospital-clean: ## Remove only simulator records for SIM_RUN_ID
 	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs cleanup --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID)
 
-# ── Mobile / Camp Mode ───────────────────────────────────────
+# ── Native iOS helpers ───────────────────────────────────────
 
-camp-mobile: mobile-camp-start-lan ## Start dedicated Camp mobile app (LAN QR, port 8083)
-
-camp-mobile-ios: mobile-camp-ios ## Open dedicated Camp mobile app on iOS
-
-camp-mobile-android: mobile-camp-android ## Open dedicated Camp mobile app on Android
-
-mobile-camp-start: ## Start Camp mobile Expo Metro using pnpm
-	pnpm --filter @medbrains/mobile-camp start
-
-mobile-camp-start-lan: ## Start Camp mobile Expo Metro on LAN port 8083
-	pnpm --filter @medbrains/mobile-camp start -- --host lan --port $(CAMP_MOBILE_PORT)
-
-mobile-camp-ios: ## Build/open Camp mobile app using local HTTPS API base
-	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-camp ios $(CAMP_IOS_RUN_ARGS)
-
-mobile-camp-android: ## Build/open Camp mobile app on Android emulator/device
-	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-camp android $(CAMP_ANDROID_RUN_ARGS)
-
-mobile-camp-prebuild: ## Regenerate native projects for Camp mobile app
-	pnpm --filter @medbrains/mobile-camp prebuild
-
-mobile-camp-typecheck: ## Typecheck Camp mobile app
-	pnpm --filter @medbrains/mobile-camp typecheck
-
-mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
-	pnpm --filter @medbrains/mobile-staff start
-
-mobile-staff-start-lan: ## Start staff mobile Expo Metro on LAN port 8082
-	pnpm --filter @medbrains/mobile-staff start -- --host lan --port 8082
-
-mobile-staff-ios: ## Build/open staff iOS app using local HTTPS API base
-	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-staff ios $(IOS_RUN_ARGS)
-
-mobile-staff-ios-https: mobile-staff-ios ## Alias for HTTPS staff iOS run
-
-mobile-staff-ios-devices: ## List available iOS simulators/devices
+ios-devices: ## List available iOS simulators/devices
 	xcrun simctl list devices available
 
-mobile-staff-ios-doctor: ## Show Xcode SDKs, simulator runtimes, and devices
+ios-doctor: ## Show Xcode SDKs, simulator runtimes, and devices
 	@xcodebuild -version
 	@xcodebuild -showsdks | grep -E "iOS|Simulator" || true
 	@xcrun simctl list runtimes
 	@xcrun simctl list devices available
 
-mobile-staff-ios-platform: ## Install the matching iOS platform/runtime for current Xcode
+ios-platform: ## Install the matching iOS platform/runtime for current Xcode
 	xcodebuild -downloadPlatform iOS
-
-mobile-staff-android: ## Build/open staff mobile app on Android emulator/device
-	pnpm --filter @medbrains/mobile-staff android $(ANDROID_RUN_ARGS)
-
-mobile-staff-prebuild: ## Regenerate native projects for staff mobile app
-	pnpm --filter @medbrains/mobile-staff prebuild
-
-mobile-staff-typecheck: ## Typecheck staff mobile app
-	pnpm --filter @medbrains/mobile-staff typecheck
 
 # ── Database ─────────────────────────────────────────────────
 
-db: ## Start PostgreSQL + local SpiceDB
-	docker compose up -d postgres spicedb gotenberg stalwart
+db: ## Start the native dev services (postgres, spicedb, rustenberg, stalwart)
+	@$(NATIVE_STACK) start
 
 db-icd: db icd-up ## Start PostgreSQL, SpiceDB, and local WHO ICD-API
 
-db-stop: ## Stop all containers
-	docker compose down
+db-stop: ## Stop the native dev services
+	@$(NATIVE_STACK) stop
 
-db-reset: ## Wipe database and restart fresh
-	docker compose down -v
-	docker compose up -d postgres
-	@echo "Waiting for PostgreSQL..."
-	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
+db-reset: ## Drop and recreate the native medbrains + spicedb databases (Stalwart mail is kept)
+	@$(NATIVE_STACK) reset
 	@echo "Database reset. Run 'make dev-backend' to re-run migrations + seed."
 
 dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password from .env.example
 	@bash -c '. deploy/standalone/db-roles.sh && db_roles_sql medbrains_dev medbrains_dev' \
-		| docker compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U medbrains -d medbrains
+		| $(DEV_PSQL) -X -q -v ON_ERROR_STOP=1
 	@echo "medbrains_app and medbrains_outbox_worker log in with medbrains_dev"
 
 .PHONY: test-backups restore-drill
@@ -233,26 +217,30 @@ test-backups: ## Backup kit: script checks + encrypted backup → restore drill 
 restore-drill: ## Restore the latest backup into a scratch DB and verify it: make restore-drill FROM=s3://… IDENTITY=~/key.txt
 	bash deploy/standalone/medbrains-restore-drill --from "$(FROM)" --identity "$(IDENTITY)"
 
-db-shell: ## Open psql shell
-	docker compose exec postgres psql -U medbrains -d medbrains
+db-shell: ## Open psql on the native dev database
+	$(DEV_PSQL)
 
 partition-audit-tables: ## MAINTENANCE WINDOW: rebuild access_log/security_access_logs/break_glass_events as monthly partitions (DATABASE_URL, else local dev DB)
 	@if [ -n "$(DATABASE_URL)" ]; then psql "$(DATABASE_URL)" -f scripts/maintenance/partition-audit-tables.sql; \
-	else docker compose exec -T postgres psql -U medbrains -d medbrains < scripts/maintenance/partition-audit-tables.sql; fi
+	else $(DEV_PSQL) -f scripts/maintenance/partition-audit-tables.sql; fi
 
-logs: ## Tail database logs
-	docker compose logs -f postgres
+logs: ## Tail the native dev database log
+	tail -f $${MEDBRAINS_DEV_HOME:-$$HOME/.local/share/medbrains-dev}/logs/postgres.log
 
-icd-up: ## Start local WHO ICD-API container for ICD-11 search
+icd-up: ## Start local WHO ICD-API (Apple container) for ICD-11 search
+	ICD_API_ACCEPT_LICENSE=true ICD_API_SAVE_ANALYTICS=$(ICD_API_SAVE_ANALYTICS) ICD_API_INCLUDE=$(ICD_API_INCLUDE) ICD_API_PORT=$(ICD_API_PORT) scripts/dev/icd_api.sh start
+	@echo "WHO ICD-API proxied URL: $(ICD_API_LOCAL_BASE_URL)"
+
+icd-up-docker: ## Fallback: local WHO ICD-API in Docker
 	ICD_API_ACCEPT_LICENSE=true ICD_API_SAVE_ANALYTICS=$(ICD_API_SAVE_ANALYTICS) ICD_API_INCLUDE=$(ICD_API_INCLUDE) ICD_API_PORT=$(ICD_API_PORT) docker compose --profile icd up -d icd-api
 	@echo "WHO ICD-API proxied URL: $(ICD_API_LOCAL_BASE_URL)"
 	@echo "Set WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) and WHO_ICD_AUTH_MODE=none for the backend."
 
-icd-down: ## Stop local WHO ICD-API container
-	docker compose --profile icd stop icd-api
+icd-down: ## Stop local WHO ICD-API
+	scripts/dev/icd_api.sh stop
 
 icd-logs: ## Tail local WHO ICD-API logs
-	docker compose --profile icd logs -f icd-api
+	container logs -f medbrains-icd-api
 
 icd-open: ## Print local WHO ICD-API browser/coding-tool URLs
 	@echo "ICD-API Swagger:      $(DEV_ICD_HTTPS_ORIGIN)/swagger/index.html"
@@ -693,24 +681,11 @@ smoke-test: ## Run API smoke tests (needs running backend; no browser required)
 e2e-test: ## Run full E2E scenario tests (needs backend + frontend)
 	pnpm exec playwright test --config apps/web/playwright.config.ts e2e/scenarios/
 
-maestro-camp: ## Maestro flows for the camp app (needs a booted device + backend)
-	maestro test .maestro/camp-mobile-smoke.yaml .maestro/camp-mobile-e2e.yaml \
-		.maestro/camp-mobile-negative.yaml
-
 maestro-staff: ## Maestro flows for the staff app (needs a booted device + backend)
 	maestro test .maestro/staff-mobile-nurse-calls.yaml .maestro/staff-mobile-bcma.yaml \
 		.maestro/staff-mobile-opd-queue.yaml .maestro/staff-mobile-reception-call-next.yaml
 
-check-mobile-tokens: ## Device UI: colour from Carbon tokens, no colour-valued React keys
-	python3 scripts/check_mobile_design_tokens.py
-
-detox-staff-build: ## Build the staff app for Detox (iOS simulator, debug)
-	pnpm --filter @medbrains/mobile-staff e2e:build
-
-detox-staff: ## Detox end-to-end for the staff app (needs the build + `make dev`)
-	pnpm --filter @medbrains/mobile-staff e2e:ios
-
-maestro: maestro-camp maestro-staff ## Every Maestro flow
+maestro: maestro-staff ## Every Maestro flow
 
 generate-smoke: ## Regenerate smoke test files from API contract
 	python3 ../scripts/generate_smoke_tests.py
@@ -956,8 +931,8 @@ ship-help: ## Document each ship-pipeline stage
 	@echo "  check-region-pinning, check-no-card-logging,"
 	@echo "  check-egress-allowlist, check-migration-headers, e2e-full, build"
 
-kiwi-up: ## Start Kiwi TCMS (behind the dev proxy; needs `make dev` running)
-	docker compose up -d kiwi
+kiwi-up: ## Start Kiwi TCMS under Apple container (behind the dev proxy; needs `make dev` running)
+	scripts/dev/kiwi.sh start
 	@echo "Kiwi TCMS: $(DEV_KIWI_HTTPS_ORIGIN)"
 	@echo "  Served through the MedBrains proxy on the shared dev certificate."
 	@echo "  Its own HTTPS listener is not published; run 'make dev' for TLS."

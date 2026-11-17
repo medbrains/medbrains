@@ -5958,7 +5958,7 @@ export interface ModuleToken {
   visit_id?: string | null;
   /**
    * How many this department will call first — priority, then queue position.
-   * Only returned by `myTokens`; a shared visit number is unreadable on a board
+   * Only returned by `patientTokens`; a shared visit number is unreadable on a board
    * without it.
    */
   ahead?: number;
