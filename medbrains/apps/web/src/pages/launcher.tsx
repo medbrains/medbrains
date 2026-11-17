@@ -1,6 +1,8 @@
-import { SimpleGrid, Skeleton, Stack, Text, Title } from "@mantine/core";
+import { SimpleGrid, Skeleton, Stack, Text } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
 import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
-import type { LauncherResponse } from "@medbrains/types";
+import { type LauncherResponse, ROLE_TEMPLATES, type WorkItem } from "@medbrains/types";
+import type { TFunction } from "i18next";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router";
@@ -8,6 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { QueryError } from "@/components/QueryError";
 import type { NavItemConfig } from "@/config/navigation";
 import { NAV_GROUPS } from "@/config/navigation";
+import { LauncherSection } from "@/features/launcher/LauncherSection";
 import { LauncherTile } from "@/features/launcher/LauncherTile";
 import {
   administrationEntry,
@@ -17,7 +20,17 @@ import {
   visibleFavourites,
   visibleScreens,
 } from "@/features/launcher/launcherModel";
+import { NeedsYouNow } from "@/features/launcher/NeedsYouNow";
 import { useLauncherData, useToggleFavourite } from "@/features/launcher/useFavourites";
+import { WaitingForYou } from "@/features/launcher/WaitingForYou";
+import {
+  countLabel,
+  itemsByBrick,
+  needsNow,
+  partOfDay,
+  useMyWork,
+  visibleItems,
+} from "@/features/launcher/workModel";
 
 /** Every brick the side panel tags, worked out once: the menu config is static. */
 const BRICKS = taggedBricks(NAV_GROUPS);
@@ -50,25 +63,14 @@ function useViewerDoors(): ViewerDoors {
   }, [permissions, hasPermission, disabledModules]);
 }
 
-/** A section heading and its tiles. */
-function LauncherSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Stack gap="sm" component="section" aria-label={title}>
-      <Title order={2} size="h4">
-        {title}
-      </Title>
-      {children}
-    </Stack>
-  );
-}
-
 /** Skeleton tiles while the launcher loads. */
 function TileSkeletons() {
   const { t } = useTranslation("nav");
+  const reduceMotion = useReducedMotion();
   return (
     <SimpleGrid cols={GRID_COLS} aria-busy="true" aria-label={t("launcherLoading")}>
       {[0, 1, 2, 3].map((n) => (
-        <Skeleton key={n} height={72} />
+        <Skeleton key={n} height={48} animate={!reduceMotion} />
       ))}
     </SimpleGrid>
   );
@@ -89,7 +91,7 @@ function FavouritesSection({
     [data.favourites, screens],
   );
   return (
-    <LauncherSection title={t("groupFavorites")}>
+    <LauncherSection title={t("groupFavorites")} why={t("launcherFavouritesWhy")}>
       {favourites.length === 0 ? (
         <Text c="dimmed">{t("launcherNoFavourites")}</Text>
       ) : (
@@ -111,13 +113,26 @@ function FavouritesSection({
   );
 }
 
+interface AppsSectionProps {
+  data: LauncherResponse;
+  doors: ViewerDoors;
+  /** My work items, for the live line on each app's tile. */
+  work: readonly WorkItem[];
+}
+
+/** The live line on an app tile, such as "12 waiting", from that brick's work item. */
+function appMeta(item: WorkItem | undefined, t: TFunction<"nav">) {
+  return item && t(`workTile_${item.key}`, { count: item.count ?? 0, shown: countLabel(item) });
+}
+
 /** One tile per app, then Administration for those who have it; hidden, never greyed. */
-function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoors }) {
+function AppsSection({ data, doors, work }: AppsSectionProps) {
   const { t } = useTranslation("nav");
   const names = useMemo(() => new Map(data.bricks.map((b) => [b.id, b.name])), [data.bricks]);
+  const byBrick = useMemo(() => itemsByBrick(work), [work]);
   const { apps, admin } = doors;
   return (
-    <LauncherSection title={t("launcherApps")}>
+    <LauncherSection title={t("launcherApps")} why={t("launcherAppsWhy")}>
       {apps.length === 0 && !admin ? (
         <Text c="dimmed">{t("launcherNoApps")}</Text>
       ) : (
@@ -128,6 +143,7 @@ function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoo
               label={names.get(app.brick) ?? t(app.home.i18nKey)}
               path={app.home.path}
               icon={app.home.icon}
+              meta={appMeta(byBrick.get(app.brick), t)}
             />
           ))}
           {admin && <LauncherTile label={t("admin")} path={admin.path} icon="IconSettings" />}
@@ -137,28 +153,60 @@ function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoo
   );
 }
 
+/** "Good morning, Meera" and "Doctor · Tuesday 17 November": who I am signed in as, and today. */
+function Greeting() {
+  const { t, i18n } = useTranslation("nav");
+  const user = useAuthStore((s) => s.user);
+  const now = new Date();
+  const part = t(`launcherPart_${partOfDay(now.getHours())}`);
+  const role = user ? (ROLE_TEMPLATES[user.role]?.label ?? user.role) : undefined;
+  const day = now.toLocaleDateString(i18n.language, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  return (
+    <PageHeader
+      title={user ? t("launcherGreetingName", { part, name: user.full_name }) : part}
+      subtitle={[role, day].filter(Boolean).join(" · ")}
+      divider={false}
+    />
+  );
+}
+
 /**
- * The web home after sign-in: the screens the person starred, then the apps
- * their roles and the hospital's switched-on bricks allow, hidden, never
- * greyed. Open to every signed-in user, like Approvals: it shows only what the
- * person can already open. Someone with one app and no Administration is taken
- * straight into the app.
+ * The web home after sign-in: what needs me now, what is waiting for me, my favourites,
+ * then the apps my roles and the hospital's switched-on bricks allow, hidden, never greyed.
+ * Open to every signed-in user, like Approvals: it shows only what the person can already
+ * open. Someone with one app and no Administration is taken straight into it, unless a
+ * safety item needs them first (owner, 2026-11-17).
+ *
+ * "Continue where you left off" (#6046) and "Suggested for you" (#6047) from the
+ * approved design are not shown: neither has the data behind it yet, and neither is faked.
  */
 export default function LauncherPage() {
   const { t } = useTranslation("nav");
-  const userName = useAuthStore((s) => s.user?.full_name);
   const doors = useViewerDoors();
   const launcher = useLauncherData();
+  const work = useMyWork();
+  const disabledModules = useModuleStore((s) => s.disabledModules);
+  const items = useMemo(
+    () => (work.data ? visibleItems(work.data, disabledModules) : []),
+    [work.data, disabledModules],
+  );
+  const now = useMemo(() => needsNow(items), [items]);
 
   const onlyApp = doors.apps.length === 1 && !doors.admin ? doors.apps[0] : undefined;
-  if (onlyApp) return <Navigate to={onlyApp.home.path} replace />;
+  if (onlyApp && work.isSuccess && now.length === 0) {
+    return <Navigate to={onlyApp.home.path} replace />;
+  }
+  if (onlyApp && work.isPending) return <TileSkeletons />;
 
   return (
     <Stack gap="xl">
-      <PageHeader
-        title={userName ? t("launcherWelcomeName", { name: userName }) : t("launcherWelcome")}
-        divider={false}
-      />
+      <Greeting />
+      <NeedsYouNow items={now} />
+      <WaitingForYou work={work} items={items} />
       {launcher.isError ? (
         <QueryError
           error={launcher.error}
@@ -170,7 +218,7 @@ export default function LauncherPage() {
       ) : (
         <>
           <FavouritesSection data={launcher.data} screens={doors.screens} />
-          <AppsSection data={launcher.data} doors={doors} />
+          <AppsSection data={launcher.data} doors={doors} work={items} />
         </>
       )}
     </Stack>

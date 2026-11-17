@@ -10,6 +10,8 @@ interface LauncherTileProps {
   path: string;
   /** Tabler icon name, used when the screen has no module mark. */
   icon: string;
+  /** A short live line beside the name, such as "12 waiting". */
+  meta?: string;
   /** Shown on a favourite: takes the star off. */
   onUnstar?: () => void;
   /** The unstar control's accessible name. */
@@ -24,21 +26,27 @@ interface LauncherTileProps {
  * own focus stop and name.
  */
 export function LauncherTile(props: LauncherTileProps) {
-  const { label, path, icon, onUnstar, unstarLabel, isUnstarPending } = props;
+  const { label, path, icon, meta, onUnstar, unstarLabel, isUnstarPending } = props;
   const badge = getModuleBadge(path);
   return (
-    <Card padding={0} pattern={false} className={styles.tile}>
-      <Group gap={0} wrap="nowrap" align="stretch">
+    // `p`, not `padding`: the theme's default `p="md"` would otherwise pad round the link.
+    <Card p={0} pattern={false} className={styles.tile}>
+      <Group gap={0} wrap="nowrap" align="stretch" preventGrowOverflow={false}>
         <UnstyledButton component={Link} to={path} className={styles.tileLink}>
-          <Group gap="sm" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" preventGrowOverflow={false} w="100%">
             {badge ? (
-              <ModuleBadge abbr={badge.abbr} color={badge.color} size={32} />
+              <ModuleBadge abbr={badge.abbr} color={badge.color} size={24} />
             ) : (
-              resolveIcon(icon, 32, 1.5)
+              resolveIcon(icon, 24, 1.5)
             )}
-            <Text fw={500} lineClamp={2}>
+            <Text fw={500} lineClamp={2} flex={1}>
               {label}
             </Text>
+            {meta && (
+              <Text size="sm" c="dimmed">
+                {meta}
+              </Text>
+            )}
           </Group>
         </UnstyledButton>
         {onUnstar && (
