@@ -6351,12 +6351,14 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-reports",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -6369,6 +6371,7 @@ dependencies = [
  "hex",
  "log",
  "medbrains-core",
+ "medbrains-db-migrations",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -6385,6 +6388,7 @@ name = "medbrains-db-migrations"
 version = "0.1.0"
 dependencies = [
  "sqlx",
+ "tokio",
  "tracing",
 ]
 
@@ -7063,6 +7067,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-notifications",
  "medbrains-pharmacy",
  "medbrains-server-core",
  "medbrains-workflow",
@@ -7070,6 +7075,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tracing",
  "uuid",
 ]
 
@@ -7604,6 +7610,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -7991,6 +7998,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "uuid",
 ]
 

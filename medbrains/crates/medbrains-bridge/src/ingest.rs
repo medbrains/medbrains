@@ -5,32 +5,41 @@ use crate::buffer::MessageBuffer;
 use crate::config::BridgeConfig;
 
 /// Attach the bridge's API key, when configured.
-pub fn authed(request: reqwest::RequestBuilder, cfg: &BridgeConfig) -> reqwest::RequestBuilder {
+pub(crate) fn authed(
+    request: reqwest::RequestBuilder,
+    cfg: &BridgeConfig,
+) -> reqwest::RequestBuilder {
     match cfg.api_key.as_deref() {
         Some(key) => request.bearer_auth(key),
         None => request,
     }
 }
 
+/// One device message bound for `POST /api/device-ingest/{module}`.
+#[derive(Debug)]
+pub(crate) struct Delivery<'a> {
+    pub device_instance_id: &'a str,
+    pub module: &'a str,
+    pub protocol: &'a str,
+    pub parsed_payload: &'a serde_json::Value,
+    pub mapped_data: &'a serde_json::Value,
+    pub processing_duration_ms: i32,
+}
+
 /// Deliver a message directly to MedBrains API.
-pub async fn deliver(
+pub(crate) async fn deliver(
     client: &reqwest::Client,
     cfg: &BridgeConfig,
-    device_instance_id: &str,
-    module: &str,
-    protocol: &str,
-    parsed_payload: &serde_json::Value,
-    mapped_data: &serde_json::Value,
-    processing_duration_ms: i32,
+    msg: &Delivery<'_>,
 ) -> Result<()> {
-    let url = format!("{}/api/device-ingest/{module}", cfg.api_base);
+    let url = format!("{}/api/device-ingest/{}", cfg.api_base, msg.module);
 
     let body = serde_json::json!({
-        "device_instance_id": device_instance_id,
-        "protocol": protocol,
-        "parsed_payload": parsed_payload,
-        "mapped_data": mapped_data,
-        "processing_duration_ms": processing_duration_ms,
+        "device_instance_id": msg.device_instance_id,
+        "protocol": msg.protocol,
+        "parsed_payload": msg.parsed_payload,
+        "mapped_data": msg.mapped_data,
+        "processing_duration_ms": msg.processing_duration_ms,
     });
 
     let resp = authed(client.post(&url), cfg).json(&body).send().await?;
@@ -45,7 +54,11 @@ pub async fn deliver(
 }
 
 /// Background loop that drains the SQLite buffer — retries failed messages.
-pub async fn drain_loop(buffer: MessageBuffer, client: &reqwest::Client, cfg: &BridgeConfig) {
+pub(crate) async fn drain_loop(
+    buffer: MessageBuffer,
+    client: &reqwest::Client,
+    cfg: &BridgeConfig,
+) {
     let interval = tokio::time::Duration::from_secs(cfg.drain_interval_secs);
 
     loop {
@@ -84,18 +97,15 @@ pub async fn drain_loop(buffer: MessageBuffer, client: &reqwest::Client, cfg: &B
                 }
             };
 
-            match deliver(
-                client,
-                cfg,
-                &msg.device_instance_id,
-                &msg.module,
-                &msg.protocol,
-                &parsed,
-                &mapped,
-                msg.processing_duration_ms.unwrap_or(0),
-            )
-            .await
-            {
+            let delivery = Delivery {
+                device_instance_id: &msg.device_instance_id,
+                module: &msg.module,
+                protocol: &msg.protocol,
+                parsed_payload: &parsed,
+                mapped_data: &mapped,
+                processing_duration_ms: msg.processing_duration_ms.unwrap_or(0),
+            };
+            match deliver(client, cfg, &delivery).await {
                 Ok(()) => {
                     info!(id = msg.id, "buffered message delivered");
                     let _ = buffer.remove(msg.id);

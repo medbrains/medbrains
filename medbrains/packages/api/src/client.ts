@@ -1115,6 +1115,7 @@ import type {
   FallRiskAssessmentPrintData,
   FamilyLinkRow,
   FamilyMessage,
+  FavouritesResponse,
   FeedbackStatsResponse,
   FieldAccessLevel,
   FileMrdCaseSheetPacketRequest,
@@ -1432,6 +1433,7 @@ import type {
   LabTestCatalog,
   LabTestPanel,
   LastOpdVisit,
+  LauncherResponse,
   LaundryBatch,
   LearningPathWithCourses,
   LeaveActionRequest,
@@ -4540,6 +4542,14 @@ export const api = {
     return request<NotificationListResponse>(`/notifications${query ? `?${query}` : ""}`);
   },
   notificationsUnreadCount: () => request<UnreadCountResponse>("/notifications/unread-count"),
+  /** My starred screens and every app's name, for the launcher. */
+  getLauncher: () => request<LauncherResponse>("/users/me/launcher"),
+  /** Star or unstar one screen for me; answers my list after the change. */
+  setFavourite: (path: string, starred: boolean) =>
+    request<FavouritesResponse>("/users/me/favourites", {
+      method: "PUT",
+      body: JSON.stringify({ path, starred }),
+    }),
   markNotificationRead: (id: string) =>
     request<UnreadCountResponse>(`/notifications/${id}/read`, { method: "POST" }),
   markAllNotificationsRead: () =>
