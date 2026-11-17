@@ -776,11 +776,17 @@ fi
 # archive_mode. A failure here leaves the nightly dump as the only backup:
 # loud, not fatal, so a deploy is never blocked by an opt-in.
 install -m 0755 "$DEPLOY_DIR/medbrains-wal-g" /usr/local/bin/medbrains-wal-g
+install -m 0755 "$DEPLOY_DIR/medbrains-restore-test" /usr/local/bin/medbrains-restore-test
+install -m 0644 "$DEPLOY_DIR/medbrains-restore-test.service" "$DEPLOY_DIR/medbrains-restore-test.timer" /etc/systemd/system/
+systemctl daemon-reload
 if [[ "$(env_value PITR_ENABLED)" == "1" ]]; then
     if ! bash "$DEPLOY_DIR/medbrains-wal-g-setup" --apply --restart-if-needed; then
         echo "    WARNING: PITR_ENABLED=1 but medbrains-wal-g-setup failed (above). Point-in-time"
         echo "             recovery is NOT running; the nightly dump still is."
     fi
+    systemctl enable --now medbrains-restore-test.timer
+else
+    systemctl disable --now medbrains-restore-test.timer 2>/dev/null || true
 fi
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
