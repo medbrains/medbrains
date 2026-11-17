@@ -105,8 +105,8 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   {
     code: "patients.card.reprint",
-    label: "Reprint any patient's card at the desk",
-    description: "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows. Never the address, the email or the chart.",
+    label: "Reprint any patient's cards at the desk",
+    description: "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card and the OPD card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows, and on a visit's OPD card its date, department, doctor and token. Never the address, the email or the chart.",
     module: "patients",
   },
   {
