@@ -8,4 +8,5 @@
 
 pub mod backend_durable_spicedb;
 pub mod backend_spicedb;
+mod combine;
 pub mod watch;

@@ -5,7 +5,7 @@
 //! Postgres, then are pushed to `SpiceDB` immediately and retried by the
 //! worker if the sidecar is temporarily unavailable.
 
-use std::{collections::HashSet, time::Duration};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use sqlx::PgPool;
@@ -17,6 +17,7 @@ use medbrains_authz::{
 };
 
 use crate::backend_spicedb::SpiceDbBackend;
+use crate::combine::{combined_bulk_check, combined_check, combined_list_accessible};
 
 const OUTBOX_BATCH_PER_TENANT: i64 = 100;
 const OUTBOX_IDLE_SLEEP: Duration = Duration::from_secs(5);
@@ -77,23 +78,14 @@ impl AuthzBackend for DurableSpiceDbBackend {
         object_type: &str,
         object_id: Uuid,
     ) -> Result<bool, AuthzError> {
-        if ctx.is_bypass {
-            return Ok(true);
-        }
-
-        match self
-            .spicedb
-            .check(ctx, relation, object_type, object_id)
-            .await
-        {
-            Ok(true) => Ok(true),
-            Ok(false) => self.pg.check(ctx, relation, object_type, object_id).await,
-            Err(e) => {
-                tracing::warn!(error = %e, object_type, object_id = %object_id,
-                    "rebac: SpiceDB check failed; using relation_tuples fallback");
-                self.pg.check(ctx, relation, object_type, object_id).await
-            }
-        }
+        combined_check(
+            &self.spicedb,
+            &self.pg,
+            &self.pool,
+            ctx,
+            (relation, object_type, object_id),
+        )
+        .await
     }
 
     async fn expand(
@@ -111,38 +103,8 @@ impl AuthzBackend for DurableSpiceDbBackend {
         object_type: &str,
         relation: Relation,
     ) -> Result<Vec<Uuid>, AuthzError> {
-        if ctx.is_bypass {
-            return Ok(Vec::new());
-        }
-
-        let mut seen = HashSet::new();
-        let mut out = Vec::new();
-
-        for id in self.pg.list_accessible(ctx, object_type, relation).await? {
-            if seen.insert(id) {
-                out.push(id);
-            }
-        }
-
-        match self
-            .spicedb
-            .list_accessible(ctx, object_type, relation)
+        combined_list_accessible(&self.spicedb, &self.pg, &self.pool, ctx, object_type, relation)
             .await
-        {
-            Ok(ids) => {
-                for id in ids {
-                    if seen.insert(id) {
-                        out.push(id);
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, object_type,
-                    "rebac: SpiceDB lookup failed; relation_tuples fallback used");
-            }
-        }
-
-        Ok(out)
     }
 
     async fn bulk_check(
@@ -150,27 +112,7 @@ impl AuthzBackend for DurableSpiceDbBackend {
         ctx: &AuthzContext,
         items: &[(String, Relation, Uuid)],
     ) -> Result<std::collections::HashMap<(String, Relation, Uuid), bool>, AuthzError> {
-        if ctx.is_bypass {
-            return self.pg.bulk_check(ctx, items).await;
-        }
-
-        let mut out = match self.spicedb.bulk_check(ctx, items).await {
-            Ok(spice) => spice,
-            Err(e) => {
-                tracing::warn!(error = %e, "rebac: SpiceDB bulk_check failed");
-                std::collections::HashMap::new()
-            }
-        };
-
-        for (key, allowed) in self.pg.bulk_check(ctx, items).await? {
-            if allowed {
-                out.insert(key, true);
-            } else {
-                out.entry(key).or_insert(false);
-            }
-        }
-
-        Ok(out)
+        combined_bulk_check(&self.spicedb, &self.pg, &self.pool, ctx, items).await
     }
 
     async fn write_tuple(
@@ -295,8 +237,9 @@ impl AuthzBackend for DurableSpiceDbBackend {
 
     async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError> {
         let tuple = load_tuple_by_id(&self.pool, ctx.tenant_id, tuple_id).await?;
+        // Revokes and queues the SpiceDB delete in one statement, so there is no
+        // moment where the tuple is revoked but not yet pending.
         self.pg.revoke_tuple(ctx, tuple_id).await?;
-        mark_tuple_sync(&self.pool, ctx.tenant_id, tuple_id, "pending", None).await?;
 
         let Some(tuple) = tuple else {
             return Ok(());
@@ -451,18 +394,6 @@ async fn apply_tuple_to_spicedb(
     spicedb: &SpiceDbBackend,
     tuple: StoredTuple,
 ) -> Result<(), AuthzError> {
-    let Some(relation) = Relation::from_code(&tuple.relation) else {
-        mark_tuple_sync(
-            pool,
-            tuple.tenant_id,
-            tuple.tuple_id,
-            "skipped",
-            Some(format!("unknown relation code: {}", tuple.relation)),
-        )
-        .await?;
-        return Ok(());
-    };
-
     let Some(subject) = parse_subject(&tuple.subject_type, &tuple.subject_id) else {
         mark_tuple_sync(
             pool,
@@ -498,23 +429,18 @@ async fn apply_tuple_to_spicedb(
         is_bypass: true,
     };
 
-    let result = if tuple.status == "revoked" {
-        spicedb
-            .revoke_specific(&tuple.object_type, tuple.object_id, relation, subject)
+    // A relation the Rust enum does not model (`dept_member`, `ward_member`, …)
+    // is a schema relation written by `grant_raw`; it is synced by name. It used
+    // to be skipped, which left a revoked raw grant in SpiceDB for good.
+    let (ot, oid, rel) = (tuple.object_type.as_str(), tuple.object_id, tuple.relation.as_str());
+    let result = match (Relation::from_code(rel), tuple.status == "revoked") {
+        (Some(relation), true) => spicedb.revoke_specific(ot, oid, relation, subject).await,
+        (None, true) => spicedb.revoke_raw(ot, oid, rel, subject).await,
+        (Some(relation), false) => spicedb
+            .write_tuple(&ctx, ot, oid, relation, subject, tuple.expires_at, None)
             .await
-    } else {
-        spicedb
-            .write_tuple(
-                &ctx,
-                &tuple.object_type,
-                tuple.object_id,
-                relation,
-                subject,
-                tuple.expires_at,
-                None,
-            )
-            .await
-            .map(|_| ())
+            .map(|_| ()),
+        (None, false) => spicedb.write_raw(ot, oid, rel, subject, tuple.expires_at).await,
     };
 
     match result {
@@ -655,7 +581,7 @@ async fn revoke_tuple_by_coordinates(
     Ok(())
 }
 
-async fn mark_tuple_sync(
+pub(crate) async fn mark_tuple_sync(
     pool: &PgPool,
     tenant_id: Uuid,
     tuple_id: Uuid,
@@ -692,7 +618,7 @@ async fn mark_tuple_sync(
     Ok(())
 }
 
-async fn set_tenant_ctx(
+pub(crate) async fn set_tenant_ctx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<(), AuthzError> {
