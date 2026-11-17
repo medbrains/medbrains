@@ -10,6 +10,8 @@ interface RegistrationDepartmentColProps {
   error?: string;
   /** Shown when the department look-up failed, so the desk is not offered an empty list. */
   unavailable?: string;
+  /** Marks the picker required: an OPD visit cannot be queued without a department. */
+  required?: boolean;
 }
 
 /**
@@ -21,18 +23,20 @@ export function RegistrationDepartmentCol({
   options,
   error,
   unavailable,
+  required = false,
 }: RegistrationDepartmentColProps) {
   const { t } = useTranslation("patients");
   const current = useWatch({ control, name: "department_id" });
   if (soleOption(options, current)) return null;
   return (
-    <Grid.Col span={{ base: 12, sm: 5 }}>
+    <Grid.Col span={{ base: 12, sm: 6 }}>
       <Controller
         control={control}
         name="department_id"
         render={({ field }) => (
           <Select
-            aria-label={t("registrationForm.aria.department")}
+            label={t("registrationForm.label.department")}
+            withAsterisk={required}
             placeholder={t("registrationForm.placeholder.department")}
             data-testid="picker-department"
             data={options}

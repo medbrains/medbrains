@@ -50,7 +50,7 @@ Patient Registration is the entry point for all clinical care in MedBrains. It c
 **Steps**:
 0. Before registering, the receptionist searches the Patients box, which takes a name, phone, UHID or Aadhaar: every word of a name must match ("sample asha" and "ash sam" find Asha Sample); a phone matches in any form ("90000 12345", "+91 90000 12345", "09000012345", or its last digits); a UHID matches in any case, exact first; twelve digits are an Aadhaar number, matched by its keyed fingerprint and never shown in full (type a 12-digit phone with `+91`).
 1. Receptionist opens the New Patient form (route: `/patients/new`).
-2. Enters mandatory fields: full name, date of birth, sex, primary mobile, address.
+2. Fills step 1's **Required details**, top to bottom in Tab order: first name (last name beside it, optional), sex, age (or date of birth; either is enough), phone (or ticks "Has no phone"), then the department (hidden when the hospital has one; required while "Send to OPD queue" is ticked) and doctor. A tick above them marks an unknown / unidentified patient, which waives name, sex, age and phone. Below, **More details (optional)** holds prefix, middle name, name in own script, blood group and a second phone; the address is asked on a later step.
 3. Optionally scans Aadhaar / ABHA card → auto-populates demographics via ABDM lookup.
 4. Attaches photo (webcam capture or upload).
 5. Selects registration type: General / Corporate / TPA / Government.
