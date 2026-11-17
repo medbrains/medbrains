@@ -268,7 +268,7 @@ export function PatientRegisterForm({
       // patient registered and silently not queued.
       create_opd_visit: (initialValues?.create_opd_visit ?? !isEdit) && canCreateOpdVisit,
       // Unticked by default: the desk stays on the registered patient (with
-      // "Print OPD card") instead of being sent into the OPD screen. Opt-in remains.
+      // the token ticket and ID card prints) instead of being sent into the OPD screen. Opt-in remains.
       open_opd_after_registration:
         (initialValues?.open_opd_after_registration ?? false) && canWorkOpdVisit,
     },

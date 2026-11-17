@@ -39,7 +39,6 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
-import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Button, IconButton, SegmentedControl, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
@@ -54,6 +53,7 @@ import { isStaleRowError } from "./queue-action-error";
 import {
   QueueAppointmentMarker,
   QueuePatientCell,
+  QueueRowPrintMenu,
   QueueVisitTypeBadge,
   QueueVitalsCell,
 } from "./queue-cells";
@@ -514,7 +514,7 @@ export function OpdPageInner() {
           {resolveOpdQueueRowActions(row, queueActionPermissions).map((action) =>
             renderQueueAction(action, row),
           )}
-          <OpdCardPrintMenu compact encounterId={row.encounter_id} />
+          <QueueRowPrintMenu row={row} />
         </Group>
       ),
     },

@@ -376,7 +376,7 @@ export function PatientDetailPageInner() {
               label="Ask AI"
             />
             <PrintPatientCardButton patientId={patient.id} />
-            <OpdCardPrintMenu patientId={patient.id} encounterId={activeEncounter?.id} />
+            <OpdCardPrintMenu patientId={patient.id} />
             {canViewBillingLedger && (
               <Button
                 tone="secondary"
