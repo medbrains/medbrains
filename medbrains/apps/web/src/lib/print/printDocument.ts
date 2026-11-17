@@ -1,8 +1,9 @@
 import type { OpdCardPrintData } from "@medbrains/types";
-import { type OpdCardFormat, type PrintPage, renderOpdCard } from "./opd-card";
-import { esc } from "./print-html";
+import { renderPatientIdCard } from "./patient-id-card";
+import { esc, type PrintPage } from "./print-html";
 import { printDocumentDef } from "./print-registry";
 import { qrSvgMarkup } from "./qr-svg";
+import { renderTokenTicket } from "./token-ticket";
 
 /**
  * Print any document, from anywhere, in one call.
@@ -117,32 +118,26 @@ const PRINT_CSS = `
   @media print { body { padding: 0; } }
 `;
 
-export interface PrintDocumentOptions {
-  /** The paper, for a document drawn in more than one size (the OPD card). */
-  format?: OpdCardFormat;
-}
-
-/** A layout per key that has one drawn; every other key prints as the generic sheet. */
-const CURATED: Record<string, (data: unknown, format?: OpdCardFormat) => PrintPage> = {
-  "opd-card": (data, format) => renderOpdCard(data as OpdCardPrintData, format),
-  "opd-visit-card": (data, format) => renderOpdCard(data as OpdCardPrintData, format),
+/**
+ * A layout per key that has one drawn, each its own document with its own
+ * `@page`; every other key prints as the generic sheet. A layout may refuse
+ * with a reason (a token ticket for a visit with no token) rather than print
+ * an empty page.
+ */
+const CURATED: Record<string, (data: unknown) => PrintPage | { problem: string }> = {
+  "opd-card": (data) => renderPatientIdCard(data as OpdCardPrintData),
+  "opd-visit-card": (data) => renderTokenTicket(data as OpdCardPrintData),
 };
 
 /** The page for a document: its drawn layout if it has one, else the generic sheet. */
-function pageFor(
-  key: string,
-  label: string,
-  data: Record<string, unknown>,
-  format?: OpdCardFormat,
-) {
-  return CURATED[key]?.(data, format) ?? { css: PRINT_CSS, body: renderSheet(label, data) };
+function pageFor(key: string, label: string, data: Record<string, unknown>) {
+  return CURATED[key]?.(data) ?? { css: PRINT_CSS, body: renderSheet(label, data) };
 }
 
 /** Fetches the document's fields and opens them in a print window. */
 export async function printDocument(
   documentKey: string,
   recordId: string,
-  options: PrintDocumentOptions = {},
 ): Promise<PrintDocumentResult> {
   const def = printDocumentDef(documentKey);
   if (!def) {
@@ -164,6 +159,9 @@ export async function printDocument(
     };
   }
 
+  const page = pageFor(documentKey, def.label, data);
+  if ("problem" in page) return { ok: false, problem: page.problem };
+
   // Opened before the await would be lost to the popup blocker; opened after,
   // it is a direct consequence of the click that started this.
   const win = window.open("", "_blank", "width=900,height=700");
@@ -174,12 +172,13 @@ export async function printDocument(
     };
   }
 
-  const page = pageFor(documentKey, def.label, data, options.format);
+  // Printed once the fonts have arrived, or the dialog previews the fallback.
   win.document.write(
-    `<!DOCTYPE html><html><head><title>${esc(def.label)}</title>` +
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(def.label)}</title>` +
       `<style>${page.css}</style></head><body>` +
       page.body +
-      `<script>window.onload=function(){window.print();window.close();}</script>` +
+      `<script>window.onload=function(){document.fonts.ready.then(function(){` +
+      `window.print();window.close();});};</script>` +
       `</body></html>`,
   );
   win.document.close();

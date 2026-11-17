@@ -292,6 +292,7 @@ export function PatientRegisterPageInner() {
         ...registeredNoticeText(t, { uhid: patient.uhid, tokenRefused, queueWarning, tokenNumber }),
         patientId: patient.id,
         encounterId,
+        tokenNumber: tokenRefused ? null : tokenNumber,
       });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       if (encounterId) {
