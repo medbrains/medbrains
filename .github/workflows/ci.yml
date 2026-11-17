@@ -23,8 +23,16 @@
 name: CI
 
 on:
+  # Release and hotfix pushes run this file through ci-release.yml with `no-cache`, so the run
+  # that verifies a release branch never restores a dependency cache another run wrote.
   push:
-    branches: [master, main, 'release/**', 'hotfix/**']
+    branches: [master, main]
+  workflow_call:
+    inputs:
+      no-cache:
+        description: Restore and save no dependency cache (release and hotfix pushes).
+        type: boolean
+        default: false
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [master, main, 'release/**', 'hotfix/**']
@@ -346,7 +354,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
-          cache: pnpm
+          # Only the explicit `cache:` below, which is empty on a release or hotfix push.
+          package-manager-cache: false
+          cache: ${{ inputs.no-cache != true && 'pnpm' || '' }}
           cache-dependency-path: medbrains/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
@@ -407,7 +417,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: medbrains/.nvmrc
-          cache: pnpm
+          # Only the explicit `cache:` below, which is empty on a release or hotfix push.
+          package-manager-cache: false
+          cache: ${{ inputs.no-cache != true && 'pnpm' || '' }}
           cache-dependency-path: medbrains/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run lint --filter=@medbrains/web...
@@ -429,6 +441,8 @@ jobs:
         with:
           components: clippy
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # No cache on a release or hotfix push (see `no-cache` at the top).
+        if: inputs.no-cache != true
         with:
           path: |
             ~/.cargo/registry
@@ -509,6 +523,8 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # No cache on a release or hotfix push (see `no-cache` at the top).
+        if: inputs.no-cache != true
         with:
           path: |
             ~/.cargo/registry
