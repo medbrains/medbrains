@@ -415,7 +415,9 @@ impl AuthzBackend for PgAuthzBackend {
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
         sqlx::query(
             "UPDATE relation_tuples
-             SET status = 'revoked', revoked_at = now(), revoked_by = $1
+             SET status = 'revoked', revoked_at = now(), revoked_by = $1,
+                 spicedb_sync_status = 'pending', spicedb_next_attempt_at = now(),
+                 spicedb_last_error = NULL
              WHERE tenant_id = $2 AND tuple_id = $3 AND status = 'active'",
         )
         .bind(ctx.user_id)
