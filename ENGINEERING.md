@@ -92,16 +92,16 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; React Native CLI + Paper is the outgoing stack, no new RN screens |
+| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; the React Native apps were deleted on 2026-11-17 (git history keeps them) |
 | UI library | Apple HIG system components (incl. iPhone Duo adaptivity) / Material 3 Expressive (`MaterialExpressiveTheme`) |
-| Navigation | React Navigation v7 |
+| Navigation | SwiftUI `NavigationStack` / Navigation Compose |
 | Offline storage | SwiftData / Room, keys in Keychain / Keystore; offline authz + CRDT via the Rust core (`crates/medbrains-edge-rn`, UniFFI Swift + Kotlin) |
 
 ### TV Displays
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; React Native outgoing |
+| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; the React Native TV app was deleted on 2026-11-17 |
 | Real-time | WebSocket-driven updates |
 
 ### Monorepo
@@ -190,7 +190,6 @@ medbrains/
 │   ├── web/                      # React 19 + Mantine 9 + SCSS
 │   ├── ios/                      # SwiftUI apps: MedBrainsStaff / Patient / Camp / Vendor + Core/Kit/UI packages
 │   ├── android/                  # Compose apps: app-staff / patient / camp / vendor / tv + core/kit/ui modules
-│   ├── mobile-*/, tv/            # React Native (outgoing — deleted per app at parity)
 └── packages/
     ├── types/                    # Shared TypeScript interfaces
     ├── api/                      # HTTP client (auth methods only currently)
@@ -715,7 +714,7 @@ Every module follows this. No skipping.
 6. **Backend** — types in `medbrains-core/src/<module>.rs`, handlers in `medbrains-server/src/routes/<module>.rs`, register in `routes/mod.rs`. `cargo clippy` clean.
 7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/client.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
    - **7b Mobile (if Mobile=Y)**: native, both platforms in lockstep — `apps/ios/…/Features/<Module>/` (SwiftUI) and `apps/android/app-*/…/<module>/` (Compose), per `RFCs/RFC-NATIVE-MOBILE.md`.
-   - **7c TV (if TV=Y)**: `apps/tv/src/screens/<Module>/`, D-pad focus nav, WebSocket realtime, large fonts.
+   - **7c TV (if TV=Y)**: Compose for TV under `apps/android/` (per `RFCs/RFC-NATIVE-MOBILE.md`), D-pad focus nav, WebSocket realtime, large fonts.
 8. **Static checks** — `make check-all` (check-api, check-ui-api, check-types). `make generate-smoke`.
 9. **Smoke tests** — `make dev-backend && make smoke-test`.
 10. **Mark Done/Partial** in Excel.

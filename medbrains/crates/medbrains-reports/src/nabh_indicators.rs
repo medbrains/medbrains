@@ -626,7 +626,7 @@ pub async fn get_indicators(
            AND COALESCE(called_at, completed_at) >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     let opd_wait_prev = scalar_minutes(
         &mut tx,
         "SELECT (EXTRACT(EPOCH FROM AVG(COALESCE(called_at, completed_at) - created_at))/60.0)::float8 \
@@ -637,7 +637,7 @@ pub async fn get_indicators(
            AND COALESCE(called_at, completed_at) <  date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "ACCESS_OPD_WAIT".into(),
         label: "Average OPD waiting time".into(),
@@ -662,7 +662,7 @@ pub async fn get_indicators(
            AND appointment_date <= CURRENT_DATE",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "ACCESS_APPOINTMENT_NO_SHOW".into(),
         label: "Appointment no-show rate".into(),
@@ -689,7 +689,7 @@ pub async fn get_indicators(
            AND appointment_date < (date_trunc('month', now()) + interval '1 month')::date",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "ACCESS_APPOINTMENT_CANCEL_RATE".into(),
         label: "Appointment cancellation rate".into(),
@@ -714,7 +714,7 @@ pub async fn get_indicators(
            AND queue_date <= CURRENT_DATE",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "ACCESS_OPD_TOKEN_NO_SHOW".into(),
         label: "OPD token no-show rate".into(),
@@ -741,7 +741,7 @@ pub async fn get_indicators(
            AND appointment_date < (date_trunc('month', now()) + interval '1 month')::date",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "ACCESS_APPOINTMENT_CHECKIN_DELAY".into(),
         label: "Appointment check-in delay".into(),
@@ -765,7 +765,7 @@ pub async fn get_indicators(
            AND arrival_time >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "ACCESS_ER_TRIAGE_TAT".into(),
         label: "Emergency triage TAT".into(),
@@ -788,7 +788,7 @@ pub async fn get_indicators(
            AND discharged_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "OPS_ALOS".into(),
         label: "Average length of stay".into(),
@@ -810,7 +810,7 @@ pub async fn get_indicators(
          FROM beds WHERE tenant_id = $1",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "OPS_BED_OCCUPANCY".into(),
         label: "Bed occupancy".into(),
@@ -833,7 +833,7 @@ pub async fn get_indicators(
            AND completed_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "CLIN_LAB_TAT".into(),
         label: "Lab report turnaround".into(),
@@ -866,7 +866,7 @@ pub async fn get_indicators(
            AND COALESCE(rr.verified_at, rr.created_at, ro.completed_at) >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "CLIN_IMAGING_TAT".into(),
         label: "Imaging report turnaround".into(),
@@ -890,7 +890,7 @@ pub async fn get_indicators(
            AND discharged_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "SAFETY_MORTALITY".into(),
         label: "Inpatient mortality rate".into(),
@@ -915,7 +915,7 @@ pub async fn get_indicators(
            AND created_at <  date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "SAFETY_READMISSION_30D".into(),
         label: "30-day readmission rate".into(),
@@ -948,7 +948,7 @@ pub async fn get_indicators(
            AND discharge_completed_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "OPS_DISCHARGE_TAT".into(),
         label: "Time taken for discharge".into(),
@@ -975,7 +975,7 @@ pub async fn get_indicators(
            AND survey_responded_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "EXP_PATIENT_SURVEY".into(),
         label: "Patient experience score".into(),
@@ -999,7 +999,7 @@ pub async fn get_indicators(
            AND created_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "SAFETY_RX_CANCELLED".into(),
         label: "Cancelled Rx orders".into(),
@@ -1028,7 +1028,7 @@ pub async fn get_indicators(
            AND fall_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await
+    .await?
     .unwrap_or(0.0);
     let patient_days = scalar_f64(
         &mut tx,
@@ -1042,15 +1042,9 @@ pub async fn get_indicators(
            AND (discharged_at IS NULL OR discharged_at >= date_trunc('month', now()))",
         claims.tenant_id,
     )
-    .await
+    .await?
     .unwrap_or(0.0);
-    let falls_rate = if patient_days > 0.0 {
-        Some((falls_count * 1000.0 / patient_days * 10.0).round() / 10.0)
-    } else if falls_count > 0.0 {
-        Some(falls_count)
-    } else {
-        None
-    };
+    let falls_rate = per_1000_patient_days(falls_count, patient_days);
     indicators.push(Indicator {
         code: "SAFETY_FALLS_RATE".into(),
         label: "Patient fall rate".into(),
@@ -1065,14 +1059,6 @@ pub async fn get_indicators(
     });
 
     // ── COP-11: Hospital-acquired pressure ulcer rate ──
-    let pu_assessed = scalar_f64(
-        &mut tx,
-        "SELECT COUNT(*)::float8 FROM nabh_pressure_ulcer_assessments \
-         WHERE tenant_id = $1 AND assessed_at >= date_trunc('month', now())",
-        claims.tenant_id,
-    )
-    .await
-    .unwrap_or(0.0);
     let pu_hai = scalar_f64(
         &mut tx,
         "SELECT COUNT(*)::float8 FROM nabh_pressure_ulcer_assessments \
@@ -1080,23 +1066,19 @@ pub async fn get_indicators(
            AND injury_present = true AND injury_acquired = 'hospital_acquired'",
         claims.tenant_id,
     )
-    .await
+    .await?
     .unwrap_or(0.0);
-    let pu_rate = if pu_assessed > 0.0 {
-        Some((pu_hai / pu_assessed * 100.0 * 10.0).round() / 10.0)
-    } else {
-        None
-    };
+    let pu_rate = per_1000_patient_days(pu_hai, patient_days);
     indicators.push(Indicator {
         code: "SAFETY_PRESSURE_ULCER_HAI".into(),
         label: "Hospital-acquired pressure ulcer rate".into(),
         category: "safety".into(),
         direction: "lower_better".into(),
-        unit: "percent".into(),
+        unit: "count".into(),
         target: Some(2.0),
         value_current_month: pu_rate,
         value_prev_month: None,
-        denominator_label: Some("of assessments this month".into()),
+        denominator_label: Some("per 1000 patient-days".into()),
         note: None,
     });
 
@@ -1107,7 +1089,7 @@ pub async fn get_indicators(
          WHERE tenant_id = $1 AND review_status <> 'closed'",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "SAFETY_SENTINEL_OPEN".into(),
         label: "Open sentinel events".into(),
@@ -1128,7 +1110,7 @@ pub async fn get_indicators(
          WHERE tenant_id = $1 AND reaction_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await
+    .await?
     .unwrap_or(0.0);
     let btr_value = if btr_count > 0.0 {
         Some(btr_count)
@@ -1155,7 +1137,7 @@ pub async fn get_indicators(
          WHERE tenant_id = $1 AND activated_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
-    .await
+    .await?
     .unwrap_or(0.0);
     let cb_survived = scalar_f64(
         &mut tx,
@@ -1164,7 +1146,7 @@ pub async fn get_indicators(
            AND outcome IN ('survived_intact', 'survived_with_disability', 'transferred_icu')",
         claims.tenant_id,
     )
-    .await
+    .await?
     .unwrap_or(0.0);
     let cb_survival_rate = if cb_count > 0.0 {
         Some((cb_survived / cb_count * 100.0 * 10.0).round() / 10.0)
@@ -1191,7 +1173,7 @@ pub async fn get_indicators(
          WHERE tenant_id = $1 AND downtime_end IS NULL",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "OPS_EQUIPMENT_DOWN".into(),
         label: "Equipment currently down".into(),
@@ -1213,7 +1195,7 @@ pub async fn get_indicators(
          WHERE tenant_id = $1",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "FMS_FIRE_DRILL_INTERVAL".into(),
         label: "Days since last fire drill".into(),
@@ -1236,7 +1218,7 @@ pub async fn get_indicators(
            AND storage_hours > 48",
         claims.tenant_id,
     )
-    .await;
+    .await?;
     indicators.push(Indicator {
         code: "FMS_BMW_BREACH".into(),
         label: "BMW 48-hour storage breaches".into(),
@@ -1281,35 +1263,71 @@ pub async fn get_indicators(
     }))
 }
 
+/// One number from `sql`, bound to `tenant_id`. A failed query is an error, not
+/// `None`: `None` means "no data yet" and the screen shows it as pending, so a
+/// database fault must never wear that face.
 async fn scalar_f64(
     tx: &mut sqlx::Transaction<'_, Postgres>,
     sql: &str,
     tenant_id: uuid::Uuid,
-) -> Option<f64> {
-    match sqlx::query_scalar::<_, Option<f64>>(sql)
+) -> Result<Option<f64>, AppError> {
+    let value = sqlx::query_scalar::<_, Option<f64>>(sql)
         .bind(tenant_id)
         .fetch_optional(&mut **tx)
-        .await
-    {
-        Ok(value) => value.flatten(),
-        Err(error) => {
-            tracing::warn!(%error, query = sql, "NABH indicator query failed");
-            None
-        }
-    }
+        .await?;
+    Ok(value.flatten())
 }
 
+/// [`scalar_f64`] rounded to one decimal place, for minute averages.
 async fn scalar_minutes(
     tx: &mut sqlx::Transaction<'_, Postgres>,
     sql: &str,
     tenant_id: uuid::Uuid,
-) -> Option<f64> {
-    scalar_f64(tx, sql, tenant_id)
-        .await
-        .map(|v| (v * 10.0).round() / 10.0)
+) -> Result<Option<f64>, AppError> {
+    let value = scalar_f64(tx, sql, tenant_id).await?;
+    Ok(value.map(|v| (v * 10.0).round() / 10.0))
 }
 
-/// nabh_indicators routes.
+/// Events per 1000 patient-days to one decimal, the NABH denominator for falls
+/// and pressure ulcers. `None` when there were no patient-days: a rate over
+/// nothing is not a number, and a bare count is not a rate.
+fn per_1000_patient_days(events: f64, patient_days: f64) -> Option<f64> {
+    (patient_days > 0.0).then(|| (events * 1000.0 / patient_days * 10.0).round() / 10.0)
+}
+
+/// `nabh_indicators` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new().route("/api/nabh/indicators", get(get_indicators))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::{per_1000_patient_days, scalar_f64};
+
+    #[test]
+    fn pressure_ulcers_and_falls_are_per_1000_patient_days() {
+        // 3 hospital-acquired ulcers over 1500 patient-days is 2.0 per 1000,
+        // whatever the number of assessments.
+        assert_eq!(per_1000_patient_days(3.0, 1500.0), Some(2.0));
+        // No patient-days: no rate, never the bare count.
+        assert_eq!(per_1000_patient_days(2.0, 0.0), None);
+    }
+
+    /// `DATABASE_URL=… cargo test -p medbrains-reports nabh -- --ignored`
+    #[tokio::test]
+    #[ignore = "needs DATABASE_URL"]
+    async fn a_failed_indicator_query_is_an_error_not_pending() {
+        let url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+        let db = sqlx::PgPool::connect(&url).await.expect("connect");
+        let mut tx = db.begin().await.expect("begin");
+        let value = scalar_f64(
+            &mut tx,
+            "SELECT 1::float8 FROM no_such_indicator_table WHERE tenant_id = $1",
+            uuid::Uuid::nil(),
+        )
+        .await;
+        assert!(value.is_err(), "a fault read as {value:?}");
+    }
 }

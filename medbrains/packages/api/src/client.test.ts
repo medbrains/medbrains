@@ -9795,13 +9795,14 @@ describe("/quality endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("calculateIndicator → POST /quality/indicators/{param_1}/calculate", async () => {
+  it("setQualityIndicatorDirection → PUT /quality/indicators/{param_1}/direction", async () => {
     mockOk({});
-    await api.calculateIndicator(UUID);
+    await api.setQualityIndicatorDirection(UUID, "lower_better");
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/quality/indicators");
-    expect(opts.method).toBe("POST");
+    expect(url).toContain(`/api/quality/indicators/${UUID}/direction`);
+    expect(opts.method).toBe("PUT");
+    expect(JSON.parse(opts.body)).toEqual({ direction: "lower_better" });
   });
 
   it("listPendingAcks → GET /quality/documents/{param_1}/pending-acks", async () => {

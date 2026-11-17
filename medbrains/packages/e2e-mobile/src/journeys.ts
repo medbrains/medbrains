@@ -67,8 +67,9 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
       "a call past its escalation threshold is named as well as coloured",
     ],
     anchors: ["NABH nursing response times"],
-    automationStatus: "automated",
-    spec: "nurse-calls.e2e.ts",
+    // The React Native Detox spec that walked this was deleted with the RN
+    // apps (2026-11-17); candidate until the native XCUITest/Compose test lands.
+    automationStatus: "candidate",
   },
   {
     id: "MJ-NUR-002",
@@ -84,8 +85,9 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
       "a mismatch is a full stop with no way past it",
     ],
     anchors: ["IPSG 3 medication safety", "5 rights"],
-    automationStatus: "automated",
-    spec: "bcma.e2e.ts",
+    // The React Native Detox spec that walked this was deleted with the RN
+    // apps (2026-11-17); candidate until the native XCUITest/Compose test lands.
+    automationStatus: "candidate",
   },
   {
     id: "MJ-NUR-003",
@@ -134,8 +136,9 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
       "all three transitions take the one permission the server checks",
     ],
     anchors: ["OPD queue integrity"],
-    automationStatus: "automated",
-    spec: "opd-queue.e2e.ts",
+    // The React Native Detox spec that walked this was deleted with the RN
+    // apps (2026-11-17); candidate until the native XCUITest/Compose test lands.
+    automationStatus: "candidate",
   },
 
   // ── The front desk ─────────────────────────────────────
@@ -152,8 +155,9 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
       "a blank identity cannot be submitted",
     ],
     anchors: ["two patient identifiers", "duplicate prevention"],
-    automationStatus: "automated",
-    spec: "front-office.e2e.ts",
+    // The React Native Detox spec that walked this was deleted with the RN
+    // apps (2026-11-17); candidate until the native XCUITest/Compose test lands.
+    automationStatus: "candidate",
   },
   {
     id: "MJ-REC-005",
@@ -203,8 +207,9 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
       "a pass past its end time is distinguished from one properly revoked",
     ],
     anchors: ["visiting hours", "who is in the building"],
-    automationStatus: "automated",
-    spec: "front-office.e2e.ts",
+    // The React Native Detox spec that walked this was deleted with the RN
+    // apps (2026-11-17); candidate until the native XCUITest/Compose test lands.
+    automationStatus: "candidate",
   },
   {
     id: "MJ-REC-003",
@@ -216,8 +221,9 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
     exitPoint: "enquiry closed with what the caller was told",
     assertions: ["an open enquiry is distinguished from a resolved one"],
     anchors: [],
-    automationStatus: "automated",
-    spec: "front-office.e2e.ts",
+    // The React Native Detox spec that walked this was deleted with the RN
+    // apps (2026-11-17); candidate until the native XCUITest/Compose test lands.
+    automationStatus: "candidate",
   },
   {
     id: "MJ-REC-004",

@@ -30,20 +30,24 @@ use medbrains_server_core::{
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
+/// The signed-in author's name, stamped on what they write.
+///
+/// Reads `users.full_name`; it used to read a `display_name` column that does not
+/// exist, so every write that stamps an author failed.
 async fn author_display_name(
     pool: &sqlx::PgPool,
     tenant_id: Uuid,
     user_id: Uuid,
 ) -> Result<String, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await?;
-    let row: Option<(String, Option<String>)> =
-        sqlx::query_as("SELECT email, display_name FROM users WHERE id = $1 AND tenant_id = $2")
-            .bind(user_id)
-            .bind(tenant_id)
-            .fetch_optional(&mut *conn)
-            .await?;
-    let (email, display) = row.ok_or(AppError::NotFound)?;
-    Ok(display.unwrap_or(email))
+    sqlx::query_scalar!(
+        "SELECT full_name FROM users WHERE id = $1 AND tenant_id = $2",
+        user_id,
+        tenant_id,
+    )
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(AppError::NotFound)
 }
 
 // ── Nurse shift handoff entries ─────────────────────────────────────
@@ -232,7 +236,7 @@ pub async fn create_triage_entry(
 
 // ── Patient clinical notes ──────────────────────────────────────────
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Default, Serialize, sqlx::FromRow)]
 pub struct PatientNotes {
     pub patient_id: Uuid,
     pub text: String,
@@ -250,12 +254,18 @@ pub struct UpdatePatientNotes {
     pub if_version: Option<i64>,
 }
 
+/// `GET /api/clinical/patient-notes/{patient_id}` — the patient's running free-text note.
+///
+/// The permission code says the caller may read notes at all; the patient check says
+/// they may read this patient's. Without the second, any holder could read any chart
+/// by id. A refusal answers 404, an authorization outage 503.
 pub async fn get_patient_notes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientNotes>, AppError> {
     require_permission(&claims, permissions::patients::notes::VIEW)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -268,16 +278,17 @@ pub async fn get_patient_notes(
     .await?;
     tx.commit().await?;
 
-    Ok(Json(row.unwrap_or(PatientNotes {
+    Ok(Json(row.unwrap_or_else(|| PatientNotes {
         patient_id,
-        text: String::new(),
-        last_author_id: None,
-        last_author_name: None,
-        last_edited_at: None,
-        version: 0,
+        ..PatientNotes::default()
     })))
 }
 
+/// `PUT /api/clinical/patient-notes/{patient_id}` — replace the patient's running note.
+///
+/// Checked against the patient record before anything is read or written, for the
+/// same reason as `get_patient_notes`: a refusal leaves the note untouched and
+/// answers 404, an authorization outage 503.
 pub async fn update_patient_notes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -285,6 +296,7 @@ pub async fn update_patient_notes(
     Json(body): Json<UpdatePatientNotes>,
 ) -> Result<Json<PatientNotes>, AppError> {
     require_permission(&claims, permissions::patients::notes::EDIT)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let author = author_display_name(&state.db, claims.tenant_id, claims.sub).await?;
 
     let mut tx = state.db.begin().await?;

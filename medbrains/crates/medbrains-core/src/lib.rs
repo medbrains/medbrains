@@ -113,6 +113,7 @@ pub mod privacy;
 pub mod procurement;
 pub mod provenance;
 pub mod quality;
+pub mod quality_target;
 pub mod radiology;
 pub mod regulatory;
 pub mod reports;
