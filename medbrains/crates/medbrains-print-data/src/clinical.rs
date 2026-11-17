@@ -1639,7 +1639,7 @@ pub async fn get_transfer_summary_print_data(
 
 // ── Registration Card (Enhanced) ───────────────────────
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 struct RegistrationCardRow {
     patient_name: String,
     uhid: String,
@@ -1669,47 +1669,34 @@ pub async fn get_registration_card_print_data(
         .await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, RegistrationCardRow>(
-        "SELECT \
-           (first_name || ' ' || last_name) AS patient_name, \
-           uhid, \
-           date_of_birth, \
-           EXTRACT(YEAR FROM age(date_of_birth))::float8 AS age, \
-           gender::text AS gender, \
-           blood_group::text AS blood_group, \
-           phone, \
-           email, \
-           COALESCE((address->>'line1') || ', ' || (address->>'city'), NULL) AS address, \
-           emergency_contact_name, \
-           emergency_contact_phone, \
-           photo_url, \
-           created_at \
-         FROM patients \
-         WHERE id = $1 AND tenant_id = $2",
+    // Compile-time checked: the address used to vanish whenever the city was blank.
+    let row = sqlx::query_as!(
+        RegistrationCardRow,
+        "SELECT concat_ws(' ', first_name, last_name) AS \"patient_name!\", uhid, date_of_birth, \
+           EXTRACT(YEAR FROM age(date_of_birth))::float8 AS age, gender::text AS \"gender!\", \
+           blood_group::text AS blood_group, phone, email, \
+           NULLIF(concat_ws(', ', NULLIF(btrim(address->>'line1'), ''), \
+             NULLIF(btrim(address->>'city'), '')), '') AS address, \
+           emergency_contact_name, emergency_contact_phone, photo_url, created_at \
+         FROM patients WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+        patient_id,
+        claims.tenant_id,
     )
-    .bind(patient_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Get allergies
-    let allergies: Vec<String> = sqlx::query_scalar(
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let allergies: Vec<String> = sqlx::query_scalar!(
         "SELECT allergen_name FROM patient_allergies \
          WHERE patient_id = $1 AND tenant_id = $2 AND is_active = true \
-           AND deleted_at IS NULL \
-         ORDER BY severity DESC LIMIT 5000",
+           AND deleted_at IS NULL ORDER BY severity DESC LIMIT 5000",
+        patient_id,
+        claims.tenant_id,
     )
-    .bind(patient_id)
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-
-    // Get hospital name
-    let h_name: Option<String> = sqlx::query_scalar("SELECT name FROM tenants WHERE id = $1")
-        .bind(claims.tenant_id)
+    let h_name = sqlx::query_scalar!("SELECT name FROM tenants WHERE id = $1", claims.tenant_id)
         .fetch_optional(&mut *tx)
-        .await?
-        .flatten();
+        .await?;
 
     let print_request_id = Uuid::new_v4();
     let event = ClinicalEventEnvelope::new(
@@ -1728,9 +1715,6 @@ pub async fn get_registration_card_print_data(
 
     tx.commit().await?;
 
-    // Generate QR code data
-    let qr_data = format!("MBPATIENT:{patient_id}");
-
     Ok(Json(RegistrationCardPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
@@ -1745,7 +1729,7 @@ pub async fn get_registration_card_print_data(
         emergency_contact_phone: row.emergency_contact_phone,
         allergies,
         photo_url: row.photo_url,
-        qr_code_data: qr_data,
+        qr_code_data: format!("MBPATIENT:{patient_id}"),
         registration_date: row
             .created_at
             .with_timezone(&tz)
@@ -4046,6 +4030,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/print-data/registration-card/{patient_id}",
             get(get_registration_card_print_data),
         )
+        .merge(crate::opd_card::router())
         .route(
             "/api/print-data/infant-wristband/{newborn_id}",
             get(get_infant_wristband_print_data),

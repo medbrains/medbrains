@@ -92,6 +92,7 @@ pub mod notes;
 pub mod object_store;
 pub mod occ_health;
 pub mod onboarding;
+pub mod opd_card_print;
 pub mod orchestration;
 pub mod order_set;
 pub mod ot;

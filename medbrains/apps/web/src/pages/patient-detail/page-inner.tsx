@@ -62,6 +62,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientUnavailable } from "@/components/Patient/PatientUnavailable";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
 import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
+import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
 import { QueryError } from "@/components/QueryError";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
 import { Badge, Button } from "@/components/ui";
@@ -367,9 +368,7 @@ export function PatientDetailPageInner() {
   };
   const printPatientCard = async () => {
     const printed = await handlePrintPatientCard(patient.id);
-    if (!printed) {
-      return;
-    }
+    if (!printed) return;
 
     emit("patient.card_printed", {
       source_record_id: patient.id,
@@ -477,6 +476,7 @@ export function PatientDetailPageInner() {
               label="Ask AI"
             />
             <PrintPatientCardButton patientId={patient.id} />
+            <OpdCardPrintMenu patientId={patient.id} encounterId={activeEncounter?.id} />
             {canViewBillingLedger && (
               <Button
                 tone="secondary"

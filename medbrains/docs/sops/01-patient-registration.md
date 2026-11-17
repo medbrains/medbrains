@@ -56,6 +56,8 @@ Patient Registration is the entry point for all clinical care in MedBrains. It c
 6. System validates no duplicate by mobile + DOB combination; warns if near-match found.
 7. Receptionist confirms and submits → UHID generated and printed on registration slip.
 8. Patient is queued for selected OPD department.
+9. The "patient registered" notice offers **Print OPD card**: the half-A4 OPD slip or the CR80 ID card. Headed with the hospital's name, logo, address, phone and registration number from its own profile (Admin → Settings → General and Branding); carries name, UHID with a QR of it, age and sex, phone, short address and, when a visit was opened, its date and time, department, doctor, token and new-or-repeat, plus a next-visit box. No clinical data. The same control is on the OPD queue row (the visit's card) and the patient record header. Gated on `patients.view` and the patient's access check; data from `GET /api/print-data/opd-card/{patient_id}` and `/api/print-data/opd-visit-card/{encounter_id}`.
+   Sample, fictional hospital and patient: ![OPD slip](images/opd-card-slip.png) ![CR80 card](images/opd-card-id-card.png)
 
 **Exit / Outcome**: UHID assigned, physical registration slip printed, patient record status `active`.  
 **Regulatory note**: NABH OPD.1; Clinical Establishments Act 2010 §38 (patient records); PCPNDT — sex field mandatory.  

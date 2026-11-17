@@ -39,6 +39,7 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
+import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Button, IconButton, SegmentedControl, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
@@ -440,11 +441,9 @@ export function OpdPageInner() {
       // which door.
       render: (row: QueueEntry) => {
         const room = row.token_counter_label ?? row.token_room;
-        return room ? (
-          <Text size="sm">{room}</Text>
-        ) : (
-          <Text size="sm" c="dimmed">
-            —
+        return (
+          <Text size="sm" c={room ? undefined : "dimmed"}>
+            {room || "—"}
           </Text>
         );
       },
@@ -515,6 +514,7 @@ export function OpdPageInner() {
           {resolveOpdQueueRowActions(row, queueActionPermissions).map((action) =>
             renderQueueAction(action, row),
           )}
+          <OpdCardPrintMenu compact encounterId={row.encounter_id} />
         </Group>
       ),
     },

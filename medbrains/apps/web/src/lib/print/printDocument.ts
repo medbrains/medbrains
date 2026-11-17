@@ -1,3 +1,6 @@
+import type { OpdCardPrintData } from "@medbrains/types";
+import { type OpdCardFormat, type PrintPage, renderOpdCard } from "./opd-card";
+import { esc } from "./print-html";
 import { printDocumentDef } from "./print-registry";
 import { qrSvgMarkup } from "./qr-svg";
 
@@ -18,16 +21,6 @@ export interface PrintDocumentResult {
   ok: boolean;
   /** Present when the document could not be printed, phrased for a user. */
   problem?: string;
-}
-
-/** Escape for interpolation into the print window's HTML. */
-function esc(value: unknown): string {
-  if (value == null) return "—";
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function humanise(key: string): string {
@@ -124,9 +117,32 @@ const PRINT_CSS = `
   @media print { body { padding: 0; } }
 `;
 
+export interface PrintDocumentOptions {
+  /** The paper, for a document drawn in more than one size (the OPD card). */
+  format?: OpdCardFormat;
+}
+
+/** A layout per key that has one drawn; every other key prints as the generic sheet. */
+const CURATED: Record<string, (data: unknown, format?: OpdCardFormat) => PrintPage> = {
+  "opd-card": (data, format) => renderOpdCard(data as OpdCardPrintData, format),
+  "opd-visit-card": (data, format) => renderOpdCard(data as OpdCardPrintData, format),
+};
+
+/** The page for a document: its drawn layout if it has one, else the generic sheet. */
+function pageFor(
+  key: string,
+  label: string,
+  data: Record<string, unknown>,
+  format?: OpdCardFormat,
+) {
+  return CURATED[key]?.(data, format) ?? { css: PRINT_CSS, body: renderSheet(label, data) };
+}
+
+/** Fetches the document's fields and opens them in a print window. */
 export async function printDocument(
   documentKey: string,
   recordId: string,
+  options: PrintDocumentOptions = {},
 ): Promise<PrintDocumentResult> {
   const def = printDocumentDef(documentKey);
   if (!def) {
@@ -158,10 +174,11 @@ export async function printDocument(
     };
   }
 
+  const page = pageFor(documentKey, def.label, data, options.format);
   win.document.write(
     `<!DOCTYPE html><html><head><title>${esc(def.label)}</title>` +
-      `<style>${PRINT_CSS}</style></head><body>` +
-      renderSheet(def.label, data) +
+      `<style>${page.css}</style></head><body>` +
+      page.body +
       `<script>window.onload=function(){window.print();window.close();}</script>` +
       `</body></html>`,
   );
