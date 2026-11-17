@@ -6,6 +6,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-signing = { path = "../medbrains-signing" }
 medbrains-server-core = { path = "../medbrains-server-core" }

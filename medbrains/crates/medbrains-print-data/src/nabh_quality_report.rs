@@ -10,9 +10,8 @@ use axum::{
 use medbrains_core::permissions;
 use medbrains_core::print_data::{NabhQualityReportPrintData, QualityIndicator, QualitySummary};
 use medbrains_core::quality_target::{IndicatorDirection, TargetStatus};
+use medbrains_kernel::{Actor, Claims};
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 use crate::regulatory::period_bounds;
@@ -72,12 +71,10 @@ pub async fn get_nabh_quality_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<NabhQualityReportPrintData>, AppError> {
-    require_permission(&claims, permissions::quality::indicators::LIST)?;
+    medbrains_kernel::require_permission(&claims, permissions::quality::indicators::LIST)?;
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let indicators = sqlx::query_as!(
