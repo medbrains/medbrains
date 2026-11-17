@@ -28,6 +28,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { NabhIndicatorsStatus } from "@/components/Reports/NabhIndicatorsFault";
 import { reportsService } from "@/services/reports.service";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
@@ -158,7 +159,7 @@ export function NabhIndicatorMatrix({ search = "" }: NabhIndicatorMatrixProps) {
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const normalizedSearch = search.trim().toLowerCase();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["reports", "nabh-indicator-matrix"],
     queryFn: () => reportsService.getNabhIndicators(),
     enabled: canView,
@@ -237,6 +238,7 @@ export function NabhIndicatorMatrix({ search = "" }: NabhIndicatorMatrixProps) {
           </Menu>
         </Group>
 
+        <NabhIndicatorsStatus isLoading={false} isError={isError} />
         {data && (
           <Group gap="xs">
             <Badge color="green" variant="light" size="lg">

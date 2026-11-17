@@ -84,6 +84,9 @@ The Audit & Quality module provides cross-module read-only access for audit offi
    - Infection Control: CAUTI, CLABSI, VAP rates per 1000 device days.
    - OT: SSI rate, WHO SSC compliance rate.
 3. Compares indicators against NABH benchmarks; flags non-compliant indicators.
+   - Each indicator states which way meets its target: falls, infections, errors, mortality and waiting times are met by staying at or under target; compliance and satisfaction by reaching it. An indicator whose direction is not set prints as "direction not set", never as met; set it in the "Better when" column of Quality → Indicators.
+   - Pressure-ulcer and fall rates are per 1000 patient-days.
+   - If a figure cannot be calculated, the screen says "Couldn't calculate the indicators"; it never shows a fault as pending. Values for manual indicators are recorded with "Record value"; there is no auto-calculate.
 4. Generates accreditation-ready report (PDF) with chapter-wise scores and evidence mapping.
 5. Shares report with hospital admin and department heads for review.
 6. Initiates action plans for non-compliant indicators (links to CAPA module).

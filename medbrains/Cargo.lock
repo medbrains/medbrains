@@ -6141,12 +6141,19 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "jsonwebtoken",
+ "medbrains-authz",
+ "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-topology",
+ "medbrains-kernel",
+ "medbrains-outbox",
  "medbrains-server-core",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "uuid",
 ]
 
@@ -7989,6 +7996,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-print",
  "medbrains-server-core",
  "medbrains-signing",
