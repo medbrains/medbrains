@@ -23,7 +23,7 @@
 //! and drops databases, and must never do that to the dev or a live cluster.
 //!
 //! Database names are generated here from digits, `a-z` and `_` only, and
-//! names read back from the server are checked against that ([`is_ours`])
+//! names read back from the server are checked against that ([`cleanup::is_ours`])
 //! before use, which is why the DDL below can be formatted into `raw_sql`:
 //! `CREATE DATABASE` takes no bind parameters.
 
@@ -33,6 +33,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::MIGRATOR;
+use cleanup::{sweep_stale_copies, trim_templates};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::types::Uuid;
 use sqlx::{ConnectOptions, Connection, Executor, PgConnection, PgPool};
@@ -53,14 +54,12 @@ pub const APP_ROLE: &str = "medbrains_app";
 /// The background worker's role, which bypasses row level security (0984).
 pub const WORKER_ROLE: &str = "medbrains_outbox_worker";
 
-/// Templates kept for other worktrees' migration sets; older ones are dropped.
-const KEEP_TEMPLATES: usize = 3;
-/// A copy older than this belongs to a run that died; no test runs an hour.
-const STALE_COPY_SECS: u64 = 3600;
 /// Serialises template builds across tests, processes and worktrees. Advisory
 /// locks are per database, and every caller takes it on the server's own one.
 const BUILD_LOCK: &str = "SELECT pg_advisory_lock(7_262_840_558_645)";
 const BUILD_UNLOCK: &str = "SELECT pg_advisory_unlock(7_262_840_558_645)";
+
+mod cleanup;
 
 static COPY_SEQ: AtomicU32 = AtomicU32::new(0);
 
@@ -395,79 +394,10 @@ async fn build_template(
     Ok(())
 }
 
-/// Drop templates beyond the newest few (by OID, which only grows).
-///
-/// Not `FORCE`: a template another run is copying right now makes the drop
-/// wait or fail, and failing is fine — it goes next time.
-async fn trim_templates(admin: &mut PgConnection) -> Result<(), TestDbError> {
-    let old = sqlx::query_scalar!(
-        r#"SELECT datname::text AS "n!" FROM pg_database
-            WHERE datname LIKE 'mb\_tpl\_%' ORDER BY oid DESC OFFSET $1"#,
-        i64::try_from(KEEP_TEMPLATES).unwrap_or(i64::MAX)
-    )
-    .fetch_all(&mut *admin)
-    .await
-    .map_err(fail("list templates"))?;
-    for name in old.into_iter().filter(|n| is_ours(n)) {
-        let _ = admin
-            .execute(sqlx::raw_sql(&format!(
-                "DROP DATABASE IF EXISTS \"{name}\""
-            )))
-            .await;
-    }
-    Ok(())
-}
-
-/// Drop copies a crashed run left behind. Not `FORCE`, so a copy somebody is
-/// still connected to survives however old its name says it is.
-async fn sweep_stale_copies(admin: &mut PgConnection) -> Result<(), TestDbError> {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
-    let copies = sqlx::query_scalar!(
-        r#"SELECT datname::text AS "n!" FROM pg_database WHERE datname LIKE 'mb\_t\_%'"#
-    )
-    .fetch_all(&mut *admin)
-    .await
-    .map_err(fail("list copies"))?;
-    for name in copies
-        .into_iter()
-        .filter(|n| is_ours(n) && is_stale(n, now))
-    {
-        let _ = admin
-            .execute(sqlx::raw_sql(&format!(
-                "DROP DATABASE IF EXISTS \"{name}\""
-            )))
-            .await;
-    }
-    Ok(())
-}
-
-/// Whether `name` is one this module generates (`^mb_(t|tpl)_[0-9a-z_]+$`),
-/// and so safe to format into DDL. Anything else on the server is not ours.
-fn is_ours(name: &str) -> bool {
-    let rest = name
-        .strip_prefix("mb_tpl_")
-        .or_else(|| name.strip_prefix("mb_t_"));
-    rest.is_some_and(|r| {
-        !r.is_empty()
-            && r.bytes()
-                .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase() || b == b'_')
-    })
-}
-
-/// Whether a copy's name says it is older than [`STALE_COPY_SECS`]. A name
-/// that does not parse is not ours to judge, so it is left alone.
-fn is_stale(name: &str, now: u64) -> bool {
-    name.strip_prefix("mb_t_")
-        .and_then(|rest| rest.split('_').next())
-        .and_then(|secs| secs.parse::<u64>().ok())
-        .is_some_and(|secs| now.saturating_sub(secs) > STALE_COPY_SECS)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{is_ours, is_stale, refuse_unsafe_server};
+    use super::cleanup::{is_ours, is_stale};
+    use super::refuse_unsafe_server;
     use sqlx::postgres::PgConnectOptions;
     use std::str::FromStr;
 

@@ -6351,12 +6351,14 @@ dependencies = [
  "chrono",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-reports",
  "medbrains-server-core",
  "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -7608,6 +7610,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -7995,6 +7998,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "uuid",
 ]
 

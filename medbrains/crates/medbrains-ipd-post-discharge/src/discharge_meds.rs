@@ -185,40 +185,7 @@ async fn autobag_discharge_meds(
         return Ok(existing); // routed again by the caller; the hand-off is idempotent
     }
 
-    // An unreadable list is a failure, not "nothing to bag": reading it as
-    // empty sent patients home with no order and no word (#5953).
-    let meds: Vec<DischargeMedItem> = if meds_json.is_null() {
-        Vec::new()
-    } else {
-        serde_json::from_value(meds_json).map_err(|_| {
-            AppError::BadRequest(
-                "The medicines list on the discharge summary could not be read.".to_owned(),
-            )
-        })?
-    };
-    if meds.is_empty() {
-        return Ok(None);
-    }
-
-    // A medicine bought outside goes on the bag's order as such: listed for
-    // the counter, never dispensed, never priced. A typed line carries no
-    // price either: nothing here sells it (owner, 2026-11-09).
-    let items: Vec<medbrains_pharmacy::OrderItemInput> = meds
-        .into_iter()
-        .filter_map(|m| {
-            let sold_here = m.catalog_item_id.is_some() && !m.buy_outside;
-            Some(medbrains_pharmacy::OrderItemInput {
-                catalog_item_id: m.catalog_item_id.filter(|_| sold_here),
-                drug_name: m.drug_name?,
-                quantity: m.quantity.unwrap_or(1).max(1),
-                unit_price: m
-                    .unit_price
-                    .filter(|_| sold_here)
-                    .unwrap_or(rust_decimal::Decimal::ZERO),
-                buy_outside: m.buy_outside,
-            })
-        })
-        .collect();
+    let items = order_items(meds_json)?;
     // Nothing to bag when nothing on the list is sold here.
     if !items.iter().any(|i| i.catalog_item_id.is_some()) {
         return Ok(None);
@@ -256,4 +223,41 @@ async fn autobag_discharge_meds(
 
     let made = medbrains_pharmacy::create_order_in_tx(tx, claims, &req).await?;
     Ok(Some(made.order.id))
+}
+
+/// Reads the summary's medicines list into order lines. A medicine bought
+/// outside, or typed without a catalogue item, carries no price.
+fn order_items(
+    meds_json: serde_json::Value,
+) -> Result<Vec<medbrains_pharmacy::OrderItemInput>, AppError> {
+    // An unreadable list is a failure, not "nothing to bag": reading it as
+    // empty sent patients home with no order and no word (#5953).
+    let meds: Vec<DischargeMedItem> = if meds_json.is_null() {
+        Vec::new()
+    } else {
+        serde_json::from_value(meds_json).map_err(|_| {
+            AppError::BadRequest(
+                "The medicines list on the discharge summary could not be read.".to_owned(),
+            )
+        })?
+    };
+    // A medicine bought outside goes on the bag's order as such: listed for
+    // the counter, never dispensed, never priced. A typed line carries no
+    // price either: nothing here sells it (owner, 2026-11-09).
+    Ok(meds
+        .into_iter()
+        .filter_map(|m| {
+            let sold_here = m.catalog_item_id.is_some() && !m.buy_outside;
+            Some(medbrains_pharmacy::OrderItemInput {
+                catalog_item_id: m.catalog_item_id.filter(|_| sold_here),
+                drug_name: m.drug_name?,
+                quantity: m.quantity.unwrap_or(1).max(1),
+                unit_price: m
+                    .unit_price
+                    .filter(|_| sold_here)
+                    .unwrap_or(rust_decimal::Decimal::ZERO),
+                buy_outside: m.buy_outside,
+            })
+        })
+        .collect())
 }

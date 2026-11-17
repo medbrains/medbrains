@@ -9,6 +9,7 @@ import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 const DemoDicomFixturesPage = lazy(() =>
   import("./pages/demo-dicom-fixtures").then((m) => ({ default: m.DemoDicomFixturesPage })),
 );
+const LauncherPage = lazy(() => import("./pages/launcher"));
 const DashboardPage = lazy(() =>
   import("./pages/dashboard").then((m) => ({ default: m.DashboardPage })),
 );
@@ -512,7 +513,6 @@ const AccessDeniedPage = lazy(() =>
 const NotFoundPage = lazy(() =>
   import("./pages/errors/not-found").then((m) => ({ default: m.NotFoundPage })),
 );
-
 /**
  * The signed-in app: the shell (ProtectedRoute, tenant config, spotlight,
  * AppLayout) and every page inside it, mounted by App under `/*`. Split from
@@ -522,7 +522,6 @@ const NotFoundPage = lazy(() =>
 export function AuthedRoutes() {
   return (
     <Routes>
-      {/* Protected */}
       <Route
         element={
           <ProtectedRoute>
@@ -533,6 +532,7 @@ export function AuthedRoutes() {
           </ProtectedRoute>
         }
       >
+        <Route path="home" element={<LauncherPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="forbidden" element={<AccessDeniedPage />} />
         {/* Inside the shell, after every real route: an unknown address. */}
