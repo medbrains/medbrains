@@ -1,11 +1,13 @@
 import { userSchema } from "@medbrains/schemas";
 import {
   clearSession,
+  endClientSession,
   useAuthStore,
   useLocaleStore,
   useModuleStore,
   usePermissionStore,
 } from "@medbrains/stores";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Navigate } from "react-router";
 import { sessionService } from "@/services/session.service";
@@ -33,6 +35,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [mfaEnrollmentRequired, setMfaEnrollmentRequired] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
 
   // ── Initial session verification ──
   useEffect(() => {
@@ -123,7 +126,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     refreshTimer.current = setInterval(() => {
       sessionService.refreshToken().catch(() => {
         // Refresh failed — session expired, force re-login
-        clearSession();
+        endClientSession(queryClient);
         setVerified(false);
       });
     }, REFRESH_INTERVAL_MS);
@@ -145,7 +148,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <PageSkeleton />;
   }
 
-  if (verified === false) {
+  // Signed out of the store (logout, or an expired session) unmounts every
+  // signed-in screen at once, so no poll or socket outlives the session.
+  if (verified === false || !user) {
     return <Navigate to="/login" replace />;
   }
 

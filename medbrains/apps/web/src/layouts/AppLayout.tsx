@@ -15,7 +15,12 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
-import { clearSession, useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
+import {
+  endClientSession,
+  useAuthStore,
+  useModuleStore,
+  usePermissionStore,
+} from "@medbrains/stores";
 import { BRICK_NAMES } from "@medbrains/types";
 import { IconLanguage, IconLogout, IconSearch, IconSettings, IconUser } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -130,18 +135,17 @@ export function AppLayout() {
     wasFocusRoute.current = isFocusRoute;
   }, [isFocusRoute]);
 
+  /**
+   * Tear the client down before the server answers: the logout call marks the
+   * session ended at once (no refresh), then queries stop, the signed-in
+   * screens unmount with their polls and socket, and the cache — this
+   * session's patient data — is wiped for the next person at this desk.
+   */
   const handleLogout = async () => {
-    try {
-      await sessionService.logout();
-    } catch {
-      // ignore
-    }
-    clearSession();
-    // Wipe the in-memory query cache — it holds PHI/clinical data from this
-    // session. Without this, the next user on a shared workstation could be
-    // served the previous user's cached records before a refetch.
-    queryClient.clear();
+    const loggedOut = sessionService.logout().catch(() => undefined);
+    endClientSession(queryClient);
     void navigate("/login");
+    await loggedOut;
   };
 
   const handleNavigate = useCallback(
