@@ -35,10 +35,20 @@ pub mod screens;
 pub use groups::{DEFAULT_GROUPS, DefaultGroup};
 pub use policies::{ROLE_POLICIES, RolePolicy};
 pub use resources::{REBAC_RESOURCES, RebacRelation, ResourceDef};
-pub use roles::{BUILT_IN_ROLES, BuiltInRole};
+pub use roles::BUILT_IN_ROLES;
 pub use screens::{SCREENS, ScreenDef};
 
 use serde::Serialize;
+
+/// A role every hospital starts with, seeded from [`BUILT_IN_ROLES`]. Defined here, beside the
+/// re-exports, so `roles.rs` stays the list of roles and nothing else.
+#[derive(Debug)]
+pub struct BuiltInRole {
+    pub code: &'static str,
+    pub name: &'static str,
+    pub description: &'static str,
+    pub permissions: &'static [&'static str],
+}
 
 /// Snapshot of the access manifest for the runtime API
 /// (`GET /api/access/manifest`). The frontend caches this in Zustand

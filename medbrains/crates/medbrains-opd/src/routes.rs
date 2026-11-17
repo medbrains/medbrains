@@ -26,7 +26,7 @@ use super::{
     update_clinical_corpus_entry, update_diagnosis, update_encounter, update_prescription,
     update_registration_policy, void_certificate,
 };
-use crate::{last_visit, referral_lifecycle, rx_policy, transfer};
+use crate::{last_visit, referral_lifecycle, reports, rx_policy, transfer};
 
 /// The clinical-visit core: what any encounter needs, whichever app opened it.
 ///
@@ -224,4 +224,5 @@ pub fn opd_only_router() -> axum::Router<AppState> {
             post(admit_from_opd),
         )
         .route("/api/opd/analytics/followup", get(followup_compliance))
+        .route("/api/opd/reports/summary", get(reports::get_summary))
 }
