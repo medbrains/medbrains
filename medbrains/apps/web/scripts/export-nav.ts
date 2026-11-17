@@ -17,6 +17,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, "../../../docs/testing/nav-menu.json");
 const text = labels as Record<string, string>;
 
+/** A group's English heading: the brick's name when the group is a brick, else its nav.json label. */
 const groupLabel = (key: string) =>
   BRICK_NAMES[key] ?? text[`group${key[0].toUpperCase()}${key.slice(1)}`] ?? key;
 
