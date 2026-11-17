@@ -240,6 +240,8 @@ module "growth" {
   scale_to_zero_at_night = var.scale_to_zero_at_night
   hot_to_cold_days       = var.hot_to_cold_days
   kms_key_arns           = local.kms_key_arns
+  acm_certificate_arn    = var.acm_certificate_arn
+  allow_plain_http       = var.allow_plain_http
 
   alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }
@@ -283,9 +285,10 @@ module "enterprise" {
   domain      = var.domain
   admin_email = var.admin_email
 
-  image_uri        = var.image_uri
-  hot_to_cold_days = var.hot_to_cold_days
-  kms_key_arns     = local.kms_key_arns
+  image_uri               = var.image_uri
+  hot_to_cold_days        = var.hot_to_cold_days
+  kms_key_arns            = local.kms_key_arns
+  eks_public_access_cidrs = var.eks_public_access_cidrs
 
   alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }

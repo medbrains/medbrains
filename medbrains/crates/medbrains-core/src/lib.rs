@@ -46,6 +46,7 @@ pub mod communications;
 pub mod config;
 pub mod consent;
 pub mod consultation;
+pub mod crossmatch_print;
 pub mod cssd;
 pub mod dashboard;
 pub mod department;

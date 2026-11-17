@@ -8,6 +8,7 @@ pub mod billing;
 pub mod bme;
 pub mod clinical;
 pub mod consent;
+pub mod crossmatch;
 pub mod general;
 pub mod gst_invoice;
 pub mod hr;
