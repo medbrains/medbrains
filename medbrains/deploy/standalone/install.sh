@@ -581,6 +581,14 @@ install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-ba
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-log-archive" /usr/local/bin/medbrains-log-archive
+# Email reports (docs/ops/EMAIL-REPORTS.md). Installed everywhere; they send
+# nothing until BACKUP_REPORT_TO / DAILY_REPORT_TO are set in the env file.
+install -m 0644 "$DEPLOY_DIR/medbrains-backup-report@.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-daily-report.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-daily-report.timer" /etc/systemd/system/
+for bin in medbrains-send-mail medbrains-backup-report medbrains-daily-report; do
+    install -m 0755 "$DEPLOY_DIR/$bin" "/usr/local/bin/$bin"
+done
 # Backup public keys. Every backup is sealed to them, so they must belong to
 # whoever runs this install: the hospital, never the project. Order:
 #   1. BACKUP_AGE_RECIPIENT (one age1… key per line) — set it to rotate.
@@ -807,6 +815,35 @@ else
     echo "    WARNING: no LOG_ARCHIVE_BUCKET — host logs are NOT archived. CERT-In"
     echo "             direction (iv) needs 180 days in India; journald alone keeps"
     echo "             at most 2G. See deploy/standalone/README.md 'Log archive'."
+fi
+# The OPD daily report: its read-only role first (counts columns only), then
+# the timer, at DAILY_REPORT_ONCALENDAR when set. Not fatal: the report is a
+# convenience, and the role needs the migrated tables the server just made.
+if [[ -n "$(env_value DAILY_REPORT_TO)" ]]; then
+    ONCAL="$(env_value DAILY_REPORT_ONCALENDAR)"
+    ONCAL="${ONCAL#\"}"; ONCAL="${ONCAL%\"}"
+    mkdir -p /etc/systemd/system/medbrains-daily-report.timer.d
+    if [[ -n "$ONCAL" ]]; then
+        printf '[Timer]\nOnCalendar=\nOnCalendar=%s\n' "$ONCAL" \
+            > /etc/systemd/system/medbrains-daily-report.timer.d/schedule.conf
+    else
+        rm -f /etc/systemd/system/medbrains-daily-report.timer.d/schedule.conf
+    fi
+    systemctl daemon-reload
+    if db_report_role_configure /etc/medbrains/env; then
+        systemctl enable --now medbrains-daily-report.timer
+    else
+        systemctl disable --now medbrains-daily-report.timer 2>/dev/null || true
+        echo "    WARNING: the daily report's database role could not be set up, so the"
+        echo "             report is OFF. Once the server has migrated, run:"
+        echo "             sudo bash $DEPLOY_DIR/db-roles.sh --report && sudo systemctl enable --now medbrains-daily-report.timer"
+    fi
+else
+    systemctl disable --now medbrains-daily-report.timer 2>/dev/null || true
+fi
+if [[ -n "$(env_value BACKUP_REPORT_TO)$(env_value DAILY_REPORT_TO)" && -z "$(env_value SMTP_HOST)" ]]; then
+    echo "    WARNING: report recipients are set but SMTP_HOST is not — every report"
+    echo "             email will fail (and page). See docs/ops/EMAIL-REPORTS.md."
 fi
 systemctl enable --now medbrains-host-check.timer
 if [[ -z "$(env_value ALERT_TOPIC_ARN)" ]]; then
