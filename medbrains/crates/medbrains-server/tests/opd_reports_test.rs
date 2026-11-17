@@ -121,7 +121,7 @@ async fn opd_reports_count_like_the_daily_report() {
     let other: Uuid = sqlx::query_scalar(
         "INSERT INTO tenants (code, name, hospital_type) VALUES ($1, 'Other', 'multi_specialty') RETURNING id",
     )
-    .bind(format!("OR{}", &Uuid::new_v4().simple().to_string()[..8].to_uppercase()))
+    .bind(format!("OR{}", Uuid::new_v4().simple().to_string()[..8].to_uppercase()))
     .fetch_one(&app.db)
     .await
     .expect("other tenant");
