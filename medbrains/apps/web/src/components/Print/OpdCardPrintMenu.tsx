@@ -3,11 +3,14 @@
  * card). Printed for a visit it carries the token, department and doctor;
  * printed for a patient, identity only.
  *
- * Gated on the permission the endpoint enforces, like `PrintDocumentButton`,
- * so the desk is never offered a card the server would refuse.
+ * Gated on the permissions the endpoint accepts, like `PrintDocumentButton`:
+ * the card's own (`patients.view` with a relationship) or the desk's
+ * `patients.card.reprint`, which reaches any patient. Never offered a card the
+ * server would refuse.
  */
 import { Menu } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { IconId, IconPrinter } from "@tabler/icons-react";
 import { useState } from "react";
 import { Button, IconButton, toast } from "@/components/ui";
@@ -33,7 +36,7 @@ export function OpdCardPrintMenu({
   const documentKey = encounterId ? "opd-visit-card" : "opd-card";
   const recordId = encounterId ?? patientId;
   const def = printDocumentDef(documentKey);
-  const allowed = useHasPermission(def?.permission ?? "");
+  const allowed = useHasAnyPermission(def ? [def.permission, P.PATIENTS.CARD.REPRINT] : []);
   const [printing, setPrinting] = useState(false);
   if (!def || !allowed || !recordId) return null;
 

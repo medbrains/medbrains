@@ -6,12 +6,12 @@ import { render, screen } from "@/test/test-utils";
  * "Print OPD card" is offered only to who the server will serve, prints the
  * visit's card when there is a visit, and prints on the paper chosen.
  */
-let permitted = true;
+let granted = new Set(["patients.view"]);
 const printDocument = vi.fn(async () => ({ ok: true }));
 
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
-  useHasPermission: () => permitted,
+  useHasAnyPermission: (codes: string[]) => codes.some((code) => granted.has(code)),
   useFieldAccess: () => "edit",
 }));
 vi.mock("@/lib/print/printDocument", () => ({ printDocument }));
@@ -20,7 +20,7 @@ const { OpdCardPrintMenu } = await import("./OpdCardPrintMenu");
 
 describe("OpdCardPrintMenu", () => {
   beforeEach(() => {
-    permitted = true;
+    granted = new Set(["patients.view"]);
     printDocument.mockClear();
   });
 
@@ -39,9 +39,15 @@ describe("OpdCardPrintMenu", () => {
   });
 
   it("is not offered without the permission the card's endpoint checks", () => {
-    permitted = false;
+    granted = new Set();
     render(<OpdCardPrintMenu patientId="pat-1" encounterId="enc-1" />);
     expect(screen.queryByRole("button", { name: /print opd card/i })).not.toBeInTheDocument();
+  });
+
+  it("is offered to the desk with only the card reprint grant", () => {
+    granted = new Set(["patients.card.reprint"]);
+    render(<OpdCardPrintMenu patientId="pat-1" encounterId="enc-1" />);
+    expect(screen.getByRole("button", { name: /print opd card/i })).toBeInTheDocument();
   });
 
   it("names itself for screen readers in a table row", () => {
