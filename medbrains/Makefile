@@ -1,12 +1,8 @@
-.PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db dev-db-roles db-stop db-reset db-icd \
+.PHONY: maestro maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db dev-db-roles db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https dev-pf-setup dev-pf-remove \
        build build-backend build-frontend \
-       camp-mobile camp-mobile-ios camp-mobile-android \
-       mobile-camp-start mobile-camp-start-lan mobile-camp-ios mobile-camp-android mobile-camp-prebuild mobile-camp-typecheck \
-       mobile-staff-start mobile-staff-start-lan \
-       mobile-staff-ios mobile-staff-ios-https mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
-       mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
+       ios-devices ios-doctor ios-platform \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
        check-field-classes check-authz-collapse check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
@@ -30,13 +26,6 @@
 LOCAL_SQLX_DATABASE_URL ?= postgres://medbrains:medbrains_dev@localhost:5435/medbrains
 SQLX_DATABASE_URL ?= $(if $(DATABASE_URL),$(DATABASE_URL),$(LOCAL_SQLX_DATABASE_URL))
 SQLX_PREPARE_CARGO_ARGS ?= --package medbrains-server
-IOS_DEVICE ?=
-ANDROID_DEVICE ?=
-CAMP_MOBILE_PORT ?= 8083
-IOS_RUN_ARGS = -- --port 8082 $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
-ANDROID_RUN_ARGS = -- --port 8082 $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
-CAMP_IOS_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
-CAMP_ANDROID_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
 DEV_HTTPS_DOMAIN ?= medbrains.localhost
 DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
 DEV_DESKTOP_HTTPS_DOMAIN ?= medbrains-desktop.localhost
@@ -145,63 +134,19 @@ sim-hospital-batch: ## Bulk-generate synthetic hospital traffic quickly
 sim-hospital-clean: ## Remove only simulator records for SIM_RUN_ID
 	DATABASE_URL="$(SQLX_DATABASE_URL)" node scripts/simulators/hospital_stream.mjs cleanup --config $(SIM_CONFIG) --run-id $(SIM_RUN_ID)
 
-# ── Mobile / Camp Mode ───────────────────────────────────────
+# ── Native iOS helpers ───────────────────────────────────────
 
-camp-mobile: mobile-camp-start-lan ## Start dedicated Camp mobile app (LAN QR, port 8083)
-
-camp-mobile-ios: mobile-camp-ios ## Open dedicated Camp mobile app on iOS
-
-camp-mobile-android: mobile-camp-android ## Open dedicated Camp mobile app on Android
-
-mobile-camp-start: ## Start Camp mobile Expo Metro using pnpm
-	pnpm --filter @medbrains/mobile-camp start
-
-mobile-camp-start-lan: ## Start Camp mobile Expo Metro on LAN port 8083
-	pnpm --filter @medbrains/mobile-camp start -- --host lan --port $(CAMP_MOBILE_PORT)
-
-mobile-camp-ios: ## Build/open Camp mobile app using local HTTPS API base
-	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-camp ios $(CAMP_IOS_RUN_ARGS)
-
-mobile-camp-android: ## Build/open Camp mobile app on Android emulator/device
-	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-camp android $(CAMP_ANDROID_RUN_ARGS)
-
-mobile-camp-prebuild: ## Regenerate native projects for Camp mobile app
-	pnpm --filter @medbrains/mobile-camp prebuild
-
-mobile-camp-typecheck: ## Typecheck Camp mobile app
-	pnpm --filter @medbrains/mobile-camp typecheck
-
-mobile-staff-start: ## Start staff mobile Expo Metro using pnpm
-	pnpm --filter @medbrains/mobile-staff start
-
-mobile-staff-start-lan: ## Start staff mobile Expo Metro on LAN port 8082
-	pnpm --filter @medbrains/mobile-staff start -- --host lan --port 8082
-
-mobile-staff-ios: ## Build/open staff iOS app using local HTTPS API base
-	EXPO_PUBLIC_API_BASE=$(DEV_HTTPS_ORIGIN) pnpm --filter @medbrains/mobile-staff ios $(IOS_RUN_ARGS)
-
-mobile-staff-ios-https: mobile-staff-ios ## Alias for HTTPS staff iOS run
-
-mobile-staff-ios-devices: ## List available iOS simulators/devices
+ios-devices: ## List available iOS simulators/devices
 	xcrun simctl list devices available
 
-mobile-staff-ios-doctor: ## Show Xcode SDKs, simulator runtimes, and devices
+ios-doctor: ## Show Xcode SDKs, simulator runtimes, and devices
 	@xcodebuild -version
 	@xcodebuild -showsdks | grep -E "iOS|Simulator" || true
 	@xcrun simctl list runtimes
 	@xcrun simctl list devices available
 
-mobile-staff-ios-platform: ## Install the matching iOS platform/runtime for current Xcode
+ios-platform: ## Install the matching iOS platform/runtime for current Xcode
 	xcodebuild -downloadPlatform iOS
-
-mobile-staff-android: ## Build/open staff mobile app on Android emulator/device
-	pnpm --filter @medbrains/mobile-staff android $(ANDROID_RUN_ARGS)
-
-mobile-staff-prebuild: ## Regenerate native projects for staff mobile app
-	pnpm --filter @medbrains/mobile-staff prebuild
-
-mobile-staff-typecheck: ## Typecheck staff mobile app
-	pnpm --filter @medbrains/mobile-staff typecheck
 
 # ── Database ─────────────────────────────────────────────────
 
@@ -693,24 +638,11 @@ smoke-test: ## Run API smoke tests (needs running backend; no browser required)
 e2e-test: ## Run full E2E scenario tests (needs backend + frontend)
 	pnpm exec playwright test --config apps/web/playwright.config.ts e2e/scenarios/
 
-maestro-camp: ## Maestro flows for the camp app (needs a booted device + backend)
-	maestro test .maestro/camp-mobile-smoke.yaml .maestro/camp-mobile-e2e.yaml \
-		.maestro/camp-mobile-negative.yaml
-
 maestro-staff: ## Maestro flows for the staff app (needs a booted device + backend)
 	maestro test .maestro/staff-mobile-nurse-calls.yaml .maestro/staff-mobile-bcma.yaml \
 		.maestro/staff-mobile-opd-queue.yaml .maestro/staff-mobile-reception-call-next.yaml
 
-check-mobile-tokens: ## Device UI: colour from Carbon tokens, no colour-valued React keys
-	python3 scripts/check_mobile_design_tokens.py
-
-detox-staff-build: ## Build the staff app for Detox (iOS simulator, debug)
-	pnpm --filter @medbrains/mobile-staff e2e:build
-
-detox-staff: ## Detox end-to-end for the staff app (needs the build + `make dev`)
-	pnpm --filter @medbrains/mobile-staff e2e:ios
-
-maestro: maestro-camp maestro-staff ## Every Maestro flow
+maestro: maestro-staff ## Every Maestro flow
 
 generate-smoke: ## Regenerate smoke test files from API contract
 	python3 ../scripts/generate_smoke_tests.py

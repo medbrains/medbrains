@@ -2,8 +2,8 @@
 
 **Purpose:** lock the Camp app workflow before implementation. Remote camps are temporary care
 sites, so screens must support care delivery, patient safety, NABH evidence, offline survival, and
-post-camp reconciliation. This contract is intentionally stricter than the current
-`apps/mobile-camp/src/modules/camp.tsx` preview screen.
+post-camp reconciliation. This contract is intentionally stricter than the React Native camp preview screen it was
+written against (deleted 2026-11-17; the native camp app builds to this contract).
 
 ## Boundaries
 
