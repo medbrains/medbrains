@@ -68,8 +68,11 @@ function renderFields(data: Record<string, unknown>): string {
 
   const sections = nested
     .map(([key, value]) => {
+      // An empty list prints as such: a bare heading reads as a missing page.
       const body = Array.isArray(value)
-        ? value.map((item) => renderItem(item)).join("")
+        ? value.length === 0
+          ? "<p>None recorded</p>"
+          : value.map((item) => renderItem(item)).join("")
         : renderItem(value);
       return `<section><h2>${esc(humanise(key))}</h2>${body}</section>`;
     })

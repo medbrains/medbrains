@@ -345,6 +345,11 @@ ACCEPTED_WITHOUT_PERMISSION = {
     "POST /api/notifications/{id}/read": "own notifications only, id AND user_id",
     "POST /api/notifications/read-all": "own notifications only",
 
+    # Your own launcher favourites. Every statement filters tenant (RLS) and
+    # `user_id = claims.sub`; the path is checked and opens nothing by itself.
+    "GET /api/users/me/launcher": "own favourites only: tenant RLS + user_id = claims.sub",
+    "PUT /api/users/me/favourites": "own favourites only: tenant RLS + user_id = claims.sub",
+
     # HR self-service. Verified 2026-08-14 by reading each query: profile reads
     # and writes filter `user_id`, and every shift verb resolves the employee
     # from `claims.sub` via `current_employee_id` before touching anything.
@@ -612,6 +617,15 @@ def is_intentionally_open(path: str, method: str = "") -> str | None:
 # ── frontend ────────────────────────────────────────────────────────────────
 
 PAGE_GUARD = re.compile(r"\buseRequirePermission\s*\(")
+
+# Pages that are open to every signed-in user on purpose, each with its reason.
+# They show only the caller's own data or what the caller can already open, so a
+# page permission would gate nothing; the routes they call are accepted above.
+OPEN_PAGES = {
+    "apps/web/src/pages/launcher.tsx": (
+        "own favourites and the apps the side-panel rule already allows"
+    ),
+}
 ELEMENT_GUARD = re.compile(r"\buseHas(?:All|Any)?Permissions?\s*\(")
 
 
@@ -642,7 +656,8 @@ def web_pages() -> list[dict]:
             out.append(
                 {
                     "file": os.path.relpath(path, ROOT),
-                    "page_guard": bool(PAGE_GUARD.search(text)),
+                    "page_guard": bool(PAGE_GUARD.search(text))
+                    or os.path.relpath(path, ROOT) in OPEN_PAGES,
                     "element_guards": len(ELEMENT_GUARD.findall(text)),
                 }
             )

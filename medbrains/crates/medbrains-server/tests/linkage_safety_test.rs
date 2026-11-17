@@ -299,11 +299,21 @@ async fn breakdown_takes_active_kit_out_of_service_once_and_mirrors_downtime() {
     assert_eq!(status, "under_maintenance");
 }
 
-#[tokio::test]
-async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident() {
-    let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
-    let patient = create_patient(&app, &csrf, "Transfusion", Some("o_positive")).await;
+/// A transfused unit with one sibling from the same donation still on the
+/// shelf, and a reaction recorded against it.
+struct ReactedTransfusion {
+    tenant_id: Uuid,
+    /// The donation's other unit, the one the pipeline must hold.
+    sibling: Uuid,
+    /// The stored `blood.transfusion_reaction.reported` envelope.
+    event: Value,
+    reaction_id: String,
+}
+
+/// Donor, screened donation, two units, crossmatch, transfusion of the first
+/// unit and a severe reaction to it, all through the API.
+async fn react_to_a_transfusion(app: &common::TestApp, csrf: &str) -> ReactedTransfusion {
+    let patient = create_patient(app, csrf, "Transfusion", Some("o_positive")).await;
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();
     let tenant_id: Uuid = patient["tenant_id"]
         .as_str()
@@ -311,16 +321,16 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
         .expect("tenant");
 
     let donor = post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         "/api/blood-bank/donors",
         json!({ "donor_number": format!("LNK-{}", &Uuid::new_v4().to_string()[..8]), "first_name": "Linkage",
                 "last_name": "Donor", "blood_group": "o_positive", "date_of_birth": "1990-01-01" }),
     )
     .await;
     let donation = post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         &format!("/api/blood-bank/donors/{}/donations", donor["id"].as_str().expect("donor id")),
         json!({ "bag_number": format!("LNK-BAG-{}", &Uuid::new_v4().to_string()[..8]), "volume_ml": 450, "weight_kg": 60.0, "hemoglobin_g_dl": 13.5, "systolic_bp": 120, "diastolic_bp": 80, "pulse": 72 }),
     )
@@ -332,8 +342,8 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
         .map(|m| json!({ "marker": m, "result": "non_reactive" }))
         .collect();
     post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         &format!("/api/blood-bank/donations/{donation_id}/tti"),
         json!({ "results": markers }),
     )
@@ -354,7 +364,7 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
         let resp = app
             .client
             .put(app.url(&format!("/api/blood-bank/components/{id}/status")))
-            .header("x-csrf-token", &csrf)
+            .header("x-csrf-token", csrf)
             .json(&json!({ "status": "available" }))
             .send()
             .await
@@ -388,8 +398,8 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
     // A red-cell unit is issued only on a compatible crossmatch for this
     // patient and this unit.
     let crossmatch = post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         "/api/blood-bank/crossmatch",
         json!({ "patient_id": patient_id, "blood_group": "o_positive" }),
     )
@@ -400,7 +410,7 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
             "/api/blood-bank/crossmatch/{}",
             crossmatch["id"].as_str().expect("crossmatch id")
         )))
-        .header("x-csrf-token", &csrf)
+        .header("x-csrf-token", csrf)
         .json(&json!({ "status": "compatible", "result": "compatible", "component_id": units[0] }))
         .send()
         .await
@@ -411,8 +421,8 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
         matched.status()
     );
     let transfusion = post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         "/api/blood-bank/transfusions",
         json!({ "patient_id": patient_id, "component_id": units[0],
                 "patient_verified_by": me, "product_verified_by": other_user }),
@@ -427,7 +437,7 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
         .put(app.url(&format!(
             "/api/blood-bank/transfusions/{transfusion_id}/reaction"
         )))
-        .header("x-csrf-token", &csrf)
+        .header("x-csrf-token", csrf)
         .json(&json!({ "reaction_type": "febrile", "reaction_severity": "severe" }))
         .send()
         .await
@@ -442,39 +452,120 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
         .outbox_rows("blood.transfusion_reaction.reported", &transfusion_id)
         .await;
     assert_eq!(emitted.len(), 1, "one reaction event");
-    app.dispatch(
-        tenant_id,
-        "blood.transfusion_reaction.reported",
-        &emitted[0],
-    )
-    .await;
-    app.dispatch(
-        tenant_id,
-        "blood.transfusion_reaction.reported",
-        &emitted[0],
-    )
-    .await;
-
-    let sibling: String =
-        sqlx::query_scalar("SELECT status::text FROM blood_components WHERE id = $1")
-            .bind(units[1].parse::<Uuid>().expect("uuid"))
-            .fetch_one(&app.db)
-            .await
-            .expect("sibling");
-    assert_eq!(sibling, "quarantined", "the donation's other unit is held");
-    let reaction_id = emitted[0]["payload"]["reaction_id"]
+    let event = emitted[0].clone();
+    let reaction_id = event["payload"]["reaction_id"]
         .as_str()
         .expect("reaction id")
         .to_owned();
+    ReactedTransfusion {
+        tenant_id,
+        sibling: units[1].parse().expect("uuid"),
+        event,
+        reaction_id,
+    }
+}
+
+/// The status of one blood component, read as the owner.
+async fn component_status(app: &common::TestApp, id: Uuid) -> String {
+    sqlx::query_scalar("SELECT status::text FROM blood_components WHERE id = $1")
+        .bind(id)
+        .fetch_one(&app.db)
+        .await
+        .expect("component status")
+}
+
+#[tokio::test]
+async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let r = react_to_a_transfusion(&app, &csrf).await;
+    let event = "blood.transfusion_reaction.reported";
+    app.dispatch(r.tenant_id, event, &r.event).await;
+    app.dispatch(r.tenant_id, event, &r.event).await;
+
     assert_eq!(
-        incidents(&app, tenant_id, "transfusion_reaction", &reaction_id).await,
+        component_status(&app, r.sibling).await,
+        "quarantined",
+        "the donation's other unit is held"
+    );
+    assert_eq!(
+        incidents(&app, r.tenant_id, "transfusion_reaction", &r.reaction_id).await,
         1,
         "two deliveries, one incident"
     );
     assert!(
-        !app.outbox_rows("blood_bank.transfusion_reaction_alert", &reaction_id)
+        !app.outbox_rows("blood_bank.transfusion_reaction_alert", &r.reaction_id)
             .await
             .is_empty(),
         "the blood bank is told"
+    );
+}
+
+/// #6010: the blood-bank alert failing to queue used to be discarded with
+/// `let _`. Postgres had already aborted the transaction, and `COMMIT` on an
+/// aborted transaction rolls back without an error, so the quarantine and the
+/// incident vanished while the event read as delivered. Now the dispatch
+/// fails, nothing is half-done, and the retry does all of it.
+#[tokio::test]
+async fn transfusion_reaction_whose_alert_cannot_queue_fails_and_the_retry_completes_it() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let r = react_to_a_transfusion(&app, &csrf).await;
+    let rid: Uuid = r.reaction_id.parse().expect("uuid");
+    let fault = format!("txr_fault_{}", rid.simple());
+    // Fault only this reaction's alert, so tests running beside it are untouched.
+    sqlx::raw_sql(&format!(
+        "CREATE FUNCTION {fault}() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN \
+           IF NEW.event_type = 'blood_bank.transfusion_reaction_alert' \
+              AND NEW.payload->>'reaction_id' = '{rid}' THEN \
+             RAISE EXCEPTION 'injected outbox fault'; END IF; RETURN NEW; END $f$; \
+         CREATE TRIGGER {fault} BEFORE INSERT ON outbox_events \
+           FOR EACH ROW EXECUTE FUNCTION {fault}();"
+    ))
+    .execute(&app.db)
+    .await
+    .expect("install fault");
+
+    let event = "blood.transfusion_reaction.reported";
+    let failed = medbrains_workflow::events::dispatch_to_pipelines(
+        &app.db,
+        r.tenant_id,
+        Uuid::nil(),
+        event,
+        &r.event,
+    )
+    .await;
+    sqlx::raw_sql(&format!(
+        "DROP TRIGGER {fault} ON outbox_events; DROP FUNCTION {fault}();"
+    ))
+    .execute(&app.db)
+    .await
+    .expect("remove fault");
+
+    assert!(
+        failed.is_err(),
+        "a reaction the blood bank was not told of is not delivered"
+    );
+    assert_eq!(
+        component_status(&app, r.sibling).await,
+        "available",
+        "nothing claims to be held when the step failed"
+    );
+    assert_eq!(
+        incidents(&app, r.tenant_id, "transfusion_reaction", &r.reaction_id).await,
+        0
+    );
+
+    app.dispatch(r.tenant_id, event, &r.event).await;
+    assert_eq!(component_status(&app, r.sibling).await, "quarantined");
+    assert_eq!(
+        incidents(&app, r.tenant_id, "transfusion_reaction", &r.reaction_id).await,
+        1
+    );
+    assert!(
+        !app.outbox_rows("blood_bank.transfusion_reaction_alert", &r.reaction_id)
+            .await
+            .is_empty(),
+        "the retry tells the blood bank"
     );
 }

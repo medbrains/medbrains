@@ -1,47 +1,59 @@
 //! Tenant identity on a pooled connection.
 //!
-//!   cargo test -p medbrains-db -- --ignored
+//!   `make test-db && cargo test -p medbrains-db --test tenant_conn`
 //!
 //! Against real Postgres, because the whole question is what the database does
-//! with a connection it has seen before.
+//! with a connection it has seen before. Each test gets its own copy of the
+//! migrated schema (`medbrains_db_migrations::testing`), with two hospitals and
+//! a patient each, and observes through the production pool as the request
+//! role, so row level security is really on.
 
-#![allow(
-    clippy::expect_used,
-    clippy::unwrap_used,
-    clippy::panic,
-    clippy::print_stderr
-)]
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
-use medbrains_db::pool::{PoolConfig, create_pool_with_config, tenant_conn};
+use medbrains_db::pool::{PoolConfig, create_pool_with_config, group_conn, tenant_conn};
+use medbrains_db_migrations::testing::{
+    APP_ROLE, TestDb, WORKER_ROLE, add_patient, add_tenant, fresh_db,
+};
 use sqlx::Row;
 use uuid::Uuid;
 
-async fn pool_of(url_user: &str, max: u32) -> sqlx::PgPool {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        format!("postgres://{url_user}:medbrains_dev@localhost:5435/medbrains")
-    });
+/// A fresh copy with two hospitals and one patient each, plus an owner pool
+/// for fixtures. The tenants are returned in insertion order.
+async fn two_hospitals() -> (TestDb, sqlx::PgPool, Uuid, Uuid) {
+    let db = fresh_db().await.expect("test database");
+    let owner = db.owner().await.expect("owner pool");
+    let first = add_tenant(&owner, "FIRST").await.expect("tenant");
+    let second = add_tenant(&owner, "SECOND").await.expect("tenant");
+    add_patient(&owner, first, "UH-1").await.expect("patient");
+    add_patient(&owner, second, "UH-2").await.expect("patient");
+    (db, owner, first, second)
+}
+
+/// The server's own pool (with its `after_release` hook), as the request role.
+/// `connect` first, for its proof that the role is NOSUPERUSER, NOBYPASSRLS.
+async fn app_pool(db: &TestDb, max: u32) -> sqlx::PgPool {
+    db.connect(APP_ROLE)
+        .await
+        .expect("the request role")
+        .close()
+        .await;
     let config = PoolConfig {
         max_connections: max,
         min_connections: 1,
         ..PoolConfig::default()
     };
-    create_pool_with_config(&url, &config)
+    create_pool_with_config(&db.url(APP_ROLE), &config)
         .await
-        .expect("needs the dev database")
+        .expect("the request role can connect")
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn a_scoped_connection_carries_the_tenant_across_statements() {
     // The bug this exists for: `set_config(..., true)` is transaction-local,
     // so a second statement on the same connection has no tenant and reads
     // nothing.
-    let pool = pool_of("medbrains", 2).await;
-    let tenant: Uuid = sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at LIMIT 1")
-        .fetch_one(&pool)
-        .await
-        .expect("a tenant");
-
+    let (db, _owner, tenant, _) = two_hospitals().await;
+    let pool = app_pool(&db, 2).await;
     let mut conn = tenant_conn(&pool, &tenant)
         .await
         .expect("scoped connection");
@@ -57,150 +69,86 @@ async fn a_scoped_connection_carries_the_tenant_across_statements() {
     }
 }
 
+/// The named session setting on the next connection a one-connection pool
+/// hands out — necessarily the one just released.
+async fn setting_after_release(pool: &sqlx::PgPool, name: &str) -> Option<String> {
+    let mut reused = pool.acquire().await.expect("the same connection back");
+    sqlx::query("SELECT current_setting($1, true) AS s")
+        .bind(name)
+        .fetch_one(&mut *reused)
+        .await
+        .expect("read the setting")
+        .get("s")
+}
+
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn one_request_s_tenant_does_not_reach_the_next() {
     // The trap in setting it at session level: the connection goes back to the
     // pool still believing it belongs to somebody. A stale tenant is worse
     // than none — no tenant returns nothing and is obvious, a stale one
     // returns another hospital's rows and looks entirely normal.
-    //
-    // One connection in the pool, so the second acquire is guaranteed to be
-    // the same physical connection the first one used.
-    let pool = pool_of("medbrains", 1).await;
-    let tenant: Uuid = sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at LIMIT 1")
-        .fetch_one(&pool)
-        .await
-        .expect("a tenant");
-
+    let (db, _owner, tenant, _) = two_hospitals().await;
+    let pool = app_pool(&db, 1).await;
     {
         let mut scoped = tenant_conn(&pool, &tenant).await.expect("scoped");
         let _ = sqlx::query("SELECT 1").fetch_one(&mut *scoped).await;
     } // released here
 
-    let mut reused = pool.acquire().await.expect("the same connection back");
-    let leaked: Option<String> = sqlx::query("SELECT current_setting('app.tenant_id', true) AS t")
-        .fetch_one(&mut *reused)
-        .await
-        .expect("read the setting")
-        .get("t");
-
+    let leaked = setting_after_release(&pool, "app.tenant_id").await;
     assert!(
         leaked.is_none() || leaked.as_deref() == Some(""),
         "a released connection still believed it was tenant {leaked:?}"
     );
 }
 
-#[tokio::test]
-#[ignore = "needs-pg"]
-async fn the_scoped_connection_is_what_makes_rows_visible_under_rls() {
-    // End to end, as the restricted role: the same query returns nothing on a
-    // bare pool connection and the real rows on a scoped one.
-    let Ok(pool) =
-        sqlx::PgPool::connect("postgres://medbrains_app:medbrains_dev@localhost:5435/medbrains")
-            .await
-    else {
-        eprintln!("medbrains_app role not present — skipping");
-        return;
-    };
-
-    let tenant: Uuid = {
-        let admin = pool_of("medbrains", 1).await;
-        sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at LIMIT 1")
-            .fetch_one(&admin)
-            .await
-            .expect("a tenant")
-    };
-
-    let blind: i64 = sqlx::query_scalar("SELECT count(*) FROM patients")
-        .fetch_one(&pool)
-        .await
-        .expect("count");
-
-    let mut conn = tenant_conn(&pool, &tenant).await.expect("scoped");
-    let scoped: i64 = sqlx::query_scalar("SELECT count(*) FROM patients")
+/// Patients the request role can count, unscoped and scoped to `tenant`.
+async fn patients_seen(pool: &sqlx::PgPool, tenant: Uuid) -> (i64, i64) {
+    let count = "SELECT count(*) FROM patients";
+    let blind: i64 = sqlx::query_scalar(count).fetch_one(pool).await.unwrap();
+    let mut conn = tenant_conn(pool, &tenant).await.expect("scoped");
+    let scoped: i64 = sqlx::query_scalar(count)
         .fetch_one(&mut *conn)
         .await
-        .expect("count");
+        .unwrap();
+    (blind, scoped)
+}
 
+#[tokio::test]
+async fn the_scoped_connection_is_what_makes_rows_visible_under_rls() {
+    // End to end, as the restricted role: the same query returns nothing on a
+    // bare pool connection and exactly the one hospital's rows on a scoped one.
+    let (db, _owner, tenant, _) = two_hospitals().await;
+    let (blind, scoped) = patients_seen(&app_pool(&db, 2).await, tenant).await;
     assert_eq!(blind, 0, "an unscoped read should see nothing under RLS");
-    assert!(
-        scoped > 0,
-        "a scoped read saw nothing — the helper is not working"
+    assert_eq!(
+        scoped, 1,
+        "a scoped read must see its own patient and only that"
     );
 }
 
 // ============================================================= group scope
 
-/// Held for the length of any test that changes group membership.
-///
-/// These tests share the dev database's two tenants, and cargo runs them in
-/// parallel. Without this, one test's cleanup pulls the group out from under
-/// another's setup and both fail for a reason that has nothing to do with the
-/// code — which is exactly what happened the first time they were run.
-static GROUP_FIXTURE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-/// Put both dev tenants in one group with a known clinical setting.
-///
-/// Everything runs inside a transaction the caller rolls back — a test must
-/// not leave two hospitals joined into a group that nobody created.
-async fn grouped(pool: &sqlx::PgPool, share_clinical: bool) -> (Uuid, Uuid) {
-    // Start from a known state. The previous test may have failed before its
-    // own cleanup ran, and inheriting a group is how one failure becomes
-    // several.
-    ungroup(pool).await;
-
-    let first: Uuid = sqlx::query_scalar(
-        "SELECT id FROM tenants WHERE code <> 'RLS-PROBE' ORDER BY created_at LIMIT 1",
-    )
-    .fetch_one(pool)
-    .await
-    .expect("a tenant");
-    let second: Uuid = sqlx::query_scalar(
-        "INSERT INTO tenants (code, name, hospital_type)
-         VALUES ('RLS-PROBE', 'Isolation probe',
-                 (SELECT hospital_type FROM tenants WHERE code <> 'RLS-PROBE' LIMIT 1))
-         ON CONFLICT (code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, is_active = tenants.is_active OR tenants.deleted_at IS NOT NULL, name = EXCLUDED.name RETURNING id",
-    )
-    .fetch_one(pool)
-    .await
-    .expect("second tenant");
-
+/// Put both hospitals in one group with a known clinical setting.
+async fn grouped(owner: &sqlx::PgPool, tenants: [Uuid; 2], share_clinical: bool) -> Uuid {
     let group: Uuid = sqlx::query_scalar(
         "INSERT INTO hospital_groups (code, name, share_clinical_records)
-         VALUES ('TEST-SCOPE', 'Scope test', $1)
-         ON CONFLICT (code) DO UPDATE
-             SET share_clinical_records = $1, deleted_at = NULL RETURNING id",
+         VALUES ('TEST-SCOPE', 'Scope test', $1) RETURNING id",
     )
     .bind(share_clinical)
-    .fetch_one(pool)
+    .fetch_one(owner)
     .await
     .expect("a group");
-
     sqlx::query("UPDATE tenants SET group_id = $1 WHERE id = ANY($2)")
         .bind(group)
-        .bind(vec![first, second])
-        .execute(pool)
+        .bind(tenants.to_vec())
+        .execute(owner)
         .await
         .expect("join the group");
-
-    (first, second)
+    group
 }
 
-async fn ungroup(pool: &sqlx::PgPool) {
-    let _ = sqlx::query("UPDATE tenants SET group_id = NULL WHERE group_id IN (SELECT id FROM hospital_groups WHERE code = 'TEST-SCOPE')")
-        .execute(pool)
-        .await;
-    // `hospital_groups` is soft-deleted by a trigger, so DELETE marks the row
-    // rather than removing it — which is the behaviour the application wants
-    // and the reason `app_visible_tenants` ignores deleted groups.
-    let _ = sqlx::query("DELETE FROM hospital_groups WHERE code = 'TEST-SCOPE'")
-        .execute(pool)
-        .await;
-}
-
+/// How many hospitals `tenant`'s session may see, as the request role.
 async fn visible_count(pool: &sqlx::PgPool, tenant: Uuid, group_scope: bool) -> usize {
-    use medbrains_db::pool::group_conn;
     let mut conn = if group_scope {
         group_conn(pool, &tenant).await.expect("group connection")
     } else {
@@ -214,40 +162,41 @@ async fn visible_count(pool: &sqlx::PgPool, tenant: Uuid, group_scope: bool) -> 
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn an_administrative_screen_sees_the_group_without_clinical_sharing() {
-    let _fixture = GROUP_FIXTURE.lock().await;
     // What management actually wants. A consultant works Monday at one
     // location and Tuesday at the other; the rota is one record. Nobody should
     // have to switch on patient record sharing to make an HR screen work.
-    let pool = pool_of("medbrains", 2).await;
-    let (first, _) = grouped(&pool, false).await;
+    let (db, owner, first, second) = two_hospitals().await;
+    grouped(&owner, [first, second], false).await;
+    let pool = app_pool(&db, 2).await;
 
-    let admin = visible_count(&pool, first, true).await;
-    let clinical = visible_count(&pool, first, false).await;
-    ungroup(&pool).await;
-
-    assert_eq!(admin, 2, "an administrative screen could not see the group");
     assert_eq!(
-        clinical, 1,
+        visible_count(&pool, first, true).await,
+        2,
+        "an administrative screen could not see the group"
+    );
+    assert_eq!(
+        visible_count(&pool, first, false).await,
+        1,
         "a clinical read saw another location's hospital"
     );
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn clinical_reads_follow_the_switch_management_sets() {
-    let _fixture = GROUP_FIXTURE.lock().await;
     // The one decision management deliberates over: may a clinician here open
     // a chart written there.
-    let pool = pool_of("medbrains", 2).await;
-
-    let (first, _) = grouped(&pool, true).await;
+    let (db, owner, first, second) = two_hospitals().await;
+    let group = grouped(&owner, [first, second], true).await;
+    let pool = app_pool(&db, 2).await;
     let sharing_on = visible_count(&pool, first, false).await;
 
-    let (first, _) = grouped(&pool, false).await;
+    sqlx::query("UPDATE hospital_groups SET share_clinical_records = false WHERE id = $1")
+        .bind(group)
+        .execute(&owner)
+        .await
+        .expect("switch sharing off");
     let sharing_off = visible_count(&pool, first, false).await;
-    ungroup(&pool).await;
 
     assert_eq!(
         sharing_on, 2,
@@ -260,56 +209,32 @@ async fn clinical_reads_follow_the_switch_management_sets() {
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn a_hospital_in_no_group_is_alone_however_it_asks() {
-    let _fixture = GROUP_FIXTURE.lock().await;
     // Every tenant today. Asking for group scope when there is no group must
     // not widen anything.
-    let pool = pool_of("medbrains", 2).await;
-    ungroup(&pool).await;
-    let alone: Uuid = sqlx::query_scalar(
-        "SELECT id FROM tenants WHERE group_id IS NULL ORDER BY created_at LIMIT 1",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("a tenant");
-
-    let asked_wide = visible_count(&pool, alone, true).await;
-    let asked_narrow = visible_count(&pool, alone, false).await;
-    ungroup(&pool).await;
-
+    let (db, _owner, alone, _) = two_hospitals().await;
+    let pool = app_pool(&db, 2).await;
     assert_eq!(
-        asked_wide, 1,
+        visible_count(&pool, alone, true).await,
+        1,
         "group scope widened a hospital that is in no group"
     );
-    assert_eq!(asked_narrow, 1);
+    assert_eq!(visible_count(&pool, alone, false).await, 1);
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn group_scope_does_not_survive_the_connection_being_released() {
-    let _fixture = GROUP_FIXTURE.lock().await;
     // Worse than a leaked tenant: the next request on this connection would
     // read the whole group without ever asking to.
-    let pool = pool_of("medbrains", 1).await;
-    let (first, _) = grouped(&pool, false).await;
-
+    let (db, owner, first, second) = two_hospitals().await;
+    grouped(&owner, [first, second], false).await;
+    let pool = app_pool(&db, 1).await;
     {
-        let mut scoped = medbrains_db::pool::group_conn(&pool, &first)
-            .await
-            .expect("group connection");
+        let mut scoped = group_conn(&pool, &first).await.expect("group connection");
         let _ = sqlx::query("SELECT 1").fetch_one(&mut *scoped).await;
     } // released
 
-    let mut reused = pool.acquire().await.expect("the same connection back");
-    let leaked: Option<String> = sqlx::query("SELECT current_setting('app.scope', true) AS s")
-        .fetch_one(&mut *reused)
-        .await
-        .expect("read the setting")
-        .get("s");
-    drop(reused);
-    ungroup(&pool).await;
-
+    let leaked = setting_after_release(&pool, "app.scope").await;
     assert!(
         leaked.is_none() || leaked.as_deref() == Some(""),
         "a released connection was still in group scope: {leaked:?}"
@@ -317,50 +242,37 @@ async fn group_scope_does_not_survive_the_connection_being_released() {
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn a_deleted_group_stops_sharing_anything() {
     // Groups are soft-deleted by a trigger, so a removed group is still a row.
     // Without checking that, management could dissolve a chain and the
     // hospitals would carry on reading each other's records.
-    let _fixture = GROUP_FIXTURE.lock().await;
-    let pool = pool_of("medbrains", 2).await;
-    let (first, _) = grouped(&pool, true).await;
-
+    let (db, owner, first, second) = two_hospitals().await;
+    let group = grouped(&owner, [first, second], true).await;
+    let pool = app_pool(&db, 2).await;
     let while_alive = visible_count(&pool, first, false).await;
 
-    sqlx::query("DELETE FROM hospital_groups WHERE code = 'TEST-SCOPE'")
-        .execute(&pool)
+    sqlx::query("DELETE FROM hospital_groups WHERE id = $1")
+        .bind(group)
+        .execute(&owner)
         .await
         .expect("soft-delete the group");
-    let after_deleting = visible_count(&pool, first, false).await;
-    let admin_after = visible_count(&pool, first, true).await;
-
-    ungroup(&pool).await;
 
     assert_eq!(while_alive, 2, "sharing was on and did not apply");
     assert_eq!(
-        after_deleting, 1,
+        visible_count(&pool, first, false).await,
+        1,
         "a deleted group carried on sharing records"
     );
     assert_eq!(
-        admin_after, 1,
+        visible_count(&pool, first, true).await,
+        1,
         "a deleted group still answered for group scope"
     );
 }
 
 // ========================================================== the two roles
 
-/// Connect as a named role, or skip when the deployment has not created it.
-async fn as_role(role: &str) -> Option<sqlx::PgPool> {
-    sqlx::PgPool::connect(&format!(
-        "postgres://{role}:medbrains_dev@localhost:5435/medbrains"
-    ))
-    .await
-    .ok()
-}
-
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn the_request_role_sees_nothing_without_a_tenant_and_the_worker_role_sees_everything() {
     // The two halves of the same decision, and the reason there are two roles.
     //
@@ -373,89 +285,46 @@ async fn the_request_role_sees_nothing_without_a_tenant_and_the_worker_role_sees
     // can act on it per tenant. On the request role their discovery query
     // returns an empty list — so the pass runs, reports success, and escalates
     // nobody.
-    let (Some(app), Some(worker)) = (
-        as_role("medbrains_app").await,
-        as_role("medbrains_outbox_worker").await,
-    ) else {
-        eprintln!("both roles are needed for this test — skipping");
-        return;
-    };
-
-    let blind: i64 = sqlx::query_scalar("SELECT count(*) FROM patients")
-        .fetch_one(&app)
-        .await
-        .expect("count");
-    let sighted: i64 = sqlx::query_scalar("SELECT count(*) FROM patients")
-        .fetch_one(&worker)
-        .await
-        .expect("count");
+    let (db, ..) = two_hospitals().await;
+    let count = "SELECT count(*) FROM patients";
+    let app = db.connect(APP_ROLE).await.expect("request role");
+    let worker = db.connect(WORKER_ROLE).await.expect("worker role");
+    let blind: i64 = sqlx::query_scalar(count).fetch_one(&app).await.unwrap();
+    let sighted: i64 = sqlx::query_scalar(count).fetch_one(&worker).await.unwrap();
 
     assert_eq!(
         blind, 0,
         "the request role read rows without claiming a tenant"
     );
-    assert!(
-        sighted > 0,
+    assert_eq!(
+        sighted, 2,
         "the worker role could not see across tenants — background passes would find nothing"
     );
 }
 
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn neither_working_role_is_a_superuser() {
     // A superuser bypasses row level security for a different reason than the
     // worker role does, and would take the request role with it.
-    let Some(admin) = as_role("medbrains").await else {
-        eprintln!("dev database unavailable — skipping");
-        return;
-    };
-
+    let db = fresh_db().await.expect("test database");
+    let owner = db.owner().await.expect("owner pool");
     let rows: Vec<(String, bool, bool)> = sqlx::query_as(
         "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles
           WHERE rolname IN ('medbrains_app', 'medbrains_outbox_worker')",
     )
-    .fetch_all(&admin)
+    .fetch_all(&owner)
     .await
     .expect("read the roles");
 
+    assert_eq!(
+        rows.len(),
+        2,
+        "the migrations must create both roles: {rows:?}"
+    );
     for (name, superuser, bypass) in rows {
         assert!(!superuser, "{name} is a superuser");
-        if name == "medbrains_app" {
-            assert!(!bypass, "the request role bypasses row level security");
-        } else {
-            assert!(bypass, "the worker role cannot see across tenants");
-        }
+        assert_eq!(bypass, name == WORKER_ROLE, "{name}: wrong BYPASSRLS");
     }
-}
-
-#[tokio::test]
-#[ignore = "needs-pg"]
-async fn a_released_connection_is_reused_rather_than_discarded() {
-    // The bug this exists for: `after_release` sent its eight RESETs as one
-    // `sqlx::query`, which uses the extended protocol and rejects multiple
-    // commands ("cannot insert multiple commands into a prepared statement").
-    // The error propagated out of the hook, so sqlx threw the connection away
-    // on every release. With the pool never holding a spare, every acquire
-    // waited out the full timeout and the server reported itself degraded
-    // while Postgres sat idle.
-    //
-    // A pool of exactly one makes it visible: reuse means the same backend
-    // answers every time, so the pid must not change.
-    let pool = pool_of("medbrains", 1).await;
-
-    let mut pids = Vec::new();
-    for _ in 0..3 {
-        let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
-            .fetch_one(&pool)
-            .await
-            .expect("the pool must hand out a connection");
-        pids.push(pid);
-    }
-
-    assert!(
-        pids.iter().all(|p| *p == pids[0]),
-        "release discarded the connection instead of returning it to the pool: {pids:?}"
-    );
 }
 
 /// The `after_release` hook must survive its own eight-statement RESET.
@@ -463,34 +332,28 @@ async fn a_released_connection_is_reused_rather_than_discarded() {
 /// `after_release` returning an error makes sqlx discard the connection on
 /// *every* release: the pool never holds a spare, every acquire waits out the
 /// full `acquire_timeout`, and the service reports itself degraded while
-/// Postgres sits there idle. That is not hypothetical — it took MedBrains
-/// down on 2026-09-01, because a bare `&str` looks unprepared and is not
-/// (`impl Execute for &str` returns `persistent() == true`, so the RESET chain
-/// went over the extended protocol and Postgres refused multiple commands).
+/// Postgres sits there idle. That is not hypothetical — it took `MedBrains`
+/// down on 2026-09-01, because the RESET chain went over the extended
+/// protocol and Postgres refused multiple commands.
 ///
 /// With `max_connections = 1` the question answers itself: reuse means the
-/// hook succeeded, a fresh backend pid means it did not.
+/// hook succeeded, a fresh backend pid means it did not. (This replaces two
+/// tests that asserted the same thing.)
 #[tokio::test]
-#[ignore = "needs-pg"]
 async fn releasing_a_connection_does_not_discard_it() {
-    let pool = pool_of("medbrains", 1).await;
-
-    async fn backend_pid(pool: &sqlx::PgPool) -> i32 {
-        let row = sqlx::query("SELECT pg_backend_pid()")
-            .fetch_one(pool)
-            .await
-            .expect("query on a pooled connection");
-        row.get::<i32, _>(0)
-    }
-
-    let first = backend_pid(&pool).await;
+    let db = fresh_db().await.expect("test database");
+    let pool = app_pool(&db, 1).await;
+    let mut pids = Vec::new();
     for _ in 0..4 {
-        assert_eq!(
-            backend_pid(&pool).await,
-            first,
-            "the pool opened a new backend, so after_release errored and sqlx \
-             discarded the connection — every acquire will now wait out the \
-             full timeout while Postgres sits idle",
-        );
+        let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&pool)
+            .await
+            .expect("the pool must hand out a connection");
+        pids.push(pid);
     }
+    assert!(
+        pids.iter().all(|p| *p == pids[0]),
+        "the pool opened a new backend, so after_release errored and sqlx \
+         discarded the connection: {pids:?}"
+    );
 }

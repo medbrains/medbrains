@@ -54,6 +54,35 @@ def covered_prefixes() -> list[str]:
     return re.findall(r'"([^"]+)"', block.group(1))
 
 
+_BODIES: dict[str, dict[str, str]] = {}
+
+
+def crate_bodies(crate: str) -> dict[str, str]:
+    """Every `pub async fn` body in a crate, by name.
+
+    A router may live in its own file (`medbrains-opd/src/routes.rs`) while its handlers stay in
+    `lib.rs`; looking only in the router's file would silently drop those routes from the check.
+    """
+    if crate in _BODIES:
+        return _BODIES[crate]
+    bodies: dict[str, str] = {}
+    for dirpath, dirs, files in os.walk(os.path.join(CRATES, crate)):
+        dirs[:] = [d for d in dirs if d != "target"]
+        for name in files:
+            if not name.endswith(".rs"):
+                continue
+            try:
+                text = open(os.path.join(dirpath, name), encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            marks = [(m.group(1), m.start()) for m in HANDLER.finditer(text)]
+            for i, (hname, start) in enumerate(marks):
+                end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
+                bodies.setdefault(hname, text[start:end])
+    _BODIES[crate] = bodies
+    return bodies
+
+
 def phi_list_routes() -> list[tuple[str, str, str]]:
     """(path, handler, crate) for GET list routes whose handler touches PHI."""
     found = []
@@ -70,12 +99,7 @@ def phi_list_routes() -> list[tuple[str, str, str]]:
             if "pub fn router" not in text:
                 continue
             crate = os.path.relpath(path, CRATES).split(os.sep)[0]
-
-            bodies = {}
-            marks = [(m.group(1), m.start()) for m in HANDLER.finditer(text)]
-            for i, (hname, start) in enumerate(marks):
-                end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
-                bodies[hname] = text[start:end]
+            bodies = crate_bodies(crate)
 
             for m in ROUTE.finditer(text[text.index("pub fn router"):]):
                 route_path, spec = m.group(1), m.group(2)
