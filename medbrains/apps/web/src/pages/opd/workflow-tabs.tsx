@@ -88,6 +88,7 @@ import { opdService } from "@/services/opd.service";
 import { ConsentAnswersModal } from "./ConsentAnswersModal";
 import { NewConsentModal } from "./NewConsentModal";
 import { ReferralActions } from "./referral-actions";
+import { visitStatusWord } from "./shared";
 import { LoadFailed } from "./tabs/load-failed";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
@@ -159,7 +160,7 @@ export function TimelineTab({ patientId }: { patientId: string }) {
         key: `visit-${v.id}`,
         date: v.encounter_date ?? v.created_at,
         type: "visit",
-        title: `${v.encounter_type.toUpperCase()} visit — ${v.status}`,
+        title: `${v.encounter_type.toUpperCase()} visit — ${visitStatusWord(v)}`,
         detail: [
           v.department_name,
           v.doctor_name ? `Dr. ${v.doctor_name}` : null,

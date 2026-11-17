@@ -49,6 +49,7 @@ import type {
   ResolvedOpdQueueRowAction,
 } from "../opd-queue-actions";
 import { resolveOpdQueueRowActions } from "../opd-queue-actions";
+import { OpdHeaderPolicies } from "./auto-close-select";
 import { isStaleRowError } from "./queue-action-error";
 import {
   QueueAppointmentMarker,
@@ -56,7 +57,6 @@ import {
   QueueVisitTypeBadge,
   QueueVitalsCell,
 } from "./queue-cells";
-import { OpdRegistrationPolicyToggle } from "./registration-policy-toggle";
 import {
   appointmentVisitType,
   type OpdTranslate,
@@ -493,7 +493,7 @@ export function OpdPageInner() {
       render: (row: QueueEntry) => (
         <OperationalSignal
           icon={queueStatusIcon(row.status)}
-          label={queueStatusLabel(t, row.status)}
+          label={queueStatusLabel(t, row.status, row.close_reason)}
           shape={queueStatusShape(row.status)}
           tone={queueStatusTone(row.status)}
         />
@@ -538,7 +538,7 @@ export function OpdPageInner() {
         color="primary"
         actions={
           <Group gap="sm">
-            <OpdRegistrationPolicyToggle />
+            <OpdHeaderPolicies />
             {canCreate ? (
               <Button
                 tone="primary"

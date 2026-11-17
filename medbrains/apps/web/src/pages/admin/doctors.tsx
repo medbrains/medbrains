@@ -17,7 +17,6 @@ import {
   Loader,
   Modal,
   MultiSelect,
-  PasswordInput,
   Select,
   SimpleGrid,
   Stack,
@@ -66,7 +65,7 @@ import { DoctorHprModal, HPR_COVERAGE_KEY } from "@/components/admin/DoctorHprMo
 import { DoctorRegistrationModal } from "@/components/admin/DoctorRegistrationModal";
 import { HprCoveragePanel } from "@/components/admin/HprCoveragePanel";
 import { PageHeader } from "@/components/PageHeader";
-import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, NewPasswordField } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { abdmRegistryService } from "@/services/abdmRegistry.service";
@@ -939,13 +938,12 @@ function CreateLinkedDoctorUserModal({
             control={control}
             name="password"
             render={({ field }) => (
-              <PasswordInput
+              <NewPasswordField
                 label="Temporary password"
                 value={field.value}
                 onChange={field.onChange}
                 error={errors.password?.message}
                 required
-                description="Minimum 8 characters. The user can change it after first login."
               />
             )}
           />

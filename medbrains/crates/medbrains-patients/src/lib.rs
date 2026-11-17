@@ -3674,6 +3674,7 @@ pub struct PatientVisitRow {
     pub prescription_count: Option<i64>,
     pub lab_order_count: Option<i64>,
     pub created_at: DateTime<Utc>,
+    pub close_reason: Option<String>,
 }
 
 /// Consultation history row for patient-level SOAP timeline review.
@@ -3761,7 +3762,8 @@ pub async fn list_patient_visits(
             (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id AND dg.deleted_at IS NULL) AS diagnosis_count,
             (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id AND p.deleted_at IS NULL) AS prescription_count,
             (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.deleted_at IS NULL) AS lab_order_count,
-            e.created_at
+            e.created_at,
+            e.close_reason
          FROM encounters e
          LEFT JOIN users u ON u.id = e.doctor_id
          LEFT JOIN departments d ON d.id = e.department_id
@@ -4784,8 +4786,7 @@ pub async fn get_patient_context(
         None
     } else {
         core.date_of_birth.map(|dob| {
-            let today = Utc::now().date_naive();
-            let years = today.years_since(dob).unwrap_or(0);
+            let years = Utc::now().date_naive().years_since(dob).unwrap_or(0);
             i32::try_from(years).unwrap_or(0)
         })
     };

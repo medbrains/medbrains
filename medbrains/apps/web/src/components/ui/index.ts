@@ -26,7 +26,7 @@ export type { FloorMapProps, FloorMapZone } from "./FloorMap";
 export { FloorMapTable, type FloorMapTableProps } from "./FloorMapTable";
 export { IconButton, type IconButtonProps, type IconButtonTone } from "./IconButton";
 export { Image, type ImageProps } from "./Image";
-export { Input, NumberField, PasswordField, TextArea } from "./Input";
+export { Input, NewPasswordField, NumberField, PasswordField, TextArea } from "./Input";
 export { FloorMap, RichTextEditor } from "./lazy-heavy";
 export { Modal } from "./Modal";
 export { ModuleBadge, type ModuleBadgeProps } from "./ModuleBadge";
