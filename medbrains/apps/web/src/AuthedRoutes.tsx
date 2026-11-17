@@ -60,6 +60,7 @@ const OpdEncounterPage = lazy(() =>
   import("./pages/opd").then((m) => ({ default: m.OpdEncounterPage })),
 );
 const OpdVitalsPage = lazy(() => import("./pages/opd").then((m) => ({ default: m.OpdVitalsPage })));
+const OpdReportsPage = lazy(() => import("./pages/opd/reports"));
 const AppointmentsPage = lazy(() =>
   import("./pages/appointments").then((m) => ({ default: m.AppointmentsPage })),
 );
@@ -514,10 +515,9 @@ const NotFoundPage = lazy(() =>
   import("./pages/errors/not-found").then((m) => ({ default: m.NotFoundPage })),
 );
 /**
- * The signed-in app: the shell (ProtectedRoute, tenant config, spotlight,
- * AppLayout) and every page inside it, mounted by App under `/*`. Split from
- * App so the sign-in page and the public pages do not load this route table.
- * Paths are relative to `/`; the shell's own `*` route is the not-found page.
+ * The signed-in app: the shell (ProtectedRoute, tenant config, spotlight, AppLayout) and every
+ * page inside it, mounted by App under `/*`. Split from App so the sign-in page and the public
+ * pages do not load this route table. Paths are relative to `/`; `*` is the not-found page.
  */
 export function AuthedRoutes() {
   return (
@@ -562,6 +562,7 @@ export function AuthedRoutes() {
           <Route path="opd/encounters/:encounterId" element={<OpdEncounterPage />} />
           <Route path="opd/queue/:queueEntryId/vitals" element={<OpdVitalsPage />} />
           <Route path="opd/appointments" element={<AppointmentsPage />} />
+          <Route path="opd/reports" element={<OpdReportsPage />} />
           <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
           <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
           <Route path="telemedicine" element={<TelemedicinePage />} />
@@ -597,7 +598,6 @@ export function AuthedRoutes() {
         <Route path="billing/tpa-pipeline" element={<BillingTpaPipelinePage />} />
         <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />
         <Route path="materials" element={<MaterialsPage />} />
-        {/* Consolidated into the unified Materials workspace. */}
         <Route path="indent/*" element={<Navigate to="/materials" replace />} />
         <Route path="procurement" element={<Navigate to="/materials" replace />} />
         <Route path="quality" element={<QualityPage />} />

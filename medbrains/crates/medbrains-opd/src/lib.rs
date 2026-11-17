@@ -10,6 +10,7 @@ pub mod auto_close;
 pub mod consult_pricing;
 pub mod last_visit;
 pub mod referral_lifecycle;
+pub mod reports;
 mod routes;
 pub mod rx_policy;
 pub mod rx_terms;

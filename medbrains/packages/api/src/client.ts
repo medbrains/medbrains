@@ -1669,6 +1669,7 @@ import type {
   OpdPrescriptionPrintData,
   OpdProcedureConsentPrintData,
   OpdRegistrationPolicy,
+  OpdReportResponse,
   OpenCampRegistrationEncounterRequest,
   OpenedIncident,
   OperationNotesPrintData,
@@ -2702,6 +2703,7 @@ import {
   labOrderDetailResponseSchema,
   labOrderListResponseSchema,
   labResultListResponseSchema,
+  opdReportResponseSchema,
   paymentListResponseSchema,
   pharmacyOrderDetailResponseSchema,
   pharmacyOrderListResponseSchema,
@@ -14790,6 +14792,13 @@ export const api = {
   },
 
   opdFollowupCompliance: () => request<FollowupComplianceRow[]>("/opd/analytics/followup"),
+
+  /** OPD counts for a date range (YYYY-MM-DD, inclusive): tiles, by day, by doctor. */
+  opdReportSummary: (from: string, to: string) =>
+    checkedRequest<OpdReportResponse>(
+      opdReportResponseSchema,
+      `/opd/reports/summary?${new URLSearchParams({ from, to })}`,
+    ),
 
   // ══════════════════════════════════════════════════════════
   //  Batch 2 — IPD (extended)

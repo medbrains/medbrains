@@ -6,6 +6,7 @@ export const opdService = {
   getOpdAutoClose: () => api.getOpdAutoClose(),
   updateOpdAutoClose: (data: Parameters<typeof api.updateOpdAutoClose>[0]) =>
     api.updateOpdAutoClose(data),
+  opdReportSummary: (from: string, to: string) => api.opdReportSummary(from, to),
   getRegistrationPolicy: () => api.getRegistrationPolicy(),
   updateRegistrationPolicy: (data: Parameters<typeof api.updateRegistrationPolicy>[0]) =>
     api.updateRegistrationPolicy(data),

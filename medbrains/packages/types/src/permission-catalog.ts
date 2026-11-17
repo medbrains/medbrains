@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1256 permissions, one per constant in the Rust source. */
+/** 1257 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -458,6 +458,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "opd.token.manage",
     label: "Manage Tokens",
     description: "Manage OPD token generation and calling",
+    module: "opd",
+  },
+  {
+    code: "opd.reports.view",
+    label: "View OPD reports",
+    description: "Counts of visits, registrations and new and repeat patients by day and by doctor, inside the OPD app. Counts only, no patient details.",
     module: "opd",
   },
   {
@@ -8862,6 +8868,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.OUTREACH.APPROVE,
       P.NOTES.USE,
       P.NURSE.CODE_BLUE.MANAGE_TEAM,
+      P.OPD.REPORTS.VIEW,
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
@@ -9461,6 +9468,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.KNOWLEDGE.CHANGE_SETS.APPROVE,
       P.KNOWLEDGE.CHANGE_SETS.LIST,
       P.NOTES.USE,
+      P.OPD.REPORTS.VIEW,
       P.QUALITY.INDICATORS.LIST,
       P.SECURITY.VENDOR_ACCESS.APPROVE_UNMASKED,
       P.SECURITY.VENDOR_ACCESS.VIEW,

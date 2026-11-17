@@ -109,3 +109,20 @@ the actor with the minutes. Patients still waiting are never closed.
 **Exit / Outcome**: Patient self-checked in; position in doctor's queue assigned; wait time displayed.  
 **Regulatory note**: NABH OPD.1 — identity confirmation still required (kiosk verifies name shown to patient).  
 **Existing test**: JNY-PAT-001 in `apps/web/e2e/scenarios/actor-perspective-journeys.spec.ts` (automated — covers token issuance and QR check-in)
+
+---
+
+## OPD reports — Actor: Medical Superintendent / Quality Officer / Hospital Admin
+
+**Entry point**: OPD app side panel → **OPD reports** (`/opd/reports`), shown only to holders of `opd.reports.view`.
+
+**Steps**:
+1. Pick **Today**, **This week** (from Monday), **This month**, or **Custom** (a range of a year or less).
+2. Read the four tiles: OPD visits, registrations, new patients, repeat patients.
+3. Visits by day are drawn as a bar chart and listed in the **By day** table; **Download CSV** saves that table.
+4. **By doctor** lists visits per doctor; visits with no doctor yet are one row.
+
+**Definitions** (the same as the 21:00 daily report email): an OPD visit is an OPD encounter on its visit date, not cancelled or deleted; a registration is a patient registered that day in the hospital's time zone, not a merged duplicate; a repeat patient is one seen that day who had an earlier visit, a new patient one who had none.
+
+**Exit / Outcome**: Counts only. No patient names, phone numbers or UHIDs appear. If the numbers cannot be read the screen says "Couldn't load OPD reports" with Retry, never zeros.  
+**Existing test**: `crates/medbrains-server/tests/opd_reports_test.rs`, `apps/web/src/pages/opd/reports.test.tsx`
