@@ -115,7 +115,7 @@ pub async fn consult_due_at(
 pub async fn billing_brick_on(tx: &mut Tx<'_>, tenant_id: &Uuid) -> Result<bool, AppError> {
     Ok(
         medbrains_server_core::middleware::entitlement::module_enabled_in_tx(
-            &mut **tx, *tenant_id, "billing",
+            tx, *tenant_id, "billing",
         )
         .await?,
     )
