@@ -460,7 +460,8 @@ export function PatientRegisterForm({
     staleTime: 60_000,
   });
 
-  const departmentOptions = useRegistrationDepartments();
+  const { options: departmentOptions, unavailable: departmentsUnavailable } =
+    useRegistrationDepartments();
   const consultantOptions = useMemo(
     () =>
       doctors
@@ -1569,6 +1570,7 @@ export function PatientRegisterForm({
                   control={control}
                   options={departmentOptions}
                   error={fieldError(errors.department_id?.message)}
+                  unavailable={departmentsUnavailable}
                 />
                 <Grid.Col span={{ base: 12, sm: 5 }}>
                   <Controller
