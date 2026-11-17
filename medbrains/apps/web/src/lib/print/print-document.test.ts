@@ -180,4 +180,23 @@ describe("the generated registry", () => {
     await printDocument("consent.general", "adm-1");
     expect(written()).toContain("UH-1");
   });
+
+  it("prints a crossmatch's outcome and says when no unit is tied", async () => {
+    // The shape the crossmatch report endpoint sends for a web-made
+    // crossmatch: compatible, but the bank tied no bag to it.
+    fetchImpl = async () => ({
+      status: "compatible",
+      result: "compatible",
+      tested_at: "16-Nov-2026 09:30",
+      unit_allocation: "No unit allocated yet",
+      crossmatch_results: [],
+    });
+    const written = captureWrite();
+    await printDocument("consent.general", "xm-1");
+    const html = written();
+    expect(html).toContain("<th>Status</th><td>compatible</td>");
+    expect(html).toContain("<th>Tested at</th><td>16-Nov-2026 09:30</td>");
+    expect(html).toContain("No unit allocated yet");
+    expect(html).toContain("<h2>Crossmatch results</h2><p>None recorded</p>");
+  });
 });

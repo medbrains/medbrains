@@ -22,9 +22,7 @@ Good first tasks are listed in the README under [Contributing](./README.md#contr
 
 Outside pull requests are merged only after the contributor has signed the [contributor licence agreement](./CLA.md). It lets the project license your work under both the AGPL-3.0-only and the commercial licence. You keep your copyright.
 
-When you open your first pull request, the CLA bot comments with a link. Read [CLA.md](./CLA.md), then reply on the pull request with exactly:
-
-> I have read the CLA Document and I hereby sign the CLA
+Read [CLA.md](./CLA.md), then in your first pull request add your GitHub username and today's date as one line to [`signatures/cla.txt`](./signatures/cla.txt). The `CLA signed` check shows the exact line if it is missing.
 
 You sign once. Contributing for a company, hospital or university? Your organisation signs the entity agreement first; see [CLA.md](./CLA.md#how-to-sign).
 
@@ -112,7 +110,7 @@ The full rules are in [`ENGINEERING.md`](./ENGINEERING.md). The essentials:
 3. Make the checks pass: `cargo fmt --check`, `cargo clippy`, `pnpm typecheck`, `pnpm build` and `make check-all`.
 4. In the description, say what changed, why, and how you checked it. Link the issue (`Closes #123`).
 5. Add tests for new endpoints and screens. A test should fail if the behaviour breaks.
-6. Sign the CLA when the bot asks. The pull request cannot be merged before you do.
+6. Sign the CLA by adding your line to `signatures/cla.txt`. The pull request cannot be merged before you do.
 
 A maintainer will review. Please be kind; see the [Code of Conduct](./CODE_OF_CONDUCT.md).
 

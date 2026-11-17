@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT 'prescription' AS \"record_type!\", p.id AS \"record_id!\",\n                p.created_at AS \"created_at!\", 'clinical' AS \"legal_class!\",\n                COALESCE(p.patient_id, e.patient_id) AS \"patient_id?\",\n                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS \"patient_name?\",\n                pat.uhid::text AS \"uhid?\",\n                COALESCE(NULLIF(p.notes, ''), CONCAT((\n                    SELECT COUNT(*) FROM prescription_items pi\n                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id\n                ), ' medication(s)')) AS \"summary?\",\n                CONCAT('Encounter ', p.encounter_id::text) AS \"context?\",\n                CASE WHEN pat.is_medico_legal THEN 'MLC patient' ELSE NULL END AS \"risk_label?\",\n                p.order_mode AS \"order_mode?\",\n                p.countersign_due_at AS \"countersign_due_at?\",\n                (p.transcribed_by IS NOT NULL) AS \"transcribed?\"\n         FROM prescriptions p\n         LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id\n         LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id\n            AND pat.id = COALESCE(p.patient_id, e.patient_id)\n         WHERE p.tenant_id = $1 AND p.doctor_id = $2 AND p.is_signed = FALSE\n           AND p.deleted_at IS NULL\n         ORDER BY p.created_at\n         LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "record_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "record_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "legal_class!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "patient_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "patient_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "uhid?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "summary?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "context?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "risk_label?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "order_mode?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "countersign_due_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "transcribed?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      false,
+      null,
+      null,
+      null,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "f4d91040b72a764d315bec18810e475294dcda9f5e3e261a1ff949f4a95fa6b4"
+}

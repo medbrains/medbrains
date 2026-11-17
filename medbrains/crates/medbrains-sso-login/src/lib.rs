@@ -608,11 +608,11 @@ pub async fn oidc_callback(
         .add(build_csrf_cookie(&csrf, cfg));
 
     // Land the user on the SPA; the cookie authenticates the session.
-    let return_to = auth.return_to.unwrap_or_else(|| "/dashboard".to_owned());
+    let return_to = auth.return_to.unwrap_or_else(|| "/home".to_owned());
     let target = if return_to.starts_with('/') {
         format!("{base}{return_to}")
     } else {
-        format!("{base}/dashboard")
+        format!("{base}/home")
     };
     Ok((jar, Redirect::to(&target)))
 }

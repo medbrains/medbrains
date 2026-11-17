@@ -44,6 +44,7 @@ export {
 export * from "./admin-forms";
 export * from "./ambulance-fleet";
 export * from "./analytics-dashboards";
+export * from "./app-screens.generated";
 export * from "./approvals";
 export type {
   BedBoardSignalPhase,
@@ -5863,6 +5864,23 @@ export interface UnreadCountResponse {
   unread_count: number;
 }
 
+/** An app brick's code and the name the launcher shows for it (`bricks.rs`). */
+export interface BrickName {
+  id: string;
+  name: string;
+}
+
+/** `GET /users/me/launcher`: my starred screen paths and every app's name. */
+export interface LauncherResponse {
+  favourites: string[];
+  bricks: BrickName[];
+}
+
+/** `PUT /users/me/favourites`: my starred screen paths after the change. */
+export interface FavouritesResponse {
+  favourites: string[];
+}
+
 // ── Unified token / queue system ──
 /**
  * One queue row as the clinician working it sees it.
@@ -5940,7 +5958,7 @@ export interface ModuleToken {
   visit_id?: string | null;
   /**
    * How many this department will call first — priority, then queue position.
-   * Only returned by `myTokens`; a shared visit number is unreadable on a board
+   * Only returned by `patientTokens`; a shared visit number is unreadable on a board
    * without it.
    */
   ahead?: number;

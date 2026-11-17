@@ -16,13 +16,14 @@ use std::time::Duration;
 use tracing::{debug, info};
 
 #[derive(Debug, Clone)]
-pub struct WssTransport {
+pub(crate) struct WssTransport {
     bridge_ingress_url: String,
     client: reqwest::Client,
 }
 
 impl WssTransport {
-    pub fn new(bridge_ingress_url: String) -> Self {
+    /// A transport that proxies through the bridge ingress at `bridge_ingress_url`.
+    pub(crate) fn new(bridge_ingress_url: String) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
@@ -85,6 +86,7 @@ impl Transport for WssTransport {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
