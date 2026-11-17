@@ -58,6 +58,7 @@ import { panelFor } from "./appPanel";
 import { FavouriteStar } from "./FavouriteStar";
 import { OnDemandOverlays } from "./OnDemandOverlays";
 import { PanelHeader } from "./PanelHeader";
+import { PanelPages } from "./PanelPages";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
@@ -73,6 +74,7 @@ interface ResolvedNavItem {
   requiredPermissions?: readonly string[];
   children?: ResolvedNavItem[];
   moduleCode?: string;
+  isAdvanced?: boolean;
 }
 
 // Carbon UI Shell side-nav widths: 48px icon rail, 256px expanded.
@@ -192,6 +194,7 @@ export function AppLayout() {
         requiredPermission: cfg.requiredPermission,
         requiredPermissions: cfg.requiredPermissions,
         moduleCode: cfg.moduleCode,
+        isAdvanced: cfg.isAdvanced,
         children: cfg.children?.map((c) => resolveItem(c, true)),
       };
     },
@@ -327,24 +330,29 @@ export function AppLayout() {
             onFocus={() => handleNavigationIntent(item.path)}
             onPointerEnter={() => handleNavigationIntent(item.path)}
           >
-            {visibleChildren.map((child) => (
-              <NavLink
-                key={child.path}
-                component={Link}
-                to={child.path}
-                label={child.label}
-                style={{ "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties}
-                leftSection={<span className={classes.navIcon}>{child.icon}</span>}
-                active={isActive(child.path)}
-                aria-current={isActive(child.path) ? "page" : undefined}
-                onFocus={() => handleNavigationIntent(child.path)}
-                onClick={() => handleLinkClick(child.path)}
-                onPointerEnter={() => handleNavigationIntent(child.path)}
-                className={
-                  isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
-                }
-              />
-            ))}
+            <PanelPages
+              pages={visibleChildren}
+              renderPage={(child) => (
+                <NavLink
+                  key={child.path}
+                  component={Link}
+                  to={child.path}
+                  label={child.label}
+                  style={
+                    { "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties
+                  }
+                  leftSection={<span className={classes.navIcon}>{child.icon}</span>}
+                  active={isActive(child.path)}
+                  aria-current={isActive(child.path) ? "page" : undefined}
+                  onFocus={() => handleNavigationIntent(child.path)}
+                  onClick={() => handleLinkClick(child.path)}
+                  onPointerEnter={() => handleNavigationIntent(child.path)}
+                  className={
+                    isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
+                  }
+                />
+              )}
+            />
           </NavLink>
         </div>
       );
