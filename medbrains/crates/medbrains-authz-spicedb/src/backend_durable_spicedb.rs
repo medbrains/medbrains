@@ -103,8 +103,15 @@ impl AuthzBackend for DurableSpiceDbBackend {
         object_type: &str,
         relation: Relation,
     ) -> Result<Vec<Uuid>, AuthzError> {
-        combined_list_accessible(&self.spicedb, &self.pg, &self.pool, ctx, object_type, relation)
-            .await
+        combined_list_accessible(
+            &self.spicedb,
+            &self.pg,
+            &self.pool,
+            ctx,
+            object_type,
+            relation,
+        )
+        .await
     }
 
     async fn bulk_check(
@@ -432,7 +439,11 @@ async fn apply_tuple_to_spicedb(
     // A relation the Rust enum does not model (`dept_member`, `ward_member`, …)
     // is a schema relation written by `grant_raw`; it is synced by name. It used
     // to be skipped, which left a revoked raw grant in SpiceDB for good.
-    let (ot, oid, rel) = (tuple.object_type.as_str(), tuple.object_id, tuple.relation.as_str());
+    let (ot, oid, rel) = (
+        tuple.object_type.as_str(),
+        tuple.object_id,
+        tuple.relation.as_str(),
+    );
     let result = match (Relation::from_code(rel), tuple.status == "revoked") {
         (Some(relation), true) => spicedb.revoke_specific(ot, oid, relation, subject).await,
         (None, true) => spicedb.revoke_raw(ot, oid, rel, subject).await,
@@ -440,7 +451,11 @@ async fn apply_tuple_to_spicedb(
             .write_tuple(&ctx, ot, oid, relation, subject, tuple.expires_at, None)
             .await
             .map(|_| ()),
-        (None, false) => spicedb.write_raw(ot, oid, rel, subject, tuple.expires_at).await,
+        (None, false) => {
+            spicedb
+                .write_raw(ot, oid, rel, subject, tuple.expires_at)
+                .await
+        }
     };
 
     match result {

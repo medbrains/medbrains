@@ -1,11 +1,11 @@
-//! How the durable store and the SpiceDB index are read together.
+//! How the durable store and the `SpiceDB` index are read together.
 //!
-//! `relation_tuples` is the source of truth and SpiceDB an index built from it
+//! `relation_tuples` is the source of truth and `SpiceDB` an index built from it
 //! (RFC-AUTHZ §5.2). A grant reaches the index after Postgres, and so does a
-//! revocation. A SpiceDB "yes" is therefore only trusted while no revocation
+//! revocation. A `SpiceDB` "yes" is therefore only trusted while no revocation
 //! that could reach the caller is still waiting to be applied there; while one
 //! is, Postgres alone answers. A Postgres fault is a fault (`Err`, i.e. unknown),
-//! never a yes. A SpiceDB fault falls back to Postgres, which is complete for
+//! never a yes. A `SpiceDB` fault falls back to Postgres, which is complete for
 //! every grant it holds.
 
 use std::collections::{HashMap, HashSet};
@@ -13,7 +13,9 @@ use std::collections::{HashMap, HashSet};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use medbrains_authz::{AuthzBackend, AuthzContext, AuthzError, backend_pg::PgAuthzBackend, relations::Relation};
+use medbrains_authz::{
+    AuthzBackend, AuthzContext, AuthzError, backend_pg::PgAuthzBackend, relations::Relation,
+};
 
 use crate::backend_durable_spicedb::set_tenant_ctx;
 
@@ -21,7 +23,7 @@ use crate::backend_durable_spicedb::set_tenant_ctx;
 ///
 /// Postgres "yes" stands on its own. An index "yes" that Postgres does not
 /// share stands only when no revocation for the caller is pending in the index.
-pub(crate) async fn combined_check(
+pub(super) async fn combined_check(
     index: &dyn AuthzBackend,
     pg: &PgAuthzBackend,
     pool: &PgPool,
@@ -44,7 +46,7 @@ pub(crate) async fn combined_check(
 
 /// The objects the caller may reach: Postgres's list, plus the index's extras
 /// unless a revocation for the caller is still pending in the index.
-pub(crate) async fn combined_list_accessible(
+pub(super) async fn combined_list_accessible(
     index: &dyn AuthzBackend,
     pg: &PgAuthzBackend,
     pool: &PgPool,
@@ -72,7 +74,7 @@ pub(crate) async fn combined_list_accessible(
 }
 
 /// Many checks in one round trip each, with the same rule as `combined_check`.
-pub(crate) async fn combined_bulk_check(
+pub(super) async fn combined_bulk_check(
     index: &dyn AuthzBackend,
     pg: &PgAuthzBackend,
     pool: &PgPool,
@@ -103,15 +105,15 @@ pub(crate) async fn combined_bulk_check(
 }
 
 /// Whether a revocation that could reach this caller has not yet been
-/// confirmed in SpiceDB.
+/// confirmed in `SpiceDB`.
 ///
 /// Matches revocations of the caller's own tuples and of every group-like
 /// subject (department, access group, tuple set), because the caller's
-/// memberships are resolved inside SpiceDB and cannot be ruled out here.
+/// memberships are resolved inside `SpiceDB` and cannot be ruled out here.
 /// Uses the outbox's partial index, so it costs one index probe.
-// ponytail: department/group revocations pause index-only answers for the whole
-// tenant until the outbox drains; narrow by membership if that ever bites.
 async fn revocation_pending(pool: &PgPool, ctx: &AuthzContext) -> Result<bool, AuthzError> {
+    // ponytail: department/group revocations pause index-only answers for the whole
+    // tenant until the outbox drains; narrow by membership if that ever bites.
     let mut tx = pool.begin().await?;
     set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
     let pending = sqlx::query_scalar!(
@@ -135,8 +137,8 @@ async fn revocation_pending(pool: &PgPool, ctx: &AuthzContext) -> Result<bool, A
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     //! The engine pair against a real Postgres, with an in-memory index standing
-    //! in for SpiceDB. An index that has not yet applied a delete is exactly what
-    //! SpiceDB is while it is unreachable or slow.
+    //! in for `SpiceDB`. An index that has not yet applied a delete is exactly what
+    //! `SpiceDB` is while it is unreachable or slow.
     //!
     //! ```text
     //! DATABASE_URL=… cargo test -p medbrains-authz-spicedb -- --ignored
@@ -165,7 +167,7 @@ mod tests {
              VALUES ($1, $2, $3, 'Test doctor', 'doctor') RETURNING id",
         )
         .bind(tenant_id)
-        .bind(format!("u{code}"))
+        .bind(format!("u{}", code.to_lowercase()))
         .bind(format!("{code}@authz.test"))
         .fetch_one(&mut *tx)
         .await
@@ -191,7 +193,7 @@ mod tests {
             .unwrap()
             .get(&key)
             .copied()
-            .unwrap_or(false);
+            .expect("bulk_check answers every item");
         let listed = combined_list_accessible(index, &pg, pool, ctx, "patient", Relation::Viewer)
             .await
             .unwrap()
@@ -214,23 +216,50 @@ mod tests {
 
         // A grant in both engines.
         let tuple = pg
-            .write_tuple(&ctx, "patient", patient, Relation::Viewer, me.clone(), None, None)
+            .write_tuple(
+                &ctx,
+                "patient",
+                patient,
+                Relation::Viewer,
+                me.clone(),
+                None,
+                None,
+            )
             .await
             .unwrap();
-        mark_tuple_sync(&pool, ctx.tenant_id, tuple, "applied", None).await.unwrap();
+        mark_tuple_sync(&pool, ctx.tenant_id, tuple, "applied", None)
+            .await
+            .unwrap();
         let mirrored = index
-            .write_tuple(&ctx, "patient", patient, Relation::Viewer, me.clone(), None, None)
+            .write_tuple(
+                &ctx,
+                "patient",
+                patient,
+                Relation::Viewer,
+                me.clone(),
+                None,
+                None,
+            )
             .await
             .unwrap();
         assert!(allowed(&index, &pool, &ctx, patient).await);
 
         // Revoked while SpiceDB is unreachable: Postgres has it, the delete is queued.
         pg.revoke_tuple(&ctx, tuple).await.unwrap();
-        mark_tuple_sync(&pool, ctx.tenant_id, tuple, "failed", Some("unreachable".to_owned()))
-            .await
-            .unwrap();
+        mark_tuple_sync(
+            &pool,
+            ctx.tenant_id,
+            tuple,
+            "failed",
+            Some("unreachable".to_owned()),
+        )
+        .await
+        .unwrap();
         assert!(
-            index.check(&ctx, Relation::Viewer, "patient", patient).await.unwrap(),
+            index
+                .check(&ctx, Relation::Viewer, "patient", patient)
+                .await
+                .unwrap(),
             "the stand-in must still hold the stale grant"
         );
         assert!(
@@ -240,14 +269,24 @@ mod tests {
 
         // The outbox lands the delete: both engines say no.
         index.revoke_tuple(&ctx, mirrored).await.unwrap();
-        mark_tuple_sync(&pool, ctx.tenant_id, tuple, "applied", None).await.unwrap();
+        mark_tuple_sync(&pool, ctx.tenant_id, tuple, "applied", None)
+            .await
+            .unwrap();
         assert!(!allowed(&index, &pool, &ctx, patient).await);
 
         // Nothing pending: a relation only SpiceDB evaluates (dept_member and the
         // like) is honoured again, and a Postgres yes stands without the index.
         let index_only = Uuid::new_v4();
         index
-            .write_tuple(&ctx, "patient", index_only, Relation::Viewer, me.clone(), None, None)
+            .write_tuple(
+                &ctx,
+                "patient",
+                index_only,
+                Relation::Viewer,
+                me.clone(),
+                None,
+                None,
+            )
             .await
             .unwrap();
         assert!(allowed(&index, &pool, &ctx, index_only).await);
@@ -264,9 +303,15 @@ mod tests {
         gone.close().await;
         let broken = PgAuthzBackend::new(gone.clone());
         assert!(
-            combined_check(&index, &broken, &gone, &ctx, (Relation::Viewer, "patient", index_only))
-                .await
-                .is_err(),
+            combined_check(
+                &index,
+                &broken,
+                &gone,
+                &ctx,
+                (Relation::Viewer, "patient", index_only)
+            )
+            .await
+            .is_err(),
             "a fault in the durable store was answered as a decision"
         );
     }
