@@ -3,22 +3,30 @@ import type { ReactNode } from "react";
 
 interface LauncherSectionProps {
   title: string;
-  /** One short line on why the section shows what it shows, set in mono beside the title. */
-  why?: string;
+  /** The page's own heading ("Waiting for you") is a level-1 display title; the rest are h2. */
+  isPageHeading?: boolean;
+  /** One muted line on the right of the heading. */
+  aside?: string;
   children: ReactNode;
 }
 
-/** A launcher section: a small eyebrow heading, its reason, then its content. */
-export function LauncherSection({ title, why, children }: LauncherSectionProps) {
+/** A launcher section as on the board: a heading, a muted line beside it, then the content. */
+export function LauncherSection({ title, isPageHeading, aside, children }: LauncherSectionProps) {
   return (
-    <Stack gap="sm" component="section" aria-label={title}>
-      <Group gap="xs" align="baseline">
-        <Title order={2} fz="xs" fw={600} tt="uppercase" lts="0.08em" c="dimmed">
-          {title}
-        </Title>
-        {why && (
-          <Text span ff="monospace" fz="xs" c="dimmed">
-            {why}
+    <Stack gap="md" component="section" aria-label={title}>
+      <Group justify="space-between" align="baseline" gap="xs">
+        {isPageHeading ? (
+          <Title order={1} fz="h1" fw={600} ff="var(--mb-font-display)">
+            {title}
+          </Title>
+        ) : (
+          <Title order={2} fz="h4" fw={600}>
+            {title}
+          </Title>
+        )}
+        {aside && (
+          <Text size="sm" c="dimmed">
+            {aside}
           </Text>
         )}
       </Group>

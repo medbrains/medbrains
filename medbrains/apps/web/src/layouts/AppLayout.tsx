@@ -9,7 +9,6 @@ import {
   Kbd,
   Menu,
   NavLink,
-  ScrollArea,
   Text,
   Tooltip,
   UnstyledButton,
@@ -17,15 +16,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
 import { clearSession, useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
-import {
-  IconLanguage,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-  IconLogout,
-  IconSearch,
-  IconSettings,
-  IconUser,
-} from "@tabler/icons-react";
+import { IconLanguage, IconLogout, IconSearch, IconSettings, IconUser } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,7 +25,6 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { AiAssistantMount } from "@/components/ai/AiAssistantMount";
 import { Brand } from "@/components/Brand";
-import { BuildVersion } from "@/components/BuildVersion";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { HelpButton } from "@/components/HelpButton";
@@ -61,6 +51,7 @@ import { usePanelFavourites } from "@/features/launcher/usePanelFavourites";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
+import { AppNavbar, hasSidePanel } from "./AppNavbar";
 import { FavouriteStar } from "./FavouriteStar";
 import { OnDemandOverlays } from "./OnDemandOverlays";
 import { PanelFavouritesGroup } from "./PanelFavourites";
@@ -119,6 +110,7 @@ export function AppLayout() {
 
   const location = useLocation();
   const isWorkspace = location.pathname === "/assistant";
+  const hasPanel = hasSidePanel(location.pathname);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -436,11 +428,11 @@ export function AppLayout() {
   return (
     <AppShell
       header={{ height: 48 }}
-      navbar={{
-        width: navbarWidth,
-        breakpoint: "sm",
-        collapsed: { mobile: !mobileOpened, desktop: false },
-      }}
+      navbar={
+        hasPanel
+          ? { width: navbarWidth, breakpoint: "sm", collapsed: { mobile: !mobileOpened } }
+          : undefined
+      }
       padding="md"
       transitionDuration={260}
       transitionTimingFunction="cubic-bezier(0.22, 1, 0.36, 1)"
@@ -450,7 +442,9 @@ export function AppLayout() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
-            <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
+            {hasPanel && (
+              <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
+            )}
             <Group
               gap={8}
               wrap="nowrap"
@@ -580,72 +574,12 @@ export function AppLayout() {
         </Group>
       </AppShell.Header>
 
-      {/* ── Sidebar ── */}
-      <AppShell.Navbar
-        data-testid="app-sidebar"
-        data-mode={isExpanded ? "expanded" : "rail"}
-        p={isExpanded ? 8 : 0}
-        className={isExpanded ? classes.navbarExpanded : classes.navbarRail}
-      >
-        <AppShell.Section grow component={ScrollArea} className={classes.navContent}>
+      {/* ── Sidebar: none on the launcher, which replaces navigation ── */}
+      {hasPanel && (
+        <AppNavbar isExpanded={isExpanded} onToggle={toggleSidebar}>
           {renderSidebar()}
-        </AppShell.Section>
-
-        <AppShell.Section className={classes.navFooter}>
-          <Divider my={4} className={classes.railDivider} />
-
-          {/* Collapse / Expand toggle */}
-          <Box visibleFrom="sm" className={classes.footerAction}>
-            {isExpanded ? (
-              <UnstyledButton
-                className={classes.sidebarToggleExpanded}
-                onClick={toggleSidebar}
-                aria-label={t("collapse")}
-              >
-                <AnimatedIcon icon={IconLayoutSidebarLeftCollapse} size={18} motion="float" />
-                <Text size="xs" c="var(--mb-text-muted)">
-                  {t("collapse")}
-                </Text>
-              </UnstyledButton>
-            ) : (
-              <Tooltip label={t("expand")} position="right" withArrow>
-                <UnstyledButton
-                  className={classes.railItem}
-                  onClick={toggleSidebar}
-                  aria-label={t("expand")}
-                >
-                  <AnimatedIcon icon={IconLayoutSidebarLeftExpand} size={20} motion="float" />
-                </UnstyledButton>
-              </Tooltip>
-            )}
-          </Box>
-
-          {/* Which build is this?
-              The badge here read a hardcoded "v0.1" — the same string on
-              every deploy since it was written, which is worse than none:
-              it answers the support question confidently and wrongly. It now
-              carries the real version, the commit the deploy fingerprints,
-              and the build date, so a stale cached bundle is visible rather
-              than indistinguishable from a current one. Collapsed to the
-              rail there is no room for the commit, so only the version
-              shows and the tooltip carries the rest. */}
-          <Box className={classes.versionBadge}>
-            {isExpanded ? (
-              <BuildVersion />
-            ) : (
-              <Tooltip
-                label={`v${__APP_VERSION__} · ${__APP_COMMIT__} · built ${new Date(__APP_BUILT__).toLocaleString()}`}
-                position="right"
-                withArrow
-              >
-                <Text size="xs" c="var(--mb-text-muted)" fw={400} ta="center">
-                  v{__APP_VERSION__}
-                </Text>
-              </Tooltip>
-            )}
-          </Box>
-        </AppShell.Section>
-      </AppShell.Navbar>
+        </AppNavbar>
+      )}
 
       {/* ── Main content ── */}
       {/* Room below the last row: the assistant launcher and the activity
@@ -657,7 +591,7 @@ export function AppLayout() {
       <AppShell.Main pb={isWorkspace ? 0 : "calc(var(--mantine-spacing-xl) * 4)"}>
         <VerifyEmailBanner />
         <PageQueryErrorBanner />
-        {breadcrumbItems.length > 0 && !isWorkspace && (
+        {breadcrumbItems.length > 0 && !isWorkspace && hasPanel && (
           <div className={classes.breadcrumbs}>
             <Breadcrumb
               items={breadcrumbItems.map((item) => ({

@@ -6,23 +6,22 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { QueryError } from "@/components/QueryError";
-import { Badge, Button, Card, ModuleBadge } from "@/components/ui";
-import { getModuleBadge, resolveIcon } from "@/config/navigation";
+import { Badge, Button, Card } from "@/components/ui";
 import { LauncherSection } from "./LauncherSection";
 import styles from "./launcher.module.scss";
-import { countLabel, dayAndTime, type useMyWork, waitingState } from "./workModel";
+import { countLabel, dayAndTime, minutesSince, type useMyWork, waitingState } from "./workModel";
 
-/** One card on a phone, two on a tablet, three on a laptop beside the side panel, four wider. */
-const WORK_COLS = { base: 1, xs: 2, lg: 3, xl: 4 };
-/** Each item's name, and the icon its card shows when its screen has no module mark. */
-const ITEM_COPY: Record<WorkItem["key"], { label: string; icon: string }> = {
-  lab_critical: { label: "workLabCritical", icon: "IconAlertTriangle" },
-  opd_waiting: { label: "workOpdWaiting", icon: "IconStethoscope" },
-  notes_unsigned: { label: "workNotesUnsigned", icon: "IconSignature" },
-  approvals: { label: "workApprovals", icon: "IconChecklist" },
+/** Four equal cards on a desktop, as on the board; two on a tablet, one on a phone. */
+const WORK_COLS = { base: 1, xs: 2, md: 4 };
+/** Each item's name on its card. */
+const ITEM_LABEL: Record<WorkItem["key"], string> = {
+  lab_critical: "workLabCritical",
+  opd_waiting: "workOpdWaiting",
+  notes_unsigned: "workNotesUnsigned",
+  approvals: "workApprovals",
 };
 
-/** The one detail line under a count, worded from the server's typed value. */
+/** The one muted line under a card's name, worded from the server's typed value. */
 function detailLine(item: WorkItem, t: TFunction<"nav">, lang: string) {
   const d = item.detail;
   if (!d) return undefined;
@@ -34,100 +33,61 @@ function detailLine(item: WorkItem, t: TFunction<"nav">, lang: string) {
   return undefined;
 }
 
-/** One item as a card linking to its screen: count, one detail line, and a warning chip. */
+/** One item as on the board: the big number, the name, one muted line; the card is a link. */
 function WorkCard({ item }: { item: WorkItem }) {
   const { t, i18n } = useTranslation("nav");
-  const copy = ITEM_COPY[item.key];
-  const badge = getModuleBadge(item.href);
   const count = countLabel(item);
-  const longWaits = item.detail?.kind === "queue_wait" ? item.detail : undefined;
   const line = detailLine(item, t, i18n.language);
+  const longWaits = item.detail?.kind === "queue_wait" ? item.detail : undefined;
   return (
     <Card p={0} pattern={false}>
       <UnstyledButton component={Link} to={item.href} className={styles.workLink}>
-        <Stack gap="xs">
-          <Group gap="sm" wrap="nowrap" preventGrowOverflow={false}>
-            {badge ? (
-              <ModuleBadge abbr={badge.abbr} color={badge.color} size={32} />
-            ) : (
-              resolveIcon(copy.icon, 32, 1.5)
-            )}
-            <Text fw={600} lineClamp={2} flex={1}>
-              {t(copy.label)}
-            </Text>
-            {count ? (
-              <Text fz="h2" fw={500} lh={1}>
-                {count}
-              </Text>
-            ) : (
-              <Group gap={4} wrap="nowrap">
-                <IconCloudOff size={16} aria-hidden />
-                <Text size="sm">{t("workDidntLoad")}</Text>
-              </Group>
-            )}
+        {count ? (
+          <Text fz={36} fw={600} lh={1.1} ff="var(--mb-font-display)">
+            {count}
+          </Text>
+        ) : (
+          <Group gap="xs" wrap="nowrap" mih={40}>
+            <IconCloudOff size={20} aria-hidden />
+            <Text fw={600}>{t("workDidntLoad")}</Text>
           </Group>
-          {line && (
-            <Text size="sm" c="dimmed">
-              {line}
-            </Text>
-          )}
-          {longWaits && longWaits.long_waits > 0 && (
-            <Group>
-              <Badge tone="warning">
+        )}
+        <Text fw={500}>{t(ITEM_LABEL[item.key])}</Text>
+        {(line || longWaits) && (
+          <Group gap="xs">
+            {line && (
+              <Text size="sm" c="dimmed">
+                {line}
+              </Text>
+            )}
+            {longWaits && longWaits.long_waits > 0 && (
+              <Badge tone="warning" size="xs">
                 {t("workLongWaits", {
                   count: longWaits.long_waits,
                   minutes: longWaits.long_wait_minutes,
                 })}
               </Badge>
-            </Group>
-          )}
-        </Stack>
+            )}
+          </Group>
+        )}
       </UnstyledButton>
     </Card>
   );
 }
 
-/**
- * "Waiting for you": a card per item with something in it. Loading shows skeletons, a failed
- * request says so, and "Nothing waiting for you" appears only when every item loaded at 0.
- */
-export function WaitingForYou({
-  work,
-  items,
-}: {
-  work: ReturnType<typeof useMyWork>;
-  items: WorkItem[];
-}) {
+/** "Across your apps · updated a moment ago", or how many minutes ago. */
+function updatedLine(minutes: number, t: TFunction<"nav">) {
+  return minutes < 1 ? t("workUpdatedNow") : t("workUpdated", { count: minutes });
+}
+
+/** The cards, or the one line that says nothing is waiting; a retry when any card failed. */
+function WorkBody({ work, items }: WaitingForYouProps) {
   const { t } = useTranslation("nav");
-  const reduceMotion = useReducedMotion();
-  const section = (body: React.ReactNode) => (
-    <LauncherSection title={t("workWaitingTitle")} why={t("workWaitingWhy")}>
-      {body}
-    </LauncherSection>
-  );
-  if (work.isError) {
-    return section(
-      <QueryError
-        error={work.error}
-        onRetry={() => void work.refetch()}
-        title={t("workLoadFailed")}
-      />,
-    );
-  }
-  if (work.isPending) {
-    return section(
-      <SimpleGrid cols={WORK_COLS} aria-busy="true" aria-label={t("workLoading")}>
-        {[0, 1, 2, 3].map((n) => (
-          <Skeleton key={n} height={104} animate={!reduceMotion} />
-        ))}
-      </SimpleGrid>,
-    );
-  }
   const state = waitingState(items);
-  if (state.kind === "hidden") return null;
-  if (state.kind === "nothing") return section(<Text c="dimmed">{t("workNothing")}</Text>);
-  return section(
-    <Stack gap="sm" align="flex-start">
+  if (state.kind === "nothing") return <Text c="dimmed">{t("workNothing")}</Text>;
+  if (state.kind !== "items") return null;
+  return (
+    <Stack gap="md" align="flex-start">
       <SimpleGrid cols={WORK_COLS} w="100%">
         {state.items.map((item) => (
           <WorkCard key={item.key} item={item} />
@@ -138,6 +98,43 @@ export function WaitingForYou({
           {t("workTryAgain")}
         </Button>
       )}
-    </Stack>,
+    </Stack>
+  );
+}
+
+interface WaitingForYouProps {
+  work: ReturnType<typeof useMyWork>;
+  items: WorkItem[];
+}
+
+/**
+ * "Waiting for you", the page heading. Loading shows skeletons, a failed request says so, and
+ * "Nothing waiting for you" appears only when every item loaded at 0. Someone with no items
+ * at all (a billing clerk, say) gets no section.
+ */
+export function WaitingForYou({ work, items }: WaitingForYouProps) {
+  const { t } = useTranslation("nav");
+  const reduceMotion = useReducedMotion();
+  if (work.isSuccess && waitingState(items).kind === "hidden") return null;
+  const minutes = minutesSince(new Date(work.dataUpdatedAt).toISOString(), Date.now());
+  const updated = work.isSuccess ? updatedLine(minutes, t) : undefined;
+  return (
+    <LauncherSection title={t("workWaitingTitle")} isPageHeading aside={updated}>
+      {work.isError ? (
+        <QueryError
+          error={work.error}
+          onRetry={() => void work.refetch()}
+          title={t("workLoadFailed")}
+        />
+      ) : work.isPending ? (
+        <SimpleGrid cols={WORK_COLS} aria-busy="true" aria-label={t("workLoading")}>
+          {[0, 1, 2, 3].map((n) => (
+            <Skeleton key={n} height={128} animate={!reduceMotion} />
+          ))}
+        </SimpleGrid>
+      ) : (
+        <WorkBody work={work} items={items} />
+      )}
+    </LauncherSection>
   );
 }

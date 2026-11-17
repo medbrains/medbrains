@@ -131,9 +131,11 @@ describe("launcher work", () => {
     expect(countLabel(item("opd_waiting", 99, { capped: true }))).toBe("99+");
   });
 
-  it("shows an app's live count on its tile", async () => {
-    openWith([CRITICAL], ["lab.orders.list", "pharmacy.prescriptions.list"]);
+  it("keeps app tiles to an icon and a name: the counts live in Waiting for you", async () => {
+    openWith([CRITICAL, OPD], ["lab.orders.list", "pharmacy.prescriptions.list"]);
     const apps = await screen.findByRole("region", { name: "Your apps" });
-    expect(apps).toHaveTextContent("1 critical");
+    expect(apps).not.toHaveTextContent(/critical|waiting/);
+    expect(await screen.findByText(/updated a moment ago/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Waiting for you" })).toBeInTheDocument();
   });
 });

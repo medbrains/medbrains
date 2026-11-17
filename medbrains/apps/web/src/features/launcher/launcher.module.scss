@@ -1,32 +1,57 @@
 // Launcher layout only; colour comes from the theme tokens.
 
-.tile {
-  min-height: 48px;
-}
+// Room for the floating assistant button (60px, offset from the corner), so it never sits on a
+// tile: the right gutter is at least this wide at any width.
+$assistant-safe: calc(var(--mantine-spacing-3xl) * 2 + var(--mantine-spacing-md));
+$page-max: 1280px;
 
-.tileLink {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 44px;
-  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
-
-  &:hover {
-    background: var(--mb-bg-subtle);
-  }
+// The board's frame: centred, at most 1280px, 40px above and below, 32px at the sides.
+.page {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: $page-max;
+  margin-inline: auto;
+  padding-block: var(--mantine-spacing-3xl);
+  padding-inline: var(--mantine-spacing-2xl);
+  padding-inline-end: max(
+    var(--mantine-spacing-2xl),
+    calc(#{$assistant-safe} - (100vw - #{$page-max}) / 2)
+  );
 }
 
 .workLink {
-  display: block;
-  inline-size: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-2xs);
   block-size: 100%;
-  padding: var(--mantine-spacing-md);
+  padding: var(--mantine-spacing-lg);
 
   &:hover {
     background: var(--mb-bg-subtle);
   }
 }
 
-.unstar {
-  align-self: center;
-  margin-inline-end: var(--mantine-spacing-xs);
+.appLink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+  block-size: 100%;
+  min-block-size: 120px;
+  padding: var(--mantine-spacing-lg);
+
+  &:hover {
+    background: var(--mb-bg-subtle);
+  }
+}
+
+.chipLink {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  min-block-size: 44px;
+  padding-inline-end: var(--mantine-spacing-md);
+
+  &:hover {
+    background: var(--mb-bg-subtle);
+  }
 }

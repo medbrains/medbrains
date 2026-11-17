@@ -1,19 +1,20 @@
-import { SimpleGrid, Skeleton, Stack, Text } from "@mantine/core";
+import { Group, SimpleGrid, Skeleton, Stack, Text } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
-import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
-import { type LauncherResponse, ROLE_TEMPLATES, type WorkItem } from "@medbrains/types";
-import type { TFunction } from "i18next";
+import { useModuleStore, usePermissionStore } from "@medbrains/stores";
+import type { LauncherResponse } from "@medbrains/types";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router";
-import { PageHeader } from "@/components/PageHeader";
 import { QueryError } from "@/components/QueryError";
 import type { NavItemConfig } from "@/config/navigation";
 import { NAV_GROUPS } from "@/config/navigation";
+import { AppTile } from "@/features/launcher/AppTile";
+import { FavouriteChip } from "@/features/launcher/FavouriteChip";
 import { LauncherSection } from "@/features/launcher/LauncherSection";
-import { LauncherTile } from "@/features/launcher/LauncherTile";
+import styles from "@/features/launcher/launcher.module.scss";
 import {
   administrationEntry,
+  brickOf,
   type LauncherApp,
   launcherApps,
   taggedBricks,
@@ -23,19 +24,12 @@ import {
 import { NeedsYouNow } from "@/features/launcher/NeedsYouNow";
 import { useLauncherData, useToggleFavourite } from "@/features/launcher/useFavourites";
 import { WaitingForYou } from "@/features/launcher/WaitingForYou";
-import {
-  countLabel,
-  itemsByBrick,
-  needsNow,
-  partOfDay,
-  useMyWork,
-  visibleItems,
-} from "@/features/launcher/workModel";
+import { needsNow, useMyWork, visibleItems } from "@/features/launcher/workModel";
 
 /** Every brick the side panel tags, worked out once: the menu config is static. */
 const BRICKS = taggedBricks(NAV_GROUPS);
-/** One tile per column on a phone, more as the screen widens. */
-const GRID_COLS = { base: 1, xs: 2, md: 4, xl: 6 };
+/** Six app tiles a row on a desktop, as on the board, down to two on a phone. */
+const APP_COLS = { base: 2, sm: 3, md: 4, lg: 6 };
 
 /** What the signed-in person may open now, by the side panel's rule. */
 interface ViewerDoors {
@@ -68,15 +62,15 @@ function TileSkeletons() {
   const { t } = useTranslation("nav");
   const reduceMotion = useReducedMotion();
   return (
-    <SimpleGrid cols={GRID_COLS} aria-busy="true" aria-label={t("launcherLoading")}>
-      {[0, 1, 2, 3].map((n) => (
-        <Skeleton key={n} height={48} animate={!reduceMotion} />
+    <SimpleGrid cols={APP_COLS} aria-busy="true" aria-label={t("launcherLoading")}>
+      {[0, 1, 2, 3, 4, 5].map((n) => (
+        <Skeleton key={n} height={120} animate={!reduceMotion} />
       ))}
     </SimpleGrid>
   );
 }
 
-/** The person's starred screens they can still open, each with its unstar control. */
+/** The person's starred screens they can still open, as inline chips with their app's name. */
 function FavouritesSection({
   data,
   screens,
@@ -86,103 +80,71 @@ function FavouritesSection({
 }) {
   const { t } = useTranslation("nav");
   const toggle = useToggleFavourite();
+  const names = useMemo(() => new Map(data.bricks.map((b) => [b.id, b.name])), [data.bricks]);
   const favourites = useMemo(
     () => visibleFavourites(data.favourites, screens),
     [data.favourites, screens],
   );
   return (
-    <LauncherSection title={t("groupFavorites")} why={t("launcherFavouritesWhy")}>
+    <LauncherSection title={t("groupFavorites")} aside={t("launcherFavouritesNote")}>
       {favourites.length === 0 ? (
         <Text c="dimmed">{t("launcherNoFavourites")}</Text>
       ) : (
-        <SimpleGrid cols={GRID_COLS}>
+        <Group gap="sm">
           {favourites.map((item) => (
-            <LauncherTile
+            <FavouriteChip
               key={item.path}
               label={t(item.i18nKey)}
               path={item.path}
-              icon={item.icon}
+              app={names.get(brickOf(item, BRICKS) ?? "")}
               unstarLabel={t("favouriteRemoveNamed", { label: t(item.i18nKey) })}
               isUnstarPending={toggle.isPending}
               onUnstar={() => toggle.mutate({ path: item.path, starred: false })}
             />
           ))}
-        </SimpleGrid>
+        </Group>
       )}
     </LauncherSection>
   );
 }
 
-interface AppsSectionProps {
-  data: LauncherResponse;
-  doors: ViewerDoors;
-  /** My work items, for the live line on each app's tile. */
-  work: readonly WorkItem[];
-}
-
-/** The live line on an app tile, such as "12 waiting", from that brick's work item. */
-function appMeta(item: WorkItem | undefined, t: TFunction<"nav">) {
-  return item && t(`workTile_${item.key}`, { count: item.count ?? 0, shown: countLabel(item) });
-}
-
 /** One tile per app, then Administration for those who have it; hidden, never greyed. */
-function AppsSection({ data, doors, work }: AppsSectionProps) {
+function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoors }) {
   const { t } = useTranslation("nav");
   const names = useMemo(() => new Map(data.bricks.map((b) => [b.id, b.name])), [data.bricks]);
-  const byBrick = useMemo(() => itemsByBrick(work), [work]);
   const { apps, admin } = doors;
   return (
-    <LauncherSection title={t("launcherApps")} why={t("launcherAppsWhy")}>
+    <LauncherSection title={t("launcherApps")}>
       {apps.length === 0 && !admin ? (
         <Text c="dimmed">{t("launcherNoApps")}</Text>
       ) : (
-        <SimpleGrid cols={GRID_COLS}>
+        <SimpleGrid cols={APP_COLS}>
           {apps.map((app) => (
-            <LauncherTile
+            <AppTile
               key={app.brick}
               label={names.get(app.brick) ?? t(app.home.i18nKey)}
               path={app.home.path}
               icon={app.home.icon}
-              meta={appMeta(byBrick.get(app.brick), t)}
             />
           ))}
-          {admin && <LauncherTile label={t("admin")} path={admin.path} icon="IconSettings" />}
+          {admin && <AppTile label={t("admin")} path={admin.path} icon="IconSettings" />}
         </SimpleGrid>
       )}
+      <Text size="sm" c="dimmed">
+        {t("launcherAppsNote")}
+      </Text>
     </LauncherSection>
   );
 }
 
-/** "Good morning, Meera" and "Doctor · Tuesday 17 November": who I am signed in as, and today. */
-function Greeting() {
-  const { t, i18n } = useTranslation("nav");
-  const user = useAuthStore((s) => s.user);
-  const now = new Date();
-  const part = t(`launcherPart_${partOfDay(now.getHours())}`);
-  const role = user ? (ROLE_TEMPLATES[user.role]?.label ?? user.role) : undefined;
-  const day = now.toLocaleDateString(i18n.language, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-  return (
-    <PageHeader
-      title={user ? t("launcherGreetingName", { part, name: user.full_name }) : part}
-      subtitle={[role, day].filter(Boolean).join(" · ")}
-      divider={false}
-    />
-  );
-}
-
 /**
- * The web home after sign-in: what needs me now, what is waiting for me, my favourites,
- * then the apps my roles and the hospital's switched-on bricks allow, hidden, never greyed.
- * Open to every signed-in user, like Approvals: it shows only what the person can already
- * open. Someone with one app and no Administration is taken straight into it, unless a
- * safety item needs them first (owner, 2026-11-17).
+ * The web home after sign-in, as on the approved Launcher board: what needs the person now (a
+ * slim strip, only when there is something), what is waiting for them, their favourites, then
+ * the apps their roles and the hospital's switched-on bricks allow, hidden, never greyed. It
+ * replaces navigation, so the shell shows no side panel here. Someone with one app and no
+ * Administration is taken straight into it, unless a safety item needs them first.
  *
- * "Continue where you left off" (#6046) and "Suggested for you" (#6047) from the
- * approved design are not shown: neither has the data behind it yet, and neither is faked.
+ * Recent patients (#5994) is not shown: no endpoint lists recently opened patients yet.
  */
 export default function LauncherPage() {
   const { t } = useTranslation("nav");
@@ -203,8 +165,7 @@ export default function LauncherPage() {
   if (onlyApp && work.isPending) return <TileSkeletons />;
 
   return (
-    <Stack gap="xl">
-      <Greeting />
+    <Stack gap="3xl" className={styles.page}>
       <NeedsYouNow items={now} />
       <WaitingForYou work={work} items={items} />
       {launcher.isError ? (
@@ -218,7 +179,7 @@ export default function LauncherPage() {
       ) : (
         <>
           <FavouritesSection data={launcher.data} screens={doors.screens} />
-          <AppsSection data={launcher.data} doors={doors} work={items} />
+          <AppsSection data={launcher.data} doors={doors} />
         </>
       )}
     </Stack>

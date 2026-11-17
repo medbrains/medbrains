@@ -61,17 +61,6 @@ export function countLabel(item: WorkItem): string | undefined {
   return item.capped ? `${item.count}+` : String(item.count);
 }
 
-/** The work item each app tile shows: the first loaded, non-zero item of that brick. */
-export function itemsByBrick(items: readonly WorkItem[]): Map<string, WorkItem> {
-  const byBrick = new Map<string, WorkItem>();
-  for (const item of items) {
-    if (item.brick && item.status === "ok" && (item.count ?? 0) > 0 && !byBrick.has(item.brick)) {
-      byBrick.set(item.brick, item);
-    }
-  }
-  return byBrick;
-}
-
 /** Whole minutes from `iso` to `now`, never below 0 (a clock a little ahead reads "just now"). */
 export function minutesSince(iso: string, now: number): number {
   return Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000));
@@ -89,10 +78,4 @@ export function dayAndTime(iso: string, now: Date, locale?: string): string {
       ? new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(-days, "day")
       : at.toLocaleDateString(locale, { day: "numeric", month: "short" });
   return `${day} ${time}`;
-}
-
-/** Morning before noon, afternoon before five, evening after: the greeting's part of day. */
-export function partOfDay(hour: number): "morning" | "afternoon" | "evening" {
-  if (hour < 12) return "morning";
-  return hour < 17 ? "afternoon" : "evening";
 }
