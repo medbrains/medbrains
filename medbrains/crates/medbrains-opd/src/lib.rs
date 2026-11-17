@@ -4367,14 +4367,19 @@ pub async fn create_procedure_order(
 
     // Auto-charge the procedure (was a silent revenue leak). Priced from procedure_catalog
     // (base_price) or master-priced by the procedure code; source=procedure, idempotent by
-    // the order id, and reversed if the order is cancelled.
+    // the order id, and reversed if the order is cancelled. Not charged at all
+    // when the hospital runs no Billing brick.
+    let billing_on =
+        medbrains_server_services::billing_lanes::billing_brick_on(&mut tx, &claims.tenant_id)
+            .await?;
     let proc: Option<(String, String, Option<Decimal>)> = sqlx::query_as(
         "SELECT code, name, base_price FROM procedure_catalog WHERE id = $1 AND tenant_id = $2",
     )
     .bind(body.procedure_id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?;
+    .await?
+    .filter(|_| billing_on);
     if let Some((code, name, base_price)) = proc {
         medbrains_server_services::billing::auto_charge(
             &mut tx,

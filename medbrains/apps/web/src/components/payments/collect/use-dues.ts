@@ -1,4 +1,4 @@
-import { useHasAnyPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useModuleStore } from "@medbrains/stores";
 import type { BillingLaneName, DueBill } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -33,9 +33,14 @@ export function collectCodes(lane?: BillingLaneName): string[] {
   return lane ? [LANE_COLLECT[lane], P.BILLING.COLLECT_CROSS] : COLLECT_PERMISSIONS;
 }
 
-/** Whether this user collects this lane (or anything, with no lane). */
+/**
+ * Whether this user collects this lane (or anything, with no lane). Never while
+ * the hospital has the Billing brick off: there is no desk, and the server
+ * refuses every dues read, so no chip, drawer or fetch is offered.
+ */
 export function useCanCollect(lane?: BillingLaneName): boolean {
-  return useHasAnyPermission(collectCodes(lane));
+  const billingOn = useModuleStore((s) => !s.disabledModules.has("billing"));
+  return useHasAnyPermission(collectCodes(lane)) && billingOn;
 }
 
 export const duesKey = (patientId: string | null | undefined) => ["dues", patientId] as const;
