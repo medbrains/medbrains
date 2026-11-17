@@ -13,6 +13,7 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-print = { path = "../medbrains-print" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-authz = { path = "../medbrains-authz" }
 medbrains-tv = { path = "../medbrains-tv" }
 axum = { workspace = true }
