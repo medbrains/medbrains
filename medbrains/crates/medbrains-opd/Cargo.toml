@@ -32,6 +32,10 @@ chrono = { workspace = true }
 rust_decimal = { workspace = true }
 sqlx = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

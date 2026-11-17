@@ -13,6 +13,7 @@ use axum::{
 use medbrains_core::consultation::Referral;
 use medbrains_core::encounter::OpdQueue;
 use medbrains_core::permissions;
+use medbrains_kernel::Actor;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
@@ -220,7 +221,7 @@ pub async fn accept_referral(
             Some(claims.sub),
         )
         .await?;
-        crate::signal_queue_changed(&state, &claims, queue);
+        crate::signal_queue_changed(&state, claims.tenant_id, queue);
     }
     Ok(Json(step(referral, placed)))
 }
@@ -325,7 +326,7 @@ pub async fn complete_referral(
     tx.commit().await?;
 
     for queue in finished.iter().chain(returned.iter().map(|(q, _)| q)) {
-        crate::signal_queue_changed(&state, &claims, queue);
+        crate::signal_queue_changed(&state, claims.tenant_id, queue);
     }
     Ok(Json(step(referral, returned)))
 }
@@ -351,8 +352,8 @@ async fn finish_consult_row(
     .fetch_optional(&mut **tx)
     .await?;
     if let Some(queue) = &row {
-        crate::charge_consultation(tx, claims, queue).await?;
-        crate::advance_queue_token(tx, claims, queue, "completed").await?;
+        crate::charge_consultation(tx, Actor::from_claims(claims), queue).await?;
+        crate::advance_queue_token(tx, Actor::from_claims(claims), queue, "completed").await?;
     }
     Ok(row)
 }

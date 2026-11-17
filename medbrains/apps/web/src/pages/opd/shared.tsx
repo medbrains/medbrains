@@ -16,8 +16,28 @@ export function humanizeWorkflowValue(value: string): string {
   return value.replace(/_/g, " ");
 }
 
-export function queueStatusLabel(t: OpdTranslate, status: string): string {
+/** The `close_reason` a visit carries when OPD closed it on its own (`auto_close`). */
+export const AUTO_CLOSE_REASON = "auto_inactivity";
+
+/**
+ * A queue row's status in words. A visit OPD closed on its own reads "Closed
+ * automatically", not "Completed": nobody pressed complete, and the doctor
+ * looking back at the day should see that.
+ */
+export function queueStatusLabel(
+  t: OpdTranslate,
+  status: string,
+  closeReason?: string | null,
+): string {
+  if (status === "completed" && closeReason === AUTO_CLOSE_REASON) {
+    return t("queueStatus.closedAutomatically", { defaultValue: "Closed automatically" });
+  }
   return t(`queueStatus.${status}`, { defaultValue: humanizeWorkflowValue(status) });
+}
+
+/** A visit's status for the timeline: "closed automatically" when OPD closed it on its own. */
+export function visitStatusWord(visit: { status: string; close_reason: string | null }): string {
+  return visit.close_reason === AUTO_CLOSE_REASON ? "closed automatically" : visit.status;
 }
 
 export function queueStatusTone(status: string): OperationalSignalTone {

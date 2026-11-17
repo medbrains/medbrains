@@ -23,7 +23,6 @@ const CARD: OpdCardPrintData = {
     doctor: "Dr Arun Prakash",
     token_number: "GM-014",
     is_repeat: false,
-    follow_up_date: null,
   },
 };
 
@@ -49,10 +48,10 @@ describe("renderOpdCard", () => {
     expect(renderOpdCard(CARD, "slip").css).toContain("size: A5 landscape");
   });
 
-  it("prints identity alone when there is no visit, with the next-visit box left to fill", () => {
+  it("prints identity alone when there is no visit, and never a next-visit box", () => {
     const { body } = renderOpdCard({ ...CARD, visit: null });
     expect(body).not.toContain("Token");
-    expect(body).toContain("Next visit");
+    expect(renderOpdCard(CARD).body).not.toContain("Next visit");
   });
 
   it("escapes what a person typed rather than writing it as markup", () => {

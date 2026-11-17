@@ -632,10 +632,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.notifications.clone(),
     );
 
-    // Clone state for the simulator scheduler before `state` is moved into
-    // the router below — the scheduler needs AppState (AI config) to run
-    // agent simulations.
-    let scheduler_state = state.clone();
+    // The jobs that need AppState start before the router moves `state`:
+    // OPD auto-close (off unless a hospital sets it) and the simulator cron
+    // scheduler (AI config), which fires enabled simulator_schedules every 30
+    // seconds unless disabled by the env var.
+    medbrains_opd::auto_close::spawn(state.clone());
+    if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() == Ok("true") {
+        tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
+    } else {
+        medbrains_server::services::simulator::scheduler::spawn(state.clone());
+    }
 
     // www.medbrains.in is the landing page: the web build copies it in as
     // home.html and it answers `/`. Every other path still falls back to the
@@ -745,14 +751,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             medbrains_outbox::Worker::new(worker_pool.clone(), outbox_registry, worker_config);
         _outbox_shutdown_tx = Some(outbox_worker.spawn());
         tracing::info!("outbox worker spawned");
-    }
-
-    // Simulator cron scheduler — fires enabled simulator_schedules with
-    // a cron expression every 30 seconds. Disabled via env var if needed.
-    if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() == Ok("true") {
-        tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
-    } else {
-        medbrains_server::services::simulator::scheduler::spawn(scheduler_state);
     }
 
     // Room-rent auto-billing — hourly idempotent pass posting one

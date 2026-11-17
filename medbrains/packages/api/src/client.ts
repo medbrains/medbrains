@@ -1660,6 +1660,7 @@ import type {
   OnCallSchedule,
   // Phase 2 Print Data - Billing
   OnlineSettings,
+  OpdAutoCloseSetting,
   OpdBillPrintData,
   OpdCardPrintData,
   OpdCertificatePrintData,
@@ -5244,6 +5245,9 @@ export const api = {
     }),
   getLastOpdVisit: (patientId: string) =>
     request<LastOpdVisit | null>(`/opd/patients/${patientId}/last-visit`),
+  getOpdAutoClose: () => request<OpdAutoCloseSetting>("/opd/auto-close"),
+  updateOpdAutoClose: (data: OpdAutoCloseSetting) =>
+    request<OpdAutoCloseSetting>("/opd/auto-close", { method: "PUT", body: JSON.stringify(data) }),
   getRegistrationPolicy: () => request<OpdRegistrationPolicy>("/opd/registration-policy"),
   updateRegistrationPolicy: (data: OpdRegistrationPolicy) =>
     request<OpdRegistrationPolicy>("/opd/registration-policy", {

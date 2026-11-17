@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub mod auto_close;
 pub mod consult_pricing;
 pub mod last_visit;
 pub mod referral_lifecycle;
@@ -35,6 +36,7 @@ use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::ipd::Admission;
 use medbrains_core::permissions;
 use medbrains_core::privacy::mask_free_text;
+use medbrains_kernel::Actor;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -229,6 +231,9 @@ pub struct QueueEntry {
     /// For a referral row: who asked, and why.
     pub referral_from_doctor: Option<String>,
     pub referral_reason: Option<String>,
+    /// `auto_inactivity` when OPD closed the visit on its own
+    /// (`auto_close`); `None` when a person closed it, or it is still open.
+    pub close_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -504,15 +509,14 @@ pub struct UpdateRegistrationPolicyRequest {
     pub require_opd_registration: bool,
 }
 
-/// `PUT /api/opd/registration-policy`
+/// `PUT /api/opd/registration-policy`: lock records until OPD registration.
 pub async fn update_registration_policy(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateRegistrationPolicyRequest>,
 ) -> Result<Json<OpdRegistrationPolicy>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'mrd', 'require_opd_registration', $2) \
@@ -972,7 +976,13 @@ pub async fn create_encounter(
     .bind(today)
     .fetch_one(&mut *tx)
     .await?;
-    charge_visit_fees(&mut tx, &claims, &queue, FeeMoment::CheckIn).await?;
+    charge_visit_fees(
+        &mut tx,
+        Actor::from_claims(&claims),
+        &queue,
+        FeeMoment::CheckIn,
+    )
+    .await?;
 
     if let Some(appointment_id) = body.appointment_id {
         sqlx::query(
@@ -1359,6 +1369,7 @@ pub async fn list_queue(
     let sql = format!(
         "SELECT q.id, q.encounter_id, q.department_id, q.doctor_id, q.token_number, \
                 q.status::text AS status, q.queue_date, q.called_at, q.completed_at, \
+                e.close_reason, \
                 tok.number AS token_code, \
                 tok.counter_label AS token_counter_label, \
                 tok.scope_label AS token_room, \
@@ -1447,7 +1458,7 @@ const QUEUE_CHANGED_SIGNAL: &str = "opd.queue.changed";
 /// entries seeded or created before this module issued them have none.
 async fn advance_queue_token(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
+    actor: Actor,
     queue: &OpdQueue,
     status: &str,
 ) -> Result<Option<medbrains_tokens::Token>, AppError> {
@@ -1461,13 +1472,13 @@ async fn advance_queue_token(
     };
     medbrains_tokens::advance_entity_token_in_tx(
         tx,
-        claims.tenant_id,
+        actor.tenant_id,
         medbrains_tokens::AdvanceEntityToken {
             module: "opd",
             entity_type,
             entity_id,
             status,
-            called_by: Some(claims.sub),
+            called_by: Some(actor.user_id),
         },
     )
     .await
@@ -1479,10 +1490,10 @@ async fn advance_queue_token(
 /// colleague's opinion is not.
 async fn charge_consultation(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
+    actor: Actor,
     q: &OpdQueue,
 ) -> Result<(), AppError> {
-    charge_visit_fees(tx, claims, q, FeeMoment::Complete).await
+    charge_visit_fees(tx, actor, q, FeeMoment::Complete).await
 }
 
 /// Charge the registration fee and the consultation a queue row stands for,
@@ -1490,7 +1501,7 @@ async fn charge_consultation(
 /// when the consultation completes — the hospital's choice on its lanes).
 async fn charge_visit_fees(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
+    actor: Actor,
     q: &OpdQueue,
     moment: FeeMoment,
 ) -> Result<(), AppError> {
@@ -1498,7 +1509,7 @@ async fn charge_visit_fees(
         "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
     )
     .bind(q.encounter_id)
-    .bind(claims.tenant_id)
+    .bind(actor.tenant_id)
     .fetch_optional(&mut **tx)
     .await?
     else {
@@ -1506,19 +1517,19 @@ async fn charge_visit_fees(
     };
     billing_lanes::charge_registration_fee(
         tx,
-        claims.tenant_id,
+        actor.tenant_id,
         patient_id,
         Some(q.encounter_id),
         moment,
     )
     .await?;
-    if q.kind == "returned" || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await? {
+    if q.kind == "returned" || !billing_lanes::consult_due_at(tx, actor.tenant_id, moment).await? {
         return Ok(());
     }
     // Setting first: the department and price lookups run only when billing
     // is not off.
     let setting =
-        medbrains_server_services::billing::read_auto_billing(tx, &claims.tenant_id, "opd").await?;
+        medbrains_server_services::billing::read_auto_billing(tx, &actor.tenant_id, "opd").await?;
     if setting == medbrains_server_services::billing::AutoBilling::Off {
         return Ok(());
     }
@@ -1526,7 +1537,7 @@ async fn charge_visit_fees(
         "SELECT code FROM departments WHERE id = $1 AND tenant_id = $2",
     )
     .bind(q.department_id)
-    .bind(claims.tenant_id)
+    .bind(actor.tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
     let charge_code =
@@ -1535,7 +1546,7 @@ async fn charge_visit_fees(
     // the charge master's department rate (#296).
     let priced = consult_pricing::consult_price(
         tx,
-        claims.tenant_id,
+        actor.tenant_id,
         patient_id,
         q.doctor_id,
         q.department_id,
@@ -1547,8 +1558,8 @@ async fn charge_visit_fees(
         tx,
         setting,
         &[medbrains_server_services::billing::ChargeRequest {
-            tenant_id: claims.tenant_id,
-            requested_by: claims.sub,
+            tenant_id: actor.tenant_id,
+            requested_by: actor.user_id,
             setting_module: "opd",
             charge: medbrains_server_services::billing::AutoChargeInput {
                 patient_id,
@@ -1568,10 +1579,11 @@ async fn charge_visit_fees(
     Ok(())
 }
 
-fn signal_queue_changed(state: &AppState, claims: &Claims, queue: &OpdQueue) {
+/// Nudge the department's screens that a queue row changed, so they refetch.
+fn signal_queue_changed(state: &AppState, tenant_id: Uuid, queue: &OpdQueue) {
     medbrains_notifications::publish_board_signal(
         state,
-        claims.tenant_id,
+        tenant_id,
         queue.department_id,
         QUEUE_CHANGED_SIGNAL,
         "queue_entry",
@@ -1601,13 +1613,15 @@ pub async fn call_queue_entry(
     .await?;
 
     let token = match q {
-        Some(ref entry) => advance_queue_token(&mut tx, &claims, entry, "called").await?,
+        Some(ref entry) => {
+            advance_queue_token(&mut tx, Actor::from_claims(&claims), entry, "called").await?
+        }
         None => None,
     };
 
     tx.commit().await?;
     if let Some(ref entry) = q {
-        signal_queue_changed(&state, &claims, entry);
+        signal_queue_changed(&state, claims.tenant_id, entry);
     }
     if let Some(ref token) = token {
         medbrains_tokens::announce_token(&state, token).await;
@@ -1670,16 +1684,17 @@ pub async fn start_consultation(
         .await?;
     }
 
-    let token = advance_queue_token(&mut tx, &claims, &q, "serving").await?;
+    let token = advance_queue_token(&mut tx, Actor::from_claims(&claims), &q, "serving").await?;
 
     tx.commit().await?;
     if let Some(ref token) = token {
         medbrains_tokens::announce_token(&state, token).await;
     }
-    signal_queue_changed(&state, &claims, &q);
+    signal_queue_changed(&state, claims.tenant_id, &q);
     Ok(Json(q))
 }
 
+/// `PUT /api/opd/queue/{id}/complete`: the doctor closes a called or started row.
 pub async fn complete_queue_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1709,6 +1724,23 @@ pub async fn complete_queue_entry(
     // the fetched row, not a query extractor.
     medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id).await?;
 
+    let token = close_visit_in_tx(&mut tx, Actor::from_claims(&claims), &q).await?;
+    tx.commit().await?;
+    announce_visit_closed(&state, claims.sub, &q, token.as_ref()).await?;
+    Ok(Json(q))
+}
+
+/// Everything closing a queue row does besides the row itself: the visit and
+/// its appointment (primary row only), the consultation charge, the bill
+/// finalised, the token moved to `completed`. The doctor's "complete" and the
+/// auto-close sweep both close through here, so an automatic close is the same
+/// close. Clinical notes are not touched: an unsigned note stays a draft.
+/// `actor.user_id` is who any charge queued for the billing desk names.
+pub(crate) async fn close_visit_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    actor: Actor,
+    q: &OpdQueue,
+) -> Result<Option<medbrains_tokens::Token>, AppError> {
     // Only the visit's own row closes the visit; a colleague finishing their
     // opinion leaves it open for the doctor it belongs to.
     if q.is_primary() {
@@ -1717,8 +1749,8 @@ pub async fn complete_queue_entry(
              WHERE id = $1 AND tenant_id = $2",
         )
         .bind(q.encounter_id)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
+        .bind(actor.tenant_id)
+        .execute(&mut **tx)
         .await?;
 
         sqlx::query(
@@ -1732,13 +1764,13 @@ pub async fn complete_queue_entry(
                  'no_show'::appointment_status \
                )",
         )
-        .bind(claims.tenant_id)
+        .bind(actor.tenant_id)
         .bind(q.encounter_id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
     }
 
-    charge_consultation(&mut tx, &claims, &q).await?;
+    charge_consultation(tx, actor, q).await?;
 
     // Finalize billing: turn this visit's draft invoice(s) into 'issued' (or 'paid'
     // when zero-amount — free/scheme patients) so the OPD visit ends with a collectable
@@ -1746,8 +1778,8 @@ pub async fn complete_queue_entry(
     // Parity with IPD discharge. Opt-out: billing.auto_charge_opd_close_finalize = false.
     if q.is_primary()
         && medbrains_server_services::billing::is_auto_billing_enabled(
-            &mut tx,
-            &claims.tenant_id,
+            tx,
+            &actor.tenant_id,
             "opd_close_finalize",
         )
         .await?
@@ -1759,21 +1791,32 @@ pub async fn complete_queue_entry(
              issued_at = COALESCE(issued_at, now()), updated_at = now() \
              WHERE tenant_id = $1 AND encounter_id = $2 AND status = 'draft'::invoice_status",
         )
-        .bind(claims.tenant_id)
+        .bind(actor.tenant_id)
         .bind(q.encounter_id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
     }
 
-    let token = advance_queue_token(&mut tx, &claims, &q, "completed").await?;
+    advance_queue_token(tx, actor, q, "completed").await
+}
 
-    tx.commit().await?;
-    if let Some(ref token) = token {
-        medbrains_tokens::announce_token(&state, token).await;
+/// After a close commits: tell the board, queue the `opd.consultation.completed`
+/// event (pipelines, follow-ups) as `actor`, and nudge the department's screens.
+/// Errs only when it cannot open a connection for the event's names; the close
+/// itself has already committed by then.
+pub(crate) async fn announce_visit_closed(
+    state: &AppState,
+    actor: Uuid,
+    q: &OpdQueue,
+    token: Option<&medbrains_tokens::Token>,
+) -> Result<(), AppError> {
+    let tenant_id = q.tenant_id;
+    if let Some(token) = token {
+        medbrains_tokens::announce_token(state, token).await;
     }
 
     // Enrich payload with names for orchestration
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
     let department_name =
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(q.department_id)
@@ -1795,10 +1838,11 @@ pub async fn complete_queue_entry(
         "N/A".to_owned()
     };
 
-    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
+    // Never fails: a job it cannot queue is logged by `emit_after_event`.
+    if let Err(error) = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
-        claims.tenant_id,
-        claims.sub,
+        tenant_id,
+        actor,
         "opd.consultation.completed",
         serde_json::json!({
             "queue_id": q.id,
@@ -1810,10 +1854,13 @@ pub async fn complete_queue_entry(
             "token_number": q.token_number,
         }),
     )
-    .await;
+    .await
+    {
+        tracing::error!(%error, queue_id = %q.id, "visit-closed event not queued");
+    }
 
-    signal_queue_changed(&state, &claims, &q);
-    Ok(Json(q))
+    signal_queue_changed(state, tenant_id, q);
+    Ok(())
 }
 
 pub async fn mark_no_show(
@@ -1871,13 +1918,13 @@ pub async fn mark_no_show(
         .await?;
     }
 
-    let token = advance_queue_token(&mut tx, &claims, &q, "no_show").await?;
+    let token = advance_queue_token(&mut tx, Actor::from_claims(&claims), &q, "no_show").await?;
 
     tx.commit().await?;
     if let Some(ref token) = token {
         medbrains_tokens::announce_token(&state, token).await;
     }
-    signal_queue_changed(&state, &claims, &q);
+    signal_queue_changed(&state, claims.tenant_id, &q);
     Ok(Json(q))
 }
 
@@ -1885,6 +1932,7 @@ pub async fn mark_no_show(
 //  Vitals
 // ══════════════════════════════════════════════════════════
 
+/// `GET /api/opd/encounters/{id}/vitals`: the visit's vitals, newest first.
 pub async fn list_vitals(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1893,8 +1941,7 @@ pub async fn list_vitals(
     require_permission(&claims, permissions::opd::vitals::LIST)?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
 
     let rows = sqlx::query_as::<_, Vital>(
         "SELECT * FROM vitals WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
