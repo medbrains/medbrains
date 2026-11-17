@@ -5009,6 +5009,4 @@ export interface OpdCardVisit {
   token_number: string | null;
   /** True when the patient has an earlier OPD visit here. */
   is_repeat: boolean;
-  /** The next visit, once the doctor has set one. */
-  follow_up_date: string | null;
 }
