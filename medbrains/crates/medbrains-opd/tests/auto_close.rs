@@ -51,8 +51,8 @@ async fn hospital(db: &PgPool, minutes: Option<i32>) -> Hospital {
          VALUES ($1, $2, $3, 'Dr Test', 'doctor') RETURNING id",
     )
     .bind(tenant)
-    .bind(format!("ac{code}"))
-    .bind(format!("ac{code}@autoclose.test"))
+    .bind(format!("ac{}", code.to_lowercase()))
+    .bind(format!("ac{}@autoclose.test", code.to_lowercase()))
     .fetch_one(db)
     .await
     .unwrap();
