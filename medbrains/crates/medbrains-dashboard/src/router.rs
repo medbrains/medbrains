@@ -8,7 +8,7 @@ use medbrains_server_core::state::AppState;
 
 use crate::{
     batch_widget_data, dashboard_summary, get_dashboard, get_my_dashboard, get_widget_data,
-    launcher, list_dashboards, list_widget_templates, my_widgets, personalize_dashboard,
+    launcher, list_dashboards, list_widget_templates, my_widgets, personalize_dashboard, work,
 };
 
 /// Dashboards, widget templates, widget data and the launcher routes.
@@ -16,6 +16,7 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/users/me/launcher", get(launcher::get_launcher))
         .route("/api/users/me/favourites", put(launcher::set_favourite))
+        .route("/api/users/me/work", get(work::get_my_work))
         .route("/api/dashboards", get(list_dashboards))
         .route("/api/dashboards/my", get(get_my_dashboard))
         .route(

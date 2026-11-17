@@ -12,6 +12,7 @@ pub mod management_doctors;
 pub mod management_kpis;
 pub mod my_widgets;
 mod router;
+pub mod work;
 pub use router::router;
 
 use chrono::{NaiveDate, Utc};

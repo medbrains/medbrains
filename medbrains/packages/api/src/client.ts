@@ -2622,6 +2622,7 @@ import type {
   WorkbookSheets,
   WorklistToken,
   WorkOrderPrintData,
+  WorkResponse,
   WoundCertificatePrintData,
   WristbandPrintData,
 } from "@medbrains/types";
@@ -4545,6 +4546,8 @@ export const api = {
   notificationsUnreadCount: () => request<UnreadCountResponse>("/notifications/unread-count"),
   /** My starred screens and every app's name, for the launcher. */
   getLauncher: () => request<LauncherResponse>("/users/me/launcher"),
+  /** My work across my apps: critical values, my queue, my drafts, my approvals. */
+  getMyWork: () => request<WorkResponse>("/users/me/work"),
   /** Star or unstar one screen for me; answers my list after the change. */
   setFavourite: (path: string, starred: boolean) =>
     request<FavouritesResponse>("/users/me/favourites", {

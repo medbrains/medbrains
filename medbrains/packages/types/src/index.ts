@@ -5885,6 +5885,47 @@ export interface FavouritesResponse {
   favourites: string[];
 }
 
+/** A patient as a critical-value line names them ("A. Rao"), shown only after the access check. */
+export interface WorkPatientLabel {
+  name: string;
+  uhid: string;
+}
+
+/** The one typed fact under a work count; the web words it. Never free text. */
+export type WorkDetail =
+  | {
+      kind: "critical_result";
+      parameter: string;
+      value: string;
+      unit: string | null;
+      reported_at: string;
+      patient: WorkPatientLabel | null;
+    }
+  | { kind: "queue_wait"; longest_minutes: number; long_waits: number; long_wait_minutes: number }
+  | { kind: "oldest_at"; at: string }
+  | { kind: "soonest_due"; at: string };
+
+/**
+ * One item of my work on the launcher. `count` is set only when `status` is `ok`: a failed
+ * item says "didn't load", never 0. `capped` means show "99+".
+ */
+export interface WorkItem {
+  key: "lab_critical" | "opd_waiting" | "notes_unsigned" | "approvals";
+  brick: string | null;
+  section: "now" | "waiting";
+  severity: "critical" | "info";
+  status: "ok" | "failed";
+  count: number | null;
+  capped: boolean;
+  detail: WorkDetail | null;
+  href: string;
+}
+
+/** `GET /users/me/work`: the items I may see; hidden ones are absent, not zero. */
+export interface WorkResponse {
+  items: WorkItem[];
+}
+
 // ── Unified token / queue system ──
 /**
  * One queue row as the clinician working it sees it.
