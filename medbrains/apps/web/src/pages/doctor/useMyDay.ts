@@ -24,6 +24,7 @@ type Shown = number | "—";
  * tells a doctor their day is empty (#6009). The shell banner says why.
  */
 function dayCounts(myDay: MyDayResponse | undefined, isError: boolean) {
+  /** One tile's number, or "—" when the load failed. */
   const show = (n: number | undefined): Shown => (isError ? "—" : (n ?? 0));
   return {
     appointments: show(myDay?.today.appointments_total),
