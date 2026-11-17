@@ -581,6 +581,11 @@ install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-ba
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-log-archive" /usr/local/bin/medbrains-log-archive
+# Per-hospital export (docs/ops/BACKUP-RESTORE.md). Installed everywhere;
+# the timer runs only when TENANT_EXPORT names tenants in the env file.
+install -m 0644 "$DEPLOY_DIR/medbrains-tenant-export.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-tenant-export.timer" /etc/systemd/system/
+install -m 0755 "$DEPLOY_DIR/medbrains-tenant-export" /usr/local/bin/medbrains-tenant-export
 # Email reports (docs/ops/EMAIL-REPORTS.md). Installed everywhere; they send
 # nothing until BACKUP_REPORT_TO / DAILY_REPORT_TO are set in the env file.
 install -m 0644 "$DEPLOY_DIR/medbrains-backup-report@.service" /etc/systemd/system/
@@ -834,6 +839,11 @@ else
     echo "    WARNING: no LOG_ARCHIVE_BUCKET — host logs are NOT archived. CERT-In"
     echo "             direction (iv) needs 180 days in India; journald alone keeps"
     echo "             at most 2G. See deploy/standalone/README.md 'Log archive'."
+fi
+if [[ -n "$(env_value TENANT_EXPORT)" ]]; then
+    systemctl enable --now medbrains-tenant-export.timer
+else
+    systemctl disable --now medbrains-tenant-export.timer 2>/dev/null || true
 fi
 # The OPD daily report: its read-only role first (counts columns only), then
 # the timer, at DAILY_REPORT_ONCALENDAR when set. Not fatal: the report is a

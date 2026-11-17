@@ -117,6 +117,7 @@ export function IndicatorsTab() {
     });
     return valueMap;
   }, [allIndicatorValues]);
+  /** The most recent calculated value for an indicator, if one has been recorded. */
   const latestValue = (i: QualityIndicator) => indicatorLatestValues.get(i.id)?.calculated_value;
 
   const { data: trendValues = [] } = useQuery({
