@@ -349,6 +349,10 @@ ACCEPTED_WITHOUT_PERMISSION = {
     # `user_id = claims.sub`; the path is checked and opens nothing by itself.
     "GET /api/users/me/launcher": "own favourites only: tenant RLS + user_id = claims.sub",
     "PUT /api/users/me/favourites": "own favourites only: tenant RLS + user_id = claims.sub",
+    # Your own work counts. Each item is gated in work.rs on the permissions of the screen it
+    # opens and on its brick, and scoped to the caller (notified to / author / doctor /
+    # assignee = claims.sub); the one patient name is shown after require_patient_access.
+    "GET /api/users/me/work": "own work counts only: per-item permission + claims.sub scope",
 
     # HR self-service. Verified 2026-08-14 by reading each query: profile reads
     # and writes filter `user_id`, and every shift verb resolves the employee

@@ -6359,6 +6359,7 @@ dependencies = [
  "medbrains-core",
  "medbrains-db",
  "medbrains-db-migrations",
+ "medbrains-health-services",
  "medbrains-kernel",
  "medbrains-reports",
  "medbrains-server-core",
