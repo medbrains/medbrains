@@ -352,8 +352,8 @@ async fn react_to_a_transfusion(app: &common::TestApp, csrf: &str) -> ReactedTra
     let mut units = Vec::new();
     for _ in 0..2 {
         let c = post(
-            &app,
-            &csrf,
+            app,
+            csrf,
             "/api/blood-bank/components",
             json!({ "donation_id": donation_id, "component_type": "prbc",
                     "bag_number": format!("LNK-C-{}", &Uuid::new_v4().to_string()[..8]),

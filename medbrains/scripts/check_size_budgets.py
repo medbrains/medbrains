@@ -86,18 +86,27 @@ def direct_dependencies(manifest: dict) -> set[str]:
     }
 
 
-def lock_closure(lock: dict, start: str) -> int:
+def lock_closure(lock: dict, start: str, shipped: dict[str, set[str]] | None = None) -> int:
     """How many packages `start` can pull in, itself included, walking `Cargo.lock` by version.
 
     An upper bound: the lock records what any workspace member enabled, on any platform, and not
     which features this crate turns on, so `cargo tree -e normal` reports fewer. It needs no
     build and cannot be fooled by a feature flag, which is why the ratchet uses it.
+
+    `shipped` maps each workspace crate to its runtime and build dependencies. The lock lists a
+    workspace crate's dev-dependencies beside its real ones, so without it a test-only crate
+    (tokio for the kernel's tests) counts as shipped. Registry crates never list theirs.
     """
+    shipped = shipped or {}
     versions: dict[str, list[str]] = {}
     packages: dict[tuple[str, str], list[str]] = {}
     for package in lock["package"]:
-        versions.setdefault(package["name"], []).append(package["version"])
-        packages[(package["name"], package["version"])] = package.get("dependencies", [])
+        name = package["name"]
+        deps = package.get("dependencies", [])
+        if name in shipped and "source" not in package:
+            deps = [dep for dep in deps if dep.split()[0] in shipped[name]]
+        versions.setdefault(name, []).append(package["version"])
+        packages[(name, package["version"])] = deps
 
     def resolve(dep: str) -> tuple[str, str]:
         """The exact package a lock entry means; it names a version only when several are locked."""
@@ -126,6 +135,23 @@ def first_load_gzip_bytes(dist: Path) -> int | None:
     return sum(len(gzip.compress((dist / name).read_bytes(), 9)) for name in local)
 
 
+def workspace_shipped(workspace: dict) -> dict[str, set[str]]:
+    """Each workspace crate's name mapped to the dependencies it ships (not dev-dependencies)."""
+    shipped: dict[str, set[str]] = {}
+    for member in workspace["workspace"]["members"]:
+        manifest = tomllib.loads((ROOT / member / "Cargo.toml").read_text(encoding="utf-8"))
+        deps = direct_dependencies(manifest)
+        # A renamed dependency (`foo = { package = "bar" }`) appears in the lock by its real name.
+        tables = [manifest, *manifest.get("target", {}).values()]
+        for table in tables:
+            for section in ("dependencies", "build-dependencies"):
+                for spec in table.get(section, {}).values():
+                    if isinstance(spec, dict) and "package" in spec:
+                        deps.add(spec["package"])
+        shipped[manifest["package"]["name"]] = deps
+    return shipped
+
+
 def measure() -> dict:
     """Read every budgeted number from the tree."""
     workspace = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
@@ -134,7 +160,7 @@ def measure() -> dict:
     return {
         "kernel_lines": measure_kernel_lines(KERNEL / "src"),
         "kernel_deps": direct_dependencies(kernel),
-        "kernel_closure": lock_closure(lock, KERNEL.name),
+        "kernel_closure": lock_closure(lock, KERNEL.name, workspace_shipped(workspace)),
         "packages": len(lock["package"]),
         "crates": len(workspace["workspace"]["members"]),
         "web_gzip": first_load_gzip_bytes(WEB_DIST),
@@ -204,6 +230,19 @@ def self_test() -> None:
     # Versions are distinct packages, a cycle ends, and what depends on the kernel is not in it.
     assert lock_closure(lock, "kernel") == 4
     assert lock_closure(lock, "axum") == 5
+    # A workspace crate's dev-dependency is in the lock but is not shipped; a registry crate's
+    # dependency list (one with a `source`) is never filtered.
+    dev = {
+        "package": [
+            {"name": "kernel", "version": "1.0.0", "dependencies": ["a", "tokio"]},
+            {"name": "a", "version": "1.0.0", "source": "registry", "dependencies": ["c"]},
+            {"name": "c", "version": "1.0.0"},
+            {"name": "tokio", "version": "1.0.0"},
+        ]
+    }
+    assert lock_closure(dev, "kernel") == 4
+    assert lock_closure(dev, "kernel", {"kernel": {"a"}}) == 3
+    assert lock_closure(dev, "kernel", {"kernel": {"a"}, "a": set()}) == 3
 
     live = {
         "kernel_lines": 10,

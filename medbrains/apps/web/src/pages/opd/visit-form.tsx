@@ -5,11 +5,11 @@ import { Group, Select, Stack, Textarea } from "@mantine/core";
 import type { OpdQueueVisitFormInput } from "@medbrains/schemas";
 import { opdQueueVisitFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { Camp, CreateEncounterResponse, DepartmentRow } from "@medbrains/types";
+import type { Camp, CreateEncounterResponse } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { type BaseSyntheticEvent, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useEffectOnce } from "react-use";
 import { DoctorSearchSelect, PatientSearchSelect, useClinicalEmit } from "@/components";
@@ -20,10 +20,12 @@ import {
   OPD_VISIT_TYPE_OPTIONS,
   toCreateEncounterRequest,
 } from "@/forms/opd.form";
+import { soleOption } from "@/lib/sole-option";
 import { campService } from "@/services/camp.service";
 import { ipdService } from "@/services/ipd.service";
 import { opdService } from "@/services/opd.service";
 import { LastVisitHint } from "./LastVisitHint";
+import { useOpdDepartmentOptions } from "./use-opd-department-options";
 
 const lastVisitKey = (patientId: string) => ["opd-last-visit", patientId];
 
@@ -95,16 +97,14 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
     void prefillFromLastVisit(initialPatientId);
   });
 
-  const { data: departments = [] } = useQuery({
-    queryKey: ["departments"],
-    queryFn: () => opdService.listDepartments(),
-    staleTime: 600_000,
-  });
-  const departmentOptions = (departments as DepartmentRow[])
-    .filter((department) =>
-      ["clinical", "para_clinical"].includes(department.department_type ?? ""),
-    )
-    .map((department) => ({ value: department.id, label: department.name }));
+  const departmentOptions = useOpdDepartmentOptions();
+  // One department (a single-clinic hospital): it is filled in, not asked for.
+  const soleDepartment = soleOption(departmentOptions, watch("department_id"));
+  /** Submits the visit, first filling in the hospital's only department when the picker is hidden. */
+  const submitVisit = (event?: BaseSyntheticEvent) => {
+    if (soleDepartment) setValue("department_id", soleDepartment.value);
+    return handleSubmit((values) => createMutation.mutate(values))(event);
+  };
 
   const { data: campOptionsSource = [] } = useQuery<Camp[]>({
     queryKey: ["camps", "active-for-opd"],
@@ -156,7 +156,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
   });
 
   return (
-    <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
+    <Stack component="form" onSubmit={submitVisit}>
       {hasActiveAdmission && (
         <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
           This patient has an active IPD admission. A new OPD visit can't be created while admitted
@@ -217,22 +217,24 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
         )}
       />
       {selectedPatientId && <LastVisitHint visit={lastVisit.data} isError={lastVisit.isError} />}
-      <Controller
-        control={control}
-        name="department_id"
-        render={({ field }) => (
-          <Select
-            label="Department"
-            placeholder="Select department"
-            data={departmentOptions}
-            value={field.value ?? ""}
-            onChange={(value) => field.onChange(value || null)}
-            error={errors.department_id?.message}
-            searchable
-            required
-          />
-        )}
-      />
+      {!soleDepartment && (
+        <Controller
+          control={control}
+          name="department_id"
+          render={({ field }) => (
+            <Select
+              label="Department"
+              placeholder="Select department"
+              data={departmentOptions}
+              value={field.value ?? ""}
+              onChange={(value) => field.onChange(value || null)}
+              error={errors.department_id?.message}
+              searchable
+              required
+            />
+          )}
+        />
+      )}
       <Controller
         control={control}
         name="doctor_id"

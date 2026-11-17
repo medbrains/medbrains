@@ -1,3 +1,10 @@
+-- ====================================================================
+-- Migration: 1470_requeue_unsynced_revocations.sql
+-- RLS-Posture: tenant-scoped (existing table; policies unchanged)
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
 -- Queue for SpiceDB every revocation that never reached it (#6028).
 --
 -- Two paths revoked a tuple in relation_tuples without queueing the matching

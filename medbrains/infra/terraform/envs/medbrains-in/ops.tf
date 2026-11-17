@@ -21,6 +21,7 @@ locals {
   secrets_prefix = "secrets-backups"    # /etc/medbrains, age-sealed
   files_prefix   = "file-backups"       # /var/lib/medbrains mirror (same script)
   wal_prefix     = "wal-g"              # opt-in WAL archive + base backups
+  tenants_prefix = "tenants"            # weekly per-hospital export, age-sealed (medbrains-tenant-export)
 }
 
 variable "company_backup_lock_days" {
@@ -297,6 +298,7 @@ resource "aws_s3_bucket_policy" "prod_backups" {
 #   file-backups/  a mirror (`aws s3 sync`, never --delete): current objects
 #                  are kept while they exist on the host; an overwritten or
 #                  replaced file's old version stays 90 days.
+#   tenants/       weekly per-hospital exports, sealed: 35 days (5 weeks).
 #   wal-g/         WAL + base backups: company_wal_retention_days (35). Base backups are at most 7
 #                  days apart, so every point in the last ~28 days keeps its
 #                  base and its WAL. The host never deletes - WAL-G's own
@@ -342,6 +344,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "prod_backups" {
     abort_incomplete_multipart_upload { days_after_initiation = 1 }
   }
   rule {
+    id     = "tenant-exports"
+    status = "Enabled"
+    filter { prefix = "${local.tenants_prefix}/" }
+    expiration { days = 35 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+    abort_incomplete_multipart_upload { days_after_initiation = 1 }
+  }
+  rule {
     id     = "wal-g"
     status = "Enabled"
     filter { prefix = "${local.wal_prefix}/" }
@@ -365,6 +375,7 @@ resource "aws_iam_policy" "prod_backup_writer" {
           "${aws_s3_bucket.prod_backups.arn}/${local.backup_prefix}/*.age",
           "${aws_s3_bucket.prod_backups.arn}/${local.monthly_prefix}/*.age",
           "${aws_s3_bucket.prod_backups.arn}/${local.secrets_prefix}/*.age",
+          "${aws_s3_bucket.prod_backups.arn}/${local.tenants_prefix}/*.age",
           "${aws_s3_bucket.prod_backups.arn}/${local.files_prefix}/*",
         ]
       },

@@ -124,7 +124,8 @@ async fn work_counts_are_mine_fail_alone_and_hide_what_i_cannot_open() {
     ok(sqlx::raw_sql(&format!(
         "INSERT INTO module_config (tenant_id, code, name, status) \
            VALUES ('{tenant}', 'lab', 'Laboratory', 'disabled') \
-         ON CONFLICT (tenant_id, code) DO UPDATE SET status = 'disabled'"
+         ON CONFLICT (tenant_id, code) DO UPDATE SET status = 'disabled', \
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL"
     ))
     .execute(&db)
     .await);
