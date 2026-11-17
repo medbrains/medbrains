@@ -712,8 +712,9 @@ if [[ -n "${ALERT_TOPIC_ARN:-}" ]]; then
 fi
 
 # CERT-In direction (iv) log archive: the bucket ops.tf grants this host
-# (terraform output prod_ops). Unset = no archive, warned about below.
-for key in LOG_ARCHIVE_BUCKET LOG_ARCHIVE_PREFIX; do
+# (terraform output prod_ops). Unset = no archive, warned about below. The
+# PITR settings ride along (medbrains-wal-g-setup reads them from the file).
+for key in LOG_ARCHIVE_BUCKET LOG_ARCHIVE_PREFIX PITR_ENABLED WALG_S3_PREFIX WALG_S3_SSE_KMS_ID; do
     [[ -n "${!key:-}" ]] || continue
     if grep -q "^$key=" /etc/medbrains/env 2>/dev/null; then
         sed -i "s|^$key=.*|$key=${!key}|" /etc/medbrains/env
@@ -773,6 +774,24 @@ if systemctl is-active --quiet medbrains-server.service \
         echo "       (SKIP_PREDEPLOY_BACKUP=1 skips this check when install.sh is run by hand on the host.)" >&2
         exit 1
     fi
+fi
+# Point-in-time recovery (docs/ops/BACKUP-RESTORE.md). Off unless the env file
+# says PITR_ENABLED=1; then the setup checks the cluster is MedBrains' alone,
+# configures WAL-G and, beside the container, restarts it once for
+# archive_mode. A failure here leaves the nightly dump as the only backup:
+# loud, not fatal, so a deploy is never blocked by an opt-in.
+install -m 0755 "$DEPLOY_DIR/medbrains-wal-g" /usr/local/bin/medbrains-wal-g
+install -m 0755 "$DEPLOY_DIR/medbrains-restore-test" /usr/local/bin/medbrains-restore-test
+install -m 0644 "$DEPLOY_DIR/medbrains-restore-test.service" "$DEPLOY_DIR/medbrains-restore-test.timer" /etc/systemd/system/
+systemctl daemon-reload
+if [[ "$(env_value PITR_ENABLED)" == "1" ]]; then
+    if ! bash "$DEPLOY_DIR/medbrains-wal-g-setup" --apply --restart-if-needed; then
+        echo "    WARNING: PITR_ENABLED=1 but medbrains-wal-g-setup failed (above). Point-in-time"
+        echo "             recovery is NOT running; the nightly dump still is."
+    fi
+    systemctl enable --now medbrains-restore-test.timer
+else
+    systemctl disable --now medbrains-restore-test.timer 2>/dev/null || true
 fi
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,

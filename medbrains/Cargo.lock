@@ -7507,6 +7507,7 @@ dependencies = [
  "medbrains-core",
  "medbrains-db",
  "medbrains-forms",
+ "medbrains-kernel",
  "medbrains-lab",
  "medbrains-notifications",
  "medbrains-pharmacy",

@@ -204,6 +204,7 @@ export * from "./onboarding-masters";
 export * from "./onboarding-store";
 export * from "./onboarding-workbook";
 export * from "./online-payments";
+export * from "./opd-reports";
 export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";
