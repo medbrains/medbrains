@@ -1,4 +1,21 @@
 {
   "placeholder.searchPatients": "नाम, फ़ोन, UHID या आधार से खोजें",
-  "directory.searchLabel": "नाम, फ़ोन, UHID या आधार से मरीज़ खोजें"
+  "directory.searchLabel": "नाम, फ़ोन, UHID या आधार से मरीज़ खोजें",
+  "registrationForm.hint.unknownPatient": "तब नाम, लिंग, आयु और फ़ोन की ज़रूरत नहीं। केवल तब चुनें जब मरीज़ की पहचान न हो सके।",
+  "registrationForm.label.firstName": "पहला नाम",
+  "registrationForm.label.lastName": "उपनाम",
+  "registrationForm.label.sex": "लिंग",
+  "registrationForm.label.age": "आयु (वर्ष)",
+  "registrationForm.label.orDateOfBirth": "या जन्म तिथि",
+  "registrationForm.label.phone": "फ़ोन",
+  "registrationForm.label.doctor": "डॉक्टर",
+  "registrationForm.label.department": "विभाग",
+  "registrationForm.row.sexAge": "लिंग · आयु",
+  "registrationForm.row.visit": "विज़िट",
+  "registrationForm.row.prefixMiddleName": "उपसर्ग · मध्य नाम",
+  "registrationForm.row.bloodGroup": "रक्त समूह",
+  "registrationForm.row.secondPhone": "दूसरा फ़ोन",
+  "registrationForm.row.clinicalUnit": "क्लिनिकल यूनिट",
+  "registrationForm.section.requiredDetails": "ज़रूरी विवरण",
+  "registrationForm.section.moreDetails": "अधिक विवरण (वैकल्पिक)"
 }
