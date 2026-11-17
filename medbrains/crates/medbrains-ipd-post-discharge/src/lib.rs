@@ -28,6 +28,9 @@ use medbrains_server_core::{
     state::AppState,
 };
 
+mod discharge_meds;
+use discharge_meds::{bag_and_route, refuse_unbagged_step};
+
 // ── Discharge workflow checklist ─────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]
@@ -184,13 +187,30 @@ pub async fn update_discharge_step(
     // summary's `medications_on_discharge` JSONB so the dispenser
     // doesn't manually re-enter every drug. Idempotent — we set
     // `discharge_summary_id` on the order and skip if one already
-    // exists for this summary. Failures are logged but do not roll
-    // back the wizard step (operators can re-enter the order manually).
-    if body.step == "rx_dispensed" {
-        let _ = autobag_discharge_meds(&mut tx, &claims, admission_id).await;
+    // exists for this summary. A failure refuses the step (#5953): see
+    // `refuse_unbagged_step`.
+    if body.step == "rx_dispensed"
+        && let Err(err) = bag_and_route(&state, &mut tx, &claims, admission_id).await
+    {
+        drop(tx);
+        return Err(refuse_unbagged_step(&state, &claims, admission_id, err).await);
     }
 
-    let event_name = match body.step.as_str() {
+    queue_step_event(&mut tx, &claims, admission_id, &row, &body.step).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Queues the clinical event for the steps other modules follow (discharge
+/// initiated and completed), in the step's transaction.
+async fn queue_step_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    admission_id: Uuid,
+    row: &DischargeWorkflow,
+    step: &str,
+) -> Result<(), AppError> {
+    let event_name = match step {
         "discharge_ordered" => Some(ClinicalEventName::IpdDischargeInitiated),
         "completed" => Some(ClinicalEventName::IpdDischargeCompleted),
         _ => None,
@@ -201,7 +221,7 @@ pub async fn update_discharge_step(
             admission_id,
             claims.tenant_id,
         )
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?
         .ok_or(AppError::NotFound)?;
 
@@ -215,7 +235,7 @@ pub async fn update_discharge_step(
                 "patient_id": admission.patient_id,
                 "encounter_id": admission.encounter_id,
                 "workflow_id": row.id,
-                "step": body.step.as_str(),
+                "step": step,
                 "discharge_ordered_at": row
                     .discharge_ordered_at
                     .as_ref()
@@ -226,117 +246,9 @@ pub async fn update_discharge_step(
         .with_patient(admission.patient_id)
         .with_admission(admission_id)
         .with_encounter(admission.encounter_id);
-        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
     }
 
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-#[derive(serde::Deserialize)]
-struct DischargeMedItem {
-    drug_name: Option<String>,
-    catalog_item_id: Option<Uuid>,
-    quantity: Option<i32>,
-    unit_price: Option<rust_decimal::Decimal>,
-    #[serde(default)]
-    buy_outside: bool,
-}
-
-async fn autobag_discharge_meds(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    admission_id: Uuid,
-) -> Result<(), AppError> {
-    let summary: Option<(Uuid, Option<Uuid>, serde_json::Value)> = sqlx::query_as(
-        "SELECT ds.id, a.encounter_id, ds.medications_on_discharge \
-         FROM ipd_discharge_summaries ds \
-         JOIN admissions a ON a.id = ds.admission_id \
-         WHERE ds.admission_id = $1 AND ds.tenant_id = $2 \
-         ORDER BY ds.created_at DESC LIMIT 1",
-    )
-    .bind(admission_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    let Some((summary_id, encounter_id, meds_json)) = summary else {
-        return Ok(()); // no discharge summary — nothing to bag
-    };
-
-    // Idempotency: skip if a discharge order already exists for this summary.
-    let existing: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM pharmacy_orders \
-         WHERE discharge_summary_id = $1 AND tenant_id = $2 LIMIT 1",
-    )
-    .bind(summary_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    if existing.is_some() {
-        return Ok(());
-    }
-
-    let meds: Vec<DischargeMedItem> = serde_json::from_value(meds_json).unwrap_or_default();
-    if meds.is_empty() {
-        return Ok(());
-    }
-
-    // A medicine bought outside goes on the bag's order as such: listed for
-    // the counter, never dispensed, never priced. A typed line carries no
-    // price either: nothing here sells it (owner, 2026-11-09).
-    let items: Vec<medbrains_pharmacy::OrderItemInput> = meds
-        .into_iter()
-        .filter_map(|m| {
-            let sold_here = m.catalog_item_id.is_some() && !m.buy_outside;
-            Some(medbrains_pharmacy::OrderItemInput {
-                catalog_item_id: m.catalog_item_id.filter(|_| sold_here),
-                drug_name: m.drug_name?,
-                quantity: m.quantity.unwrap_or(1).max(1),
-                unit_price: m
-                    .unit_price
-                    .filter(|_| sold_here)
-                    .unwrap_or(rust_decimal::Decimal::ZERO),
-                buy_outside: m.buy_outside,
-            })
-        })
-        .collect();
-    // Nothing to bag when nothing on the list is sold here.
-    if !items.iter().any(|i| i.catalog_item_id.is_some()) {
-        return Ok(());
-    }
-
-    let req = medbrains_pharmacy::CreateOrderRequest {
-        prescription_id: None,
-        patient_id: claims.tenant_id, // overridden below from admission
-        encounter_id,
-        notes: Some("Auto-generated from discharge summary".to_owned()),
-        items,
-        dispensing_type: Some("discharge".to_owned()),
-        discharge_summary_id: Some(summary_id),
-        billing_package_id: None,
-        store_location_id: None,
-        safety_override_reason: None,
-        allergy_override_reason: None,
-        is_dummy: None,
-    };
-
-    // Resolve patient_id from the admission since we didn't carry it
-    // through the summary join.
-    let patient_id: Option<Uuid> =
-        sqlx::query_scalar("SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2")
-            .bind(admission_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut **tx)
-            .await?;
-
-    let Some(patient_id) = patient_id else {
-        return Ok(());
-    };
-
-    let req = medbrains_pharmacy::CreateOrderRequest { patient_id, ..req };
-
-    let _ = medbrains_pharmacy::create_order_in_tx(tx, claims, &req).await?;
     Ok(())
 }
 
@@ -570,7 +482,7 @@ pub struct SendSurveyRequest {
 
 /// POST /api/ipd/post-discharge/{admission_id}/survey/send
 ///
-/// Stamps survey_sent_at; the actual outbound message is delivered by
+/// Stamps `survey_sent_at`; the actual outbound message is delivered by
 /// the orchestration layer (DLT/SMS provider) reading this row.
 pub async fn send_survey(
     State(state): State<AppState>,
@@ -774,7 +686,7 @@ pub async fn submit_mortality_review(
     Ok(Json(row))
 }
 
-/// ipd_post_discharge routes.
+/// `ipd_post_discharge` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(

@@ -66,8 +66,6 @@ IF_LET_OK = re.compile(
 # or answers a clinician. `send_push` additionally sits in a function that
 # returns nothing, so it has no error to propagate.
 ACCEPTED: dict[str, str] = {
-    "crates/medbrains-workflow/src/orchestration/default_pipelines.rs::on_transfusion_reaction":
-        "fixed by #6010, remove on merge",
     "crates/medbrains-server/src/routes/admin_simulator.rs::preview":
         "simulator preview — developer tooling, not a clinical read",
     "crates/medbrains-server/src/services/notification_listener.rs::send_push":

@@ -1,0 +1,21 @@
+// Launcher layout only; colour comes from the theme tokens.
+
+.tile {
+  min-height: 72px;
+}
+
+.tileLink {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--mantine-spacing-md);
+
+  &:hover {
+    background: var(--mb-bg-subtle);
+  }
+}
+
+.unstar {
+  align-self: center;
+  margin-inline-end: var(--mantine-spacing-xs);
+}

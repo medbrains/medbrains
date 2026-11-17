@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 use std::collections::HashMap;
 use std::io::Read as _;
 

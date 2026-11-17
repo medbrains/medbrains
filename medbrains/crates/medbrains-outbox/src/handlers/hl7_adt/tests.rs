@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 use chrono::{NaiveDate, TimeZone, Utc};
 use medbrains_adapter_sdk::hl7;
 
