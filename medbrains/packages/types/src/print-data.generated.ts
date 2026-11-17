@@ -4977,3 +4977,38 @@ export interface GstInvoiceItemLine {
   cgst_amount: string;
   sgst_amount: string;
 }
+
+export interface OpdCardPrintData {
+  /** `tenants.name`, never a product name. */
+  hospital_name: string;
+  /** The branding setting the admin screen and onboarding write. */
+  hospital_logo_url: string | null;
+  hospital_address: string | null;
+  hospital_phone: string | null;
+  /** The hospital's registration (Clinical Establishments) number. */
+  hospital_registration_no: string | null;
+  patient_name: string;
+  uhid: string;
+  /** "34 Y", "7 M" or "12 D". */
+  age: string | null;
+  gender: string;
+  phone: string;
+  /** Street and city, nothing more. */
+  address: string | null;
+  registered_on: string;
+  /** Present when the card is printed for an OPD visit. */
+  visit: OpdCardVisit | null;
+}
+
+export interface OpdCardVisit {
+  visit_date: string;
+  visit_time: string;
+  department: string | null;
+  doctor: string | null;
+  /** The number the board calls; null when the queue refused one. */
+  token_number: string | null;
+  /** True when the patient has an earlier OPD visit here. */
+  is_repeat: boolean;
+  /** The next visit, once the doctor has set one. */
+  follow_up_date: string | null;
+}

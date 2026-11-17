@@ -234,6 +234,7 @@ mod notifiable_detection_test;
 mod onboarding_registration_test;
 mod online_providers_test;
 mod opd_call_advances_token_test;
+mod opd_card_print_test;
 mod opd_chief_complaint_test;
 mod opd_deceased_guard_test;
 mod opd_last_visit_test;

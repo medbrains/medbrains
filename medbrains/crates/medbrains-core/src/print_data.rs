@@ -326,6 +326,7 @@ pub struct EstimateItemLine {
 // ── GST Invoice (and the pharmacy bill it becomes) ──────────
 pub use crate::crossmatch_print::{CrossmatchReportPrintData, CrossmatchUnit};
 pub use crate::gst_invoice_print::{GstInvoiceItemLine, GstInvoicePrintData};
+pub use crate::opd_card_print::{OpdCardPrintData, OpdCardVisit};
 
 // ── Consent Forms ───────────────────────────────────────
 

@@ -15,6 +15,7 @@ pub mod hr;
 pub mod medicolegal;
 pub mod mrd;
 pub mod nabh_quality_report;
+pub mod opd_card;
 pub mod pcpndt_form_f;
 pub mod quality;
 pub mod regulatory;

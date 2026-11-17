@@ -1661,6 +1661,7 @@ import type {
   // Phase 2 Print Data - Billing
   OnlineSettings,
   OpdBillPrintData,
+  OpdCardPrintData,
   OpdCertificatePrintData,
   OpdFootfallRow,
   // Phase 4 Print Data - Clinical Delivery
@@ -15394,6 +15395,14 @@ export const api = {
 
   getRegistrationCardPrintData: (patientId: string) =>
     request<RegistrationCardPrintData>(`/print-data/registration-card/${patientId}`),
+
+  /** The OPD card for a patient, on the hospital's own letterhead. */
+  getOpdCardPrintData: (patientId: string) =>
+    request<OpdCardPrintData>(`/print-data/opd-card/${patientId}`),
+
+  /** The OPD card for one visit: identity plus token, department and doctor. */
+  getOpdVisitCardPrintData: (encounterId: string) =>
+    request<OpdCardPrintData>(`/print-data/opd-visit-card/${encounterId}`),
 
   getInfantWristbandPrintData: (newbornId: string) =>
     request<InfantWristbandPrintData>(`/print-data/infant-wristband/${newbornId}`),

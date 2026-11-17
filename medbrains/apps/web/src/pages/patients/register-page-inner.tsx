@@ -36,6 +36,7 @@ import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow
 import classes from "../patients.module.scss";
 import { campRegistrationValues } from "./campRegistration";
 import { DuplicateMatchTable } from "./DuplicateMatchTable";
+import { registeredNoticeText, showRegisteredNotice } from "./registered-notice";
 import { registrationAction } from "./registrationGate";
 
 const NO_MATCHES: MpiMatchResult[] = [];
@@ -287,34 +288,11 @@ export function PatientRegisterPageInner() {
       }
       // The visit exists but the queue gave no number (outside its hours,
       // paused, full): say why, so the desk can tell the patient when to return.
-      if (tokenRefused) {
-        notifications.show({
-          title: t("notify.patientRegisteredNoToken"),
-          message: t("notify.patientRegisteredTokenRefused", {
-            uhid: patient.uhid,
-            reason: tokenRefused,
-          }),
-          color: "warning",
-        });
-      } else {
-        notifications.show({
-          title: queueWarning
-            ? t("notify.patientRegisteredOpdQueuePending")
-            : t("notify.patientRegistered"),
-          message: queueWarning
-            ? t("notify.patientRegisteredQueueWarning", {
-                queueWarning,
-                uhid: patient.uhid,
-              })
-            : tokenNumber
-              ? t("notify.patientRegisteredWithToken", {
-                  token: tokenNumber,
-                  uhid: patient.uhid,
-                })
-              : t("notify.patientRegisteredWithUhid", { uhid: patient.uhid }),
-          color: queueWarning ? "warning" : "success",
-        });
-      }
+      showRegisteredNotice({
+        ...registeredNoticeText(t, { uhid: patient.uhid, tokenRefused, queueWarning, tokenNumber }),
+        patientId: patient.id,
+        encounterId,
+      });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       if (encounterId) {
         void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
