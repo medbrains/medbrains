@@ -21,6 +21,7 @@ medbrains-platform = { path = "../medbrains-platform" }
 medbrains-terminology = { path = "../medbrains-terminology" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }
 axum-extra = { version = "0.10", features = ["cookie"] }
@@ -31,6 +32,10 @@ chrono = { workspace = true }
 rust_decimal = { workspace = true }
 sqlx = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

@@ -62,6 +62,14 @@ The Outpatient Department (OPD) module manages the full lifecycle of an outpatie
 **Regulatory note**: NABH OPD.2 — structured clinical documentation; ICD-10 coding mandatory (MOHFW EHR Standards 2016); IPSG Goal 3 — medication reconciliation at every encounter.  
 **Existing test**: JNY-HOS-001 in `apps/web/e2e/scenarios/actor-perspective-journeys.spec.ts` (automated)
 
+**When the doctor does not close the visit**: a hospital admin can set **OPD → Close OPD visits
+automatically after** (page header, beside the registration lock; off by default). Every five
+minutes, a visit whose patient was called in (or is in consultation) longer ago than that is closed
+as if the doctor pressed complete: visit and appointment completed, consultation charged, draft bill
+finalised, token off the board. Unsigned notes stay drafts and can still be edited and signed. The
+queue and the visit timeline show **Closed automatically**, and the audit log records the system as
+the actor with the minutes. Patients still waiting are never closed.
+
 ---
 
 ## Scenario 3: Nurse Enters Triage Vitals — Actor: Nurse

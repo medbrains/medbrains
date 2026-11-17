@@ -200,6 +200,10 @@ pub fn opd_only_router() -> axum::Router<AppState> {
             "/api/opd/registration-policy",
             get(get_registration_policy).put(update_registration_policy),
         )
+        .route(
+            "/api/opd/auto-close",
+            get(crate::auto_close::get_auto_close).put(crate::auto_close::update_auto_close),
+        )
         .route("/api/opd/queue", get(list_queue))
         .route("/api/opd/queue/{id}/call", put(call_queue_entry))
         .route("/api/opd/queue/{id}/start", put(start_consultation))
