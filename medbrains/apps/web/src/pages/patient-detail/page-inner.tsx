@@ -3,7 +3,7 @@
 import { Card, Grid, Group, Loader, Stack, Tabs, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { ApiError } from "@medbrains/api";
-import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import { useFieldAccess } from "@medbrains/stores";
 import type {
   CampRegistration,
   ClinicalEventName,
@@ -23,26 +23,8 @@ import {
   P,
 } from "@medbrains/types";
 import { fieldAccessText, snakeToTitle } from "@medbrains/utils";
-import {
-  IconAlertTriangle,
-  IconCalendar,
-  IconChartLine,
-  IconEye,
-  IconFile,
-  IconFlask,
-  IconGitMerge,
-  IconLink,
-  IconPill,
-  IconReceipt,
-  IconReportMedical,
-  IconStethoscope,
-  IconTent,
-  IconTimeline,
-  IconUser,
-  IconVaccine,
-} from "@tabler/icons-react";
+import { IconReceipt } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { AskAiButton } from "@/components/ai";
 import { ChartReview } from "@/components/Clinical/case-sheet/ChartReview";
@@ -87,6 +69,8 @@ import { AppointmentsTab } from "./appointments-tab";
 import { BillingTab } from "./billing-tab";
 import { CampsTab } from "./camps-tab";
 import { ChronicCareTab } from "./chronic-care-tab";
+import { usePatientDetailGates } from "./detail-gates";
+import { isChild, visibleDetailTabs } from "./detail-tabs";
 import { DetailDocumentsTab } from "./documents-tab";
 import { DetailFamilyLinksTab } from "./family-links-tab";
 import { GrowthTab } from "./growth-tab";
@@ -107,13 +91,6 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
   "observation",
 ]);
 
-/** Growth charts run to 18 years. */
-function isChild(dateOfBirth: string | null): boolean {
-  if (!dateOfBirth) return false;
-  const years = (Date.now() - new Date(dateOfBirth).getTime()) / (365.25 * 86_400_000);
-  return years <= 18;
-}
-
 export function PatientDetailPageInner() {
   useRequirePermission(P.PATIENTS.VIEW);
   const { id } = useParams<{ id: string }>();
@@ -123,18 +100,15 @@ export function PatientDetailPageInner() {
   const [searchParams] = useSearchParams();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const canListPatients = useHasPermission(P.PATIENTS.LIST);
-  const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
-  const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
-  const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
-  const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
-  const canViewGrowth = useHasPermission(P.PATIENTS.GROWTH.VIEW);
-  const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
-  const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
-  // Admissions and radiology reports are read only by those who may list
-  // them; the front desk opening a record sent both and was refused.
-  const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
-  const canListPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
+  const {
+    isBrickOn,
+    emergencyOn,
+    canListPatients,
+    canViewBillingLedger,
+    canViewNotes,
+    canViewGrowth,
+    reads,
+  } = usePatientDetailGates(patientId);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
@@ -180,13 +154,13 @@ export function PatientDetailPageInner() {
   const { data: labOrders = [] } = useQuery({
     queryKey: ["patient-lab-orders", patientId],
     queryFn: () => patientDetailService.listPatientLabOrders(patientId),
-    enabled: canListLabOrders && patientId.length > 0,
+    enabled: reads.labOrders,
   });
   // Same key the imaging tab uses, so this is one shared fetch.
   const { data: radiologyReports = [] } = useQuery({
     queryKey: ["patient-radiology-reports", patientId],
     queryFn: () => patientDetailService.listRadiologyReports(patientId),
-    enabled: canListRadiologyOrders && patientId.length > 0,
+    enabled: reads.radiology,
   });
   // Reports miss orders not yet reported (a desk walk-in, mostly); prescriptions
   // miss direct counter sales. Both lists are read for the flow bar.
@@ -194,13 +168,13 @@ export function PatientDetailPageInner() {
     queryKey: ["radiology-orders", "patient", patientId],
     queryFn: () => patientDetailService.listPatientRadiologyOrders(patientId),
     select: (response) => response.orders,
-    enabled: canListRadiologyOrders && patientId.length > 0,
+    enabled: reads.radiology,
   });
   const { data: pharmacyOrders = [] } = useQuery({
     queryKey: ["pharmacy-orders", "patient", patientId],
     queryFn: () => patientDetailService.listPatientPharmacyOrders(patientId),
     select: (response) => response.orders,
-    enabled: canListPharmacyOrders && patientId.length > 0,
+    enabled: reads.pharmacyOrders,
   });
 
   // Latest active encounter — basket needs an encounter to scope orders to.
@@ -216,13 +190,13 @@ export function PatientDetailPageInner() {
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-admissions", patientId, "admitted"],
     queryFn: () => patientDetailService.listPatientAdmissions(patientId, "admitted"),
-    enabled: canListAdmissions && patientId.length > 0,
+    enabled: reads.admissions,
   });
   const activeAdmission = activeAdmissions?.admissions[0];
   const { data: emergencyVisits = [] } = useQuery<ErVisit[]>({
     queryKey: ["er-visits", "patient", patientId],
     queryFn: () => patientDetailService.listErVisits({ patient_id: patientId }),
-    enabled: canViewEmergencyVisits && patientId.length > 0,
+    enabled: reads.erVisits,
   });
   const patientEmergencyVisits = emergencyVisits.filter((visit) => visit.patient_id === patientId);
   const activeEmergencyVisit = patientEmergencyVisits.find((visit) =>
@@ -231,17 +205,17 @@ export function PatientDetailPageInner() {
   const { data: campRegistrations = [] } = useQuery<CampRegistration[]>({
     queryKey: ["camp-registrations", "patient", patientId],
     queryFn: () => patientDetailService.listCampRegistrations({ patient_id: patientId }),
-    enabled: canViewCampRegistrations && patientId.length > 0,
+    enabled: reads.campRegistrations,
   });
   const { data: prescriptions = [] } = useQuery<PrescriptionHistoryItem[]>({
     queryKey: ["patient-prescriptions", patientId],
     queryFn: () => patientDetailService.listPatientPrescriptions(patientId),
-    enabled: patientId.length > 0,
+    enabled: reads.prescriptions,
   });
   const { data: invoices = [] } = useQuery<PatientInvoiceRow[]>({
     queryKey: ["patient-invoices", patientId],
     queryFn: () => patientDetailService.listPatientInvoices(patientId),
-    enabled: patientId.length > 0,
+    enabled: reads.invoices,
   });
 
   // A refusal is answered as "not found" so it is not an existence oracle;
@@ -280,8 +254,9 @@ export function PatientDetailPageInner() {
   const hasReviewedPharmacyPrescription =
     hasReviewedPatientPharmacyPrescriptionForJourney(prescriptions);
   const hasEmergencyVisit =
-    patientEmergencyVisits.length > 0 ||
-    visits.some((visit) => visit.encounter_type === "emergency");
+    emergencyOn &&
+    (patientEmergencyVisits.length > 0 ||
+      visits.some((visit) => visit.encounter_type === "emergency"));
   const hasBillingInvoice = invoices.length > 0;
   const hasFinalizedInvoice = invoices.some((invoice) =>
     billingInvoiceIsFinalized(invoice.status, invoice.total_amount, invoice.paid_amount),
@@ -376,92 +351,17 @@ export function PatientDetailPageInner() {
       copies: PATIENT_CARD_PRINT_COPIES.length,
     });
   };
-  const detailTabs = [
-    { value: "overview", label: "Overview", section: "Profile", icon: <IconUser size={14} /> },
-    {
-      value: "allergies",
-      label: "Allergies",
-      section: "Profile",
-      icon: <IconAlertTriangle size={14} />,
-    },
-    {
-      value: "immunizations",
-      label: "Immunisations",
-      section: "Profile",
-      icon: <IconVaccine size={14} />,
-    },
-    ...(canViewGrowth && isChild(patient.date_of_birth)
-      ? [
-          {
-            value: "growth" as const,
-            label: "Growth",
-            section: "Profile",
-            icon: <IconChartLine size={14} />,
-          },
-        ]
-      : []),
-    {
-      value: "timeline",
-      label: "Timeline",
-      section: "Clinical",
-      icon: <IconTimeline size={14} />,
-    },
-    {
-      value: "visits",
-      label: "Visits",
-      section: "Clinical",
-      icon: <IconStethoscope size={14} />,
-    },
-    {
-      value: "prescriptions",
-      label: "Prescriptions",
-      section: "Clinical",
-      icon: <IconPill size={14} />,
-    },
-    { value: "lab", label: "Lab Orders", section: "Clinical", icon: <IconFlask size={14} /> },
-    { value: "imaging", label: "Imaging", section: "Clinical", icon: <IconEye size={14} /> },
-    { value: "billing", label: "Billing", section: "Finance", icon: <IconReceipt size={14} /> },
-    {
-      value: "appointments",
-      label: "Appointments",
-      section: "Workflow",
-      icon: <IconCalendar size={14} />,
-    },
-    { value: "camps", label: "Camps", section: "Workflow", icon: <IconTent size={14} /> },
-    { value: "family", label: "Family", section: "Records", icon: <IconLink size={14} /> },
-    { value: "documents", label: "Documents", section: "Records", icon: <IconFile size={14} /> },
-    {
-      value: "chronic",
-      label: "Chronic Care",
-      section: "Programs",
-      icon: <IconReportMedical size={14} />,
-    },
-    {
-      value: "packages",
-      label: "Packages",
-      section: "Programs",
-      icon: <IconReportMedical size={14} />,
-    },
-    ...(canViewNotes
-      ? [
-          {
-            value: "notes" as const,
-            label: "Notes",
-            section: "Records",
-            icon: <IconReportMedical size={14} />,
-          },
-        ]
-      : []),
-    { value: "merge", label: "Merge", section: "Admin", icon: <IconGitMerge size={14} /> },
-  ] satisfies Array<{
-    value: PatientDetailTabValue;
-    label: string;
-    section: string;
-    icon: ReactNode;
-  }>;
-  const activeDetailTab: PatientDetailTabValue = isPatientDetailTabValue(activePatientTab)
-    ? activePatientTab
-    : "overview";
+  const detailTabs = visibleDetailTabs({
+    isBrickOn,
+    showGrowth: canViewGrowth && isChild(patient.date_of_birth),
+    showNotes: canViewNotes,
+  });
+  // A link to a hidden tab (`#billing` with Billing off) lands on the overview.
+  const activeDetailTab: PatientDetailTabValue =
+    isPatientDetailTabValue(activePatientTab) &&
+    detailTabs.some((tab) => tab.value === activePatientTab)
+      ? activePatientTab
+      : "overview";
 
   return (
     <Stack className={classes.patientWorkspace}>
