@@ -166,4 +166,7 @@ T_END="$(now)"
 echo
 echo "timings: fetch $((T_FETCH - T0))s · decrypt $((T_DECRYPT - T_FETCH))s · restore $((T_RESTORE - T_DECRYPT))s · total $((T_END - T0))s"
 [[ $fail -eq 0 ]] && echo "RESTORE DRILL PASSED — $NAME" || echo "RESTORE DRILL FAILED — $NAME"
+# The server cannot see this drill (it cannot read its own backups), so the
+# backup summary email shows whatever the operator records from this line.
+echo "record on the server, in /etc/medbrains/env: RESTORE_DRILL_LAST=\"$(date +%F) $([[ $fail -eq 0 ]] && echo passed || echo FAILED) ($NAME)\""
 exit "$fail"

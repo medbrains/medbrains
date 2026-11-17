@@ -54,7 +54,7 @@ export function taggedBricks(groups: readonly NavGroupConfig[]): Set<string> {
  * segment when that names a brick (the OPD queue `/opd` and `/ipd` carry no tag,
  * so the menu decides their visibility, but they are still their app's door).
  */
-function brickOf(item: NavItemConfig, bricks: ReadonlySet<string>): string | undefined {
+export function brickOf(item: NavItemConfig, bricks: ReadonlySet<string>): string | undefined {
   if (item.moduleCode) return item.moduleCode;
   const segment = item.path.split("/")[1] ?? "";
   return bricks.has(segment) ? segment : undefined;

@@ -29,12 +29,13 @@ function viewer(codes: string[], off: string[] = []) {
   return { hasPermission: (c: string) => held.has(c), disabledModules: new Set(off) };
 }
 
-/** Answers the launcher read with `favourites`. */
+/** Answers the launcher read with `favourites`, and the work read with nothing waiting. */
 function launcherReturns(favourites: string[]) {
   server.use(
     http.get("*/api/users/me/launcher", () =>
       HttpResponse.json({ favourites, bricks: BRICK_NAMES }),
     ),
+    http.get("*/api/users/me/work", () => HttpResponse.json({ items: [] })),
   );
 }
 
@@ -123,9 +124,12 @@ describe("launcher access", () => {
   });
 
   it("shows a failed read as a failure, never as an empty launcher", async () => {
-    server.use(http.get("*/api/users/me/launcher", () => new HttpResponse(null, { status: 500 })));
+    server.use(
+      http.get("*/api/users/me/launcher", () => new HttpResponse(null, { status: 500 })),
+      http.get("*/api/users/me/work", () => HttpResponse.json({ items: [] })),
+    );
     openLauncher(["lab.orders.list", "pharmacy.prescriptions.list"]);
-    expect(await screen.findByRole("alert")).toHaveTextContent("didn't load");
+    expect(await screen.findByRole("alert")).toHaveTextContent("favourites and apps didn't load");
     expect(screen.queryByText(/Star a screen/)).not.toBeInTheDocument();
   });
 });
