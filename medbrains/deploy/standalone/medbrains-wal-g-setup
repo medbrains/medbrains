@@ -1,115 +1,198 @@
 #!/usr/bin/env bash
-# medbrains-wal-g-setup — OPT-IN continuous WAL archiving for the attach tier
-# (native Postgres on the host). Not run by install.sh; nothing changes until
-# an operator runs this with --apply. docs/ops/BACKUP-RESTORE.md, "WAL archiving".
+# medbrains-wal-g-setup — OPT-IN point-in-time recovery: continuous WAL
+# archiving and daily base backups to S3 with WAL-G, on either tier (the
+# host's own Postgres, or the dedicated tier's medbrains-postgres container).
+# docs/ops/BACKUP-RESTORE.md, "Point-in-time recovery".
 #
-#   sudo WALG_S3_PREFIX=s3://<bucket>/wal-g WALG_S3_SSE_KMS_ID=<key-arn> \
-#        bash medbrains-wal-g-setup            # dry run: prints the plan
-#   ... bash medbrains-wal-g-setup --apply     # installs, configures, reloads
+#   sudo bash medbrains-wal-g-setup                          # dry run: checks, prints the plan
+#   sudo bash medbrains-wal-g-setup --apply                  # installs, configures, reloads
+#   sudo bash medbrains-wal-g-setup --apply --restart-if-needed
 #
-# Both values come from `terraform output prod_ops` in envs/medbrains-in,
-# applied with company_wal_archiving = true (the IAM grant for wal-g/).
+# install.sh runs the last form when PITR_ENABLED=1 is in /etc/medbrains/env;
+# otherwise nothing here runs. Settings come from that file:
+#   WALG_S3_PREFIX      s3://<bucket>/<prefix>; this host's name is appended.
+#                       Prod: terraform output prod_ops (wal-g/). A hospital
+#                       bucket: s3://<bucket>/<slug>/pitr
+#   WALG_S3_SSE_KMS_ID  optional; unset = the bucket's own default (SSE-S3)
+#   AWS_REGION          default ap-south-1
+#   PITR_DELTA_MAX_STEPS  deltas between fulls, default 6 (a full every 7 days)
+# Credentials: the instance role, or root's ~/.aws/credentials beside the
+# container (Lightsail has no instance role). Retention is the bucket's
+# lifecycle, never this host: it has no delete right.
 #
-# What --apply does: installs a pinned, checksum-verified wal-g; writes
-# /etc/medbrains/walg.yaml; sets archive_mode/archive_command/archive_timeout
-# via ALTER SYSTEM; installs the daily base-backup timer; sets WAL_ARCHIVING=1
-# so medbrains-host-check watches the archiver. It does NOT restart Postgres:
-# archive_mode only takes effect on restart, which is the operator's call.
+# Refuses, before touching anything, when the cluster holds databases that
+# are not MedBrains' (archiving copies the WHOLE cluster, so another
+# client's data would land in this bucket), or when something else already
+# archives it. --restart-if-needed restarts only the container; the host's
+# own Postgres (often shared) is left to the operator.
 
 set -euo pipefail
 
-APPLY=0
-[[ "${1:-}" == "--apply" ]] && APPLY=1
+APPLY=0 RESTART=0
+for a in "$@"; do
+    case "$a" in
+        --apply) APPLY=1 ;;
+        --restart-if-needed) RESTART=1 ;;
+        *) echo "usage: medbrains-wal-g-setup [--apply [--restart-if-needed]]" >&2; exit 2 ;;
+    esac
+done
 HERE="$(cd "$(dirname "$0")" && pwd)"
+set -a
+# shellcheck disable=SC1091
+[[ -f /etc/medbrains/env ]] && . /etc/medbrains/env
+# shellcheck disable=SC1091
+[[ -f /etc/medbrains/.compose-env ]] && . /etc/medbrains/.compose-env
+set +a
 
-# Pinned: v3.0.9, Postgres build for Ubuntu 24.04. Digests from the GitHub
-# release API (2026-10-12). Bump version and both digests together.
+# Pinned v3.0.9, digests from the GitHub release API (2026-10-12, rechecked
+# 2026-11-17). The 22.04 build needs glibc 2.35, so it also runs on Debian 12
+# (2.36). Bump the version and every digest together.
 WALG_VERSION="v3.0.9"
 declare -A WALG_SHA256=(
-    [aarch64]=1edd72c3387bfc3a1c19acad9daa36709dbb7cff0642f7044e175d5f8b555d64
-    [amd64]=8015836f246a978f27b31a2462eac7765312558ae5b11ac033322b555abf9e22
+    [22.04-aarch64]=072eb4a4a119f817e1fa888c64a776b01e3453b2e0d967a67d149adb18fde652
+    [22.04-amd64]=d6795c663894d836ba20840bffe8970aed81bbe25d3151bd4951f6f9c362def9
+    [24.04-aarch64]=1edd72c3387bfc3a1c19acad9daa36709dbb7cff0642f7044e175d5f8b555d64
+    [24.04-amd64]=8015836f246a978f27b31a2462eac7765312558ae5b11ac033322b555abf9e22
 )
 CONF=/etc/medbrains/walg.yaml
+KEY=/etc/medbrains/walg.key
 BIN=/usr/local/bin/wal-g
-ARCHIVE_TIMEOUT=300 # seconds; forces a segment out at least every 5 min under load
+CONTAINER=medbrains-postgres
+SPOOL=medbrains-wal-spool    # relative: archive_command runs in the data directory
+ARCHIVE_TIMEOUT=300          # seconds; a segment goes out at least every 5 busy minutes
+# cp, then fsync, then rename, then fsync: a crash never leaves a half
+# segment under the final name. An existing identical copy counts as done
+# (Postgres retries after a crash); a different one fails loudly.
+ARCHIVE_CMD="if [ -f $SPOOL/%f ]; then cmp -s %p $SPOOL/%f; else cp %p $SPOOL/%f.part && sync && mv $SPOOL/%f.part $SPOOL/%f && sync; fi"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || die "run as root"
-: "${WALG_S3_PREFIX:?set WALG_S3_PREFIX (terraform output prod_ops)}"
-: "${WALG_S3_SSE_KMS_ID:?set WALG_S3_SSE_KMS_ID (terraform output prod_ops)}"
-[[ "$WALG_S3_PREFIX" == s3://*/wal-g* ]] || die "WALG_S3_PREFIX must be s3://<bucket>/wal-g…"
+: "${WALG_S3_PREFIX:?set WALG_S3_PREFIX in /etc/medbrains/env (s3://<bucket>/<prefix>)}"
+[[ "$WALG_S3_PREFIX" =~ ^s3://[a-z0-9.-]+/.+ ]] || die "WALG_S3_PREFIX must be s3://<bucket>/<prefix>"
 
 # shellcheck disable=SC1091
 . /etc/os-release
-[[ "${VERSION_ID:-}" == "24.04" ]] || die "pinned wal-g build is for Ubuntu 24.04, this is ${PRETTY_NAME:-unknown}"
+case "${ID:-}-${VERSION_ID:-}" in
+    ubuntu-22.04|debian-12) BUILD=22.04 ;;
+    ubuntu-24.04|debian-13) BUILD=24.04 ;;
+    *) die "no pinned wal-g build for ${PRETTY_NAME:-this OS}" ;;
+esac
 case "$(uname -m)" in
     aarch64) ARCH=aarch64 ;;
     x86_64) ARCH=amd64 ;;
     *) die "unsupported arch $(uname -m)" ;;
 esac
-command -v psql >/dev/null || die "psql not found — this is for the native-Postgres attach tier"
-id postgres >/dev/null 2>&1 || die "no postgres user — this is for the native-Postgres attach tier"
-pg() { runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -Atc "$1"; }
-pg_major="$(pg 'SHOW server_version_num' | cut -c1-2)"
-[[ "$pg_major" -ge 13 ]] || die "Postgres $pg_major too old for this setup"
+SHA="${WALG_SHA256[$BUILD-$ARCH]}"
+
+# SQL as the cluster's superuser, on whichever tier this is.
+if command -v docker >/dev/null 2>&1 && docker container inspect "$CONTAINER" >/dev/null 2>&1; then
+    TIER=container
+    sql() { docker exec -i "$CONTAINER" psql -XAtq -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-medbrains}" -d postgres -c "$1"; }
+else
+    TIER=host
+    id postgres >/dev/null 2>&1 || die "no medbrains-postgres container and no postgres user: where is Postgres?"
+    sql() { runuser -u postgres -- psql -XAtq -v ON_ERROR_STOP=1 -p "${WAL_PGPORT:-5432}" -c "$1"; }
+fi
+[[ "$(sql 'SHOW server_version_num' | cut -c1-2)" -ge 13 ]] || die "Postgres too old for this setup"
+
+# Shared cluster: every database must be MedBrains' (its own, and SpiceDB's).
+own_db="${POSTGRES_DB:-}"
+if [[ -z "$own_db" ]]; then
+    own_db="${MIGRATION_DATABASE_URL:-${DATABASE_URL:-}}"
+    own_db="${own_db##*/}"
+    own_db="${own_db%%\?*}"
+fi
+allowed=" ${own_db:-medbrains} spicedb ${PITR_ALLOWED_DATABASES:-} "
+others=""
+while read -r db; do
+    [[ -z "$db" || "$allowed" == *" $db "* ]] || others+=" $db"
+done < <(sql "SELECT datname FROM pg_database WHERE datname NOT IN ('template0', 'template1', 'postgres') ORDER BY 1")
+[[ -z "$others" ]] || die "this Postgres cluster also holds:$others.
+       WAL archiving copies the WHOLE cluster, so their data would go to this bucket.
+       Give MedBrains its own cluster first: docs/ops/BACKUP-RESTORE.md, 'Shared cluster'."
+cur_cmd="$(sql 'SHOW archive_command')"
+if [[ "$(sql 'SHOW archive_mode')" != "off" && -n "$cur_cmd" && "$cur_cmd" != "(disabled)" && "$cur_cmd" != "$ARCHIVE_CMD" ]]; then
+    die "this cluster is already archived by something else (archive_command = $cur_cmd). Not replacing it."
+fi
 
 PREFIX="${WALG_S3_PREFIX%/}/$(hostname)"
-ARCHIVE_CMD="$BIN --config $CONF wal-push %p"
-
-echo "plan:"
-echo "  install wal-g $WALG_VERSION ($ARCH, sha256 ${WALG_SHA256[$ARCH]:0:12}…) → $BIN"
-echo "  write $CONF (root:postgres 0640) → $PREFIX, SSE-KMS"
-echo "  ALTER SYSTEM archive_mode=on, archive_command='$ARCHIVE_CMD', archive_timeout=$ARCHIVE_TIMEOUT"
-echo "  install + enable medbrains-wal-g-backup.timer (daily base backup, delta chain ≤ 6)"
-echo "  set WAL_ARCHIVING=1 in /etc/medbrains/env (host-check watches pg_stat_archiver)"
+echo "plan ($TIER tier, databases:$(sql "SELECT string_agg(datname, ' ') FROM pg_database WHERE NOT datistemplate")):"
+echo "  install wal-g $WALG_VERSION ($BUILD-$ARCH, sha256 ${SHA:0:12}…) → $BIN, /usr/local/bin/medbrains-wal-g"
+echo "  $KEY: 32-byte libsodium key, made once and never replaced (also in the sealed secrets backup)"
+echo "  $CONF → $PREFIX, ${WALG_S3_SSE_KMS_ID:+SSE-KMS, }delta chain ≤ ${PITR_DELTA_MAX_STEPS:-6}"
+echo "  check: list the prefix, round-trip a sealed canary"
+echo "  ALTER SYSTEM archive_mode=on, archive_timeout=$ARCHIVE_TIMEOUT, archive_command → <data>/$SPOOL"
+echo "  enable medbrains-wal-push.timer (every minute) and medbrains-wal-g-backup.timer (daily)"
+echo "  WAL_ARCHIVING=1 in /etc/medbrains/env (host-check watches the archiver and the spool)"
 [[ $APPLY -eq 1 ]] || { echo "dry run — re-run with --apply"; exit 0; }
 
-tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
-curl -fsSL "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${ARCH}" -o "$tmp"
-echo "${WALG_SHA256[$ARCH]}  $tmp" | sha256sum -c - >/dev/null || die "wal-g checksum mismatch — not installing"
-install -m 0755 "$tmp" "$BIN"
+if [[ ! -x "$BIN" ]] || ! echo "$SHA  $BIN" | sha256sum -c - >/dev/null 2>&1; then
+    tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+    curl -fsSL "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-${BUILD}-${ARCH}" -o "$tmp"
+    echo "$SHA  $tmp" | sha256sum -c - >/dev/null || die "wal-g checksum mismatch — not installing"
+    chmod 0755 "$tmp"
+    "$tmp" --version >/dev/null || die "wal-g does not run here (missing library?): $(ldd "$tmp" 2>&1 | grep 'not found' || true)"
+    install -m 0755 "$tmp" "$BIN"
+fi
+install -m 0755 "$HERE/medbrains-wal-g" /usr/local/bin/medbrains-wal-g
 
-# No secrets here: S3 access is the instance role's.
+# Readable by root only beside the container; by postgres too on the host,
+# where WAL-G runs as postgres.
+group=root mode=0600
+[[ "$TIER" == "host" ]] && group=postgres mode=0640
 install -d -m 0755 /etc/medbrains
-umask 027
-cat > "$CONF" <<YAML
-WALG_S3_PREFIX: "$PREFIX"
-AWS_REGION: "ap-south-1"
-WALG_S3_SSE: "aws:kms"
-WALG_S3_SSE_KMS_ID: "$WALG_S3_SSE_KMS_ID"
-WALG_COMPRESSION_METHOD: "brotli"
-WALG_DELTA_MAX_STEPS: "6"
-WALG_PREVENT_WAL_OVERWRITE: "true"
-WALG_UPLOAD_CONCURRENCY: "4"
-PGHOST: "/var/run/postgresql"
-YAML
-chown root:postgres "$CONF"; chmod 0640 "$CONF"
+if [[ ! -s "$KEY" ]]; then
+    (umask 077; head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$KEY")
+fi
+chown "root:$group" "$KEY"; chmod "$mode" "$KEY"
+{
+    echo "WALG_S3_PREFIX: \"$PREFIX\""
+    echo "AWS_REGION: \"${AWS_REGION:-ap-south-1}\""
+    [[ -n "${WALG_S3_SSE_KMS_ID:-}" ]] && printf 'WALG_S3_SSE: "aws:kms"\nWALG_S3_SSE_KMS_ID: "%s"\n' "$WALG_S3_SSE_KMS_ID"
+    echo "WALG_LIBSODIUM_KEY_PATH: \"$KEY\""
+    echo 'WALG_LIBSODIUM_KEY_TRANSFORM: "hex"'
+    echo 'WALG_COMPRESSION_METHOD: "brotli"'
+    echo "WALG_DELTA_MAX_STEPS: \"${PITR_DELTA_MAX_STEPS:-6}\""
+    echo 'WALG_PREVENT_WAL_OVERWRITE: "true"'
+    echo 'WALG_UPLOAD_CONCURRENCY: "2"'
+} > "$CONF.new"
+chown "root:$group" "$CONF.new"; chmod "$mode" "$CONF.new"; mv "$CONF.new" "$CONF"
 
-# Prove the role can reach the prefix before Postgres depends on it: an
-# archive_command that fails makes WAL pile up in pg_wal until the disk fills.
-runuser -u postgres -- "$BIN" --config "$CONF" st ls >/dev/null \
-    || die "wal-g cannot list $PREFIX — check the instance role (company_wal_archiving = true?)"
+# Before Postgres depends on it: an archive that cannot be written makes the
+# spool grow until the disk fills.
+/usr/local/bin/medbrains-wal-g check || die "the archive is not usable — check credentials and the bucket policy"
 
-pg "ALTER SYSTEM SET archive_mode = 'on'"
-pg "ALTER SYSTEM SET archive_command = '$ARCHIVE_CMD'"
-pg "ALTER SYSTEM SET archive_timeout = '$ARCHIVE_TIMEOUT'"
-pg "SELECT pg_reload_conf()" >/dev/null
+data="$(/usr/local/bin/medbrains-wal-g spool)"; data="${data%/"$SPOOL"}"
+owner="$(stat -c %u:%g "$data")"
+install -d -o "${owner%:*}" -g "${owner#*:}" -m 0700 "$data/$SPOOL"
 
-install -m 0644 "$HERE/medbrains-wal-g-backup.service" "$HERE/medbrains-wal-g-backup.timer" /etc/systemd/system/
+sql "ALTER SYSTEM SET archive_mode = 'on'"
+sql "ALTER SYSTEM SET archive_command = '$ARCHIVE_CMD'"
+sql "ALTER SYSTEM SET archive_timeout = '$ARCHIVE_TIMEOUT'"
+sql "SELECT pg_reload_conf()" >/dev/null
+
+for u in medbrains-wal-push.service medbrains-wal-push.timer medbrains-wal-g-backup.service medbrains-wal-g-backup.timer; do
+    install -m 0644 "$HERE/$u" /etc/systemd/system/
+done
 systemctl daemon-reload
-systemctl enable --now medbrains-wal-g-backup.timer
-
+systemctl enable --now medbrains-wal-push.timer medbrains-wal-g-backup.timer
 if grep -q '^WAL_ARCHIVING=' /etc/medbrains/env 2>/dev/null; then
     sed -i 's|^WAL_ARCHIVING=.*|WAL_ARCHIVING=1|' /etc/medbrains/env
 else
     echo 'WAL_ARCHIVING=1' >> /etc/medbrains/env
 fi
 
-if [[ "$(pg "SELECT pending_restart FROM pg_settings WHERE name = 'archive_mode'")" == "t" ]]; then
-    echo "==> archive_mode needs a Postgres restart. At a quiet moment:"
-    echo "      sudo systemctl restart postgresql && sudo systemctl start medbrains-wal-g-backup.service"
-    echo "    WAL is NOT archived until then."
-else
-    systemctl start medbrains-wal-g-backup.service
+if [[ "$(sql "SELECT pending_restart FROM pg_settings WHERE name = 'archive_mode'")" == "t" ]]; then
+    if [[ "$RESTART" == "1" && "$TIER" == "container" ]]; then
+        echo "==> restarting $CONTAINER for archive_mode"
+        docker restart "$CONTAINER" >/dev/null
+        for _ in $(seq 1 60); do sql 'SELECT 1' >/dev/null 2>&1 && break; sleep 1; done
+    else
+        echo "==> archive_mode needs a Postgres restart. WAL is NOT archived until then. At a quiet moment:"
+        echo "      sudo systemctl restart postgresql   # or: docker restart $CONTAINER"
+        echo "      sudo systemctl start medbrains-wal-g-backup.service"
+        exit 0
+    fi
 fi
-echo "==> done. Check: sudo -u postgres $BIN --config $CONF backup-list"
+systemctl start medbrains-wal-g-backup.service
+echo "==> done. Check: sudo medbrains-wal-g list"
