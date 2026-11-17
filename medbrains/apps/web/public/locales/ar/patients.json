@@ -1,1 +1,4 @@
-{}
+{
+  "placeholder.searchPatients": "ابحث بالاسم أو الهاتف أو UHID أو آدهار",
+  "directory.searchLabel": "ابحث عن المرضى بالاسم أو الهاتف أو UHID أو آدهار"
+}

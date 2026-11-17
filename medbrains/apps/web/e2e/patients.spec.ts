@@ -112,7 +112,7 @@ test.describe("Patient Registration", () => {
     ).toBeVisible();
 
     await expect(
-      page.getByPlaceholder("Search by UHID, name, or phone..."),
+      page.getByPlaceholder("Search by name, phone, UHID or Aadhaar"),
     ).toBeVisible();
   });
 
@@ -175,7 +175,7 @@ test.describe("Patient Registration", () => {
 
     // Search by name
     const searchInput = page.getByPlaceholder(
-      "Search by UHID, name, or phone...",
+      "Search by name, phone, UHID or Aadhaar",
     );
     await searchInput.fill(patient.firstName);
 

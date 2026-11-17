@@ -48,6 +48,7 @@ Patient Registration is the entry point for all clinical care in MedBrains. It c
 **Preconditions**: Staff is logged in with `receptionist` role; OPD department exists
 
 **Steps**:
+0. Before registering, the receptionist searches the Patients box, which takes a name, phone, UHID or Aadhaar: every word of a name must match ("sample asha" and "ash sam" find Asha Sample); a phone matches in any form ("90000 12345", "+91 90000 12345", "09000012345", or its last digits); a UHID matches in any case, exact first; twelve digits are an Aadhaar number, matched by its keyed fingerprint and never shown in full (type a 12-digit phone with `+91`).
 1. Receptionist opens the New Patient form (route: `/patients/new`).
 2. Enters mandatory fields: full name, date of birth, sex, primary mobile, address.
 3. Optionally scans Aadhaar / ABHA card → auto-populates demographics via ABDM lookup.

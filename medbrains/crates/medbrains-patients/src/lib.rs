@@ -12,6 +12,7 @@ pub mod local_name;
 pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
+mod search;
 
 use std::collections::HashMap;
 
@@ -1100,6 +1101,9 @@ pub async fn list_patients(
         }
     };
 
+    let matcher =
+        search::PatientSearch::for_request(&state, claims.tenant_id, params.search.as_deref())
+            .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1135,81 +1139,48 @@ pub async fn list_patients(
     }
     let mut binds: Vec<BindVal> = Vec::new();
 
-    if let Some(ref search) = params.search {
-        let pattern = format!("%{search}%");
-        conditions.push(format!(
-            "(uhid ILIKE ${bind_idx} OR first_name ILIKE ${bind_idx} \
-             OR last_name ILIKE ${bind_idx} OR phone ILIKE ${bind_idx} \
-             OR full_name_local ILIKE ${bind_idx})"
-        ));
-        binds.push(BindVal {
-            string_val: Some(pattern),
+    // Name words, phone digits, UHID and Aadhaar fingerprint (`search.rs`).
+    let search_at = matcher.as_ref().map(|s| {
+        conditions.push(search::where_sql(bind_idx));
+        binds.extend(s.binds().map(|v| BindVal {
+            string_val: Some(v),
             bool_val: None,
-        });
-        bind_idx += 1;
-    }
+        }));
+        bind_idx += search::BINDS;
+        bind_idx - search::BINDS
+    });
 
-    if let Some(ref category) = params.category {
-        conditions.push(format!("category::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(category.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
+    // Column names are fixed here, never user input; the values are binds.
+    let text_filters = [
+        ("category", &params.category),
+        ("financial_class", &params.financial_class),
+        ("blood_group", &params.blood_group),
+        ("registration_type", &params.registration_type),
+    ];
+    for (column, value) in text_filters {
+        if let Some(value) = value {
+            conditions.push(format!("{column}::text = ${bind_idx}"));
+            binds.push(BindVal {
+                string_val: Some(value.clone()),
+                bool_val: None,
+            });
+            bind_idx += 1;
+        }
     }
-
-    if let Some(ref fc) = params.financial_class {
-        conditions.push(format!("financial_class::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(fc.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(ref bg) = params.blood_group {
-        conditions.push(format!("blood_group::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(bg.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(ref rt) = params.registration_type {
-        conditions.push(format!("registration_type::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(rt.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(is_vip) = params.is_vip {
-        conditions.push(format!("is_vip = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: None,
-            bool_val: Some(is_vip),
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(is_mlc) = params.is_medico_legal {
-        conditions.push(format!("is_medico_legal = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: None,
-            bool_val: Some(is_mlc),
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(is_active) = params.is_active {
-        conditions.push(format!("is_active = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: None,
-            bool_val: Some(is_active),
-        });
-        bind_idx += 1;
+    let flag_filters = [
+        ("is_vip", params.is_vip),
+        ("is_medico_legal", params.is_medico_legal),
+        ("is_active", params.is_active),
+    ];
+    for (column, value) in flag_filters {
+        if let Some(value) = value {
+            conditions.push(format!("{column} = ${bind_idx}"));
+            binds.push(BindVal {
+                string_val: None,
+                bool_val: Some(value),
+            });
+            bind_idx += 1;
+        }
     }
 
     let where_clause = conditions.join(" AND ");
@@ -1244,6 +1215,11 @@ pub async fn list_patients(
         Some("registration_type") => format!("registration_type {sort_dir}"),
         Some("blood_group") => format!("blood_group {sort_dir}"),
         _ => format!("created_at {sort_dir}"),
+    };
+    // A search ranks best match first unless the desk picked a column to sort by.
+    let order_by = match search_at {
+        Some(at) if params.sort.is_none() => format!("{}, {order_by}", search::rank_sql(at)),
+        _ => order_by,
     };
     let data_sql = format!(
         "SELECT * FROM patients WHERE {where_clause} \
@@ -3452,6 +3428,38 @@ pub struct FindPatientsQuery {
     pub q: String,
 }
 
+/// The desk lookup's query: the shared matcher (`search.rs`) for the tiers,
+/// then a fuzzy name for typos. One query, at most 20 rows. The trigram
+/// `<%` is the indexed predicate (migration 1070); the rest is fine unindexed
+/// at a hospital's register size.
+async fn find_matches(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    matcher: &search::PatientSearch,
+) -> Result<Vec<MatchResult>, AppError> {
+    let sql = format!(
+        "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
+           (CASE {rank} WHEN 0 THEN 1.0 WHEN 1 THEN 0.9 WHEN 2 THEN 0.8 \
+              ELSE COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) * 0.7 \
+            END)::float8 AS score, pharmacy_customer \
+         FROM patients \
+         WHERE tenant_id = $1 AND is_merged = false AND is_active = true \
+           AND deleted_at IS NULL \
+           AND ({matches} OR ($7 <> '' AND $7 <% (first_name || ' ' || last_name))) \
+         ORDER BY score DESC, \
+           COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) DESC, \
+           last_name, first_name \
+         LIMIT 20",
+        rank = search::rank_sql(2),
+        matches = search::where_sql(2),
+    );
+    let mut query = sqlx::query_as::<_, MatchResult>(&sql).bind(tenant_id);
+    for value in matcher.binds() {
+        query = query.bind(value);
+    }
+    Ok(query.bind(matcher.exact()).fetch_all(&mut **tx).await?)
+}
+
 /// The front desk's lookup: one box, everything the desk might be given.
 ///
 /// `GET /api/patients` is relationship-scoped, which is right for browsing and
@@ -3475,9 +3483,11 @@ pub async fn find_patients(
     if q.chars().count() < 3 {
         return Ok(Json(Vec::new()));
     }
-    // A name typed in an Indian script finds the local name and, spelled in
-    // English, the English one.
-    let (latin, native) = local_name::search_terms(q);
+    let Some(matcher) =
+        search::PatientSearch::for_request(&state, claims.tenant_id, Some(q)).await?
+    else {
+        return Ok(Json(Vec::new()));
+    };
 
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
@@ -3490,55 +3500,7 @@ pub async fn find_patients(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
-    // One query, bounded. Exact UHID / phone first, then a name that starts
-    // with the term, then any word of the name that does ("ravi" finds
-    // "Mr.K Ravindran"), then UHID / phone fragments, then a fuzzy name for
-    // typos. The match predicates are the trigram-indexed ones (migration
-    // 1070); the regexp only ranks rows already matched. Similarity alone on
-    // the full name missed partial names: "ravi" scores 0.17 against
-    // "Ravichandran.S Patient", under the old 0.3 floor.
-    let rows = sqlx::query_as::<_, MatchResult>(
-        "WITH p AS ( \
-           SELECT $2::text AS q, \
-                  replace(replace(replace(lower($2), '\\', '\\\\'), '%', '\\%'), '_', '\\_') AS e, \
-                  replace(replace(replace($3::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') AS local \
-         ) \
-         SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
-         ( \
-           CASE WHEN upper(uhid) = upper(p.q) THEN 1.0 \
-                WHEN phone = p.q THEN 0.95 \
-                WHEN p.local IS NOT NULL AND full_name_local LIKE p.local || '%' THEN 0.92 \
-                WHEN lower(first_name || ' ' || last_name) LIKE p.e || '%' THEN 0.9 \
-                WHEN ' ' || regexp_replace(lower(first_name || ' ' || last_name), '[^a-z0-9]+', ' ', 'g') \
-                     LIKE '% ' || p.e || '%' THEN 0.85 \
-                WHEN uhid ILIKE '%' || p.e || '%' THEN 0.80 \
-                WHEN phone LIKE '%' || p.e || '%' THEN 0.75 \
-                ELSE COALESCE(word_similarity(p.q, first_name || ' ' || last_name), 0) * 0.7 \
-           END \
-         )::float8 AS score, pharmacy_customer \
-         FROM patients, p \
-         WHERE tenant_id = $1 \
-           AND is_merged = false \
-           AND is_active = true \
-           AND deleted_at IS NULL \
-           AND ( \
-             upper(uhid) = upper(p.q) \
-             OR phone = p.q \
-             OR uhid ILIKE '%' || p.e || '%' \
-             OR phone LIKE '%' || p.e || '%' \
-             OR (first_name || ' ' || last_name) ILIKE '%' || p.e || '%' \
-             OR p.q <% (first_name || ' ' || last_name) \
-             OR (p.local IS NOT NULL AND full_name_local LIKE '%' || p.local || '%') \
-           ) \
-         ORDER BY score DESC, last_name, first_name \
-         LIMIT 20",
-    )
-    .bind(claims.tenant_id)
-    .bind(&latin)
-    .bind(native.as_deref())
-    .fetch_all(&mut *tx)
-    .await?;
+    let rows = find_matches(&mut tx, claims.tenant_id, &matcher).await?;
     tx.commit().await?;
 
     Ok(Json(

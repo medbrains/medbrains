@@ -1,1 +1,4 @@
-{}
+{
+  "placeholder.searchPatients": "नाम, फ़ोन, UHID या आधार से खोजें",
+  "directory.searchLabel": "नाम, फ़ोन, UHID या आधार से मरीज़ खोजें"
+}
