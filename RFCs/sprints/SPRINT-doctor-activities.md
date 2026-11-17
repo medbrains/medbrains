@@ -410,7 +410,7 @@ GRANT SELECT ON doctor_profiles, doctor_signature_credentials, signed_records,
 | `POST /api/admin/doctors` | Create profile linked to existing user |
 | `PUT /api/admin/doctors/{id}` | Update |
 | `GET /api/doctors/me/dashboard` | "My Day" composite payload |
-| `GET /api/doctors/me/pending-signoffs` | Sign-off queue |
+| `GET /api/doctors/me/pending-signoffs` | Sign-off queue: only the records the caller authors, per type as the signing registry names the author (prescription `doctor_id`; lab result: the order's validating pathologist `lab_orders.verified_by`; radiology report and discharge summary: `COALESCE(verified_by, reported_by/prepared_by)`). A failed read answers an error, never an empty queue (#6009). |
 | `POST /api/signatures/sign` | Atomic sign action |
 | `POST /api/signatures/sign-batch` | Bulk sign multiple records (lab pathologist signs 30 reports at once) |
 | `POST /api/signatures/co-sign` | Co-signer attestation |

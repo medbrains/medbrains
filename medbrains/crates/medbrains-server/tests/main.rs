@@ -267,6 +267,7 @@ mod payments_p0_test;
 mod payments_pos_fixes_test;
 mod payments_pos_test;
 mod pcpndt_form_f_test;
+mod pending_signoffs_scope_test;
 mod pharmacy_bill_test;
 mod pharmacy_buy_outside_db_test;
 mod pharmacy_buy_outside_test;
