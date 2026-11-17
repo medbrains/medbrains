@@ -2851,16 +2851,19 @@ pub struct QualityIndicator {
     pub denominator: Option<i32>,
     pub rate: f64,
     pub benchmark: Option<f64>,
+    /// `met`, `not_met`, `not_applicable` or `direction_not_set`.
     pub status: String,
-    pub trend: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QualitySummary {
     pub total_indicators: i32,
     pub met_benchmark: i32,
-    pub below_benchmark: i32,
+    /// Indicators that miss their target in their own direction.
+    pub not_met: i32,
     pub not_applicable: i32,
+    /// Indicators with a target but no direction; never counted as met.
+    pub direction_not_set: i32,
 }
 
 /// NMC Compliance Report

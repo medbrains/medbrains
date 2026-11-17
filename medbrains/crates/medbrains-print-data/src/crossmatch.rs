@@ -11,9 +11,9 @@ use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{CrossmatchReportPrintData, CrossmatchUnit};
+use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 /// One request as the report prints it.
@@ -60,9 +60,7 @@ pub async fn get_crossmatch_report_print_data(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
     let row = crossmatch_report_row(&mut tx, claims.tenant_id, request_id).await?;
     let crossmatch_results = crossmatch_report_units(&mut tx, claims.tenant_id, request_id).await?;
@@ -117,7 +115,7 @@ pub fn print_data(
 
 /// The request, its patient and the ward they are in now.
 pub async fn crossmatch_report_row(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     request_id: Uuid,
 ) -> Result<CrossmatchReportRow, AppError> {
@@ -164,7 +162,7 @@ pub async fn crossmatch_report_row(
         request_id,
         tenant_id,
     )
-    .fetch_optional(&mut **tx)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)
 }
@@ -172,7 +170,7 @@ pub async fn crossmatch_report_row(
 /// The unit the bank tied to the request: none until it is crossmatched,
 /// one after (`crossmatch_requests.component_id`).
 pub async fn crossmatch_report_units(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     request_id: Uuid,
 ) -> Result<Vec<CrossmatchUnit>, AppError> {
@@ -193,6 +191,6 @@ pub async fn crossmatch_report_units(
         request_id,
         tenant_id,
     )
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *conn)
     .await?)
 }

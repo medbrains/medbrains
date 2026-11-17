@@ -43,7 +43,7 @@ const HOLDERS_SQL: &str = "\
 /// Notify every active holder of `permission` in the tenant except `exclude`
 /// (the person who caused it). Returns how many were told.
 pub async fn notify_permission_holders<'a, F>(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     permission: &str,
     exclude: Uuid,
@@ -52,9 +52,9 @@ pub async fn notify_permission_holders<'a, F>(
 where
     F: Fn(Uuid) -> NewNotification<'a>,
 {
-    let holders = permission_holders(tx, tenant_id, permission, exclude).await?;
+    let holders = permission_holders(conn, tenant_id, permission, exclude).await?;
     for user_id in &holders {
-        create_notification(tx, tenant_id, make(*user_id)).await?;
+        create_notification(conn, tenant_id, make(*user_id)).await?;
     }
     Ok(holders.len())
 }

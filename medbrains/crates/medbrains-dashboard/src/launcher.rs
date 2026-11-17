@@ -10,6 +10,7 @@
 use axum::Json;
 use axum::extract::{Extension, State};
 use medbrains_core::bricks::BRICKS;
+use medbrains_kernel::Actor;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
@@ -75,7 +76,7 @@ fn refuse_unwritten_star(body: &SetFavourite, favourites: &[String]) -> Result<(
 /// # Errors
 /// The database could not be read.
 pub async fn list_favourites(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     user_id: Uuid,
 ) -> Result<Vec<String>, sqlx::Error> {
@@ -86,7 +87,7 @@ pub async fn list_favourites(
         user_id,
         MAX_FAVOURITES,
     )
-    .fetch_all(&mut **tx)
+    .fetch_all(&mut *conn)
     .await
 }
 
@@ -96,7 +97,7 @@ pub async fn list_favourites(
 /// # Errors
 /// The database could not be written or read.
 pub async fn write_favourite(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conn: &mut sqlx::PgConnection,
     (tenant_id, user_id): (Uuid, Uuid),
     path: &str,
     starred: bool,
@@ -111,7 +112,7 @@ pub async fn write_favourite(
             path,
             MAX_FAVOURITES,
         )
-        .execute(&mut **tx)
+        .execute(&mut *conn)
         .await?;
     } else {
         sqlx::query!(
@@ -121,10 +122,10 @@ pub async fn write_favourite(
             user_id,
             path,
         )
-        .execute(&mut **tx)
+        .execute(&mut *conn)
         .await?;
     }
-    list_favourites(tx, tenant_id, user_id).await
+    list_favourites(conn, tenant_id, user_id).await
 }
 
 /// GET /api/users/me/launcher — the caller's favourites and every app's name.
@@ -135,8 +136,7 @@ pub async fn get_launcher(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<LauncherResponse>, AppError> {
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let favourites = list_favourites(&mut tx, claims.tenant_id, claims.sub).await?;
     tx.commit().await?;
     let bricks = BRICKS
@@ -158,8 +158,7 @@ pub async fn set_favourite(
     if !is_screen_path(&body.path) {
         return Err(AppError::BadRequest("That is not a screen address.".into()));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let owner = (claims.tenant_id, claims.sub);
     let favourites = write_favourite(&mut tx, owner, &body.path, body.starred).await?;
     tx.commit().await?;

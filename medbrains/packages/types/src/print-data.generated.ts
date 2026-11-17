@@ -2594,15 +2594,18 @@ export interface QualityIndicator {
   denominator: number | null;
   rate: number;
   benchmark: number | null;
+  /** `met`, `not_met`, `not_applicable` or `direction_not_set`. */
   status: string;
-  trend: string | null;
 }
 
 export interface QualitySummary {
   total_indicators: number;
   met_benchmark: number;
-  below_benchmark: number;
+  /** Indicators that miss their target in their own direction. */
+  not_met: number;
   not_applicable: number;
+  /** Indicators with a target but no direction; never counted as met. */
+  direction_not_set: number;
 }
 
 /** NMC Compliance Report */
