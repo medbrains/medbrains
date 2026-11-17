@@ -121,6 +121,7 @@ methods are independent. Losing one key, one tool or one prefix leaves the other
 | Nightly dump (`medbrains-pg-backup`) | `pg_dump` sealed with age to the hospital's **offline** key; Object Lock 30 d | ≤ 24 h | ≈ 1 min per 0.5 GB to restore; ≈ 2 h for a lost host | lost host or disk, ransomware (the host cannot read or delete it), a bad deploy | the offline age key, operator credentials |
 | Point-in-time recovery (WAL-G, **opt-in**, `PITR_ENABLED=1`) | WAL every ≤ 5 min plus a daily base backup (full weekly), sealed with WAL-G's libsodium key | **≤ 6 min** | base fetch + WAL replay: minutes for a small hospital; ≈ 1 h for a lost host | everything above, **plus** "restore to 10:41": a wrong bulk update, a dropped table, ransomware inside the database | `/etc/medbrains/walg.key` (on the host, and in the sealed secrets backup) |
 | Lightsail / EBS snapshots (per-hospital servers) | whole disk, daily, 7 kept | ≤ 24 h | ≈ 15 min (new instance from snapshot) | a lost instance | the AWS account |
+| Monthly restore test (`medbrains-restore-test`, with PITR) | restores the PITR archive on the server into a scratch standby, checks it, emails the result | n/a | n/a | an archive that looks fine and does not restore | nothing new: it uses `walg.key` |
 | Per-hospital export (`medbrains-tenant-export`) | one tenant, weekly, sealed | ≤ 7 d | hours (a new install plus import) | a hand-over or a move. **Not** disaster recovery | the receiving key |
 
 Before PITR the data-loss window is the day since 02:30. With PITR it is the last few minutes.
@@ -262,6 +263,59 @@ container. When the log says `database system is ready to accept connections`, d
 below. Then delete the three recovery lines and `medbrains-wal-restore/`, start the server, and take a fresh base
 backup straight away (`systemctl start medbrains-wal-g-backup`): the timeline changed. Keep `$DATA.broken-*` until the
 hospital confirms.
+
+## Monthly restore test (automatic, with PITR)
+
+`medbrains-restore-test.timer` runs on the 1st of each month at 05:00 (server time) on every server with
+`PITR_ENABLED=1`. It is enabled and disabled by `install.sh` with PITR. It proves on the server itself that the
+point-in-time archive restores, emails the result to `BACKUP_REPORT_TO`, writes `RESTORE_TEST_LAST="<date> PASSED"` (or
+`FAILED` / `SKIPPED`) into `/etc/medbrains/env`, and pages through `OnFailure=` when it fails. The nightly backup email
+shows the line too.
+
+What it does:
+
+1. **Refuses to risk the live database.**
+   - The scratch directory must be named `…/medbrains-restore-test…` (default `/var/lib/medbrains-restore-test`).
+   - It must not be inside the live data directory.
+   - It must not already exist unless the script's own marker is in it.
+   - There must be space for 1.3 × the cluster's size plus `RESTORE_TEST_RESERVE_GB` (5) to spare. Otherwise the
+     email says **SKIPPED: not enough space**, and nothing is restored.
+2. Fetches the newest base backup and every WAL segment since, with `medbrains-wal-g fetch-base` / `fetch-wals`.
+3. Starts a throwaway Postgres on the copy **as a standby**: `standby.signal`, `restore_command = cp …`,
+   `archive_mode=off`, `hot_standby=on`, `shared_buffers=32MB`, no TCP listener.
+   - Host tier: socket in the scratch directory, port 55439.
+   - Container tier: a container `medbrains-restore-test` from the same image, `--network none`, `--memory 512m`.
+   - A standby never promotes, so it never starts a new timeline and can never write into the archive.
+4. Waits until the replay position stops moving, then checks:
+   - the schema version equals the live database's, and no migration failed;
+   - the newest `audit_log` entry is within `RESTORE_TEST_MAX_LAG_MIN` (30) of the live one when the test began;
+   - for every hospital, rows in `users`, `patients`, `encounters`, `invoices` and `audit_log`, restored against live.
+     A table that has rows live and none restored fails.
+5. Stops the scratch server and deletes the directory, on every exit path.
+
+`sudo medbrains-restore-test --print` runs it by hand and shows the email instead of sending it.
+
+**Why it tests the PITR path and not the dumps (the key question).** The dumps are sealed to the hospital's **offline**
+age key. Testing them on the server means putting a private key there that opens every dump. A separate "test" key
+whose private half lives in a root-only file would do the same thing. Root on the host could then read every
+historical dump (deleted patients, old records), and the host would also need **read** access to the dump prefixes,
+which it does not have today. That breaks the property that a compromised server cannot read or exfiltrate its own
+backup history.
+
+The PITR archive has no such cost: the server already holds `walg.key` to take delta backups, and it can read the live
+database anyway. So:
+
+- **automated monthly** on the PITR path, here;
+- **manual** for the age dumps, from the operator's machine with the offline key (`medbrains-restore-drill`, below),
+  quarterly and after any change to the backup script. Record it in `RESTORE_DRILL_LAST`.
+
+The two together cover both independent methods.
+
+Tested so far: locally, a Homebrew PostgreSQL 17.5 standby from `pg_basebackup` plus WAL prefetched by
+`archive_command` into `medbrains-wal-restore/`. It came up in recovery, replayed to the live row count (50,001 =
+50,001), reported `archive_mode = off` with the live cluster's `archive_command` still in its `postgresql.auto.conf`,
+and left the spool empty. The script's comparison logic was run against two seeded tenants. **Not yet run on a
+server.** The first scheduled run, or `--print` after enabling PITR, is its first real result. Append it here.
 
 ## Restore runbook
 
@@ -476,8 +530,9 @@ fails, and the drill also runs in its own throwaway container. 15/15 on 2026-10-
   steps are run. PITR has not yet run against a real bucket: the setup's canary is the first proof, and the monthly
   restore test the second.
 - The files mirror runs once a day: up to 24 h of generated documents can be lost even with WAL archiving on.
-- The restore drill is run by hand (it needs the offline key, so it cannot be scheduled on the host by design).
-  Quarterly, and after any change to the backup script.
+- The age-dump restore drill is run by hand (it needs the offline key, so it cannot be scheduled on the host by
+  design). Quarterly, and after any change to the backup script. The PITR archive is tested monthly by the server
+  itself (`medbrains-restore-test`).
 - Losing the offline key (and any second recipient) makes every sealed backup unreadable. Keep two copies.
 - Object Lock requires a checksum on every PUT. The backup script sends one. WAL-G's SDK sends one by default
   (`AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_SUPPORTED`), and the setup's canary upload proves it before anything

@@ -26,6 +26,7 @@ export const APP_SCREENS: readonly AppScreen[] = [
   { brick: "billing", path: "/billing/doctor-payouts", labelKey: "doctorPayouts", icon: "IconReceipt", permission: null, anyOf: ["doctor_payouts.agreements.manage", "doctor_payouts.rate_cards.manage", "doctor_payouts.ledger.view", "doctor_payouts.statements.prepare", "doctor_payouts.statements.approve", "doctor_payouts.payouts.execute", "doctor_payouts.day_settlement.execute", "doctor_payouts.reports.view", "doctor_payouts.policy.manage"] },
   { brick: "billing", path: "/insurance", labelKey: "insurance", icon: "IconShieldHalfFilled", permission: "insurance.verification.list", anyOf: [] },
   { brick: "opd", path: "/opd", labelKey: "opdQueue", icon: "IconStethoscope", permission: "opd.queue.list", anyOf: [] },
+  { brick: "opd", path: "/opd/reports", labelKey: "opdReports", icon: "IconChartBar", permission: "opd.reports.view", anyOf: [] },
   { brick: "opd", path: "/opd/appointments", labelKey: "appointments", icon: "IconCalendar", permission: "opd.appointment.list", anyOf: [] },
   { brick: "opd", path: "/telemedicine", labelKey: "telemedicine", icon: "IconVideo", permission: "opd.queue.view", anyOf: [] },
   { brick: "opd", path: "/doctor/signoffs", labelKey: "doctorSignoffs", icon: "IconSignature", permission: "doctor.signoffs.view_own", anyOf: [] },

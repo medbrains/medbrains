@@ -15,6 +15,7 @@
   "patients": "Patients",
   "opdQueue": "OPD Queue",
   "appointments": "Appointments",
+  "opdReports": "OPD reports",
   "telemedicine": "Telemedicine",
   "doctorSignoffs": "Doctor Sign-offs",
   "lab": "Laboratory",
