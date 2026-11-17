@@ -43,7 +43,7 @@ async fn pharmacist(app: &common::TestApp, admin_csrf: &str, tenant: Uuid) -> (C
         .await
         .expect("department");
     let t = Uuid::new_v4().simple().to_string()[..8].to_owned();
-    let (username, password) = (format!("ph_{t}"), format!("Ph#{t}Aa9"));
+    let (username, password) = (format!("ph_{t}"), format!("Ph#Key{t}Aa9"));
     let (status, body) = call(
         app,
         &app.client,

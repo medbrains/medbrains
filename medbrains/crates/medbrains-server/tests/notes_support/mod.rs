@@ -41,7 +41,7 @@ pub async fn department(app: &common::TestApp, tag: &str) -> Uuid {
 /// A nurse in `department`, signed in on a client of their own.
 pub async fn nurse(app: &common::TestApp, admin_csrf: &str, department: Uuid) -> (Staff, Uuid) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("note_{tag}"), format!("Note#{tag}Aa9"));
+    let (username, password) = (format!("note_{tag}"), format!("Note#Key{tag}Aa9"));
     let resp = app
         .client
         .post(app.url("/api/setup/users"))

@@ -105,6 +105,18 @@ pub(crate) fn hospital_required() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({ "hospital_required": true }))
 }
 
+impl<'a> From<&'a crate::PasswordResetConfirmBody> for PasswordCheck<'a> {
+    /// A self-service reset's new password, with the username and the hospital code it named.
+    fn from(body: &'a crate::PasswordResetConfirmBody) -> Self {
+        Self {
+            password: &body.new_password,
+            username: &body.username,
+            hospital_code: body.hospital_code.as_deref().unwrap_or_default(),
+            ..Self::default()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Account, account, only_hospital};
@@ -123,17 +135,5 @@ mod tests {
         assert!(matches!(account(vec![1, 2]), Account::Ambiguous));
         assert!(matches!(account(vec![1]), Account::One(1)));
         assert!(matches!(account(Vec::<i32>::new()), Account::None));
-    }
-}
-
-impl<'a> From<&'a crate::PasswordResetConfirmBody> for PasswordCheck<'a> {
-    /// A self-service reset's new password, with the username and the hospital code it named.
-    fn from(body: &'a crate::PasswordResetConfirmBody) -> Self {
-        Self {
-            password: &body.new_password,
-            username: &body.username,
-            hospital_code: body.hospital_code.as_deref().unwrap_or_default(),
-            ..Self::default()
-        }
     }
 }

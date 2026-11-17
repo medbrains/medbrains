@@ -353,7 +353,7 @@ async fn only_the_reporter_or_validator_signs_a_report_as_primary() {
         .post(app.url("/api/setup/users"))
         .header("x-csrf-token", &csrf)
         .json(&json!({ "username": format!("rad_{tag}"), "email": format!("rad_{tag}@example.test"),
-                       "password": format!("Rad#{tag}Aa9"), "full_name": format!("Dr {tag}"), "role": "doctor" }))
+                       "password": format!("Rad#Key{tag}Aa9"), "full_name": format!("Dr {tag}"), "role": "doctor" }))
         .send()
         .await
         .expect("user")

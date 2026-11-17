@@ -40,7 +40,7 @@ async fn doctor(app: &common::TestApp, csrf: &str) -> String {
         app.client.post(app.url("/api/setup/users")).json(&json!({
             "username": format!("mlcexam_{tag}"),
             "email": format!("mlcexam_{tag}@example.test"),
-            "password": format!("MlcExam#{tag}Aa9"),
+            "password": format!("MlcExam#Key{tag}Aa9"),
             "full_name": "Examining Doctor",
             "role": "doctor",
         })),
@@ -319,7 +319,7 @@ async fn signed_in_doctor(
     extra: Value,
 ) -> (String, reqwest::Client, String) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("mlcdoc_{tag}"), format!("MlcDoc#{tag}Aa9"));
+    let (username, password) = (format!("mlcdoc_{tag}"), format!("MlcDoc#Key{tag}Aa9"));
     let mut user = json!({
         "username": username,
         "email": format!("{username}@example.test"),
