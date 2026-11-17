@@ -27,12 +27,12 @@ medbrains-bme not_yet 55 medbrains-db
 medbrains-bridge not_yet 0 -
 medbrains-camp not_yet 111 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-care-mgmt not_yet 179 medbrains-db,medbrains-authz,medbrains-authz-gate
-medbrains-case-sheet-scan not_yet 18 medbrains-db,medbrains-authz-gate
+medbrains-case-sheet-scan partial 15 medbrains-db
 medbrains-catalog-import not_yet 13 medbrains-db
 medbrains-client-errors on_facade 0 -
 medbrains-clinical-core not_yet 0 -
 medbrains-clinical-notes not_yet 14 medbrains-db,medbrains-authz-gate
-medbrains-clinical-offline not_yet 17 medbrains-db
+medbrains-clinical-offline partial 17 medbrains-db
 medbrains-clinical-ops not_yet 42 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-clinical-scores not_yet 30 medbrains-db,medbrains-authz-gate
 medbrains-cms not_yet 1 medbrains-db
@@ -123,7 +123,7 @@ medbrains-pharmacy-repeats not_yet 9 medbrains-db
 medbrains-pharmacy-safety not_yet 27 medbrains-db
 medbrains-platform not_yet 104 medbrains-db
 medbrains-print not_yet 0 -
-medbrains-print-data partial 390 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-print-data partial 388 medbrains-db,medbrains-authz,medbrains-authz-gate
 medbrains-printing not_yet 0 -
 medbrains-proxy not_yet 0 -
 medbrains-quality not_yet 89 medbrains-db

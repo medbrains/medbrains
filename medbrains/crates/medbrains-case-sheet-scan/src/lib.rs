@@ -13,6 +13,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use medbrains_health_services::patient::require_patient_access;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -51,7 +52,7 @@ pub async fn create_scan(
     // Two read paths in this file already call require_patient_access, so
     // mrd_officer resolves against it; filing a chart for a patient is
     // the same question as reading one.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    require_patient_access(&state, &claims, body.patient_id).await?;
     if body.scan_image_url.trim().is_empty() {
         return Err(AppError::BadRequest(
             "scan_image_url is required".to_owned(),
@@ -100,7 +101,7 @@ pub async fn list_scans(
     // Patient-scoped list is a clinical read → gate on patient access. The
     // unscoped list is the MRD processing queue (operational, role-gated).
     if let Some(patient_id) = q.patient_id {
-        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+        require_patient_access(&state, &claims, patient_id).await?;
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -139,7 +140,7 @@ pub async fn get_scan(
     tx.commit().await?;
     // A scanned case sheet is patient clinical content — gate on patient access
     // (reachable via the patient's care team; RFC-ACCESS-RESOLUTION-GRAPH).
-    medbrains_authz_gate::require_patient_access(&state, &claims, scan.patient_id).await?;
+    require_patient_access(&state, &claims, scan.patient_id).await?;
     Ok(Json(scan))
 }
 
@@ -320,7 +321,7 @@ pub async fn commit_scan(
     .ok_or_else(|| AppError::BadRequest("Scan is not ready to commit".to_owned()))?;
     // Committing appends to the patient's running note, so the committer must be
     // able to reach that patient, not only the one who created the scan.
-    medbrains_authz_gate::require_patient_access(&state, &claims, scan.patient_id).await?;
+    require_patient_access(&state, &claims, scan.patient_id).await?;
 
     let note = format_case_sheet_note(scan.extracted_json.as_ref());
     sqlx::query(
