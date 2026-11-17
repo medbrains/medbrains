@@ -118,6 +118,7 @@ if [[ "$MODE" == "success" ]]; then
         fi
         echo
         echo "Last restore drill: ${RESTORE_DRILL_LAST:-never recorded. Run medbrains-restore-drill and set RESTORE_DRILL_LAST in /etc/medbrains/env}"
+        [[ -n "${RESTORE_TEST_LAST:-}" ]] && echo "Last automatic restore test (point-in-time archive): $RESTORE_TEST_LAST"
         [[ -n "${err:-}" ]] && { echo; echo "Notice: $err"; }
     } > "$BODY"
 else
