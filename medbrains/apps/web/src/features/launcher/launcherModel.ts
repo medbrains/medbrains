@@ -14,9 +14,9 @@ export interface LauncherApp {
 }
 
 /**
- * Whether the viewer may see `item`: the side panel's rule. It needs its
- * permission, any one of its alternative permissions, and its brick switched
- * on. (Spotlight checks permissions only and still ignores bricks: #5995.)
+ * Whether the viewer may see `item`: the side panel's rule, and search's. It
+ * needs its permission, any one of its alternative permissions, and its brick
+ * switched on.
  */
 export function isItemVisible(item: NavItemConfig, viewer: Viewer): boolean {
   return (
@@ -32,7 +32,7 @@ export function isItemVisible(item: NavItemConfig, viewer: Viewer): boolean {
  */
 export function visibleScreens(groups: readonly NavGroupConfig[], viewer: Viewer): NavItemConfig[] {
   // ponytail: the menu nests one level (entry -> pages), so two bounded loops,
-  // no recursion; a deeper menu needs this and taggedBricks walked again.
+  // no recursion; a deeper menu needs this walked again.
   const out: NavItemConfig[] = [];
   for (const item of groups.flatMap((group) => group.items)) {
     if (!isItemVisible(item, viewer)) continue;
@@ -42,36 +42,17 @@ export function visibleScreens(groups: readonly NavGroupConfig[], viewer: Viewer
   return out;
 }
 
-/** Every brick code the side panel tags a screen with. */
-export function taggedBricks(groups: readonly NavGroupConfig[]): Set<string> {
-  const items = groups.flatMap((group) => group.items);
-  const all = [...items, ...items.flatMap((item) => item.children ?? [])];
-  return new Set(all.flatMap((item) => item.moduleCode ?? []));
-}
-
 /**
- * The brick a screen belongs to: its `moduleCode` tag, or else the first path
- * segment when that names a brick (the OPD queue `/opd` and `/ipd` carry no tag,
- * so the menu decides their visibility, but they are still their app's door).
+ * One app per brick the viewer has any screen in, in brick order, each opening
+ * at its first screen in its side panel. The screen registry tags every app
+ * screen with its brick (`moduleCode`). Screens outside every brick (the
+ * dashboard, administration) are not apps; they stay reachable from the core
+ * side panel, Spotlight and favourites.
  */
-export function brickOf(item: NavItemConfig, bricks: ReadonlySet<string>): string | undefined {
-  if (item.moduleCode) return item.moduleCode;
-  const segment = item.path.split("/")[1] ?? "";
-  return bricks.has(segment) ? segment : undefined;
-}
-
-/**
- * One app per brick the viewer has any screen in, ordered by where the brick
- * first appears in the side panel. Screens outside every brick (the dashboard,
- * administration) are not apps; they stay reachable from the side panel,
- * Spotlight and favourites.
- */
-export function launcherApps(screens: readonly NavItemConfig[], bricks: ReadonlySet<string>) {
-  // ponytail: an app opens at its first screen in side-panel order; switch to the
-  // generated per-app panel (APP_SCREENS, PR #5959) once it lands.
+export function launcherApps(screens: readonly NavItemConfig[]) {
   const apps = new Map<string, LauncherApp>();
   for (const item of screens) {
-    const brick = brickOf(item, bricks);
+    const brick = item.moduleCode;
     if (brick && !apps.has(brick)) apps.set(brick, { brick, home: item });
   }
   return [...apps.values()];

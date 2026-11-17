@@ -14,10 +14,8 @@ import { LauncherSection } from "@/features/launcher/LauncherSection";
 import styles from "@/features/launcher/launcher.module.scss";
 import {
   administrationEntry,
-  brickOf,
   type LauncherApp,
   launcherApps,
-  taggedBricks,
   visibleFavourites,
   visibleScreens,
 } from "@/features/launcher/launcherModel";
@@ -26,8 +24,6 @@ import { useLauncherData, useToggleFavourite } from "@/features/launcher/useFavo
 import { WaitingForYou } from "@/features/launcher/WaitingForYou";
 import { needsNow, useMyWork, visibleItems } from "@/features/launcher/workModel";
 
-/** Every brick the side panel tags, worked out once: the menu config is static. */
-const BRICKS = taggedBricks(NAV_GROUPS);
 /** Six app tiles a row on a desktop, as on the board, down to two on a phone. */
 const APP_COLS = { base: 2, sm: 3, md: 4, lg: 6 };
 
@@ -53,7 +49,7 @@ function useViewerDoors(): ViewerDoors {
     const viewer = { hasPermission, disabledModules };
     const screens = visibleScreens(NAV_GROUPS, viewer);
     const admin = administrationEntry(NAV_GROUPS, viewer);
-    return { screens, apps: launcherApps(screens, BRICKS), admin };
+    return { screens, apps: launcherApps(screens), admin };
   }, [permissions, hasPermission, disabledModules]);
 }
 
@@ -96,7 +92,7 @@ function FavouritesSection({
               key={item.path}
               label={t(item.i18nKey)}
               path={item.path}
-              app={names.get(brickOf(item, BRICKS) ?? "")}
+              app={names.get(item.moduleCode ?? "")}
               unstarLabel={t("favouriteRemoveNamed", { label: t(item.i18nKey) })}
               isUnstarPending={toggle.isPending}
               onUnstar={() => toggle.mutate({ path: item.path, starred: false })}

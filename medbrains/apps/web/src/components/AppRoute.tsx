@@ -1,10 +1,14 @@
 import { useModuleStore } from "@medbrains/stores";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
+import { appOfRoute } from "@/layouts/appPanel";
 import { AppNotInstalledPage } from "@/pages/errors/app-not-installed";
 
 interface AppRouteProps {
-  /** The app brick's `module_config.code`, as in `crates/medbrains-core/src/bricks.rs`. */
-  brick: string;
+  /**
+   * The app brick's `module_config.code`, as in `crates/medbrains-core/src/bricks.rs`. Left out,
+   * it is the app the current route belongs to in the screen registry (the shell's guard).
+   */
+  brick?: string;
 }
 
 /**
@@ -14,6 +18,8 @@ interface AppRouteProps {
  * is gated in its own pass, so this guard is not the access control.
  */
 export function AppRoute({ brick }: AppRouteProps) {
-  const enabled = useModuleStore((s) => !s.disabledModules.has(brick));
-  return enabled ? <Outlet /> : <AppNotInstalledPage brick={brick} />;
+  const pathname = useLocation().pathname;
+  const app = brick ?? appOfRoute(pathname);
+  const enabled = useModuleStore((s) => !app || !s.disabledModules.has(app));
+  return enabled || !app ? <Outlet /> : <AppNotInstalledPage brick={app} />;
 }

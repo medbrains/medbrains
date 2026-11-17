@@ -32,4 +32,24 @@ describe("AppRoute", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("OPD queue screen")).not.toBeInTheDocument();
   });
+
+  it("without a brick, guards the app the route belongs to and leaves core screens open", () => {
+    useModuleStore.getState().setDisabledModules(["lab", "pharmacy"]);
+    const shell = (path: string) =>
+      render(
+        <Routes>
+          <Route element={<AppRoute />}>
+            <Route path="*" element={<p>Screen</p>} />
+          </Route>
+        </Routes>,
+        { initialEntries: [path] },
+      );
+    const lab = shell("/lab/orders/42");
+    expect(
+      screen.getByText("Laboratory (LIS) isn't part of this hospital's MedBrains"),
+    ).toBeInTheDocument();
+    lab.unmount();
+    shell("/admin/users");
+    expect(screen.getByText("Screen")).toBeInTheDocument();
+  });
 });
