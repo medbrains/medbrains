@@ -43,8 +43,8 @@ Sources: carbondesignsystem.com/elements/2x-grid, /elements/spacing, ibm.com/des
 - Carbon brand: colour/type/spacing from `@medbrains/design-system` tokens generated into Swift `Carbon`
   and Kotlin `Carbon` (never raw hex, never a per-surface palette fork). Layout is the platform's, never
   the web 2x grid.
-- React Native + Paper is the **outgoing** stack: no new RN screens; each RN app is deleted when its
-  native pair reaches parity on `packages/e2e-mobile/src/journeys.ts`.
+- The React Native apps were deleted on 2026-11-17; the journeys the native apps owe are in
+  `packages/e2e-mobile/src/journeys.ts`.
 Sources: developer.apple.com/design/human-interface-guidelines (Designing for iOS, Designing for iPhone Duo),
 m3.material.io (Material 3 Expressive), developer.android.com/develop/ui/compose.
 
@@ -56,7 +56,7 @@ m3.material.io (Material 3 Expressive), developer.android.com/develop/ui/compose
   the outer 5%.
 - **10-foot legibility:** large type, high contrast, **light text on dark background**, minimal reading, big
   hit/focus areas; virtualize lists (`FlatList`, `DEVICE-CONSTRAINED-RULES`).
-- Carbon brand: use `@medbrains/ui-mobile` `COLORS`/`INTENT` (as `tv-board.tsx` does) but on a **dark board**
+- Carbon brand: use the generated Kotlin `Carbon` tokens but on a **dark board**
   palette; emergency codes fixed from `@medbrains/design-system`.
 Sources: developer.android.com/design/ui/tv (design-for-tv, layouts), Fire TV design guidelines,
 pascalpotvin.medium.com "Designing a 10ft UI".
@@ -73,5 +73,5 @@ pascalpotvin.medium.com "Designing a 10ft UI".
 ## How the loop applies this
 - **Do not** port the web 2x-grid to TV/mobile. Each surface's slice follows **its** section above.
 - Brand consistency comes from the **shared Carbon token core** (`@medbrains/design-system` →
-  `@medbrains/ui-mobile` → `buildDeviceTheme`), never raw hex, never a per-surface palette fork.
+  generated Swift / Kotlin `Carbon`), never raw hex, never a per-surface palette fork.
 - Every device slice also obeys `DEVICE-CONSTRAINED-RULES` (perf) + `WCAG-2.2-RULES` (a11y).
