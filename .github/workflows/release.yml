@@ -655,7 +655,13 @@ jobs:
             python3 medbrains/scripts/check_release_bins.py --tarball "dist/medbrains-server-bins-linux-$a.tar.gz"
           done
           tar -czf dist/medbrains-web-dist.tar.gz -C artifacts web-dist
-          find artifacts/android artifacts/ios artifacts/os-* -type f -exec cp {} dist/ \;
+          # Optional: a failed Android, iOS or OS-image job uploads nothing, so only the
+          # directories that exist are copied (v3.35.1 stopped here with no os-* artifact).
+          shopt -s nullglob
+          for d in artifacts/android artifacts/ios artifacts/os-*; do
+            if [ -d "$d" ]; then find "$d" -type f -exec cp {} dist/ \; ; fi
+          done
+          shopt -u nullglob
           cd dist && sha256sum -- * > SHA256SUMS
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign the checksums (keyless)
