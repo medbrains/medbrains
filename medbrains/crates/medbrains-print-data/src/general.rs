@@ -412,7 +412,7 @@ pub async fn get_patient_card_print_data(
 /// Whether these claims reprint cards as the desk: holding
 /// `patients.card.reprint` outright, not through a bypass role, which already
 /// reaches every patient through the ordinary path.
-fn holds_card_reprint(claims: &Claims) -> bool {
+pub(crate) fn holds_card_reprint(claims: &Claims) -> bool {
     !is_bypass_role(claims)
         && claims
             .permissions
