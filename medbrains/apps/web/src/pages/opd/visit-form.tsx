@@ -97,7 +97,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
     void prefillFromLastVisit(initialPatientId);
   });
 
-  const departmentOptions = useOpdDepartmentOptions();
+  const { options: departmentOptions, unavailable } = useOpdDepartmentOptions();
   // One department (a single-clinic hospital): it is filled in, not asked for.
   const soleDepartment = soleOption(departmentOptions, watch("department_id"));
   /** Submits the visit, first filling in the hospital's only department when the picker is hidden. */
@@ -228,7 +228,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
               data={departmentOptions}
               value={field.value ?? ""}
               onChange={(value) => field.onChange(value || null)}
-              error={errors.department_id?.message}
+              error={errors.department_id?.message ?? unavailable}
               searchable
               required
             />
