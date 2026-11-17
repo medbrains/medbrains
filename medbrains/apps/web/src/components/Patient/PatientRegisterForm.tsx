@@ -6,7 +6,6 @@ import {
   Button,
   Checkbox,
   Grid,
-  NumberInput,
   Select,
   Stack,
   Stepper,
@@ -15,7 +14,6 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
 import type {
   PatientRegistrationFormInput,
   PatientRegistrationInitialValues,
@@ -31,11 +29,10 @@ import type {
   TerminologySearchResult,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCalendarMonth } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, FormProvider, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { AbhaCreateDrawer } from "@/components/abha/AbhaCreateDrawer";
 import type { AbhaVerified } from "@/components/abha/AbhaVerifiedStep";
@@ -45,7 +42,6 @@ import { ClinicalForm, FormRow, FormSection } from "@/components/ClinicalForm";
 import {
   AllergyField,
   buildPhoneCountryOptions,
-  CountryPhoneInput,
   defaultPhoneCountryCode,
   detectPhoneCountryCode,
   formatPhoneWithCountryCode,
@@ -77,8 +73,8 @@ import { AbhaLinkPanel } from "./AbhaLinkPanel";
 import { CampaignSelect } from "./CampaignSelect";
 import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
 import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
-import { LocalNameRow } from "./LocalNameRow";
-import { RegistrationDepartmentCol } from "./RegistrationDepartmentCol";
+import { RegistrationMoreDetails } from "./RegistrationMoreDetails";
+import { RegistrationRequiredFields } from "./RegistrationRequiredFields";
 import { useOpdVisitGates } from "./useOpdVisitGates";
 import { useRegistrationDepartments } from "./useRegistrationDepartments";
 
@@ -173,121 +169,6 @@ function translatedError(t: TFunction, message: string | undefined): string | un
   return key ? t(key) : message;
 }
 
-function calculateAgeYears(dateOfBirth: Date): number {
-  const today = new Date();
-  let years = today.getFullYear() - dateOfBirth.getFullYear();
-  const birthdayThisYear = new Date(
-    today.getFullYear(),
-    dateOfBirth.getMonth(),
-    dateOfBirth.getDate(),
-  );
-  if (birthdayThisYear > today) {
-    years -= 1;
-  }
-  return Math.max(0, years);
-}
-
-function parseDatePickerValue(value: Date | string | null | undefined): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) {
-    return null;
-  }
-
-  const date = new Date(year, month - 1, day);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function toDatePickerValue(value: Date | string | null | undefined): string | null {
-  const date = parseDatePickerValue(value);
-  if (!date) {
-    return null;
-  }
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function agePart(value: number, unit: "day" | "month" | "year", t: TFunction): string {
-  return t(`registrationForm.age.${unit}`, { count: value });
-}
-
-function formatAgeAsOfToday(value: Date | string | null | undefined, t: TFunction): string | null {
-  const dateOfBirth = parseDatePickerValue(value);
-  if (!dateOfBirth) {
-    return null;
-  }
-
-  const today = new Date();
-  const birthDate = new Date(
-    dateOfBirth.getFullYear(),
-    dateOfBirth.getMonth(),
-    dateOfBirth.getDate(),
-  );
-  const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  if (birthDate > currentDate) {
-    return null;
-  }
-
-  let years = currentDate.getFullYear() - birthDate.getFullYear();
-  let months = currentDate.getMonth() - birthDate.getMonth();
-  let days = currentDate.getDate() - birthDate.getDate();
-
-  if (days < 0) {
-    months -= 1;
-    days += new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
-  }
-
-  if (months < 0) {
-    years -= 1;
-    months += 12;
-  }
-
-  const parts: string[] = [];
-  if (years > 0) {
-    parts.push(agePart(years, "year", t));
-  }
-  if (months > 0) {
-    parts.push(agePart(months, "month", t));
-  }
-  if (years === 0 && days > 0) {
-    parts.push(agePart(days, "day", t));
-  }
-
-  return parts.length > 0 ? parts.join(" ") : t("registrationForm.age.zeroDays");
-}
-
-function ageHintAsOfToday(
-  dateOfBirth: Date | string | null | undefined,
-  ageYears: number | undefined,
-  isEstimated: boolean,
-  t: TFunction,
-): string {
-  const exactAge = formatAgeAsOfToday(dateOfBirth, t);
-  if (exactAge) {
-    return isEstimated
-      ? t("registrationForm.hint.ageAsOfTodayEstimated", { age: exactAge })
-      : t("registrationForm.hint.ageAsOfToday", { age: exactAge });
-  }
-
-  if (typeof ageYears === "number") {
-    return t("registrationForm.hint.ageEstimatedUntilDob", {
-      age: agePart(ageYears, "year", t),
-    });
-  }
-
-  return t("registrationForm.hint.selectDob");
-}
-
 export interface PatientRegistrationLinkedServicesOptions {
   createOpdVisit: boolean;
   openOpdAfterRegistration: boolean;
@@ -322,17 +203,7 @@ export function PatientRegisterForm({
   // way to print the patient's card from there. Both are off while the EMR is.
   const { canCreateOpdVisit, canWorkOpdVisit } = useOpdVisitGates();
   const canVerifyAbha = useHasPermission(P.ABDM.ABHA.MANAGE);
-  const {
-    register,
-    control,
-    setValue,
-    getValues,
-    trigger,
-    clearErrors,
-    watch,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<PatientRegistrationFormInput>({
+  const form = useForm<PatientRegistrationFormInput>({
     resolver: zodResolver(patientRegistrationFormSchema),
     // Checked as a field changes, so a message clears the moment its field is
     // put right rather than at the next press of Next. Not "onTouched": the
@@ -402,6 +273,16 @@ export function PatientRegisterForm({
         (initialValues?.open_opd_after_registration ?? false) && canWorkOpdVisit,
     },
   });
+  const {
+    register,
+    control,
+    setValue,
+    getValues,
+    trigger,
+    watch,
+    handleSubmit,
+    formState: { errors },
+  } = form;
   const [activeStep, setActiveStep] = useState(0);
   const [abhaDrawerOpen, setAbhaDrawerOpen] = useState(false);
   const [abhaCreateOpen, setAbhaCreateOpen] = useState(false);
@@ -420,10 +301,8 @@ export function PatientRegisterForm({
   );
   const [drugAllergySearch, setDrugAllergySearch] = useState("");
   const dateOfBirthValue = watch("date_of_birth");
-  const ageYearsValue = watch("age_years");
   const drugAllergiesValue = watch("drug_allergies");
   const trimmedDrugAllergySearch = drugAllergySearch.trim();
-  const dateOfBirthAgeHint = ageHintAsOfToday(dateOfBirthValue, ageYearsValue, dobEstimated, t);
   const fieldError = (message: string | undefined) => translatedError(t, message);
 
   const { data: doctors = [] } = useQuery<SetupUser[]>({
@@ -594,7 +473,6 @@ export function PatientRegisterForm({
     [t],
   );
   const referredByKind = watch("referred_by_kind");
-  const createOpdVisit = watch("create_opd_visit");
   const abhaNumber = watch("abha_number");
   const abhaAddress = watch("abha_address");
   const abhaDigits = (abhaNumber ?? "").replace(/\D/g, "");
@@ -927,288 +805,34 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 0 && (
-          <FormSection num="01" name={t("registrationForm.section.identity")}>
-            <FormRow label={t("registrationForm.row.unknownPatient")}>
-              <Controller
-                control={control}
-                name="is_unknown_patient"
-                render={({ field }) => (
-                  <Checkbox
-                    aria-label={t("registrationForm.aria.unknownPatient")}
-                    label={t("registrationForm.label.unknownPatientSkipName")}
-                    checked={field.value ?? false}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      field.onChange(checked);
-                      if (checked) {
-                        clearErrors(["first_name", "last_name"]);
-                      }
-                    }}
-                  />
-                )}
-              />
-            </FormRow>
-            <FormRow label={t("registrationForm.row.name")} required>
-              <Grid>
-                <Grid.Col span={{ base: 12, sm: 2 }}>
-                  <Controller
-                    control={control}
-                    name="prefix"
-                    render={({ field }) => (
-                      <Select
-                        aria-label={t("registrationForm.aria.prefix")}
-                        placeholder={t("registrationForm.placeholder.prefix")}
-                        data={localizedPrefixOptions}
-                        value={field.value ?? null}
-                        onChange={(v) => field.onChange(v ?? undefined)}
-                        searchable
-                        clearable
-                      />
-                    )}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <TextInput
-                    aria-label={t("registrationForm.aria.firstName")}
-                    data-testid="field-first_name"
-                    placeholder={t("registrationForm.placeholder.firstName")}
-                    error={fieldError(errors.first_name?.message)}
-                    {...register("first_name")}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 3 }}>
-                  <TextInput
-                    aria-label={t("registrationForm.aria.middleName")}
-                    placeholder={t("registrationForm.placeholder.middleName")}
-                    {...register("middle_name")}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 3 }}>
-                  <TextInput
-                    aria-label={t("registrationForm.aria.lastName")}
-                    data-testid="field-last_name"
-                    placeholder={t("registrationForm.placeholder.lastName")}
-                    error={fieldError(errors.last_name?.message)}
-                    {...register("last_name")}
-                  />
-                </Grid.Col>
-              </Grid>
-            </FormRow>
-            <FormRow label={t("registrationForm.row.localName", "Name in own script")}>
-              <Controller
-                control={control}
-                name="full_name_local"
-                render={({ field }) => (
-                  <LocalNameRow
-                    englishName={[watch("first_name"), watch("middle_name"), watch("last_name")]
-                      .filter(Boolean)
-                      .join(" ")}
-                    value={field.value ?? ""}
-                    onChange={field.onChange}
-                    onUseEnglish={(name) => {
-                      const [first, ...rest] = name.split(" ");
-                      setValue("first_name", first ?? "", { shouldDirty: true });
-                      setValue("last_name", rest.join(" "), { shouldDirty: true });
-                    }}
-                  />
-                )}
-              />
-            </FormRow>
-
-            <FormRow label={t("registrationForm.row.ageDob")}>
-              <Grid>
-                <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <Controller
-                    control={control}
-                    name="age_years"
-                    render={({ field }) => {
-                      // If DOB is set but age_years didn't sync (e.g. a stale
-                      // Controller render), derive it from the watched DOB so
-                      // the input never silently shows 0.
-                      const derivedAge = dateOfBirthValue
-                        ? calculateAgeYears(
-                            dateOfBirthValue instanceof Date
-                              ? dateOfBirthValue
-                              : (parseDatePickerValue(dateOfBirthValue) ?? new Date(0)),
-                          )
-                        : undefined;
-                      const displayValue =
-                        typeof field.value === "number" ? field.value : (derivedAge ?? "");
-                      return (
-                        <NumberInput
-                          aria-label={t("registrationForm.aria.ageYears")}
-                          data-testid="field-age_years"
-                          placeholder={t("registrationForm.placeholder.ageYears")}
-                          min={0}
-                          max={125}
-                          value={displayValue}
-                          onChange={(value) => {
-                            const age = typeof value === "number" ? value : undefined;
-                            field.onChange(age);
-                            if (typeof age === "number") {
-                              setDobEstimated(true);
-                              setValue("date_of_birth", estimateDobFromAge(age), {
-                                shouldDirty: true,
-                                shouldTouch: true,
-                                shouldValidate: true,
-                              });
-                            } else if (dobEstimated) {
-                              setDobEstimated(false);
-                              setValue("date_of_birth", null, {
-                                shouldDirty: true,
-                                shouldTouch: true,
-                                shouldValidate: true,
-                              });
-                            }
-                          }}
-                        />
-                      );
-                    }}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 8 }}>
-                  <Controller
-                    control={control}
-                    name="date_of_birth"
-                    render={({ field }) => (
-                      <DatePickerInput
-                        aria-label={t("registrationForm.aria.dateOfBirth")}
-                        placeholder={t("registrationForm.placeholder.dateOfBirth")}
-                        valueFormat="DD MMM YYYY"
-                        value={toDatePickerValue(field.value)}
-                        onChange={(v) => {
-                          const date = parseDatePickerValue(v);
-                          setDobEstimated(false);
-                          field.onChange(date);
-                          if (date) {
-                            setValue("age_years", calculateAgeYears(date), {
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              shouldValidate: true,
-                            });
-                          } else {
-                            setValue("age_years", undefined, {
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              shouldValidate: true,
-                            });
-                          }
-                        }}
-                        clearable
-                        defaultLevel="decade"
-                        maxDate={new Date()}
-                        leftSection={<IconCalendarMonth size={16} />}
-                      />
-                    )}
-                  />
-                </Grid.Col>
-                <Grid.Col span={12}>
-                  <Text size="xs" c="var(--mb-warning-text)" fw={500}>
-                    {dateOfBirthAgeHint} {t("registrationForm.hint.ageDobInstruction")}
-                  </Text>
-                </Grid.Col>
-              </Grid>
-            </FormRow>
-
-            <FormRow label={t("registrationForm.row.sexBloodGroup")} required>
-              <Grid>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <Controller
-                    control={control}
-                    name="gender"
-                    render={({ field }) => (
-                      <Select
-                        aria-label={t("registrationForm.aria.gender")}
-                        data-testid="picker-gender"
-                        data={localizedGenderOptions}
-                        value={field.value}
-                        onChange={(v) => v && field.onChange(v)}
-                        error={fieldError(errors.gender?.message)}
-                      />
-                    )}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <Controller
-                    control={control}
-                    name="blood_group"
-                    render={({ field }) => (
-                      <Select
-                        aria-label={t("registrationForm.aria.bloodGroup")}
-                        placeholder={t("options.bloodGroup.unknown")}
-                        data={localizedBloodGroupOptions}
-                        value={field.value ?? null}
-                        onChange={(v) => field.onChange(v ?? undefined)}
-                        clearable
-                      />
-                    )}
-                  />
-                </Grid.Col>
-              </Grid>
-            </FormRow>
-          </FormSection>
-        )}
-
-        {activeStep === 0 && (
-          <FormSection num="02" name={t("registrationForm.section.phone")}>
-            <FormRow label={t("registrationForm.row.phone")} required>
-              <Grid>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <Controller
-                    control={control}
-                    name="phone"
-                    render={({ field }) => (
-                      <CountryPhoneInput
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                        countryCode={phoneCountryCode}
-                        onCountryCodeChange={setPhoneCountryCodeOverride}
-                        countryOptions={phoneDialOptions}
-                        countryAriaLabel={t("registrationForm.aria.primaryPhoneCountry")}
-                        numberAriaLabel={t("registrationForm.aria.primaryPhone")}
-                        numberTestId="field-phone"
-                        placeholder={t("registrationForm.placeholder.primaryPhone")}
-                        error={fieldError(errors.phone?.message)}
-                      />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name="has_no_phone"
-                    render={({ field }) => (
-                      <Checkbox
-                        mt="xs"
-                        checked={field.value ?? false}
-                        onChange={(event) => field.onChange(event.currentTarget.checked)}
-                        label={t("registrationForm.row.hasNoPhone")}
-                        description={t("registrationForm.hint.hasNoPhone")}
-                        data-testid="field-has_no_phone"
-                      />
-                    )}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <Controller
-                    control={control}
-                    name="phone_secondary"
-                    render={({ field }) => (
-                      <CountryPhoneInput
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                        countryCode={alternatePhoneCountryCode}
-                        onCountryCodeChange={setAlternatePhoneCountryCodeOverride}
-                        countryOptions={phoneDialOptions}
-                        countryAriaLabel={t("registrationForm.aria.alternatePhoneCountry")}
-                        numberAriaLabel={t("registrationForm.aria.alternatePhone")}
-                        placeholder={t("registrationForm.placeholder.alternatePhone")}
-                        error={fieldError(errors.phone_secondary?.message)}
-                      />
-                    )}
-                  />
-                </Grid.Col>
-              </Grid>
-            </FormRow>
-          </FormSection>
+          <FormProvider {...form}>
+            <RegistrationRequiredFields
+              genderOptions={localizedGenderOptions}
+              departmentOptions={departmentOptions}
+              departmentsUnavailable={departmentsUnavailable}
+              consultantOptions={consultantOptions}
+              phone={{
+                countryCode: phoneCountryCode,
+                onCountryCodeChange: setPhoneCountryCodeOverride,
+                dialOptions: phoneDialOptions,
+              }}
+              dobEstimated={dobEstimated}
+              setDobEstimated={setDobEstimated}
+              fieldError={fieldError}
+              showOpdToggle={!isEdit && canCreateOpdVisit}
+              canWorkOpdVisit={canWorkOpdVisit}
+            />
+            <RegistrationMoreDetails
+              prefixOptions={localizedPrefixOptions}
+              bloodGroupOptions={localizedBloodGroupOptions}
+              secondPhone={{
+                countryCode: alternatePhoneCountryCode,
+                onCountryCodeChange: setAlternatePhoneCountryCodeOverride,
+                dialOptions: phoneDialOptions,
+              }}
+              fieldError={fieldError}
+            />
+          </FormProvider>
         )}
 
         {activeStep === 1 && (
@@ -1564,40 +1188,12 @@ export function PatientRegisterForm({
 
         {activeStep === 0 && (
           <FormSection num="05" name={t("registrationForm.section.clinicalOwnership")}>
-            <FormRow label={t("registrationForm.row.departmentConsultant")}>
-              <Grid>
-                <RegistrationDepartmentCol
-                  control={control}
-                  options={departmentOptions}
-                  error={fieldError(errors.department_id?.message)}
-                  unavailable={departmentsUnavailable}
-                />
-                <Grid.Col span={{ base: 12, sm: 5 }}>
-                  <Controller
-                    control={control}
-                    name="consultant_id"
-                    render={({ field }) => (
-                      <Select
-                        aria-label={t("registrationForm.aria.concernedConsultant")}
-                        data-testid="picker-consultant"
-                        placeholder={t("registrationForm.placeholder.concernedConsultant")}
-                        data={consultantOptions}
-                        value={field.value ?? null}
-                        onChange={(v) => field.onChange(v ?? undefined)}
-                        searchable
-                        clearable
-                      />
-                    )}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 2 }}>
-                  <TextInput
-                    aria-label={t("registrationForm.aria.clinicalUnit")}
-                    placeholder={t("registrationForm.placeholder.clinicalUnit")}
-                    {...register("clinical_unit")}
-                  />
-                </Grid.Col>
-              </Grid>
+            <FormRow label={t("registrationForm.row.clinicalUnit")}>
+              <TextInput
+                aria-label={t("registrationForm.aria.clinicalUnit")}
+                placeholder={t("registrationForm.placeholder.clinicalUnit")}
+                {...register("clinical_unit")}
+              />
             </FormRow>
             <FormRow label={t("registrationForm.row.provisionalDiagnosis")}>
               <Grid>
@@ -1641,51 +1237,6 @@ export function PatientRegisterForm({
                 </Grid.Col>
               </Grid>
             </FormRow>
-            {!isEdit && canCreateOpdVisit && (
-              <FormRow label={t("registrationForm.row.linkedServices")}>
-                <Grid>
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <Controller
-                      control={control}
-                      name="create_opd_visit"
-                      render={({ field }) => (
-                        <Checkbox
-                          aria-label={t("registrationForm.aria.sendToOpdQueue")}
-                          label={t("registrationForm.label.sendToOpdQueue")}
-                          checked={field.value ?? false}
-                          onChange={(event) => {
-                            field.onChange(event.currentTarget.checked);
-                            if (!event.currentTarget.checked) {
-                              setValue("open_opd_after_registration", false, {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              });
-                            }
-                          }}
-                        />
-                      )}
-                    />
-                  </Grid.Col>
-                  {canWorkOpdVisit && (
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <Controller
-                        control={control}
-                        name="open_opd_after_registration"
-                        render={({ field }) => (
-                          <Checkbox
-                            aria-label={t("registrationForm.aria.openOpdAfterRegistration")}
-                            label={t("registrationForm.label.openOpdAfterQueue")}
-                            checked={(field.value ?? false) && Boolean(createOpdVisit)}
-                            disabled={!createOpdVisit}
-                            onChange={(event) => field.onChange(event.currentTarget.checked)}
-                          />
-                        )}
-                      />
-                    </Grid.Col>
-                  )}
-                </Grid>
-              </FormRow>
-            )}
           </FormSection>
         )}
 

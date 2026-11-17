@@ -1,4 +1,21 @@
 {
   "placeholder.searchPatients": "ابحث بالاسم أو الهاتف أو UHID أو آدهار",
-  "directory.searchLabel": "ابحث عن المرضى بالاسم أو الهاتف أو UHID أو آدهار"
+  "directory.searchLabel": "ابحث عن المرضى بالاسم أو الهاتف أو UHID أو آدهار",
+  "registrationForm.hint.unknownPatient": "عندها لا يلزم الاسم والجنس والعمر والهاتف. استخدمه فقط عندما يتعذر التعرف على المريض.",
+  "registrationForm.label.firstName": "الاسم الأول",
+  "registrationForm.label.lastName": "اسم العائلة",
+  "registrationForm.label.sex": "الجنس",
+  "registrationForm.label.age": "العمر (بالسنوات)",
+  "registrationForm.label.orDateOfBirth": "أو تاريخ الميلاد",
+  "registrationForm.label.phone": "الهاتف",
+  "registrationForm.label.doctor": "الطبيب",
+  "registrationForm.label.department": "القسم",
+  "registrationForm.row.sexAge": "الجنس · العمر",
+  "registrationForm.row.visit": "الزيارة",
+  "registrationForm.row.prefixMiddleName": "اللقب · الاسم الأوسط",
+  "registrationForm.row.bloodGroup": "فصيلة الدم",
+  "registrationForm.row.secondPhone": "هاتف ثانٍ",
+  "registrationForm.row.clinicalUnit": "الوحدة السريرية",
+  "registrationForm.section.requiredDetails": "البيانات المطلوبة",
+  "registrationForm.section.moreDetails": "بيانات إضافية (اختيارية)"
 }
