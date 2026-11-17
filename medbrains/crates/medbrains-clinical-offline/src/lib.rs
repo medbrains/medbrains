@@ -265,7 +265,7 @@ pub async fn get_patient_notes(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientNotes>, AppError> {
     require_permission(&claims, permissions::patients::notes::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_health_services::patient::require_patient_access(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -296,7 +296,7 @@ pub async fn update_patient_notes(
     Json(body): Json<UpdatePatientNotes>,
 ) -> Result<Json<PatientNotes>, AppError> {
     require_permission(&claims, permissions::patients::notes::EDIT)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_health_services::patient::require_patient_access(&state, &claims, patient_id).await?;
     let author = author_display_name(&state.db, claims.tenant_id, claims.sub).await?;
 
     let mut tx = state.db.begin().await?;
