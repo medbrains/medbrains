@@ -318,6 +318,9 @@ pub async fn commit_scan(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::BadRequest("Scan is not ready to commit".to_owned()))?;
+    // Committing appends to the patient's running note, so the committer must be
+    // able to reach that patient, not only the one who created the scan.
+    medbrains_authz_gate::require_patient_access(&state, &claims, scan.patient_id).await?;
 
     let note = format_case_sheet_note(scan.extracted_json.as_ref());
     sqlx::query(

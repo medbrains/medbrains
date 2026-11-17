@@ -103,8 +103,8 @@ Cargo.lock              @medbrains/backend
 package.json            @medbrains/frontend
 
 # Mobile
-/apps/mobile/           @medbrains/mobile
-/apps/tv/               @medbrains/mobile
+/apps/ios/              @medbrains/mobile
+/apps/android/          @medbrains/mobile
 
 # Database/Migrations
 /crates/medbrains-db/   @medbrains/backend @medbrains/dba

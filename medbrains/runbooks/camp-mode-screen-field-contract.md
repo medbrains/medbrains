@@ -2,8 +2,8 @@
 
 **Purpose:** lock the Camp app workflow before implementation. Remote camps are temporary care
 sites, so screens must support care delivery, patient safety, NABH evidence, offline survival, and
-post-camp reconciliation. This contract is intentionally stricter than the current
-`apps/mobile-camp/src/modules/camp.tsx` preview screen.
+post-camp reconciliation. This contract is intentionally stricter than the React Native camp preview screen it was
+written against (deleted 2026-11-17; the native camp app builds to this contract).
 
 ## Boundaries
 
@@ -485,7 +485,7 @@ MedBrains already has three related execution paths:
 | Runtime | Current repo path | Use for Camp |
 |---|---|---|
 | Web WASM | `packages/crdt` uses `loro-crdt`; proxy/CSP allows the Loro WASM asset | Browser/PWA fallback, CRDT docs, shared validation helpers that need to run in web |
-| Mobile native Rust | `crates/medbrains-edge-rn` + `packages/edge-rn-bindings` through UniFFI | Primary mobile Camp app. Prefer this over browser WASM on iOS/Android |
+| Mobile native Rust | `crates/medbrains-edge-rn` through UniFFI (Swift and Kotlin) | Primary mobile Camp app. Prefer this over browser WASM on iOS/Android |
 | Device adapter WASM | `crates/medbrains-adapter-sdk` | Lab/radiology/device simulators and machine adapters, not patient UI storage |
 
 Camp should not run its primary mobile offline database through browser-style WASM. The native app
