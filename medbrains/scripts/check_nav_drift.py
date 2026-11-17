@@ -30,7 +30,7 @@ NAV_TS = ROOT / "apps/web/src/config/navigation.ts"
 APP_SCREENS_TS = ROOT / "packages/types/src/app-screens.generated.ts"
 APP_SCREEN_RE = re.compile(
     r'\{ brick: (?:"[^"]+"|null), path: "([^"]+)", labelKey: "[^"]+", icon: "[^"]+", '
-    r'permission: (?:"([^"]+)"|null), anyOf: \[([^\]]*)\] \}'
+    r'permission: (?:"([^"]+)"|null), anyOf: \[([^\]]*)\], group: "\w+" \}'
 )
 
 

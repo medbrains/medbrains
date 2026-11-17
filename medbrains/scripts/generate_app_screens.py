@@ -25,7 +25,8 @@ BRICKS_RS = ROOT / "crates/medbrains-core/src/bricks.rs"
 OUT = ROOT / "packages/types/src/app-screens.generated.ts"
 
 ROW = re.compile(r"^\s*ScreenDef \{ (.*) \},\s*$")
-FIELD = re.compile(r'(\w+): (Some\("[^"]*"\)|"[^"]*"|None|&\[\]|[A-Z_]+)')
+FIELD = re.compile(r'(\w+): (Some\("[^"]*"\)|"[^"]*"|None|&\[\]|ScreenGroup::\w+|[A-Z_]+)')
+GROUPS = {"Essential": "essential", "Advanced": "advanced", "DevOnly": "dev_only"}
 CONST_LIST = re.compile(r"const ([A-Z_]+): &\[&str\] = &\[(.*?)\];", re.DOTALL)
 BRICK = re.compile(r'brick\("([a-z_]+)", "([^"]+)"|Brick \{ id: "([a-z_]+)", name: "([^"]+)"')
 
@@ -41,6 +42,8 @@ export interface AppScreen {
   /** Held as well as one of `anyOf` (when it has any); `null` with no `anyOf` is ungated. */
   permission: string | null;
   anyOf: readonly string[];
+  /** Where the menu lists it: as usual, under Administration's "Advanced", or only in a dev build. */
+  group: "essential" | "advanced" | "dev_only";
 }
 
 /** Every menu screen: each app's in panel order, apps in brick order, then the core screens. */
@@ -56,6 +59,8 @@ def value(raw: str, lists: dict[str, list[str]]) -> str | list[str] | None:
         return []
     if raw in lists:
         return lists[raw]
+    if raw.startswith("ScreenGroup::"):
+        return GROUPS[raw.removeprefix("ScreenGroup::")]
     return raw.removeprefix("Some(").removesuffix(")").strip('"')
 
 
@@ -82,7 +87,7 @@ def render(screens_rs: str, bricks_rs: str) -> str:
     lines = [
         f"  {{ brick: {q(r['brick'])}, path: {q(r['route'])}, labelKey: {q(r['nav_key'])}, "
         f"icon: {q(r['icon'])}, permission: {q(r['required_permission'])}, "
-        f"anyOf: [{', '.join(q(c) for c in r['any_of'])}] }},\n"
+        f"anyOf: [{', '.join(q(c) for c in r['any_of'])}], group: {q(r['group'])} }},\n"
         for r in panel_rows(screens_rs)
     ]
     names = [f"  {q(i)}: {q(n)},\n" for i, n in brick_names(bricks_rs)]
@@ -101,19 +106,20 @@ def self_test() -> None:
     rs = (
         'const ANY: &[&str] = &[\n    "a.b",\n    "c.d",\n];\n'
         '    ScreenDef { code: "x", label: "X", route: "/x", module: "m", required_permission: Some("a.b"), '
-        'icon: "IconX", nav_key: "xKey", brick: Some("opd"), any_of: ANY },\n'
+        'icon: "IconX", nav_key: "xKey", brick: Some("opd"), any_of: ANY, group: ScreenGroup::Essential },\n'
         '    ScreenDef { code: "y", label: "Y", route: "/y", module: "m", required_permission: None, '
-        'icon: "IconY", nav_key: "yKey", brick: None, any_of: &[] },\n'
+        'icon: "IconY", nav_key: "yKey", brick: None, any_of: &[], group: ScreenGroup::DevOnly },\n'
     )
     rows = panel_rows(rs)
     assert [r["route"] for r in rows] == ["/x", "/y"], "every row"
     assert rows[1]["brick"] is None and rows[1]["required_permission"] is None, "a core row"
     assert rows[0]["any_of"] == ["a.b", "c.d"], "a named list resolves"
+    assert [r["group"] for r in rows] == ["essential", "dev_only"], "a group reads as its web name"
     names = brick_names('brick("opd", "OPD / Outpatient", &[]\n    Brick { id: "companion", name: "Patient Companion",')
     assert names == [("opd", "OPD / Outpatient"), ("companion", "Patient Companion")]
     out = render(rs, 'brick("opd", "OPD / Outpatient", &[]')
-    assert 'permission: "a.b", anyOf: ["a.b", "c.d"] },' in out, "the row layout"
-    assert '{ brick: null, path: "/y", labelKey: "yKey", icon: "IconY", permission: null, anyOf: [] },' in out
+    assert 'permission: "a.b", anyOf: ["a.b", "c.d"], group: "essential" },' in out, "the row layout"
+    assert '{ brick: null, path: "/y", labelKey: "yKey", icon: "IconY", permission: null, anyOf: [], group: "dev_only" },' in out
     assert '  "opd": "OPD / Outpatient",\n' in out, "brick keys are quoted"
     print("app-screens self-test: ok")
 

@@ -58,7 +58,7 @@ const NAV_DESCRIPTIONS: Record<string, string> = {
   "/admin/webhooks": "Send events to partner systems, signed and retried",
 };
 
-/** Build navigation entries from nav config. */
+/** Search's screen entries, one per path: an app's admin screen is in its app and Administration. */
 function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
   const entries: SpotlightEntry[] = [];
 
@@ -88,7 +88,7 @@ function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
     walk(group.items);
   }
 
-  return entries;
+  return [...new Map(entries.map((entry) => [entry.path, entry])).values()];
 }
 
 /** Quick action entries (action-oriented, not nav duplication). */

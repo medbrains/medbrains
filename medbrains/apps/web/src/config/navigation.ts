@@ -116,6 +116,8 @@ export interface NavItemConfig {
    * = always shown (permission-gated only).
    */
   moduleCode?: string;
+  /** Listed in Administration under the closed "Advanced" group rather than with the rest. */
+  isAdvanced?: boolean;
 }
 
 export interface NavGroupConfig {
@@ -132,6 +134,7 @@ function toNavItem(s: AppScreen): NavItemConfig {
     ...(s.brick ? { moduleCode: s.brick } : {}),
     ...(s.permission ? { requiredPermission: s.permission } : {}),
     ...(s.anyOf.length > 0 ? { requiredPermissions: s.anyOf } : {}),
+    ...(s.group === "advanced" ? { isAdvanced: true } : {}),
   };
 }
 
@@ -376,9 +379,28 @@ export function matchModuleBadge(pathname: string): ModuleBadge | undefined {
 
 // ── Nav Groups ──
 
-/** Administration's screens: core screens under `/admin` or `/setup`, one collapsible entry. */
-function isAdministration(path: string): boolean {
-  return /^\/(admin|setup)(\/|$)/.test(path);
+/**
+ * Whether Administration lists the screen: it sits under `/admin` or `/setup` (an app's one too,
+ * shown while its app is on), or it is an Advanced or developer screen wherever it lives.
+ */
+function isAdministration(s: AppScreen): boolean {
+  return /^\/(admin|setup)(\/|$)/.test(s.path) || s.group !== "essential";
+}
+
+/**
+ * Administration's pages in panel order: the core essentials, the apps' admin screens, then the
+ * Advanced ones. Developer screens are left out unless `showDevScreens` (a development build);
+ * their routes still open by URL, since the permission, not the menu, is the gate.
+ */
+export function administrationPages(
+  screens: readonly AppScreen[],
+  showDevScreens: boolean,
+): NavItemConfig[] {
+  const pages = screens.filter(
+    (s) => isAdministration(s) && (showDevScreens || s.group !== "dev_only"),
+  );
+  const rank = (s: AppScreen) => (s.group === "advanced" ? 2 : s.brick ? 1 : 0);
+  return pages.sort((a, b) => rank(a) - rank(b)).map(toNavItem);
 }
 
 /**
@@ -390,7 +412,7 @@ function isAdministration(path: string): boolean {
 export const NAV_GROUPS: NavGroupConfig[] = [
   {
     key: "core",
-    items: APP_SCREENS.filter((s) => !s.brick && !isAdministration(s.path)).map(toNavItem),
+    items: APP_SCREENS.filter((s) => !s.brick && !isAdministration(s)).map(toNavItem),
   },
   ...Object.keys(BRICK_NAMES)
     .map((brick) => ({ key: brick, items: appNavItems(brick) }))
@@ -402,7 +424,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "admin",
         path: "/admin/users",
         icon: "IconSettings",
-        children: APP_SCREENS.filter((s) => !s.brick && isAdministration(s.path)).map(toNavItem),
+        children: administrationPages(APP_SCREENS, import.meta.env.DEV),
       },
     ],
   },
