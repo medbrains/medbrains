@@ -13,9 +13,9 @@ Applies to every surface whose device-catalog `class` is **not** `ui-desktop`/we
 
 | Class | Surfaces | Runtime |
 |---|---|---|
-| `ui-display` | all `TV-*` boards | Kotlin + Compose for TV (Android TV); React Native outgoing |
+| `ui-display` | all `TV-*` boards | Kotlin + Compose for TV (Android TV) |
 | `ui-touch` | `Desktop-Kiosk`, wayfinding | kiosk-mode browser |
-| `ui-mobile` | all `Mobile-*` | Swift + SwiftUI (iOS), Kotlin + Compose (Android); React Native + Paper outgoing — RFC-NATIVE-MOBILE |
+| `ui-mobile` | all `Mobile-*` | Swift + SwiftUI (iOS), Kotlin + Compose (Android) — RFC-NATIVE-MOBILE |
 | `headless-edge` | edge gateway, device bridge | Rust daemon |
 | `headless-iot` | cold-chain / environment sensors, adapters | firmware / bridge |
 
@@ -67,8 +67,8 @@ outside loops; O(n·log n) or better on any path touched per-frame or per-item. 
 "measured"; **on constrained surfaces it is required and reviewed.**
 
 ### 8. Share, never copy. One codebase per form-factor, config-driven.
-All shared logic comes from `@medbrains/*` (`device-catalog`, `design-system/tokens`, `mobile-shell`,
-`ui-mobile`, `schemas`, `types`). **No per-platform copy-paste** — a TV board and a kiosk are the same
+All shared logic comes from `@medbrains/*` (`device-catalog`, `design-system/tokens`, `schemas`,
+`types`) and, on native, the shared Kit/UI packages under `apps/ios` and `apps/android`. **No per-platform copy-paste** — a TV board and a kiosk are the same
 build differentiated by the boot **manifest** (surface × location × user), not forks. Colour comes from
 the Carbon tokens; devices diverge on form-factor (`deviceTheme(factor)`), never on palette.
 
