@@ -579,6 +579,8 @@ Apps written for Epic/Cerner-style SMART launch should run with little change, w
 traction argument. MedBrains-specific surface: manifest format, UI-slot names, design kit; all
 versioned and kept stable.
 
+> **AI connection model:** the MCP row above is superseded for the core by `RFC-AI-NATIVE-OS.md` (draft PR #6086): typed, signed `medbrains:action@1` actions in the manifest, a kernel plan interpreter, a deterministic action broker on the existing authz, provenance labels and a quarantined reader model. MCP and A2A connect only through a hardened gateway.
+
 ### 8.3 Languages (owner, 2026-11-18)
 
 The platform is defined by interfaces, not languages.
