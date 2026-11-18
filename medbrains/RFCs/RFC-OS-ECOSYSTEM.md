@@ -545,6 +545,54 @@ was legitimately given. It bounds what a connector *receives*; certification rev
 traces; day 3, pass `ext test`; day 4, run against their real analyser on the sandbox; day 5,
 `package`, `sign`, `submit` for community listing.
 
+### 8.1 Standards, not a new protocol (owner, 2026-11-18)
+
+MedBrains defines **no new wire protocol**. Devices and outside systems keep the standards they
+already speak; the only MedBrains-specific contracts are the small, versioned **plugin interfaces**
+(`medbrains:driver@1`, `connector@1`, WIT) and the **manifest**.
+
+| Area | Standard adopted | MedBrains adds |
+|---|---|---|
+| Lab analysers | HL7 v2 (prefer the IHE **LAW** profile), ASTM E1381/E1394 / CLSI LIS2-A2, POCT1-A | reference drivers + field mapping |
+| Monitors, pumps, ventilators | IEEE 11073 **SDC**, HL7 v2 from gateways | later phase |
+| Imaging | DICOM / DICOMweb | via Orthanc (exists) |
+| Data exchange | **FHIR R4** | full read/write/search (today 5 read-only resources) |
+| Payment hardware | each terminal's ECR / cloud API; ESC/POS for printers and drawers | one driver per brand behind the payment service |
+
+Optional later: a **MedBrains device profile**: a short spec of which HL7/LAW subset gives the
+smoothest plug-in. A profile of existing standards (IHE-style), not a protocol.
+
+### 8.2 The app model (owner, 2026-11-18)
+
+Apps are built from existing standards, packaged as one **MedBrains App Kit**:
+
+| Need | Standard | MedBrains adds |
+|---|---|---|
+| Patient data | FHIR R4 | full API (8.1) |
+| Open inside MedBrains in context, same login | **SMART on FHIR** app launch | **UI slots**: patient-record tab, side-panel item, OPD-queue action |
+| React to events | webhooks / CloudEvents | the 60 typed, signed events (exist) |
+| Permission and consent | OAuth 2 scopes | the manifest; hospital approval; kernel enforcement |
+| Native look | — | the design kit (`@medbrains/design-system`) |
+| AI apps and agents | **MCP** (Model Context Protocol) | a MedBrains MCP server acting only within granted permissions; AI output labelled and accepted per item by a person (AI UI rules) |
+
+Apps written for Epic/Cerner-style SMART launch should run with little change, which is the
+traction argument. MedBrains-specific surface: manifest format, UI-slot names, design kit; all
+versioned and kept stable.
+
+### 8.3 Languages (owner, 2026-11-18)
+
+The platform is defined by interfaces, not languages.
+
+| Builds | Runs | Languages | First-class SDK |
+|---|---|---|---|
+| Drivers, on-box connectors | in the box as WebAssembly components | Rust, C/C++, Go, TypeScript/JavaScript, Python, C# (newer) | **Rust**, then TypeScript and Python templates |
+| Apps | web app launched in MedBrains (SMART) | any web stack; front end TypeScript/React recommended; any back end | **TypeScript + React** with the design kit |
+| Cloud connectors | the vendor's server, over HTTPS/OAuth/webhooks | any | TypeScript and Python (exist) |
+| AI apps/agents | anywhere, via MCP | any (typically Python/TypeScript) | Python and TypeScript examples |
+
+Phase 1 ships Rust and TypeScript driver templates; Python next; C/C++ documented. One CLI:
+`medbrains ext new driver|connector|app --lang rust|ts|python`.
+
 ## 9. Marketplace and certification
 
 ### 9.1 Listing and discovery
@@ -843,3 +891,6 @@ Phases 1 and 1b can run in parallel with two engineers.
     resellers, and the warranty terms.
 18. **DECIDE:** extension permission codes as a namespaced data family (`ext.<publisher>.<app>.*`)
     beside the Rust-defined core codes (§3.4), an amendment to the Permissions First rule.
+19. **DECIDE:** first-class languages beyond Rust and TypeScript (Python next; any partner-driven
+    language, e.g. C/C++ or C#, first?).
+20. **DECIDE:** the MedBrains MCP server for AI apps: in phase 3 with apps, or earlier.
