@@ -248,6 +248,13 @@ profiles (`clinic` first) with the Pi image; **SM3** dependency diet ratchet.
 
 ## 4. Drivers and plugins (the "userland")
 
+> **Ecosystem RFC (proposed 2026-11-18):** drivers, connectors and apps from outside builders, payments
+> as a built-in OS service, and commerce (selling extensions, brick plans, boxes, certification and
+> support) are designed in [`RFC-OS-ECOSYSTEM.md`](RFC-OS-ECOSYSTEM.md). **Correction:** the first
+> bullet below overstates today. The adapter SDK can be built for WebAssembly, but nothing in the
+> workspace loads WebAssembly yet (`code_executor.rs` refuses it); every device protocol is compiled
+> into `medbrains-bridge`. See that RFC, §2.1.
+
 - **Drivers**: device adapters already compile to WebAssembly and load without changing the core.
 - **Blocks**: extend the same SDK so certified Developer partners ship flow blocks (actions,
   tasks, signals, facts) as sandboxed WASM plugins with a declared permission and inputs. A block
@@ -577,6 +584,9 @@ copies that so vendors and developers build **around** it without asking us.
   checked against the permissions the hospital granted it, plus consent and audit. Revoking an
   extension cuts it off at once.
 - **Free sandbox hospital** to build against, with synthetic data.
+
+The full ecosystem design (manifest v2, sandboxing, signing, marketplace, certification, commerce) is
+[`RFC-OS-ECOSYSTEM.md`](RFC-OS-ECOSYSTEM.md).
 
 Phases: **E1** publish the extension protocol + manifest + TypeScript and Python SDKs + CLI;
 **E2** public registry (community tier) + hospital install/approve screen; **E3** certification
