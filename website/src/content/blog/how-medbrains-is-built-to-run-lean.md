@@ -171,7 +171,7 @@ everything on a single box on the hospital network, including on Windows Server.
 Hospitals cannot assume the link to the cloud stays up all day.
 
 - **On-premises installs** keep working over the hospital network regardless of
-  the internet.
+  the internet, including a hospital running [MedBrains OS](/os) on its own box.
 - **Cloud installs** can add the optional MedBrains edge service, an 18 MB
   program on a box inside the hospital. Devices keep recording against it during
   an outage, and changes merge automatically when the link returns, without one

@@ -7,11 +7,12 @@ import Header from "../components/Header.astro";
 import OsHardwareHero from "../components/OsHardwareHero.astro";
 import WhatsAppFloat from "../components/WhatsAppFloat.astro";
 import { SITE } from "../consts";
-import { OS_FAQ, OS_HARDWARE, OS_HARDWARE_CAVEAT, OS_JOIN, OS_MEASURED, OS_NOT_DONE, OS_ROLES, OS_WHY } from "../data/os";
+import { OS_AUDIENCE, OS_BRICKS, OS_FAQ, OS_HARDWARE, OS_HARDWARE_CAVEAT, OS_JOIN, OS_MEASURED, OS_NOT_DONE, OS_ROLES, OS_SECURITY, OS_WHY } from "../data/os";
 import Base from "../layouts/Base.astro";
 
-const title = "MedBrains OS: one OS for every hospital machine";
-const description = "An open operating system for hospitals: one image for every machine, a role chosen at first boot, one server for the records, small replaceable nodes.";
+const title = `MedBrains OS: the operating system for hospitals | ${SITE.brand}`;
+const description = "MedBrains OS is an open source operating system for hospitals: one box, apps switched on as bricks, works without the internet, security built in.";
+const repo = "https://github.com/medbrains/medbrains";
 const home = new URL("/", Astro.site).href;
 const url = new URL("/os", Astro.site).href;
 const schema = [
@@ -23,6 +24,19 @@ const schema = [
     ],
   },
   { "@type": "WebPage", name: title, url, description, inLanguage: "en-IN" },
+  {
+    "@type": "SoftwareApplication",
+    name: "MedBrains OS",
+    applicationCategory: "BusinessApplication",
+    applicationSubCategory: "Hospital operating system",
+    operatingSystem: "Linux",
+    url,
+    description,
+    license: "https://www.gnu.org/licenses/agpl-3.0.html",
+    codeRepository: repo,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
+    publisher: { "@type": "Organization", name: SITE.brand, url: home },
+  },
   {
     "@type": "FAQPage",
     mainEntity: OS_FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
@@ -36,11 +50,13 @@ const schema = [
     <section class="hero">
       <div class="wrap">
         <nav class="crumbs-dark" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>MedBrains OS</span></nav>
-        <p class="eyebrow">MedBrains OS</p>
-        <h1>One OS for every machine <span>in the hospital.</span></h1>
-        <p class="lede">MedBrains OS is a small, open operating system built on Debian Linux. The same image runs on every machine; you choose what each one is for on its first-boot screen. One server keeps the records, and every other machine is a small node you can replace in minutes.</p>
+        <p class="eyebrow">The operating system for hospitals</p>
+        <h1>MedBrains OS</h1>
+        <p class="tagline">One OS for every machine <span>in the hospital.</span></p>
+        <p class="lede">MedBrains OS is an appliance operating system for hospitals: put it on one box and the hospital has its records server, then switch on the apps it needs as bricks. It is small, open source and built on Debian Linux. The same image runs on every machine; you choose what each one is for on its first-boot screen, and every machine but the server is a small node you can replace in minutes.</p>
         <div class="actions">
-          <a class="btn btn-primary" href="#roles-title">See the machine roles</a>
+          <a class="btn btn-primary" href="#demo">Book a demo</a>
+          <a class="btn btn-ghost" href="#roles-title">See the machine roles</a>
           <a class="btn btn-ghost" href="#status-title">What is not done yet</a>
         </div>
       </div>
@@ -59,7 +75,54 @@ const schema = [
         </div>
       </section>
 
-      <section class="section tinted" aria-labelledby="roles-title">
+      <section class="section tinted" aria-labelledby="bricks-title">
+        <div class="wrap narrow">
+          <p class="eyebrow tag">Apps as bricks</p>
+          <h2 id="bricks-title" class="title">Switch on only what the hospital uses</h2>
+          <p class="body">Each part of the hospital is an app brick. A clinic can start with registration and OPD; a hospital adds lab, pharmacy, wards and theatre as it grows. A brick that is switched off leaves the menu and its API stops answering, so nothing half-hidden is left running. Staff see only the apps their permissions allow: hidden, not greyed out.</p>
+          <ul class="chips" aria-label="Some of the 26 bricks">{OS_BRICKS.map((b) => <li>{b}</li>)}</ul>
+          <p class="small">Some of the 26 bricks. A brick that needs another, such as OPD needing registration, cannot be switched on without it.</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="offline-title">
+        <div class="wrap narrow">
+          <p class="eyebrow tag">Works without the internet</p>
+          <h2 id="offline-title" class="title">A box in the hospital, not a page in the cloud</h2>
+          <p class="body">The server sits in the hospital, on the hospital's own network. Setup, sign-in and daily work need no internet connection, so a cut cable outside does not stop the front desk. The internet is used for updates and for optional cloud services. A workstation needs to reach the server; a ward backup that keeps a ward running when it cannot is planned.</p>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="security-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Security built in</p>
+          <h2 id="security-title" class="title">Security that ships in the box</h2>
+          <div class="grid">
+            {OS_SECURITY.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="open-title">
+        <div class="wrap narrow">
+          <p class="eyebrow tag">Open source</p>
+          <h2 id="open-title" class="title">Free software, open to read</h2>
+          <p class="body">MedBrains OS and the hospital software on it are free software under the GNU AGPL-3.0. The source, the build scripts and the design are public, so a hospital or its IT firm can check what runs on its machines. Vendors who cannot meet the AGPL can take a commercial licence.</p>
+          <p><a class="btn btn-primary" href={repo}>See the source on GitHub</a></p>
+        </div>
+      </section>
+
+      <section class="section tinted" aria-labelledby="who-title">
+        <div class="wrap">
+          <p class="eyebrow tag">Who it is for</p>
+          <h2 id="who-title" class="title">Hospitals that want one system they own</h2>
+          <div class="grid">
+            {OS_AUDIENCE.map((d) => <article class="feature"><h3>{d.title}</h3><p>{d.body}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="roles-title">
         <div class="wrap">
           <p class="eyebrow tag">Chosen on the first-boot screen</p>
           <h2 id="roles-title" class="title">Four machine roles, one image</h2>
@@ -76,7 +139,7 @@ const schema = [
         </div>
       </section>
 
-      <section class="section" aria-labelledby="join-title">
+      <section class="section tinted" aria-labelledby="join-title">
         <div class="wrap narrow">
           <p class="eyebrow tag">Adding a machine</p>
           <h2 id="join-title" class="title">How a machine joins the hospital</h2>
@@ -84,7 +147,7 @@ const schema = [
         </div>
       </section>
 
-      <section class="section tinted" aria-labelledby="hw-title">
+      <section class="section" aria-labelledby="hw-title">
         <div class="wrap">
           <p class="eyebrow tag">Hardware</p>
           <h2 id="hw-title" class="title">The smallest box that does the job</h2>
@@ -104,7 +167,7 @@ const schema = [
         </div>
       </section>
 
-      <section class="section" aria-labelledby="measured-title">
+      <section class="section tinted" aria-labelledby="measured-title">
         <div class="wrap">
           <p class="eyebrow tag">Measured, not claimed</p>
           <h2 id="measured-title" class="title">Numbers so far</h2>
@@ -115,7 +178,7 @@ const schema = [
         </div>
       </section>
 
-      <section class="section tinted" aria-labelledby="status-title">
+      <section class="section" aria-labelledby="status-title">
         <div class="wrap narrow">
           <p class="eyebrow tag">Status</p>
           <h2 id="status-title" class="title">What is not done yet</h2>
@@ -124,7 +187,7 @@ const schema = [
         </div>
       </section>
 
-      <section class="section" aria-labelledby="faq-title">
+      <section class="section tinted" aria-labelledby="faq-title">
         <div class="wrap narrow">
           <h2 id="faq-title" class="title">Questions</h2>
           {OS_FAQ.map((f) => <details><summary>{f.q}</summary><p>{f.a}</p></details>)}
@@ -148,7 +211,8 @@ const schema = [
       radial-gradient(900px 500px at 80% -20%, var(--glow-blue), transparent 60%), var(--night);
     .eyebrow { color: var(--pulse); }
     h1 { font: 900 clamp(2.3rem, 6vw, 4.4rem) var(--display); letter-spacing: -.035em; line-height: 1.02; margin: 0 0 20px; max-width: 16ch; }
-    h1 span { color: var(--sky); }
+    .tagline { font: 800 clamp(1.4rem, 3.2vw, 2.2rem)/1.15 var(--display); letter-spacing: -.025em; margin: 0 0 20px; max-width: 24ch; }
+    .tagline span { color: var(--sky); }
     .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0 0 32px; }
     .btn-ghost { color: #fff; }
   }
@@ -163,6 +227,12 @@ const schema = [
   .eyebrow.tag { color: var(--purple); }
   .note { margin: -16px 0 28px; color: var(--ink-2); max-width: 70ch; }
   .small { margin: 24px 0 0; color: var(--muted); font-size: .95rem; max-width: 80ch; a { color: var(--blue-deep); } }
+
+  .body { margin: 0 0 24px; color: var(--ink-2); font-size: 1.08rem; max-width: 70ch; }
+  .chips {
+    margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px;
+    li { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--ink); font-weight: 600; font-size: .95rem; }
+  }
 
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
   .grid.four { grid-template-columns: repeat(4, 1fr); }

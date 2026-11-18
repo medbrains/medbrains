@@ -101,19 +101,45 @@ export const OS_NOT_DONE = [
   "No outside penetration test yet, and no hospital runs it in production yet.",
 ];
 
+/** The app bricks a hospital switches on, by their names in medbrains-core/src/bricks.rs (26 in all). */
+export const OS_BRICKS = [
+  "Patient Registration", "OPD", "IPD", "Laboratory", "Pharmacy", "Billing", "Radiology", "Nursing",
+  "Emergency", "Operation Theatre", "Blood Bank", "Inventory", "Reports",
+];
+
+/** Security that is built in, each line true on main today or marked as not on the OS yet. */
+export const OS_SECURITY = [
+  { title: "Each hospital walled off", body: "Every table that holds a hospital's records has PostgreSQL row-level security, so the database itself refuses to show one hospital's rows to another." },
+  { title: "An audit log of everything", body: "Every sign-in, every record opened and every machine approved is written to the audit log, ready for an auditor." },
+  { title: "Honeytokens", body: "Decoy API keys that nobody should ever use sit among the real ones. Presenting one is refused and raises a critical security finding at once." },
+  { title: "Encrypted disk, firewall on", body: "The firewall is on before the first boot, and the data disk is encrypted where the machine has a TPM chip." },
+  { title: "Encrypted backups, any-minute restore", body: "On a server install, nightly backups are encrypted before they leave the machine, and the database can be restored to any minute in the retention window. On the OS image, backups are not switched on yet." },
+];
+
+/** Who MedBrains OS is for. */
+export const OS_AUDIENCE = [
+  { title: "Clinics and small hospitals", body: "No IT department, no server room. One box runs the records, and the other machines are small and cheap." },
+  { title: "Hospitals that want their data at home", body: "Records stay on the hospital's own server, on its own network, not in someone else's cloud." },
+  { title: "Local IT firms", body: "Built on Debian Linux and common open parts, so a firm near the hospital can install it and look after it." },
+];
+
 /** Questions for /os and its FAQPage schema. */
 export const OS_FAQ = [
+  {
+    q: "Is MedBrains OS an HMS?",
+    a: "MedBrains OS is the operating system the MedBrains hospital management system (HMS) runs on. It turns a plain computer into a hospital server or workstation, and the HMS arrives as app bricks the hospital switches on.",
+  },
   {
     q: "Is MedBrains OS locked to one app?",
     a: "No. It opens to a desktop with a dock and a launcher, like any computer, and each app opens in its own sandboxed view. MedBrains is one of the apps. Others, such as imaging, lab or a hospital’s own, get a tile the same way; installing them from the screen is planned.",
   },
   {
-    q: "Do I need a different image for each kind of machine?",
-    a: "No. There is one image per processor type, x86-64 and arm64. The same OS runs on every machine, and you choose its role on the first-boot screen.",
+    q: "Is MedBrains OS open source?",
+    a: "Yes. The OS and the hospital software are free software under the GNU AGPL-3.0, with the full source on GitHub. Vendors who cannot meet the AGPL can take a commercial licence.",
   },
   {
-    q: "Does it need the internet?",
-    a: "No. Setup and daily work run on the hospital’s own network. The internet is used for updates and optional cloud services.",
+    q: "Does it run offline?",
+    a: "Yes, without the internet. Setup and daily work run on the hospital’s own network. The internet is used for updates and optional cloud services. A workstation does need to reach the hospital’s server.",
   },
   {
     q: "Can I run it today?",
