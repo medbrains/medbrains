@@ -593,6 +593,20 @@ The platform is defined by interfaces, not languages.
 Phase 1 ships Rust and TypeScript driver templates; Python next; C/C++ documented. One CLI:
 `medbrains ext new driver|connector|app --lang rust|ts|python`.
 
+### 8.4 Builders own their business model (owner decision, 2026-11-18)
+
+Every driver, connector and app maker decides **how they license and sell their own work**: free,
+open source, one-time price, subscription, per device, per seat or per hospital, with or without
+trials. MedBrains provides the platform, the marketplace, payments and licence delivery; it does not
+set the builder's terms. Consequences:
+- The **SDKs, WIT interfaces and manifest schema** are licensed permissively (Apache-2.0 or MIT, or
+  the core licence with a linking exception) so **closed, proprietary extensions are allowed**. The
+  OS core keeps its own licence. Exact wording: counsel (the AGPL/Apache question in §2).
+- The marketplace and the licence service support every pricing model above; **the vendor sets the
+  price**; the hospital pays the vendor through the built-in payment service.
+- MedBrains' own platform terms (listing fee / revenue share / certification fees) remain the one
+  business decision for the owner (§12 item 11).
+
 ## 9. Marketplace and certification
 
 ### 9.1 Listing and discovery
@@ -859,7 +873,7 @@ Phases 1 and 1b can run in parallel with two engineers.
    processes only, simpler to start, heavier on small boxes and per-CPU for vendors.)
 2. **DECIDE:** the lab-analyser driver kit is the phase 1 wedge, with payments as phase 1b in
    parallel. (Alternatives: printers and label printers, simpler but less valuable; a TPA connector.)
-3. **DECIDE:** the driver SDK, WIT interfaces and simulator are licensed Apache-2.0 (or AGPL with a
+3. **DECIDED (owner, 2026-11-18): builders own their business model; SDK/interfaces permissive so closed extensions are allowed; exact licence text with counsel.** Was **DECIDE:** the driver SDK, WIT interfaces and simulator are licensed Apache-2.0 (or AGPL with a
    linking exception) so closed-source drivers are allowed. Needs counsel.
 4. **DECIDE:** the names and meaning of the three certification levels, and whether community
    extensions are off by default in every hospital.
