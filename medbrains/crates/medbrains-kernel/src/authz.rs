@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::{Claims, KernelError, Permit};
 
-pub use medbrains_authz::decision::Outcome;
+pub use medbrains_authz::decision::{Outcome, any};
 
 /// Roles that bypass all permission checks.
 pub const BYPASS_ROLES: &[&str] = &["super_admin", "hospital_admin"];
@@ -225,26 +225,47 @@ pub async fn authorize_many<B: AuthzBackend + ?Sized>(
     kind: &str,
     ids: &[Uuid],
 ) -> HashMap<Uuid, Outcome> {
-    if actor.tenant_id.is_nil() {
-        return ids.iter().map(|id| (*id, Outcome::Unknown)).collect();
-    }
-    let items: Vec<(String, Relation, Uuid)> = ids
+    let resources: Vec<Resource<'_>> = ids.iter().map(|&id| Resource { kind, id }).collect();
+    authorize_each(backend, actor, action, &resources)
+        .await
+        .into_iter()
+        .map(|((_, id), outcome)| (id, outcome))
+        .collect()
+}
+
+/// [`authorize_many`] over records of several kinds — a child record and its
+/// parent, say — still in one backend round trip, keyed by `(kind, id)`.
+///
+/// The same guarantee: every resource gets an outcome, and a failed batch or a
+/// resource the backend left out is `Unknown`, never absent.
+pub async fn authorize_each<B: AuthzBackend + ?Sized>(
+    backend: &B,
+    actor: &AuthzContext,
+    action: Relation,
+    resources: &[Resource<'_>],
+) -> HashMap<(String, Uuid), Outcome> {
+    let items: Vec<(String, Relation, Uuid)> = resources
         .iter()
-        .map(|id| (kind.to_owned(), action, *id))
+        .map(|r| (r.kind.to_owned(), action, r.id))
         .collect();
-    match backend.bulk_check(actor, &items).await {
-        Ok(answers) => items
-            .into_iter()
-            .map(|key| {
-                let outcome = answers
+    // A failed batch is one outcome for all: `outcome_of` logs it and tells an
+    // outage (Unknown) from a misconfiguration (Deny).
+    let answers = if actor.tenant_id.is_nil() {
+        Err(Outcome::Unknown)
+    } else {
+        let kinds = resources.first().map_or("", |r| r.kind);
+        (backend.bulk_check(actor, &items).await).map_err(|e| outcome_of(Err(e), kinds))
+    };
+    items
+        .into_iter()
+        .map(|key| {
+            let outcome = match &answers {
+                Ok(found) => found
                     .get(&key)
-                    .map_or(Outcome::Unknown, |allowed| outcome_of(Ok(*allowed), kind));
-                (key.2, outcome)
-            })
-            .collect(),
-        Err(e) => {
-            let outcome = outcome_of(Err(e), kind);
-            ids.iter().map(|id| (*id, outcome)).collect()
-        }
-    }
+                    .map_or(Outcome::Unknown, |allowed| outcome_of(Ok(*allowed), &key.0)),
+                Err(failed) => *failed,
+            };
+            ((key.0, key.2), outcome)
+        })
+        .collect()
 }
