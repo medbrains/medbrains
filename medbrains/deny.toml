@@ -18,6 +18,7 @@ unmaintained = "workspace"
 # re-decided. scripts/check_audit_ignores.py fails CI once an expiry passes.
 # cargo-audit reads this same list (security.yml), so there is one source.
 ignore = [
+  { id = "RUSTSEC-2026-0543", reason = "chrono is marked unmaintained, not vulnerable; no maintained release or fork yet and it is used across the server and by many dependencies. Accepted by the owner 2026-11-19; switch when a maintained release or fork exists. expires 2026-12-19" },
 ]
 
 [licenses]
