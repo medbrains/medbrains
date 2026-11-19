@@ -424,7 +424,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "admin",
         path: "/admin/users",
         icon: "IconSettings",
-        children: administrationPages(APP_SCREENS, import.meta.env.DEV),
+        children: administrationPages(APP_SCREENS, import.meta.env?.DEV === true),
       },
     ],
   },
