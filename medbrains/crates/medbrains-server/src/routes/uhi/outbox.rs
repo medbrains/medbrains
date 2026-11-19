@@ -194,8 +194,12 @@ async fn forget_pin(ctx: &HandlerCtx, payload: &Value) -> Result<(), AppError> {
     {
         return Ok(());
     }
-    let mut tx = ctx.pool.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &ctx.tenant_id).await?;
+    let permit = medbrains_kernel::tenancy::Permit::unattended(
+        ctx.tenant_id,
+        "outbox drops a delivered UHI PIN from its own row",
+    );
+    let mut tx = medbrains_kernel::tenancy::tenant_tx(&ctx.pool, &permit).await?;
+    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
     sqlx::query!(
         "UPDATE outbox_events \
             SET payload = payload #- '{body,message,order,authorization,token}' \

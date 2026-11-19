@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1257 permissions, one per constant in the Rust source. */
+/** 1258 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7581,7 +7581,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "uhi.requests.check_pin",
     label: "Check a UHI booking's PIN at the desk",
-    description: "Enter the four-digit PIN the patient's app shows for a visit booked through UHI, to confirm it is their booking. The PIN itself is never shown or stored; five wrong tries lock the check.",
+    description: "Confirm a UHI booking by the PIN the patient's app shows; the PIN is never shown or stored, and five wrong tries lock the check.",
     module: "uhi",
   },
   // knowledge

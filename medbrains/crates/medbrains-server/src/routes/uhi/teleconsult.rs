@@ -36,7 +36,7 @@ use super::{
 };
 use crate::{
     error::AppError,
-    routes::appointments::{OnlineBooking, PublicBookingRequest, book_online},
+    routes::appointments::{OnlineBooking, book_online},
 };
 
 /// Where the video link rides in the fulfilment — **inferred**; UHI
@@ -168,16 +168,6 @@ fn patient(body: &Value) -> Patient<'_> {
     }
 }
 
-/// A physical consultation's confirm must name the order `on_init` gave and
-/// agree to all five terms; the reason it does not, for the app.
-fn refuse_order(body: &Value, txn: &Txn) -> Option<String> {
-    let order = body.pointer("/message/order").unwrap_or(&Value::Null);
-    if text(order, "/id") != Some(txn.id.to_string().as_str()) {
-        return Some("the order id is not the one on_init gave: send init first".to_owned());
-    }
-    consultation::terms_agreed(order).err()
-}
-
 /// Book the slot (once per transaction); `on_confirm`, or `None` while a
 /// paid-online booking waits for its payment link.
 async fn confirm(
@@ -194,7 +184,10 @@ async fn confirm(
         return Ok(txn.order_details.is_some().then(|| current(txn)));
     }
     let failed = |m: &str| Ok(Some(Reply::failed(m)));
-    if let Some(why) = physical.then(|| refuse_order(body, txn)).flatten() {
+    if let Some(why) = physical
+        .then(|| consultation::refuse_order(body, txn.id))
+        .flatten()
+    {
         return failed(&why);
     }
     let p = patient(body);
@@ -214,20 +207,8 @@ async fn confirm(
     if let Some((_, true)) = known {
         return failed("this hospital cannot book for that patient");
     }
-    let request = PublicBookingRequest {
-        tenant_code: String::new(),
-        doctor_id: slot.doctor_id,
-        department_id: slot.department_id,
-        appointment_date: slot.date,
-        slot_start: slot.start,
-        slot_end: slot.end,
-        patient_name: name.to_owned(),
-        patient_phone: phone.to_owned(),
-        patient_dob: None,
-        reason: Some(if physical { REASON_PHYSICAL } else { REASON }.to_owned()),
-        otp: None,
-        campaign_code: None,
-    };
+    let reason = if physical { REASON_PHYSICAL } else { REASON };
+    let request = slot.booking_request((name, phone), reason);
     let booking = OnlineBooking {
         request: &request,
         patient_id: known.map(|(id, _)| id),

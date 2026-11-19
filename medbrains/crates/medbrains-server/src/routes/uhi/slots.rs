@@ -23,7 +23,7 @@ use super::{
     },
     slot_ids,
 };
-use crate::{error::AppError, tenant_config};
+use crate::{error::AppError, routes::appointments::PublicBookingRequest, tenant_config};
 
 /// Schedules are kept in hospital (Indian) time.
 const IST_SECONDS: i32 = 19_800;
@@ -108,6 +108,28 @@ pub struct Slot {
 }
 
 impl Slot {
+    /// The booking page's request for this slot, in the patient's name and phone.
+    pub fn booking_request(
+        &self,
+        (name, phone): (&str, &str),
+        reason: &str,
+    ) -> PublicBookingRequest {
+        PublicBookingRequest {
+            tenant_code: String::new(),
+            doctor_id: self.doctor_id,
+            department_id: self.department_id,
+            appointment_date: self.date,
+            slot_start: self.start,
+            slot_end: self.end,
+            patient_name: name.to_owned(),
+            patient_phone: phone.to_owned(),
+            patient_dob: None,
+            reason: Some(reason.to_owned()),
+            otp: None,
+            campaign_code: None,
+        }
+    }
+
     /// The doctor as a search through the gateway lists them: one fulfilment
     /// per doctor, named by their HPR ID, spanning their first open slot.
     /// The app then asks this hospital directly for that doctor's slots.
@@ -293,9 +315,7 @@ pub async fn open_slots(
             let mut start = s.start_time;
             while start + step <= s.end_time && start + step > start {
                 let at = date.and_time(start);
-                let key = (s.doctor_id, date, start);
-                let taken =
-                    booked.get(&key).copied().unwrap_or(0) + holds.get(&key).copied().unwrap_or(0);
+                let taken = slot_ids::taken_at([&booked, &holds], (s.doctor_id, date, start));
                 if at >= from && at < to && taken < i64::from(s.max_patients) {
                     slots.push(Slot {
                         id: Uuid::nil(),
@@ -336,6 +356,7 @@ pub async fn find_slot(
     let Ok(id) = Uuid::parse_str(id) else {
         return Ok(None);
     };
+    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
     let Some(named) = sqlx::query!(
         "SELECT doctor_id, slot_date, slot_start FROM uhi_slot_ids \
           WHERE tenant_id = $1 AND id = $2",

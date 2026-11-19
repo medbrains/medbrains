@@ -520,18 +520,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/received-records/{id}",
             get(abdm::hiu::view::received_record),
         )
-        .route(
-            "/api/uhi/settings",
-            get(uhi::settings::get_settings).put(uhi::settings::save_settings),
-        )
-        .route("/api/uhi/settings/keys", post(uhi::keys::generate_keys))
-        .route("/api/uhi/requests", get(uhi::queue::list))
-        .route("/api/uhi/requests/{id}/accept", post(uhi::queue::accept))
-        .route("/api/uhi/requests/{id}/decline", post(uhi::queue::decline))
-        .route(
-            "/api/uhi/requests/{id}/check-pin",
-            post(uhi::consultation::check_pin),
-        )
+        .merge(uhi::staff_router())
         .route(
             "/api/abdm/gateway/callbacks/pending",
             get(abdm::hip_relay::list_pending_callbacks),

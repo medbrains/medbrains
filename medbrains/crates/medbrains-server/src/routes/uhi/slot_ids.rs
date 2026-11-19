@@ -28,6 +28,7 @@ pub async fn assign_ids(
     let doctors: Vec<Uuid> = slots.iter().map(|s| s.doctor_id).collect();
     let dates: Vec<NaiveDate> = slots.iter().map(|s| s.date).collect();
     let starts: Vec<NaiveTime> = slots.iter().map(|s| s.start).collect();
+    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
     let rows = sqlx::query!(
         "INSERT INTO uhi_slot_ids (tenant_id, doctor_id, slot_date, slot_start) \
          SELECT $1, d, s, t FROM UNNEST($2::uuid[], $3::date[], $4::time[]) AS u(d, s, t) \
@@ -62,6 +63,7 @@ pub(super) async fn held(
     (first, last): (NaiveDate, NaiveDate),
     holder: Option<Uuid>,
 ) -> Result<HashMap<(Uuid, NaiveDate, NaiveTime), i64>, AppError> {
+    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
     let rows = sqlx::query!(
         r#"SELECT s.doctor_id, s.slot_date, s.slot_start, count(*) AS "n!"
              FROM uhi_transactions t JOIN uhi_slot_ids s ON s.id = t.slot_id
@@ -87,3 +89,10 @@ pub(super) async fn held(
 /// How long `init` holds a slot for the patient — the consultation docs'
 /// fifteen minutes.
 pub const SLOT_HOLD_MINUTES: i32 = 15;
+
+pub type SlotKey = (Uuid, NaiveDate, NaiveTime);
+
+/// How much of a slot is gone: its bookings plus the live `init` holds on it.
+pub fn taken_at(counts: [&HashMap<SlotKey, i64>; 2], key: SlotKey) -> i64 {
+    counts.iter().filter_map(|m| m.get(&key)).sum()
+}

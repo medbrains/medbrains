@@ -4657,9 +4657,8 @@ pub mod uhi {
         pub const RESPOND: &str = "uhi.requests.respond";
         /// Check a UHI booking's PIN at the desk.
         ///
-        /// Enter the four-digit PIN the patient's app shows for a visit
-        /// booked through UHI, to confirm it is their booking. The PIN itself
-        /// is never shown or stored; five wrong tries lock the check.
+        /// Confirm a UHI booking by the PIN the patient's app shows; the PIN
+        /// is never shown or stored, and five wrong tries lock the check.
         pub const CHECK_PIN: &str = "uhi.requests.check_pin";
     }
 }

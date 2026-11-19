@@ -29,6 +29,7 @@ export function UhiPinCheck({ request, onClose }: UhiPinCheckProps) {
       void queryClient.invalidateQueries({ queryKey: ["uhi", "requests"] });
     },
   });
+  /** Close the dialog and forget the PIN typed and its answer. */
   const close = () => {
     setPin("");
     setResult(null);
