@@ -3,7 +3,7 @@
  * scripts/generate_role_test_cases.py writes them to the workbook: same ids,
  * same rules, same words. Results are stored against these ids.
  */
-import { BRICK_NAMES } from "@medbrains/types";
+import { BRICK_MANIFESTS } from "@medbrains/types";
 import type { TFunction } from "i18next";
 import { NAV_GROUPS, type NavItemConfig } from "@/config/navigation";
 import workflows from "@/data/role-workflows.json";
@@ -42,7 +42,7 @@ const SENSITIVE = [
 
 /** A menu group's heading: an app's name, or the core and Administration labels. */
 const groupLabel = (key: string, t: TFunction) =>
-  BRICK_NAMES[key] ?? t(`group${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+  BRICK_MANIFESTS[key]?.name ?? t(`group${key.charAt(0).toUpperCase()}${key.slice(1)}`);
 
 function menu(t: TFunction): MenuEntry[] {
   return NAV_GROUPS.flatMap((group) =>
