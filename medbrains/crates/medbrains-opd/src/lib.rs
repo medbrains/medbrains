@@ -162,7 +162,7 @@ pub struct UpdateEncounterRequest {
     pub status: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct ListQueueQuery {
     pub date: Option<NaiveDate>,
     pub department_id: Option<Uuid>,
@@ -1255,24 +1255,39 @@ pub async fn list_queue(
     Query(params): Query<ListQueueQuery>,
 ) -> Result<Json<Vec<QueueEntry>>, AppError> {
     require_permission(&claims, permissions::opd::queue::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = queue_rows(&mut tx, &claims, &params).await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// The OPD queue for `params.date`, or the tenant's today when it is absent.
+///
+/// Filtered as the desk asks; patient identity is shown only to callers who may
+/// see it. Shared by `GET /api/opd/queue` and the `opd.queue.today` action.
+pub async fn queue_rows(
+    conn: &mut sqlx::PgConnection,
+    claims: &Claims,
+    params: &ListQueueQuery,
+) -> Result<Vec<QueueEntry>, AppError> {
     // The redaction below does not fire for anybody today: opd.queue.* is held
     // by audit_officer, doctor, mrd_officer, nurse and receptionist, and all
     // five also hold patients.view. Correct code, inert control — see
     // list_verbal_orders in this file for the same test coming out the other
     // way, where quality_officer holds the code and not patients.view.
     let can_view_patient_identity =
-        medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
+        medbrains_server_core::middleware::authorization::is_bypass_role(claims)
             || claims
                 .permissions
                 .iter()
                 .any(|permission| permission == permissions::patients::VIEW);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let queue_date = if let Some(date) = params.date {
         date
     } else {
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *conn, claims.tenant_id)
+            .await?
     };
 
     let mut conditions = vec![
@@ -1425,10 +1440,7 @@ pub async fn list_queue(
         }
     }
 
-    let rows = query.fetch_all(&mut *tx).await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
+    Ok(query.fetch_all(conn).await?)
 }
 
 // ══════════════════════════════════════════════════════════
