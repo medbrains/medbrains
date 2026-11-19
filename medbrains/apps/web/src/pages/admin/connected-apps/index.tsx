@@ -37,6 +37,7 @@ export function ConnectedAppsPage() {
   const [reviewing, setReviewing] = useState<ConnectedApp | null>(null);
   const [issued, setIssued] = useState<ConnectedAppCredentials | null>(null);
   const list = useQuery({ queryKey: APPS_KEY, queryFn: () => adminApi.listConnectedApps() });
+  /** Reload the list after any change to an app. */
   const refresh = () => void queryClient.invalidateQueries({ queryKey: APPS_KEY });
   const onError = (error: Error) => toast.error(error.message, { title: "Not done" });
 
