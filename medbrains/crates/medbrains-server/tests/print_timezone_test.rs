@@ -36,7 +36,7 @@ async fn a_token_slip_prints_in_the_hospitals_zone() {
 
     // The offset handed to Rust-side formatting agrees with the SQL side.
     let mut tx = app.db.begin().await.expect("tx");
-    let tz = medbrains_print_data::set_print_timezone(&mut tx, &tenant)
+    let tz = medbrains_print_data::set_print_timezone(&mut tx, &tenant, None)
         .await
         .expect("zone");
     let instant = chrono::DateTime::parse_from_rfc3339("2026-10-11T20:00:00Z")

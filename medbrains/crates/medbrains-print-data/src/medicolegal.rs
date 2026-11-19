@@ -336,7 +336,7 @@ pub async fn get_ama_form_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AmaFormRow>(
         "SELECT \
@@ -484,7 +484,7 @@ pub async fn get_mlc_register_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, MlcRegisterRow>(
         "SELECT \
@@ -648,7 +648,7 @@ pub async fn get_mlc_police_intimation_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, MlcPoliceIntimationPrintRow>(
         "SELECT \
@@ -781,7 +781,7 @@ pub async fn get_wound_certificate_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, WoundCertRow>(
         "SELECT \
@@ -935,7 +935,7 @@ pub async fn get_age_estimation_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AgeEstimationRow>(
         "SELECT \
@@ -1064,7 +1064,7 @@ pub async fn get_death_declaration_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     // Register "cause of death" is the general field; it stands in for the
     // immediate cause only when the immediate cause was not split out.
@@ -1216,7 +1216,7 @@ pub async fn get_mlc_documentation_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, MlcDocRow>(
         "SELECT \

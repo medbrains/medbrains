@@ -59,6 +59,12 @@ func marTone(_ status: String) -> CarbonTone {
 private struct DoseRow: View {
     let admission: AdmissionRow
     let dose: MarRow
+    @Environment(LocaleProfileStore.self) private var locale
+
+    /// A dose's due time in the ward's zone, never the device's (RFC-WORLD-READY §4.1).
+    private var due: String {
+        ServerTime.parse(dose.scheduledAt).map { Format.dateTime($0, locale.profile) } ?? "—"
+    }
 
     var body: some View {
         CarbonTile(tone: dose.isHighAlert ? .highAlert : marTone(dose.status)) {
@@ -66,7 +72,7 @@ private struct DoseRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(dose.drugName).font(CarbonType.heading02).foregroundStyle(MedBrainsTheme.ink)
                     Text("\(dose.dose) · \(dose.route)" + (dose.frequency.map { " · \($0)" } ?? "")).font(CarbonType.code).foregroundStyle(MedBrainsTheme.inkSecondary)
-                    Text("DUE \(ServerTime.short(dose.scheduledAt))").font(CarbonType.codeSmall).foregroundStyle(MedBrainsTheme.inkSecondary)
+                    Text("DUE \(due)").font(CarbonType.codeSmall).foregroundStyle(MedBrainsTheme.inkSecondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {

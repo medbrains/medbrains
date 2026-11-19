@@ -93,5 +93,8 @@ val LocalApiClient = compositionLocalOf<ApiClient> { error("ApiClient not provid
 val LocalAuthStore = compositionLocalOf<AuthStore> { error("AuthStore not provided") }
 val LocalIdentity = compositionLocalOf<TenantIdentity?> { null }
 
+/** The signed-in hospital's locale profile; neutral until one loads (RFC-WORLD-READY §2.3). */
+val LocalLocaleProfile = compositionLocalOf { LocaleProfile.NEUTRAL }
+
 /** Refused or gone (403/404): a screen says "not available", never "none". */
 fun isNotAvailable(failedStatus: Int?): Boolean = failedStatus == 403 || failedStatus == 404

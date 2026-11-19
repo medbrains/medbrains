@@ -56,7 +56,7 @@ pub async fn get_case_sheet_cover_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, CaseSheetCoverRow>(
         "SELECT \
@@ -197,7 +197,7 @@ pub async fn get_preop_assessment_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, PreopAssessmentRow>(
         "SELECT \
@@ -515,7 +515,7 @@ struct StoredItem {
 /// as empty it would print every box unticked under a phase marked recorded.
 fn build_phases(
     recorded: &[ChecklistPhaseRow],
-    tz: chrono::FixedOffset,
+    tz: crate::PrintZone,
 ) -> Result<Vec<SurgicalChecklistPhase>, serde_json::Error> {
     WHO_PHASES
         .iter()
@@ -571,7 +571,7 @@ mod who_checklist_tests {
 
     #[test]
     fn a_theatre_that_recorded_nothing_prints_three_blank_phases() {
-        let phases = build_phases(&[], chrono::FixedOffset::east_opt(0).unwrap()).unwrap();
+        let phases = build_phases(&[], crate::PrintZone::utc()).unwrap();
         assert_eq!(phases.len(), 3);
         assert!(phases.iter().all(|p| !p.recorded && !p.completed));
         assert!(
@@ -591,7 +591,7 @@ mod who_checklist_tests {
             "sign_in",
             serde_json::json!([{ "key": "site_marked", "label": "Surgical site marked", "checked": true }]),
             false,
-        )], chrono::FixedOffset::east_opt(0).unwrap())
+        )], crate::PrintZone::utc())
         .unwrap();
         let sign_in = &phases[0];
         assert_eq!(
@@ -627,7 +627,7 @@ mod who_checklist_tests {
                 serde_json::json!([{ "key": "counts_correct", "checked": false }]),
                 false,
             )],
-            chrono::FixedOffset::east_opt(0).unwrap(),
+            crate::PrintZone::utc(),
         )
         .unwrap();
         let counts = phases[2]
@@ -644,7 +644,7 @@ mod who_checklist_tests {
         assert!(
             build_phases(
                 &[row("sign_in", serde_json::json!({ "bad": 1 }), true)],
-                chrono::FixedOffset::east_opt(0).unwrap()
+                crate::PrintZone::utc()
             )
             .is_err()
         );
@@ -654,7 +654,7 @@ mod who_checklist_tests {
     fn a_completed_phase_carries_who_completed_it() {
         let phases = build_phases(
             &[row("time_out", serde_json::json!([]), true)],
-            chrono::FixedOffset::east_opt(0).unwrap(),
+            crate::PrintZone::utc(),
         )
         .unwrap();
         assert!(phases[1].recorded && phases[1].completed);
@@ -699,7 +699,7 @@ pub async fn get_surgical_safety_checklist_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, SurgicalSafetyRow>(
         "SELECT \
@@ -846,7 +846,7 @@ fn anesthesia_drugs(value: Option<&serde_json::Value>) -> Vec<AnesthesiaDrug> {
         .unwrap_or_default()
 }
 
-fn hhmm(t: Option<chrono::DateTime<chrono::Utc>>, tz: chrono::FixedOffset) -> Option<String> {
+fn hhmm(t: Option<chrono::DateTime<chrono::Utc>>, tz: crate::PrintZone) -> Option<String> {
     t.map(|t| t.with_timezone(&tz).format("%H:%M").to_string())
 }
 
@@ -928,7 +928,7 @@ pub async fn get_anesthesia_record_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AnesthesiaRecordRow>(
         "SELECT \
@@ -1084,7 +1084,7 @@ pub async fn get_operation_notes_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, OperationNotesRow>(
         "SELECT \
@@ -1255,7 +1255,7 @@ pub async fn get_postop_orders_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, PostopOrdersRow>(
         "SELECT \
@@ -1429,7 +1429,7 @@ pub async fn get_transfusion_monitoring_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, TransfusionMonitoringRow>(
         "SELECT \

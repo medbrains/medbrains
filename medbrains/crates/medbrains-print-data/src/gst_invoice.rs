@@ -221,7 +221,7 @@ async fn gst_invoice_print_data_in_tx(
     claims: &Claims,
     invoice_id: Uuid,
 ) -> Result<Json<GstInvoicePrintData>, AppError> {
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
     let h = sqlx::query_as::<_, Header>(HEADER_SQL)
         .bind(invoice_id)
         .bind(claims.tenant_id)

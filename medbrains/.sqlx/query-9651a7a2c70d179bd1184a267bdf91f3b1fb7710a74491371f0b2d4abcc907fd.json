@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT set_config('TimeZone', $1, true) AS \"zone!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "zone!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9651a7a2c70d179bd1184a267bdf91f3b1fb7710a74491371f0b2d4abcc907fd"
+}

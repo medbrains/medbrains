@@ -86,7 +86,7 @@ pub async fn get_general_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -180,7 +180,7 @@ pub async fn get_surgical_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, SurgicalConsentRow>(
         "SELECT \
@@ -283,7 +283,7 @@ pub async fn get_anesthesia_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, SurgicalConsentRow>(
         "SELECT \
@@ -382,7 +382,7 @@ pub async fn get_blood_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -480,7 +480,7 @@ pub async fn get_hiv_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -560,7 +560,7 @@ pub async fn get_ama_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -660,7 +660,7 @@ pub async fn get_photo_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -754,7 +754,7 @@ pub async fn get_dnr_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, DnrConsentRow>(
         "SELECT \
@@ -834,7 +834,7 @@ pub async fn get_organ_donation_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -988,7 +988,7 @@ pub async fn get_research_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, ResearchConsentRow>(
         "SELECT \
@@ -1070,7 +1070,7 @@ pub async fn get_abdm_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     // Get patient with ABHA details
     let row: (String, String, Option<String>, Option<String>) = sqlx::query_as(
@@ -1158,7 +1158,7 @@ pub async fn get_teaching_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \

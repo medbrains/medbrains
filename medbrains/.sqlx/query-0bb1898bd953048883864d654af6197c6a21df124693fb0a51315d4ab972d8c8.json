@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH d AS (\n             SELECT t, EXTRACT(EPOCH FROM (t AT TIME ZONE $1) - (t AT TIME ZONE 'UTC'))::int AS off\n               FROM generate_series(timestamptz '1970-01-01 00:00Z', timestamptz '2040-01-01 00:00Z',\n                                    interval '1 day') t),\n           days AS (SELECT t, off, lag(off) OVER (ORDER BY t) AS prev FROM d),\n           fine AS (\n             SELECT h, EXTRACT(EPOCH FROM (h AT TIME ZONE $1) - (h AT TIME ZONE 'UTC'))::int AS off\n               FROM days, generate_series(days.t - interval '1 day', days.t, interval '15 minutes') h\n              WHERE days.prev IS NOT NULL AND days.prev <> days.off),\n           steps AS (SELECT h, off, lag(off) OVER (ORDER BY h) AS prev FROM fine)\n         SELECT NULL::bigint AS at, (SELECT off FROM d ORDER BY t LIMIT 1) AS off\n         UNION ALL\n         SELECT EXTRACT(EPOCH FROM h)::bigint, off FROM steps\n          WHERE prev IS NOT NULL AND prev <> off",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "at",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "off",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "0bb1898bd953048883864d654af6197c6a21df124693fb0a51315d4ab972d8c8"
+}

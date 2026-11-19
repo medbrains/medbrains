@@ -51,7 +51,7 @@ pub async fn get_indent_form_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     let indent = sqlx::query_as::<_, IndentHeaderRow>(
         r"
@@ -190,7 +190,7 @@ pub async fn get_purchase_order_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     // The hospital's GSTIN and billing address live in `tenant_settings`
     // (billing/gst_number, billing/bill_address) — the same source the GST
@@ -368,7 +368,7 @@ pub async fn get_grn_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     // "Quality check done" is the GRN's recorded inspection (`inspected_at`),
     // never assumed.
@@ -534,7 +534,7 @@ pub async fn get_material_issue_voucher_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     // Only an indent the store has actually issued against has a voucher.
     let voucher = sqlx::query_as::<_, IssueVoucherHeaderRow>(
@@ -699,7 +699,7 @@ pub async fn get_stock_transfer_note_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     let transfer = sqlx::query_as::<_, TransferHeaderRow>(
         r"
@@ -877,7 +877,7 @@ pub async fn get_ndps_register_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     let hospital = sqlx::query_as::<_, HospitalRow>(
         "SELECT name AS hospital_name, logo_url AS hospital_logo_url FROM tenants WHERE id = $1",
@@ -1050,7 +1050,7 @@ pub async fn get_drug_expiry_alert_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     let store = sqlx::query_as::<_, StoreInfoRow>(
         r"
@@ -1167,7 +1167,7 @@ pub async fn get_equipment_condemnation_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     let cond = sqlx::query_as::<_, CondemnationRow>(
         r"
@@ -1266,7 +1266,7 @@ pub async fn get_work_order_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     let wo = sqlx::query_as::<_, WorkOrderRow>(
         r"
@@ -1370,7 +1370,7 @@ pub async fn get_pm_checklist_print_data(
     // worse than a failed one — it looks filed.
     let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
-    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id, Some(claims.sub)).await?;
 
     // "Last PM" is the previous completed preventive work order on the same
     // machine — not the schedule's `last_completed_date`, which this very
@@ -1694,7 +1694,7 @@ pub async fn get_dispensing_label_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id, Some(claims.sub)).await?;
 
     let row = sqlx::query_as!(
         DispensingLabelRow,

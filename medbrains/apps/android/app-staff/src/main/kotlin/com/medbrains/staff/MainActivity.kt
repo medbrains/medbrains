@@ -24,6 +24,9 @@ import com.medbrains.kit.BindingStore
 import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalAuthStore
 import com.medbrains.kit.LocalIdentity
+import com.medbrains.kit.LocalLocaleProfile
+import com.medbrains.kit.LocaleProfileStore
+import com.medbrains.kit.PrefsTextStore
 import com.medbrains.kit.SecretStore
 import com.medbrains.kit.StoredBinding
 import com.medbrains.kit.chooseServerUrl
@@ -53,6 +56,7 @@ class MainActivity : ComponentActivity() {
         )
         val client = ApiClient(baseUrl = baseUrl, variant = "staff", secrets = secrets, http = http)
         val auth = AuthStore(applicationContext, client, secrets)
+        val locale = LocaleProfileStore(PrefsTextStore(applicationContext))
         // Binding or forgetting a hospital changes the server: start over against it.
         val binder = StaffBinder(auth, bindings, binding, onChanged = { recreate() })
         setContent {
@@ -63,6 +67,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Root(
                         auth = auth,
+                        locale = locale,
                         binder = binder,
                         initialModule = intent?.getStringExtra("module")
                     )
@@ -90,9 +95,12 @@ object AppConfig {
         if (BuildConfig.DEBUG) intent?.getStringExtra(key) else null
 }
 
+/** Sign-in or the module home, with the hospital's locale profile provided below. */
 @Composable
-private fun Root(auth: AuthStore, binder: StaffBinder, initialModule: String?) {
+private fun Root(auth: AuthStore, locale: LocaleProfileStore, binder: StaffBinder, initialModule: String?) {
     val state by auth.state.collectAsStateWithLifecycle()
+    val profile by locale.profile.collectAsStateWithLifecycle()
+    val client = LocalApiClient.current
     LaunchedEffect(Unit) { auth.hydrate() }
     when (val s = state) {
         AuthState.Hydrating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -101,7 +109,10 @@ private fun Root(auth: AuthStore, binder: StaffBinder, initialModule: String?) {
 
         AuthState.SignedOut -> LoginScreen(auth, binder)
 
-        is AuthState.SignedIn -> CompositionLocalProvider(LocalIdentity provides s.identity) {
+        // The hospital's money, clock and dates, refreshed per sign-in; offline,
+        // the last good one this device saw.
+        is AuthState.SignedIn -> CompositionLocalProvider(LocalIdentity provides s.identity, LocalLocaleProfile provides profile) {
+            LaunchedEffect(s.identity.userId) { locale.refresh(client, s.identity.tenantId, s.identity.userId) }
             Box(Modifier.fillMaxSize()) {
                 ModuleHome(
                     auth = auth,
