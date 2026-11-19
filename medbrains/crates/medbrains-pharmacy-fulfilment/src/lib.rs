@@ -23,7 +23,9 @@ use medbrains_core::permissions;
 use medbrains_pharmacy::{dispense_context, rx_safety, schedule_gate};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -316,12 +318,21 @@ pub struct PickLine {
 /// picks the batch by FEFO, so by the time a picker sees this the batch is
 /// already decided — telling them only the drug name would invite them to take
 /// whichever box is nearest and put the books quietly out of step with the shelf.
+///
+/// The checker reads the same list to check the pack against, so `verify`
+/// opens it as well as `pick`.
 pub async fn pick_list(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<PickLine>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::PICK)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::fulfilment::PICK,
+            permissions::pharmacy::fulfilment::VERIFY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
