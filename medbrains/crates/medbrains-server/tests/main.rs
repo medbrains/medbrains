@@ -264,6 +264,7 @@ mod patient_contact_consent_test;
 mod patient_match_scoring_test;
 mod patient_portal_isolation_test;
 mod patient_refill_requests_test;
+mod patient_unmerge_access_test;
 mod patient_visit_count_test;
 mod payer_split_test;
 mod payment_links_test;

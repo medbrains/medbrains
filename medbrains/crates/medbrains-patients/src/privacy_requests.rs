@@ -65,6 +65,10 @@ pub async fn list_privacy_requests(
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<PrivacyRequest>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::privacy_requests::LIST)?;
+    // authz: role-only — the DPDP rights register: the desk records a request for any
+    // patient who asks, and the Data Protection Officer answers every one within 90
+    // days; a care-team filter would hide requests from the officer the law makes
+    // answerable (DECISIONS 2026-11-19).
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, PrivacyRequest>(&format!(
         "{SELECT} WHERE r.tenant_id = $1 AND r.deleted_at IS NULL \
@@ -216,6 +220,8 @@ pub async fn decide_privacy_request(
     Json(body): Json<DecidePrivacyRequest>,
 ) -> Result<Json<PrivacyRequest>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::privacy_requests::DECIDE)?;
+    // authz: role-only — the DPO (privacy_requests.decide) answers for any patient;
+    // it returns the request row, never the record (DECISIONS 2026-11-19).
     if !["completed", "refused"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest(
             "A request is completed or refused".to_owned(),
