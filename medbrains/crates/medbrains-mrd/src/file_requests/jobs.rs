@@ -52,7 +52,9 @@ pub const PER_TENANT_LIMIT: i64 = 20;
 const TENANT_LIMIT: i64 = 1000;
 
 /// Run both timers forever on the worker pool.
-pub fn spawn(pool: PgPool) {
+///
+/// Returns the task, so the brick-job supervisor can stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut pass: u64 = 0;
         loop {
@@ -76,7 +78,7 @@ pub fn spawn(pool: PgPool) {
             pass = pass.wrapping_add(1);
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }
 
 /// Escalate every late or not-found request not yet escalated. Returns how

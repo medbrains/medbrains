@@ -39,8 +39,10 @@ pub fn tick_secs() -> u64 {
         .map_or(DEFAULT_TICK_SECS, |s| s.clamp(5, 300))
 }
 
-/// Start the pass. Call once at boot with the worker pool.
-pub fn spawn(pool: PgPool) {
+/// Start the pass on the worker pool.
+///
+/// Returns the task, so the brick-job supervisor can stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     let every = Duration::from_secs(tick_secs());
     tokio::spawn(async move {
         loop {
@@ -49,7 +51,7 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(every).await;
         }
-    });
+    })
 }
 
 async fn pass(pool: &PgPool) -> Result<(), AppError> {
