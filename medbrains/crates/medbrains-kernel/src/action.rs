@@ -70,8 +70,10 @@ pub struct ActionDef {
     pub permission: &'static str,
     /// The classes of data it returns, so a model router can keep them local.
     pub data_classes: &'static [DataClass],
-    /// One reviewed sentence; never generated text.
+    /// One reviewed sentence; never generated text. The assistant's tool description.
     pub summary: &'static str,
+    /// The JSON Schema of the input object: the assistant's tool parameters.
+    pub input: &'static str,
 }
 
 /// Why the broker refused. Every refusal is decided before the handler runs.
@@ -262,6 +264,7 @@ mod tests {
             permission: "test.thing.view",
             data_classes: &[],
             summary: "A thing.",
+            input: r#"{"type":"object"}"#,
         }
     }
 

@@ -6,7 +6,7 @@ medbrains-abdm not_yet 0 -
 medbrains-adapter-sdk not_yet 0 -
 medbrains-admin partial 78 medbrains-db,medbrains-authz
 medbrains-agent not_yet 0 -
-medbrains-ai not_yet 49 medbrains-db,medbrains-authz-gate
+medbrains-ai partial 49 medbrains-db,medbrains-authz-gate
 medbrains-ai-eval not_yet 0 -
 medbrains-ambulance not_yet 37 medbrains-db
 medbrains-analytics partial 115 medbrains-db,medbrains-authz,medbrains-authz-gate
