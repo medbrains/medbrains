@@ -7,7 +7,7 @@
 //! draw from here, so a customer credit note is unique in its entity's year
 //! whichever screen raised it.
 
-use medbrains_core::pharmacy_returns::note_number;
+use medbrains_core::pharmacy_returns::{note_number, note_series_letter};
 use medbrains_server_core::error::AppError;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -57,6 +57,33 @@ pub async fn next_number(
     .fetch_one(&mut **tx)
     .await?;
     Ok(note_number(&prefix, letter, fy, seq))
+}
+
+/// The number for a note raised on the credit-notes screen: its type picks the series
+/// (`note_series_letter`), and a customer refund against a counter order lands in that sale's
+/// legal entity's series; otherwise the hospital's default entity's.
+pub async fn for_note(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    body: &crate::CreateCreditNoteRequest,
+) -> Result<String, AppError> {
+    let letter = note_series_letter(&body.note_type)
+        .ok_or_else(|| AppError::BadRequest("Unsupported pharmacy credit note type".to_owned()))?;
+    let invoice_id = match (body.reference_type.as_deref(), body.reference_id) {
+        (Some("pharmacy_order"), Some(order_id)) => {
+            sqlx::query_scalar::<_, Uuid>(
+                "SELECT billing_invoice_id FROM pharmacy_pos_sales \
+                  WHERE tenant_id = $1 AND pharmacy_order_id = $2 AND billing_invoice_id IS NOT NULL \
+                  ORDER BY created_at LIMIT 1",
+            )
+            .bind(tenant_id)
+            .bind(order_id)
+            .fetch_optional(&mut **tx)
+            .await?
+        }
+        _ => None,
+    };
+    next_number(tx, tenant_id, invoice_id, letter).await
 }
 
 /// The `sequences.seq_type` stem for series `letter`. `C` keeps the stem the

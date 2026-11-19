@@ -16,6 +16,16 @@ use uuid::Uuid;
 
 use crate::return_rules::DEFAULT_RETURN_WINDOW_DAYS;
 
+/// The next GST credit note number for a return against `invoice_id`, from the series the
+/// credit-notes screen shares (`medbrains_pharmacy_finance::note_series`).
+pub(crate) async fn next_number(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    invoice_id: Option<Uuid>,
+) -> Result<String, AppError> {
+    medbrains_pharmacy_finance::note_series::next_number(tx, tenant_id, invoice_id, 'C').await
+}
+
 /// A pack going back on the shelf.
 pub(crate) struct Restock<'a> {
     pub catalog_item_id: Uuid,

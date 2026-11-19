@@ -578,13 +578,9 @@ async fn take_return(
     let business_date = shift.as_ref().map_or(head.today, |s| s.business_date);
 
     // GST credit note in the legal entity's own series (CGST Rules 53(1A)).
-    let credit_note_number = medbrains_pharmacy_finance::note_series::next_number(
-        &mut tx,
-        claims.tenant_id,
-        head.billing_invoice_id,
-        'C',
-    )
-    .await?;
+    let credit_note_number =
+        crate::credit_notes::next_number(&mut tx, claims.tenant_id, head.billing_invoice_id)
+            .await?;
 
     let mut returned = Vec::with_capacity(lines.len());
     for (line, qty, refund, gst, sealed) in &lines {

@@ -455,30 +455,6 @@ pub async fn list_credit_notes(
     ))
 }
 
-/// The bill a customer credit note reverses, so the note lands in that bill's
-/// legal entity's series; `None` falls back to the hospital's default entity.
-async fn credit_note_invoice(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    body: &CreateCreditNoteRequest,
-) -> Result<Option<Uuid>, AppError> {
-    let (Some("pharmacy_order"), Some(order_id)) =
-        (body.reference_type.as_deref(), body.reference_id)
-    else {
-        return Ok(None);
-    };
-    let invoice = sqlx::query_scalar::<_, Uuid>(
-        "SELECT billing_invoice_id FROM pharmacy_pos_sales \
-          WHERE tenant_id = $1 AND pharmacy_order_id = $2 AND billing_invoice_id IS NOT NULL \
-          ORDER BY created_at LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(order_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    Ok(invoice)
-}
-
 /// `POST /api/pharmacy/credit-notes` — a credit or debit note raised from the
 /// credit-notes screen, numbered in the same GST series as the counter.
 pub async fn create_credit_note(
@@ -500,11 +476,7 @@ pub async fn create_credit_note(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     validate_credit_note_entity_links(&mut tx, claims.tenant_id, &body).await?;
 
-    let letter = medbrains_core::pharmacy_returns::note_series_letter(&body.note_type)
-        .ok_or_else(|| AppError::BadRequest("Unsupported pharmacy credit note type".to_owned()))?;
-    let invoice_id = credit_note_invoice(&mut tx, claims.tenant_id, &body).await?;
-    let credit_note_number =
-        note_series::next_number(&mut tx, claims.tenant_id, invoice_id, letter).await?;
+    let credit_note_number = note_series::for_note(&mut tx, claims.tenant_id, &body).await?;
 
     let gst = body.gst_amount.unwrap_or(Decimal::ZERO);
     let net = body.total_amount + gst;
