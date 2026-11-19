@@ -29,6 +29,27 @@
 
 [[review]]
 ecosystem = "npm"
+name = "@bruits/satteri-android-arm64"
+reviewed-by = "owner (2026-11-19)"
+why = "Platform binary of Satteri, the Markdown/MDX processor astro 7.4.7 pulls in for the website build; published from github.com/bruits/satteri by Astro core maintainers"
+checked = "maintainers (princesseuh, goulvenclech), repository matches, build-only for the static website"
+
+[[review]]
+ecosystem = "npm"
+name = "@bruits/satteri-freebsd-x64"
+reviewed-by = "owner (2026-11-19)"
+why = "Platform binary of Satteri (see above); optional, never installed on our build machines"
+checked = "maintainers, repository matches, build-only"
+
+[[review]]
+ecosystem = "npm"
+name = "@rolldown/binding-wasm32-wasi"
+reviewed-by = "owner (2026-11-19)"
+why = "WASI binding of Rolldown, the Vite/astro bundler; build-only for the website"
+checked = "maintainers (yyx990803, sapphi-red, broooooklyn), repository github.com/rolldown/rolldown matches"
+
+[[review]]
+ecosystem = "npm"
 name = "@allurereport/aql"
 reviewed-by = "DomnicAmalan"
 date = "2026-11-14"
