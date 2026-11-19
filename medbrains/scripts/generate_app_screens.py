@@ -98,8 +98,21 @@ def brick_names(text: str) -> list[tuple[str, str]]:
     return [(a or c, b or d) for a, b, c, d in BRICK.findall(text)]
 
 
+PANEL_CONST = re.compile(r"const (\w+): &\[Panel\] = &\[(.*?)\];", re.S)
+PANEL = re.compile(r'Panel \{\s*slot: "([^"]+)",\s*id: "([^"]+)",\s*permission: p::([\w:]+),?\s*\}')
+
+
+def panel_tables(text: str) -> dict[str, list[dict]]:
+    """Each `const X: &[Panel]` table: slot, id and the permission's `module::NAME` path."""
+    return {
+        name: [{"slot": a, "id": b, "permission": c} for a, b, c in PANEL.findall(body)]
+        for name, body in PANEL_CONST.findall(text)
+    }
+
+
 def brick_rows(text: str) -> list[dict]:
     """Every brick's declared manifest fields, in table order."""
+    panels = panel_tables(text)
     table = text[text.index("pub const BRICKS") : text.index("\n];\n", text.index("pub const BRICKS"))]
     jobs = [(job, QUOTED.findall(served)) for job, served in BRICK_JOB.findall(text)]
     rows = []
@@ -121,6 +134,7 @@ def brick_rows(text: str) -> list[dict]:
             "permissionGroups": QUOTED.findall(groups),
             "settings": QUOTED.findall(settings.group(1)) if settings else [],
             "backgroundJobs": [job for job, served in jobs if ident in served],
+            "panels": [p for n in re.findall(r"with_panels\((\w+)\)", line) for p in panels[n]],
         })
     return rows
 
@@ -159,6 +173,8 @@ def manifests(screens: list[dict], bricks: list[dict], actions: list[dict], tabs
     problems += [f"action {a['id']} names unknown brick {a['brick']}" for a in actions if a["brick"] not in ids]
     problems += [f"action {a['id']} names unknown permission {a['permission']}" for a in actions
                  if a["permission"] not in codes]
+    problems += [f"panel {p['id']} of {b['id']} names unknown permission {p['permission']}"
+                 for b in bricks for p in b["panels"] if p["permission"] not in codes]
     claimed: dict[str, str] = {}
     for b in bricks:
         for key in b["settings"]:
@@ -179,6 +195,7 @@ def manifests(screens: list[dict], bricks: list[dict], actions: list[dict], tabs
                                  "anyOf": r["any_of"]} for r in own],
                     "actions": [{"id": a["id"], "permission": codes[a["permission"]],
                                  "dataClasses": a["dataClasses"]} for a in acts],
+                    "panels": [{**p, "permission": codes[p["permission"]]} for p in b["panels"]],
                     "dataClasses": classes})
     return out
 
@@ -206,6 +223,9 @@ export interface BrickManifest {
   backgroundJobs: readonly string[];
   /** The data classes its actions return. */
   dataClasses: readonly string[];
+  /** The panels it plugs into other bricks' screens: shown while it is on and `permission` is
+   * held, never imported by the host (`components/panels`). */
+  panels: readonly { slot: string; id: string; permission: string }[];
 }
 """
 
@@ -225,7 +245,7 @@ def render(screens_rs: str, bricks_rs: str, actions_rs: str = "", settings_ts: s
                       set(SETTINGS_TAB.findall(settings_ts)), codes if codes is not None else permission_codes())
     version = MANIFEST_VERSION.search(bricks_rs)
     keys = ("id", "name", "icon", "dependsOn", "permissionGroups", "screens", "actions",
-            "settings", "backgroundJobs", "dataClasses")
+            "settings", "backgroundJobs", "dataClasses", "panels")
     def ts(value: object) -> str:
         """A JSON value as a TS literal with bare object keys, the generated file's style."""
         return re.sub(r'"(\w+)":', r"\1:", json.dumps(value, separators=(", ", ": ")))
@@ -282,8 +302,13 @@ def self_test() -> None:
         '  "opd": { id: "opd", name: "OPD / Outpatient", icon: "IconX", dependsOn: ["registration"], '
         'permissionGroups: ["opd"], screens: [{path: "/x", permission: "a.b", anyOf: ["a.b", "c.d"]}], '
         'actions: [{id: "opd.queue.today", permission: "opd.queue.list", dataClasses: ["identifying", "routine"]}], '
-        'settings: ["tpl"], backgroundJobs: ["opd_auto_close"], dataClasses: ["identifying", "routine"] },\n'
+        'settings: ["tpl"], backgroundJobs: ["opd_auto_close"], dataClasses: ["identifying", "routine"], '
+        'panels: [] },\n'
     ) in out, "a manifest joins its row, screens and actions"
+    tables = panel_tables(
+        'const LAB_PANELS: &[Panel] = &[Panel { slot: "patient.tabs", id: "lab.x", permission: p::lab::orders::LIST }];'
+    )
+    assert tables == {"LAB_PANELS": [{"slot": "patient.tabs", "id": "lab.x", "permission": "lab::orders::LIST"}]}, "a panel table"
     for broken, why in (
         ((rs, bricks, actions, ""), "an unknown Settings section"),
         ((rs.replace('Some("a.b"), icon: "IconX"', 'None, icon: "IconX"').replace("any_of: ANY", "any_of: &[]"),
