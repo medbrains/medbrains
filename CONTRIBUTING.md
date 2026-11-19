@@ -50,7 +50,9 @@ The workspace has about 119 Rust crates. The first build is slow and uses a lot 
 
 ## Running the end-to-end tests
 
-The Playwright journeys live in `medbrains/apps/web/e2e/`. They need the server and the web app running, as in the setup above, against a development database (they sign in as the dev seed's `admin` and create their own temporary staff).
+The Playwright journeys live in `medbrains/apps/web/e2e/`. They need the server and the web app running, as in the setup above, against a development database. Start the server with `TRUSTED_PROXIES=127.0.0.1/32,::1/128`, as CI does, so each worker and each API sign-in counts as its own client for the five-a-minute sign-in limit.
+
+The suite runs four workers at once (`E2E_WORKERS`, default 4), and each worker has its own hospital. Global setup signs in as the dev seed's `admin` only to provision hospitals `E2E-W0` … `E2E-W3` through `/api/debug/e2e/tenant` (debug builds or `MEDBRAINS_ENABLE_E2E_SEED`). Each hospital gets the first hospital's masters, its own administrator, one temporary user per role and a saved browser session under `e2e/.auth/w<slot>/`. A test sees only its worker's hospital, so a test must not rely on rows another spec file created. The tests inside a file keep their order. A file whose tests are independent says so with `test.describe.configure({ mode: "parallel" })`, so they can be spread across workers and shards. Rerunning reuses the hospitals. The canonical fixture rows (`e2e/helpers/canonical-seed.ts`) have fixed ids, so they exist only in the first hospital that seeded them. The generated smoke layer, which addresses those ids, gets 404 for them in the per-worker hospitals.
 
 ```bash
 cd medbrains/apps/web
@@ -58,6 +60,8 @@ pnpm exec playwright install chromium   # once
 pnpm exec playwright test --project=journeys            # one layer
 pnpm exec playwright test e2e/journeys/access-alerts.spec.ts  # one file
 pnpm exec playwright test --ui           # watch them run
+E2E_WORKERS=1 pnpm exec playwright test --project=crud   # one worker, one hospital
+pnpm exec playwright test --project=mock-chromium --no-deps   # mocked API, no server
 ```
 
 CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into `main`, a `release/**` or a `hotfix/**` branch, and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.

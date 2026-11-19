@@ -12,6 +12,7 @@ import { billingDepartment,
   issuedBill, openOnlineCollect, savedBill } from "./support/billing";
 import { mockUnavailable, razorpayMock, serveCheckout, useTestKeys } from "./support/razorpay";
 import { expect, freshPerson, test } from "./support/world";
+import { ownClientHeaders } from "../helpers/worker-tenant";
 
 test.skip(mockUnavailable !== null, mockUnavailable ?? "");
 test.describe.configure({ mode: "serial" });
@@ -110,6 +111,7 @@ test("a user who may not collect sees no collect control and the server refuses 
     await expect(page.getByRole("button", { name: /due · Collect/ })).toHaveCount(0);
 
     const login = await page.request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
+      headers: ownClientHeaders(),
       data: { username, password },
     });
     const csrf = ((await login.json()) as { csrf_token?: string }).csrf_token ?? "";
