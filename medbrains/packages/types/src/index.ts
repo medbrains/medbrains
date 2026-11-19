@@ -5507,11 +5507,14 @@ export interface StartupCheck {
 export interface AiSettings {
   provider: string;
   model: string;
+  /** The assistant reads registration and OPD through typed actions (default on). */
+  typed_actions: boolean;
 }
 
 export interface UpdateAiSettingsRequest {
   provider: string;
   model: string;
+  typed_actions: boolean;
 }
 
 export interface EmailSettings {
