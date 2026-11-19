@@ -13,10 +13,11 @@ use axum::{
 use medbrains_core::consultation::Referral;
 use medbrains_core::encounter::OpdQueue;
 use medbrains_core::permissions;
+use medbrains_kernel as kernel;
 use medbrains_kernel::Actor;
+use medbrains_kernel::authz::is_bypass_role;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -175,9 +176,8 @@ pub async fn accept_referral(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ReferralStep>, AppError> {
-    require_permission(&claims, permissions::opd::referrals::RESPOND)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::referrals::RESPOND)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let pending = load_addressed(&mut tx, &claims, id).await?;
     require_status(&pending, "pending")?;
 
@@ -233,10 +233,9 @@ pub async fn decline_referral(
     Path(id): Path<Uuid>,
     Json(body): Json<DeclineReferralRequest>,
 ) -> Result<Json<ReferralStep>, AppError> {
-    require_permission(&claims, permissions::opd::referrals::RESPOND)?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::referrals::RESPOND)?;
     let reason = required_text(&body.reason, "reason for declining")?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let pending = load_addressed(&mut tx, &claims, id).await?;
     require_status(&pending, "pending")?;
     let referral = sqlx::query_as::<_, Referral>(
@@ -258,9 +257,8 @@ pub async fn cancel_referral(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ReferralStep>, AppError> {
-    require_permission(&claims, permissions::opd::referrals::CANCEL)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::referrals::CANCEL)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let pending = lock(&mut tx, &claims, id).await?;
     if pending.from_doctor_id != Some(claims.sub) && !is_bypass_role(&claims) {
         return Err(AppError::NotFound);
@@ -284,10 +282,9 @@ pub async fn complete_referral(
     Path(id): Path<Uuid>,
     Json(body): Json<CompleteReferralRequest>,
 ) -> Result<Json<ReferralStep>, AppError> {
-    require_permission(&claims, permissions::opd::referrals::RESPOND)?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::referrals::RESPOND)?;
     let opinion = required_text(&body.opinion, "opinion")?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let accepted = load_addressed(&mut tx, &claims, id).await?;
     require_status(&accepted, "accepted")?;
     let referral = sqlx::query_as::<_, Referral>(
