@@ -696,3 +696,15 @@ ecosystem = "cargo"
 name = "heapless"
 version = "0.9.4"
 reason = "RUSTSEC-2026-0574, RUSTSEC-2026-0575, RUSTSEC-2026-0576, RUSTSEC-2026-0577, RUSTSEC-2026-0578, RUSTSEC-2026-0579, RUSTSEC-2026-0580, RUSTSEC-2026-0581, RUSTSEC-2026-0582: 0.9.4 (2026-11-18) is the only patched release; replaces 0.9.3 under generic-btree (loro CRDT, edge + mobile core)"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "lettre"
+version = "0.11.24"
+reason = "RUSTSEC-2026-0560, RUSTSEC-2026-0561, RUSTSEC-2026-0562, RUSTSEC-2026-0563, RUSTSEC-2026-0564, RUSTSEC-2026-0565: the fixes for six advisories against lettre 0.11.23, which we ship for outgoing email"
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "actix-http"
+version = "3.21.3"
+reason = "RUSTSEC-2026-0552, RUSTSEC-2026-0553, RUSTSEC-2026-0554: request-smuggling and header-timeout fixes against actix-http 3.20.3"
