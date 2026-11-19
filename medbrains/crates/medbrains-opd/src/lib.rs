@@ -1720,7 +1720,7 @@ pub async fn complete_queue_entry(
 
     let token = close_visit_in_tx(&mut tx, Actor::from_claims(&claims), &q).await?;
     tx.commit().await?;
-    announce_visit_closed(&state, claims.sub, &q, token.as_ref()).await?;
+    announce_visit_closed(&state, &permit, claims.sub, &q, token.as_ref()).await?;
     Ok(Json(q))
 }
 
@@ -1800,6 +1800,7 @@ pub(crate) async fn close_visit_in_tx(
 /// itself has already committed by then.
 pub(crate) async fn announce_visit_closed(
     state: &AppState,
+    permit: &kernel::Permit,
     actor: Uuid,
     q: &OpdQueue,
     token: Option<&medbrains_tokens::Token>,
@@ -1810,7 +1811,7 @@ pub(crate) async fn announce_visit_closed(
     }
 
     // Enrich payload with names for orchestration
-    let mut conn = kernel::tenant_session(&state.db, &tenant_id).await?;
+    let mut conn = kernel::tenant_session(&state.db, permit).await?;
     let department_name =
         sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
             .bind(q.department_id)
@@ -4703,12 +4704,13 @@ fn clear_clinical_corpus_cache() {
 
 async fn search_clinical_corpus_rows(
     state: &AppState,
-    tenant_id: Uuid,
+    permit: &kernel::Permit,
     term: &str,
     section_filter: Option<&str>,
     corpus_type_filter: Option<&str>,
     limit_filter: Option<i64>,
 ) -> Result<Vec<ClinicalCorpusEntry>, AppError> {
+    let tenant_id = permit.tenant_id();
     let term = term.trim();
     if term.len() < 2 {
         return Ok(Vec::new());
@@ -4738,7 +4740,7 @@ async fn search_clinical_corpus_rows(
     let contains = format!("%{normalized_term}%");
     let starts = format!("{normalized_term}%");
 
-    let mut tx = kernel::tenant_tx(&state.db, &tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, permit).await?;
 
     let rows = sqlx::query_as::<_, ClinicalCorpusEntry>(
         "SELECT id, tenant_id, entry_key, corpus_type, section, term, aliases, short_text, \
@@ -4785,11 +4787,11 @@ pub async fn search_clinical_corpus(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ClinicalCorpusSearchQuery>,
 ) -> Result<Json<Vec<ClinicalCorpusEntry>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::queue::VIEW)?;
 
     let rows = search_clinical_corpus_rows(
         &state,
-        claims.tenant_id,
+        &permit,
         &q.q,
         q.section.as_deref(),
         q.corpus_type.as_deref(),
@@ -4804,11 +4806,10 @@ pub async fn search_icd11(
     Extension(claims): Extension<Claims>,
     Query(q): Query<Icd11SearchQuery>,
 ) -> Result<Json<Vec<ClinicalCorpusEntry>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::queue::VIEW)?;
 
     let rows =
-        search_clinical_corpus_rows(&state, claims.tenant_id, &q.q, None, Some("icd11"), q.limit)
-            .await?;
+        search_clinical_corpus_rows(&state, &permit, &q.q, None, Some("icd11"), q.limit).await?;
     Ok(Json(rows))
 }
 
@@ -5789,10 +5790,11 @@ pub async fn search_snomed(
     Extension(claims): Extension<Claims>,
     Query(q): Query<SnomedSearchQuery>,
 ) -> Result<Json<Vec<SnomedCode>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::queue::VIEW)?;
 
     let limit = q.limit.unwrap_or(20).min(50);
     let search_term = format!("%{}%", q.q.trim());
+    let mut conn = kernel::tenant_session(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, SnomedCode>(
         "SELECT * FROM snomed_codes \
@@ -5806,7 +5808,7 @@ pub async fn search_snomed(
     .bind(&search_term)
     .bind(format!("{}%", q.q.trim()))
     .bind(limit)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(Json(rows))
