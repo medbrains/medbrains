@@ -17,6 +17,7 @@ import { notifications } from "@mantine/notifications";
 import type { PatientMergeFormInput } from "@medbrains/schemas";
 import { patientMergeFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
+import { ApiError } from "@medbrains/api";
 import type { Patient, PatientMergeHistory } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
@@ -77,6 +78,18 @@ export function MergeTab({ patient }: { patient: Patient }) {
         title: "Unmerged",
         message: "Patient records separated",
         color: "success",
+      });
+    },
+    // A 404 is the server refusing because one of the two records is outside the
+    // caller's access (an unmerge needs both, as a merge does), not a missing row.
+    onError: (error) => {
+      const outsideAccess = error instanceof ApiError && error.status === 404;
+      notifications.show({
+        title: "Not unmerged",
+        message: outsideAccess
+          ? "You can only undo a merge when you can open both records. Ask the medical records officer."
+          : "The records could not be separated. Try again.",
+        color: "danger",
       });
     },
   });

@@ -251,6 +251,9 @@ pub async fn decide_candidate(
     Json(body): Json<DecisionRequest>,
 ) -> Result<Json<GroupCandidate>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::group_identity::LINK)?;
+    // authz: role-only — the MRD officer is the group's identity custodian and decides
+    // from a candidate list already masked by field access; no clinical content is
+    // read or returned here (DECISIONS 2026-11-19).
     let link = match body.decision.as_str() {
         "link" => true,
         "reject" => false,
@@ -282,6 +285,8 @@ pub async fn unlink(
     Json(body): Json<UnlinkRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::group_identity::LINK)?;
+    // authz: role-only — undoing a wrong link is the identity custodian's job for any
+    // patient; it returns only the link id (DECISIONS 2026-11-19).
     let why = reason(Some(&body.reason))?;
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     sharing(store::group(&mut tx, claims.tenant_id).await?)?;
