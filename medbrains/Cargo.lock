@@ -7885,6 +7885,7 @@ dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-pharmacy",
  "medbrains-server-core",
  "medbrains-tokens",

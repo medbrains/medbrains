@@ -20,10 +20,10 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use medbrains_core::permissions::pharmacy::fulfilment;
+use medbrains_kernel::{require_any_permission, require_permission};
 use medbrains_pharmacy::{dispense_context, rx_safety, schedule_gate};
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::authorization::require_permission;
-use medbrains_server_core::middleware::{auth::Claims, authorization};
+use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -324,7 +324,7 @@ pub async fn pick_list(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<PickLine>>, AppError> {
-    authorization::require_any_permission(&claims, &[fulfilment::PICK, fulfilment::VERIFY])?;
+    require_any_permission(&claims, &[fulfilment::PICK, fulfilment::VERIFY])?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
