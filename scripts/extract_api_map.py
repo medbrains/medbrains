@@ -12,9 +12,10 @@ import json
 import re
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "medbrains" / "scripts"))
+from api_client_source import api_client_source  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CLIENT_TS = REPO_ROOT / "medbrains" / "packages" / "api" / "src" / "client.ts"
 
 RE_METHOD = re.compile(r'method:\s*"(GET|POST|PUT|DELETE|PATCH)"')
 
@@ -291,7 +292,7 @@ def extract_params(source: str, start: int, end: int) -> tuple[int, list[str]]:
 
 def extract_api_methods() -> list[dict]:
     """Extract all API methods from client.ts."""
-    source = CLIENT_TS.read_text()
+    source = api_client_source()
     lines = source.split('\n')
 
     # Find the start of `export const api = {`

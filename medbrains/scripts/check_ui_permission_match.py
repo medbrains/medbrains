@@ -45,9 +45,10 @@ import os
 import re
 import sys
 from collections import defaultdict
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from api_client_source import api_client_source  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CLIENT_TS = os.path.join(ROOT, "packages", "api", "src", "client.ts")
 CRATES = os.path.join(ROOT, "crates")
 # The whole of `src`, not just `pages`. A gate does not have to live in the
 # component: `config/settings-tabs.ts` declares `requiredPermission` beside
@@ -195,7 +196,7 @@ def service_aliases() -> dict[tuple[str, str], str]:
 
 def method_to_path() -> dict[str, tuple[str, str]]:
     """Frontend method name -> (API path, HTTP verb) it calls."""
-    text = open(CLIENT_TS, encoding="utf-8").read()
+    text = api_client_source()
     keys = [(m.start(), m.group(1)) for m in RE_KEY.finditer(text)]
     starts = [pos for pos, _ in keys]
     out: dict[str, tuple[str, str]] = {}

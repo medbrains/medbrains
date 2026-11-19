@@ -7,6 +7,10 @@
     ".": {
       "types": "./lib/index.d.ts",
       "import": "./lib/index.js"
+    },
+    "./modules/*": {
+      "types": "./lib/modules/*.d.ts",
+      "import": "./lib/modules/*.js"
     }
   },
   "scripts": {
@@ -22,5 +26,6 @@
   },
   "devDependencies": {
     "vitest": "^5.0.5"
-  }
+  },
+  "sideEffects": false
 }
