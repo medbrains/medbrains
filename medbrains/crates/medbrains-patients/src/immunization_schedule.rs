@@ -372,7 +372,8 @@ async fn remind_tenant(
     tenant_id: Uuid,
     hospital: &str,
 ) -> Result<u64, AppError> {
-    let mut tx = kernel::tenant_tx(pool, &tenant_id).await?;
+    let permit = kernel::Permit::unattended(tenant_id, "immunization SMS reminders, daily pass");
+    let mut tx = kernel::tenant_tx(pool, &permit).await?;
     let setting = setting(&mut tx, tenant_id).await?;
     let today = today_ist();
     let rows = due_rows(

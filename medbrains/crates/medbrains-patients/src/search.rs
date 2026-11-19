@@ -346,9 +346,13 @@ mod db_tests {
     /// Store the Aadhaar exactly as registration does: masked number, keyed fingerprint.
     async fn add_aadhaar(app: &sqlx::PgPool, tenant: Uuid, patient: Uuid) {
         let mut tx = app.begin().await.expect("tx");
-        medbrains_kernel::enter_scope(&mut tx, &tenant, &[])
-            .await
-            .expect("context");
+        medbrains_kernel::enter_scope(
+            &mut tx,
+            &medbrains_kernel::Permit::unattended(tenant, "test"),
+            &[],
+        )
+        .await
+        .expect("context");
         let fp = keyed_fingerprint(KEY, tenant, "aadhaar", AADHAAR);
         persist_registration_identifiers(
             &mut tx,
@@ -417,9 +421,13 @@ mod db_tests {
     async fn find(db: &TestDb, tenant: Uuid, q: &str) -> Vec<MatchResult> {
         let app = db.connect(APP_ROLE).await.expect("app");
         let mut tx = app.begin().await.expect("tx");
-        medbrains_kernel::enter_scope(&mut tx, &tenant, &[])
-            .await
-            .expect("context");
+        medbrains_kernel::enter_scope(
+            &mut tx,
+            &medbrains_kernel::Permit::unattended(tenant, "test"),
+            &[],
+        )
+        .await
+        .expect("context");
         let Some(matcher) = PatientSearch::parse(q, Some(KEY), tenant) else {
             return Vec::new();
         };
@@ -507,9 +515,13 @@ mod db_tests {
         );
         let app = db.connect(APP_ROLE).await.expect("app");
         let mut tx = app.begin().await.expect("tx");
-        medbrains_kernel::enter_scope(&mut tx, &a.tenant, &[])
-            .await
-            .expect("context");
+        medbrains_kernel::enter_scope(
+            &mut tx,
+            &medbrains_kernel::Permit::unattended(a.tenant, "test"),
+            &[],
+        )
+        .await
+        .expect("context");
         let keyless = PatientSearch::parse(AADHAAR, None, a.tenant).expect("search");
         let rows = find_matches(&mut tx, a.tenant, &keyless)
             .await

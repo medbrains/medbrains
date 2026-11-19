@@ -15,6 +15,7 @@ medbrains-health-intel/src/job.rs::run_pass
 medbrains-health-intel/src/job.rs::spawn
 medbrains-health-intel/src/job.rs::store_environment
 medbrains-health-intel/src/job.rs::tag_articles
+medbrains-patients/src/immunization_schedule.rs::send_due_reminders
 medbrains-research/src/lib.rs::tx_for
 medbrains-security-intel/src/runner.rs::active_tenants
 medbrains-security-intel/src/runner.rs::last_runs

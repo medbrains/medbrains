@@ -2551,7 +2551,7 @@ pub async fn require_patient_viewer(
     patient_id: Uuid,
 ) -> Result<(), AppError> {
     let authz_ctx = kernel::authz::authz_context(claims);
-    kernel::authz::collapse(kernel::authz::outcome_of(
+    Ok(kernel::authz::collapse(kernel::authz::outcome_of(
         state
             .authz
             .check(
@@ -2562,7 +2562,7 @@ pub async fn require_patient_viewer(
             )
             .await,
         "patient",
-    ))
+    ))?)
 }
 
 pub async fn list_patient_insurance(
