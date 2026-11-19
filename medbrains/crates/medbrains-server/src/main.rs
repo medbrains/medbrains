@@ -632,11 +632,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.notifications.clone(),
     );
 
-    // The jobs that need AppState start before the router moves `state`:
-    // OPD auto-close (off unless a hospital sets it) and the simulator cron
-    // scheduler (AI config), which fires enabled simulator_schedules every 30
-    // seconds unless disabled by the env var.
-    medbrains_opd::auto_close::spawn(state.clone());
+    // The jobs that need AppState start before the router moves `state`. Brick
+    // jobs (OPD auto-close, room rent, escalations, ...) run only while some
+    // hospital has their brick on (`bricks::BRICK_JOBS`). The simulator cron
+    // scheduler (AI config) fires enabled simulator_schedules every 30 seconds
+    // unless disabled by the env var.
+    medbrains_server::services::brick_jobs::supervise(
+        medbrains_server::services::brick_jobs::Ctx {
+            state: state.clone(),
+            worker: worker_pool.clone(),
+            secrets: medbrains_server::secret_backend::build_secret_resolver().await,
+        },
+    );
     if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() == Ok("true") {
         tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
     } else {
@@ -753,34 +760,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("outbox worker spawned");
     }
 
-    // Room-rent auto-billing — hourly idempotent pass posting one
-    // bed charge per occupied admission per hospital-local day.
-    medbrains_server::services::room_rent::spawn(worker_pool.clone());
-    // Revenue leakage — daily pass queueing orders done but never billed.
-    medbrains_server::services::unbilled_orders::spawn(worker_pool.clone());
     // Paperless meter — daily recount of the last week's documents and paper.
     medbrains_server::services::paperless_meter::spawn(worker_pool.clone());
-    medbrains_server::services::preauth_sweep::spawn(worker_pool.clone());
-    // Humanex HRMS pull (RFC-HRMS-INTEGRATIONS); no-op for tenants without hrms.humanex.
-    medbrains_hrms_gateway::spawn(worker_pool.clone());
 
-    // Appointment reminders — 5-min pass enqueuing outbox SMS events
-    // for appointments entering their reminder windows.
-    medbrains_server::services::appointment_reminders::spawn(worker_pool.clone());
     medbrains_server::services::vaccination_reminders::spawn(worker_pool.clone());
 
-    // Critical-value escalation — unacknowledged lab alerts escalate
-    // to the doctor's supervisor after the tenant's ack window.
-    // It needs the credential store to know whether SMS is set up: an
-    // escalation it cannot text is reported as blocked, never as sent.
-    medbrains_server::services::critical_alert_escalation::spawn(
-        worker_pool.clone(),
-        medbrains_server::secret_backend::build_secret_resolver().await,
-    );
     // A code blue nobody answers is re-paged wider, a bounded number of times.
     medbrains_nursing::code_blue_escalation::spawn(worker_pool.clone());
-    // Late or missing MRD files to the supervisor; tomorrow's pull list each evening.
-    medbrains_mrd::file_requests::jobs::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
@@ -795,43 +781,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         medbrains_security_intel::all_checks(chrono::Utc::now()),
     )
     .spawn();
-    medbrains_server::services::prescription_expiry::spawn(worker_pool.clone());
-    medbrains_server::services::pacs_sync::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
 
-    // Verbal/telephone order countersignature escalation — overdue orders
-    // notify the prescriber + supervisor (NABH medication safety).
-    medbrains_server::services::verbal_order_escalation::spawn(worker_pool.clone());
     medbrains_server::services::notifiable_report_escalation::spawn(worker_pool.clone());
     // Health intelligence (RFC-OSINT §4) — hourly condition counts vs usual,
     // weather + air per hospital, notice tagging; each writes a heartbeat.
     medbrains_health_intel::job::spawn(worker_pool.clone());
     medbrains_server::services::crs_registration_escalation::spawn(worker_pool.clone());
 
-    // Nurse-call escalation — an unanswered call reaches the ward's on-call
-    // nurse, then the supervisor. The board already coloured it; nobody was
-    // told (NABH CL-3).
-    medbrains_server::services::nurse_call_escalation::spawn(worker_pool.clone());
-
-    // MedBrains Flow — one bounded aggregate per source per tenant a minute
-    // into flow_zone_minute, then alerts and recommendations (#4901). Only
-    // tenants with the `flow` add-on enabled are read.
-    medbrains_flow::aggregate::spawn(worker_pool.clone());
-
-    // Restraint observations — a restrained patient missing the 30-minute
-    // check reaches the on-call nurse and whoever started the restraint
-    // (MHCA 2017 s.97).
-    medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
     // Dictation recordings never outlive 24 hours unsaved.
     medbrains_dictation::purge::spawn(worker_pool.clone());
-
-    // Early-warning scores — an urgent or emergency NEWS2/PEWS/MEOWS nobody
-    // acknowledges goes to the duty doctor, then wider (NABH/IPSG).
-    medbrains_server::services::ews_escalation::spawn(worker_pool.clone());
-
-    // Calibration lock — equipment past its calibration date is locked and
-    // taken out of service, so an analyser cannot report on an expired one.
-    medbrains_server::services::calibration_lock::spawn(worker_pool.clone());
 
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
