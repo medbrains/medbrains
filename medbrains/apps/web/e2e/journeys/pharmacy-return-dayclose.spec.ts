@@ -64,6 +64,8 @@ test("a customer returns one strip against the receipt and is refunded on a cred
 
   const qty = dialog.getByRole("textbox", { name: `Quantity of ${drug.name} coming back` });
   await qty.fill("1");
+  // An opened pack never goes back on the shelf: the cashier confirms the seal.
+  await dialog.getByRole("checkbox", { name: "Seal unbroken (else quarantined)" }).check();
   await expect(dialog.getByText("Refund ₹12.00")).toBeVisible();
   await dialog.getByRole("button", { name: "Take return" }).click();
   await expect(dialog.getByText("Give the reason for the return.")).toBeVisible();
