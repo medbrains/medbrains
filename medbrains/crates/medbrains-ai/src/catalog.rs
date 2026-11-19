@@ -19,7 +19,8 @@ const MIN_WORD: usize = 3;
 
 /// Endpoints whose section or path holds a word of `query`, under their
 /// section; with no usable word or no hit, the section names to search by.
-pub(super) fn search(query: &str) -> String {
+/// With `typed_actions`, the endpoints an action replaces are left out.
+pub(super) fn search(query: &str, typed_actions: bool) -> String {
     let words: Vec<String> = query
         .split(|c: char| !c.is_alphanumeric())
         .map(str::to_lowercase)
@@ -36,6 +37,7 @@ pub(super) fn search(query: &str) -> String {
         let haystack = format!("{section} {line}").to_lowercase();
         if hits < MAX_HITS
             && !line.is_empty()
+            && !(typed_actions && super::action_tools::replaced_by(line).is_some())
             && words.iter().any(|w| haystack.contains(w.as_str()))
         {
             let header = format!("# {section}");
@@ -69,15 +71,27 @@ mod tests {
 
     #[test]
     fn a_search_returns_only_matching_endpoints() {
-        let found = search("billing revenue");
+        let found = search("billing revenue", true);
         assert!(found.contains("/api/billing/reports/department-revenue"));
         assert!(!found.contains("/api/bedside/"));
         assert!(found.lines().count() <= 45);
     }
 
     #[test]
+    fn with_typed_actions_the_replaced_endpoints_are_not_offered() {
+        let found = search("opd queue", true);
+        assert!(!found.lines().any(|l| l == "/api/opd/queue"), "{found}");
+        assert!(found.contains("/api/opd/queue/wait-estimate"));
+        assert!(
+            search("opd queue", false)
+                .lines()
+                .any(|l| l == "/api/opd/queue")
+        );
+    }
+
+    #[test]
     fn no_hit_lists_the_sections_to_search_by() {
-        let found = search("zzzz");
+        let found = search("zzzz", true);
         assert!(found.starts_with("No endpoint matched"));
         assert!(found.contains("billing"));
     }

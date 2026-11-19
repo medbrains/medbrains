@@ -22,6 +22,7 @@ use medbrains_core::ai_drug_check::DrugCheck;
 use medbrains_core::ai_redact::Redacted;
 use medbrains_core::permissions;
 
+mod action_tools;
 mod aggregate;
 mod aggregate_tool;
 mod agui;
@@ -38,6 +39,7 @@ mod research_tool;
 mod revenue;
 mod show;
 mod turn;
+pub use action_tools::{ACTION_RUNNER, ActionFuture, ActionRunner};
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::{error::AppError, state::AppState};
@@ -764,6 +766,8 @@ struct CallApiTool {
     claims: Claims,
     /// Where the full result waits for a widget; the model gets it compacted.
     shelf: show::Shelf,
+    /// The hospital's `ai.config.typed_actions`: endpoints an action replaces are refused.
+    typed_actions: bool,
 }
 
 /// Told to the user when their question names a restricted class.
@@ -927,7 +931,13 @@ async fn record_ai_read(
 }
 
 impl CallApiTool {
+    /// Read `path` as the agent, or name the action tool that replaces it.
     async fn get(&self, path: &str) -> Result<String, AppError> {
+        if let Some(tool) = action_tools::replaced_by(path).filter(|_| self.typed_actions) {
+            return Ok(format!(
+                "Not reachable here: use the `{tool}` tool instead."
+            ));
+        }
         let router = AI_ROUTER
             .get()
             .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
@@ -1071,6 +1081,8 @@ struct ListApisArgs {
 
 struct ListApisTool {
     session: redaction::Session,
+    /// Leave out the endpoints an action replaces (`ai.config.typed_actions`).
+    typed_actions: bool,
 }
 
 impl rig::tool::Tool for ListApisTool {
@@ -1103,7 +1115,7 @@ impl rig::tool::Tool for ListApisTool {
     ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
         std::future::ready(Ok(redaction::for_model(
             &self.session,
-            &catalog::search(&args.query),
+            &catalog::search(&args.query, self.typed_actions),
         )))
     }
 }

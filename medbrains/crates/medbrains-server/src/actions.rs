@@ -1,6 +1,6 @@
 //! Runs a typed action by id (`docs/architecture/ACTIONS.md`): the one entry
-//! point the assistant will call, and a person's surface can too. Internal for
-//! now: no HTTP route reaches it yet.
+//! point the assistant calls (`run_action_owned`), and a person's surface can
+//! too. No HTTP route reaches it yet.
 
 use std::future::Future;
 
@@ -94,6 +94,18 @@ pub async fn run_action(
         }
         _ => Err(ActionError::Failed(AppError::NotFound)),
     }
+}
+
+/// [`run_action`] over owned arguments, as the assistant's tools call it
+/// (`medbrains_ai::ACTION_RUNNER`, set in `main`).
+pub fn run_action_owned(
+    state: AppState,
+    claims: Claims,
+    invoker: Invoker,
+    id: &'static str,
+    input: Value,
+) -> medbrains_ai::ActionFuture {
+    Box::pin(async move { run_action(&state, &claims, invoker, id, input).await })
 }
 
 /// Read an action's input, refusing a malformed one as a bad request.

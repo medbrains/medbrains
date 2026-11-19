@@ -36,6 +36,9 @@ pub struct AiConfig {
     /// Tenant opt-out: `ai.config.assistant_enabled = false` disables the chat
     /// assistant while leaving the extraction features (code/course-gen) working.
     pub enabled: bool,
+    /// `ai.config.typed_actions` (default on): the assistant reads registration and
+    /// OPD through the bricks' typed actions, not those bricks' GET endpoints.
+    pub typed_actions: bool,
     /// Where a local (`ollama`) model is served, when a feature names its own
     /// machine (dictation's `llm_url`); `None` reads `OLLAMA_API_BASE_URL`.
     pub base_url: Option<String>,
@@ -100,6 +103,11 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         .get("assistant_enabled")
         .and_then(serde_json::Value::as_bool)
         != Some(false);
+    // Read the same way by the AI settings screen (`medbrains-infra-settings`).
+    let typed_actions = cfg
+        .get("typed_actions")
+        .and_then(serde_json::Value::as_bool)
+        != Some(false);
 
     // Ollama is keyless (local); Anthropic is federated (no key exists).
     // Others resolve a key from the secret store or env.
@@ -127,6 +135,7 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         model,
         api_key,
         enabled,
+        typed_actions,
         base_url: None,
     })
 }

@@ -28,6 +28,7 @@ use rig::message::AssistantContent;
 use rig_agent::agent::{AgentHook, HookContext, ModelTurnAction, ModelTurnFinished};
 use uuid::Uuid;
 
+use super::action_tools::{ActionDeps, action_tools};
 use super::agui::{Agui, CUSTOM_SOURCE};
 use super::emit::{Emitter, ag};
 use super::{
@@ -119,10 +120,12 @@ pub(super) fn stream_answer(
                 state: deps.state.clone(),
                 claims: deps.claims.clone(),
                 shelf: Arc::clone(&shelf),
+                typed_actions: cfg.typed_actions,
             })
             .tool(RequestPatientTool)
             .tool(ListApisTool {
                 session: Arc::clone(&deps.session),
+                typed_actions: cfg.typed_actions,
             })
             .tool(aggregate_tool::AggregateTool {
                 session: Arc::clone(&deps.session),
@@ -135,6 +138,17 @@ pub(super) fn stream_answer(
                 shelf: Arc::clone(&shelf),
                 widgets: Arc::clone(&widgets),
             });
+    // The hospital's switch: off, the assistant reads these bricks through `call_api`.
+    let agent = if cfg.typed_actions {
+        agent.dynamic_tools(action_tools(&ActionDeps {
+            session: Arc::clone(&deps.session),
+            state: deps.state.clone(),
+            claims: deps.claims.clone(),
+            shelf: Arc::clone(&shelf),
+        }))
+    } else {
+        agent
+    };
     // Only holders see the tool at all: the model never plans around a query
     // it would be refused.
     let agent = if require_permission(&deps.claims, permissions::ai::assistant::QUERY).is_ok() {

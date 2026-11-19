@@ -704,6 +704,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Make the finalized router available to the AI assistant's in-process read
     // tool (call_api), so it dispatches GETs through the real middleware stack.
     let _ = medbrains_ai::AI_ROUTER.set(app.clone());
+    // And the typed-action entry point, which sits above the assistant's crate.
+    if medbrains_ai::ACTION_RUNNER
+        .set(medbrains_server::actions::run_action_owned)
+        .is_err()
+    {
+        tracing::warn!("assistant action runner was already set");
+    }
 
     // Start orchestration background tasks
     orchestration::jobs::start_job_worker(worker_pool.clone());

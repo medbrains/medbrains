@@ -52,6 +52,8 @@ pub async fn get_infra_status(
 pub struct AiSettings {
     pub provider: String,
     pub model: String,
+    /// The assistant reads registration and OPD through typed actions (default on).
+    pub typed_actions: bool,
 }
 
 /// GET /api/admin/ai-settings
@@ -84,6 +86,11 @@ pub async fn get_ai_settings(
     Ok(Json(AiSettings {
         provider: field("provider").unwrap_or_else(|| "anthropic".to_owned()),
         model: field("model").unwrap_or_default(),
+        // On unless set to false, as `medbrains_server_services::llm::resolve_config` reads it.
+        typed_actions: cfg
+            .get("typed_actions")
+            .and_then(serde_json::Value::as_bool)
+            != Some(false),
     }))
 }
 
@@ -91,6 +98,7 @@ pub async fn get_ai_settings(
 pub struct UpdateAiSettings {
     pub provider: String,
     pub model: String,
+    pub typed_actions: bool,
 }
 
 /// PUT /api/admin/ai-settings
@@ -114,6 +122,7 @@ pub async fn update_ai_settings(
     let value = serde_json::json!({
         "provider": provider,
         "model": body.model.trim(),
+        "typed_actions": body.typed_actions,
     });
 
     let mut tx = state.db.begin().await?;
@@ -133,6 +142,7 @@ pub async fn update_ai_settings(
     Ok(Json(AiSettings {
         provider: provider.to_owned(),
         model: body.model.trim().to_owned(),
+        typed_actions: body.typed_actions,
     }))
 }
 
