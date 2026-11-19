@@ -21,7 +21,7 @@ import {
   useModuleStore,
   usePermissionStore,
 } from "@medbrains/stores";
-import { BRICK_NAMES } from "@medbrains/types";
+import { BRICK_MANIFESTS } from "@medbrains/types";
 import { IconLanguage, IconLogout, IconSearch, IconSettings, IconUser } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
@@ -393,7 +393,7 @@ export function AppLayout() {
     const first = groups[0]?.items[0];
     const header = (
       <PanelHeader
-        title={panel.app ? (BRICK_NAMES[panel.app] ?? panel.app) : t("groupCore")}
+        title={panel.app ? (BRICK_MANIFESTS[panel.app]?.name ?? panel.app) : t("groupCore")}
         icon={resolveIcon(panel.app && first ? first.iconName : "IconDashboard", 20, 1.5)}
         isExpanded={isExpanded}
         onNavigate={closeMobile}

@@ -25,9 +25,10 @@ import { createElement, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfigTransferButtons, PageHeader } from "@/components";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
-import { SETTINGS_TAB_ICON_MAP, SETTINGS_TABS } from "@/config/settings-tabs";
+import { SETTINGS_TAB_ICON_MAP } from "@/config/settings-tabs";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { settingsTabPermissions, useVisibleSettingsTabs } from "./settings/settings-visibility";
 import classes from "./settings.module.scss";
 
 const SETTINGS_GROUP_ORDER = [
@@ -233,12 +234,6 @@ const DEFAULT_SETTINGS_META: {
   kind: "configuration",
 };
 
-function settingsTabPermissions(tab: (typeof SETTINGS_TABS)[number]) {
-  return [tab.requiredPermission, ...(tab.requiredPermissions ?? [])].filter(
-    (permission): permission is string => typeof permission === "string",
-  );
-}
-
 function settingsMeta(value: string) {
   return SETTINGS_NAV_META[value] ?? DEFAULT_SETTINGS_META;
 }
@@ -308,10 +303,7 @@ export function SettingsPage() {
   const [settingsKindFilter, setSettingsKindFilter] =
     useState<SettingsKindFilter>(initialSettingsKindFilter);
 
-  const visibleTabs = useMemo(
-    () => SETTINGS_TABS.filter((tab) => settingsTabPermissions(tab).some(hasPermission)),
-    [hasPermission],
-  );
+  const visibleTabs = useVisibleSettingsTabs();
 
   useRequirePermission(
     visibleTabs[0] ? settingsTabPermissions(visibleTabs[0]) : P.ADMIN.SETTINGS.GENERAL.MANAGE,

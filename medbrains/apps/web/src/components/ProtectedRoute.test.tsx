@@ -1,8 +1,9 @@
-import { endClientSession, useAuthStore } from "@medbrains/stores";
+import { endClientSession, useAuthStore, usePermissionStore } from "@medbrains/stores";
 import type { User } from "@medbrains/types";
 import { QueryClient, useQuery } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { sessionService } from "@/services/session.service";
 import { render, screen } from "@/test/test-utils";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -53,5 +54,20 @@ describe("signing out", () => {
 
     expect(screen.queryByText("signed in")).not.toBeInTheDocument();
     expect(poll.mock.calls.length).toBe(before);
+  });
+});
+
+describe("an access check that fails", () => {
+  it("says access could not be checked, never shows an app list built from nothing", async () => {
+    useAuthStore.getState().setAuth({ id: "u1", username: "desk" } as User);
+    usePermissionStore.getState().clearPermissions();
+    vi.mocked(sessionService.me).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(
+      <ProtectedRoute>
+        <p>your apps</p>
+      </ProtectedRoute>,
+    );
+    expect(await screen.findByText("We couldn't check your access")).toBeInTheDocument();
+    expect(screen.queryByText("your apps")).not.toBeInTheDocument();
   });
 });

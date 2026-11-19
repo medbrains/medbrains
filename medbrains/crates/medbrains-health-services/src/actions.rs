@@ -19,6 +19,7 @@ pub const ACTIONS: &[ActionDef] = &[
         permission: permissions::patients::FIND,
         data_classes: &[DataClass::Identifying],
         summary: "Find patients by name, phone, UHID or Aadhaar, as the desk lookup does.",
+        input: r#"{"type":"object","properties":{"query":{"type":"string","description":"Name, phone, UHID or Aadhaar"}},"required":["query"]}"#,
     },
     ActionDef {
         id: "patients.summary",
@@ -27,6 +28,7 @@ pub const ACTIONS: &[ActionDef] = &[
         permission: permissions::patients::VIEW,
         data_classes: &[DataClass::Identifying],
         summary: "One patient's demographics and last visit, masked as the chart masks them.",
+        input: r#"{"type":"object","properties":{"patient_id":{"type":"string","format":"uuid"}},"required":["patient_id"]}"#,
     },
     ActionDef {
         id: "opd.queue.today",
@@ -35,6 +37,7 @@ pub const ACTIONS: &[ActionDef] = &[
         permission: permissions::opd::queue::LIST,
         data_classes: &[DataClass::Identifying, DataClass::Routine],
         summary: "Today's OPD queue, for one department or all of them.",
+        input: r#"{"type":"object","properties":{"department_id":{"type":"string","format":"uuid","description":"Leave out for every department"}}}"#,
     },
 ];
 
@@ -69,6 +72,12 @@ mod tests {
                 action.id
             );
             assert_eq!(find_action(action.id).map(|a| a.id), Some(action.id));
+            let input: serde_json::Value = serde_json::from_str(action.input).unwrap_or_default();
+            assert_eq!(
+                input["type"], "object",
+                "{}: input is not an object schema",
+                action.id
+            );
         }
         assert!(find_action("patients.nothing").is_none());
     }

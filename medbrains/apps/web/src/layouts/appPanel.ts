@@ -1,4 +1,5 @@
 import { APP_SCREENS } from "@medbrains/types";
+import type { RouteObject } from "react-router";
 import { NAV_GROUPS, type NavGroupConfig } from "@/config/navigation";
 import { type Viewer, visibleScreens } from "@/features/launcher/launcherModel";
 
@@ -19,6 +20,27 @@ export function appOfRoute(pathname: string): string | null {
     (s) => pathname === s.path || pathname.startsWith(`${s.path}/`),
   );
   return screen?.brick ?? null;
+}
+
+/**
+ * `routes` without every route a switched-off app owns (by `appOfRoute` of its full path), at
+ * any depth, so the router never registers them and never fetches their code-split pages. Ids
+ * are the registry's, so the screen registry stays the one owner of every route.
+ */
+export function enabledRoutes(
+  routes: RouteObject[],
+  disabledModules: ReadonlySet<string>,
+  parent = "",
+): RouteObject[] {
+  return routes.flatMap((route) => {
+    const path = route.path ? `${parent}/${route.path}`.replace(/\/+/g, "/") : parent;
+    const app = route.path ? appOfRoute(path) : null;
+    if (app && disabledModules.has(app)) return [];
+    if (!route.children) return [route];
+    return [
+      { ...route, children: enabledRoutes(route.children, disabledModules, path) } as RouteObject,
+    ];
+  });
 }
 
 /** What the side panel shows: the app it is in (`null` = core) and that app's menu groups. */
