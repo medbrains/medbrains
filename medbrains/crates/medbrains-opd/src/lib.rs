@@ -11,6 +11,8 @@ use std::{
 pub mod auto_close;
 pub mod consult_pricing;
 pub mod last_visit;
+pub mod record_access;
+mod referral_access;
 pub mod referral_lifecycle;
 pub mod reports;
 mod routes;
@@ -234,6 +236,10 @@ pub struct QueueEntry {
     /// `auto_inactivity` when OPD closed the visit on its own
     /// (`auto_close`); `None` when a person closed it, or it is still open.
     pub close_reason: Option<String>,
+    /// Whether the caller may read this visit; when not, its complaint and
+    /// reasons are withheld (`record_access::withhold_queue`).
+    #[sqlx(skip)]
+    pub access: record_access::RecordAccess,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1236,6 +1242,8 @@ pub async fn update_encounter(
 //  GET /api/opd/queue
 // ══════════════════════════════════════════════════════════
 
+/// `GET /api/opd/queue` — the day's queue; each row's clinical fields only for
+/// callers who may read that visit (`record_access::withhold_queue`).
 pub async fn list_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1243,7 +1251,7 @@ pub async fn list_queue(
 ) -> Result<Json<Vec<QueueEntry>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::queue::LIST)?;
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
-    let rows = queue_rows(&mut tx, &claims, &params).await?;
+    let rows = record_access::withhold_queue(&state, &mut tx, &claims, &params).await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -1262,11 +1270,7 @@ pub async fn queue_rows(
     // five also hold patients.view. Correct code, inert control — see
     // list_verbal_orders in this file for the same test coming out the other
     // way, where quality_officer holds the code and not patients.view.
-    let can_view_patient_identity = kernel::authz::is_bypass_role(claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|permission| permission == permissions::patients::VIEW);
+    let can_view_patient_identity = record_access::sees_patient_identity(claims);
 
     let queue_date = if let Some(date) = params.date {
         date
@@ -1588,12 +1592,16 @@ fn signal_queue_changed(state: &AppState, tenant_id: Uuid, queue: &OpdQueue) {
     );
 }
 
+/// `PUT /api/opd/queue/{id}/call` — call a waiting patient and announce the token.
 pub async fn call_queue_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<OpdQueue>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::TOKEN_MANAGE)?;
+    // authz: role-only — calling a token is the desk's act for every department; it
+    // returns the queue row (ids, token, status), nothing clinical. Starting the
+    // consultation is what opens the visit, and that checks it (DECISIONS 2026-11-19).
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
@@ -4982,6 +4990,7 @@ pub struct DocketQuery {
     pub date: Option<NaiveDate>,
 }
 
+/// `GET /api/opd/docket` — the caller's own docket for a day, if generated.
 pub async fn get_doctor_docket(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4994,6 +5003,8 @@ pub async fn get_doctor_docket(
             permissions::opd::schedule::MANAGE,
         ],
     )?;
+    // authz: role-only — the caller's own docket (bound to claims.sub): counts of
+    // their own day, no patient row (DECISIONS 2026-11-19).
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let docket_date = if let Some(date) = q.date {
@@ -5016,12 +5027,14 @@ pub async fn get_doctor_docket(
     Ok(Json(row))
 }
 
+/// `POST /api/opd/docket/generate` — count the caller's own day into a docket.
 pub async fn generate_doctor_docket(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(q): Query<DocketQuery>,
 ) -> Result<Json<DoctorDocket>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::schedule::MANAGE)?;
+    // authz: role-only — counts of the caller's own day, bound to claims.sub.
     // No record check, and no patient data leaves here. Every column is a
     // COUNT and the whole statement is bound to claims.sub — a doctor's own
     // day, nobody else's. The PHI flag comes from the encounters table being
@@ -5989,12 +6002,15 @@ pub struct WaitEstimate {
     pub sample_count: i64,
 }
 
+/// `GET /api/opd/queue/wait-estimate` — how many wait, and the measured median.
 pub async fn get_wait_estimate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(q): Query<WaitEstimateQuery>,
 ) -> Result<Json<WaitEstimate>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::queue::VIEW)?;
+    // authz: role-only — two counts and a median for a queue, shown on boards and
+    // patients' phones; no patient row is read out (DECISIONS 2026-11-19).
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let today =
@@ -6463,20 +6479,20 @@ pub struct ReferralTrackingQuery {
     pub sent_by_me: Option<bool>,
 }
 
+/// `GET /api/opd/referrals/tracking` — referrals the caller sent or received,
+/// or that are to or from their department.
 pub async fn referral_tracking(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<ReferralTrackingQuery>,
 ) -> Result<Json<Vec<ReferralWithNames>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::referrals::LIST)?;
-    // A departmental worklist, not a patient record: the filters are
-    // from_department_id / to_department_id and the rows are the referrals
-    // moving between them. The full_name columns are the referring and
-    // receiving DOCTORS, joined from users — no patient name is projected.
-    // Filtering this by permitted patients would empty the inbox for exactly
-    // the roles whose job it is to work it, since a referral arrives before
-    // any care-team tuple for the receiving side exists. Scoped by permission
-    // and by department, which is what a referral queue is.
+    // authz: rows scoped in SQL — a referral is the business of the two sides it
+    // joins: the doctor who sent it, the doctor or department it is addressed to,
+    // and the sending department. Anyone else holding the code saw every
+    // referral's reason and clinical notes; now only bypass roles do. Not a
+    // care-team filter: a referral arrives before the receiving side has any
+    // tuple, and that would empty the inbox of exactly the doctors who answer it.
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
@@ -6500,6 +6516,8 @@ pub async fn referral_tracking(
            AND ($5::bool IS NOT TRUE OR r.to_doctor_id = $7 \
                 OR (r.to_doctor_id IS NULL AND r.to_department_id = ANY($8))) \
            AND ($6::bool IS NOT TRUE OR r.from_doctor_id = $7) \
+           AND ($9::bool OR r.from_doctor_id = $7 OR r.to_doctor_id = $7 \
+                OR r.from_department_id = ANY($8) OR r.to_department_id = ANY($8)) \
          ORDER BY r.created_at DESC \
          LIMIT 500",
         caller = referral_caller_columns(7, 8, 9),
@@ -6538,21 +6556,21 @@ pub struct FollowupComplianceRow {
     pub days_overdue: i32,
 }
 
+/// `GET /api/opd/analytics/followup` — booked follow-ups the patient missed.
 pub async fn followup_compliance(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<FollowupComplianceRow>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::queue::VIEW)?;
+    // authz: role-only — the missed follow-up recall list the desk phones from: who,
+    // which department, when. Identity is hospital-wide for registration and the
+    // list carries no clinical content (DECISIONS 2026-11-19).
     // The redaction below does not fire for anybody today: opd.queue.* is held
     // by audit_officer, doctor, mrd_officer, nurse and receptionist, and all
     // five also hold patients.view. Correct code, inert control — see
     // list_verbal_orders in this file for the same test coming out the other
     // way, where quality_officer holds the code and not patients.view.
-    let can_view_patient_identity = kernel::authz::is_bypass_role(&claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|permission| permission == permissions::patients::VIEW);
+    let can_view_patient_identity = record_access::sees_patient_identity(&claims);
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let today =
@@ -6600,6 +6618,8 @@ pub struct VerbalOrderQuery {
 pub struct VerbalOrderEntry {
     pub id: Uuid,
     pub order_mode: String,
+    /// The visit the order was given in, for the per-row access check.
+    pub encounter_id: Option<Uuid>,
     pub patient_id: Option<Uuid>,
     pub patient_name: Option<String>,
     pub uhid: Option<String>,
@@ -6616,6 +6636,10 @@ pub struct VerbalOrderEntry {
     pub countersigned_by: Option<Uuid>,
     pub countersigned_by_name: Option<String>,
     pub compliance_status: String,
+    /// Whether the caller may read this visit; when not, the patient and the
+    /// summary are withheld (`record_access::withhold_verbal_orders`).
+    #[sqlx(skip)]
+    pub access: record_access::RecordAccess,
 }
 
 /// Ward/compliance-wide register of verbal & telephone medication orders and
@@ -6635,16 +6659,12 @@ pub async fn list_verbal_orders(
     // read-back happened and the countersignature landed, not who the patient
     // was. Same shape as lab::get_analyzer_worklist, and checked the same way:
     // against roles.rs rather than assumed.
-    let can_view_patient_identity = kernel::authz::is_bypass_role(&claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|granted| granted == permissions::patients::VIEW);
+    let can_view_patient_identity = record_access::sees_patient_identity(&claims);
 
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let mut rows = sqlx::query_as::<_, VerbalOrderEntry>(
-        "SELECT p.id, p.order_mode, p.read_back_confirmed, p.created_at, \
+        "SELECT p.id, p.order_mode, p.encounter_id, p.read_back_confirmed, p.created_at, \
                 p.countersign_due_at, p.is_signed, \
                 COALESCE(p.patient_id, e.patient_id) AS patient_id, \
                 CASE WHEN $2::bool THEN \
@@ -6689,6 +6709,7 @@ pub async fn list_verbal_orders(
     if let Some(status) = query.status.as_deref().filter(|s| !s.is_empty()) {
         rows.retain(|r| r.compliance_status == status);
     }
+    record_access::withhold_verbal_orders(&state, &claims, &mut rows).await;
 
     Ok(Json(rows))
 }

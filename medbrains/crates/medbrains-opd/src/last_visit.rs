@@ -31,12 +31,15 @@ pub struct LastVisit {
     pub department_name: Option<String>,
 }
 
+/// The patient's last OPD visit: when, which doctor, which department.
 pub async fn get_last_visit(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Option<LastVisit>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::opd::visit::CREATE)?;
+    // authz: role-only — when, which doctor, which department: what the desk needs to
+    // book the patient back, for patients in nobody's care yet (DECISIONS 2026-11-19).
     let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let last = sqlx::query_as::<_, LastVisit>(
         "SELECT e.encounter_date, \

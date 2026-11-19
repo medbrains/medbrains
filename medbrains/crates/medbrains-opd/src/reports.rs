@@ -107,6 +107,8 @@ pub async fn get_summary(
     Query(q): Query<OpdReportQuery>,
 ) -> Result<Json<OpdReportResponse>, AppError> {
     require_permission(&claims, permissions::opd::REPORTS_VIEW)?;
+    // authz: role-only — counts by day and by doctor for management; no patient
+    // identifier or clinical field leaves the query (DECISIONS 2026-11-19).
     check_range(&q)?;
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let rows = sqlx::query!(

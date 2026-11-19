@@ -40,6 +40,7 @@ import {
   useProtectedFieldAccess,
 } from "@/components";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
+import { ClinicalText, RecordAccessNotice } from "@/components/RecordAccess";
 import { Alert, Button, IconButton, SegmentedControl, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import type {
@@ -469,16 +470,7 @@ export function OpdPageInner() {
       label: t("queueColumns.complaint"),
       searchable: true,
       accessor: (row: QueueEntry) => row.chief_complaint ?? "",
-      render: (row: QueueEntry) =>
-        row.chief_complaint ? (
-          <Text size="sm" lineClamp={2}>
-            {row.chief_complaint}
-          </Text>
-        ) : (
-          <Text size="sm" c="dimmed">
-            {t("queue.noComplaint")}
-          </Text>
-        ),
+      render: (row: QueueEntry) => <ClinicalText value={row.chief_complaint} access={row.access} />,
     },
     {
       key: "has_vitals",
@@ -662,6 +654,7 @@ export function OpdPageInner() {
               outage `queue` is [] — so without this the busiest screen on the
               path tells the desk that nobody is waiting. */}
           {queueFailed && <Alert tone="danger">{t("queue.unavailable")}</Alert>}
+          <RecordAccessNotice rows={queue} />
           <DataTable
             columns={columns}
             data={queue}

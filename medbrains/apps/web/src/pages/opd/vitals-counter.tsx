@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import type { Column } from "@/components";
 import { DataTable, EmptyState, OperationalSignal, VitalsRecorder } from "@/components";
 import { loadFailedTitle, QueryError } from "@/components/QueryError";
+import { ClinicalText, RecordAccessNotice } from "@/components/RecordAccess";
 import { Button, Modal, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import { formatQueueToken } from "./shared";
@@ -107,16 +108,7 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
       label: t("queueColumns.complaint"),
       searchable: true,
       accessor: (row: QueueEntry) => row.chief_complaint ?? "",
-      render: (row: QueueEntry) =>
-        row.chief_complaint ? (
-          <Text size="sm" lineClamp={2}>
-            {row.chief_complaint}
-          </Text>
-        ) : (
-          <Text size="sm" c="dimmed">
-            {t("queue.noComplaint")}
-          </Text>
-        ),
+      render: (row: QueueEntry) => <ClinicalText value={row.chief_complaint} access={row.access} />,
     },
     {
       key: "actions",
@@ -153,6 +145,7 @@ export function OpdVitalsCounter({ departmentId, date }: OpdVitalsCounterProps) 
         </Group>
       )}
 
+      <RecordAccessNotice rows={waiting} />
       {neverLoaded ? null : !isLoading && waiting.length === 0 ? (
         <EmptyState
           icon={<IconDeviceHeartMonitor size={32} />}

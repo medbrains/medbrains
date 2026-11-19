@@ -74,4 +74,32 @@ describe("the OPD queue when the read fails", () => {
 
     await waitFor(() => expect(screen.queryByText("queue.unavailable")).not.toBeInTheDocument());
   });
+
+  /** A queue row as the server sends it, with its clinical fields cleared. */
+  const row = (id: string, access: string) => ({
+    id,
+    encounter_id: `e-${id}`,
+    patient_id: `p-${id}`,
+    token_number: 1,
+    token_code: `T-${id}`,
+    status: "waiting",
+    kind: "primary",
+    has_vitals: false,
+    patient_name: `Patient ${id}`,
+    uhid: `UH-${id}`,
+    chief_complaint: null,
+    access,
+  });
+
+  it("tells a withheld complaint and an unchecked one from one never written", async () => {
+    listQueue = async () => [row("1", "withheld"), row("2", "unknown"), row("3", "allowed")];
+
+    render(<OpdPageInner />, { queryClient: silentClient() });
+
+    await waitFor(() => expect(screen.getByText("Outside your care")).toBeInTheDocument());
+    expect(screen.getByText("Couldn't check access")).toBeInTheDocument();
+    expect(screen.getByText("Not recorded")).toBeInTheDocument();
+    expect(screen.getByText("access.uncheckedNotice")).toBeInTheDocument();
+    expect(screen.getByText("access.withheldNotice")).toBeInTheDocument();
+  });
 });

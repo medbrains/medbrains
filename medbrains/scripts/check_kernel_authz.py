@@ -17,12 +17,15 @@ decision too, a named one; `--coverage` lists every use.
 
 `--coverage` splits the functions that reach the database into RBAC only and
 RBAC + ABAC (a per-record check: the clinical gate, `collapse`/`outcome_of`,
-`authorize`, a `require_*_access` / `*_viewer` helper), and names the RBAC-only
+`authorize`, a `withhold*` pass over a list, a `require_*_access` / `*_viewer` helper), and names the RBAC-only
 ones whose SQL touches patient data: the follow-up list, not a failure. A
 function that is correct with the role check alone says so in its body, with
 `// authz: role-only — <why>` (an aggregate, the caller's own rows, a
 hospital-wide desk lookup); `--coverage` lists those under their reason instead
 of as follow-ups, so the decision is written where the code is and reviewed with it.
+A list whose rows are filtered on the record's own attributes in its SQL (the
+two sides of a referral) says `// authz: rows scoped in SQL — <predicate>` and
+counts as record-level.
 
 `kernel_authz.baseline.txt` holds the functions that already broke the rule when
 it was written (background passes and `kernel::begin(Actor::from_claims(..))`
@@ -52,6 +55,7 @@ RBAC = re.compile(
 ABAC = re.compile(
     r"\bgate::|\bpermit_outcome\(|\bcollapse\(|\boutcome_of\(|\bauthorize(_many)?\("
     r"|\.authz\b|\brequire_\w*(access|viewer|editor)\w*\(|\bpatient_filter\(|\bfield_access::"
+    r"|//\s*authz: rows scoped in SQL\b|\bwithhold\w*\("
 )
 ROLE_ONLY = re.compile(r"//\s*authz: role-only\W+(.*)")
 PHI = re.compile(r"\b(patients?|encounters?|opd_visits?|visits?|vitals|prescriptions?|diagnos\w*|allerg\w*)\b", re.I)
@@ -146,6 +150,7 @@ def self_test() -> int:
     assert classify("fn f() { let permit = kernel::authz::permit(&c, P)?; kernel::tenant_tx(&state.db, &permit) }") == "rbac"
     assert classify("fn f() { require_permission(&c, P)?; gate::require_patient_access(&state, &c, id).await?; state.db }") == "rbac+abac"
     assert classify("fn f(pool: &PgPool, permit: &Permit) { kernel::tenant_tx(pool, permit) }") == "rbac"
+    assert classify("fn f() { let permit = permit(&c, P)?; // authz: rows scoped in SQL — x\n state.db }") == "rbac+abac"
     print("✓ self-test passed")
     return 0
 

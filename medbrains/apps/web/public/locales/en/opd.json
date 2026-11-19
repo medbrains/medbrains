@@ -310,5 +310,11 @@
   "autoClose.off": "Off",
   "autoClose.minutes": "{{count}} minutes",
   "autoClose.loadFailed": "Could not load this setting",
-  "autoClose.saveFailed": "Not saved. Try again."
+  "autoClose.saveFailed": "Not saved. Try again.",
+  "access.unchecked": "Couldn't check access",
+  "access.withheld": "Outside your care",
+  "access.uncheckedNotice_one": "Couldn't check access for {{count}} row, so its clinical details are hidden. Refresh to try again.",
+  "access.uncheckedNotice_other": "Couldn't check access for {{count}} rows, so their clinical details are hidden. Refresh to try again.",
+  "access.withheldNotice_one": "{{count}} row is outside your care: its clinical details are hidden.",
+  "access.withheldNotice_other": "{{count}} rows are outside your care: their clinical details are hidden."
 }

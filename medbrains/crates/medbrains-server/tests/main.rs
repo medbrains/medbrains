@@ -238,6 +238,7 @@ mod opd_billing_brick_test;
 mod opd_call_advances_token_test;
 mod opd_card_print_test;
 mod opd_chief_complaint_test;
+mod opd_record_access_test;
 mod opd_deceased_guard_test;
 mod opd_last_visit_test;
 mod opd_queue_wait_report_test;

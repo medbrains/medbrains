@@ -1,5 +1,7 @@
 // Emergency drug kit types — split from index.ts, barrel-re-exported.
 
+import type { RecordAccess } from "./dashboard-widget-builder";
+
 // ── Emergency Drug Kits ────────────────────────────────────
 
 export interface PharmacyEmergencyKit {
@@ -424,6 +426,8 @@ export interface VerbalOrderEntry {
   id: string;
   /** "verbal" | "telephone". */
   order_mode: string;
+  /** The visit the order was given in. */
+  encounter_id?: string | null;
   patient_id?: string | null;
   patient_name?: string | null;
   uhid?: string | null;
@@ -440,6 +444,8 @@ export interface VerbalOrderEntry {
   countersigned_by?: string | null;
   countersigned_by_name?: string | null;
   compliance_status: VerbalOrderComplianceStatus;
+  /** Withheld rows carry no patient or summary; see `RecordAccess`. */
+  access: RecordAccess;
 }
 
 // ─────────────────────────────────────────────────────────
