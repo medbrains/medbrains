@@ -98,7 +98,7 @@ Each brick has one manifest, assembled from the tables that already declare it a
 |---|---|
 | `id`, `name`, `dependsOn`, `permissionGroups` | the brick's row in `bricks.rs` |
 | `settings`: the Settings sections it plugs in (hidden while it is off) | `Brick::settings`, set with `.with_settings(&[...])` |
-| `backgroundJobs` | `Brick::background_jobs`, reserved for brick-aware startup, empty today |
+| `backgroundJobs` | the `BRICK_JOBS` rows that list the brick (a job may serve several) |
 | `icon`, `screens` (route + permission + any-of) | its rows in `access/screens.rs` |
 | `actions` (id + permission + data classes), `dataClasses` | its rows in `medbrains-health-services/src/actions.rs` |
 

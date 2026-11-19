@@ -30,8 +30,6 @@ pub struct Brick {
     /// The Settings sections (`pages/admin/settings.tsx` tab values) this brick plugs in; they
     /// are hidden while it is off.
     pub settings: &'static [&'static str],
-    /// Background jobs the brick runs, by name. Reserved for brick-aware startup; empty today.
-    pub background_jobs: &'static [&'static str],
 }
 
 /// The version of the brick manifest schema written to the web (`BRICK_MANIFEST_VERSION`).
@@ -76,7 +74,6 @@ const fn brick(
         add_on: false,
         editions,
         settings: &[],
-        background_jobs: &[],
     }
 }
 
@@ -116,7 +113,7 @@ pub const BRICKS: &[Brick] = &[
     brick("pmr", "Physical Medicine & Rehabilitation", &["registration", "opd"], &["specialty.pmr"], Some(FULL)),
     brick("specialty_other", "Other Specialties", &["registration", "opd"], &["specialty.other", "specialty.health_packages", "specialty.clinical_trials"], Some(FULL)),
     brick("flow", "MedBrains Flow", &["opd"], &["flow", "flows", "automation"], Some(&[])),
-    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), settings: &[], background_jobs: &[] },
+    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), settings: &[] },
 ];
 
 /// A background job that serves only some bricks.
@@ -327,10 +324,7 @@ mod tests {
     #[test]
     fn each_settings_section_has_one_brick() {
         let mut seen: Vec<&str> = Vec::new();
-        for key in BRICKS
-            .iter()
-            .flat_map(|b| b.settings.iter().chain(b.background_jobs))
-        {
+        for key in BRICKS.iter().flat_map(|b| b.settings) {
             assert!(!seen.contains(key), "{key} claimed twice");
             seen.push(key);
         }
