@@ -57,6 +57,8 @@ module "aws_fargate" {
   hot_to_cold_days       = var.hot_to_cold_days
   kms_key_arns           = var.kms_key_arns
   alarm_email            = var.alarm_email
+  acm_certificate_arn    = var.acm_certificate_arn
+  allow_plain_http       = var.allow_plain_http
 }
 
 module "aws_k3s" {
@@ -92,6 +94,8 @@ module "aws_eks" {
   hot_to_cold_days = var.hot_to_cold_days
   kms_key_arns     = var.kms_key_arns
   alarm_email      = var.alarm_email
+
+  endpoint_public_access_cidrs = var.eks_public_access_cidrs
 }
 
 module "digitalocean" {

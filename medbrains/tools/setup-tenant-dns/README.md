@@ -103,4 +103,3 @@ node --test medbrains/tools/setup-tenant-dns/src/*.test.mjs
 
 The tool runs on Node's built-in modules only (`node:readline/promises`,
 `node:fs`, `node:child_process`, `fetch`). No `npm install` step.
-Same pattern as `tools/create-mobile-app`.

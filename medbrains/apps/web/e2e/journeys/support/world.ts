@@ -137,7 +137,8 @@ export const test = base.extend<{ hospital: Hospital }>({
       colleague: async (department, fieldAccess) => {
         const suffix = unique().toLowerCase();
         const username = `colleague_${suffix}`;
-        const password = `Colleague-${suffix}-Pass1!`;
+        // Not the username in any form: the password rule (#6070) refuses one that holds it.
+        const password = `Ward-Round-${suffix}-7!`;
         const person = freshPerson();
         const fullName = `${person.firstName} ${person.lastName}`;
         const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {

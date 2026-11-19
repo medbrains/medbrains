@@ -16,9 +16,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  type OpdMedicalCertificateFormInput,
   opdFeedbackFormSchema,
-  opdMedicalCertificateFormSchema,
   opdProcedureOrderFormSchema,
   opdReminderFormSchema,
 } from "@medbrains/schemas";
@@ -73,16 +71,13 @@ import { SignRecordButton } from "@/components/Signatures/SignRecordButton";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
-  DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES,
   DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES,
   DEFAULT_OPD_REMINDER_FORM_VALUES,
-  OPD_CERTIFICATE_TYPE_OPTIONS,
   OPD_PROCEDURE_PRIORITY_OPTIONS,
   OPD_RATING_OPTIONS,
   OPD_REMINDER_PRIORITY_OPTIONS,
   OPD_REMINDER_TYPE_OPTIONS,
   toCreateFeedbackRequest,
-  toCreateMedicalCertificateRequest,
   toCreateProcedureOrderRequest,
   toCreateReminderRequest,
 } from "@/forms/opd.form";
@@ -93,6 +88,7 @@ import { opdService } from "@/services/opd.service";
 import { ConsentAnswersModal } from "./ConsentAnswersModal";
 import { NewConsentModal } from "./NewConsentModal";
 import { ReferralActions } from "./referral-actions";
+import { visitStatusWord } from "./shared";
 import { LoadFailed } from "./tabs/load-failed";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
@@ -105,281 +101,6 @@ const referralUrgencyValues = [
 
 function toReferralUrgency(value: string | null): ReferralUrgency | undefined {
   return referralUrgencyValues.find((candidate) => candidate === value);
-}
-
-// ── Medical Certificates ────────────────────────────────
-
-function defaultCertificateFormValues(): OpdMedicalCertificateFormInput {
-  return {
-    ...DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES,
-    issued_date: todayDateString(),
-  };
-}
-
-export function CertificatesTab({
-  patientId,
-  encounterId,
-  canUpdate,
-}: {
-  patientId: string;
-  encounterId: string;
-  canUpdate: boolean;
-}) {
-  const emit = useClinicalEmit();
-  const queryClient = useQueryClient();
-  const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(opdMedicalCertificateFormSchema),
-    defaultValues: defaultCertificateFormValues(),
-    mode: "onTouched",
-  });
-  const certificateType = watch("certificate_type");
-
-  const {
-    data: certificates = [],
-    isLoading,
-    error,
-    isLoadingError,
-    isRefetchError,
-    refetch,
-  } = useQuery<MedicalCertificate[]>({
-    queryKey: ["patient-certificates", patientId],
-    queryFn: () => opdService.listCertificates(patientId),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: opdService.createCertificate,
-    onSuccess: (certificate) => {
-      emit("opd.certificate.created", {
-        certificate_id: certificate.id,
-        certificate_number: certificate.certificate_number,
-        certificate_type: certificate.certificate_type,
-        encounter_id: certificate.encounter_id,
-        issued_date: certificate.issued_date,
-        patient_id: certificate.patient_id,
-        source_record_id: certificate.id,
-      });
-      void queryClient.invalidateQueries({ queryKey: ["patient-certificates", patientId] });
-      toast.success("Medical certificate generated", { title: "Certificate created" });
-      closeCreate();
-      reset(defaultCertificateFormValues());
-    },
-    onError: () => {
-      toast.error("Failed to create certificate", { title: "Error" });
-    },
-  });
-
-  const openCertificateForm = () => {
-    reset(defaultCertificateFormValues());
-    openCreate();
-  };
-
-  const closeCertificateForm = () => {
-    closeCreate();
-    reset(defaultCertificateFormValues());
-  };
-
-  const handleCreate = handleSubmit((values) => {
-    createMutation.mutate(toCreateMedicalCertificateRequest(values, patientId, encounterId));
-  });
-
-  if (isLoading) {
-    return (
-      <Text size="sm" c="dimmed">
-        Loading certificates...
-      </Text>
-    );
-  }
-
-  return (
-    <Stack gap="sm">
-      {canUpdate && (
-        <Group>
-          <Button
-            tone="primary"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={openCertificateForm}
-          >
-            New Certificate
-          </Button>
-        </Group>
-      )}
-
-      {(isLoadingError || isRefetchError) && (
-        <LoadFailed what="Certificates" error={error} onRetry={refetch} stale={isRefetchError} />
-      )}
-      {certificates.map((cert) => (
-        <Card key={cert.id} padding="sm" withBorder>
-          <Group justify="space-between" mb="xs">
-            <Group gap={8}>
-              <IconCertificate size={16} color="var(--mantine-color-blue-5)" />
-              <Badge size="sm">{cert.certificate_type.replace(/_/g, " ")}</Badge>
-              {cert.certificate_number && (
-                <Text size="xs" c="dimmed" ff="monospace">
-                  {cert.certificate_number}
-                </Text>
-              )}
-            </Group>
-            <Group gap={8}>
-              <Text size="xs" c="dimmed">
-                {new Date(cert.issued_date).toLocaleDateString()}
-              </Text>
-              <SignRecordButton
-                recordType="medical_certificate"
-                authorId={cert.doctor_id}
-                recordId={cert.id}
-                summary={cert.certificate_type.replace(/_/g, " ")}
-              />
-            </Group>
-          </Group>
-          {cert.diagnosis && (
-            <Text size="sm">
-              <Text span fw={500}>
-                Diagnosis:
-              </Text>{" "}
-              {cert.diagnosis}
-            </Text>
-          )}
-          {(cert.valid_from || cert.valid_to) && (
-            <Text size="xs" c="dimmed">
-              {cert.valid_from ? `From: ${new Date(cert.valid_from).toLocaleDateString()}` : ""}
-              {cert.valid_from && cert.valid_to ? " — " : ""}
-              {cert.valid_to ? `To: ${new Date(cert.valid_to).toLocaleDateString()}` : ""}
-            </Text>
-          )}
-          {cert.remarks && (
-            <Text size="xs" c="dimmed" fs="italic" mt={4}>
-              {cert.remarks}
-            </Text>
-          )}
-        </Card>
-      ))}
-
-      {certificates.length === 0 && !createOpen && (
-        <Text size="sm" c="dimmed" ta="center" py="md">
-          No certificates issued for this patient.
-        </Text>
-      )}
-
-      {/* Create certificate modal */}
-      <Modal
-        opened={createOpen}
-        onClose={closeCertificateForm}
-        title="New Medical Certificate"
-        size="md"
-      >
-        <Stack gap="sm">
-          <Controller
-            control={control}
-            name="certificate_type"
-            render={({ field }) => (
-              <Select
-                label="Certificate Type"
-                placeholder="Select type"
-                data={OPD_CERTIFICATE_TYPE_OPTIONS}
-                value={field.value}
-                onChange={(value) =>
-                  field.onChange(
-                    value ?? DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES.certificate_type,
-                  )
-                }
-                error={errors.certificate_type?.message}
-                required
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="issued_date"
-            render={({ field }) => (
-              <TextInput
-                label="Issued Date"
-                type="date"
-                error={errors.issued_date?.message}
-                required
-                {...field}
-              />
-            )}
-          />
-          <Group grow>
-            <Controller
-              control={control}
-              name="valid_from"
-              render={({ field }) => (
-                <TextInput
-                  label="Valid From"
-                  type="date"
-                  error={errors.valid_from?.message}
-                  {...field}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="valid_to"
-              render={({ field }) => (
-                <TextInput
-                  label="Valid To"
-                  type="date"
-                  error={errors.valid_to?.message}
-                  {...field}
-                />
-              )}
-            />
-          </Group>
-          <Controller
-            control={control}
-            name="diagnosis"
-            render={({ field }) => (
-              <Textarea
-                label="Diagnosis"
-                placeholder="Primary diagnosis for certificate"
-                error={errors.diagnosis?.message}
-                autosize
-                minRows={2}
-                {...field}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="remarks"
-            render={({ field }) => (
-              <Textarea
-                label="Remarks"
-                placeholder="Additional remarks or instructions"
-                error={errors.remarks?.message}
-                autosize
-                minRows={2}
-                {...field}
-              />
-            )}
-          />
-          <Group justify="flex-end">
-            <Button tone="ghost" onClick={closeCertificateForm}>
-              Cancel
-            </Button>
-            <Button
-              tone="primary"
-              onClick={handleCreate}
-              loading={createMutation.isPending}
-              disabled={!certificateType}
-              leftSection={<IconCertificate size={14} />}
-            >
-              Create Certificate
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </Stack>
-  );
 }
 
 // ── Patient Timeline ────────────────────────────────────
@@ -439,7 +160,7 @@ export function TimelineTab({ patientId }: { patientId: string }) {
         key: `visit-${v.id}`,
         date: v.encounter_date ?? v.created_at,
         type: "visit",
-        title: `${v.encounter_type.toUpperCase()} visit — ${v.status}`,
+        title: `${v.encounter_type.toUpperCase()} visit — ${visitStatusWord(v)}`,
         detail: [
           v.department_name,
           v.doctor_name ? `Dr. ${v.doctor_name}` : null,

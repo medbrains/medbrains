@@ -9,7 +9,9 @@ use sqlx::PgPool;
 const PASS_INTERVAL_SECS: u64 = 24 * 3600;
 
 /// Run the pass now and then once a day, for the life of the server.
-pub fn spawn(pool: PgPool) {
+///
+/// Returns the task, so the brick-job supervisor can stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match medbrains_billing::leakage::run_daily(&pool).await {
@@ -19,5 +21,5 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }

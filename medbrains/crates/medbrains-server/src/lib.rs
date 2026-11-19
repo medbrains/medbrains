@@ -22,6 +22,7 @@
 //! - [`error`] — Unified error types and responses
 //! - [`validation`] — Request validation helpers
 
+pub mod actions;
 pub mod event_tokens;
 pub mod preflight;
 pub mod preflight_ai;

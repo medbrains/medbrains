@@ -63,7 +63,7 @@ export function PatientSearchSelect({
   value,
   onChange,
   label = "Patient",
-  placeholder = "Search by name, UHID, or phone...",
+  placeholder = "Search by name, phone, UHID or Aadhaar",
   required,
   size = "sm",
   error,

@@ -1,1 +1,21 @@
-{}
+{
+  "placeholder.searchPatients": "பெயர், தொலைபேசி, UHID அல்லது ஆதார் மூலம் தேடுக",
+  "directory.searchLabel": "பெயர், தொலைபேசி, UHID அல்லது ஆதார் மூலம் நோயாளிகளைத் தேடுக",
+  "registrationForm.hint.unknownPatient": "அப்போது பெயர், பாலினம், வயது, தொலைபேசி தேவையில்லை. நோயாளியை அடையாளம் காண முடியாதபோது மட்டும் பயன்படுத்தவும்.",
+  "registrationForm.label.firstName": "முதல் பெயர்",
+  "registrationForm.label.lastName": "குடும்பப் பெயர்",
+  "registrationForm.label.sex": "பாலினம்",
+  "registrationForm.label.age": "வயது (ஆண்டுகள்)",
+  "registrationForm.label.orDateOfBirth": "அல்லது பிறந்த தேதி",
+  "registrationForm.label.phone": "தொலைபேசி",
+  "registrationForm.label.doctor": "மருத்துவர்",
+  "registrationForm.label.department": "துறை",
+  "registrationForm.row.sexAge": "பாலினம் · வயது",
+  "registrationForm.row.visit": "வருகை",
+  "registrationForm.row.prefixMiddleName": "முன்னொட்டு · நடுப் பெயர்",
+  "registrationForm.row.bloodGroup": "இரத்த வகை",
+  "registrationForm.row.secondPhone": "இரண்டாவது தொலைபேசி",
+  "registrationForm.row.clinicalUnit": "மருத்துவப் பிரிவு",
+  "registrationForm.section.requiredDetails": "கட்டாய விவரங்கள்",
+  "registrationForm.section.moreDetails": "கூடுதல் விவரங்கள் (விருப்பத்தேர்வு)"
+}

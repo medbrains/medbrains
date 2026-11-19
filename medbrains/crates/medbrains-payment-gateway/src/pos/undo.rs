@@ -40,7 +40,7 @@ pub async fn cancel_sale(
                 id,
                 json!({ "cancel_requested": true }),
             )
-            .await?
+            .await?;
         }
         ("created", _) => {
             let provider = provider_for(&terminal).ok_or_else(|| {

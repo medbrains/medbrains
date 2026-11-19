@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n              COUNT(*)::bigint AS \"total!\",\n              COUNT(*) FILTER (WHERE status::text IN\n                ('scheduled','confirmed','checked_in','in_consultation'))::bigint AS \"remaining!\"\n           FROM appointments\n           WHERE tenant_id = $1 AND doctor_id = $2\n             AND appointment_date = current_date AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "remaining!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "c9ea90d14a3c214097ab7465589112fa940460f4e8d22ac6494dcf271e780dbb"
+}

@@ -25,15 +25,15 @@ The entity agreement contains the same eight terms, given by the organisation ("
 - The entity names the people authorised to contribute for it, in a list attached to the agreement, and tells the maintainer when that list changes.
 - The person signing confirms they have authority to bind the entity.
 
-Each listed person also signs the individual agreement through the bot below, so every pull request is traceable to a signature.
+Each listed person also signs the individual agreement as below, so every pull request is traceable to a signature.
 
 ## How to sign
 
-**Individuals.** Open your pull request. The CLA bot comments on it with a link to this page. Reply on the pull request with exactly:
+**Individuals.** Read this agreement, then add one line to [`signatures/cla.txt`](./signatures/cla.txt) in your pull request: your GitHub username and today's date, for example
 
-> I have read the CLA Document and I hereby sign the CLA
+    your-username 2026-11-16
 
-The bot records your GitHub username, the date and the pull request in `signatures/cla.json` on the `cla-signatures` branch of this repository. You sign once; later pull requests are covered. If you change your mind before signing, close the pull request; nothing is recorded.
+The commit that adds the line, made from your account, is the record of your signature. The `CLA signed` check on the pull request tells you if the line is missing, and shows the exact line to add. You sign once; later pull requests are covered. If you change your mind before your pull request is merged, close it; nothing is recorded.
 
 **Entities.** Contact the maintainer through the address in [SECURITY.md](./SECURITY.md) with the subject `CLA: entity`. We send the entity agreement for a written or electronic signature, and keep the signed copy. Until it is countersigned, staff contributions from that entity cannot be merged.
 

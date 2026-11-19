@@ -21,12 +21,23 @@ locals {
   secrets_prefix = "secrets-backups"    # /etc/medbrains, age-sealed
   files_prefix   = "file-backups"       # /var/lib/medbrains mirror (same script)
   wal_prefix     = "wal-g"              # opt-in WAL archive + base backups
+  tenants_prefix = "tenants"            # weekly per-hospital export, age-sealed (medbrains-tenant-export)
 }
 
 variable "company_backup_lock_days" {
   description = "Object Lock (COMPLIANCE) default retention on the backup bucket, in days. Nobody - root included - can delete or overwrite a locked version before then. 0 = no default retention."
   type        = number
   default     = 30
+}
+
+variable "company_wal_retention_days" {
+  description = "Days the wal-g/ prefix (WAL + base backups) is kept. Point-in-time restore reaches back about this minus 7 days (a full base backup is at most 7 days old)."
+  type        = number
+  default     = 35
+  validation {
+    condition     = var.company_wal_retention_days >= 14 && var.company_wal_retention_days <= 400
+    error_message = "company_wal_retention_days must be 14-400 (below 14 a full base backup and its WAL may not both survive)."
+  }
 }
 
 variable "company_wal_archiving" {
@@ -287,7 +298,8 @@ resource "aws_s3_bucket_policy" "prod_backups" {
 #   file-backups/  a mirror (`aws s3 sync`, never --delete): current objects
 #                  are kept while they exist on the host; an overwritten or
 #                  replaced file's old version stays 90 days.
-#   wal-g/         WAL + base backups: 35 days. Base backups are at most 7
+#   tenants/       weekly per-hospital exports, sealed: 35 days (5 weeks).
+#   wal-g/         WAL + base backups: company_wal_retention_days (35). Base backups are at most 7
 #                  days apart, so every point in the last ~28 days keeps its
 #                  base and its WAL. The host never deletes - WAL-G's own
 #                  `delete` would need s3:DeleteObject; lifecycle does it.
@@ -332,10 +344,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "prod_backups" {
     abort_incomplete_multipart_upload { days_after_initiation = 1 }
   }
   rule {
+    id     = "tenant-exports"
+    status = "Enabled"
+    filter { prefix = "${local.tenants_prefix}/" }
+    expiration { days = 35 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+    abort_incomplete_multipart_upload { days_after_initiation = 1 }
+  }
+  rule {
     id     = "wal-g"
     status = "Enabled"
     filter { prefix = "${local.wal_prefix}/" }
-    expiration { days = 35 }
+    expiration { days = var.company_wal_retention_days }
     noncurrent_version_expiration { noncurrent_days = 7 }
     abort_incomplete_multipart_upload { days_after_initiation = 1 }
   }
@@ -355,6 +375,7 @@ resource "aws_iam_policy" "prod_backup_writer" {
           "${aws_s3_bucket.prod_backups.arn}/${local.backup_prefix}/*.age",
           "${aws_s3_bucket.prod_backups.arn}/${local.monthly_prefix}/*.age",
           "${aws_s3_bucket.prod_backups.arn}/${local.secrets_prefix}/*.age",
+          "${aws_s3_bucket.prod_backups.arn}/${local.tenants_prefix}/*.age",
           "${aws_s3_bucket.prod_backups.arn}/${local.files_prefix}/*",
         ]
       },
@@ -372,10 +393,17 @@ resource "aws_iam_policy" "prod_backup_writer" {
         ] } }
       },
       {
+        # Multipart uploads (`aws s3 cp -` streams in parts) need kms:Decrypt
+        # to complete: S3 decrypts the data key to assemble the parts (#6054).
+        # ViaService pins every use of the key to S3; the host can never
+        # call KMS Decrypt on it directly.
         Sid      = "EncryptDumps"
         Effect   = "Allow"
-        Action   = ["kms:GenerateDataKey", "kms:Encrypt"]
+        Action   = ["kms:GenerateDataKey", "kms:Encrypt", "kms:Decrypt"]
         Resource = aws_kms_key.prod_backups.arn
+        Condition = {
+          StringEquals = { "kms:ViaService" = "s3.${var.company_region}.amazonaws.com" }
+        }
       },
       {
         Sid      = "PageOnFailure"
@@ -421,6 +449,9 @@ resource "aws_iam_policy" "prod_wal_g" {
         Effect   = "Allow"
         Action   = ["kms:GenerateDataKey", "kms:Encrypt", "kms:Decrypt"]
         Resource = aws_kms_key.prod_backups.arn
+        Condition = {
+          StringEquals = { "kms:ViaService" = "s3.${var.company_region}.amazonaws.com" }
+        }
       },
     ]
   })

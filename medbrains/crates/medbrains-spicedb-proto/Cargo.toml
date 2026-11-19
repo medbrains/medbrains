@@ -11,8 +11,12 @@ description = "SpiceDB gRPC client types, generated from the official authzed/ap
 [dependencies]
 prost = "0.14.3"
 prost-types = "0.14.3"
-tonic = { version = "0.14.5", default-features = false, features = ["codegen"] }
+tonic = { version = "0.14.5", default-features = false, features = ["codegen", "transport"] }
 tonic-prost = "0.14.5"
 
 [dev-dependencies]
 hex = { workspace = true }
+
+# The generated modules carry a scoped #[allow] with its reason in src/lib.rs.
+[lints]
+workspace = true

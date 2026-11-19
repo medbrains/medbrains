@@ -106,3 +106,12 @@ platforms; the ledger is updated in the PR that converts the screen, never after
 
 Each phase lands as one focused PR after the full gate, verified on simulator and emulator
 with screenshots of every screen.
+
+**Update 2026-11-17: the React Native apps are deleted.** The owner decided to remove them
+before parity rather than after: `apps/mobile`, `apps/mobile-staff`, `apps/mobile-patient`,
+`apps/mobile-camp`, `apps/mobile-vendor`, `apps/tv`, `packages/mobile-shell`,
+`packages/ui-mobile`, `packages/uniffi-rn-plugin`, `packages/edge-rn-bindings` and
+`tools/create-mobile-app` are gone. They confused anyone copying patterns and carried about
+36 Snyk findings. Git history keeps the code; `NATIVE-PARITY.md` still lists the screens the
+native apps owe. `crates/medbrains-edge-rn` stays: it is the shared Rust core for Swift and
+Kotlin. See `medbrains/docs/DECISIONS.md` (2026-11-17).
