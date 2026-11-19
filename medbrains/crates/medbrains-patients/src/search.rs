@@ -346,7 +346,7 @@ mod db_tests {
     /// Store the Aadhaar exactly as registration does: masked number, keyed fingerprint.
     async fn add_aadhaar(app: &sqlx::PgPool, tenant: Uuid, patient: Uuid) {
         let mut tx = app.begin().await.expect("tx");
-        medbrains_db::pool::set_full_context(&mut tx, &tenant, &[])
+        medbrains_kernel::enter_scope(&mut tx, &tenant, &[])
             .await
             .expect("context");
         let fp = keyed_fingerprint(KEY, tenant, "aadhaar", AADHAAR);
@@ -417,7 +417,7 @@ mod db_tests {
     async fn find(db: &TestDb, tenant: Uuid, q: &str) -> Vec<MatchResult> {
         let app = db.connect(APP_ROLE).await.expect("app");
         let mut tx = app.begin().await.expect("tx");
-        medbrains_db::pool::set_full_context(&mut tx, &tenant, &[])
+        medbrains_kernel::enter_scope(&mut tx, &tenant, &[])
             .await
             .expect("context");
         let Some(matcher) = PatientSearch::parse(q, Some(KEY), tenant) else {
@@ -507,7 +507,7 @@ mod db_tests {
         );
         let app = db.connect(APP_ROLE).await.expect("app");
         let mut tx = app.begin().await.expect("tx");
-        medbrains_db::pool::set_full_context(&mut tx, &a.tenant, &[])
+        medbrains_kernel::enter_scope(&mut tx, &a.tenant, &[])
             .await
             .expect("context");
         let keyless = PatientSearch::parse(AADHAAR, None, a.tenant).expect("search");

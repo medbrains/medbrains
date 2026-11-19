@@ -6,6 +6,8 @@
 //! the doses recorded in `patient_immunizations` and the choice in
 //! `tenant_settings` (category `immunization`, key `schedule`).
 
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use std::collections::HashMap;
 
 use axum::extract::{Path, Query, State};
@@ -15,7 +17,6 @@ use medbrains_core::immunization::{self, DoseState, RecordedDose, ScheduleOption
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -116,10 +117,9 @@ pub async fn patient_schedule(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientSchedule>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let dob: Option<NaiveDate> = sqlx::query_scalar(
         "SELECT date_of_birth FROM patients WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
@@ -265,11 +265,10 @@ pub async fn due_list(
     Extension(claims): Extension<Claims>,
     Query(params): Query<DueParams>,
 ) -> Result<Json<DueList>, AppError> {
-    require_permission(&claims, permissions::patients::immunizations::DUE_LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::immunizations::DUE_LIST)?;
     let within = params.within_days.unwrap_or(7).clamp(0, 60);
     let page = params.page.unwrap_or(1).max(1);
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let setting = setting(&mut tx, claims.tenant_id).await?;
     let rows = due_rows(
         &mut tx,
@@ -298,9 +297,8 @@ pub async fn get_setting(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<ScheduleSetting>, AppError> {
-    require_permission(&claims, permissions::patients::immunizations::CONFIGURE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::immunizations::CONFIGURE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let s = setting(&mut tx, claims.tenant_id).await?;
     tx.commit().await?;
     Ok(Json(s))
@@ -312,15 +310,14 @@ pub async fn put_setting(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ScheduleSetting>,
 ) -> Result<Json<ScheduleSetting>, AppError> {
-    require_permission(&claims, permissions::patients::immunizations::CONFIGURE)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::immunizations::CONFIGURE)?;
     if !(0..=MAX_REMIND_DAYS).contains(&body.remind_days_before) {
         return Err(AppError::BadRequest(format!(
             "Reminders go 0 to {MAX_REMIND_DAYS} days before a dose."
         )));
     }
     let value = serde_json::to_value(body).map_err(|e| AppError::Internal(e.to_string()))?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let old = setting(&mut tx, claims.tenant_id).await?;
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
@@ -333,9 +330,9 @@ pub async fn put_setting(
     .execute(&mut *tx)
     .await?;
     let old_v = serde_json::to_value(old).unwrap_or_default();
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         &mut tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action: "immunization.schedule_configured",
@@ -375,8 +372,7 @@ async fn remind_tenant(
     tenant_id: Uuid,
     hospital: &str,
 ) -> Result<u64, AppError> {
-    let mut tx = pool.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = kernel::tenant_tx(pool, &tenant_id).await?;
     let setting = setting(&mut tx, tenant_id).await?;
     let today = today_ist();
     let rows = due_rows(
