@@ -278,6 +278,7 @@ function clearPersistedNativeAuthTokens(): void {
   }
 }
 
+/** Holds a native app's session tokens in memory and in its storage; a new access token also clears `sessionEnded`. */
 export function setNativeAuthTokens(
   accessToken?: string | null,
   refreshToken?: string | null,
@@ -370,6 +371,7 @@ function readCsrfCookie(): string | null {
   return null;
 }
 
+/** The CSRF token to send on a mutation: the readable cookie first, then the stored copy. */
 export function getCsrfToken(): string | null {
   // The server validates the header against the current readable cookie.
   // Prefer the cookie so browser reloads/server restarts cannot leave
@@ -446,6 +448,7 @@ export function portalAuth(token: string): RequestInit {
   return { headers: { Authorization: `Bearer ${token}` } };
 }
 
+/** Every API call goes through here: base URL, CSRF and native auth headers, one refresh on 401, typed errors. */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getApiBase()}${path}`;
   const method = (init?.method ?? "GET").toUpperCase();
