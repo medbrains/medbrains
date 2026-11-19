@@ -5,6 +5,7 @@
 //! same ABHA number, made by the same member of staff, not yet used, not
 //! expired. A browser claiming "verified" carries no weight.
 
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -176,9 +177,9 @@ pub async fn link_verified_abha(
         "verification_method": method,
         "applied": link.apply,
     });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: link.tenant_id,
             user_id: Some(link.user_id),
             action: "patient.abha.linked",
