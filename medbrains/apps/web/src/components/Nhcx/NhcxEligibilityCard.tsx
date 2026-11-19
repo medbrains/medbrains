@@ -1,5 +1,5 @@
 import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxEligibilityCheck } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -101,7 +101,7 @@ export function NhcxEligibilityCard({
   const [opened, setOpened] = useState(false);
   const checks = useQuery({
     queryKey: ["nhcx-eligibility", patientId],
-    queryFn: () => api.listNhcxEligibility(patientId),
+    queryFn: () => insuranceApi.listNhcxEligibility(patientId),
     enabled: canView && !!patientId,
     refetchInterval: (q) => (summariseEligibility(q.state.data?.[0]).isWaiting ? POLL_MS : false),
   });

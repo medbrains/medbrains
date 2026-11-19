@@ -1,5 +1,6 @@
 import { Code, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
+import { tokensApi } from "@medbrains/api/modules/tokens";
 import type { TokenCallSmsStatus } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Card, Switch, toast } from "@/components/ui";
@@ -37,11 +38,18 @@ function TemplateState({ status }: { status: TokenCallSmsStatus }) {
 /** The token-call SMS switch, the template it sends under, and sends refused for want of one. */
 export function TokenCallSmsCard() {
   const queryClient = useQueryClient();
-  const status = useQuery({ queryKey: STATUS_KEY, queryFn: () => api.getTokenCallSmsStatus() });
+  const status = useQuery({
+    queryKey: STATUS_KEY,
+    queryFn: () => tokensApi.getTokenCallSmsStatus(),
+  });
   // The sender reads this as a bare JSON boolean, so it is stored as one.
   const update = useMutation({
     mutationFn: (enabled: boolean) =>
-      api.updateTenantSetting({ category: "notifications", key: "token_call_sms", value: enabled }),
+      setupApi.updateTenantSetting({
+        category: "notifications",
+        key: "token_call_sms",
+        value: enabled,
+      }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: STATUS_KEY }),
     onError: (error: Error) => toast.error(error.message, { title: "Setting not saved" }),
   });

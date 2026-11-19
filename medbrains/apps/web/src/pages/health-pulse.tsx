@@ -1,6 +1,6 @@
 import { Box, Group, Pagination, Stack, Tabs, Text, UnstyledButton } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import { newsFeedApi } from "@medbrains/api/modules/news-feed";
 import { P } from "@medbrains/types";
 import { IconExternalLink, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -45,7 +45,7 @@ export function HealthPulsePage() {
   const { data: articles, isLoading } = useQuery({
     queryKey: ["news-feed", "center", topic, debounced],
     queryFn: () =>
-      api.listNewsFeed({
+      newsFeedApi.listNewsFeed({
         topic: topic ?? undefined,
         q: debounced.trim() || undefined,
         limit: 100,
@@ -72,7 +72,7 @@ export function HealthPulsePage() {
 
   const { data: article } = useQuery({
     queryKey: ["news-feed", "article", openId],
-    queryFn: () => api.getNewsFeedArticle(openId ?? ""),
+    queryFn: () => newsFeedApi.getNewsFeedArticle(openId ?? ""),
     enabled: Boolean(openId),
   });
 

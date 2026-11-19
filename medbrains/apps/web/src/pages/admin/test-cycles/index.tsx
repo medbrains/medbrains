@@ -5,7 +5,7 @@
  * cycle is open at a time; closing keeps its results.
  */
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { qaApi } from "@medbrains/api/modules/qa";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,14 +24,14 @@ export function TestCyclesPage() {
 
   const cycles = useQuery({
     queryKey: ["qa-cycles"],
-    queryFn: () => api.listTestCycles(),
+    queryFn: () => qaApi.listTestCycles(),
     enabled: canManage,
   });
   const open = cycles.data?.find((c) => !c.closed_at) ?? null;
   const shown = cycles.data?.find((c) => c.id === picked) ?? open ?? cycles.data?.[0] ?? null;
   const results = useQuery({
     queryKey: ["qa-results", shown?.id],
-    queryFn: () => api.listTestResults(shown?.id ?? ""),
+    queryFn: () => qaApi.listTestResults(shown?.id ?? ""),
     enabled: !!shown,
   });
   const refresh = () => {
@@ -39,7 +39,7 @@ export function TestCyclesPage() {
     void queryClient.invalidateQueries({ queryKey: ["qa-cycle"] });
   };
   const start = useMutation({
-    mutationFn: () => api.openTestCycle(name),
+    mutationFn: () => qaApi.openTestCycle(name),
     onSuccess: (c) => {
       refresh();
       setName("");
@@ -48,7 +48,7 @@ export function TestCyclesPage() {
     },
   });
   const close = useMutation({
-    mutationFn: (id: string) => api.closeTestCycle(id),
+    mutationFn: (id: string) => qaApi.closeTestCycle(id),
     onSuccess: () => {
       refresh();
       toast.success("Closed. Its results are kept.", { title: "Test cycle" });

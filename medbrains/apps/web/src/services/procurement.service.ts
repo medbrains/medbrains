@@ -1,40 +1,43 @@
-import { api } from "@medbrains/api";
+import { indentApi } from "@medbrains/api/modules/indent";
+import { procurementApi } from "@medbrains/api/modules/procurement";
 
-export type CreateVendorInput = Parameters<typeof api.createVendor>[0];
-export type ListVendorsParams = Parameters<typeof api.listVendors>[0];
-export type ListPurchaseOrdersParams = Parameters<typeof api.listPurchaseOrders>[0];
-export type ListStoreCatalogParams = Parameters<typeof api.listStoreCatalog>[0];
-export type ListIndentRequisitionsParams = Parameters<typeof api.listIndentRequisitions>[0];
-export type ListGrnParams = Parameters<typeof api.listGrns>[0];
-export type CreatePurchaseOrderInput = Parameters<typeof api.createPurchaseOrder>[0];
-export type CreateGrnInput = Parameters<typeof api.createGrn>[0];
-export type CreateRateContractInput = Parameters<typeof api.createRateContract>[0];
-export type CreateStoreLocationInput = Parameters<typeof api.createStoreLocation>[0];
-export type CreateSupplierPaymentInput = Parameters<typeof api.createSupplierPayment>[0];
+export type CreateVendorInput = Parameters<typeof procurementApi.createVendor>[0];
+export type ListVendorsParams = Parameters<typeof procurementApi.listVendors>[0];
+export type ListPurchaseOrdersParams = Parameters<typeof procurementApi.listPurchaseOrders>[0];
+export type ListStoreCatalogParams = Parameters<typeof indentApi.listStoreCatalog>[0];
+export type ListIndentRequisitionsParams = Parameters<typeof indentApi.listIndentRequisitions>[0];
+export type ListGrnParams = Parameters<typeof procurementApi.listGrns>[0];
+export type CreatePurchaseOrderInput = Parameters<typeof procurementApi.createPurchaseOrder>[0];
+export type CreateGrnInput = Parameters<typeof procurementApi.createGrn>[0];
+export type CreateRateContractInput = Parameters<typeof procurementApi.createRateContract>[0];
+export type CreateStoreLocationInput = Parameters<typeof procurementApi.createStoreLocation>[0];
+export type CreateSupplierPaymentInput = Parameters<typeof procurementApi.createSupplierPayment>[0];
 
 export const procurementService = {
-  listVendors: (params?: ListVendorsParams) => api.listVendors(params),
-  createVendor: (data: CreateVendorInput) => api.createVendor(data),
-  listPurchaseOrders: (params?: ListPurchaseOrdersParams) => api.listPurchaseOrders(params),
-  approvePurchaseOrder: (id: string) => api.approvePurchaseOrder(id),
-  sendPurchaseOrder: (id: string) => api.sendPurchaseOrder(id),
-  getPurchaseOrder: (id: string) => api.getPurchaseOrder(id),
-  listStoreCatalog: (params?: ListStoreCatalogParams) => api.listStoreCatalog(params),
+  listVendors: (params?: ListVendorsParams) => procurementApi.listVendors(params),
+  createVendor: (data: CreateVendorInput) => procurementApi.createVendor(data),
+  listPurchaseOrders: (params?: ListPurchaseOrdersParams) =>
+    procurementApi.listPurchaseOrders(params),
+  approvePurchaseOrder: (id: string) => procurementApi.approvePurchaseOrder(id),
+  sendPurchaseOrder: (id: string) => procurementApi.sendPurchaseOrder(id),
+  getPurchaseOrder: (id: string) => procurementApi.getPurchaseOrder(id),
+  listStoreCatalog: (params?: ListStoreCatalogParams) => indentApi.listStoreCatalog(params),
   listIndentRequisitions: (params?: ListIndentRequisitionsParams) =>
-    api.listIndentRequisitions(params),
-  getIndentRequisition: (id: string) => api.getIndentRequisition(id),
-  createPurchaseOrder: (data: CreatePurchaseOrderInput) => api.createPurchaseOrder(data),
-  listGrns: (params?: ListGrnParams) => api.listGrns(params),
-  getGrn: (id: string) => api.getGrn(id),
-  createGrn: (data: CreateGrnInput) => api.createGrn(data),
-  completeGrn: (id: string) => api.completeGrn(id),
-  listRateContracts: () => api.listRateContracts(),
-  createRateContract: (data: CreateRateContractInput) => api.createRateContract(data),
-  listBatchStock: () => api.listBatchStock(),
-  listStoreLocations: () => api.listStoreLocations(),
-  createStoreLocation: (data: CreateStoreLocationInput) => api.createStoreLocation(data),
-  getVendorPerformance: () => api.getVendorPerformance(),
-  getVendorComparison: (itemId: string) => api.getVendorComparison(itemId),
-  listSupplierPayments: () => api.listSupplierPayments(),
-  createSupplierPayment: (data: CreateSupplierPaymentInput) => api.createSupplierPayment(data),
+    indentApi.listIndentRequisitions(params),
+  getIndentRequisition: (id: string) => indentApi.getIndentRequisition(id),
+  createPurchaseOrder: (data: CreatePurchaseOrderInput) => procurementApi.createPurchaseOrder(data),
+  listGrns: (params?: ListGrnParams) => procurementApi.listGrns(params),
+  getGrn: (id: string) => procurementApi.getGrn(id),
+  createGrn: (data: CreateGrnInput) => procurementApi.createGrn(data),
+  completeGrn: (id: string) => procurementApi.completeGrn(id),
+  listRateContracts: () => procurementApi.listRateContracts(),
+  createRateContract: (data: CreateRateContractInput) => procurementApi.createRateContract(data),
+  listBatchStock: () => procurementApi.listBatchStock(),
+  listStoreLocations: () => procurementApi.listStoreLocations(),
+  createStoreLocation: (data: CreateStoreLocationInput) => procurementApi.createStoreLocation(data),
+  getVendorPerformance: () => procurementApi.getVendorPerformance(),
+  getVendorComparison: (itemId: string) => procurementApi.getVendorComparison(itemId),
+  listSupplierPayments: () => procurementApi.listSupplierPayments(),
+  createSupplierPayment: (data: CreateSupplierPaymentInput) =>
+    procurementApi.createSupplierPayment(data),
 };

@@ -1,16 +1,18 @@
-import { api } from "@medbrains/api";
+import { careViewApi } from "@medbrains/api/modules/care-view";
+import { ipdApi } from "@medbrains/api/modules/ipd";
+import { nurseApi } from "@medbrains/api/modules/nurse";
 
 export const careViewService = {
-  listWards: api.listWards,
-  wardOnDuty: api.wardOnDuty,
-  wardPatientGrid: api.wardPatientGrid,
-  vitalsChecklist: api.vitalsChecklist,
-  myTasks: api.careViewMyTasks,
-  completeTask: api.completeCareViewTask,
-  handoverSummary: api.handoverSummary,
-  dischargeReadiness: api.dischargeReadiness,
-  listPatientScores: api.listPatientScores,
-  recordPatientScore: api.recordPatientScore,
-  listEwsEscalations: api.listEwsEscalations,
-  acknowledgeEwsEscalation: api.acknowledgeEwsEscalation,
+  listWards: ipdApi.listWards,
+  wardOnDuty: ipdApi.wardOnDuty,
+  wardPatientGrid: careViewApi.wardPatientGrid,
+  vitalsChecklist: careViewApi.vitalsChecklist,
+  myTasks: careViewApi.careViewMyTasks,
+  completeTask: careViewApi.completeCareViewTask,
+  handoverSummary: careViewApi.handoverSummary,
+  dischargeReadiness: careViewApi.dischargeReadiness,
+  listPatientScores: careViewApi.listPatientScores,
+  recordPatientScore: careViewApi.recordPatientScore,
+  listEwsEscalations: nurseApi.listEwsEscalations,
+  acknowledgeEwsEscalation: nurseApi.acknowledgeEwsEscalation,
 };

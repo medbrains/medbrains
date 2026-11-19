@@ -1,5 +1,5 @@
 import { Group } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { billingApi } from "@medbrains/api/modules/billing";
 import { useHasPermission } from "@medbrains/stores";
 import type { InsuranceClaim } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -32,7 +32,7 @@ export function NhcxClaimActions({ claim, isReady, onSubmit }: NhcxClaimActionsP
   const canCancel = useHasPermission(P.INSURANCE.NHCX.CANCEL);
   const [action, setAction] = useState<ClaimTaskAction | null>(null);
   const status = useMutation({
-    mutationFn: () => api.checkClaimNhcxStatus(claim.id),
+    mutationFn: () => billingApi.checkClaimNhcxStatus(claim.id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["claim-nhcx", claim.id] });
       toast.success("The payer's answer will appear under Requests to the payer.", {

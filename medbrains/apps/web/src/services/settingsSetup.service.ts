@@ -1,84 +1,91 @@
-import { api } from "@medbrains/api";
+import { backupsApi } from "@medbrains/api/modules/backups";
+import { opdApi } from "@medbrains/api/modules/opd";
+import { setupApi } from "@medbrains/api/modules/setup";
 
-export type CreateBedTypeInput = Parameters<typeof api.createBedType>[0];
-export type UpdateBedTypeInput = Parameters<typeof api.updateBedType>[1];
-export type CreateFacilityInput = Parameters<typeof api.createFacility>[0];
-export type UpdateFacilityInput = Parameters<typeof api.updateFacility>[1];
-export type CreateDepartmentInput = Parameters<typeof api.createDepartment>[0];
-export type UpdateDepartmentInput = Parameters<typeof api.updateDepartment>[1];
-export type CreateServiceInput = Parameters<typeof api.createService>[0];
-export type UpdateServiceInput = Parameters<typeof api.updateService>[1];
-export type CreateTaxCategoryInput = Parameters<typeof api.createTaxCategory>[0];
-export type UpdateTaxCategoryInput = Parameters<typeof api.updateTaxCategory>[1];
-export type CreatePaymentMethodInput = Parameters<typeof api.createPaymentMethod>[0];
-export type UpdatePaymentMethodInput = Parameters<typeof api.updatePaymentMethod>[1];
-export type CreateSequenceInput = Parameters<typeof api.createSequence>[0];
-export type UpdateSequenceInput = Parameters<typeof api.updateSequence>[1];
-export type CreateLocationInput = Parameters<typeof api.createLocation>[0];
-export type UpdateLocationInput = Parameters<typeof api.updateLocation>[1];
-export type UpdateModuleInput = Parameters<typeof api.updateModule>[1];
-export type ImportConfigInput = Parameters<typeof api.importConfig>[0];
-export type UpdateSecureDeviceSettingInput = Parameters<typeof api.updateSecureDeviceSetting>[0];
+export type CreateBedTypeInput = Parameters<typeof setupApi.createBedType>[0];
+export type UpdateBedTypeInput = Parameters<typeof setupApi.updateBedType>[1];
+export type CreateFacilityInput = Parameters<typeof setupApi.createFacility>[0];
+export type UpdateFacilityInput = Parameters<typeof setupApi.updateFacility>[1];
+export type CreateDepartmentInput = Parameters<typeof setupApi.createDepartment>[0];
+export type UpdateDepartmentInput = Parameters<typeof setupApi.updateDepartment>[1];
+export type CreateServiceInput = Parameters<typeof setupApi.createService>[0];
+export type UpdateServiceInput = Parameters<typeof setupApi.updateService>[1];
+export type CreateTaxCategoryInput = Parameters<typeof setupApi.createTaxCategory>[0];
+export type UpdateTaxCategoryInput = Parameters<typeof setupApi.updateTaxCategory>[1];
+export type CreatePaymentMethodInput = Parameters<typeof setupApi.createPaymentMethod>[0];
+export type UpdatePaymentMethodInput = Parameters<typeof setupApi.updatePaymentMethod>[1];
+export type CreateSequenceInput = Parameters<typeof setupApi.createSequence>[0];
+export type UpdateSequenceInput = Parameters<typeof setupApi.updateSequence>[1];
+export type CreateLocationInput = Parameters<typeof setupApi.createLocation>[0];
+export type UpdateLocationInput = Parameters<typeof setupApi.updateLocation>[1];
+export type UpdateModuleInput = Parameters<typeof setupApi.updateModule>[1];
+export type ImportConfigInput = Parameters<typeof setupApi.importConfig>[0];
+export type UpdateSecureDeviceSettingInput = Parameters<
+  typeof setupApi.updateSecureDeviceSetting
+>[0];
 
 export const settingsSetupService = {
-  getOnboardingWorkbook: () => api.getOnboardingWorkbook(),
-  importOnboardingWorkbook: (...args: Parameters<typeof api.importOnboardingWorkbook>) =>
-    api.importOnboardingWorkbook(...args),
-  completenessCheck: () => api.completenessCheck(),
-  systemHealth: () => api.systemHealth(),
-  listBackups: () => api.listBackups(),
-  exportConfig: () => api.exportConfig(),
-  importConfig: (data: ImportConfigInput) => api.importConfig(data),
-  listModules: () => api.listModules(),
-  updateModule: (code: string, data: UpdateModuleInput) => api.updateModule(code, data),
-  getEdition: () => api.getEdition(),
-  applyEdition: (hospitalType: string) => api.applyEdition(hospitalType),
-  listBedTypes: () => api.listBedTypes(),
-  createBedType: (data: CreateBedTypeInput) => api.createBedType(data),
-  updateBedType: (id: string, data: UpdateBedTypeInput) => api.updateBedType(id, data),
-  deleteBedType: (id: string) => api.deleteBedType(id),
-  listDepartments: () => api.listDepartments(),
-  createDepartment: (data: CreateDepartmentInput) => api.createDepartment(data),
-  updateDepartment: (id: string, data: UpdateDepartmentInput) => api.updateDepartment(id, data),
-  deleteDepartment: (id: string) => api.deleteDepartment(id),
-  listFacilities: () => api.listFacilities(),
-  createFacility: (data: CreateFacilityInput) => api.createFacility(data),
-  updateFacility: (id: string, data: UpdateFacilityInput) => api.updateFacility(id, data),
-  deleteFacility: (id: string) => api.deleteFacility(id),
-  listServices: () => api.listServices(),
-  createService: (data: CreateServiceInput) => api.createService(data),
-  updateService: (id: string, data: UpdateServiceInput) => api.updateService(id, data),
-  deleteService: (id: string) => api.deleteService(id),
-  listProcedureCatalog: () => api.listProcedureCatalog(),
-  importProcedureCatalog: (data: Parameters<typeof api.importProcedureCatalog>[0]) =>
-    api.importProcedureCatalog(data),
-  listTaxCategories: () => api.listTaxCategories(),
-  createTaxCategory: (data: CreateTaxCategoryInput) => api.createTaxCategory(data),
-  updateTaxCategory: (id: string, data: UpdateTaxCategoryInput) => api.updateTaxCategory(id, data),
-  deleteTaxCategory: (id: string) => api.deleteTaxCategory(id),
-  listPaymentMethods: () => api.listPaymentMethods(),
-  createPaymentMethod: (data: CreatePaymentMethodInput) => api.createPaymentMethod(data),
+  getOnboardingWorkbook: () => setupApi.getOnboardingWorkbook(),
+  importOnboardingWorkbook: (...args: Parameters<typeof setupApi.importOnboardingWorkbook>) =>
+    setupApi.importOnboardingWorkbook(...args),
+  completenessCheck: () => setupApi.completenessCheck(),
+  systemHealth: () => setupApi.systemHealth(),
+  listBackups: () => backupsApi.listBackups(),
+  exportConfig: () => setupApi.exportConfig(),
+  importConfig: (data: ImportConfigInput) => setupApi.importConfig(data),
+  listModules: () => setupApi.listModules(),
+  updateModule: (code: string, data: UpdateModuleInput) => setupApi.updateModule(code, data),
+  getEdition: () => setupApi.getEdition(),
+  applyEdition: (hospitalType: string) => setupApi.applyEdition(hospitalType),
+  listBedTypes: () => setupApi.listBedTypes(),
+  createBedType: (data: CreateBedTypeInput) => setupApi.createBedType(data),
+  updateBedType: (id: string, data: UpdateBedTypeInput) => setupApi.updateBedType(id, data),
+  deleteBedType: (id: string) => setupApi.deleteBedType(id),
+  listDepartments: () => setupApi.listDepartments(),
+  createDepartment: (data: CreateDepartmentInput) => setupApi.createDepartment(data),
+  updateDepartment: (id: string, data: UpdateDepartmentInput) =>
+    setupApi.updateDepartment(id, data),
+  deleteDepartment: (id: string) => setupApi.deleteDepartment(id),
+  listFacilities: () => setupApi.listFacilities(),
+  createFacility: (data: CreateFacilityInput) => setupApi.createFacility(data),
+  updateFacility: (id: string, data: UpdateFacilityInput) => setupApi.updateFacility(id, data),
+  deleteFacility: (id: string) => setupApi.deleteFacility(id),
+  listServices: () => setupApi.listServices(),
+  createService: (data: CreateServiceInput) => setupApi.createService(data),
+  updateService: (id: string, data: UpdateServiceInput) => setupApi.updateService(id, data),
+  deleteService: (id: string) => setupApi.deleteService(id),
+  listProcedureCatalog: () => opdApi.listProcedureCatalog(),
+  importProcedureCatalog: (data: Parameters<typeof opdApi.importProcedureCatalog>[0]) =>
+    opdApi.importProcedureCatalog(data),
+  listTaxCategories: () => setupApi.listTaxCategories(),
+  createTaxCategory: (data: CreateTaxCategoryInput) => setupApi.createTaxCategory(data),
+  updateTaxCategory: (id: string, data: UpdateTaxCategoryInput) =>
+    setupApi.updateTaxCategory(id, data),
+  deleteTaxCategory: (id: string) => setupApi.deleteTaxCategory(id),
+  listPaymentMethods: () => setupApi.listPaymentMethods(),
+  createPaymentMethod: (data: CreatePaymentMethodInput) => setupApi.createPaymentMethod(data),
   updatePaymentMethod: (id: string, data: UpdatePaymentMethodInput) =>
-    api.updatePaymentMethod(id, data),
-  deletePaymentMethod: (id: string) => api.deletePaymentMethod(id),
-  listSequences: () => api.listSequences(),
-  createSequence: (data: CreateSequenceInput) => api.createSequence(data),
-  updateSequence: (seqType: string, data: UpdateSequenceInput) => api.updateSequence(seqType, data),
-  deleteSequence: (seqType: string) => api.deleteSequence(seqType),
-  listLocations: () => api.listLocations(),
-  listLocationDirectory: () => api.listLocationDirectory(),
-  createLocation: (data: CreateLocationInput) => api.createLocation(data),
-  updateLocation: (id: string, data: UpdateLocationInput) => api.updateLocation(id, data),
-  deleteLocation: (id: string) => api.deleteLocation(id),
-  listSetupUsers: () => api.listSetupUsers(),
-  listLocationStaff: (locationId: string) => api.listLocationStaff(locationId),
+    setupApi.updatePaymentMethod(id, data),
+  deletePaymentMethod: (id: string) => setupApi.deletePaymentMethod(id),
+  listSequences: () => setupApi.listSequences(),
+  createSequence: (data: CreateSequenceInput) => setupApi.createSequence(data),
+  updateSequence: (seqType: string, data: UpdateSequenceInput) =>
+    setupApi.updateSequence(seqType, data),
+  deleteSequence: (seqType: string) => setupApi.deleteSequence(seqType),
+  listLocations: () => setupApi.listLocations(),
+  listLocationDirectory: () => setupApi.listLocationDirectory(),
+  createLocation: (data: CreateLocationInput) => setupApi.createLocation(data),
+  updateLocation: (id: string, data: UpdateLocationInput) => setupApi.updateLocation(id, data),
+  deleteLocation: (id: string) => setupApi.deleteLocation(id),
+  listSetupUsers: () => setupApi.listSetupUsers(),
+  listLocationStaff: (locationId: string) => setupApi.listLocationStaff(locationId),
   assignLocationStaff: (
     locationId: string,
     data: { user_id: string; role_label?: string; is_primary?: boolean },
-  ) => api.assignLocationStaff(locationId, data),
+  ) => setupApi.assignLocationStaff(locationId, data),
   removeLocationStaff: (locationId: string, userId: string) =>
-    api.removeLocationStaff(locationId, userId),
-  getSecureDeviceSettings: () => api.getSecureDeviceSettings(),
+    setupApi.removeLocationStaff(locationId, userId),
+  getSecureDeviceSettings: () => setupApi.getSecureDeviceSettings(),
   updateSecureDeviceSetting: (data: UpdateSecureDeviceSettingInput) =>
-    api.updateSecureDeviceSetting(data),
+    setupApi.updateSecureDeviceSetting(data),
 };

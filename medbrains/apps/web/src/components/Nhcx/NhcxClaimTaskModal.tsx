@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { billingApi } from "@medbrains/api/modules/billing";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, Modal, TextArea, toast } from "@/components/ui";
@@ -35,8 +35,8 @@ export function NhcxClaimTaskModal({ claimId, action, onClose }: NhcxClaimTaskMo
   const send = useMutation({
     mutationFn: (a: ClaimTaskAction) =>
       a === "cancel"
-        ? api.cancelNhcxClaim(claimId, { reason: reason.trim() })
-        : api.reprocessNhcxClaim(claimId, { reason: reason.trim() }),
+        ? billingApi.cancelNhcxClaim(claimId, { reason: reason.trim() })
+        : billingApi.reprocessNhcxClaim(claimId, { reason: reason.trim() }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["claim-nhcx", claimId] });
       toast.success("The payer's answer will appear on the claim.", { title: "Request sent" });

@@ -1,11 +1,13 @@
-import { api } from "@medbrains/api";
+import { ipdApi } from "@medbrains/api/modules/ipd";
+import { opdApi } from "@medbrains/api/modules/opd";
 
-export type CreateEncounterInput = Parameters<typeof api.createEncounter>[0];
-export type IpdDamaInput = Parameters<typeof api.recordIpdDama>[1];
-export type IpdMortalityInput = Parameters<typeof api.createIpdMortalityReview>[0];
+export type CreateEncounterInput = Parameters<typeof opdApi.createEncounter>[0];
+export type IpdDamaInput = Parameters<typeof ipdApi.recordIpdDama>[1];
+export type IpdMortalityInput = Parameters<typeof ipdApi.createIpdMortalityReview>[0];
 
 export const clinicalActionsService = {
-  createEncounter: (data: CreateEncounterInput) => api.createEncounter(data),
-  recordIpdDama: (admissionId: string, body: IpdDamaInput) => api.recordIpdDama(admissionId, body),
-  createIpdMortalityReview: (body: IpdMortalityInput) => api.createIpdMortalityReview(body),
+  createEncounter: (data: CreateEncounterInput) => opdApi.createEncounter(data),
+  recordIpdDama: (admissionId: string, body: IpdDamaInput) =>
+    ipdApi.recordIpdDama(admissionId, body),
+  createIpdMortalityReview: (body: IpdMortalityInput) => ipdApi.createIpdMortalityReview(body),
 };

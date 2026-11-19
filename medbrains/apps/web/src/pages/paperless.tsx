@@ -7,7 +7,7 @@
  * says so; the legally-signed share is shown at 0% with its reason.
  */
 import { Group, List, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { analyticsApi } from "@medbrains/api/modules/analytics";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconRefresh } from "@tabler/icons-react";
@@ -32,11 +32,11 @@ export function PaperlessPage() {
   const queryClient = useQueryClient();
   const meter = useQuery({
     queryKey: ["paperless", days],
-    queryFn: () => api.getPaperless({ days: Number(days) }),
+    queryFn: () => analyticsApi.getPaperless({ days: Number(days) }),
     enabled: canView,
   });
   const recount = useMutation({
-    mutationFn: () => api.refreshPaperless(),
+    mutationFn: () => analyticsApi.refreshPaperless(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["paperless"] });
       toast.success("The last 7 days were recounted");

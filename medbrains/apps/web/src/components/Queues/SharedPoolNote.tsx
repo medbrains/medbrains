@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { queuesApi } from "@medbrains/api/modules/queues";
 import { queuesSharingPool } from "@medbrains/schemas";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -18,7 +18,7 @@ interface SharedPoolNoteProps {
  */
 export function SharedPoolNote({ prefix, queueId }: SharedPoolNoteProps) {
   // The Admin → Queues list's own query: already in the cache behind the form.
-  const queues = useQuery({ queryKey: ["queues"], queryFn: () => api.listQueues() });
+  const queues = useQuery({ queryKey: ["queues"], queryFn: () => queuesApi.listQueues() });
   const sharing = useMemo(
     () => queuesSharingPool(queues.data ?? [], prefix, queueId),
     [queues.data, prefix, queueId],

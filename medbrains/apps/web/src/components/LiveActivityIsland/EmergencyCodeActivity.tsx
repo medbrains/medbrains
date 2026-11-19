@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { emergencyApi } from "@medbrains/api/modules/emergency";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -21,7 +21,7 @@ export function EmergencyCodeActivity() {
 
   const { data: codes = [] } = useQuery({
     queryKey: ["emergency-codes-active"],
-    queryFn: () => api.listCodeActivations(),
+    queryFn: () => emergencyApi.listCodeActivations(),
     refetchInterval: 20_000,
     retry: false,
     enabled: canList,

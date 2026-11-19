@@ -1,99 +1,105 @@
-import { api } from "@medbrains/api";
+import { bmeApi } from "@medbrains/api/modules/bme";
+import { printDataApi } from "@medbrains/api/modules/print-data";
+import { publicApi } from "@medbrains/api/modules/public";
+import { radiologyApi } from "@medbrains/api/modules/radiology";
 
 export const radiologyService = {
-  recordPregnancyCheck: (...args: Parameters<typeof api.recordPregnancyCheck>) =>
-    api.recordPregnancyCheck(...args),
-  listReferenceLevels: (...args: Parameters<typeof api.listReferenceLevels>) =>
-    api.listReferenceLevels(...args),
-  saveReferenceLevel: (...args: Parameters<typeof api.saveReferenceLevel>) =>
-    api.saveReferenceLevel(...args),
-  removeReferenceLevel: (...args: Parameters<typeof api.removeReferenceLevel>) =>
-    api.removeReferenceLevel(...args),
-  drlAudit: (...args: Parameters<typeof api.drlAudit>) => api.drlAudit(...args),
-  getPublicShareLink: (...args: Parameters<typeof api.getPublicRadiologyViewer>) =>
-    api.getPublicRadiologyViewer(...args),
-  sendShareLinkCode: (...args: Parameters<typeof api.sendShareLinkCode>) =>
-    api.sendShareLinkCode(...args),
-  verifyShareLinkCode: (...args: Parameters<typeof api.verifyShareLinkCode>) =>
-    api.verifyShareLinkCode(...args),
-  listRadiologyDosimetry: (...args: Parameters<typeof api.listRadiologyDosimetry>) =>
-    api.listRadiologyDosimetry(...args),
-  createRadiologyDosimetry: (...args: Parameters<typeof api.createRadiologyDosimetry>) =>
-    api.createRadiologyDosimetry(...args),
-  removeRadiologyDosimetry: (...args: Parameters<typeof api.removeRadiologyDosimetry>) =>
-    api.removeRadiologyDosimetry(...args),
-  listRadiationEquipment: (...args: Parameters<typeof api.listRadiationEquipment>) =>
-    api.listRadiationEquipment(...args),
-  saveRadiationEquipment: (...args: Parameters<typeof api.saveRadiationEquipment>) =>
-    api.saveRadiationEquipment(...args),
-  listBmeEquipment: (...args: Parameters<typeof api.listBmeEquipment>) =>
-    api.listBmeEquipment(...args),
-  openStudyViewer: (...args: Parameters<typeof api.openStudyViewer>) =>
-    api.openStudyViewer(...args),
-  createRadiologyShareLink: (...args: Parameters<typeof api.createRadiologyShareLink>) =>
-    api.createRadiologyShareLink(...args),
-  listStudyShareLinks: (...args: Parameters<typeof api.listStudyShareLinks>) =>
-    api.listStudyShareLinks(...args),
-  revokeStudyShareLink: (...args: Parameters<typeof api.revokeStudyShareLink>) =>
-    api.revokeStudyShareLink(...args),
-  listRadiologyOrders: (...args: Parameters<typeof api.listRadiologyOrders>) =>
-    api.listRadiologyOrders(...args),
-  cancelRadiologyOrder: (...args: Parameters<typeof api.cancelRadiologyOrder>) =>
-    api.cancelRadiologyOrder(...args),
-  updateRadiologyOrderStatus: (...args: Parameters<typeof api.updateRadiologyOrderStatus>) =>
-    api.updateRadiologyOrderStatus(...args),
-  listRadiologyModalities: (...args: Parameters<typeof api.listRadiologyModalities>) =>
-    api.listRadiologyModalities(...args),
-  createRadiologyOrder: (...args: Parameters<typeof api.createRadiologyOrder>) =>
-    api.createRadiologyOrder(...args),
-  contrastScreening: (...args: Parameters<typeof api.contrastScreening>) =>
-    api.contrastScreening(...args),
-  cumulativeDose: (...args: Parameters<typeof api.cumulativeDose>) => api.cumulativeDose(...args),
-  listUnmatchedStudies: (...args: Parameters<typeof api.listUnmatchedStudies>) =>
-    api.listUnmatchedStudies(...args),
-  linkUnmatchedStudy: (...args: Parameters<typeof api.linkUnmatchedStudy>) =>
-    api.linkUnmatchedStudy(...args),
-  dismissUnmatchedStudy: (...args: Parameters<typeof api.dismissUnmatchedStudy>) =>
-    api.dismissUnmatchedStudy(...args),
-  listPatientDoseRecords: (...args: Parameters<typeof api.listPatientDoseRecords>) =>
-    api.listPatientDoseRecords(...args),
-  recordRadiationDose: (...args: Parameters<typeof api.recordRadiationDose>) =>
-    api.recordRadiationDose(...args),
+  recordPregnancyCheck: (...args: Parameters<typeof radiologyApi.recordPregnancyCheck>) =>
+    radiologyApi.recordPregnancyCheck(...args),
+  listReferenceLevels: (...args: Parameters<typeof radiologyApi.listReferenceLevels>) =>
+    radiologyApi.listReferenceLevels(...args),
+  saveReferenceLevel: (...args: Parameters<typeof radiologyApi.saveReferenceLevel>) =>
+    radiologyApi.saveReferenceLevel(...args),
+  removeReferenceLevel: (...args: Parameters<typeof radiologyApi.removeReferenceLevel>) =>
+    radiologyApi.removeReferenceLevel(...args),
+  drlAudit: (...args: Parameters<typeof radiologyApi.drlAudit>) => radiologyApi.drlAudit(...args),
+  getPublicShareLink: (...args: Parameters<typeof publicApi.getPublicRadiologyViewer>) =>
+    publicApi.getPublicRadiologyViewer(...args),
+  sendShareLinkCode: (...args: Parameters<typeof publicApi.sendShareLinkCode>) =>
+    publicApi.sendShareLinkCode(...args),
+  verifyShareLinkCode: (...args: Parameters<typeof publicApi.verifyShareLinkCode>) =>
+    publicApi.verifyShareLinkCode(...args),
+  listRadiologyDosimetry: (...args: Parameters<typeof radiologyApi.listRadiologyDosimetry>) =>
+    radiologyApi.listRadiologyDosimetry(...args),
+  createRadiologyDosimetry: (...args: Parameters<typeof radiologyApi.createRadiologyDosimetry>) =>
+    radiologyApi.createRadiologyDosimetry(...args),
+  removeRadiologyDosimetry: (...args: Parameters<typeof radiologyApi.removeRadiologyDosimetry>) =>
+    radiologyApi.removeRadiologyDosimetry(...args),
+  listRadiationEquipment: (...args: Parameters<typeof radiologyApi.listRadiationEquipment>) =>
+    radiologyApi.listRadiationEquipment(...args),
+  saveRadiationEquipment: (...args: Parameters<typeof radiologyApi.saveRadiationEquipment>) =>
+    radiologyApi.saveRadiationEquipment(...args),
+  listBmeEquipment: (...args: Parameters<typeof bmeApi.listBmeEquipment>) =>
+    bmeApi.listBmeEquipment(...args),
+  openStudyViewer: (...args: Parameters<typeof radiologyApi.openStudyViewer>) =>
+    radiologyApi.openStudyViewer(...args),
+  createRadiologyShareLink: (...args: Parameters<typeof radiologyApi.createRadiologyShareLink>) =>
+    radiologyApi.createRadiologyShareLink(...args),
+  listStudyShareLinks: (...args: Parameters<typeof radiologyApi.listStudyShareLinks>) =>
+    radiologyApi.listStudyShareLinks(...args),
+  revokeStudyShareLink: (...args: Parameters<typeof radiologyApi.revokeStudyShareLink>) =>
+    radiologyApi.revokeStudyShareLink(...args),
+  listRadiologyOrders: (...args: Parameters<typeof radiologyApi.listRadiologyOrders>) =>
+    radiologyApi.listRadiologyOrders(...args),
+  cancelRadiologyOrder: (...args: Parameters<typeof radiologyApi.cancelRadiologyOrder>) =>
+    radiologyApi.cancelRadiologyOrder(...args),
+  updateRadiologyOrderStatus: (
+    ...args: Parameters<typeof radiologyApi.updateRadiologyOrderStatus>
+  ) => radiologyApi.updateRadiologyOrderStatus(...args),
+  listRadiologyModalities: (...args: Parameters<typeof radiologyApi.listRadiologyModalities>) =>
+    radiologyApi.listRadiologyModalities(...args),
+  createRadiologyOrder: (...args: Parameters<typeof radiologyApi.createRadiologyOrder>) =>
+    radiologyApi.createRadiologyOrder(...args),
+  contrastScreening: (...args: Parameters<typeof radiologyApi.contrastScreening>) =>
+    radiologyApi.contrastScreening(...args),
+  cumulativeDose: (...args: Parameters<typeof radiologyApi.cumulativeDose>) =>
+    radiologyApi.cumulativeDose(...args),
+  listUnmatchedStudies: (...args: Parameters<typeof radiologyApi.listUnmatchedStudies>) =>
+    radiologyApi.listUnmatchedStudies(...args),
+  linkUnmatchedStudy: (...args: Parameters<typeof radiologyApi.linkUnmatchedStudy>) =>
+    radiologyApi.linkUnmatchedStudy(...args),
+  dismissUnmatchedStudy: (...args: Parameters<typeof radiologyApi.dismissUnmatchedStudy>) =>
+    radiologyApi.dismissUnmatchedStudy(...args),
+  listPatientDoseRecords: (...args: Parameters<typeof radiologyApi.listPatientDoseRecords>) =>
+    radiologyApi.listPatientDoseRecords(...args),
+  recordRadiationDose: (...args: Parameters<typeof radiologyApi.recordRadiationDose>) =>
+    radiologyApi.recordRadiationDose(...args),
   markRadiationDoseEnteredInError: (
-    ...args: Parameters<typeof api.markRadiationDoseEnteredInError>
-  ) => api.markRadiationDoseEnteredInError(...args),
-  getRadiologyOrder: (...args: Parameters<typeof api.getRadiologyOrder>) =>
-    api.getRadiologyOrder(...args),
-  createRadiologyReport: (...args: Parameters<typeof api.createRadiologyReport>) =>
-    api.createRadiologyReport(...args),
-  verifyRadiologyReport: (...args: Parameters<typeof api.verifyRadiologyReport>) =>
-    api.verifyRadiologyReport(...args),
-  getRadiologyPrintData: (...args: Parameters<typeof api.getRadiologyPrintData>) =>
-    api.getRadiologyPrintData(...args),
-  createRadiologyModality: (...args: Parameters<typeof api.createRadiologyModality>) =>
-    api.createRadiologyModality(...args),
-  listRadiologyExams: (...args: Parameters<typeof api.listRadiologyExams>) =>
-    api.listRadiologyExams(...args),
-  createRadiologyExam: (...args: Parameters<typeof api.createRadiologyExam>) =>
-    api.createRadiologyExam(...args),
-  updateRadiologyExam: (...args: Parameters<typeof api.updateRadiologyExam>) =>
-    api.updateRadiologyExam(...args),
-  deleteRadiologyExam: (...args: Parameters<typeof api.deleteRadiologyExam>) =>
-    api.deleteRadiologyExam(...args),
-  updateRadiologyModality: (...args: Parameters<typeof api.updateRadiologyModality>) =>
-    api.updateRadiologyModality(...args),
-  deleteRadiologyModality: (...args: Parameters<typeof api.deleteRadiologyModality>) =>
-    api.deleteRadiologyModality(...args),
-  listRadiologyAppointments: (...args: Parameters<typeof api.listRadiologyAppointments>) =>
-    api.listRadiologyAppointments(...args),
-  createRadiologyAppointment: (...args: Parameters<typeof api.createRadiologyAppointment>) =>
-    api.createRadiologyAppointment(...args),
-  listRadiologyDicomStudies: (...args: Parameters<typeof api.listRadiologyDicomStudies>) =>
-    api.listRadiologyDicomStudies(...args),
-  getRadiologyPacsConfig: (...args: Parameters<typeof api.getRadiologyPacsConfig>) =>
-    api.getRadiologyPacsConfig(...args),
-  updateRadiologyPacsConfig: (...args: Parameters<typeof api.updateRadiologyPacsConfig>) =>
-    api.updateRadiologyPacsConfig(...args),
-  getRadiologyTat: (...args: Parameters<typeof api.getRadiologyTat>) =>
-    api.getRadiologyTat(...args),
+    ...args: Parameters<typeof radiologyApi.markRadiationDoseEnteredInError>
+  ) => radiologyApi.markRadiationDoseEnteredInError(...args),
+  getRadiologyOrder: (...args: Parameters<typeof radiologyApi.getRadiologyOrder>) =>
+    radiologyApi.getRadiologyOrder(...args),
+  createRadiologyReport: (...args: Parameters<typeof radiologyApi.createRadiologyReport>) =>
+    radiologyApi.createRadiologyReport(...args),
+  verifyRadiologyReport: (...args: Parameters<typeof radiologyApi.verifyRadiologyReport>) =>
+    radiologyApi.verifyRadiologyReport(...args),
+  getRadiologyPrintData: (...args: Parameters<typeof printDataApi.getRadiologyPrintData>) =>
+    printDataApi.getRadiologyPrintData(...args),
+  createRadiologyModality: (...args: Parameters<typeof radiologyApi.createRadiologyModality>) =>
+    radiologyApi.createRadiologyModality(...args),
+  listRadiologyExams: (...args: Parameters<typeof radiologyApi.listRadiologyExams>) =>
+    radiologyApi.listRadiologyExams(...args),
+  createRadiologyExam: (...args: Parameters<typeof radiologyApi.createRadiologyExam>) =>
+    radiologyApi.createRadiologyExam(...args),
+  updateRadiologyExam: (...args: Parameters<typeof radiologyApi.updateRadiologyExam>) =>
+    radiologyApi.updateRadiologyExam(...args),
+  deleteRadiologyExam: (...args: Parameters<typeof radiologyApi.deleteRadiologyExam>) =>
+    radiologyApi.deleteRadiologyExam(...args),
+  updateRadiologyModality: (...args: Parameters<typeof radiologyApi.updateRadiologyModality>) =>
+    radiologyApi.updateRadiologyModality(...args),
+  deleteRadiologyModality: (...args: Parameters<typeof radiologyApi.deleteRadiologyModality>) =>
+    radiologyApi.deleteRadiologyModality(...args),
+  listRadiologyAppointments: (...args: Parameters<typeof radiologyApi.listRadiologyAppointments>) =>
+    radiologyApi.listRadiologyAppointments(...args),
+  createRadiologyAppointment: (
+    ...args: Parameters<typeof radiologyApi.createRadiologyAppointment>
+  ) => radiologyApi.createRadiologyAppointment(...args),
+  listRadiologyDicomStudies: (...args: Parameters<typeof radiologyApi.listRadiologyDicomStudies>) =>
+    radiologyApi.listRadiologyDicomStudies(...args),
+  getRadiologyPacsConfig: (...args: Parameters<typeof radiologyApi.getRadiologyPacsConfig>) =>
+    radiologyApi.getRadiologyPacsConfig(...args),
+  updateRadiologyPacsConfig: (...args: Parameters<typeof radiologyApi.updateRadiologyPacsConfig>) =>
+    radiologyApi.updateRadiologyPacsConfig(...args),
+  getRadiologyTat: (...args: Parameters<typeof radiologyApi.getRadiologyTat>) =>
+    radiologyApi.getRadiologyTat(...args),
 };

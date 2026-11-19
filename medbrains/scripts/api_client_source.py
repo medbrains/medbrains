@@ -8,6 +8,7 @@ object; this joins every area's methods back into that one object after client.t
 Line numbers in the joined text are not the files' line numbers.
 """
 
+import re
 from pathlib import Path
 
 API_SRC = Path(__file__).resolve().parent.parent / "packages" / "api" / "src"
@@ -24,7 +25,18 @@ def api_client_source() -> str:
     return client + "\nexport const api = {\n" + "\n".join(bodies) + "\n};\n"
 
 
+def api_object_pattern() -> str:
+    """A regex alternation of every name web code calls the client through: `api` and
+    each area's object (`patientsApi`, `pharmacyApi`, …), so `chartApi.value` is not a call."""
+    objects = sorted(
+        re.search(r"export const (\w+) = \{", m.read_text(encoding="utf-8")).group(1)
+        for m in (API_SRC / "modules").glob("*.ts")
+    )
+    return "(?:" + "|".join(["api", *objects]) + ")"
+
+
 if __name__ == "__main__":
     joined = api_client_source()
     assert "export const api = {" in joined and "request<" in joined
+    assert "|pharmacyApi|" in api_object_pattern()
     print(f"api client source: {joined.count(chr(10))} lines")

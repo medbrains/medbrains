@@ -1,80 +1,87 @@
-import { api } from "@medbrains/api";
+import { nurseApi } from "@medbrains/api/modules/nurse";
 import type { IpdMedicationAdministration, MarDueRow, UpdateMarRoundInput } from "@medbrains/types";
 
 export const nurseActivitiesService = {
-  listNurseRoster: (...args: Parameters<typeof api.listNurseRoster>) =>
-    api.listNurseRoster(...args),
-  createNurseRosterEntry: (...args: Parameters<typeof api.createNurseRosterEntry>) =>
-    api.createNurseRosterEntry(...args),
-  deleteNurseRosterEntry: (...args: Parameters<typeof api.deleteNurseRosterEntry>) =>
-    api.deleteNurseRosterEntry(...args),
-  listNurseRosterCandidates: (...args: Parameters<typeof api.listNurseRosterCandidates>) =>
-    api.listNurseRosterCandidates(...args),
+  listNurseRoster: (...args: Parameters<typeof nurseApi.listNurseRoster>) =>
+    nurseApi.listNurseRoster(...args),
+  createNurseRosterEntry: (...args: Parameters<typeof nurseApi.createNurseRosterEntry>) =>
+    nurseApi.createNurseRosterEntry(...args),
+  deleteNurseRosterEntry: (...args: Parameters<typeof nurseApi.deleteNurseRosterEntry>) =>
+    nurseApi.deleteNurseRosterEntry(...args),
+  listNurseRosterCandidates: (...args: Parameters<typeof nurseApi.listNurseRosterCandidates>) =>
+    nurseApi.listNurseRosterCandidates(...args),
   listMarDueNow: (params?: { window_min?: number; ward_id?: string; patient_id?: string }) =>
-    api.listMarDueNow(params) as Promise<MarDueRow[]>,
+    nurseApi.listMarDueNow(params) as Promise<MarDueRow[]>,
   updateMarRound: (id: string, data: UpdateMarRoundInput) =>
-    api.updateMarRound(
+    nurseApi.updateMarRound(
       id,
       data as unknown as Record<string, unknown>,
     ) as Promise<IpdMedicationAdministration>,
   listMarForPatient: (patientId: string) =>
-    api.listMarForPatient(patientId) as Promise<IpdMedicationAdministration[]>,
+    nurseApi.listMarForPatient(patientId) as Promise<IpdMedicationAdministration[]>,
   verifyMarBarcode: (id: string, data: { patient_barcode: string; drug_barcode: string }) =>
-    api.verifyMarBarcode(id, data),
-  listVitalsSchedules: (...args: Parameters<typeof api.listVitalsSchedules>) =>
-    api.listVitalsSchedules(...args),
-  createVitalsSchedule: (...args: Parameters<typeof api.createVitalsSchedule>) =>
-    api.createVitalsSchedule(...args),
-  endVitalsSchedule: (...args: Parameters<typeof api.endVitalsSchedule>) =>
-    api.endVitalsSchedule(...args),
-  createNurseVital: (...args: Parameters<typeof api.createNurseVital>) =>
-    api.createNurseVital(...args),
-  listMonitorReadings: (encounterId: string) => api.listMonitorReadings(encounterId),
-  confirmMonitorReading: (...args: Parameters<typeof api.confirmMonitorReading>) =>
-    api.confirmMonitorReading(...args),
-  discardMonitorReading: (id: string, reason: string) => api.discardMonitorReading(id, reason),
+    nurseApi.verifyMarBarcode(id, data),
+  listVitalsSchedules: (...args: Parameters<typeof nurseApi.listVitalsSchedules>) =>
+    nurseApi.listVitalsSchedules(...args),
+  createVitalsSchedule: (...args: Parameters<typeof nurseApi.createVitalsSchedule>) =>
+    nurseApi.createVitalsSchedule(...args),
+  endVitalsSchedule: (...args: Parameters<typeof nurseApi.endVitalsSchedule>) =>
+    nurseApi.endVitalsSchedule(...args),
+  createNurseVital: (...args: Parameters<typeof nurseApi.createNurseVital>) =>
+    nurseApi.createNurseVital(...args),
+  listMonitorReadings: (encounterId: string) => nurseApi.listMonitorReadings(encounterId),
+  confirmMonitorReading: (...args: Parameters<typeof nurseApi.confirmMonitorReading>) =>
+    nurseApi.confirmMonitorReading(...args),
+  discardMonitorReading: (id: string, reason: string) => nurseApi.discardMonitorReading(id, reason),
   // A failed read is an error on screen, never another encounter list passed
   // off as this one.
-  listNurseVitals: (encounterId: string) => api.listNurseVitals(encounterId),
-  getEwsPlan: (encounterId: string) => api.getEwsPlan(encounterId),
-  setEwsPlan: (...args: Parameters<typeof api.setEwsPlan>) => api.setEwsPlan(...args),
-  getEwsPolicy: () => api.getEwsPolicy(),
-  setEwsPolicy: (...args: Parameters<typeof api.setEwsPolicy>) => api.setEwsPolicy(...args),
-  listIoForEncounter: (...args: Parameters<typeof api.listIoForEncounter>) =>
-    api.listIoForEncounter(...args),
-  getEncounterIoBalance: (...args: Parameters<typeof api.getEncounterIoBalance>) =>
-    api.getEncounterIoBalance(...args),
-  createIoEntry: (...args: Parameters<typeof api.createIoEntry>) => api.createIoEntry(...args),
-  createPainEntry: (...args: Parameters<typeof api.createPainEntry>) =>
-    api.createPainEntry(...args),
-  listPainForEncounter: (...args: Parameters<typeof api.listPainForEncounter>) =>
-    api.listPainForEncounter(...args),
-  createFallRisk: (...args: Parameters<typeof api.createFallRisk>) => api.createFallRisk(...args),
-  listFallRiskForEncounter: (...args: Parameters<typeof api.listFallRiskForEncounter>) =>
-    api.listFallRiskForEncounter(...args),
-  createWound: (...args: Parameters<typeof api.createWound>) => api.createWound(...args),
-  listWoundsForEncounter: (...args: Parameters<typeof api.listWoundsForEncounter>) =>
-    api.listWoundsForEncounter(...args),
-  createHandoff: (...args: Parameters<typeof api.createHandoff>) => api.createHandoff(...args),
-  acceptHandoff: (...args: Parameters<typeof api.acceptHandoff>) => api.acceptHandoff(...args),
-  listHandoffsForEncounter: (...args: Parameters<typeof api.listHandoffsForEncounter>) =>
-    api.listHandoffsForEncounter(...args),
-  listCodeBlue: (...args: Parameters<typeof api.listCodeBlue>) => api.listCodeBlue(...args),
-  startCodeBlue: (...args: Parameters<typeof api.startCodeBlue>) => api.startCodeBlue(...args),
-  endCodeBlue: (...args: Parameters<typeof api.endCodeBlue>) => api.endCodeBlue(...args),
-  listCodeBlueResponders: (...args: Parameters<typeof api.listCodeBlueResponders>) =>
-    api.listCodeBlueResponders(...args),
-  respondToCodeBlue: (...args: Parameters<typeof api.respondToCodeBlue>) =>
-    api.respondToCodeBlue(...args),
-  getCodeBlueTeam: () => api.getCodeBlueTeam(),
-  addCodeBlueTeamMember: (...args: Parameters<typeof api.addCodeBlueTeamMember>) =>
-    api.addCodeBlueTeamMember(...args),
-  removeCodeBlueTeamMember: (...args: Parameters<typeof api.removeCodeBlueTeamMember>) =>
-    api.removeCodeBlueTeamMember(...args),
-  updateCodeBlueTeamSettings: (...args: Parameters<typeof api.updateCodeBlueTeamSettings>) =>
-    api.updateCodeBlueTeamSettings(...args),
-  listEquipmentChecks: (...args: Parameters<typeof api.listEquipmentChecks>) =>
-    api.listEquipmentChecks(...args),
-  createEquipmentCheck: (...args: Parameters<typeof api.createEquipmentCheck>) =>
-    api.createEquipmentCheck(...args),
+  listNurseVitals: (encounterId: string) => nurseApi.listNurseVitals(encounterId),
+  getEwsPlan: (encounterId: string) => nurseApi.getEwsPlan(encounterId),
+  setEwsPlan: (...args: Parameters<typeof nurseApi.setEwsPlan>) => nurseApi.setEwsPlan(...args),
+  getEwsPolicy: () => nurseApi.getEwsPolicy(),
+  setEwsPolicy: (...args: Parameters<typeof nurseApi.setEwsPolicy>) =>
+    nurseApi.setEwsPolicy(...args),
+  listIoForEncounter: (...args: Parameters<typeof nurseApi.listIoForEncounter>) =>
+    nurseApi.listIoForEncounter(...args),
+  getEncounterIoBalance: (...args: Parameters<typeof nurseApi.getEncounterIoBalance>) =>
+    nurseApi.getEncounterIoBalance(...args),
+  createIoEntry: (...args: Parameters<typeof nurseApi.createIoEntry>) =>
+    nurseApi.createIoEntry(...args),
+  createPainEntry: (...args: Parameters<typeof nurseApi.createPainEntry>) =>
+    nurseApi.createPainEntry(...args),
+  listPainForEncounter: (...args: Parameters<typeof nurseApi.listPainForEncounter>) =>
+    nurseApi.listPainForEncounter(...args),
+  createFallRisk: (...args: Parameters<typeof nurseApi.createFallRisk>) =>
+    nurseApi.createFallRisk(...args),
+  listFallRiskForEncounter: (...args: Parameters<typeof nurseApi.listFallRiskForEncounter>) =>
+    nurseApi.listFallRiskForEncounter(...args),
+  createWound: (...args: Parameters<typeof nurseApi.createWound>) => nurseApi.createWound(...args),
+  listWoundsForEncounter: (...args: Parameters<typeof nurseApi.listWoundsForEncounter>) =>
+    nurseApi.listWoundsForEncounter(...args),
+  createHandoff: (...args: Parameters<typeof nurseApi.createHandoff>) =>
+    nurseApi.createHandoff(...args),
+  acceptHandoff: (...args: Parameters<typeof nurseApi.acceptHandoff>) =>
+    nurseApi.acceptHandoff(...args),
+  listHandoffsForEncounter: (...args: Parameters<typeof nurseApi.listHandoffsForEncounter>) =>
+    nurseApi.listHandoffsForEncounter(...args),
+  listCodeBlue: (...args: Parameters<typeof nurseApi.listCodeBlue>) =>
+    nurseApi.listCodeBlue(...args),
+  startCodeBlue: (...args: Parameters<typeof nurseApi.startCodeBlue>) =>
+    nurseApi.startCodeBlue(...args),
+  endCodeBlue: (...args: Parameters<typeof nurseApi.endCodeBlue>) => nurseApi.endCodeBlue(...args),
+  listCodeBlueResponders: (...args: Parameters<typeof nurseApi.listCodeBlueResponders>) =>
+    nurseApi.listCodeBlueResponders(...args),
+  respondToCodeBlue: (...args: Parameters<typeof nurseApi.respondToCodeBlue>) =>
+    nurseApi.respondToCodeBlue(...args),
+  getCodeBlueTeam: () => nurseApi.getCodeBlueTeam(),
+  addCodeBlueTeamMember: (...args: Parameters<typeof nurseApi.addCodeBlueTeamMember>) =>
+    nurseApi.addCodeBlueTeamMember(...args),
+  removeCodeBlueTeamMember: (...args: Parameters<typeof nurseApi.removeCodeBlueTeamMember>) =>
+    nurseApi.removeCodeBlueTeamMember(...args),
+  updateCodeBlueTeamSettings: (...args: Parameters<typeof nurseApi.updateCodeBlueTeamSettings>) =>
+    nurseApi.updateCodeBlueTeamSettings(...args),
+  listEquipmentChecks: (...args: Parameters<typeof nurseApi.listEquipmentChecks>) =>
+    nurseApi.listEquipmentChecks(...args),
+  createEquipmentCheck: (...args: Parameters<typeof nurseApi.createEquipmentCheck>) =>
+    nurseApi.createEquipmentCheck(...args),
 };

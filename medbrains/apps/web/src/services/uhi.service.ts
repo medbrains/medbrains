@@ -1,11 +1,14 @@
-import { api } from "@medbrains/api";
+import { abdmApi } from "@medbrains/api/modules/abdm";
+import { uhiApi } from "@medbrains/api/modules/uhi";
 
 export const uhiService = {
-  getSettings: () => api.getUhiSettings(),
-  saveSettings: (...args: Parameters<typeof api.saveUhiSettings>) => api.saveUhiSettings(...args),
-  generateKeys: (privateKey?: string) => api.generateUhiKeys(privateKey),
-  listRequests: (...args: Parameters<typeof api.listUhiRequests>) => api.listUhiRequests(...args),
-  accept: (id: string) => api.acceptUhiRequest(id),
-  decline: (id: string, reason: string) => api.declineUhiRequest(id, reason),
-  listCampuses: () => api.listFacilityHfr(),
+  getSettings: () => uhiApi.getUhiSettings(),
+  saveSettings: (...args: Parameters<typeof uhiApi.saveUhiSettings>) =>
+    uhiApi.saveUhiSettings(...args),
+  generateKeys: (privateKey?: string) => uhiApi.generateUhiKeys(privateKey),
+  listRequests: (...args: Parameters<typeof uhiApi.listUhiRequests>) =>
+    uhiApi.listUhiRequests(...args),
+  accept: (id: string) => uhiApi.acceptUhiRequest(id),
+  decline: (id: string, reason: string) => uhiApi.declineUhiRequest(id, reason),
+  listCampuses: () => abdmApi.listFacilityHfr(),
 };

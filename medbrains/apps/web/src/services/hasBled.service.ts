@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const hasBledService = {
-  computeHasBled: (data: Parameters<typeof api.computeHasBled>[0]) => api.computeHasBled(data),
+  computeHasBled: (data: Parameters<typeof clinicalApi.computeHasBled>[0]) =>
+    clinicalApi.computeHasBled(data),
 };
