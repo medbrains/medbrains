@@ -2,6 +2,7 @@
 
 pub mod abha_link;
 pub mod acquisition;
+pub mod actions;
 pub mod contact_consent;
 pub mod dpdp_consent;
 pub mod group_identity;
@@ -228,7 +229,7 @@ fn mask_json_text(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
-fn filter_patient_response(
+pub(crate) fn filter_patient_response(
     mut row: Patient,
     restricted: &HashMap<String, FieldAccessLevel>,
 ) -> Patient {
@@ -1734,8 +1735,22 @@ pub async fn get_patient(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let patient = load_patient(&mut tx, id, claims.tenant_id).await?;
+    tx.commit().await?;
 
-    let patient = sqlx::query_as_unchecked!(
+    patient.map_or_else(
+        || Err(AppError::NotFound),
+        |p| Ok(Json(filter_patient_response(p, &restricted))),
+    )
+}
+
+/// One patient row, every column, unmasked: callers mask it for their reader.
+pub(crate) async fn load_patient(
+    conn: &mut sqlx::PgConnection,
+    id: Uuid,
+    tenant_id: Uuid,
+) -> Result<Option<Patient>, AppError> {
+    Ok(sqlx::query_as_unchecked!(
         Patient,
         r#"SELECT id, tenant_id, uhid, abha_id, prefix, first_name, middle_name, last_name, suffix,
                   full_name_local, father_name, mother_name, spouse_name, guardian_name,
@@ -1752,17 +1767,10 @@ pub async fn get_patient(
            FROM patients
            WHERE id = $1 AND tenant_id = $2"#,
         id,
-        claims.tenant_id,
+        tenant_id,
     )
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    patient.map_or_else(
-        || Err(AppError::NotFound),
-        |p| Ok(Json(filter_patient_response(p, &restricted))),
-    )
+    .fetch_optional(conn)
+    .await?)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3267,7 +3275,7 @@ pub async fn delete_patient_consent(
 /// Field-access masking for MPI match rows — mirrors filter_patient_response so
 /// /patients/match honours patients.uhid/first_name/last_name/date_of_birth/phone
 /// Mask/Hidden levels instead of leaking cleartext PHI (an unmasked lookup oracle).
-fn filter_match_result(
+pub(crate) fn filter_match_result(
     mut row: MatchResult,
     restricted: &HashMap<String, FieldAccessLevel>,
 ) -> MatchResult {
@@ -3432,8 +3440,8 @@ pub struct FindPatientsQuery {
 /// then a fuzzy name for typos. One query, at most 20 rows. The trigram
 /// `<%` is the indexed predicate (migration 1070); the rest is fine unindexed
 /// at a hospital's register size.
-async fn find_matches(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+pub(crate) async fn find_matches(
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
     matcher: &search::PatientSearch,
 ) -> Result<Vec<MatchResult>, AppError> {
@@ -3457,7 +3465,7 @@ async fn find_matches(
     for value in matcher.binds() {
         query = query.bind(value);
     }
-    Ok(query.bind(matcher.exact()).fetch_all(&mut **tx).await?)
+    Ok(query.bind(matcher.exact()).fetch_all(conn).await?)
 }
 
 /// The front desk's lookup: one box, everything the desk might be given.
@@ -3476,38 +3484,12 @@ pub async fn find_patients(
     Query(params): Query<FindPatientsQuery>,
 ) -> Result<Json<Vec<MatchResult>>, AppError> {
     require_permission(&claims, permissions::patients::FIND)?;
-
-    // Two characters match half the hospital. A desk lookup is a lookup for
-    // someone in particular, not a way to page through the register.
-    let q = params.q.trim();
-    if q.chars().count() < 3 {
-        return Ok(Json(Vec::new()));
-    }
-    let Some(matcher) =
-        search::PatientSearch::for_request(&state, claims.tenant_id, Some(q)).await?
-    else {
-        return Ok(Json(Vec::new()));
-    };
-
-    let restricted = field_access::resolve_restricted_fields(
-        &state.db,
-        claims.tenant_id,
-        claims.sub,
-        &claims.role,
-    )
-    .await?;
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let rows = find_matches(&mut tx, claims.tenant_id, &matcher).await?;
+    let rows = actions::find(&mut tx, &state, &claims, &params.q).await?;
     tx.commit().await?;
-
-    Ok(Json(
-        rows.into_iter()
-            .map(|m| filter_match_result(m, &restricted))
-            .collect(),
-    ))
+    Ok(Json(rows))
 }
 
 // ══════════════════════════════════════════════════════════

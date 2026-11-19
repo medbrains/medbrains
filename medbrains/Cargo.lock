@@ -8319,6 +8319,7 @@ dependencies = [
  "medbrains-flow",
  "medbrains-forms",
  "medbrains-health-intel",
+ "medbrains-health-services",
  "medbrains-history-import",
  "medbrains-home-health",
  "medbrains-hr",

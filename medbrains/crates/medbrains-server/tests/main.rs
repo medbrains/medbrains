@@ -55,6 +55,7 @@ mod abdm_scan_share_test;
 mod abdm_sms_link_test;
 mod abha_verify_link_test;
 mod access_alert_scan_test;
+mod actions_test;
 mod admin_authz_order_test;
 mod ai_actor_audit_test;
 mod ai_dictation_test;
