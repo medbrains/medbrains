@@ -61,7 +61,7 @@ impl std::fmt::Debug for E2eTenantRequest {
 /// rerun reuses the hospital, resets its administrator's password and re-applies the seed.
 /// Debug builds (or `MEDBRAINS_ENABLE_E2E_SEED`) and bypass roles only, like the fixture seed.
 /// The id is derived from `code`, so a code another hospital already uses is refused.
-#[tracing::instrument(skip_all, fields(code = %body.code))]
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id, code = %body.code))]
 pub async fn provision_e2e_tenant(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -96,6 +96,7 @@ async fn upsert_e2e_tenant(
     let tenant_id = uuid::Uuid::new_v5(&E2E_TENANT_NAMESPACE, body.code.as_bytes());
     let actor = medbrains_kernel::Actor::system(tenant_id);
     medbrains_kernel::work(&state.db, actor, async |tx: &mut medbrains_kernel::Tx| {
+        // allow-raw-sql: debug-only E2E provisioning, in a kernel unit of work
         sqlx::query(
             "INSERT INTO tenants (id, code, name, hospital_type, config) \
              VALUES ($1, $2, $3, 'medical_college', '{}') ON CONFLICT (id) DO NOTHING",
@@ -105,6 +106,7 @@ async fn upsert_e2e_tenant(
         .bind(&body.name)
         .execute(&mut **tx)
         .await?;
+        // allow-raw-sql: the hospital's first administrator, as the boot seed inserts it
         sqlx::query(
             "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role) \
              VALUES ($1, $2, $2 || '@e2e.medbrains.localhost', $3, 'E2E Administrator', 'super_admin') \
