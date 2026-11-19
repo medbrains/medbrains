@@ -17,14 +17,15 @@
 //! hospital's tenant context, the side effects, one commit. A row closes once:
 //! the update only takes rows still open, and a failed pass rolls back whole.
 
+use medbrains_kernel as kernel;
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use axum::extract::State;
 use axum::{Extension, Json};
+use kernel::audit::AuditEntry;
 use medbrains_core::encounter::{OpdQueue, QueueStatus};
 use medbrains_core::permissions;
-use medbrains_db::audit::AuditEntry;
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -113,8 +114,7 @@ pub async fn close_due_for_tenant(
     pool: &PgPool,
     tenant_id: Uuid,
 ) -> Result<Vec<ClosedVisit>, AppError> {
-    let mut tx = pool.begin().await?;
-    medbrains_db::pool::set_audit_context(&mut tx, &tenant_id, &Uuid::nil(), None).await?;
+    let mut tx = kernel::actor_tx(pool, &tenant_id, &Uuid::nil(), None).await?;
     let Some(minutes) = read_minutes(&mut tx, tenant_id).await? else {
         return Ok(Vec::new());
     };
@@ -236,7 +236,7 @@ async fn audit_close(
         "close_reason": CLOSE_REASON,
         "auto_close_after_minutes": minutes,
     });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         tx,
         &AuditEntry {
             tenant_id: queue.tenant_id,
