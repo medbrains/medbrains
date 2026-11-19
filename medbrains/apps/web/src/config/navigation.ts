@@ -1,4 +1,4 @@
-import { APP_SCREENS, type AppScreen, BRICK_NAMES } from "@medbrains/types";
+import { APP_SCREENS, type AppScreen, BRICK_MANIFESTS } from "@medbrains/types";
 import {
   IconAmbulance,
   IconAppWindow,
@@ -414,7 +414,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     key: "core",
     items: APP_SCREENS.filter((s) => !s.brick && !isAdministration(s)).map(toNavItem),
   },
-  ...Object.keys(BRICK_NAMES)
+  ...Object.keys(BRICK_MANIFESTS)
     .map((brick) => ({ key: brick, items: appNavItems(brick) }))
     .filter((group) => group.items.length > 0),
   {
@@ -424,7 +424,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "admin",
         path: "/admin/users",
         icon: "IconSettings",
-        children: administrationPages(APP_SCREENS, import.meta.env.DEV),
+        children: administrationPages(APP_SCREENS, import.meta.env?.DEV === true),
       },
     ],
   },

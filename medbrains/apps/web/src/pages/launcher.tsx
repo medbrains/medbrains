@@ -1,7 +1,7 @@
 import { Group, SimpleGrid, Skeleton, Stack, Text } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
 import { useModuleStore, usePermissionStore } from "@medbrains/stores";
-import type { LauncherResponse } from "@medbrains/types";
+import { BRICK_MANIFESTS, type LauncherResponse } from "@medbrains/types";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router";
@@ -76,7 +76,6 @@ function FavouritesSection({
 }) {
   const { t } = useTranslation("nav");
   const toggle = useToggleFavourite();
-  const names = useMemo(() => new Map(data.bricks.map((b) => [b.id, b.name])), [data.bricks]);
   const favourites = useMemo(
     () => visibleFavourites(data.favourites, screens),
     [data.favourites, screens],
@@ -92,7 +91,7 @@ function FavouritesSection({
               key={item.path}
               label={t(item.i18nKey)}
               path={item.path}
-              app={names.get(item.moduleCode ?? "")}
+              app={BRICK_MANIFESTS[item.moduleCode ?? ""]?.name}
               unstarLabel={t("favouriteRemoveNamed", { label: t(item.i18nKey) })}
               isUnstarPending={toggle.isPending}
               onUnstar={() => toggle.mutate({ path: item.path, starred: false })}
@@ -105,9 +104,8 @@ function FavouritesSection({
 }
 
 /** One tile per app, then Administration for those who have it; hidden, never greyed. */
-function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoors }) {
+function AppsSection({ doors }: { doors: ViewerDoors }) {
   const { t } = useTranslation("nav");
-  const names = useMemo(() => new Map(data.bricks.map((b) => [b.id, b.name])), [data.bricks]);
   const { apps, admin } = doors;
   return (
     <LauncherSection title={t("launcherApps")}>
@@ -118,7 +116,7 @@ function AppsSection({ data, doors }: { data: LauncherResponse; doors: ViewerDoo
           {apps.map((app) => (
             <AppTile
               key={app.brick}
-              label={names.get(app.brick) ?? t(app.home.i18nKey)}
+              label={BRICK_MANIFESTS[app.brick]?.name ?? t(app.home.i18nKey)}
               path={app.home.path}
               icon={app.home.icon}
             />
@@ -175,7 +173,7 @@ export default function LauncherPage() {
       ) : (
         <>
           <FavouritesSection data={launcher.data} screens={doors.screens} />
-          <AppsSection data={launcher.data} doors={doors} />
+          <AppsSection doors={doors} />
         </>
       )}
     </Stack>

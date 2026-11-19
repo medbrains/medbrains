@@ -90,6 +90,20 @@ Setup asks which apps the hospital needs, and installs only those bricks with th
 - **Can grow later:** adding an app from the Software Center (O14) installs its brick and dependencies on the machines whose roles fit, with no reinstall.
 - **Shows the same everywhere:** web, OS launcher, edge machines and native apps all read the one installed set, then the person's permissions.
 
+## The manifest (2026-11-19)
+
+Each brick has one manifest, assembled from the tables that already declare it and written to the web as `BRICK_MANIFESTS` (`packages/types/src/app-screens.generated.ts`, schema version `BRICK_MANIFEST_VERSION`, from `bricks::MANIFEST_VERSION`):
+
+| Field | Declared in |
+|---|---|
+| `id`, `name`, `dependsOn`, `permissionGroups` | the brick's row in `bricks.rs` |
+| `settings`: the Settings sections it plugs in (hidden while it is off) | `Brick::settings`, set with `.with_settings(&[...])` |
+| `backgroundJobs` | the `BRICK_JOBS` rows that list the brick (a job may serve several) |
+| `icon`, `screens` (route + permission + any-of) | its rows in `access/screens.rs` |
+| `actions` (id + permission + data classes), `dataClasses` | its rows in `medbrains-health-services/src/actions.rs` |
+
+Regenerate with `python3 scripts/generate_app_screens.py`; `make check-app-screens` fails when the copy is stale or the tables disagree: a screen or action naming no brick, a screen with no permission (only the personal `/approvals` inbox is exempt), an unknown action permission, or a Settings section unknown to `apps/web/src/config/settings-tabs.ts` or claimed twice. Raise `MANIFEST_VERSION` when a field is added, removed or changes meaning.
+
 ## The web launcher (2026-11-16)
 
 The web home after sign-in is `/home` (`apps/web/src/pages/launcher.tsx`). It shows the person's **Favourites**, then **Your apps**: one tile per brick in which they can open at least one screen, named from `bricks.rs` (served by `GET /api/users/me/launcher`). A screen counts by the side panel's rule, `isItemVisible` in `apps/web/src/features/launcher/launcherModel.ts`: its permission, any one of its alternative permissions, its brick on, and its parent entry visible. Apps the person cannot use are hidden, never greyed. Administration belongs to no brick, so it is not an app, but anyone who can open an Administration screen gets an Administration tile, so someone whose work is all there is not told nothing is set up. Someone with exactly one app and no Administration goes straight into the app: after sign-in, and from the logo too, because both lead to `/home`.
@@ -101,6 +115,14 @@ Favourites are stored per person on the server (`user_favourite_screens`, tenant
 Every screen lives in one registry, `crates/medbrains-core/src/access/screens.rs`: its route, label key, icon, permission, any-of list and the brick that owns it (`brick: None` for a core screen: dashboard, compliance, administration). `scripts/generate_app_screens.py` writes the web copy, and `apps/web/src/config/navigation.ts` builds the whole menu from it; `scripts/check_nav_drift.py` refuses a menu entry written by hand.
 
 Inside an app the side panel (`apps/web/src/layouts/appPanel.ts`) lists **only that app's screens** the person may open, under the app's name and icon, with an **All apps** link to `/home`. The app is the one owning the closest registered route above the current one (`/pharmacy/orders/42` is Pharmacy's, `/admin/doctor-schedules` is OPD's). A core screen, an unknown route, a switched-off app, or an app in which the person can open nothing shows the **core panel**: the core screens and Administration. The full menu is never shown; ⌘K search still covers every screen the person may open, with switched-off apps left out. Switching apps is the launcher's job, or search's, or favourites'. The shell also refuses a switched-off app's routes, whichever route reaches them (`AppRoute` with no `brick`).
+
+## The web loads only the apps a hospital has on (2026-11-19)
+
+`AUTHED_ROUTES` (`apps/web/src/AuthedRoutes.tsx`) is the whole signed-in route table; `AuthedApp` registers it through `enabledRoutes` (`layouts/appPanel.ts`), which drops every route a switched-off app owns: the app owning the closest screen-registry route above it, so the registry stays the one owner. A route that is not registered is never matched, so its code-split page is never downloaded; `preloadRoute` refuses a switched-off app's path too, and Settings hides the sections a switched-off app plugs in. Typing a switched-off app's address still lands on the shell guard (`AppRoute`), which shows **Not installed**, never a crash or a blank. `AuthedRoutes.test.tsx` fails if a route sits under no registry screen and is not a named shell route, because such a route would open with its app off; `e2e/mock/brick-loading.spec.ts` signs in a Registration + OPD front desk, counts the JavaScript fetched, and fails if Pharmacy's page chunk is requested.
+
+What this does **not** shrink: the shell already code-split every page, so a Registration + OPD session downloads the same ~1.8 MB on first load and ~2.4 MB after opening both apps as before. The weight that belongs to other apps sits in the monolithic `@medbrains/api` client (every module's methods, loaded by the shell) and in other apps' components the OPD and patient screens import directly (Lab, Radiology, Pharmacy, IPD, Billing, ~190 KB of source). Splitting the client per brick and turning those imports into plugged-in tabs are the next steps.
+
+If `/auth/me` cannot answer and this tab has no cached permissions, the signed-in app shows **We couldn't check your access** with a retry, never an empty launcher: an unknown answer is not "no apps".
 
 ## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
 

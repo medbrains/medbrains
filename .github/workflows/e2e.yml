@@ -164,6 +164,10 @@ jobs:
           --project=api --project=crud --project=forms --project=analytics --project=rbac
           --project=journeys --project=robustness --project=accessibility --project=linkages
           --project=screens --project=chromium --project=mock-chromium
+      # Failing tests stay report-only, but a shard that ran nothing, or whose suite did not
+      # load, fails here: from #6079 every shard ran zero tests and the check stayed green.
+      - name: Check the suite ran
+        run: python3 scripts/check_e2e_ran.py apps/web/blob-report
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:

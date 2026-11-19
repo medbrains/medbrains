@@ -7,7 +7,7 @@ import { AppRoute } from "./AppRoute";
 function renderEmrRoute() {
   return render(
     <Routes>
-      <Route element={<AppRoute brick="opd" />}>
+      <Route element={<AppRoute />}>
         <Route path="/opd" element={<p>OPD queue screen</p>} />
       </Route>
     </Routes>,
@@ -33,7 +33,7 @@ describe("AppRoute", () => {
     expect(screen.queryByText("OPD queue screen")).not.toBeInTheDocument();
   });
 
-  it("without a brick, guards the app the route belongs to and leaves core screens open", () => {
+  it("guards a nested route of the app it belongs to and leaves core screens open", () => {
     useModuleStore.getState().setDisabledModules(["lab", "pharmacy"]);
     const shell = (path: string) =>
       render(
