@@ -1,6 +1,7 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { ModuleConfig } from "@medbrains/types";
 import { Badge, Card, Switch } from "@/components/ui";
+import { BackgroundWork } from "./BackgroundWork";
 import { isOn, names, neededBy } from "./module-bricks";
 
 interface ModuleBrickCardProps {
@@ -38,6 +39,7 @@ export function ModuleBrickCard({ mod, modules, pending, onToggle }: ModuleBrick
         <Text size="xs" c="dimmed">
           Needed by: {needed.length > 0 ? names(needed) : "no other app"}
         </Text>
+        <BackgroundWork jobs={mod.background_jobs} />
         <Switch
           mt="auto"
           checked={on}
