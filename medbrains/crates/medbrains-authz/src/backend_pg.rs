@@ -6,8 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    AuthzBackend, AuthzContext, AuthzError, RelationTuple, Subject, TupleSource, TupleStatus,
-    registry, relations::Relation,
+    AuthzBackend, AuthzContext, AuthzError, RelationTuple, Subject, registry, relations::Relation,
 };
 
 /// Ceiling on the reverse index.
@@ -16,6 +15,12 @@ use crate::{
 /// number: either a tuple explosion, or a list that needs per-record checks
 /// instead of set enumeration.
 const LIST_ACCESSIBLE_CAP: usize = 50_000;
+
+mod reach;
+mod rows;
+
+use rows::{parse_source, parse_status, parse_subject, serialize_subject};
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct PgAuthzBackend {
@@ -57,97 +62,30 @@ impl AuthzBackend for PgAuthzBackend {
         if ctx.is_bypass {
             return Ok(true);
         }
-
-        // Validate registry — refuse silently to lookup unregistered types.
-        let spec = registry::lookup(object_type)
-            .ok_or_else(|| AuthzError::UnknownObjectType(object_type.to_string()))?;
-        if !spec.allowed_relations.contains(&relation) {
-            return Err(AuthzError::InvalidRelation {
-                relation: relation.as_code().to_string(),
-                object_type: object_type.to_string(),
-            });
-        }
-
-        // Implications — for "user has Viewer", any relation that IMPLIES
-        // Viewer satisfies (Owner, Editor, AttendingPhysician, Consultant, ...)
-        let candidate_relations = candidate_relation_codes(relation);
-
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
-
-        // Single-round-trip resolution: the four subject-match paths (direct
-        // user / role / department / group) are OR-ed into one `EXISTS` instead
-        // of up to four sequential queries (DSA: batch N round-trips into 1 —
-        // see ENGINEERING.md). Semantics are byte-for-byte identical to the previous
-        // sequential checks.
-        //
-        // Multi-hop traversal (department hierarchy, nested groups, tuple-set
-        // rewrites) is intentionally NOT added: the SpiceDB schema — the source
-        // of truth the durable backend must agree with — models none of them
-        // (`department` has only `member: user`, `access_group_members` is flat,
-        // and the only `tuple_set` subjects written are the parent pointers
-        // below). Adding traversal here would make the PG fallback MORE
-        // permissive than SpiceDB, i.e. a security divergence. Caveated tuples
-        // are denied (the caveat evaluator is not run in SQL).
-        //
-        // The one hop the schema does model — the `<parent>->view` arrow (schema.zed: `permission view = … +
-        // patient->view`) rides in the same query: the order's parent-pointer
-        // tuple names the patient, and the subject match runs against the
-        // patient too. NULL when the type has no arrow or `relation` is not
-        // view — edit/cancel never traverse it, exactly as in the schema.
-        let arrow = view_arrow(object_type, relation);
-        let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
-        let allowed: bool = sqlx::query_scalar(
-            "SELECT EXISTS (
-                 SELECT 1 FROM relation_tuples rt
-                 WHERE rt.tenant_id = $1
-                   AND (
-                        (rt.object_type = $2 AND rt.object_id = $3)
-                     OR (rt.object_type = $9 AND rt.object_id IN (
-                            SELECT substr(a.subject_id, length($9) + 2)::uuid
-                            FROM relation_tuples a
-                            WHERE a.tenant_id = $1
-                              AND a.object_type = $2 AND a.object_id = $3
-                              AND a.relation = $9
-                              AND a.subject_type = 'tuple_set'
-                              AND a.subject_id LIKE $9 || ':%'
-                              AND a.status = 'active'
-                              AND (a.expires_at IS NULL OR a.expires_at > now())
-                         ))
-                   )
-                   AND rt.relation = ANY($4)
-                   AND rt.status = 'active'
-                   AND (rt.expires_at IS NULL OR rt.expires_at > now())
-                   AND rt.caveat IS NULL
-                   AND (
-                        (rt.subject_type = 'user' AND rt.subject_id = $5)
-                     OR (rt.subject_type = 'role' AND rt.subject_id = $6)
-                     OR (rt.subject_type = 'department' AND rt.subject_id = ANY($7))
-                     OR (rt.subject_type = 'group' AND EXISTS (
-                            SELECT 1 FROM access_group_members m
-                            WHERE m.tenant_id = rt.tenant_id
-                              AND m.user_id = $8
-                              AND m.group_id::text = rt.subject_id
-                              AND m.deleted_at IS NULL
-                              AND (m.expires_at IS NULL OR m.expires_at > now())
-                         ))
-                   )
-             )",
-        )
-        .bind(ctx.tenant_id)
-        .bind(object_type)
-        .bind(object_id)
-        .bind(&candidate_relations)
-        .bind(ctx.user_id.to_string())
-        .bind(&ctx.role)
-        .bind(&dept_strs)
-        .bind(ctx.user_id)
-        .bind(arrow)
-        .fetch_one(&mut *tx)
-        .await?;
-
+        let reached = reachable(&mut tx, ctx, object_type, relation, &[object_id]).await?;
         tx.commit().await?;
-        Ok(allowed)
+        Ok(!reached.is_empty())
+    }
+
+    /// Every pair in one transaction and one query per (kind, relation), not
+    /// one transaction per row: a 200-row worklist was 200 round trips. Same
+    /// query as [`Self::check`], so a list cannot be answered by other rules
+    /// than the record it lists.
+    async fn bulk_check(
+        &self,
+        ctx: &AuthzContext,
+        items: &[(String, Relation, Uuid)],
+    ) -> Result<std::collections::HashMap<(String, Relation, Uuid), bool>, AuthzError> {
+        if ctx.is_bypass {
+            return Ok(items.iter().map(|key| (key.clone(), true)).collect());
+        }
+        let mut tx = self.pool.begin().await?;
+        self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
+        let answers = reach::reachable_all(&mut tx, ctx, items).await?;
+        tx.commit().await?;
+        Ok(answers)
     }
 
     async fn expand(
@@ -430,40 +368,83 @@ impl AuthzBackend for PgAuthzBackend {
     }
 }
 
-fn serialize_subject(s: &Subject) -> (&'static str, String) {
-    match s {
-        Subject::User(u) => ("user", u.to_string()),
-        Subject::Role(r) => ("role", r.clone()),
-        Subject::Department(d) => ("department", d.to_string()),
-        Subject::Group(g) => ("group", g.to_string()),
-        Subject::TupleSet(t) => ("tuple_set", t.clone()),
+/// Which of `ids` the caller holds `relation` on (or a relation implying it),
+/// in one query. Refuses an unregistered type or relation, as `check` always has.
+///
+/// Single round trip: the four subject paths (user / role / department / group)
+/// are OR-ed into one `EXISTS` per id. Multi-hop traversal (department
+/// hierarchy, nested groups, tuple-set rewrites) is intentionally NOT added: the
+/// `SpiceDB` schema — the source of truth the durable backend must agree with —
+/// models none of them, so adding it here would make the Postgres fallback more
+/// permissive than `SpiceDB`. Caveated tuples are denied (no caveat evaluator in
+/// SQL). The one hop the schema does model, the `<parent>->view` arrow
+/// (`permission view = … + patient->view`), rides in the same query; it is NULL
+/// when the type has no arrow or `relation` is not view.
+async fn reachable(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    ctx: &AuthzContext,
+    object_type: &str,
+    relation: Relation,
+    ids: &[Uuid],
+) -> Result<HashSet<Uuid>, AuthzError> {
+    let spec = registry::lookup(object_type)
+        .ok_or_else(|| AuthzError::UnknownObjectType(object_type.to_string()))?;
+    if !spec.allowed_relations.contains(&relation) {
+        return Err(AuthzError::InvalidRelation {
+            relation: relation.as_code().to_string(),
+            object_type: object_type.to_string(),
+        });
     }
-}
-
-fn parse_subject(kind: &str, id: &str) -> Option<Subject> {
-    Some(match kind {
-        "user" => Subject::User(Uuid::parse_str(id).ok()?),
-        "role" => Subject::Role(id.to_string()),
-        "department" => Subject::Department(Uuid::parse_str(id).ok()?),
-        "group" => Subject::Group(Uuid::parse_str(id).ok()?),
-        "tuple_set" => Subject::TupleSet(id.to_string()),
-        _ => return None,
-    })
-}
-
-fn parse_status(s: &str) -> TupleStatus {
-    match s {
-        "revoked" => TupleStatus::Revoked,
-        "superseded" => TupleStatus::Superseded,
-        _ => TupleStatus::Active,
-    }
-}
-
-fn parse_source(s: &str) -> TupleSource {
-    match s {
-        "derived" => TupleSource::Derived,
-        _ => TupleSource::Explicit,
-    }
+    let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
+    let rows: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT o.id FROM unnest($3::uuid[]) AS o(id) WHERE EXISTS (
+                 SELECT 1 FROM relation_tuples rt
+                 WHERE rt.tenant_id = $1
+                   AND (
+                        (rt.object_type = $2 AND rt.object_id = o.id)
+                     OR (rt.object_type = $9 AND rt.object_id IN (
+                            SELECT substr(a.subject_id, length($9) + 2)::uuid
+                            FROM relation_tuples a
+                            WHERE a.tenant_id = $1
+                              AND a.object_type = $2 AND a.object_id = o.id
+                              AND a.relation = $9
+                              AND a.subject_type = 'tuple_set'
+                              AND a.subject_id LIKE $9 || ':%'
+                              AND a.status = 'active'
+                              AND (a.expires_at IS NULL OR a.expires_at > now())
+                         ))
+                   )
+                   AND rt.relation = ANY($4)
+                   AND rt.status = 'active'
+                   AND (rt.expires_at IS NULL OR rt.expires_at > now())
+                   AND rt.caveat IS NULL
+                   AND (
+                        (rt.subject_type = 'user' AND rt.subject_id = $5)
+                     OR (rt.subject_type = 'role' AND rt.subject_id = $6)
+                     OR (rt.subject_type = 'department' AND rt.subject_id = ANY($7))
+                     OR (rt.subject_type = 'group' AND EXISTS (
+                            SELECT 1 FROM access_group_members m
+                            WHERE m.tenant_id = rt.tenant_id
+                              AND m.user_id = $8
+                              AND m.group_id::text = rt.subject_id
+                              AND m.deleted_at IS NULL
+                              AND (m.expires_at IS NULL OR m.expires_at > now())
+                         ))
+                   )
+             )",
+    )
+    .bind(ctx.tenant_id)
+    .bind(object_type)
+    .bind(ids)
+    .bind(candidate_relation_codes(relation))
+    .bind(ctx.user_id.to_string())
+    .bind(&ctx.role)
+    .bind(&dept_strs)
+    .bind(ctx.user_id)
+    .bind(view_arrow(object_type, relation))
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows.into_iter().collect())
 }
 
 /// The tuple relations that satisfy a check for `relation` — the enum
