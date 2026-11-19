@@ -88,7 +88,7 @@ pub async fn run_action(
                 ..Default::default()
             };
             let rows = act(&gate, call, async |tx| {
-                medbrains_opd::queue_rows(tx, claims, &params).await
+                medbrains_opd::record_access::withhold_queue(state, tx, claims, &params).await
             });
             reply(rows.await?)
         }

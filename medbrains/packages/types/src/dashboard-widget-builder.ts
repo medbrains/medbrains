@@ -899,6 +899,14 @@ export interface OpdQueue {
 
 export type QueueRowKind = "primary" | "cross_consult" | "returned";
 
+/**
+ * Whether the caller may read a worklist row's clinical content. `withheld`:
+ * the visit is outside their care, so its clinical fields arrive empty.
+ * `unknown`: the access check could not be answered; also empty, and the
+ * screen must say it could not check rather than show "not recorded".
+ */
+export type RecordAccess = "allowed" | "withheld" | "unknown";
+
 export interface QueueEntry {
   id: string;
   encounter_id: string;
@@ -951,6 +959,8 @@ export interface QueueEntry {
   referral_reason: string | null;
   /** `auto_inactivity` when OPD closed the visit on its own; null when a person did. */
   close_reason: string | null;
+  /** Withheld rows carry no complaint or reasons; see `RecordAccess`. */
+  access: RecordAccess;
 }
 
 export interface EncounterListResponse {

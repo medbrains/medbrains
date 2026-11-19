@@ -1944,6 +1944,11 @@ export function ReferralTrackingTab() {
 
   return (
     <Stack>
+      {/* The server returns only referrals the caller sent or received, or that
+          involve their department: a referral is the business of its two sides. */}
+      <Text size="xs" c="dimmed">
+        Referrals you sent or received, and those to or from your departments.
+      </Text>
       <Group mb="md">
         <SegmentedControl
           aria-label="Which referrals"
@@ -1952,7 +1957,7 @@ export function ReferralTrackingTab() {
           data={[
             { value: "for_me", label: "For me" },
             { value: "sent", label: "Sent by me" },
-            { value: "all", label: "All" },
+            { value: "all", label: "My departments" },
           ]}
         />
         <Select
