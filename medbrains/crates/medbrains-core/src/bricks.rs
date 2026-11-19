@@ -27,7 +27,14 @@ pub struct Brick {
     pub add_on: bool,
     /// Editions (`tenants.hospital_type`) that start with it on. `None` means every edition.
     pub editions: Option<&'static [&'static str]>,
+    /// The Settings sections (`pages/admin/settings.tsx` tab values) this brick plugs in; they
+    /// are hidden while it is off.
+    pub settings: &'static [&'static str],
 }
+
+/// The version of the brick manifest schema written to the web (`BRICK_MANIFEST_VERSION`).
+/// Raise it when a manifest field is added, removed or changes meaning.
+pub const MANIFEST_VERSION: u32 = 1;
 
 /// Every named edition, standalone clinics included.
 const EVERY_EDITION: &[&str] = &[
@@ -66,6 +73,15 @@ const fn brick(
         permission_groups,
         add_on: false,
         editions,
+        settings: &[],
+    }
+}
+
+impl Brick {
+    /// The same brick with the Settings sections it plugs in; keeps a table row one line.
+    #[must_use]
+    pub const fn with_settings(self, settings: &'static [&'static str]) -> Self {
+        Self { settings, ..self }
     }
 }
 
@@ -73,11 +89,11 @@ const fn brick(
 #[rustfmt::skip]
 pub const BRICKS: &[Brick] = &[
     brick("registration", "Patient Registration", &[], &["patients", "front_office", "consent"], None),
-    brick("billing", "Billing & Finance", &["registration"], &["billing", "insurance", "patient_packages", "doctor_payouts"], None),
-    brick("opd", "OPD / Outpatient", &["registration"], &["opd", "doctor", "scheduling", "order_basket", "clinical_notes", "notes", "chronic"], Some(EVERY_EDITION)),
-    brick("ipd", "IPD / Inpatient", &["registration"], &["ipd", "bedside", "icu", "case_mgmt", "ur", "mrd"], Some(PUBLIC)),
-    brick("lab", "Laboratory (LIS)", &["registration"], &["lab"], Some(EVERY_EDITION)),
-    brick("pharmacy", "Pharmacy", &["registration"], &["pharmacy", "pharmacy_finance", "pharmacy_improvements"], Some(EVERY_EDITION)),
+    brick("billing", "Billing & Finance", &["registration"], &["billing", "insurance", "patient_packages", "doctor_payouts"], None).with_settings(&["billing", "payment-terminals", "payment-exceptions"]),
+    brick("opd", "OPD / Outpatient", &["registration"], &["opd", "doctor", "scheduling", "order_basket", "clinical_notes", "notes", "chronic"], Some(EVERY_EDITION)).with_settings(&["consultation-templates"]),
+    brick("ipd", "IPD / Inpatient", &["registration"], &["ipd", "bedside", "icu", "case_mgmt", "ur", "mrd"], Some(PUBLIC)).with_settings(&["bed-types", "early-warning"]),
+    brick("lab", "Laboratory (LIS)", &["registration"], &["lab"], Some(EVERY_EDITION)).with_settings(&["critical-values"]),
+    brick("pharmacy", "Pharmacy", &["registration"], &["pharmacy", "pharmacy_finance", "pharmacy_improvements"], Some(EVERY_EDITION)).with_settings(&["drug-interactions"]),
     brick("radiology", "Radiology (RIS)", &["registration"], &["radiology"], Some(PUBLIC)),
     brick("blood_bank", "Blood Bank", &["registration", "lab"], &["blood_bank"], Some(FULL)),
     brick("ot", "Operation Theatre", &["registration", "ipd"], &["ot", "cssd"], Some(&["multi_specialty", "medical_college", "eye_hospital", "dental_college"])),
@@ -97,7 +113,7 @@ pub const BRICKS: &[Brick] = &[
     brick("pmr", "Physical Medicine & Rehabilitation", &["registration", "opd"], &["specialty.pmr"], Some(FULL)),
     brick("specialty_other", "Other Specialties", &["registration", "opd"], &["specialty.other", "specialty.health_packages", "specialty.clinical_trials"], Some(FULL)),
     brick("flow", "MedBrains Flow", &["opd"], &["flow", "flows", "automation"], Some(&[])),
-    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), },
+    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), settings: &[] },
 ];
 
 /// A background job that serves only some bricks.
@@ -300,6 +316,17 @@ mod tests {
                     "cycle through {id}"
                 );
             }
+        }
+    }
+
+    /// A Settings section hides with its brick, so two owners would leave it shown or hidden
+    /// by whichever was read last.
+    #[test]
+    fn each_settings_section_has_one_brick() {
+        let mut seen: Vec<&str> = Vec::new();
+        for key in BRICKS.iter().flat_map(|b| b.settings) {
+            assert!(!seen.contains(key), "{key} claimed twice");
+            seen.push(key);
         }
     }
 

@@ -1,4 +1,4 @@
-import { BRICK_NAMES } from "@medbrains/types";
+import { BRICK_MANIFESTS } from "@medbrains/types";
 import { IconApps, IconArrowLeft, IconHome } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui";
@@ -16,7 +16,7 @@ interface AppNotInstalledPageProps {
  */
 export function AppNotInstalledPage({ brick }: AppNotInstalledPageProps) {
   const navigate = useNavigate();
-  const name = BRICK_NAMES[brick] ?? "This app";
+  const name = BRICK_MANIFESTS[brick]?.name ?? "This app";
   return (
     <ErrorScreen
       eyebrow="Not installed"

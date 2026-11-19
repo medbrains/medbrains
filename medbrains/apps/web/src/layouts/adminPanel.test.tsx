@@ -1,5 +1,5 @@
 import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
-import { APP_SCREENS, BRICK_NAMES } from "@medbrains/types";
+import { APP_SCREENS, BRICK_MANIFESTS } from "@medbrains/types";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { Route, Routes } from "react-router";
@@ -26,7 +26,7 @@ vi.mock("@/components/LiveActivityIsland/EmergencyCodeActivity", () => ({
 vi.mock("./OnDemandOverlays", () => ({ OnDemandOverlays: () => null }));
 
 /** Every brick but `on`, as Rishi Hospital runs: Registration and OPD only. */
-const offExcept = (...on: string[]) => Object.keys(BRICK_NAMES).filter((b) => !on.includes(b));
+const offExcept = (...on: string[]) => Object.keys(BRICK_MANIFESTS).filter((b) => !on.includes(b));
 
 /** Administration's paths an all-permission viewer sees with `off` bricks, usual and Advanced. */
 function adminPaths(off: string[], showDevScreens = false) {

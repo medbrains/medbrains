@@ -90,6 +90,20 @@ Setup asks which apps the hospital needs, and installs only those bricks with th
 - **Can grow later:** adding an app from the Software Center (O14) installs its brick and dependencies on the machines whose roles fit, with no reinstall.
 - **Shows the same everywhere:** web, OS launcher, edge machines and native apps all read the one installed set, then the person's permissions.
 
+## The manifest (2026-11-19)
+
+Each brick has one manifest, assembled from the tables that already declare it and written to the web as `BRICK_MANIFESTS` (`packages/types/src/app-screens.generated.ts`, schema version `BRICK_MANIFEST_VERSION`, from `bricks::MANIFEST_VERSION`):
+
+| Field | Declared in |
+|---|---|
+| `id`, `name`, `dependsOn`, `permissionGroups` | the brick's row in `bricks.rs` |
+| `settings`: the Settings sections it plugs in (hidden while it is off) | `Brick::settings`, set with `.with_settings(&[...])` |
+| `backgroundJobs` | the `BRICK_JOBS` rows that list the brick (a job may serve several) |
+| `icon`, `screens` (route + permission + any-of) | its rows in `access/screens.rs` |
+| `actions` (id + permission + data classes), `dataClasses` | its rows in `medbrains-health-services/src/actions.rs` |
+
+Regenerate with `python3 scripts/generate_app_screens.py`; `make check-app-screens` fails when the copy is stale or the tables disagree: a screen or action naming no brick, a screen with no permission (only the personal `/approvals` inbox is exempt), an unknown action permission, or a Settings section unknown to `apps/web/src/config/settings-tabs.ts` or claimed twice. Raise `MANIFEST_VERSION` when a field is added, removed or changes meaning.
+
 ## The web launcher (2026-11-16)
 
 The web home after sign-in is `/home` (`apps/web/src/pages/launcher.tsx`). It shows the person's **Favourites**, then **Your apps**: one tile per brick in which they can open at least one screen, named from `bricks.rs` (served by `GET /api/users/me/launcher`). A screen counts by the side panel's rule, `isItemVisible` in `apps/web/src/features/launcher/launcherModel.ts`: its permission, any one of its alternative permissions, its brick on, and its parent entry visible. Apps the person cannot use are hidden, never greyed. Administration belongs to no brick, so it is not an app, but anyone who can open an Administration screen gets an Administration tile, so someone whose work is all there is not told nothing is set up. Someone with exactly one app and no Administration goes straight into the app: after sign-in, and from the logo too, because both lead to `/home`.
