@@ -439,6 +439,17 @@ each egress (§6.5). Admin → Extensions shows, per extension, its activity ove
    it cannot rebuild. Option B, certified tier only, one process per driver, with the profile
    generated from the manifest and `systemd-analyze security` in the certification check (SEC5).
 3. **Apps and cloud connectors stay outside services** (option C, built today).
+4. **Rule (owner, 2026-11-19): vendor code never runs native inside a MedBrains process.** No
+   vendor `.so`, Rust crate or native plugin is ever linked into or loaded by the server, the
+   kernel or a host. Vendor code runs only as a WebAssembly component (point 1), or, in the
+   certified native tier, as its own sandboxed process (point 2), or as an outside service
+   (point 3). Why: we cannot prove a vendor's code, toolchain or dependencies are honest (Ken
+   Thompson, "Reflections on Trusting Trust", 1984: a backdoor can live where no source review
+   finds it), and even safe Rust has had soundness bugs that allow use-after-free without `unsafe`
+   (rust-lang/rust#164250, open since 2026-10, present since Rust 1.0). So we do not trust vendor
+   code; we bound it: it can use only the doors its manifest was granted, every call goes through
+   the action broker and the audit log, and a bug or backdoor inside it cannot reach patient data
+   it was not handed. What this does not cover, our own compiler and build, is §6.4.
 
 **What must be measured before this is final** (OS-PRINCIPLES §7.7, "algorithms need proof"): the
 runtime. Two candidates: **wasmtime** (component model, fast, larger; the code executor says the
@@ -476,6 +487,12 @@ is size. **DECIDE 1** covers the choice of approach; the runtime follows from th
 - **Kill switch, three levels:** the hospital revokes one extension (exists for connected apps);
   MedBrains or the publisher revokes a version for everyone through the revocation list; lockdown
   mode (`RFC-HOSPITAL-OS` §8j) turns off everything except pinned certified extensions.
+
+**Our own build (the other half of Trusting Trust).** Sandboxing protects us from vendor code,
+not from a compromised compiler or build machine of ours. Planned: reproducible release builds,
+where a second, independent builder must produce byte-identical artefacts before a release is
+signed; the Rust toolchain pinned by version and checksum; and signed build provenance (SLSA)
+published with each release beside the existing signatures and SBOMs.
 
 ### 6.5 Data-egress guard
 
