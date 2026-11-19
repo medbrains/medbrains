@@ -49,8 +49,12 @@ variable "target_pod_port" {
 
 variable "allowed_cidrs" {
   type        = list(string)
-  default     = ["0.0.0.0/0"]
-  description = "Restrict to known hospital WAN egress IPs once they sign on"
+  default     = []
+  description = "Hospital WAN egress IPs allowed to open a bridge. Empty (the default) admits no one; add each hospital as it signs on."
+  validation {
+    condition     = !contains(var.allowed_cidrs, "0.0.0.0/0") && !contains(var.allowed_cidrs, "::/0")
+    error_message = "List the hospitals' WAN addresses; the bridge must not accept connections from the whole internet."
+  }
 }
 
 variable "deletion_protection" {
@@ -70,12 +74,15 @@ resource "aws_security_group" "alb" {
   description = "Bridge fallback ALB - 443 inbound from hospital WAN"
   vpc_id      = var.vpc_id
 
-  ingress {
-    description = "WSS from hospital WAN"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_cidrs
+  dynamic "ingress" {
+    for_each = length(var.allowed_cidrs) > 0 ? [1] : []
+    content {
+      description = "WSS from hospital WAN"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = var.allowed_cidrs
+    }
   }
   egress {
     description = "To medbrains-server pod targets"

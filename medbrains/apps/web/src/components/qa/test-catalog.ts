@@ -3,6 +3,7 @@
  * scripts/generate_role_test_cases.py writes them to the workbook: same ids,
  * same rules, same words. Results are stored against these ids.
  */
+import { BRICK_MANIFESTS } from "@medbrains/types";
 import type { TFunction } from "i18next";
 import { NAV_GROUPS, type NavItemConfig } from "@/config/navigation";
 import workflows from "@/data/role-workflows.json";
@@ -39,19 +40,21 @@ const SENSITIVE = [
   "/hr/payroll",
 ];
 
-const groupKey = (key: string) => `group${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+/** A menu group's heading: an app's name, or the core and Administration labels. */
+const groupLabel = (key: string, t: TFunction) =>
+  BRICK_MANIFESTS[key]?.name ?? t(`group${key.charAt(0).toUpperCase()}${key.slice(1)}`);
 
 function menu(t: TFunction): MenuEntry[] {
   return NAV_GROUPS.flatMap((group) =>
     group.items.flatMap((item): MenuEntry[] =>
       item.children?.length
         ? item.children.map((child) => ({
-            group: t(groupKey(group.key)),
+            group: groupLabel(group.key, t),
             parent: t(item.i18nKey),
             label: t(child.i18nKey),
             item: child,
           }))
-        : [{ group: t(groupKey(group.key)), parent: null, label: t(item.i18nKey), item }],
+        : [{ group: groupLabel(group.key, t), parent: null, label: t(item.i18nKey), item }],
     ),
   );
 }

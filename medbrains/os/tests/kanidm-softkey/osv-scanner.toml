@@ -1,0 +1,30 @@
+# Accepted advisories for the Kanidm WebAuthn test tool. It runs against a booted test image
+# only, sits outside the workspace (so deny.toml does not cover it), and never ships.
+# osv-scanner reads this file for the Cargo.lock beside it; `ignoreUntil` makes each entry
+# lapse on its own, so an expired accept shows up as an open alert again.
+
+# rsa 0.10.0-rc.19 via crypto-glue 0.2.2 (latest), required by Kanidm's client and webauthn-rs.
+# rsa 0.10.0 fixes the Marvin timing leak but drops the `sha2` feature crypto-glue asks for,
+# so cargo cannot select it. The tool only verifies attestation from its own software keys on
+# a test network; no attacker times its decryptions. Clears when crypto-glue moves to rsa 0.10.
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+ignoreUntil = 2026-12-19
+reason = "rsa Marvin timing (alias CVE-2023-49092): test-only tool, fix blocked on crypto-glue"
+
+[[IgnoredVulns]]
+id = "CVE-2023-49092"
+ignoreUntil = 2026-12-19
+reason = "Alias of RUSTSEC-2023-0071, listed so the scanner's alert closes under either id"
+
+# smartstring 1.0.1 via kanidm_proto at the pinned Kanidm revision: unmaintained, no fix.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0249"
+ignoreUntil = 2026-12-19
+reason = "smartstring unmaintained, pulled by kanidm_proto; test-only tool"
+
+# chrono unmaintained, same notice the workspace accepts in deny.toml (owner 2026-11-19).
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0543"
+ignoreUntil = 2026-12-19
+reason = "chrono unmaintained notice, not a vulnerability; test-only tool"

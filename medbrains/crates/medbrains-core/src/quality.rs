@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::quality_target::IndicatorDirection;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "document_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -117,8 +119,8 @@ pub struct QualityIndicator {
     pub threshold_critical: Option<Decimal>,
     pub benchmark_national: Option<Decimal>,
     pub benchmark_international: Option<Decimal>,
-    pub auto_calculated: bool,
-    pub calculation_query: Option<String>,
+    /// `None` until the quality manager says which way meets the target.
+    pub direction: Option<IndicatorDirection>,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

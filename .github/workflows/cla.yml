@@ -1,38 +1,59 @@
-# Asks every outside contributor to sign CLA.md before their pull request can merge.
-# Signatures are stored in signatures/cla.json on the cla-signatures branch of this repo.
-# pull_request_target is used so the bot can comment on PRs from forks; this workflow
-# never checks out or runs code from the pull request.
+# Checks that the author of every pull request has signed CLA.md.
+#
+# A contributor signs by adding their own line to signatures/cla.txt in their pull request;
+# the commit from their account is the record. This job runs on `pull_request` with a
+# read-only token: it reads one text file from the checkout and never runs pull-request code,
+# so a pull request from a fork gets no secret and no write access.
 name: CLA
 
 on:
-  issue_comment:
-    types: [created]
-  pull_request_target:
-    types: [opened, closed, synchronize]
+  pull_request:
+    types: [opened, synchronize, reopened]
 
-permissions:
-  contents: write # commit signatures to the cla-signatures branch
-  pull-requests: write # comment on the pull request
-  statuses: write # set the CLA status on the pull request
-  actions: write # re-run the check after a contributor signs
+permissions: {}
 
 jobs:
   cla:
     name: CLA signed
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'pull_request_target' ||
-      (github.event.issue.pull_request &&
-        (github.event.comment.body == 'recheck' ||
-         github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
+    timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # fetch-depth 2: the merge commit and both parents, so HEAD^1 is the base branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path-to-signatures: signatures/cla.json
-          path-to-document: https://github.com/medbrains/medbrains/blob/main/CLA.md
-          branch: cla-signatures
-          allowlist: DomnicAmalan,Domnic-Alagappa,dependabot[bot]
-          # Keep merged pull requests open for follow-up discussion.
-          lock-pullrequest-aftermerge: false
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Check the author's signature
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          # Maintainers and bots whose pull requests need no signature.
+          ALLOWLIST: domnicamalan domnic-alagappa dependabot[bot]
+          FILE: signatures/cla.txt
+        run: |
+          author=$(printf '%s' "$AUTHOR" | tr '[:upper:]' '[:lower:]')
+          for allowed in $ALLOWLIST; do
+            [ "$allowed" = "$author" ] && { echo "$AUTHOR is on the allowlist."; exit 0; }
+          done
+          # A pull request may only add its author's own line to the file, nothing else.
+          others=$(git diff --unified=0 HEAD^1 HEAD -- "$FILE" \
+            | awk -v a="$author" '/^(\+\+\+|---)/ { next }
+                /^[+-]/ { f = tolower(substr($1, 2)); if (substr($0, 1, 1) != "+" || f != a) print }')
+          if [ -n "$others" ]; then
+            echo "::error file=$FILE::This pull request changes signature lines that are not its author's own."
+            exit 1
+          fi
+          if awk '!/^#/ && NF { print tolower($1) }' "$FILE" | grep -qxF -- "$author"; then
+            echo "$AUTHOR has signed the CLA."
+            exit 0
+          fi
+          {
+            echo "### Please sign the contributor licence agreement"
+            echo "Read [CLA.md](https://github.com/medbrains/medbrains/blob/main/CLA.md), then add this line"
+            echo "to \`$FILE\` in this pull request and push:"
+            echo
+            echo "    $AUTHOR $(date -u +%F)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error file=$FILE::$AUTHOR has not signed the CLA yet. See the job summary for how to sign."
+          exit 1

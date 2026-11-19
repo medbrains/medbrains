@@ -48,14 +48,15 @@ import type {
   ResolvedOpdQueueRowAction,
 } from "../opd-queue-actions";
 import { resolveOpdQueueRowActions } from "../opd-queue-actions";
+import { OpdHeaderPolicies } from "./auto-close-select";
 import { isStaleRowError } from "./queue-action-error";
 import {
   QueueAppointmentMarker,
   QueuePatientCell,
+  QueueRowPrintMenu,
   QueueVisitTypeBadge,
   QueueVitalsCell,
 } from "./queue-cells";
-import { OpdRegistrationPolicyToggle } from "./registration-policy-toggle";
 import {
   appointmentVisitType,
   type OpdTranslate,
@@ -440,11 +441,9 @@ export function OpdPageInner() {
       // which door.
       render: (row: QueueEntry) => {
         const room = row.token_counter_label ?? row.token_room;
-        return room ? (
-          <Text size="sm">{room}</Text>
-        ) : (
-          <Text size="sm" c="dimmed">
-            —
+        return (
+          <Text size="sm" c={room ? undefined : "dimmed"}>
+            {room || "—"}
           </Text>
         );
       },
@@ -494,7 +493,7 @@ export function OpdPageInner() {
       render: (row: QueueEntry) => (
         <OperationalSignal
           icon={queueStatusIcon(row.status)}
-          label={queueStatusLabel(t, row.status)}
+          label={queueStatusLabel(t, row.status, row.close_reason)}
           shape={queueStatusShape(row.status)}
           tone={queueStatusTone(row.status)}
         />
@@ -515,6 +514,7 @@ export function OpdPageInner() {
           {resolveOpdQueueRowActions(row, queueActionPermissions).map((action) =>
             renderQueueAction(action, row),
           )}
+          <QueueRowPrintMenu row={row} />
         </Group>
       ),
     },
@@ -538,7 +538,7 @@ export function OpdPageInner() {
         color="primary"
         actions={
           <Group gap="sm">
-            <OpdRegistrationPolicyToggle />
+            <OpdHeaderPolicies />
             {canCreate ? (
               <Button
                 tone="primary"

@@ -39,7 +39,7 @@ async fn deactivating_a_doctor_keeps_their_registration_and_departments() {
         json!({
             "username": format!("partial_{tag}"),
             "email": format!("partial_{tag}@example.test"),
-            "password": format!("Partial#{tag}Aa9"),
+            "password": format!("Partial#Key{tag}Aa9"),
             "full_name": "Partial Update Doctor",
             "role": "doctor",
             "specialization": "Cardiology",

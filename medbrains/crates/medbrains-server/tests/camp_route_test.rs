@@ -310,7 +310,7 @@ async fn the_camp_team_reads_its_stations_but_not_the_opd_queue() {
     let csrf = app.login_admin().await;
     let suffix = Uuid::new_v4().simple().to_string()[..8].to_lowercase();
     let username = format!("camp_team_{suffix}");
-    let password = format!("CampTeam#{suffix}Aa9");
+    let password = format!("CampTeam#Key{suffix}Aa9");
     let (status, body) = post(
         &app,
         &csrf,
@@ -397,7 +397,7 @@ async fn the_camp_team_links_the_record_it_registered_and_no_other() {
     let csrf = app.login_admin().await;
     let suffix = Uuid::new_v4().simple().to_string()[..8].to_lowercase();
     let username = format!("camp_link_{suffix}");
-    let password = format!("CampLink#{suffix}Aa9");
+    let password = format!("CampLink#Key{suffix}Aa9");
     let (status, body) = post(
         &app,
         &csrf,

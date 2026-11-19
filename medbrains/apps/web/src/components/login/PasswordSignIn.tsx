@@ -60,7 +60,7 @@ export function PasswordSignIn({ hospitalCode }: PasswordSignInProps) {
         }),
       );
       setPermissions(data.user.role, data.permissions, data.field_access);
-      void navigate("/dashboard");
+      void navigate("/home");
     },
   });
 

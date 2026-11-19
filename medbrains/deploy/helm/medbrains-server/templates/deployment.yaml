@@ -24,6 +24,8 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "medbrains-server.serviceAccountName" . }}
+      # The server never calls the Kubernetes API; no token to steal.
+      automountServiceAccountToken: false
       {{- with .Values.image.pullSecretName }}
       imagePullSecrets:
         - name: {{ . }}

@@ -16,9 +16,10 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -198,10 +199,9 @@ pub async fn get_dpdp_consent(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientDpdpConsent>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let consent = read(&mut tx, claims.tenant_id, patient_id).await?;
     tx.commit().await?;
     Ok(Json(consent))
@@ -216,11 +216,10 @@ pub async fn set_dpdp_consent(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<DpdpConsentInput>,
 ) -> Result<Json<PatientDpdpConsent>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
     body.validate()?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     insert(
         &mut tx,
         (claims.tenant_id, patient_id, claims.sub),
