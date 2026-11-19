@@ -77,7 +77,9 @@ pub const RADIOLOGY: Kind = Kind {
 };
 
 /// Run both escalation passes forever on the worker pool.
-pub fn spawn(pool: PgPool, resolver: Arc<dyn SecretResolver>) {
+///
+/// Returns the task, so the brick-job supervisor can stop it when its brick goes off.
+pub fn spawn(pool: PgPool, resolver: Arc<dyn SecretResolver>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             for kind in [&LAB, &RADIOLOGY] {
@@ -97,7 +99,7 @@ pub fn spawn(pool: PgPool, resolver: Arc<dyn SecretResolver>) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }
 
 #[derive(sqlx::FromRow)]
