@@ -19,13 +19,11 @@ pub mod state;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
-use medbrains_core::permissions;
+use medbrains_core::permissions::pharmacy::fulfilment;
 use medbrains_pharmacy::{dispense_context, rx_safety, schedule_gate};
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{
-    require_any_permission, require_permission,
-};
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::{auth::Claims, authorization};
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -247,7 +245,7 @@ pub async fn fulfilment_queue(
     Extension(claims): Extension<Claims>,
     Query(query): Query<QueueQuery>,
 ) -> Result<Json<Vec<QueueRow>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::PICK)?;
+    require_permission(&claims, fulfilment::PICK)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -326,13 +324,7 @@ pub async fn pick_list(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<PickLine>>, AppError> {
-    require_any_permission(
-        &claims,
-        &[
-            permissions::pharmacy::fulfilment::PICK,
-            permissions::pharmacy::fulfilment::VERIFY,
-        ],
-    )?;
+    authorization::require_any_permission(&claims, &[fulfilment::PICK, fulfilment::VERIFY])?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -498,7 +490,7 @@ pub async fn claim_order(
     Path(id): Path<Uuid>,
     body: Option<Json<ClaimRequest>>,
 ) -> Result<Json<StageResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::PICK)?;
+    require_permission(&claims, fulfilment::PICK)?;
     let claim = body.as_ref().map(|Json(b)| b);
     simple_transition(&state, &claims, id, Stage::Picking, claim).await
 }
@@ -540,7 +532,7 @@ pub async fn pack_order(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<StageResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::PACK)?;
+    require_permission(&claims, fulfilment::PACK)?;
     simple_transition(&state, &claims, id, Stage::Packed, None).await
 }
 
@@ -554,7 +546,7 @@ pub async fn mark_verified(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<StageResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::VERIFY)?;
+    require_permission(&claims, fulfilment::VERIFY)?;
     simple_transition(&state, &claims, id, Stage::Verified, None).await
 }
 
@@ -564,7 +556,7 @@ pub async fn mark_ready(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<StageResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::DISPATCH)?;
+    require_permission(&claims, fulfilment::DISPATCH)?;
     simple_transition(&state, &claims, id, Stage::Ready, None).await
 }
 
@@ -666,7 +658,7 @@ pub async fn verify_line(
     Path(id): Path<Uuid>,
     Json(body): Json<VerifyLineRequest>,
 ) -> Result<Json<VerifyLineResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::VERIFY)?;
+    require_permission(&claims, fulfilment::VERIFY)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -777,7 +769,7 @@ pub async fn collect_order(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CollectRequest>,
 ) -> Result<Json<StageResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::DISPATCH)?;
+    require_permission(&claims, fulfilment::DISPATCH)?;
     simple_transition(&state, &claims, body.order_id, Stage::Collected, None).await
 }
 
@@ -801,7 +793,7 @@ pub async fn release_order(
     Path(id): Path<Uuid>,
     Json(body): Json<ReleaseRequest>,
 ) -> Result<Json<StageResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::RELEASE)?;
+    require_permission(&claims, fulfilment::RELEASE)?;
 
     let reason = body.reason.trim();
     if reason.is_empty() {
@@ -878,7 +870,7 @@ pub async fn cancel_order(
     Path(id): Path<Uuid>,
     Json(body): Json<CancelRequest>,
 ) -> Result<Json<StageResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::fulfilment::RELEASE)?;
+    require_permission(&claims, fulfilment::RELEASE)?;
 
     let reason = body.reason.trim();
     if reason.is_empty() {
