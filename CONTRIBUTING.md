@@ -60,7 +60,7 @@ pnpm exec playwright test e2e/journeys/access-alerts.spec.ts  # one file
 pnpm exec playwright test --ui           # watch them run
 ```
 
-CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into `main`, a `release/**` or a `hotfix/**` branch, and nightly on `main`. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
+CI runs the same suite (`.github/workflows/e2e.yml`) on every pull request into `main`, a `release/**` or a `hotfix/**` branch, on every push to `main` and `release/**`, and nightly on `main`. A pull request runs only the projects its changed paths need: `medbrains/apps/web/e2e/path-projects.json` maps globs to projects (first match wins), `python3 medbrains/scripts/e2e_select.py --check` validates it, and a path no rule matches runs everything. A docs-only change runs nothing; a server-only change runs every project except the mocked one. Pushes and the nightly always run everything. The six shards are cut by measured duration, not test count (`medbrains/scripts/e2e_shards.py`, weights in `e2e/timings.json`). To rebalance, copy the `e2e-timings` artifact of a full run over that file and commit it. A file whose tests are independent can say `test.describe.configure({ mode: "parallel" })`, and its tests are then shared out one by one. It is report-only for now: a failing journey shows in the "Playwright results" check and the PR comment, with the HTML report, traces and videos in the `playwright-report` artifact, but does not block the merge.
 
 ### The test report
 
