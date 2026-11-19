@@ -7775,6 +7775,7 @@ dependencies = [
  "medbrains-outbox",
  "medbrains-payment-gateway",
  "medbrains-pharmacy-delivery",
+ "medbrains-pharmacy-finance",
  "medbrains-server-core",
  "medbrains-server-services",
  "medbrains-telehealth",

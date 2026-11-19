@@ -18,6 +18,13 @@ import {
 } from "./support/pos-counter";
 import { expect, test } from "./support/world";
 
+/**
+ * A GST credit note number: the legal entity's receipt prefix, `C`, the
+ * financial year's two digits and a five-digit sequence, in at most 16
+ * characters (CGST Rules 2017, Rules 46(b) and 53(1A)): up to 8 + 1 + 2 + 5.
+ */
+const CREDIT_NOTE = /^Credit note (\S{0,8}C\d{2}\d{5})$/;
+
 function saleNumber(text: string): string {
   return /PH-SALE-[\w-]+/.exec(text)?.[0] ?? "";
 }
@@ -63,7 +70,7 @@ test("a customer returns one strip against the receipt and is refunded on a cred
   await dialog.getByRole("textbox", { name: "Reason for the return" }).fill("Bought one too many");
   await dialog.getByRole("button", { name: "Take return" }).click();
 
-  const note = page.getByRole("dialog", { name: /Credit note CN-/ });
+  const note = page.getByRole("dialog", { name: CREDIT_NOTE });
   await expect(note.getByText("Refund ₹12.00")).toBeVisible();
   await expect(note.getByText("CASH: ₹12.00")).toBeVisible();
   await expect(note.getByText("Back to stock")).toBeVisible();

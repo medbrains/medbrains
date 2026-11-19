@@ -269,8 +269,13 @@ pub async fn receive(
         .iter()
         .map(|l| l.unit_price * Decimal::from(l.quantity))
         .sum();
-    let credit_note =
-        crate::credit_notes::next_number(&mut tx, claims.tenant_id, invoice_id).await?;
+    let credit_note = medbrains_pharmacy_finance::note_series::next_number(
+        &mut tx,
+        claims.tenant_id,
+        invoice_id,
+        'C',
+    )
+    .await?;
     let note = body
         .note
         .as_deref()
