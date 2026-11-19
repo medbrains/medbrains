@@ -6834,6 +6834,7 @@ name = "medbrains-health-services"
 version = "3.35.2"
 dependencies = [
  "medbrains-authz-gate",
+ "medbrains-core",
  "medbrains-kernel",
  "sqlx",
  "tokio",

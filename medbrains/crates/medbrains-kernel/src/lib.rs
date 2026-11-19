@@ -30,6 +30,7 @@
 //! HTTP. `medbrains-server-core` sits above the kernel and maps [`KernelError`]
 //! to a response.
 
+pub mod action;
 pub mod audit;
 pub mod authz;
 pub mod bounds;

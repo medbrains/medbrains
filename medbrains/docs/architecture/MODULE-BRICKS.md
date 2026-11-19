@@ -21,6 +21,7 @@ A brick touches the rest of the system only through these, so it can be added, r
 3. **Events** through the outbox, for anything another brick needs to react to.
 4. **Opening another brick** by id through the shell or router, for example from a prescription to the patient's EMR. A brick never imports another brick's code on any layer.
 5. **Its manifest,** which the Software Center reads to turn it on or off with the bricks it depends on.
+6. **Its actions:** typed operations (`patients.find`, `opd.queue.today`) a person or the assistant runs through the kernel's one broker, checked for the brick being on, the effect, the permission and audited. See `ACTIONS.md`.
 
 ## Rules
 

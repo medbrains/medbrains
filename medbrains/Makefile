@@ -353,7 +353,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-app-screens check-shell-theme check-raw-key-bytes check-web-size check-rust-size check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-actions check-app-screens check-shell-theme check-raw-key-bytes check-web-size check-rust-size check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -555,6 +555,9 @@ check-rls-only-writes: ## Ratchet writes keyed only on a caller-supplied id
 
 check-bricks: ## Every module name comes from bricks.rs; ratchets bricks with no server check
 	python3 ../scripts/check_bricks.py
+
+check-actions: ## Every typed action names a brick, a permission constant and its own id
+	python3 ../scripts/check_actions.py
 
 check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
 	python3 ../scripts/check_tenant_leak.py
