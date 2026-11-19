@@ -116,6 +116,14 @@ Every screen lives in one registry, `crates/medbrains-core/src/access/screens.rs
 
 Inside an app the side panel (`apps/web/src/layouts/appPanel.ts`) lists **only that app's screens** the person may open, under the app's name and icon, with an **All apps** link to `/home`. The app is the one owning the closest registered route above the current one (`/pharmacy/orders/42` is Pharmacy's, `/admin/doctor-schedules` is OPD's). A core screen, an unknown route, a switched-off app, or an app in which the person can open nothing shows the **core panel**: the core screens and Administration. The full menu is never shown; ⌘K search still covers every screen the person may open, with switched-off apps left out. Switching apps is the launcher's job, or search's, or favourites'. The shell also refuses a switched-off app's routes, whichever route reaches them (`AppRoute` with no `brick`).
 
+## The web loads only the apps a hospital has on (2026-11-19)
+
+`AUTHED_ROUTES` (`apps/web/src/AuthedRoutes.tsx`) is the whole signed-in route table; `AuthedApp` registers it through `enabledRoutes` (`layouts/appPanel.ts`), which drops every route a switched-off app owns: the app owning the closest screen-registry route above it, so the registry stays the one owner. A route that is not registered is never matched, so its code-split page is never downloaded; `preloadRoute` refuses a switched-off app's path too, and Settings hides the sections a switched-off app plugs in. Typing a switched-off app's address still lands on the shell guard (`AppRoute`), which shows **Not installed**, never a crash or a blank. `AuthedRoutes.test.tsx` fails if a route sits under no registry screen and is not a named shell route, because such a route would open with its app off; `e2e/mock/brick-loading.spec.ts` signs in a Registration + OPD front desk, counts the JavaScript fetched, and fails if Pharmacy's page chunk is requested.
+
+What this does **not** shrink: the shell already code-split every page, so a Registration + OPD session downloads the same ~1.8 MB on first load and ~2.4 MB after opening both apps as before. The weight that belongs to other apps sits in the monolithic `@medbrains/api` client (every module's methods, loaded by the shell) and in other apps' components the OPD and patient screens import directly (Lab, Radiology, Pharmacy, IPD, Billing, ~190 KB of source). Splitting the client per brick and turning those imports into plugged-in tabs are the next steps.
+
+If `/auth/me` cannot answer and this tab has no cached permissions, the signed-in app shows **We couldn't check your access** with a retry, never an empty launcher: an unknown answer is not "no apps".
+
 ## Bricks plug tabs into other bricks' screens (owner 2026-11-07)
 
 Some screens gather work from several apps: the patient record shows EMR, Billing, Lab and Pharmacy tabs. Each of those tabs belongs to its own brick, and is plugged in, never imported:
