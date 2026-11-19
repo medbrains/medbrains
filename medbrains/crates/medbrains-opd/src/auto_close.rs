@@ -61,7 +61,9 @@ pub fn minutes_from_setting(value: &serde_json::Value) -> Option<i32> {
 }
 
 /// Run the pass every five minutes, for the life of the server.
-pub fn spawn(state: AppState) {
+///
+/// Returns the task, so the brick-job supervisor can stop it when its brick goes off.
+pub fn spawn(state: AppState) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             if let Err(error) = run_pass(&state).await {
@@ -69,7 +71,7 @@ pub fn spawn(state: AppState) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }
 
 /// One pass over every active hospital. One hospital's failure is logged and

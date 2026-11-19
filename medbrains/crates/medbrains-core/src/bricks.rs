@@ -10,6 +10,8 @@
 //! listed in [`BASE_PLATE`] or [`NOT_YET_BRICKS`], so `scripts/check_bricks.py` can fail on a
 //! group nobody placed.
 
+use crate::permissions as p;
+
 /// One app brick.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Brick {
@@ -28,8 +30,6 @@ pub struct Brick {
     /// The Settings sections (`pages/admin/settings.tsx` tab values) this brick plugs in; they
     /// are hidden while it is off.
     pub settings: &'static [&'static str],
-    /// Background jobs the brick runs, by name. Reserved for brick-aware startup; empty today.
-    pub background_jobs: &'static [&'static str],
 }
 
 /// The version of the brick manifest schema written to the web (`BRICK_MANIFEST_VERSION`).
@@ -74,7 +74,6 @@ const fn brick(
         add_on: false,
         editions,
         settings: &[],
-        background_jobs: &[],
     }
 }
 
@@ -114,8 +113,60 @@ pub const BRICKS: &[Brick] = &[
     brick("pmr", "Physical Medicine & Rehabilitation", &["registration", "opd"], &["specialty.pmr"], Some(FULL)),
     brick("specialty_other", "Other Specialties", &["registration", "opd"], &["specialty.other", "specialty.health_packages", "specialty.clinical_trials"], Some(FULL)),
     brick("flow", "MedBrains Flow", &["opd"], &["flow", "flows", "automation"], Some(&[])),
-    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), settings: &[], background_jobs: &[] },
+    Brick { id: "companion", name: "Patient Companion", depends_on: &["registration"], permission_groups: &[], add_on: true, editions: Some(&[]), settings: &[] },
 ];
+
+/// A background job that serves only some bricks.
+///
+/// It runs while at least one hospital on this server has one of `bricks` on, and stops when none
+/// has (see `docs/architecture/MODULE-BRICKS.md`). Jobs every install needs whatever its bricks
+/// stay in the server's `PLATFORM_JOBS`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BrickJob {
+    /// The job's name in logs and on the Modules screen.
+    pub id: &'static str,
+    /// What it does, in the words the Modules screen shows.
+    pub label: &'static str,
+    /// The bricks it serves; any one of them on is enough. Patient-safety jobs list every brick
+    /// whose patients they protect, so switching one off never silences another's escalations.
+    pub bricks: &'static [&'static str],
+    /// The machine actor it runs as (`job:<id>`): the name its audit rows and authz decisions
+    /// carry. Declared now; enforcing it through the kernel is the follow-up in MODULE-BRICKS.md.
+    pub actor: &'static str,
+    /// The least permissions its passes need, as permission constants (a typo does not build).
+    pub permissions: &'static [&'static str],
+}
+
+/// Every brick-owned background job. `scripts/check_bricks.py` fails on a job the server starts
+/// that is neither here nor a platform job.
+#[rustfmt::skip]
+pub const BRICK_JOBS: &[BrickJob] = &[
+    BrickJob { id: "opd_auto_close", label: "Close finished OPD visits", bricks: &["opd"], actor: "job:opd_auto_close", permissions: &[p::opd::queue::VIEW, p::opd::visit::UPDATE] },
+    BrickJob { id: "appointment_reminders", label: "Appointment reminder SMS", bricks: &["opd"], actor: "job:appointment_reminders", permissions: &[p::opd::appointment::LIST, p::communications::messages::CREATE] },
+    BrickJob { id: "prescription_expiry", label: "Prescription expiry notices", bricks: &["opd", "ipd", "emergency", "pharmacy"], actor: "job:prescription_expiry", permissions: &[p::pharmacy::prescriptions::VIEW, p::communications::messages::CREATE] },
+    BrickJob { id: "verbal_order_escalation", label: "Unsigned verbal orders escalate", bricks: &["opd", "ipd", "emergency"], actor: "job:verbal_order_escalation", permissions: &[p::pharmacy::prescriptions::VIEW, p::communications::alerts::CREATE] },
+    BrickJob { id: "room_rent", label: "Daily room rent", bricks: &["ipd"], actor: "job:room_rent", permissions: &[p::ipd::admissions::VIEW, p::billing::invoices::UPDATE] },
+    BrickJob { id: "mrd_file_requests", label: "Late MRD file requests", bricks: &["ipd"], actor: "job:mrd_file_requests", permissions: &[p::mrd::file_request::SUPERVISE, p::mrd::file_request::CREATE] },
+    BrickJob { id: "nurse_call_escalation", label: "Unanswered nurse calls escalate", bricks: &["ipd", "nursing"], actor: "job:nurse_call_escalation", permissions: &[p::ipd::admissions::VIEW, p::communications::alerts::CREATE] },
+    BrickJob { id: "ews_escalation", label: "Early-warning scores escalate", bricks: &["ipd", "nursing", "emergency"], actor: "job:ews_escalation", permissions: &[p::nurse::ews::VIEW, p::communications::alerts::CREATE] },
+    BrickJob { id: "restraint_observation_escalation", label: "Restraint checks escalate", bricks: &["ipd", "emergency", "psychiatry"], actor: "job:restraint_observation_escalation", permissions: &[p::nurse::restraint::VIEW, p::communications::alerts::CREATE] },
+    BrickJob { id: "critical_alert_escalation", label: "Critical results escalate", bricks: &["lab", "radiology"], actor: "job:critical_alert_escalation", permissions: &[p::lab::results::CRITICAL_CALL, p::communications::alerts::CREATE] },
+    BrickJob { id: "calibration_lock", label: "Lock overdue calibrations", bricks: &["inventory", "lab", "radiology"], actor: "job:calibration_lock", permissions: &[p::bme::calibration::MANAGE, p::bme::equipment::UPDATE] },
+    BrickJob { id: "pacs_sync", label: "PACS study sync", bricks: &["radiology"], actor: "job:pacs_sync", permissions: &[p::radiology::studies::RECONCILE] },
+    BrickJob { id: "unbilled_orders", label: "Unbilled orders sweep", bricks: &["billing"], actor: "job:unbilled_orders", permissions: &[p::billing::charge_attention::VIEW, p::billing::charge_attention::RESOLVE] },
+    BrickJob { id: "preauth_sweep", label: "Pre-authorisation sweep", bricks: &["billing"], actor: "job:preauth_sweep", permissions: &[p::insurance::prior_auth::LIST, p::billing::charge_attention::RESOLVE] },
+    BrickJob { id: "hrms_pull", label: "HRMS staff pull", bricks: &["hr"], actor: "job:hrms_pull", permissions: &[p::hr::employees::CREATE, p::hr::employees::UPDATE] },
+    BrickJob { id: "flow_aggregate", label: "Flow minute aggregates", bricks: &["flow"], actor: "job:flow_aggregate", permissions: &[p::flow::VIEW, p::flow::MANAGE] },
+];
+
+/// The jobs that serve brick `id`.
+#[must_use]
+pub fn jobs_for(id: &str) -> Vec<&'static BrickJob> {
+    BRICK_JOBS
+        .iter()
+        .filter(|job| job.bricks.contains(&id))
+        .collect()
+}
 
 /// Permission groups every install carries, because the platform needs them whatever apps are
 /// on: sign-in, the dashboard shell, administration, audit, devices and shared services.
@@ -235,7 +286,8 @@ pub fn dependents(id: &str) -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BASE_PLATE, BRICKS, NOT_YET_BRICKS, dependents, find, on_for_edition, with_dependencies,
+        BASE_PLATE, BRICK_JOBS, BRICKS, NOT_YET_BRICKS, dependents, find, jobs_for, on_for_edition,
+        with_dependencies,
     };
 
     #[test]
@@ -272,10 +324,7 @@ mod tests {
     #[test]
     fn each_settings_section_has_one_brick() {
         let mut seen: Vec<&str> = Vec::new();
-        for key in BRICKS
-            .iter()
-            .flat_map(|b| b.settings.iter().chain(b.background_jobs))
-        {
+        for key in BRICKS.iter().flat_map(|b| b.settings) {
             assert!(!seen.contains(key), "{key} claimed twice");
             seen.push(key);
         }
@@ -331,5 +380,32 @@ mod tests {
         );
         assert!(on("unknown_edition").contains(&"dental"));
         assert!(!on("multi_specialty").contains(&"companion"));
+    }
+
+    #[test]
+    fn every_brick_job_names_real_bricks_once() {
+        for (at, job) in BRICK_JOBS.iter().enumerate() {
+            assert!(
+                BRICK_JOBS[..at].iter().all(|j| j.id != job.id),
+                "{} twice",
+                job.id
+            );
+            assert!(!job.bricks.is_empty(), "{} serves no brick", job.id);
+            assert_eq!(job.actor, format!("job:{}", job.id), "{} actor", job.id);
+            assert!(
+                !job.permissions.is_empty(),
+                "{} declares no permission",
+                job.id
+            );
+            for brick in job.bricks {
+                assert!(
+                    find(brick).is_some(),
+                    "{} names unknown brick {brick}",
+                    job.id
+                );
+            }
+        }
+        assert!(jobs_for("ipd").iter().any(|j| j.id == "room_rent"));
+        assert_eq!(jobs_for("registration"), Vec::<&super::BrickJob>::new());
     }
 }

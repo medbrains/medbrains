@@ -2212,7 +2212,8 @@ pub async fn update_role_widget_access(
 // ── Modules CRUD ────────────────────────────────────────────
 
 /// `GET /api/setup/modules` — the tenant's app bricks. `depends_on` comes from the brick table
-/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it.
+/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it;
+/// `background_jobs` says which of the brick's jobs this server runs.
 pub async fn list_modules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2231,11 +2232,8 @@ pub async fn list_modules(
 
     tx.commit().await?;
 
-    for row in &mut rows {
-        if let Some(brick) = medbrains_core::bricks::find(&row.code) {
-            row.depends_on = brick.depends_on.iter().map(|d| (*d).to_owned()).collect();
-        }
-    }
+    rows.iter_mut()
+        .for_each(medbrains_server_core::brick_jobs::fill_from_bricks);
     Ok(Json(rows))
 }
 

@@ -26,9 +26,35 @@ A brick touches the rest of the system only through these, so it can be added, r
 ## Rules
 
 - **No brick imports another brick, on any layer.** A check fails CI if a module crate, web package or Slint app depends on another module's code (backend, web and native alike).
-- **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its native app is not started, and nothing else breaks.
+- **Turning a brick off removes it everywhere:** its routes answer as switched off, its tile and menu entries go, its background jobs stop, its native app is not started, and nothing else breaks.
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
+
+## A brick's background jobs (2026-11-19)
+
+A job that serves only some bricks is a row in `BRICK_JOBS` (`medbrains-core/src/bricks.rs`): its
+id, its label and the bricks it serves. The server's supervisor
+(`medbrains-server/src/services/brick_jobs.rs`, decision in `medbrains-server-core/src/brick_jobs.rs`)
+reads every active hospital's switches at boot and every 30 seconds, and runs a job while at least
+one hospital has one of its bricks on (with the bricks that brick needs).
+
+- **Switching on** starts the job within 30 seconds, no restart. **Switching off** aborts it: every
+  pass is idempotent and transactional, so the stop is a crash-only stop, the same as a restart.
+- **Unreadable switches run everything.** A database fault is logged and every brick job keeps (or
+  starts) running; a clinical escalation is never silenced by a fault.
+- **Patient-safety jobs list every brick whose patients they protect** (early-warning escalation:
+  IPD, Nursing and Emergency), so switching one app off never silences another's alerts.
+- A job every install needs (security, legal deadlines, retention, the notification listener) is in
+  `PLATFORM_JOBS` and `main.rs` starts it. `make check-bricks` fails on a job `main.rs` starts that
+  is in neither list.
+- The Modules screen shows, per brick, whether this server runs its background work.
+- **Every brick job declares a machine actor and its least permissions** (`actor: "job:<id>"`,
+  `permissions` as permission constants) next to its bricks. Owner rule 2026-11-19: everything goes
+  through access, background jobs included. Today the passes still run on the worker pool
+  (BYPASSRLS) with no authz decision and no audit actor; the declaration is the contract the
+  follow-up enforces: each pass runs as its actor through the kernel (tenant context, authz
+  decision on the declared permissions, audit rows naming the job). Enforcement must keep the
+  fail-safe rule: an authz outage never stops a clinical escalation.
 
 ## Order
 
@@ -72,7 +98,7 @@ Each brick has one manifest, assembled from the tables that already declare it a
 |---|---|
 | `id`, `name`, `dependsOn`, `permissionGroups` | the brick's row in `bricks.rs` |
 | `settings`: the Settings sections it plugs in (hidden while it is off) | `Brick::settings`, set with `.with_settings(&[...])` |
-| `backgroundJobs` | `Brick::background_jobs`, reserved for brick-aware startup, empty today |
+| `backgroundJobs` | the `BRICK_JOBS` rows that list the brick (a job may serve several) |
 | `icon`, `screens` (route + permission + any-of) | its rows in `access/screens.rs` |
 | `actions` (id + permission + data classes), `dataClasses` | its rows in `medbrains-health-services/src/actions.rs` |
 
