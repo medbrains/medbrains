@@ -6,7 +6,7 @@ use crate::common;
 
 use medbrains_kernel::action::{ActionError, Invoker, Refusal};
 use medbrains_kernel::{ActingAgent, Actor, ActorKind, Claims};
-use medbrains_server::actions::run_action;
+use medbrains_server::actions::{run_action, run_action_owned};
 use medbrains_server::error::AppError;
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -341,4 +341,43 @@ async fn the_assistant_reads_for_a_person_and_the_audit_names_both() {
             Some(run_id.to_string())
         )
     );
+}
+
+#[tokio::test]
+async fn the_assistants_runner_refuses_a_switched_off_brick_and_audits_it() {
+    let app = common::spawn_app().await;
+    let (tenant, user) = hospital(&app, true).await;
+    let mut desk = claims(tenant, user, &["opd.queue.list"]);
+    desk.act = Some(ActingAgent {
+        kind: ActorKind::AiAgent,
+        agent: "assistant".to_owned(),
+        model: "test".to_owned(),
+        run_id: Uuid::new_v4(),
+        conversation_id: None,
+    });
+    let assistant = Invoker::Assistant {
+        on_behalf_of: Actor::from_claims(&desk),
+    };
+
+    let got = run_action_owned(
+        app.state.clone(),
+        desk,
+        assistant,
+        "opd.queue.today",
+        json!({}),
+    )
+    .await;
+    assert!(
+        matches!(got, Err(ActionError::Refused(Refusal::ModuleOff))),
+        "{got:?}"
+    );
+    let row: (Option<String>, Option<String>) = sqlx::query_as(
+        "SELECT new_values->>'invoker', new_values->>'outcome' FROM audit_log \
+          WHERE tenant_id = $1 AND action = 'opd.queue.today'",
+    )
+    .bind(tenant)
+    .fetch_one(&app.db)
+    .await
+    .expect("one refusal row");
+    assert_eq!(row, (Some("assistant".into()), Some("module_off".into())));
 }

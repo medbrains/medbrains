@@ -16,6 +16,7 @@ manifest (`RFCs/RFC-OS-ECOSYSTEM.md`); the broker and its checks stay the same.
 | The registry `ACTIONS` and `find_action(id)` | `crates/medbrains-health-services/src/actions.rs` | Yes: each row names a brick and a permission |
 | The service functions the actions wrap | the brick's crate (`medbrains-patients::actions`, `medbrains_opd::queue_rows`) | Yes |
 | `run_action(state, claims, invoker, id, json)` | `crates/medbrains-server/src/actions.rs` | Dispatches by id; reads the module switch from `module_config` |
+| The assistant's action tools | `crates/medbrains-ai/src/action_tools.rs` | No: one tool per `ACTIONS` row, run through `run_action_owned` |
 
 The registry is in health services, not next to `bricks.rs` in `medbrains-core`, because
 `ActionDef` is a kernel type and core sits below the kernel; and not in the kernel, because a row
@@ -75,18 +76,38 @@ out of reach.
    the one the equivalent screen uses; a new one follows the full Permissions First order.
 2. The service function takes the caller's connection (`&mut PgConnection`), so the HTTP handler
    and the broker share it. Move the handler's body into it rather than copying it.
-3. Add the `ActionDef` row to `ACTIONS`, with a `permissions::…` constant, never a string.
+3. Add the `ActionDef` row to `ACTIONS`, with a `permissions::…` constant, never a string, and
+   its `input` JSON Schema on one line (the assistant's tool parameters; the registry test
+   checks it is an object schema). The row becomes an assistant tool with no further code.
 4. Add its arm to `run_action`, with a typed input.
 5. `python3 scripts/check_actions.py` (in `make check-all`) and the registry's test fail on a
    module that is not a brick, a permission that is not a constant, or a repeated id.
 6. An integration test in `crates/medbrains-server/tests/actions_test.rs` for the allowed path and
    a refusal.
 
+## The assistant
+
+Every row is one assistant tool (`medbrains-ai/src/action_tools.rs`): its name is the id with `_`
+for `.` (`patients_find`), its description the summary, its parameters the `input` schema. A call
+runs `run_action` with `Invoker::Assistant { on_behalf_of: Actor::from_claims(&claims) }`, the
+claims carrying `act` so the audit row names the assistant run. `main` sets
+`medbrains_ai::ACTION_RUNNER`; unset, every action answers "could not check".
+
+The hospital's switch is `ai.config.typed_actions` (Setup → Infrastructure → AI provider, default
+on). On, `call_api` and `list_apis` stop reaching the endpoints an action replaces (`REPLACED` in
+`action_tools.rs`: `/api/patients`, `/api/patients/{id}`, `/api/opd/queue`) and point the model
+at the tool. The other reads of those bricks stay in the catalogue until their actions exist.
+
+| Broker answer | Tool result `refused` | The chip on screen |
+|---|---|---|
+| `Unknown`, or the handler failed | `unknown` | amber "Not checked": "I couldn't check that right now" |
+| `Denied`, `ModuleOff`, record out of reach | `not_allowed` | "Not allowed" |
+| `NeedsConfirmation` | `needs_confirmation` | "Needs your confirmation" (no confirm flow yet) |
+
 ## What comes next
 
-- **The assistant uses actions** (PR 2): the assistant's tool layer calls `run_action` with
-  `Invoker::Assistant` instead of the GET allowlist in `medbrains-ai/src/catalog.rs`, and shows
-  `Unknown` as "could not check".
+- **Typed screen context** (PR 3): the screen hands the assistant typed ids, not page text.
+- **Draft actions** (PR 4): `draft` actions the person accepts item by item.
 - **Task grants and confirmations** (later): the broker checks a grant before step 2, and
   `NeedsConfirmation` becomes a confirmation card the broker builds from the typed arguments.
 - **Vendor actions**: the same `ActionDef`, declared in a manifest and run through the Wasm host.
