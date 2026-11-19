@@ -9,6 +9,7 @@ license-file.workspace = true
 
 [dependencies]
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-core = { path = "../medbrains-core" }
 medbrains-kernel = { path = "../medbrains-kernel" }
 sqlx = { workspace = true }
 tracing = { workspace = true }

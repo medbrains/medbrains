@@ -41,6 +41,18 @@ pub fn require_permission(claims: &Claims, perm: &str) -> Result<(), KernelError
     Err(KernelError::Forbidden)
 }
 
+/// [`require_permission`] as an outcome, for callers that must tell a refusal
+/// from a lost context: `Unknown` when the claims carry no tenant.
+pub fn permission_outcome(claims: &Claims, perm: &str) -> Outcome {
+    if claims.tenant_id.is_nil() {
+        Outcome::Unknown
+    } else if is_bypass_role(claims) || claims.permissions.iter().any(|p| p == perm) {
+        Outcome::Allow
+    } else {
+        Outcome::Deny
+    }
+}
+
 /// Require the user to have at least one of the specified permissions.
 /// Bypass roles pass every check.
 pub fn require_any_permission(claims: &Claims, perms: &[&str]) -> Result<(), KernelError> {
