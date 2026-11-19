@@ -9,6 +9,10 @@
     reason = "unreachable_pub is denied workspace-wide"
 )]
 
+use medbrains_core::ai_redact::Redacted;
+
+use super::redaction;
+
 /// The catalogue (`scripts/gen_ai_read_catalog.py`), `# section` headers
 /// then one path per line.
 const CATALOG: &str = include_str!("ai_read_catalog.txt");
@@ -63,6 +67,60 @@ pub(super) fn search(query: &str, typed_actions: bool) -> String {
         );
     }
     out.join("\n")
+}
+
+// ── Discovery tool: list all read (GET) endpoints ───────────────────
+// The whole read surface is large (650+ GET endpoints); rather than dump it into
+// every request, the model calls this on demand to discover which path to hit,
+// then uses call_api. The catalogue is generated from mod.rs by
+// scripts/gen_ai_read_catalog.py — regenerate after route changes.
+
+#[derive(serde::Deserialize)]
+pub(super) struct ListApisArgs {
+    /// Words from the question: `billing revenue`, `lab pending`.
+    #[serde(default)]
+    query: String,
+}
+
+pub(super) struct ListApisTool {
+    pub(super) session: redaction::Session,
+    /// Leave out the endpoints an action replaces (`ai.config.typed_actions`).
+    pub(super) typed_actions: bool,
+}
+
+impl rig::tool::Tool for ListApisTool {
+    const NAME: &'static str = "list_apis";
+    type Error = std::convert::Infallible;
+    type Args = ListApisArgs;
+    type Output = Redacted;
+
+    fn description(&self) -> String {
+        "Search the read (GET) API endpoints call_api can reach: pass a few words from the \
+            question (e.g. 'billing revenue', 'lab pending'); you get the matching paths. Call \
+            it before call_api when unsure of a path."
+            .to_owned()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string", "description": "A few words from the question" }
+            },
+            "required": ["query"]
+        })
+    }
+
+    fn call(
+        &self,
+        _context: &mut rig::tool::ToolContext,
+        args: Self::Args,
+    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
+        std::future::ready(Ok(redaction::for_model(
+            &self.session,
+            &search(&args.query, self.typed_actions),
+        )))
+    }
 }
 
 #[cfg(test)]

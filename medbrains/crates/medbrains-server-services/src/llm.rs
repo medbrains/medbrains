@@ -99,15 +99,8 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         .map(str::to_owned)
         .or_else(|| std::env::var("AI_MODEL").ok())
         .unwrap_or_else(|| default_model.to_owned());
-    let enabled = cfg
-        .get("assistant_enabled")
-        .and_then(serde_json::Value::as_bool)
-        != Some(false);
-    // Read the same way by the AI settings screen (`medbrains-infra-settings`).
-    let typed_actions = cfg
-        .get("typed_actions")
-        .and_then(serde_json::Value::as_bool)
-        != Some(false);
+    let enabled = switch_on(&cfg, "assistant_enabled");
+    let typed_actions = switch_on(&cfg, "typed_actions");
 
     // Ollama is keyless (local); Anthropic is federated (no key exists).
     // Others resolve a key from the secret store or env.
@@ -138,6 +131,12 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
         typed_actions,
         base_url: None,
     })
+}
+
+/// Whether the `ai.config` switch `key` is on: on unless stored as `false`. The AI
+/// settings screen (`medbrains-infra-settings`) reads `typed_actions` the same way.
+fn switch_on(cfg: &serde_json::Value, key: &str) -> bool {
+    cfg.get(key).and_then(serde_json::Value::as_bool) != Some(false)
 }
 
 /// Secret-store purpose of a hospital's AI provider key: its short name in

@@ -26,7 +26,11 @@ use rig::message::ToolName;
 use rig::tool::{DynamicTool, ToolOutput};
 use serde_json::{Value, json};
 
-use super::{UNKNOWN_FOR_MODEL, redaction, show};
+use rig_agent::AgentBuilder;
+
+use super::catalog::ListApisTool;
+use super::turn::ToolDeps;
+use super::{CallApiTool, UNKNOWN_FOR_MODEL, redaction, show};
 
 /// What running one action comes to.
 pub type ActionFuture = Pin<Box<dyn Future<Output = Result<Value, ActionError<AppError>>> + Send>>;
@@ -105,16 +109,49 @@ fn failure_reply(err: &AppError) -> Value {
 
 /// What one turn's action tools act with.
 #[derive(Clone)]
-pub(super) struct ActionDeps {
-    pub(super) session: redaction::Session,
-    pub(super) state: AppState,
+struct ActionDeps {
+    session: redaction::Session,
+    state: AppState,
     /// The person's claims, with `act` naming this assistant run.
-    pub(super) claims: Claims,
-    pub(super) shelf: show::Shelf,
+    claims: Claims,
+    shelf: show::Shelf,
+}
+
+/// The turn's read tools: `call_api` and `list_apis`, and with the hospital's
+/// `ai.config.typed_actions` on, every action too (and the endpoints they replace cut).
+pub(super) fn read_tools(
+    agent: AgentBuilder,
+    typed_actions: bool,
+    deps: &ToolDeps,
+    shelf: &show::Shelf,
+) -> AgentBuilder {
+    let actions = ActionDeps {
+        session: Arc::clone(&deps.session),
+        state: deps.state.clone(),
+        claims: deps.claims.clone(),
+        shelf: Arc::clone(shelf),
+    };
+    let agent = agent
+        .tool(CallApiTool {
+            session: Arc::clone(&deps.session),
+            state: deps.state.clone(),
+            claims: deps.claims.clone(),
+            shelf: Arc::clone(shelf),
+            typed_actions,
+        })
+        .tool(ListApisTool {
+            session: Arc::clone(&deps.session),
+            typed_actions,
+        });
+    if typed_actions {
+        agent.dynamic_tools(action_tools(&actions))
+    } else {
+        agent
+    }
 }
 
 /// Every registered action as a tool for this turn.
-pub(super) fn action_tools(deps: &ActionDeps) -> Vec<DynamicTool> {
+fn action_tools(deps: &ActionDeps) -> Vec<DynamicTool> {
     ACTIONS
         .iter()
         .filter_map(|def| action_tool(def, deps.clone()))

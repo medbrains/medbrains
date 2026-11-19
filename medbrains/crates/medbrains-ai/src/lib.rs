@@ -1066,60 +1066,6 @@ impl rig::tool::Tool for RequestPatientTool {
     }
 }
 
-// ── Discovery tool: list all read (GET) endpoints ───────────────────
-// The whole read surface is large (650+ GET endpoints); rather than dump it into
-// every request, the model calls this on demand to discover which path to hit,
-// then uses call_api. Catalog is generated from mod.rs by
-// scripts/gen_ai_read_catalog.py — regenerate after route changes.
-
-#[derive(serde::Deserialize)]
-struct ListApisArgs {
-    /// Words from the question: `billing revenue`, `lab pending`.
-    #[serde(default)]
-    query: String,
-}
-
-struct ListApisTool {
-    session: redaction::Session,
-    /// Leave out the endpoints an action replaces (`ai.config.typed_actions`).
-    typed_actions: bool,
-}
-
-impl rig::tool::Tool for ListApisTool {
-    const NAME: &'static str = "list_apis";
-    type Error = std::convert::Infallible;
-    type Args = ListApisArgs;
-    type Output = Redacted;
-
-    fn description(&self) -> String {
-        "Search the read (GET) API endpoints call_api can reach: pass a few words from the \
-            question (e.g. 'billing revenue', 'lab pending'); you get the matching paths. Call \
-            it before call_api when unsure of a path."
-            .to_owned()
-    }
-
-    fn parameters(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "query": { "type": "string", "description": "A few words from the question" }
-            },
-            "required": ["query"]
-        })
-    }
-
-    fn call(
-        &self,
-        _context: &mut rig::tool::ToolContext,
-        args: Self::Args,
-    ) -> impl Future<Output = Result<Self::Output, Self::Error>> + Send {
-        std::future::ready(Ok(redaction::for_model(
-            &self.session,
-            &catalog::search(&args.query, self.typed_actions),
-        )))
-    }
-}
-
 /// The boxed SSE body type — one alias so both provider branches unify.
 type SseBody =
     std::pin::Pin<Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>>;

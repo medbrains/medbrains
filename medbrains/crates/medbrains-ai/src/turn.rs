@@ -28,13 +28,12 @@ use rig::message::AssistantContent;
 use rig_agent::agent::{AgentHook, HookContext, ModelTurnAction, ModelTurnFinished};
 use uuid::Uuid;
 
-use super::action_tools::{ActionDeps, action_tools};
 use super::agui::{Agui, CUSTOM_SOURCE};
 use super::emit::{Emitter, ag};
 use super::{
-    AiConfig, CallApiTool, DraftPrescriptionTool, DrugSafetyTool, KbHit, ListApisTool,
-    PatientOverviewTool, RequestPatientTool, SYSTEM_PROMPT, SseBody, aggregate_tool, query,
-    redaction, research_tool, show, store_turn,
+    AiConfig, DraftPrescriptionTool, DrugSafetyTool, KbHit, PatientOverviewTool,
+    RequestPatientTool, SYSTEM_PROMPT, SseBody, action_tools, aggregate_tool, query, redaction,
+    research_tool, show, store_turn,
 };
 
 /// Model calls one turn may make: the first, tool continuations (the old
@@ -115,18 +114,7 @@ pub(super) fn stream_answer(
                 claims: deps.claims.clone(),
                 shelf: Arc::clone(&shelf),
             })
-            .tool(CallApiTool {
-                session: Arc::clone(&deps.session),
-                state: deps.state.clone(),
-                claims: deps.claims.clone(),
-                shelf: Arc::clone(&shelf),
-                typed_actions: cfg.typed_actions,
-            })
             .tool(RequestPatientTool)
-            .tool(ListApisTool {
-                session: Arc::clone(&deps.session),
-                typed_actions: cfg.typed_actions,
-            })
             .tool(aggregate_tool::AggregateTool {
                 session: Arc::clone(&deps.session),
                 state: deps.state.clone(),
@@ -138,17 +126,7 @@ pub(super) fn stream_answer(
                 shelf: Arc::clone(&shelf),
                 widgets: Arc::clone(&widgets),
             });
-    // The hospital's switch: off, the assistant reads these bricks through `call_api`.
-    let agent = if cfg.typed_actions {
-        agent.dynamic_tools(action_tools(&ActionDeps {
-            session: Arc::clone(&deps.session),
-            state: deps.state.clone(),
-            claims: deps.claims.clone(),
-            shelf: Arc::clone(&shelf),
-        }))
-    } else {
-        agent
-    };
+    let agent = action_tools::read_tools(agent, cfg.typed_actions, deps, &shelf);
     // Only holders see the tool at all: the model never plans around a query
     // it would be refused.
     let agent = if require_permission(&deps.claims, permissions::ai::assistant::QUERY).is_ok() {

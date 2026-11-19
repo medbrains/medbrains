@@ -96,6 +96,18 @@ pub async fn run_action(
     }
 }
 
+/// Hand the assistant what sits above its crate: the finished router, so `call_api`
+/// reads go through the real middleware stack, and [`run_action_owned`] for its
+/// action tools. Set once, at startup.
+pub fn hand_to_assistant(app: axum::Router) {
+    if medbrains_ai::AI_ROUTER.set(app).is_err() {
+        tracing::warn!("the assistant's router was already set");
+    }
+    if medbrains_ai::ACTION_RUNNER.set(run_action_owned).is_err() {
+        tracing::warn!("the assistant's action runner was already set");
+    }
+}
+
 /// [`run_action`] over owned arguments, as the assistant's tools call it
 /// (`medbrains_ai::ACTION_RUNNER`, set in `main`).
 pub fn run_action_owned(
