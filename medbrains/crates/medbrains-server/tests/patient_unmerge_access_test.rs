@@ -53,7 +53,10 @@ async fn an_unmerge_needs_both_records() {
     on_care_team(&app, tenant, survivor, one_side.id).await;
     let (status, body) = send(&one_side.csrf, one_side.client.post(app.url(&path))).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
-    assert!(still_merged(&app, &history).await, "a refused unmerge changes nothing");
+    assert!(
+        still_merged(&app, &history).await,
+        "a refused unmerge changes nothing"
+    );
 
     let stranger = doctor(&app, &csrf).await;
     let (status, _) = send(&stranger.csrf, stranger.client.post(app.url(&path))).await;
