@@ -1,8 +1,8 @@
 //! Asking a payer about a claim through NHCX: where a claim or
 //! pre-authorisation stands (`hcx/status`), which claims it holds
 //! (`hcx/search`), and — under `insurance.nhcx.cancel` — to cancel a claim or
-//! reprocess one once its deductions are answered, or — under
-//! `insurance.nhcx.cancel_preauth` — to withdraw a pre-authorisation.
+//! reprocess one once its deductions are answered. Pre-authorisation Tasks
+//! live in `nhcx_preauth_tasks`.
 //!
 //! Each ask is an `nhcx_tasks` row with its own correlation id, queued with
 //! its outbox event in one transaction; the payer's reply is matched to the
@@ -19,7 +19,8 @@ use medbrains_core::nhcx::{NhcxOperation, NhcxRecord};
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+// Shared with `nhcx_preauth_tasks`, so the permission gate has one import.
+pub(crate) use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 use crate::nhcx_common::{self, Outbound, Tx};
@@ -35,14 +36,14 @@ const MAX_REASON_CHARS: usize = 1000;
 
 /// The claim a Task is about.
 #[derive(Debug, sqlx::FromRow)]
-struct Subject {
-    id: Uuid,
-    patient_id: Uuid,
-    number: String,
+pub(crate) struct Subject {
+    pub(crate) id: Uuid,
+    pub(crate) patient_id: Uuid,
+    pub(crate) number: String,
     recipient: Option<String>,
     /// The api call id of the last message sent about it.
     api_call_id: Option<Uuid>,
-    status: String,
+    pub(crate) status: String,
 }
 
 /// The claim a Task is about, locked.
@@ -50,13 +51,13 @@ const CLAIM_SUBJECT: &str = "SELECT id, patient_id, COALESCE(NULLIF(claim_number
         AS number, nhcx_recipient_code AS recipient, nhcx_api_call_id AS api_call_id, status \
    FROM insurance_claims WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE";
 /// The pre-authorisation a Task is about, locked.
-const PREAUTH_SUBJECT: &str = "SELECT id, patient_id, COALESCE(NULLIF(auth_number, ''), pa_number) \
+pub(crate) const PREAUTH_SUBJECT: &str = "SELECT id, patient_id, COALESCE(NULLIF(auth_number, ''), pa_number) \
         AS number, nhcx_recipient_code AS recipient, nhcx_api_call_id AS api_call_id, \
         status::text AS status \
    FROM prior_auth_requests WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE";
 
 /// Load and lock a Task's subject with one of the queries above.
-async fn subject(
+pub(crate) async fn subject(
     tx: &mut Tx<'_>,
     sql: &str,
     tenant_id: Uuid,
@@ -76,16 +77,17 @@ fn not_sent() -> AppError {
 }
 
 /// The payer the subject was sent to.
-fn sent_to(subject: &Subject) -> Result<&str, AppError> {
+pub(crate) fn sent_to(subject: &Subject) -> Result<&str, AppError> {
     subject.recipient.as_deref().ok_or_else(not_sent)
 }
 
 /// The api call id the status enquiry names.
-fn sent_call(subject: &Subject) -> Result<Uuid, AppError> {
+pub(crate) fn sent_call(subject: &Subject) -> Result<Uuid, AppError> {
     subject.api_call_id.ok_or_else(not_sent)
 }
 
-fn reason(text: &str) -> Result<&str, AppError> {
+/// The trimmed reason a cancel or reprocess gives, refused when too short or long.
+pub(crate) fn reason(text: &str) -> Result<&str, AppError> {
     let text = text.trim();
     let n = text.chars().count();
     if !(MIN_REASON_CHARS..=MAX_REASON_CHARS).contains(&n) {
@@ -114,17 +116,17 @@ async fn parties(
 }
 
 /// One Task to queue.
-struct TaskSpec<'a> {
-    ask: TaskAsk<'a>,
-    operation: NhcxOperation,
-    claim_id: Option<Uuid>,
-    prior_auth_id: Option<Uuid>,
-    recipient: &'a str,
-    request: Value,
+pub(crate) struct TaskSpec<'a> {
+    pub(crate) ask: TaskAsk<'a>,
+    pub(crate) operation: NhcxOperation,
+    pub(crate) claim_id: Option<Uuid>,
+    pub(crate) prior_auth_id: Option<Uuid>,
+    pub(crate) recipient: &'a str,
+    pub(crate) request: Value,
 }
 
 /// Record the Task and queue its message, in the caller's transaction.
-async fn queue_task(
+pub(crate) async fn queue_task(
     tx: &mut Tx<'_>,
     claims: &Claims,
     spec: &TaskSpec<'_>,
@@ -201,7 +203,8 @@ async fn queue_task(
     nhcx_common::queue(tx, claims, &msg).await
 }
 
-async fn begin(state: &AppState, claims: &Claims) -> Result<Tx<'static>, AppError> {
+/// Open a transaction under the caller's tenant.
+pub(crate) async fn begin(state: &AppState, claims: &Claims) -> Result<Tx<'static>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     Ok(tx)
@@ -231,36 +234,6 @@ pub async fn claim_status(
         operation: NhcxOperation::Status,
         claim_id: Some(s.id),
         prior_auth_id: None,
-        recipient: sent_to(&s)?,
-        request: json!({}),
-    };
-    let queued = queue_task(&mut tx, &claims, &spec).await?;
-    tx.commit().await?;
-    Ok(Json(queued))
-}
-
-/// `POST /api/insurance/prior-auths/{id}/nhcx/status` — ask the payer
-/// where the pre-authorisation stands.
-///
-/// # Errors
-/// As [`claim_status`], for a pre-authorisation.
-#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
-pub async fn preauth_status(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<Value>, AppError> {
-    require_permission(&claims, permissions::insurance::nhcx::SUBMIT)?;
-    let mut tx = begin(&state, &claims).await?;
-    let s = subject(&mut tx, PREAUTH_SUBJECT, claims.tenant_id, id).await?;
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, s.patient_id).await?;
-    let spec = TaskSpec {
-        ask: TaskAsk::Status {
-            checks: sent_call(&s)?,
-        },
-        operation: NhcxOperation::Status,
-        claim_id: None,
-        prior_auth_id: Some(s.id),
         recipient: sent_to(&s)?,
         request: json!({}),
     };
@@ -353,48 +326,6 @@ pub async fn reprocess_claim(
     Json(body): Json<ClaimTaskRequest>,
 ) -> Result<Json<Value>, AppError> {
     Ok(Json(claim_task(&state, &claims, id, (&body, false)).await?))
-}
-
-/// `POST /api/insurance/prior-auths/{id}/nhcx/cancel` — withdraw a pre-auth:
-/// a `cancel` Task under PC01; the payer's PC02 marks it cancelled.
-///
-/// # Errors
-/// 403 without `insurance.nhcx.cancel_preauth`; 409 for one never sent or
-/// already closed; otherwise as [`cancel_claim`].
-#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
-pub async fn cancel_preauth(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<ClaimTaskRequest>,
-) -> Result<Json<Value>, AppError> {
-    require_permission(&claims, permissions::insurance::nhcx::CANCEL_PREAUTH)?;
-    let why = reason(&body.reason)?;
-    let mut tx = begin(&state, &claims).await?;
-    let s = subject(&mut tx, PREAUTH_SUBJECT, claims.tenant_id, id).await?;
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, s.patient_id).await?;
-    // Nothing left for the payer to withdraw.
-    if matches!(s.status.as_str(), "cancelled" | "denied" | "expired") {
-        return Err(AppError::Conflict(format!(
-            "the pre-auth is {}; there is nothing left to cancel",
-            s.status
-        )));
-    }
-    let spec = TaskSpec {
-        ask: TaskAsk::Cancel {
-            focus: s.id,
-            number: &s.number,
-            reason: why,
-        },
-        operation: NhcxOperation::Cancel,
-        claim_id: None,
-        prior_auth_id: Some(s.id),
-        recipient: sent_to(&s)?,
-        request: json!({ "reason": why }),
-    };
-    let queued = queue_task(&mut tx, &claims, &spec).await?;
-    tx.commit().await?;
-    Ok(Json(queued))
 }
 
 #[derive(Debug, Deserialize)]
