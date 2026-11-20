@@ -5,7 +5,8 @@
 //! Measured on the sandbox by OHC care-abdm (MIT, docs/findings.md):
 //! - F9: ABDM needs time to index a new link. A notify 0.6 s after the link
 //!   is refused ABDM-1006; 50 s later it succeeds. So `mark_linked` queues
-//!   this a minute later, and an ABDM-1006 answer queues it again, later.
+//!   this a minute later, and an ABDM-1006 or ABDM-2406 (out of order)
+//!   answer queues it again, later.
 //! - F8: `careContext.patientReference` is our patient reference (the UHID
 //!   the link sent as `patient.referenceNumber`), not the ABHA address.
 
@@ -128,7 +129,12 @@ pub async fn on_notify(
         medbrains_abdm::errors::describe_body(&body, "ABDM did not accept the notification")
     });
     // ABDM-1006: the link was not indexed yet — ask again later (F9).
-    let retry = error_code(&body) == Some("ABDM-1006");
+    // ABDM-2406: the notify came before the gateway saw the link step;
+    // resume with the notify later, never drop it (#5711).
+    let retry = matches!(
+        error_code(&body),
+        Some("ABDM-1006" | medbrains_abdm::errors::OUT_OF_SEQUENCE)
+    );
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &caller.tenant_id).await?;
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction

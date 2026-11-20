@@ -3,8 +3,10 @@
 //! Every gateway callback must carry the gateway's own JWT: signature (RS256
 //! or RS512) against the keys at the gateway's `/certs`, expiry, issuer and
 //! the gateway's identity. The hospital is the one whose campus holds the HFR
-//! ID in `X-HIP-ID` (or `X-HIU-ID`, on the M3 callbacks: the campus is both)
-//! — never a query string, never a session.
+//! ID in `X-HIP-ID` on an HIP callback, or in `X-HIU-ID` on an HIU (M3)
+//! callback — never the other header, never a query string, never a session.
+//! The campus is both, but a callback addressed to the HIU must not drive the
+//! HIP's handlers, nor the reverse.
 //!
 //! The v3 `/certs` needs a session (nha-in/docs integration learnings 1.5),
 //! so on a cold key cache the HFR ID is looked up to borrow its hospital's
@@ -37,6 +39,8 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use super::super::abha::{Session, dev_override, map_abdm_error, session};
+pub use super::addressee::Addressee;
+use super::addressee::header;
 use crate::{error::AppError, state::AppState};
 
 /// Secret-store key holding a PEM the callback JWT is checked against
@@ -230,32 +234,36 @@ pub struct Caller {
     pub request_id: String,
 }
 
-fn header(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-        .map(str::to_owned)
+/// Authenticate an HIP (M2) gateway callback, named by `X-HIP-ID`.
+///
+/// # Errors
+/// As [`authenticate_as`].
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
+pub async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<Caller, AppError> {
+    authenticate_as(state, headers, Addressee::Hip).await
 }
 
-/// Authenticate a gateway callback.
+/// Authenticate a gateway callback addressed to `to`.
 ///
 /// # Errors
 /// 401 without a gateway JWT that verifies and names the gateway — whatever
-/// the `X-HIP-ID`, known or not; 404 for an `X-HIP-ID` (or `X-HIU-ID`) no
-/// hospital holds; 409 for one two hospitals both claim; 503 when the
-/// gateway's keys cannot be fetched (an outage, not a refusal).
+/// the facility header, known or not — and without the header `to` reads
+/// (an HIU callback carrying only `X-HIP-ID` is refused, and the reverse);
+/// 404 for a facility id no hospital holds; 409 for one two hospitals both
+/// claim; 503 when the gateway's keys cannot be fetched (an outage, not a
+/// refusal).
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
-pub async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<Caller, AppError> {
+pub async fn authenticate_as(
+    state: &AppState,
+    headers: &HeaderMap,
+    to: Addressee,
+) -> Result<Caller, AppError> {
     let token = headers
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
-    let hip_id = header(headers, "x-hip-id")
-        .or_else(|| header(headers, "x-hiu-id"))
-        .ok_or(AppError::Unauthorized)?;
+    let hip_id = to.facility_id(headers).ok_or(AppError::Unauthorized)?;
     let owners = sqlx::query_as::<_, (Uuid, Uuid)>(
         "SELECT tenant_id, facility_id FROM app_abdm_hip_tenant($1) LIMIT 2",
     )

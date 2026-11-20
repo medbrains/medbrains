@@ -194,9 +194,32 @@ pub const CREDIT_NOTE_MAX_CHARS: usize = 16;
 /// year starting in `fy_start`: `<prefix>C<yy><00001>`, within 16 characters.
 #[must_use]
 pub fn credit_note_number(prefix: &str, fy_start: i32, seq: i64) -> String {
+    note_number(prefix, 'C', fy_start, seq)
+}
+
+/// A note number in the series `letter` names: `<prefix><letter><yy><00001>`,
+/// cut to 16 characters by shortening the prefix (CGST Rules 2017, Rule 53(1A)
+/// sets the same limit for debit notes as for credit notes).
+#[must_use]
+pub fn note_number(prefix: &str, letter: char, fy_start: i32, seq: i64) -> String {
     let room = CREDIT_NOTE_MAX_CHARS - 8;
     let prefix: String = prefix.chars().take(room).collect();
-    format!("{prefix}C{:02}{seq:05}", fy_start.rem_euclid(100))
+    format!("{prefix}{letter}{:02}{seq:05}", fy_start.rem_euclid(100))
+}
+
+/// Which series a pharmacy note of `note_type` is numbered in. A refund to a
+/// customer is a GST credit note (`C`, the same series the counter uses); a
+/// return to a supplier is the hospital's GST debit note (`D`); an expiry or
+/// damage write-off is no supply at all, so it keeps its own internal series
+/// (`W`) and never takes a number out of the GST one.
+#[must_use]
+pub fn note_series_letter(note_type: &str) -> Option<char> {
+    match note_type {
+        "customer_return" => Some('C'),
+        "supplier_return" => Some('D'),
+        "expiry_write_off" | "damage" => Some('W'),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -291,6 +314,23 @@ mod tests {
     fn credit_notes_fit_the_gst_limit() {
         assert_eq!(credit_note_number("PHARM", 2026, 7), "PHARMC2600007");
         let long = credit_note_number("ABCDEFGH", 2026, 99_999);
+        assert!(long.len() <= CREDIT_NOTE_MAX_CHARS);
+    }
+
+    #[test]
+    fn every_pharmacy_note_type_has_its_own_series() {
+        assert_eq!(note_series_letter("customer_return"), Some('C'));
+        assert_eq!(note_series_letter("supplier_return"), Some('D'));
+        assert_eq!(note_series_letter("expiry_write_off"), Some('W'));
+        assert_eq!(note_series_letter("damage"), Some('W'));
+        assert_eq!(note_series_letter("gift"), None);
+    }
+
+    #[test]
+    fn a_supplier_debit_note_fits_the_gst_limit() {
+        assert_eq!(note_number("PHARM", 'D', 2026, 7), "PHARMD2600007");
+        let long = note_number("ABCDEFGHIJ", 'W', 2025, 99_999);
+        assert_eq!(long, "ABCDEFGHW2599999");
         assert!(long.len() <= CREDIT_NOTE_MAX_CHARS);
     }
 }

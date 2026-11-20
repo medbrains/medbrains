@@ -5,9 +5,9 @@
 use chrono::Utc;
 use medbrains_core::permissions;
 use medbrains_core::rx_refills::{RefillTerms, terms_problem};
+use medbrains_kernel::authz::require_permission;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 

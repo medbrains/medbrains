@@ -6,9 +6,10 @@ use axum::extract::{Path, Query, State};
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -42,10 +43,9 @@ pub(crate) async fn list_held(
     Extension(claims): Extension<Claims>,
     Query(params): Query<PageParams>,
 ) -> Result<Json<Vec<HeldAnalyserMessage>>, AppError> {
-    require_permission(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
     let offset = (params.page.unwrap_or(1).max(1) - 1) * PAGE_SIZE;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, HeldAnalyserMessage>(
         "SELECT m.id, m.created_at, d.name AS device_name, m.protocol, \
                 m.error_message AS reason, m.mapped_data, \
@@ -89,9 +89,8 @@ pub(crate) async fn list_candidates(
     Path(id): Path<Uuid>,
     Query(params): Query<CandidateParams>,
 ) -> Result<Json<Vec<CandidateOrder>>, AppError> {
-    require_permission(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let mapped = held_mapped(&mut tx, claims.tenant_id, id, false).await?;
     let ids = &mapped["identifiers"];
     let searched = params
@@ -158,16 +157,9 @@ pub(crate) async fn attach(
     Path(id): Path<Uuid>,
     Json(body): Json<AttachRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        body.order_id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, body.order_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let mapped = held_mapped(&mut tx, claims.tenant_id, id, true).await?;
     let routed = route_analyser_results(
         &mut tx,
@@ -205,15 +197,14 @@ pub(crate) async fn dismiss(
     Path(id): Path<Uuid>,
     Json(body): Json<DismissRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::ANALYSER_REVIEW)?;
     let reason = body.reason.trim();
     if reason.len() < 3 {
         return Err(AppError::BadRequest(
             "Say why these results are not being posted.".to_owned(),
         ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     held_mapped(&mut tx, claims.tenant_id, id, true).await?;
     resolve(&mut tx, &claims, id, Resolution::Dismissed(reason)).await?;
     tx.commit().await?;
@@ -259,9 +250,9 @@ async fn resolve(
     .execute(&mut **tx)
     .await?;
     let values = serde_json::json!({ "order_id": order, "reason": note });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action,

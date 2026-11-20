@@ -21,6 +21,7 @@ use medbrains_core::housekeeping::{
     LinenParLevel, PestControlLog, PestControlSchedule, RoomTurnaround,
 };
 use medbrains_core::permissions;
+use medbrains_health_services::beds;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -606,8 +607,7 @@ pub async fn complete_turnaround(
     .await?;
 
     if let Some(bed_id) = row.location_id {
-        medbrains_db::beds::release_cleaned_bed(&mut tx, claims.tenant_id, bed_id, claims.sub)
-            .await?;
+        beds::release_cleaned_bed(&mut tx, claims.tenant_id, bed_id, claims.sub).await?;
     }
 
     tx.commit().await?;

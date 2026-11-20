@@ -6,7 +6,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
-medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-health-services = { path = "../medbrains-health-services" }
 medbrains-nabh = { path = "../medbrains-nabh" }
 medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }
@@ -15,8 +15,6 @@ medbrains-kernel = { path = "../medbrains-kernel" }
 medbrains-platform = { path = "../medbrains-platform" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-core = { path = "../medbrains-core" }
-medbrains-db = { path = "../medbrains-db" }
-medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

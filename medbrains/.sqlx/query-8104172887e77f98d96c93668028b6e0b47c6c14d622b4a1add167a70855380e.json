@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM abdm_callback_replays WHERE tenant_id = $1 AND received_at < now() - make_interval(hours => $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8104172887e77f98d96c93668028b6e0b47c6c14d622b4a1add167a70855380e"
+}
