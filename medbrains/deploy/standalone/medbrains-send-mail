@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-send-mail — the one way the deploy kit's report
+# timers send email (medbrains-backup-report, medbrains-daily-report).
+#
+#   medbrains-send-mail <to[,to…]> <subject> <text-file> [html-file]
+#   MAIL_PRINT=1 medbrains-send-mail …   # print the message, send nothing
+#
+# Why curl and not msmtp or sendmail: curl speaks SMTP, and install.sh
+# already installs it on every tier, so this adds no package and no second
+# mail configuration. It reads the SAME SMTP_* / EMAIL_FROM_* keys from
+# /etc/medbrains/env that the server's outbox uses (EMAIL_PROVIDER=smtp,
+# docs/ops/SES-PRODUCTION-ACCESS.md): SES SMTP on the AWS tiers, the
+# hospital's own relay anywhere else. One relay, one set of credentials.
+#
+# The password never appears on a command line (ps shows every argv to
+# every user): it goes to curl on stdin as a config file.
+#
+# Exits non-zero when the message was not accepted by the relay. Callers
+# pass that on so OnFailure= pages; a report that silently did not arrive
+# reads exactly like a quiet day.
+
+set -euo pipefail
+
+TO="${1:?usage: medbrains-send-mail <to[,to…]> <subject> <text-file> [html-file]}"
+SUBJECT="${2:?subject required}"
+TEXT_FILE="${3:?text file required}"
+HTML_FILE="${4:-}"
+
+# RFC 2047 encoded-word, so a hospital name outside ASCII survives.
+encode_header() { printf '=?UTF-8?B?%s?=' "$(printf '%s' "$1" | base64 | tr -d '\n')"; }
+
+# Writes the full RFC 5322 message (multipart/alternative when HTML is given).
+build_message() {
+    local from="$1" boundary
+    boundary="mb-$(date +%s)-$$"
+    printf 'From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMessage-ID: <%s.%s@%s>\r\nMIME-Version: 1.0\r\nAuto-Submitted: auto-generated\r\n' \
+        "$from" "$TO" "$(encode_header "$SUBJECT")" "$(LC_ALL=C date -R)" \
+        "$(date +%s)" "$$" "$(hostname)"
+    if [[ -z "$HTML_FILE" ]]; then
+        printf 'Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n'
+        sed 's/$/\r/' "$TEXT_FILE"
+        return
+    fi
+    printf 'Content-Type: multipart/alternative; boundary="%s"\r\n\r\n' "$boundary"
+    printf -- '--%s\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n' "$boundary"
+    sed 's/$/\r/' "$TEXT_FILE"
+    printf -- '\r\n--%s\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n' "$boundary"
+    sed 's/$/\r/' "$HTML_FILE"
+    printf -- '\r\n--%s--\r\n' "$boundary"
+}
+
+FROM_ADDR="${EMAIL_FROM_ADDRESS:-}"
+FROM="${EMAIL_FROM_NAME:+$EMAIL_FROM_NAME <}${FROM_ADDR:-medbrains@localhost}${EMAIL_FROM_NAME:+>}"
+
+if [[ "${MAIL_PRINT:-0}" == "1" ]]; then
+    build_message "$FROM" | tr -d '\r'
+    exit 0
+fi
+
+: "${SMTP_HOST:?SMTP_HOST must be in /etc/medbrains/env to send report email}"
+: "${EMAIL_FROM_ADDRESS:?EMAIL_FROM_ADDRESS must be in /etc/medbrains/env to send report email}"
+PORT="${SMTP_PORT:-587}"
+# Same three modes as the server (crates/medbrains-outbox email handler).
+case "${SMTP_TLS:-starttls}" in
+    implicit) URL="smtps://${SMTP_HOST}:${PORT}"; TLS=() ;;
+    none) URL="smtp://${SMTP_HOST}:${PORT}"; TLS=() ;;
+    *) URL="smtp://${SMTP_HOST}:${PORT}"; TLS=(--ssl-reqd) ;;
+esac
+
+MSG="$(mktemp)"
+trap 'rm -f "$MSG"' EXIT
+build_message "$FROM" > "$MSG"
+
+RCPT=()
+IFS=',' read -ra ADDRS <<<"$TO"
+for a in "${ADDRS[@]}"; do
+    a="${a//[[:space:]]/}"
+    [[ -n "$a" ]] && RCPT+=(--mail-rcpt "$a")
+done
+[[ ${#RCPT[@]} -gt 0 ]] || { echo "ERROR: no recipients in '$TO'" >&2; exit 1; }
+
+# Credentials as a curl config on stdin; quotes and backslashes escaped.
+creds() {
+    [[ -n "${SMTP_USERNAME:-}" ]] || return 0
+    local u="${SMTP_USERNAME//\\/\\\\}" p="${SMTP_PASSWORD:-}"
+    p="${p//\\/\\\\}"
+    printf 'user = "%s:%s"\n' "${u//\"/\\\"}" "${p//\"/\\\"}"
+}
+
+if ! creds | curl --silent --show-error --config - --url "$URL" "${TLS[@]}" \
+    --mail-from "$EMAIL_FROM_ADDRESS" "${RCPT[@]}" --upload-file "$MSG" \
+    --connect-timeout 20 --max-time 120 --retry 2; then
+    echo "ERROR: the SMTP relay ${SMTP_HOST}:${PORT} did not accept '${SUBJECT}' for ${TO}" >&2
+    exit 1
+fi
+echo "sent: ${SUBJECT} → ${TO}"

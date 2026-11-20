@@ -2458,6 +2458,10 @@ export const P = {
     REMINDERS_CREATE: "opd.reminders.create",
     REMINDERS_LIST: "opd.reminders.list",
     REMINDERS_UPDATE: "opd.reminders.update",
+    REPORTS: {
+      VIEW: "opd.reports.view",
+    },
+    REPORTS_VIEW: "opd.reports.view",
     SCHEDULE: {
       LIST: "opd.schedule.list",
       MANAGE: "opd.schedule.manage",

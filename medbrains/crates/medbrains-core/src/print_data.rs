@@ -324,7 +324,9 @@ pub struct EstimateItemLine {
 }
 
 // ── GST Invoice (and the pharmacy bill it becomes) ──────────
+pub use crate::crossmatch_print::{CrossmatchReportPrintData, CrossmatchUnit};
 pub use crate::gst_invoice_print::{GstInvoiceItemLine, GstInvoicePrintData};
+pub use crate::opd_card_print::{OpdCardPrintData, OpdCardVisit};
 
 // ── Consent Forms ───────────────────────────────────────
 
@@ -899,41 +901,6 @@ pub struct IhcMarker {
     pub result: String,
     pub intensity: Option<String>,
     pub percentage: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CrossmatchReportPrintData {
-    pub patient_name: String,
-    pub uhid: String,
-    pub age: Option<String>,
-    pub gender: String,
-    pub blood_group: String,
-    pub rh_type: String,
-    pub request_date: String,
-    pub request_number: String,
-    pub ward: Option<String>,
-    pub bed: Option<String>,
-    pub diagnosis: Option<String>,
-    pub requesting_doctor: Option<String>,
-    pub units_requested: i32,
-    pub component_type: String,
-    pub crossmatch_results: Vec<CrossmatchUnit>,
-    pub antibody_screen: Option<String>,
-    pub special_requirements: Option<String>,
-    pub technician_name: Option<String>,
-    pub verified_by: Option<String>,
-    pub hospital_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct CrossmatchUnit {
-    pub bag_number: String,
-    pub donation_date: String,
-    pub expiry_date: String,
-    pub donor_blood_group: String,
-    pub volume_ml: i32,
-    pub crossmatch_result: String, // Compatible, Incompatible
-    pub issue_status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2885,16 +2852,19 @@ pub struct QualityIndicator {
     pub denominator: Option<i32>,
     pub rate: f64,
     pub benchmark: Option<f64>,
+    /// `met`, `not_met`, `not_applicable` or `direction_not_set`.
     pub status: String,
-    pub trend: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QualitySummary {
     pub total_indicators: i32,
     pub met_benchmark: i32,
-    pub below_benchmark: i32,
+    /// Indicators that miss their target in their own direction.
+    pub not_met: i32,
     pub not_applicable: i32,
+    /// Indicators with a target but no direction; never counted as met.
+    pub direction_not_set: i32,
 }
 
 /// NMC Compliance Report

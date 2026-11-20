@@ -8,7 +8,7 @@
 // Kept out of token-boards-tab.tsx, which is already 880 lines.
 
 import { Group, Stack, Text } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasPermission, useModuleStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -20,9 +20,12 @@ interface BoardWaitEstimateProps {
   isKiosk?: boolean;
 }
 
+/** The waiting-room wait line; hidden where the hospital has no OPD queue to measure. */
 export function BoardWaitEstimate({ isKiosk = false }: BoardWaitEstimateProps) {
   // The wait estimate is derived from the live OPD queue.
   const canViewQueue = useHasPermission(P.OPD.QUEUE_VIEW);
+  // With the EMR off the server refuses the estimate; a board shows nothing rather than an error.
+  const opdOn = useModuleStore((st) => !st.disabledModules.has("opd"));
 
   const { t } = useTranslation("frontOffice");
 
@@ -32,11 +35,11 @@ export function BoardWaitEstimate({ isKiosk = false }: BoardWaitEstimateProps) {
   const { data: estimate } = useQuery({
     queryKey: ["opd-wait-estimate", "board"],
     queryFn: () => opdService.getWaitEstimate(),
-    enabled: canViewQueue,
+    enabled: canViewQueue && opdOn,
     staleTime: 30_000,
   });
 
-  if (!estimate) return null;
+  if (!opdOn || !estimate) return null;
 
   const minutes = estimate.estimated_minutes;
   // Three outcomes, not two. `null` means this queue has never been measured,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { serviceTypeFormSchema } from "./hms-forms.js";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "./password.js";
 
 // ── Shared patterns ──────────────────────────────────────
 
@@ -54,7 +55,7 @@ export const onboardingInitSchema = z.object({
   admin_email: z.string().email("Invalid email address"),
   admin_password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT)
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one digit")
@@ -193,7 +194,7 @@ export const createUserSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT)
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one digit")

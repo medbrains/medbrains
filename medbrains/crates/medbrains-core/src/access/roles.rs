@@ -4,15 +4,9 @@
 //! reads from `BUILT_IN_ROLES` and writes the `roles` table; the
 //! manifest API serves them to the frontend.
 
+use super::BuiltInRole;
 use crate::permissions;
 
-#[derive(Debug)]
-pub struct BuiltInRole {
-    pub code: &'static str,
-    pub name: &'static str,
-    pub description: &'static str,
-    pub permissions: &'static [&'static str],
-}
 pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
     BuiltInRole {
         code: "super_admin",
@@ -1471,6 +1465,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.
             permissions::analytics::management::VIEW,
+            // OPD volume by day and doctor, counts only (the OPD reports screen).
+            permissions::opd::REPORTS_VIEW,
             // How paperless the hospital is, measured (NABH IMS).
             permissions::analytics::paperless::VIEW,
             permissions::analytics::paperless::REFRESH,
@@ -2221,6 +2217,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ipd::admissions::LIST,
             permissions::ipd::admissions::VIEW,
             permissions::quality::indicators::LIST,
+            // Management's OPD numbers, inside the OPD app (single-brick clinics).
+            permissions::opd::REPORTS_VIEW,
             // Medical administration answers for the move off paper.
             permissions::analytics::paperless::VIEW,
             permissions::analytics::paperless::REFRESH,

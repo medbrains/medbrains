@@ -22,7 +22,7 @@ async fn staff(app: &common::TestApp, csrf: &str, role: &str, department: &str) 
     .await
     .expect("department");
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("scoped_{tag}"), format!("Scoped#{tag}Aa9"));
+    let (username, password) = (format!("scoped_{tag}"), format!("Scoped#Key{tag}Aa9"));
     let resp = app
         .client
         .post(app.url("/api/setup/users"))

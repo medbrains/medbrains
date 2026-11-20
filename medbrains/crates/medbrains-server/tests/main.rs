@@ -11,6 +11,7 @@
 //! (payment providers, ABDM mock addresses, the NHCX participant code) and their
 //! per-file `SERIAL` locks do not reach across files. Give them their own tenant
 //! and the default parallelism comes back.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 mod abdm_abha_world;
 mod abdm_hip_world;
@@ -55,6 +56,7 @@ mod abdm_scan_share_test;
 mod abdm_sms_link_test;
 mod abha_verify_link_test;
 mod access_alert_scan_test;
+mod actions_test;
 mod admin_authz_order_test;
 mod ai_actor_audit_test;
 mod ai_dictation_test;
@@ -124,6 +126,7 @@ mod devices_test;
 mod diagnosis_author_test;
 mod diagnosis_coding_test;
 mod dialysis_reuse_test;
+mod discharge_autobag_failure_test;
 mod discharge_summary_report_test;
 mod discharge_tat_readers_test;
 mod display_pairing_test;
@@ -232,13 +235,16 @@ mod notice_pipelines_test;
 mod notifiable_detection_test;
 mod onboarding_registration_test;
 mod online_providers_test;
+mod opd_billing_brick_test;
 mod opd_call_advances_token_test;
+mod opd_card_print_test;
 mod opd_chief_complaint_test;
 mod opd_deceased_guard_test;
 mod opd_last_visit_test;
 mod opd_queue_wait_report_test;
 mod opd_referral_lifecycle_test;
 mod opd_reminders_list_test;
+mod opd_reports_test;
 mod opd_transfer_test;
 mod opd_vitals_event_test;
 mod ophtho_spectacle_rx_test;
@@ -266,6 +272,7 @@ mod payments_p0_test;
 mod payments_pos_fixes_test;
 mod payments_pos_test;
 mod pcpndt_form_f_test;
+mod pending_signoffs_scope_test;
 mod pharmacy_bill_test;
 mod pharmacy_buy_outside_db_test;
 mod pharmacy_buy_outside_test;
@@ -342,6 +349,7 @@ mod tenant_secret_names_test;
 mod tenant_settings_upsert_test;
 mod todays_opd_widget_test;
 mod token_board_privacy_test;
+mod token_by_patient_scope_test;
 mod token_call_sms_test;
 mod token_hold_test;
 mod token_number_recycling_test;

@@ -13,7 +13,7 @@
 //! hospital is the answer, and sign-in never asks for a code.
 
 use axum::http::HeaderMap;
-use medbrains_server_core::error::AppError;
+use medbrains_server_core::{error::AppError, validation::PasswordCheck};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -103,6 +103,18 @@ pub(crate) fn account<T>(mut rows: Vec<T>) -> Account<T> {
 /// The answer that asks the page or app to name the hospital.
 pub(crate) fn hospital_required() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({ "hospital_required": true }))
+}
+
+impl<'a> From<&'a crate::PasswordResetConfirmBody> for PasswordCheck<'a> {
+    /// A self-service reset's new password, with the username and the hospital code it named.
+    fn from(body: &'a crate::PasswordResetConfirmBody) -> Self {
+        Self {
+            password: &body.new_password,
+            username: &body.username,
+            hospital_code: body.hospital_code.as_deref().unwrap_or_default(),
+            ..Self::default()
+        }
+    }
 }
 
 #[cfg(test)]

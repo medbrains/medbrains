@@ -1,6 +1,7 @@
 //! Teams handler tests — `wiremock`, no live Azure app.
 //! Covers the client-credentials + create-onlineMeeting two-step error mapping. The static secret
 //! resolver returns "MTEST" for every key, so the tenant + organizer path segments are "MTEST".
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use async_trait::async_trait;
 use medbrains_core::secrets::{SecretError, SecretResolver};

@@ -23,7 +23,7 @@ async fn send(csrf: &str, req: reqwest::RequestBuilder) -> (StatusCode, Value) {
 /// A signed-in doctor in General Medicine: their id, client and CSRF token.
 async fn doctor(app: &common::TestApp, admin_csrf: &str) -> (Uuid, Client, String) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("soap_{tag}"), format!("Soap#{tag}Aa9"));
+    let (username, password) = (format!("soap_{tag}"), format!("Soap#Key{tag}Aa9"));
     let dept: Uuid = sqlx::query_scalar(
         "SELECT d.id FROM departments d JOIN users u ON u.tenant_id = d.tenant_id \
           WHERE u.username = 'admin' AND d.code = 'GEN-MEDICINE'",
