@@ -10,6 +10,7 @@ mod group_identity_store;
 mod identifier_key;
 pub mod immunization_schedule;
 pub mod local_name;
+pub mod opd_number;
 pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
@@ -5160,4 +5161,5 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/masters/religions", get(list_religions))
         .route("/api/masters/occupations", get(list_occupations))
         .route("/api/masters/relations", get(list_relations))
+        .merge(opd_number::router())
 }
