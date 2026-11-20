@@ -1,4 +1,5 @@
 pub mod email_verification;
+mod password;
 pub mod sizing;
 pub mod trial;
 
@@ -24,7 +25,7 @@ use medbrains_server_core::{
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie},
     },
     state::AppState,
-    validation::{self, ValidationErrors},
+    validation::{self, ValidationErrors, validate_password},
 };
 
 // ── Public email domains (not org-owned) ─────────────────────
@@ -171,7 +172,7 @@ pub async fn init(
     validation::validate_name(&mut errors, "admin_full_name", &body.admin_full_name);
     validation::validate_username(&mut errors, "admin_username", &body.admin_username);
     validation::validate_email(&mut errors, "admin_email", &body.admin_email);
-    validation::validate_password(&mut errors, "admin_password", &body.admin_password);
+    validate_password(&mut errors, "admin_password", &body);
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }
@@ -191,8 +192,7 @@ pub async fn init(
     }
 
     // 2. Email / domain check — one super admin per org
-    let domain = extract_domain(&body.admin_email);
-    if let Some(domain) = domain {
+    if let Some(domain) = extract_domain(&body.admin_email) {
         if is_public_domain(domain) {
             // Public domain → check exact email only
             // Every hospital's admins, asked before this one exists:
@@ -756,7 +756,7 @@ pub async fn setup(
         let prefix = format!("users[{i}]");
         validation::validate_username(&mut errors, &format!("{prefix}.username"), &u.username);
         validation::validate_email(&mut errors, &format!("{prefix}.email"), &u.email);
-        validation::validate_password(&mut errors, &format!("{prefix}.password"), &u.password);
+        validate_password(&mut errors, &format!("{prefix}.password"), u);
         validation::validate_name(&mut errors, &format!("{prefix}.full_name"), &u.full_name);
     }
 

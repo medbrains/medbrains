@@ -876,6 +876,12 @@ export interface OpdRegistrationPolicy {
   require_opd_registration: boolean;
 }
 
+/** Close started OPD visits on their own this many minutes after the patient is called in. */
+export interface OpdAutoCloseSetting {
+  /** 15 to 1440; null is off. */
+  after_minutes: number | null;
+}
+
 export interface OpdQueue {
   id: string;
   tenant_id: string;
@@ -943,6 +949,8 @@ export interface QueueEntry {
   /** For a referral row: who asked, and why. */
   referral_from_doctor: string | null;
   referral_reason: string | null;
+  /** `auto_inactivity` when OPD closed the visit on its own; null when a person did. */
+  close_reason: string | null;
 }
 
 export interface EncounterListResponse {

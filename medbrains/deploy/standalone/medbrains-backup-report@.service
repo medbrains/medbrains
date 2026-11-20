@@ -1,0 +1,22 @@
+[Unit]
+Description=MedBrains backup report email (%i)
+Documentation=https://github.com/DomnicAmalan/MedBrains
+
+# Started by medbrains-pg-backup.service: OnSuccess= starts @success (the
+# daily summary), OnFailure= starts @failure beside medbrains-alert@ (the SNS
+# page stays; this adds the hospital's own inbox). Exits 0 and sends nothing
+# when BACKUP_REPORT_TO is unset.
+#
+# A report that could not be sent fails this unit, and the SNS page below
+# fires: an email that silently never arrived reads like a quiet night.
+OnFailure=medbrains-alert@%n.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/medbrains/env
+EnvironmentFile=-/etc/medbrains/.compose-env
+ExecStart=/usr/local/bin/medbrains-backup-report --%i
+StandardOutput=journal
+StandardError=journal
+Environment="AWS_DEFAULT_REGION=ap-south-1"
+Restart=no

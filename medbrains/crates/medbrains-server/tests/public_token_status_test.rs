@@ -1,7 +1,7 @@
 //! Following your own token from your phone — GitHub #1514.
 //!
 //! Kiosk check-in already issued a queue token and told the patient the number.
-//! After that there was nowhere to watch it: `/api/tokens/mine` needs staff
+//! After that there was nowhere to watch it: the staff token lookup needs staff
 //! permissions and reads a different table than check-in writes, so the only
 //! way to learn your position was to stand in front of the waiting-room screen.
 //! A digital token you cannot follow is a screenshot.

@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT 'refill_request' AS \"record_type!\", r.id AS \"record_id!\",\n                r.created_at AS \"created_at!\", 'clinical' AS \"legal_class!\",\n                r.patient_id AS \"patient_id?\",\n                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS \"patient_name?\",\n                pat.uhid::text AS \"uhid?\",\n                COALESCE((SELECT string_agg(i.drug_name, ', ' ORDER BY i.created_at)\n                            FROM prescription_items i\n                           WHERE i.tenant_id = r.tenant_id AND i.prescription_id = r.prescription_id\n                             AND i.item_status = 'active'), 'Prescription') AS \"summary?\",\n                COALESCE(NULLIF(r.patient_note, ''), 'Asked from the patient portal') AS \"context?\",\n                CASE WHEN p.repeats_used >= p.repeats_allowed THEN 'Refills used up'\n                     WHEN p.valid_until < CURRENT_DATE THEN 'Prescription expired'\n                     ELSE NULL END AS \"risk_label?\",\n                NULL::text AS \"order_mode?\", NULL::timestamptz AS \"countersign_due_at?\",\n                NULL::boolean AS \"transcribed?\"\n           FROM prescription_refill_requests r\n           JOIN prescriptions p ON p.id = r.prescription_id AND p.tenant_id = r.tenant_id\n           JOIN patients pat ON pat.id = r.patient_id AND pat.tenant_id = r.tenant_id\n          WHERE r.tenant_id = $1 AND r.doctor_id = $2 AND r.status = 'with_doctor'\n            AND r.deleted_at IS NULL\n          ORDER BY r.created_at\n          LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "record_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "record_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "legal_class!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "patient_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "patient_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "uhid?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "summary?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "context?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "risk_label?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "order_mode?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "countersign_due_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "transcribed?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      null,
+      false,
+      null,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2f687898753f58e3598929d39839f159975887ab5c938f97feffb51d2945adbc"
+}

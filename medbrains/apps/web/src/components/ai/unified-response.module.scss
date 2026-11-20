@@ -28,6 +28,16 @@
   background: var(--mb-warning-bg, var(--mantine-color-yellow-0));
 }
 
+.toolRefused {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-4));
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mb-bg-subtle, var(--mantine-color-gray-1));
+}
+
 .toolBlockedMsg {
   color: var(--mb-danger, var(--mantine-color-red-7));
 }

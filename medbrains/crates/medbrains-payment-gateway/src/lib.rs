@@ -915,7 +915,7 @@ fn decrypt_ccavenue_response(enc_resp: &str, working_key: &str) -> Result<String
 /// `payments` / `ccavenue_config` setting, where every provider's keys live.
 async fn get_ccavenue_working_key(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &uuid::Uuid,
+    tenant_id: &Uuid,
 ) -> Result<String, String> {
     let config = online::keys::stored_config(tx, tenant_id, "ccavenue")
         .await

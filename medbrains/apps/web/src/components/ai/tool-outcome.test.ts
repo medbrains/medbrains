@@ -20,3 +20,15 @@ describe("a drug check that did not run is never shown as blocked or done", () =
     });
   });
 });
+
+describe("a refused action says which refusal it was", () => {
+  it("never shows could-not-check as not allowed, nor either as done", () => {
+    const unknown = { refused: "unknown", message: "I couldn't check that right now." };
+    expect(toolResultInfo(unknown)).toEqual({ outcome: "unchecked", message: unknown.message });
+    const denied = { refused: "not_allowed", message: "You're not allowed to see this." };
+    expect(toolResultInfo(denied)).toEqual({ outcome: "denied", message: denied.message });
+    const confirm = { refused: "needs_confirmation", message: "This needs your confirmation." };
+    expect(toolResultInfo(confirm)).toEqual({ outcome: "confirm", message: confirm.message });
+    expect(toolResultInfo({ ok: [] }).outcome).toBe("done");
+  });
+});

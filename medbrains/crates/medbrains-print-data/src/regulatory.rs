@@ -10,6 +10,7 @@ use axum::{
 };
 use chrono::Datelike;
 
+use crate::nabh_quality_report::get_nabh_quality_report_print_data;
 use crate::pcpndt_form_f::get_pcpndt_form_f_print_data;
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
@@ -18,9 +19,8 @@ use medbrains_core::print_data::{
     DeathRegisterPrintData, DepartmentAttendance, DisposalRecord, DrugLicenseReportPrintData,
     DrugStockCategory, ExpiryAlert, FormFCompliance, GasIncident, MedicalGasSystem,
     MlcCaseTypeCount, MlcRegisterSummaryEntry, MlcRegisterSummaryPrintData, MlcStatusCount,
-    NabhQualityReportPrintData, NablQualityReportPrintData, NmcComplianceReportPrintData,
-    PcpndtPersonnel, PcpndtProcedure, PcpndtReportPrintData, PesoComplianceReportPrintData,
-    PtResult, QcMetric, QualityIndicator, QualitySummary, SafetyInspection,
+    NablQualityReportPrintData, NmcComplianceReportPrintData, PcpndtPersonnel, PcpndtProcedure,
+    PcpndtReportPrintData, PesoComplianceReportPrintData, PtResult, QcMetric, SafetyInspection,
     SpcbBmwReturnsPrintData, TatMetric,
 };
 
@@ -29,128 +29,12 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
-// ── NABH Quality Indicators Report ────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct QualityIndicatorRow {
-    indicator_code: String,
-    indicator_name: String,
-    category: String,
-    numerator: Option<i32>,
-    denominator: Option<i32>,
-    rate: f64,
-    benchmark: Option<f64>,
-    status: String,
-}
-
-/// Latest `quality_indicator_values` row per indicator inside the period. "Met"
-/// follows the quality dashboard's rule: calculated value at or above target.
-pub async fn get_nabh_quality_report_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(period): Path<String>,
-) -> Result<Json<NabhQualityReportPrintData>, AppError> {
-    require_permission(&claims, permissions::quality::indicators::LIST)?;
-    let (start, end) = period_bounds(&period)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
-
-    let indicators = sqlx::query_as::<_, QualityIndicatorRow>(
-        "SELECT indicator_code, indicator_name, category, numerator, denominator, rate, \
-                benchmark, status \
-         FROM ( \
-           SELECT DISTINCT ON (qi.id) \
-             COALESCE(qi.indicator_code, qi.code) AS indicator_code, \
-             COALESCE(qi.indicator_name, qi.name) AS indicator_name, \
-             qi.category, qi.display_order, \
-             ROUND(v.numerator_value)::int AS numerator, \
-             ROUND(v.denominator_value)::int AS denominator, \
-             v.calculated_value::float8 AS rate, \
-             COALESCE(qi.benchmark, qi.benchmark_national::float8) AS benchmark, \
-             CASE WHEN qi.target_value IS NULL THEN 'not_applicable' \
-                  WHEN v.calculated_value >= qi.target_value THEN 'met' \
-                  ELSE 'below' END AS status \
-           FROM quality_indicator_values v \
-           JOIN quality_indicators qi ON qi.id = v.indicator_id \
-             AND qi.tenant_id = v.tenant_id AND qi.deleted_at IS NULL \
-           WHERE v.deleted_at IS NULL AND v.calculated_value IS NOT NULL \
-             AND v.period_start >= $1 AND v.period_end < $2 AND v.tenant_id = $3 \
-           ORDER BY qi.id, v.period_end DESC \
-         ) latest \
-         ORDER BY category, display_order, indicator_code LIMIT 1000",
-    )
-    .bind(start)
-    .bind(end)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>(
-        "SELECT name, logo_url, nabh_certificate_number, nabh_valid_until::text \
-         FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let action_items: Vec<String> = sqlx::query_scalar(
-        "SELECT description FROM quality_action_items \
-         WHERE tenant_id = $1 AND deleted_at IS NULL AND status <> 'closed' \
-           AND completed_at IS NULL AND NULLIF(description, '') IS NOT NULL \
-         ORDER BY due_date NULLS LAST, created_at LIMIT 100",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    let count = |s: &str| indicators.iter().filter(|i| i.status == s).count() as i32;
-    let summary = QualitySummary {
-        total_indicators: indicators.len() as i32,
-        met_benchmark: count("met"),
-        below_benchmark: count("below"),
-        not_applicable: count("not_applicable"),
-    };
-
-    Ok(Json(NabhQualityReportPrintData {
-        report_period: period,
-        report_date: chrono::Utc::now()
-            .with_timezone(&tz)
-            .format("%d-%b-%Y")
-            .to_string(),
-        hospital_name: tenant.0,
-        nabh_certificate_number: tenant.2,
-        accreditation_valid_until: tenant.3,
-        indicators: indicators
-            .into_iter()
-            .map(|i| QualityIndicator {
-                indicator_code: i.indicator_code,
-                indicator_name: i.indicator_name,
-                category: i.category,
-                numerator: i.numerator,
-                denominator: i.denominator,
-                rate: i.rate,
-                benchmark: i.benchmark,
-                status: i.status,
-                trend: None,
-            })
-            .collect(),
-        summary,
-        action_items,
-        prepared_by: None,
-        reviewed_by: None,
-        hospital_logo_url: tenant.1,
-    }))
-}
-
 // ── NMC Compliance Report ────────────────────────────────
 
 /// Resolves a report period — `YYYY`, `YYYY-MM` or `YYYY-Qn` — to `[start, end)`.
-fn period_bounds(period: &str) -> Result<(chrono::NaiveDate, chrono::NaiveDate), AppError> {
+pub(crate) fn period_bounds(
+    period: &str,
+) -> Result<(chrono::NaiveDate, chrono::NaiveDate), AppError> {
     let bad = || AppError::BadRequest(format!("expected YYYY, YYYY-MM or YYYY-Qn: {period}"));
     let (year, rest) = period
         .split_once('-')

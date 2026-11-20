@@ -128,7 +128,9 @@ fn default_route() -> RoutingConfig {
 
 /// Every 15 minutes, pull for every tenant with `hrms.humanex.enabled`.
 /// `pool` is the worker pool, which reads across tenants.
-pub fn spawn(pool: PgPool) {
+///
+/// Returns the task, so the brick-job supervisor can stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match enabled_tenants(&pool).await {
@@ -143,7 +145,7 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(PASS_INTERVAL).await;
         }
-    });
+    })
 }
 
 async fn enabled_tenants(pool: &PgPool) -> Result<Vec<Uuid>, sqlx::Error> {

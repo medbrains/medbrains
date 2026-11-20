@@ -26,6 +26,17 @@ pub async fn resolve_restricted_fields(
     role: &str,
 ) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    restricted_fields_on(&mut conn, tenant_id, user_id, role).await
+}
+
+/// [`resolve_restricted_fields`] on a connection the caller already holds, so
+/// work inside an open transaction takes no second pool connection.
+pub async fn restricted_fields_on(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
     if role == "super_admin" || role == "hospital_admin" {
         return Ok(HashMap::new());
     }

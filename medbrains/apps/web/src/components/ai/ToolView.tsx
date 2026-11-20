@@ -1,22 +1,48 @@
 import { Box, Group, Loader, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconTool } from "@tabler/icons-react";
-import { Badge } from "@/components/ui";
+import { IconAlertTriangle, IconLock, IconTool, IconUserCheck } from "@tabler/icons-react";
+import { Badge, type BadgeTone } from "@/components/ui";
 import { CodeBlock } from "./CodeBlock";
 import { AI_TOOL, AI_TOOL_LABELS } from "./tools";
 import type { ChatToolCall } from "./transport/types";
 import styles from "./unified-response.module.scss";
 
-/** What a finished tool call came to: refused, not run, or done. */
-type ToolOutcome = "blocked" | "unchecked" | "done";
+/** What a finished tool call came to: blocked, not run, refused, waiting on you, or done. */
+type ToolOutcome = "blocked" | "unchecked" | "denied" | "confirm" | "done";
 
-const OUTCOME_VIEW: Record<ToolOutcome, { badge: string; tone: "danger" | "warning" | "success" }> =
-  {
-    blocked: { badge: "BLOCKED", tone: "danger" },
-    unchecked: { badge: "Not checked", tone: "warning" },
-    done: { badge: "done", tone: "success" },
-  };
+const OUTCOME_VIEW: Record<ToolOutcome, { badge: string; tone: BadgeTone }> = {
+  blocked: { badge: "BLOCKED", tone: "danger" },
+  unchecked: { badge: "Not checked", tone: "warning" },
+  denied: { badge: "Not allowed", tone: "neutral" },
+  confirm: { badge: "Needs your confirmation", tone: "info" },
+  done: { badge: "done", tone: "success" },
+};
+
+/** The chip's frame per outcome: red for a safety block, amber for not checked. */
+const OUTCOME_BOX: Record<ToolOutcome, string | undefined> = {
+  blocked: styles.toolBlocked,
+  unchecked: styles.toolUnchecked,
+  denied: styles.toolRefused,
+  confirm: styles.toolRefused,
+  done: styles.tool,
+};
+
+/** The icon a flagged chip leads with. */
+const OUTCOME_ICON: Record<ToolOutcome, typeof IconLock> = {
+  blocked: IconAlertTriangle,
+  unchecked: IconAlertTriangle,
+  denied: IconLock,
+  confirm: IconUserCheck,
+  done: IconTool,
+};
+
+/** A typed action's refusal (`medbrains-ai/src/action_tools.rs`) as a chip outcome. */
+const REFUSAL_OUTCOME: Record<string, ToolOutcome> = {
+  unknown: "unchecked",
+  not_allowed: "denied",
+  needs_confirmation: "confirm",
+};
 
 /**
  * Read the outcome out of a tool result (shape varies by tool). A check that
@@ -28,6 +54,8 @@ export function toolResultInfo(result: unknown): { outcome: ToolOutcome; message
   const r = result as Record<string, unknown>;
   const text = (v: unknown) => (typeof v === "string" ? v : undefined);
   if (r.checked === false) return { outcome: "unchecked", message: text(r.notes) };
+  const refused = typeof r.refused === "string" ? REFUSAL_OUTCOME[r.refused] : undefined;
+  if (refused) return { outcome: refused, message: text(r.message) };
   if (r.decision === "blocked" || r.safe === false) {
     return { outcome: "blocked", message: text(r.message) ?? text(r.notes) };
   }
@@ -51,17 +79,14 @@ export function ToolView({ toolCall }: { toolCall: ChatToolCall }) {
   const running = toolCall.status === "running" || toolCall.status === "pending";
   const flagged = !running && outcome !== "done";
   const view = OUTCOME_VIEW[outcome];
-  const boxClass = !flagged
-    ? styles.tool
-    : outcome === "blocked"
-      ? styles.toolBlocked
-      : styles.toolUnchecked;
+  const boxClass = flagged ? OUTCOME_BOX[outcome] : styles.tool;
+  const FlagIcon = OUTCOME_ICON[outcome];
 
   return (
     <Box className={boxClass}>
       <Group gap={8} wrap="nowrap">
         {flagged ? (
-          <IconAlertTriangle size={16} aria-hidden />
+          <FlagIcon size={16} aria-hidden />
         ) : running ? (
           <Loader size={14} />
         ) : (

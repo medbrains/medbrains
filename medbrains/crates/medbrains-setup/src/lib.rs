@@ -29,7 +29,7 @@ use medbrains_server_core::settings_guard::{
     refuse_admin_only_category, refuse_locale_profile_key, refuse_own_endpoint_category,
 };
 use medbrains_server_core::state::AppState;
-use medbrains_server_core::validation::{self, ValidationErrors};
+use medbrains_server_core::validation::{self, ValidationErrors, validate_password};
 
 // ── PUT /api/setup/tenant ───────────────────────────────────
 
@@ -1322,7 +1322,7 @@ pub async fn create_user(
     let mut errors = ValidationErrors::new();
     validation::validate_username(&mut errors, "username", &body.username);
     validation::validate_email(&mut errors, "email", &body.email);
-    validation::validate_password(&mut errors, "password", &body.password);
+    validate_password(&mut errors, "password", (&body.password, &body.username));
     validation::validate_name(&mut errors, "full_name", &body.full_name);
     if body.role.is_empty() {
         errors.add("role", "Role is required");
@@ -1667,7 +1667,7 @@ pub async fn reset_user_password(
     let (password, generated) = match body.new_password {
         Some(provided) => {
             let mut errors = ValidationErrors::new();
-            validation::validate_password(&mut errors, "new_password", &provided);
+            validate_password(&mut errors, "new_password", &provided);
             if errors.has_errors() {
                 return Err(AppError::ValidationFailed(errors));
             }
@@ -2212,7 +2212,8 @@ pub async fn update_role_widget_access(
 // ── Modules CRUD ────────────────────────────────────────────
 
 /// `GET /api/setup/modules` — the tenant's app bricks. `depends_on` comes from the brick table
-/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it.
+/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it;
+/// `background_jobs` says which of the brick's jobs this server runs.
 pub async fn list_modules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2231,11 +2232,8 @@ pub async fn list_modules(
 
     tx.commit().await?;
 
-    for row in &mut rows {
-        if let Some(brick) = medbrains_core::bricks::find(&row.code) {
-            row.depends_on = brick.depends_on.iter().map(|d| (*d).to_owned()).collect();
-        }
-    }
+    rows.iter_mut()
+        .for_each(medbrains_server_core::brick_jobs::fill_from_bricks);
     Ok(Json(rows))
 }
 
@@ -4821,7 +4819,7 @@ pub async fn import_users(
         let (password, generated) = match row.password {
             Some(given) => {
                 let mut check = ValidationErrors::new();
-                validation::validate_password(&mut check, "password", given);
+                validate_password(&mut check, "password", (given, row.username));
                 if check.has_errors() {
                     errors.push(format!("Row {row_num}: password does not meet the rules"));
                     skipped += 1;
@@ -5224,15 +5222,15 @@ pub async fn bulk_create_users(
     let mut errors: Vec<String> = Vec::new();
 
     for (idx, user) in body.users.iter().enumerate() {
-        let mut user_errors = ValidationErrors::new();
-        validation::validate_username(&mut user_errors, "username", &user.username);
-        validation::validate_email(&mut user_errors, "email", &user.email);
-        validation::validate_password(&mut user_errors, "password", &user.password);
-        validation::validate_name(&mut user_errors, "full_name", &user.full_name);
+        let mut problems = ValidationErrors::new();
+        validation::validate_username(&mut problems, "username", &user.username);
+        validation::validate_email(&mut problems, "email", &user.email);
+        validate_password(&mut problems, "password", (&user.password, &user.username));
+        validation::validate_name(&mut problems, "full_name", &user.full_name);
         if user.role.is_empty() {
-            user_errors.add("role", "Role is required");
+            problems.add("role", "Role is required");
         }
-        if user_errors.has_errors() {
+        if problems.has_errors() {
             errors.push(format!("User {idx}: validation failed"));
             continue;
         }

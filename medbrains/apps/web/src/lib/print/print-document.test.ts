@@ -14,7 +14,7 @@ vi.mock("./print-registry", async (importOriginal) => {
   return {
     ...actual,
     printDocumentDef: (key: string) =>
-      key === "consent.general"
+      ["consent.general", "opd-card", "opd-visit-card"].includes(key)
         ? {
             key,
             label: "General consent",
@@ -179,5 +179,64 @@ describe("the generated registry", () => {
     const written = captureWrite();
     await printDocument("consent.general", "adm-1");
     expect(written()).toContain("UH-1");
+  });
+
+  it("prints a crossmatch's outcome and says when no unit is tied", async () => {
+    // The shape the crossmatch report endpoint sends for a web-made
+    // crossmatch: compatible, but the bank tied no bag to it.
+    fetchImpl = async () => ({
+      status: "compatible",
+      result: "compatible",
+      tested_at: "16-Nov-2026 09:30",
+      unit_allocation: "No unit allocated yet",
+      crossmatch_results: [],
+    });
+    const written = captureWrite();
+    await printDocument("consent.general", "xm-1");
+    const html = written();
+    expect(html).toContain("<th>Status</th><td>compatible</td>");
+    expect(html).toContain("<th>Tested at</th><td>16-Nov-2026 09:30</td>");
+    expect(html).toContain("No unit allocated yet");
+    expect(html).toContain("<h2>Crossmatch results</h2><p>None recorded</p>");
+  });
+
+  it("prints the token ticket and the ID card as two documents, each with its own page", async () => {
+    const card = {
+      hospital_name: "Rishi Hospital",
+      hospital_logo_url: null,
+      patient_name: "Asha Sample",
+      uhid: "RH-000123",
+      age: "34 Y",
+      gender: "female",
+      phone: "9000012345",
+      visit: { visit_date: "17-Nov-2026", visit_time: "10:42", token_number: "OP-014" },
+    };
+    fetchImpl = async () => card;
+    let written = captureWrite();
+    await printDocument("opd-visit-card", "enc-1");
+    expect(written()).toContain("size: 80mm 70mm");
+    expect(written()).not.toContain("85.6mm");
+    expect(written()).not.toContain("Asha Sample");
+
+    written = captureWrite();
+    await printDocument("opd-card", "pat-1");
+    expect(written()).toContain("size: 85.6mm 54mm");
+    expect(written()).not.toContain("OP-014");
+    expect(written()).toContain("document.fonts.ready");
+  });
+
+  it("opens no window for a visit with no token, and says why", async () => {
+    fetchImpl = async () => ({
+      hospital_name: "Rishi Hospital",
+      visit: { visit_date: "17-Nov-2026", visit_time: "10:42", token_number: null },
+    });
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const result = await printDocument("opd-visit-card", "enc-1");
+    expect(result).toEqual({
+      ok: false,
+      problem: "This visit has no token, so there is no ticket to print.",
+    });
+    expect(open).not.toHaveBeenCalled();
   });
 });

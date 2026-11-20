@@ -1453,10 +1453,10 @@ pub async fn confirm_password_reset(
     headers: HeaderMap,
     Json(body): Json<PasswordResetConfirmBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if body.new_password.len() < 8 {
-        return Err(AppError::BadRequest(
-            "New password must be at least 8 characters".to_owned(),
-        ));
+    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
+    medbrains_server_core::validation::validate_password(&mut errors, "new_password", &body);
+    if errors.has_errors() {
+        return Err(AppError::ValidationFailed(errors));
     }
 
     let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;
