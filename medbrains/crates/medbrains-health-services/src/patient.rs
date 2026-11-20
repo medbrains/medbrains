@@ -8,7 +8,19 @@
 use medbrains_kernel::{KernelError, Tx};
 use uuid::Uuid;
 
-pub use medbrains_authz_gate::require_patient_access;
+/// The clinical access gate, re-exported whole so apps reach it here rather than
+/// below the kernel (RFC-HOSPITAL-OS §3a). It moves up into this crate next; until
+/// then this one `use` is the crate's only direct core access, as the baseline
+/// records. Every public item of `medbrains-authz-gate`, so the codemod
+/// (`scripts/kernel_codemod.py`) can point any app here.
+pub use medbrains_authz_gate::{
+    AdmissionCareTeam, BILLING, HandOff, PATHOLOGY, PHARMACY, ParentKind, ParentLink,
+    grant_admission_care_team, grant_encounter_owner, hand_off, hand_visit_to_billing, links,
+    mental_health, patient_filter, require_access_via, require_access_via_optional,
+    require_admission_access, require_admission_billing_access, require_encounter_access,
+    require_order_cancel, require_patient_access, require_patient_billing_access,
+    require_patient_billing_filter, require_patient_pharmacy_access, visible_patient_ids,
+};
 
 /// Merges chained deeper than this are a data fault, not a real history.
 const MAX_MERGE_HOPS: i32 = 8;

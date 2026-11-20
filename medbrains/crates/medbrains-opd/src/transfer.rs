@@ -12,9 +12,11 @@ use axum::{
     extract::{Path, State},
 };
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
+use medbrains_kernel::authz::authz_context;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{authz_context, require_permission};
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -40,11 +42,10 @@ pub async fn transfer_encounter(
     Path(id): Path<Uuid>,
     Json(body): Json<TransferVisitRequest>,
 ) -> Result<Json<TransferVisitResponse>, AppError> {
-    require_permission(&claims, permissions::opd::visit::TRANSFER)?;
-    medbrains_authz_gate::require_encounter_access(&state, &claims, id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::visit::TRANSFER)?;
+    gate::require_encounter_access(&state, &claims, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let current = sqlx::query!(
         r#"SELECT department_id, status::text AS "status!" FROM encounters
             WHERE id = $1 AND tenant_id = $2 FOR UPDATE"#,
@@ -134,7 +135,7 @@ pub(crate) async fn grant_new_care_team(
             "encounter",
             encounter_id,
             "dept_member",
-            medbrains_authz::Subject::Department(department_id),
+            kernel::authz::Subject::Department(department_id),
             None,
             Some("encounter_department".to_owned()),
         )
@@ -147,8 +148,8 @@ pub(crate) async fn grant_new_care_team(
                 &ctx,
                 "encounter",
                 encounter_id,
-                medbrains_authz::Relation::AttendingPhysician,
-                medbrains_authz::Subject::User(doctor),
+                kernel::authz::Relation::AttendingPhysician,
+                kernel::authz::Subject::User(doctor),
                 None,
                 Some("encounter_attending".to_owned()),
             )
