@@ -3,6 +3,7 @@
  * refuses it, and the refusal is on the audit trail, where an administrator
  * finds it by filtering for refused requests.
  */
+import { E2E_BACKEND_URL } from "../helpers/e2e-identities";
 import { expect, test } from "./support/world";
 
 test("a refused request is on the audit trail for an administrator to find", async ({ hospital }) => {
@@ -10,7 +11,7 @@ test("a refused request is on the audit trail for an administrator to find", asy
   const t = Date.now().toString(36).toUpperCase().slice(-6);
   const nurse = await hospital.newStaff("nurse", `Nurse Refused ${t}`);
   // The nurse's own session asks for the user list — refused.
-  const refused = await nurse.page.request.get("http://127.0.0.1:3000/api/setup/users");
+  const refused = await nurse.page.request.get(`${E2E_BACKEND_URL}/api/setup/users`);
   expect(refused.status()).toBe(403);
 
   const page = await hospital.asAdmin();

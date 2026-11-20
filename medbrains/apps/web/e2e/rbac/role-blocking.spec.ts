@@ -21,6 +21,7 @@ import {
   getE2EIdentity,
   loginForSession as login,
 } from "../helpers/e2e-identities";
+import { ownClientHeaders } from "../helpers/worker-tenant";
 
 const BASE = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
@@ -67,7 +68,7 @@ async function callApi(
 ): Promise<number> {
   const resp = await request.fetch(`${BASE}${path}`, {
     method: "GET",
-    headers: { cookie: s.cookieHeader, "x-csrf-token": s.csrf },
+    headers: { cookie: s.cookieHeader, "x-csrf-token": s.csrf, ...ownClientHeaders() },
   });
   return resp.status();
 }
@@ -84,7 +85,11 @@ async function fetchRolesPermMap(
   const adminSession = await login(request, admin.username, admin.password);
   const resp = await request.fetch(`${BASE}/api/setup/roles`, {
     method: "GET",
-    headers: { cookie: adminSession.cookieHeader, "x-csrf-token": adminSession.csrf },
+    headers: {
+      cookie: adminSession.cookieHeader,
+      "x-csrf-token": adminSession.csrf,
+      ...ownClientHeaders(),
+    },
   });
   expect(resp.status(), "fetch roles").toBe(200);
   const roles: RoleSummary[] = await resp.json();

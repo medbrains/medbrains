@@ -9,6 +9,8 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -22,9 +24,9 @@ use medbrains_core::print_data::{
     ReceiptPrintData, RefundReceiptPrintData,
 };
 
+use medbrains_kernel::authz::require_permission;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── Helper: fetch hospital name from tenants table ───────
@@ -73,20 +75,12 @@ pub async fn get_receipt_print_data(
     Path(payment_id): Path<Uuid>,
     Query(query): Query<ReceiptPrintQuery>,
 ) -> Result<Json<ReceiptPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::billing::receipts::PRINT)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PAYMENT,
-        payment_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::PAYMENT, payment_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
@@ -238,9 +232,9 @@ pub async fn get_receipt_print_data(
         "prior_print_count": prior_print_count,
         "reprint_reason": reprint_reason,
     });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         &mut tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action: if is_reprint {
@@ -299,19 +293,11 @@ pub async fn get_estimate_print_data(
     Extension(claims): Extension<Claims>,
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<EstimatePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INVOICE,
-        invoice_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::INVOICE, invoice_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, EstimateHeaderRow>(
@@ -401,19 +387,11 @@ pub async fn get_opd_bill_print_data(
     Extension(claims): Extension<Claims>,
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<OpdBillPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INVOICE,
-        invoice_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::INVOICE, invoice_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, OpdBillHeaderRow>(
@@ -571,13 +549,11 @@ pub async fn get_ipd_interim_bill_print_data(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<IpdInterimBillPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_billing_access(&state, &claims, admission_id).await?;
+    gate::require_admission_billing_access(&state, &claims, admission_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, IpdInterimBillRow>(
@@ -785,19 +761,11 @@ pub async fn get_ipd_final_bill_print_data(
     Extension(claims): Extension<Claims>,
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<IpdFinalBillPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INVOICE,
-        invoice_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::INVOICE, invoice_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, IpdFinalBillRow>(
@@ -987,13 +955,11 @@ pub async fn get_admission_consolidated_bill_print_data(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<IpdFinalBillPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    gate::require_admission_access(&state, &claims, admission_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, ConsolidatedBillHeaderRow>(
@@ -1189,13 +1155,11 @@ pub async fn get_no_dues_certificate_print_data(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<NoDuesCertificatePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    gate::require_admission_access(&state, &claims, admission_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, NoDuesRow>(
@@ -1282,19 +1246,11 @@ pub async fn get_advance_receipt_print_data(
     Extension(claims): Extension<Claims>,
     Path(advance_id): Path<Uuid>,
 ) -> Result<Json<AdvanceReceiptPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PATIENT_ADVANCE,
-        advance_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::PATIENT_ADVANCE, advance_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdvanceReceiptRow>(
@@ -1371,19 +1327,11 @@ pub async fn get_refund_receipt_print_data(
     Extension(claims): Extension<Claims>,
     Path(refund_id): Path<Uuid>,
 ) -> Result<Json<RefundReceiptPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::REFUND,
-        refund_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::REFUND, refund_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, RefundReceiptRow>(
@@ -1467,7 +1415,7 @@ pub async fn get_insurance_preauth_print_data(
     Extension(claims): Extension<Claims>,
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<InsurancePreauthPrintData>, AppError> {
-    require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::insurance::prior_auth::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     // A pre-auth is a financial record: direct grant on the patient, as for
     // every other link in the billing group.
@@ -1477,14 +1425,12 @@ pub async fn get_insurance_preauth_print_data(
     )
     .bind(request_id)
     .bind(claims.tenant_id)
-    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
+    .fetch_optional(&mut *kernel::tenant_session(&state.db, &permit).await?)
     .await?
     .ok_or(AppError::NotFound)?;
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, patient_id).await?;
+    gate::require_patient_billing_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PreauthRow>(
@@ -1598,19 +1544,11 @@ pub async fn get_cashless_claim_print_data(
     Extension(claims): Extension<Claims>,
     Path(claim_id): Path<Uuid>,
 ) -> Result<Json<CashlessClaimPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::corporate::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::corporate::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INSURANCE_CLAIM,
-        claim_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::INSURANCE_CLAIM, claim_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // The claim's money and its stay are recorded on the claim itself
@@ -1712,14 +1650,12 @@ pub async fn get_package_estimate_print_data(
     Extension(claims): Extension<Claims>,
     Path(package_id): Path<Uuid>,
 ) -> Result<Json<PackageEstimatePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     // Master data, no patient on it: the permission checks above are the
     // whole of its authorization.
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PackageEstimateRow>(
@@ -1899,19 +1835,11 @@ pub async fn get_credit_note_print_data(
     Extension(claims): Extension<Claims>,
     Path(credit_note_id): Path<Uuid>,
 ) -> Result<Json<CreditNotePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::CREDIT_NOTE,
-        credit_note_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::CREDIT_NOTE, credit_note_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CreditNoteRow>(
@@ -2022,7 +1950,7 @@ pub async fn get_package_bill_print_data(
     Extension(claims): Extension<Claims>,
     Path(subscription_id): Path<Uuid>,
 ) -> Result<Json<PackageBillPrintData>, AppError> {
-    require_permission(&claims, permissions::patient_packages::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patient_packages::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     // A purchase is a financial record: direct grant on the patient.
     let patient_id: Uuid = sqlx::query_scalar(
@@ -2031,14 +1959,12 @@ pub async fn get_package_bill_print_data(
     )
     .bind(subscription_id)
     .bind(claims.tenant_id)
-    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
+    .fetch_optional(&mut *kernel::tenant_session(&state.db, &permit).await?)
     .await?
     .ok_or(AppError::NotFound)?;
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, patient_id).await?;
+    gate::require_patient_billing_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PackageBillRow>(
@@ -2185,19 +2111,11 @@ pub async fn get_insurance_claim_print_data(
     Extension(claims): Extension<Claims>,
     Path(claim_id): Path<Uuid>,
 ) -> Result<Json<InsuranceClaimPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::corporate::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::corporate::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INSURANCE_CLAIM,
-        claim_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::INSURANCE_CLAIM, claim_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // The claim records its own stay, policy and money (migration 1068).

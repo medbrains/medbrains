@@ -293,8 +293,8 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 
 ### API Contract Rule
 
-- **Every API method** added to `packages/api/src/client.ts` MUST have a corresponding route handler in the backend `routes/mod.rs`.
-- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in the frontend `client.ts`.
+- **Every API method** goes in its API area's module, `packages/api/src/modules/<area>.ts` (the area is the request path's first segment: `/pharmacy/...` → `pharmacy.ts`, `pharmacyApi`), and MUST have a corresponding route handler in the backend `routes/mod.rs`. `client.ts` holds only the transport (request, session, errors).
+- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in its area module.
 - Run `make check-api` to verify. This is a blocking check — no module is complete until the contract passes.
 - The script (`scripts/check_api_contract.py`) statically parses both files — no running server required.
 
@@ -712,7 +712,7 @@ Every module follows this. No skipping.
 4. **Mark In Progress** in Excel via openpyxl script.
 5. **DB layer** — migration `crates/medbrains-db/src/migrations/NNN_<module>.sql`, masters first, RLS, indexes.
 6. **Backend** — types in `medbrains-core/src/<module>.rs`, handlers in `medbrains-server/src/routes/<module>.rs`, register in `routes/mod.rs`. `cargo clippy` clean.
-7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/client.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
+7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/modules/<area>.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
    - **7b Mobile (if Mobile=Y)**: native, both platforms in lockstep — `apps/ios/…/Features/<Module>/` (SwiftUI) and `apps/android/app-*/…/<module>/` (Compose), per `RFCs/RFC-NATIVE-MOBILE.md`.
    - **7c TV (if TV=Y)**: Compose for TV under `apps/android/` (per `RFCs/RFC-NATIVE-MOBILE.md`), D-pad focus nav, WebSocket realtime, large fonts.
 8. **Static checks** — `make check-all` (check-api, check-ui-api, check-types). `make generate-smoke`.

@@ -12,9 +12,9 @@
 use axum::{Extension, Json, extract::State};
 use medbrains_core::lab::LabOrder;
 use medbrains_core::permissions;
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -80,10 +80,9 @@ pub async fn create_direct_orders(
     Extension(claims): Extension<Claims>,
     Json(body): Json<DirectOrderRequest>,
 ) -> Result<Json<DirectOrderResponse>, AppError> {
-    require_permission(&claims, permissions::lab::orders::DIRECT)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::DIRECT)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let placed = place_direct_orders(&mut tx, &claims, &body).await?;
     tx.commit().await?;
 

@@ -24,6 +24,9 @@ import { NAV_GROUPS, type NavItemConfig } from "@/config/navigation";
 import { loginAsRole, routeApiDirect } from "../helpers";
 import { E2E_ROLE_DEFINITIONS, getE2EIdentity, loginForSession } from "../helpers/e2e-identities";
 
+// Each test stands alone (its own page, sign-in and data), so workers and shards may split them.
+test.describe.configure({ mode: "parallel" });
+
 const BASE = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
 /**
