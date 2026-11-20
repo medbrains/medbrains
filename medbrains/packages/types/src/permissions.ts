@@ -1686,6 +1686,7 @@ export const P = {
     ENHANCEMENT_VIEW: "insurance.enhancement.view",
     NHCX: {
       CANCEL: "insurance.nhcx.cancel",
+      CANCEL_PREAUTH: "insurance.nhcx.cancel_preauth",
       CONFIGURE: "insurance.nhcx.configure",
       PAYMENTS: "insurance.nhcx.payments",
       RESPOND: "insurance.nhcx.respond",
@@ -1693,6 +1694,7 @@ export const P = {
       VIEW: "insurance.nhcx.view",
     },
     NHCX_CANCEL: "insurance.nhcx.cancel",
+    NHCX_CANCEL_PREAUTH: "insurance.nhcx.cancel_preauth",
     NHCX_CONFIGURE: "insurance.nhcx.configure",
     NHCX_PAYMENTS: "insurance.nhcx.payments",
     NHCX_RESPOND: "insurance.nhcx.respond",

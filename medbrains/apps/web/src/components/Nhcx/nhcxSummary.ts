@@ -92,3 +92,11 @@ export function summariseNhcxResponse(payload: unknown): NhcxResponseSummary | n
     error: isObject(errorDetails) ? asText(errorDetails.message) : null,
   };
 }
+
+const PREAUTH_CLOSED = new Set(["cancelled", "denied", "expired"]);
+
+/** Whether a pre-auth can still be withdrawn through NHCX: it reached a payer
+ * and is not already closed. The server refuses the rest with 409. */
+export function canWithdrawPreauth(status: string, recipient: string | null): boolean {
+  return !!recipient && !PREAUTH_CLOSED.has(status);
+}

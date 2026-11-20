@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { nhcxDecisionLabel, nhcxStatusLabel, summariseNhcxResponse } from "./nhcxSummary";
+import {
+  canWithdrawPreauth,
+  nhcxDecisionLabel,
+  nhcxStatusLabel,
+  summariseNhcxResponse,
+} from "./nhcxSummary";
 
 describe("summariseNhcxResponse", () => {
   it("reads the ClaimResponse outcome and disposition out of a bundle", () => {
@@ -61,5 +66,16 @@ describe("an NHCX answer on screen", () => {
     expect(nhcxDecisionLabel("approved")?.tone).toBe("success");
     expect(nhcxDecisionLabel("unknown")?.tone).toBe("warning");
     expect(nhcxDecisionLabel(null)).toBeNull();
+  });
+});
+
+describe("canWithdrawPreauth", () => {
+  it("offers cancel only for a pre-auth a payer holds and has not closed", () => {
+    expect(canWithdrawPreauth("in_review", "1000004805")).toBe(true);
+    expect(canWithdrawPreauth("approved", "1000004805")).toBe(true);
+    expect(canWithdrawPreauth("in_review", null)).toBe(false);
+    for (const closed of ["cancelled", "denied", "expired"]) {
+      expect(canWithdrawPreauth(closed, "1000004805")).toBe(false);
+    }
   });
 });

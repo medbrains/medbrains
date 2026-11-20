@@ -22,6 +22,7 @@ mod nhcx_golden_tests;
 pub mod nhcx_participants;
 mod nhcx_parties;
 pub mod nhcx_preauth;
+pub mod nhcx_preauth_tasks;
 pub mod nhcx_queries;
 pub mod nhcx_sla;
 pub mod nhcx_submit;
@@ -237,10 +238,7 @@ pub fn router() -> Router<AppState> {
             "/api/billing/insurance-claims/{id}/nhcx/reprocess",
             post(nhcx_tasks::reprocess_claim),
         )
-        .route(
-            "/api/insurance/prior-auths/{id}/nhcx/status",
-            post(nhcx_tasks::preauth_status),
-        )
+        .merge(nhcx_preauth_tasks::router())
         .route(
             "/api/insurance/nhcx/search",
             post(nhcx_tasks::search_claims),

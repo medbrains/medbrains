@@ -10,6 +10,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use medbrains_core::nhcx::{NhcxOperation, NhcxRecord};
+use medbrains_core::nhcx_wire::{QueryAbout, query_answer_code};
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -170,7 +171,7 @@ pub async fn answer_payer_query(
     nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, &q.sender_code).await?;
     let docs = answer_documents(&mut tx, claims.tenant_id, &q, &body.document_ids).await?;
 
-    let (correlation_id, workflow_id, api_call_id): (Uuid, Option<String>, Uuid) = sqlx::query_as(
+    let (correlation_id, payer_code, api_call_id): (Uuid, Option<String>, Uuid) = sqlx::query_as(
         "UPDATE nhcx_payer_queries SET status = 'answered', answer_text = $1, \
                 answer_document_ids = $2, answered_by = $3, answered_at = now(), \
                 nhcx_api_call_id = $4, nhcx_status = 'queued', nhcx_disposition = NULL, \
@@ -198,8 +199,8 @@ pub async fn answer_payer_query(
         recipient: &q.sender_code,
         correlation_id,
         api_call_id,
-        // The payer's step code (24, 27), echoed.
-        workflow_id: workflow_id.as_deref(),
+        // The sheet's answer code for the payer's query (24 → 19, 27 → 151).
+        workflow_id: Some(answer_code(&q, payer_code.as_deref())),
         payload: &payload,
     };
     nhcx_common::queue(&mut tx, &claims, &msg).await?;
@@ -212,6 +213,17 @@ pub async fn answer_payer_query(
     .await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// The step code an answer goes under: the response code for the payer's
+/// query, never the query's own code echoed back (#5708).
+fn answer_code(q: &NhcxPayerQuery, payer_code: Option<&str>) -> &'static str {
+    let about = if q.prior_auth_id.is_none() && q.insurance_claim_id.is_some() {
+        QueryAbout::Claim
+    } else {
+        QueryAbout::Preauth
+    };
+    query_answer_code(payer_code, about, !q.requested_items.is_empty())
 }
 
 /// The payer has its answer; the request is back with the payer to decide.

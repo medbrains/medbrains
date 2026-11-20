@@ -152,16 +152,18 @@ impl NhcxOperation {
     }
 
     /// The step code this operation always travels under, where it has one
-    /// regardless of the case (NHA Workflow Status Sheet): a claim 15, a
-    /// cancellation PC01, a reprocess 36. A pre-auth's code depends on its
-    /// stage ([`crate::nhcx_wire::preauth_workflow_code`]); a reply echoes
-    /// the payer's; eligibility, status and search have none.
+    /// regardless of the case (the constants in [`crate::nhcx_wire`]): a
+    /// claim 15, a cancellation PC01, a reprocess
+    /// [`crate::nhcx_wire::WF_CLAIM_REPROCESS`]. A pre-auth's code depends on
+    /// its stage ([`crate::nhcx_wire::preauth_workflow_code`]); a query
+    /// answer's on the payer's query ([`crate::nhcx_wire::query_answer_code`]);
+    /// eligibility, status and search have none.
     #[must_use]
     pub const fn fixed_workflow_code(self) -> Option<&'static str> {
         match self {
-            Self::Claim => Some("15"),
-            Self::Cancel => Some("PC01"),
-            Self::Reprocess => Some("36"),
+            Self::Claim => Some(crate::nhcx_wire::WF_CLAIM),
+            Self::Cancel => Some(crate::nhcx_wire::WF_PREAUTH_CANCEL),
+            Self::Reprocess => Some(crate::nhcx_wire::WF_CLAIM_REPROCESS),
             _ => None,
         }
     }

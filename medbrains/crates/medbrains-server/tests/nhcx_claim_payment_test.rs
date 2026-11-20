@@ -569,6 +569,12 @@ async fn staff_without_the_nhcx_claim_and_payment_permissions_are_refused() {
             format!("/api/insurance/prior-auths/{}/nhcx/status", Uuid::new_v4()),
             Some(json!({})),
         ),
+        // Holding the claim cancel does not let a desk withdraw a pre-auth.
+        (
+            reqwest::Method::POST,
+            format!("/api/insurance/prior-auths/{}/nhcx/cancel", Uuid::new_v4()),
+            Some(json!({ "reason": "Patient not admitted" })),
+        ),
     ];
     for (method, path, body) in attempts {
         let mut req = clerk

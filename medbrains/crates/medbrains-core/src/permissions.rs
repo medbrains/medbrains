@@ -3264,6 +3264,11 @@ pub mod insurance {
         /// Ask a payer through NHCX to cancel a claim, or to reprocess one
         /// after its deductions or rejection have been answered.
         pub const CANCEL: &str = "insurance.nhcx.cancel";
+        /// Cancel NHCX pre-authorisations.
+        ///
+        /// Ask a payer through NHCX to withdraw a pre-authorisation it has
+        /// received — the patient was not admitted, or the plan changed.
+        pub const CANCEL_PREAUTH: &str = "insurance.nhcx.cancel_preauth";
         /// See and post NHCX payments.
         ///
         /// The payment notices payers send through NHCX — amount, UTR and

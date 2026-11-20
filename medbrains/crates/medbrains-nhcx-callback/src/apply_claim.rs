@@ -7,7 +7,9 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
-use crate::apply::{DECISION_SQL, Inbound, Matched, Tx, preauth_by_id};
+use medbrains_core::nhcx_wire::WF_PREAUTH_CANCELLED;
+
+use crate::apply::{DECISION_SQL, Inbound, Matched, Tx, log_status, preauth_by_id};
 use crate::parse::{self, Decision};
 use crate::parse_claim::{self, TaskResult};
 
@@ -187,7 +189,10 @@ pub(crate) async fn task(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched, Ap
             Ok(Some(("insurance_claims", claim_id)))
         }
         (None, Some(pa_id)) => {
-            if carries_answer {
+            if t.kind == "cancel" && preauth_cancelled(m.workflow_id, result.task_status.as_deref())
+            {
+                cancel_preauth(tx, m, pa_id).await?;
+            } else if carries_answer {
                 preauth_by_id(tx, m, pa_id).await?;
             }
             Ok(Some(("prior_auth_requests", pa_id)))
@@ -212,9 +217,52 @@ async fn cancel(tx: &mut Tx<'_>, m: &Inbound<'_>, claim_id: Uuid) -> Result<(), 
     Ok(())
 }
 
+/// Whether the payer's reply to a pre-auth cancel Task says it is done: its
+/// PC02 "Preauthorization Cancellation Accomplished", or the Task completed.
+fn preauth_cancelled(workflow: Option<&str>, task_status: Option<&str>) -> bool {
+    workflow == Some(WF_PREAUTH_CANCELLED) || task_status == Some("completed")
+}
+
+/// The payer withdrew the pre-authorisation. One already denied, expired or
+/// cancelled stays as it is.
+async fn cancel_preauth(tx: &mut Tx<'_>, m: &Inbound<'_>, pa_id: Uuid) -> Result<(), AppError> {
+    let from: Option<String> = sqlx::query_scalar(
+        "UPDATE prior_auth_requests p SET status = 'cancelled', nhcx_status = $1, \
+                nhcx_decision = 'cancelled', nhcx_response_at = now() \
+           FROM prior_auth_requests old \
+          WHERE p.id = $2 AND p.tenant_id = $3 AND old.id = p.id \
+            AND p.status NOT IN ('cancelled', 'denied', 'expired') \
+         RETURNING old.status::text",
+    )
+    .bind(m.status)
+    .bind(pa_id)
+    .bind(m.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if let Some(from) = from {
+        log_status(
+            tx,
+            m,
+            pa_id,
+            (&from, "cancelled"),
+            "Payer cancelled it (NHCX PC02)",
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pre_auth_cancel_is_done_on_pc02_or_a_completed_task() {
+        assert!(preauth_cancelled(Some("PC02"), None));
+        assert!(preauth_cancelled(None, Some("completed")));
+        assert!(!preauth_cancelled(Some("PC01"), Some("requested")));
+        assert!(!preauth_cancelled(None, Some("rejected")));
+    }
 
     #[test]
     fn only_a_decision_moves_the_claim() {
