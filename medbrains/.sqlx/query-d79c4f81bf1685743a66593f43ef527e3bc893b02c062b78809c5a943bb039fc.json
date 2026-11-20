@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH old AS (\n             SELECT id, token_rejected_at FROM patient_abha_links\n              WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL\n                AND unlinked_at IS NULL\n              LIMIT 10 FOR UPDATE)\n           UPDATE patient_abha_links l\n              SET linking_token = NULL, token_expiry = NULL, token_request_id = NULL,\n                  token_requested_at = NULL, token_rejected_at = now()\n             FROM old WHERE l.tenant_id = $1 AND l.id = old.id\n           RETURNING (old.token_rejected_at IS NULL\n                      OR old.token_rejected_at < now() - interval '1 hour') AS \"may_retry!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "may_retry!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d79c4f81bf1685743a66593f43ef527e3bc893b02c062b78809c5a943bb039fc"
+}
