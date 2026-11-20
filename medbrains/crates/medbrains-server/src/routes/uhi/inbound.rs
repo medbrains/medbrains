@@ -29,7 +29,10 @@ use super::{
     labs,
     outbox::{self, Callback},
     payment,
-    protocol::{ACTIONS, Context, ERR_NOT_REGISTERED, GatewaySpec, Service},
+    protocol::{
+        ACTIONS, Context, ERR_NOT_REGISTERED, GatewaySpec, INBOUND_CALLBACKS, Service,
+        refuses_select,
+    },
     requests, settings, teleconsult,
 };
 use crate::{error::AppError, state::AppState};
@@ -193,6 +196,7 @@ async fn process(
             "this hospital does not offer that service over UHI",
         ));
     };
+    refuse_off_flow(ctx, service, known.is_some())?;
     let key_id = match caller {
         Caller::App(key_id) => Some(key_id.as_str()),
         Caller::Gateway => None,
@@ -200,15 +204,13 @@ async fn process(
     let txn = record(&mut tx, sub.tenant_id, ctx, service, body, key_id).await?;
     let reply = match service {
         Service::Teleconsultation | Service::PhysicalConsultation => {
-            teleconsult::answer(
-                &mut tx,
-                state.secret_resolver.as_ref(),
-                sub,
+            let call = teleconsult::Call {
                 ctx,
                 body,
-                &txn,
-            )
-            .await
+                txn: &txn,
+                from_gateway: matches!(caller, Caller::Gateway),
+            };
+            teleconsult::answer(&mut tx, state.secret_resolver.as_ref(), sub, call).await
         }
         Service::LabTests => labs::answer(&mut tx, sub, ctx, body, &txn).await,
         Service::BloodBank | Service::Ambulance => {
@@ -242,6 +244,22 @@ async fn process(
             .map_err(fault)?;
     }
     tx.commit().await.map_err(fault)?;
+    Ok(())
+}
+
+/// Refuse what the consultation flow does not have, before anything is
+/// recorded: a consultation `select` (the flow goes from `on_search` straight
+/// to `init`), and an `on_update` or `on_message` about a transaction this
+/// hospital never saw.
+fn refuse_off_flow(ctx: &Context, service: Service, known: bool) -> Result<(), Nack> {
+    if ctx.action == "select" && refuses_select(service) {
+        return Err(Nack::bad_request(
+            "select is not part of the UHI consultation flow: send init with the slot",
+        ));
+    }
+    if INBOUND_CALLBACKS.contains(&ctx.action.as_str()) && !known {
+        return Err(Nack::bad_request("no order in this transaction"));
+    }
     Ok(())
 }
 

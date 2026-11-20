@@ -25,7 +25,7 @@ use uuid::Uuid;
 pub static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// An Aadhaar with no ABHA behind it (VRFY_ABHA_403).
-pub const NO_ABHA_AADHAAR: &str = "999999999999";
+pub const NO_ABHA_AADHAAR: &str = "999999999996";
 /// An OTP the stand-in refuses with ABDM-1017.
 pub const EXPIRED_OTP: &str = "000000";
 pub const NUMBER: &str = "91-1111-2222-3333";

@@ -72,14 +72,14 @@ async fn a_quote_carries_the_fee_or_says_it_is_paid_at_the_hospital() {
     let id = txn();
     let items = slots(&w, &id, &name, "Online").await;
     assert_eq!(items[0]["price"]["value"], "500.00");
-    let select = w.message(
+    let init = w.message(
         CONSULTATION_DOMAIN,
-        "select",
+        "init",
         &id,
         json!({ "order": { "items": [{ "id": items[0]["id"] }] } }),
     );
-    w.call("select", &select).await;
-    let quote = w.deliver(&id, "on_select").await.body["message"]["order"]["quote"].clone();
+    w.call("init", &init).await;
+    let quote = w.deliver(&id, "on_init").await.body["message"]["order"]["quote"].clone();
     assert_eq!(quote["price"]["value"], "500.00", "{quote}");
 
     let (no_fee, other) = doctor(&w).await;
@@ -89,14 +89,14 @@ async fn a_quote_carries_the_fee_or_says_it_is_paid_at_the_hospital() {
         items[0]["price"].get("value").is_none(),
         "never ₹0: {items:?}"
     );
-    let select = w.message(
+    let init = w.message(
         CONSULTATION_DOMAIN,
-        "select",
+        "init",
         &id,
         json!({ "order": { "items": [{ "id": items[0]["id"] }] } }),
     );
-    w.call("select", &select).await;
-    let quote = w.deliver(&id, "on_select").await.body["message"]["order"]["quote"].clone();
+    w.call("init", &init).await;
+    let quote = w.deliver(&id, "on_init").await.body["message"]["order"]["quote"].clone();
     assert!(quote["price"].get("value").is_none());
     assert_eq!(quote["breakup"][0]["title"], FEE_AT_HOSPITAL);
 
@@ -166,7 +166,7 @@ async fn appointment_status(w: &World, row: Uuid) -> String {
 
 /// Given Razorpay as the online provider and a ₹500 doctor, When the app
 /// confirms, Then the slot is held and on_confirm carries a payment link
-/// (ON-ORDER, NOT-PAID); When the webhook says the link is paid, Then the
+/// (ON-ORDER, NOT_PAID); When the webhook says the link is paid, Then the
 /// appointment is confirmed, the ₹500 is posted to the patient's bill, and
 /// on_confirm and on_status say PAID. A second hold left unpaid past its
 /// time is let go by the next call, and the app is told.
@@ -209,7 +209,7 @@ async fn paying_online_holds_the_booking_until_the_webhook_and_an_unpaid_hold_la
     let on_confirm = w.deliver(&id, "on_confirm").await;
     let order = &on_confirm.body["message"]["order"];
     assert_eq!(order["state"], "PENDING", "{order}");
-    assert_eq!(order["payment"]["status"], "NOT-PAID");
+    assert_eq!(order["payment"]["status"], "NOT_PAID");
     assert!(
         order["payment"]["uri"]
             .as_str()

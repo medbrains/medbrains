@@ -10,5 +10,6 @@ export const uhiService = {
     uhiApi.listUhiRequests(...args),
   accept: (id: string) => uhiApi.acceptUhiRequest(id),
   decline: (id: string, reason: string) => uhiApi.declineUhiRequest(id, reason),
+  checkPin: (id: string, pin: string) => uhiApi.checkUhiPin(id, pin),
   listCampuses: () => abdmApi.listFacilityHfr(),
 };
