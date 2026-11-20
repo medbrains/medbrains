@@ -17,14 +17,15 @@
 //! hospital's tenant context, the side effects, one commit. A row closes once:
 //! the update only takes rows still open, and a failed pass rolls back whole.
 
+use medbrains_kernel as kernel;
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use axum::extract::State;
 use axum::{Extension, Json};
+use kernel::audit::AuditEntry;
 use medbrains_core::encounter::{OpdQueue, QueueStatus};
 use medbrains_core::permissions;
-use medbrains_db::audit::AuditEntry;
 use medbrains_kernel::{Actor, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -97,9 +98,15 @@ async fn announce(state: &AppState, tenant_id: Uuid, closed: &[ClosedVisit]) {
     if !closed.is_empty() {
         tracing::info!(%tenant_id, closed = closed.len(), "OPD visits closed automatically");
     }
+    let permit = kernel::Permit::unattended(tenant_id, "OPD auto-close announcements");
     for visit in closed {
-        let announced =
-            crate::announce_visit_closed(state, visit.actor, &visit.queue, visit.token.as_ref());
+        let announced = crate::announce_visit_closed(
+            state,
+            &permit,
+            visit.actor,
+            &visit.queue,
+            visit.token.as_ref(),
+        );
         if let Err(error) = announced.await {
             tracing::error!(%tenant_id, queue_id = %visit.queue.id, %error,
                 "auto-closed visit not announced");
@@ -115,8 +122,8 @@ pub async fn close_due_for_tenant(
     pool: &PgPool,
     tenant_id: Uuid,
 ) -> Result<Vec<ClosedVisit>, AppError> {
-    let mut tx = pool.begin().await?;
-    medbrains_db::pool::set_audit_context(&mut tx, &tenant_id, &Uuid::nil(), None).await?;
+    let permit = kernel::Permit::unattended(tenant_id, "OPD auto-close, scheduled pass");
+    let mut tx = kernel::actor_tx(pool, &permit, None).await?;
     let Some(minutes) = read_minutes(&mut tx, tenant_id).await? else {
         return Ok(Vec::new());
     };
@@ -238,7 +245,7 @@ async fn audit_close(
         "close_reason": CLOSE_REASON,
         "auto_close_after_minutes": minutes,
     });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         tx,
         &AuditEntry {
             tenant_id: queue.tenant_id,
