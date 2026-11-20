@@ -58,7 +58,8 @@ secrets. Picks up where it left off if interrupted.
    checked) as `postgresql@17-main`: 127.0.0.1 and ::1 only, `scram-sha-256`
    over loopback, `peer` for `postgres`, en_US.UTF-8, data checksums
    (`native-postgres.sh`). A host still running the old kit's
-   `medbrains-postgres` container is refused until it is moved. If
+   `medbrains-postgres` container is refused until it is moved
+   (see "Moving an existing host off Docker"). If
    `MEDBRAINS_ICD_LOCAL_SERVICE=true` and you installed docker yourself, also
    starts the WHO ICD-API sidecar on `127.0.0.1:8382`.
 5. Installs `medbrains-server`, `medbrains-archive`, and `medbrains-proxy` binaries to
@@ -262,6 +263,7 @@ Certbot once the domain is proven and add its route to the proxy config.
 | `medbrains-archive.service` | systemd one-shot for the storage sweeper |
 | `medbrains-archive.timer` | daily 02:00 timer |
 | `native-postgres.sh` | sourced: PGDG repo, the cluster, its hba and loopback config |
+| `migrate-docker-postgres-to-native.sh` | one-time move of an old-kit host off the Postgres container |
 | `docker-compose.prod.yml` | opt-in container extras only (ICD-API, Rustrak); never started by default |
 | `env.example` | starter `/etc/medbrains/env` |
 | `medbrains-pg-backup` (+ `.service`, `.timer`) | sealed nightly + pre-deploy backup → S3 or `BACKUP_DIR` |
@@ -323,6 +325,21 @@ crash-free rate of the running release.
 Source maps: build with `SENTRY_URL=https://errors.<domain>` and
 `SENTRY_AUTH_TOKEN=<RUSTRAK_API_TOKEN>` in the environment and the web
 build uploads them for its release; they are never served.
+
+## Moving an existing host off Docker
+
+A host installed before 2026-11-20 runs Postgres in the `medbrains-postgres`
+container, and `install.sh` refuses to run there until it is moved:
+
+```sh
+sudo bash migrate-docker-postgres-to-native.sh --dry-run   # every check, no change
+sudo bash migrate-docker-postgres-to-native.sh             # the move (minutes of downtime)
+```
+
+It copies by dump and restore (never the data directory), verifies the copy
+table by table, keeps the container stopped with its volume untouched for
+rollback, and prints the rollback commands. Runbook, downtime and the
+rehearsal record: `docs/ops/BACKUP-RESTORE.md`, "Moving a host off Docker".
 
 ## What this kit does NOT install
 

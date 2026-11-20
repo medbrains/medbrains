@@ -130,7 +130,7 @@ Before PITR the data-loss window is the day since 02:30. With PITR it is the las
 
 Off by default. Nothing changes on any server until its env file says `PITR_ENABLED=1` and `install.sh` runs (or
 `medbrains-wal-g-setup --apply` is run by hand). It works on the kit's native cluster (`postgresql@17-main`) and on a
-reused host Postgres (attach). A host still on the old kit's container moves first (`migrate-docker-postgres-to-native.sh`).
+reused host Postgres (attach). A host still on the old kit's container moves first ("Moving a host off Docker").
 
 **Tool: WAL-G** (`v3.0.9`, pinned and checksum-verified; the Ubuntu 22.04 build also runs on Debian 12), not
 pgBackRest. Both stream WAL to S3. The deciding point is retention **without delete rights**: the host may never
@@ -452,6 +452,82 @@ was deleted afterwards. It held two tenants, `RISHI` (2 patients) and `OTHER` (3
 | Same, after creating the group row | loaded; `tenants` = RISHI only; patients = RishiA, RishiB |
 | One data row removed from the script, then imported | refused: `public.patients: expected 2 rows` |
 | Imported into a database still migrating (schema 1463) | refused: `this server is not at schema 1470` |
+
+## Moving a host off Docker
+
+The kit runs PostgreSQL natively (`postgresql@17-main`, `deploy/standalone/native-postgres.sh`). A host installed
+by the old kit has Postgres in the `medbrains-postgres` container; `install.sh` refuses to run there until it is
+moved. The move is a logical copy, never the data directory: the container is musl and the host glibc, and their
+`en_US.utf8` sort text differently, so copied text indexes would be silently wrong.
+
+```sh
+# on the host, from the new kit's deploy/standalone directory, at a quiet time
+sudo bash migrate-docker-postgres-to-native.sh --dry-run    # every check, changes nothing
+sudo bash migrate-docker-postgres-to-native.sh              # the move; log in /var/log/medbrains-migrate-*.log
+sudo bash install.sh <domain> <admin-email>                 # the normal deploy, now native
+```
+
+What the move does, in order: preflight (PostgreSQL 17 at or above 17.12 in the container, only the `medbrains`
+database, SCRAM passwords for every login role, disk for three copies, WAL archiving off, the newest backup completed
+within 26 h, apt.postgresql.org reachable); a fresh backup; native PostgreSQL 17 installed on port 5433 beside the
+container (no downtime); **the writers stop** (`medbrains-server`, `medbrains-edge`, every active medbrains timer);
+`pg_dumpall --globals-only` and `pg_dump -Fc` from the container; restore into native, `ANALYZE`; verification
+(every table's exact row count, every sequence's last value, extensions and versions, RLS policies and tables,
+roles, memberships and role settings, index/constraint/trigger/function counts, all equal; `amcheck` on every btree
+index with `heapallindexed`; every role in `/etc/medbrains/env` logs in with its own password); the container stops
+with `--restart=no`, native moves to 5432 (the URLs do not change); the kit's native-only scripts and units are
+installed (the old ones are saved to `/var/lib/medbrains-migrate/prev-tooling.tar`); **the writers start**;
+`/api/health` and a session on the native cluster are checked; one backup is taken.
+
+Downtime is the stop-to-start window: 8 s for a 47 MB database in the rehearsal below; allow 1–2 minutes for a
+100 MB one on a small server. Any failure before the switch restarts the writers on the container, which was never
+changed; a failure during the switch puts the container back. Re-running is safe at every point.
+
+Rollback, after the switch (writes made on the native cluster since are lost; the script prints these with the
+services this host has):
+
+```sh
+sudo systemctl stop medbrains-server.service medbrains-edge.service
+sudo systemctl disable --now postgresql@17-main.service
+sudo docker update --restart=unless-stopped medbrains-postgres
+sudo docker start medbrains-postgres
+sudo tar -C / -xf /var/lib/medbrains-migrate/prev-tooling.tar
+sudo systemctl daemon-reload
+sudo systemctl start medbrains-server.service medbrains-edge.service
+curl -fsS http://127.0.0.1:3000/api/health
+```
+
+After a week of good native backups, and only then, by hand: `sudo docker rm medbrains-postgres`,
+`sudo docker volume rm medbrains_medbrains-pgdata`, then remove docker itself if no opt-in extra
+(`docker-compose.prod.yml`) uses it.
+
+Behaviour change: `ORDER BY` on text follows glibc `en_US.UTF-8` (punctuation ignored at the first level, case and
+accents interleaved: `a b`, `ab`, `a-b`, `Ab`) where the container sorted bytewise (`-dash` before `Apple` before
+`apple`). Stored values, equality and uniqueness are unchanged.
+
+### Rehearsal — 2026-11-20 (throwaway VM)
+
+Ubuntu 24.04.5 arm64 cloud image (SHA256SUMS signature checked) under QEMU; the old kit installed with Ubuntu's
+`docker.io` 29.1.3 and `postgres:17-alpine` (`sha256:526f86d93c6e…3d84f32`, PostgreSQL 17.12, `en_US.utf8`); a seed
+shaped like the first hospital's database (the five roles, the four extensions, three RLS policies, a partitioned
+table, 60,000 patients with non-ASCII and mixed-case names under btree, expression and trigram indexes; 47 MB);
+stand-ins for the server, proxy and certbot (no real certificate).
+
+| Run | Result |
+|---|---|
+| fresh native install, twice | both exit 0; `postgresql@17-main` 17.12 on 127.0.0.1/::1 only, SCRAM, checksums on, en_US.UTF-8; no docker installed; backup sealed |
+| `--dry-run` on the docker host | exit 0, nothing installed |
+| migration | exit 0 in 40 s; 186 btree indexes pass amcheck; fingerprints identical; server down 8 s |
+| migration re-run | "already switched", exit 0 |
+| `install.sh` on the migrated host | exit 0, health probe ok |
+| reboot | native up, container stays stopped, server healthy, backup ok |
+| injected failure after the writers stopped (a wrong password in the env) | refused at verification; writers back on the container; the fixed re-run completes |
+| rollback commands above | container serves the original data; the old backup script works; forward again completes |
+| `install.sh` on an unmigrated docker host | refused, pointing at this script |
+
+Found and fixed during the rehearsal: `GRANTED BY` the container's bootstrap role is refused by PostgreSQL 16+ on
+a cluster whose bootstrap role is `postgres`; the server's start limit left it down after repeated runs; a stopped
+client's backend lingers until its query ends (docs/DECISIONS.md, 2026-11-20).
 
 ## Restore drill — 2026-10-12 (local dev DB)
 
