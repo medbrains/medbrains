@@ -1,3 +1,5 @@
+pub mod note_series;
+
 use std::collections::HashMap;
 
 use axum::routing::{get, put};
@@ -453,6 +455,8 @@ pub async fn list_credit_notes(
     ))
 }
 
+/// `POST /api/pharmacy/credit-notes` — a credit or debit note raised from the
+/// credit-notes screen, numbered in the same GST series as the counter.
 pub async fn create_credit_note(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -472,10 +476,7 @@ pub async fn create_credit_note(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     validate_credit_note_entity_links(&mut tx, claims.tenant_id, &body).await?;
 
-    let now = Utc::now();
-    let ts = now.format("%Y%m%d%H%M%S");
-    let uid = Uuid::new_v4();
-    let credit_note_number = format!("CN-{ts}-{}", &uid.to_string()[..8]);
+    let credit_note_number = note_series::for_note(&mut tx, claims.tenant_id, &body).await?;
 
     let gst = body.gst_amount.unwrap_or(Decimal::ZERO);
     let net = body.total_amount + gst;
