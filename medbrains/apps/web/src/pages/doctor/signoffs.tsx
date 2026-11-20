@@ -4,30 +4,25 @@
  *
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.2.
  */
-import { Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { Stack, Tabs, Text } from "@mantine/core";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import { P, type PendingSignoffEntry } from "@medbrains/types";
-import {
-  IconAlertTriangle,
-  IconClipboardCheck,
-  IconSignature,
-  IconVolume,
-} from "@tabler/icons-react";
+import { IconAlertTriangle, IconClipboardCheck, IconVolume } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { CountersignCard } from "@/components/Clinical/case-sheet/CountersignCard";
 import { UnsignedNotesCard } from "@/components/Clinical/case-sheet/UnsignedNotesCard";
 import { CriticalValueInbox } from "@/components/Doctor/CriticalValueInbox";
-import { RefillDecision } from "@/components/Doctor/RefillDecision";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
-import { StoreSubstitutionDecision } from "@/components/Doctor/StoreSubstitutionDecision";
 import { VerbalOrderRegister } from "@/components/Doctor/VerbalOrderRegister";
 import { PageHeader } from "@/components/PageHeader";
-import { Alert, Badge, type BadgeTone, IconButton } from "@/components/ui";
+import { QueryError } from "@/components/QueryError";
+import { Alert, Badge } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { type SignableTypes, useSignableTypes } from "@/hooks/useSignableTypes";
 import { signoffService } from "@/services/signoff.service";
-import { signoffAction, signoffLabel } from "./signoff-action";
+import { SignoffCard, verbalCountersign } from "./SignoffCard";
+import { signoffLabel } from "./signoff-action";
 
 export function SignoffsPage() {
   useRequirePermission(P.DOCTOR.SIGNOFFS.VIEW_OWN);
@@ -46,6 +41,7 @@ export function SignoffsPage() {
   const {
     data: items = [],
     isLoading,
+    error,
     refetch,
   } = useQuery({
     queryKey: ["my-pending-signoffs"],
@@ -53,28 +49,14 @@ export function SignoffsPage() {
     refetchInterval: 30_000,
   });
 
-  const grouped = useMemo(() => {
-    const g: Record<string, PendingSignoffEntry[]> = {};
-    for (const it of items) {
-      const arr = g[it.record_type] ?? [];
-      arr.push(it);
-      g[it.record_type] = arr;
-    }
-    return g;
-  }, [items]);
-
-  const totalCount = items.length;
-  const overdueCount = items.filter((it) => {
-    const ageHours = (Date.now() - new Date(it.created_at).getTime()) / 3_600_000;
-    return ageHours > 24 && it.legal_class === "medico_legal";
-  }).length;
-  const countersignOverdue = items.filter((it) => verbalCountersign(it)?.overdue).length;
+  // A failed load shows no per-type counts, which would be stale or zero.
+  const grouped = useMemo(() => (error ? {} : groupByType(items)), [items, error]);
 
   return (
     <div>
       <PageHeader
         title="Sign-off queue"
-        subtitle={`${totalCount} pending • ${overdueCount} overdue medico-legal • ${countersignOverdue} countersign overdue`}
+        subtitle={error ? "The sign-off list didn't load" : queueSubtitle(items)}
         icon={<IconClipboardCheck size={20} stroke={1.5} />}
         color="warning"
       />
@@ -94,7 +76,7 @@ export function SignoffsPage() {
           <Tabs.Tab value="all">
             All{" "}
             <Badge ml="xs" size="xs">
-              {totalCount}
+              {error ? "—" : items.length}
             </Badge>
           </Tabs.Tab>
           {Object.entries(grouped).map(([type, list]) => (
@@ -125,7 +107,14 @@ export function SignoffsPage() {
         </Tabs.List>
 
         <Tabs.Panel value="all" pt="md">
-          <SignoffList items={items} types={types} onSign={setSignTarget} loading={isLoading} />
+          <SignoffList
+            items={items}
+            types={types}
+            onSign={setSignTarget}
+            loading={isLoading}
+            error={error}
+            onRetry={() => void refetch()}
+          />
         </Tabs.Panel>
         {Object.entries(grouped).map(([type, list]) => (
           <Tabs.Panel key={type} value={type} pt="md">
@@ -159,16 +148,45 @@ export function SignoffsPage() {
   );
 }
 
+/** The pending records by record type, one tab each. */
+function groupByType(items: PendingSignoffEntry[]): Record<string, PendingSignoffEntry[]> {
+  const g: Record<string, PendingSignoffEntry[]> = {};
+  for (const it of items) {
+    const arr = g[it.record_type] ?? [];
+    arr.push(it);
+    g[it.record_type] = arr;
+  }
+  return g;
+}
+
+/** The header line: how many are pending, and how many are overdue. */
+function queueSubtitle(items: PendingSignoffEntry[]): string {
+  const overdue = items.filter((it) => {
+    const ageHours = (Date.now() - new Date(it.created_at).getTime()) / 3_600_000;
+    return ageHours > 24 && it.legal_class === "medico_legal";
+  }).length;
+  const countersign = items.filter((it) => verbalCountersign(it)?.overdue).length;
+  return `${items.length} pending • ${overdue} overdue medico-legal • ${countersign} countersign overdue`;
+}
+
+/**
+ * The pending records as cards. A list that failed to load says so, and is
+ * never shown as "nothing pending" (#6009).
+ */
 function SignoffList({
   items,
   types,
   onSign,
   loading,
+  error,
+  onRetry,
 }: {
   items: PendingSignoffEntry[];
   types: SignableTypes | undefined;
   onSign: (item: PendingSignoffEntry) => void;
   loading: boolean;
+  error?: unknown;
+  onRetry?: () => void;
 }) {
   if (loading)
     return (
@@ -176,6 +194,8 @@ function SignoffList({
         Loading…
       </Text>
     );
+  if (error)
+    return <QueryError error={error} onRetry={onRetry} title="The sign-off list didn't load" />;
   if (items.length === 0)
     return (
       <Text size="sm" c="dimmed" ta="center" py="xl">
@@ -184,123 +204,9 @@ function SignoffList({
     );
   return (
     <Stack gap="xs">
-      {items.map((item) => {
-        const ageHours = (Date.now() - new Date(item.created_at).getTime()) / 3_600_000;
-        const isOverdue = ageHours > 24 && item.legal_class === "medico_legal";
-        const countersign = verbalCountersign(item);
-        const flagged = isOverdue || countersign?.overdue;
-        return (
-          <Card
-            key={item.record_id}
-            withBorder
-            padding="sm"
-            style={flagged ? { borderColor: "var(--mantine-color-red-6)" } : undefined}
-          >
-            <Group justify="space-between" wrap="nowrap">
-              <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                <Group gap="xs">
-                  <Badge size="xs">{signoffLabel(item.record_type, types)}</Badge>
-                  <Badge size="xs" tone={legalColor(item.legal_class)}>
-                    {item.legal_class.replace("_", " ")}
-                  </Badge>
-                  {isOverdue && (
-                    <Badge size="xs" tone="danger" leftSection={<IconAlertTriangle size={10} />}>
-                      Overdue
-                    </Badge>
-                  )}
-                  {countersign && (
-                    <Badge
-                      size="xs"
-                      tone={countersign.overdue ? "danger" : "warning"}
-                      leftSection={<IconAlertTriangle size={10} />}
-                    >
-                      {countersign.label}
-                    </Badge>
-                  )}
-                  {item.transcribed && (
-                    <Badge size="xs" tone="neutral">
-                      Nurse-transcribed
-                    </Badge>
-                  )}
-                </Group>
-                <Text size="sm" fw={600} lineClamp={1}>
-                  {item.patient_name || item.summary || `${item.record_id.slice(0, 8)}…`}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {item.uhid ? `UHID ${item.uhid} • ` : ""}
-                  {item.summary || "No summary available"}
-                </Text>
-                <Text size="xs" c="dimmed" lineClamp={1}>
-                  {item.context ? `${item.context} • ` : ""}
-                  Created {new Date(item.created_at).toLocaleString()} • {Math.round(ageHours)}h ago
-                </Text>
-                {item.risk_label && (
-                  <Badge size="xs" tone="warning" leftSection={<IconAlertTriangle size={10} />}>
-                    {item.risk_label}
-                  </Badge>
-                )}
-              </Stack>
-              <SignoffActionCell item={item} types={types} onSign={onSign} />
-            </Group>
-          </Card>
-        );
-      })}
+      {items.map((item) => (
+        <SignoffCard key={item.record_id} item={item} types={types} onSign={onSign} />
+      ))}
     </Stack>
   );
-}
-
-/** The decision or the Sign button for one entry; nothing for a type the server does not sign. */
-function SignoffActionCell({
-  item,
-  types,
-  onSign,
-}: {
-  item: PendingSignoffEntry;
-  types: SignableTypes | undefined;
-  onSign: (item: PendingSignoffEntry) => void;
-}) {
-  switch (signoffAction(item.record_type, types)) {
-    case "refill":
-      return <RefillDecision item={item} />;
-    case "substitution":
-      return <StoreSubstitutionDecision item={item} />;
-    case "none":
-      return null;
-    case "sign":
-      return (
-        <Tooltip label="Sign">
-          <IconButton tone="primary" size="lg" onClick={() => onSign(item)} aria-label="Sign">
-            <IconSignature size={18} />
-          </IconButton>
-        </Tooltip>
-      );
-  }
-}
-
-/** Verbal/telephone order countersign status for a pending entry, if applicable. */
-function verbalCountersign(item: PendingSignoffEntry): { label: string; overdue: boolean } | null {
-  if (item.order_mode !== "verbal" && item.order_mode !== "telephone") return null;
-  const mode = item.order_mode === "telephone" ? "Telephone" : "Verbal";
-  const dueMs = item.countersign_due_at ? new Date(item.countersign_due_at).getTime() : null;
-  if (dueMs !== null && dueMs < Date.now()) {
-    return { label: `${mode} order — countersign overdue`, overdue: true };
-  }
-  const by =
-    dueMs !== null
-      ? ` by ${new Date(dueMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-      : "";
-  return { label: `${mode} order — countersign${by}`, overdue: false };
-}
-
-function legalColor(legalClass: string): BadgeTone {
-  switch (legalClass) {
-    case "medico_legal":
-      return "danger";
-    case "statutory_export":
-      return "warning";
-    case "clinical":
-      return "info";
-    default:
-      return "neutral";
-  }
 }

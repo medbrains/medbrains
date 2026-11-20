@@ -8,6 +8,7 @@ export * from "./grn-scan.js";
 export * from "./guards.js";
 export * from "./hms-forms.js";
 export * from "./onboarding.js";
+export * from "./password.js";
 export * from "./queues.js";
 export { registrationCatalogue } from "./registration.generated.js";
 export * from "./registration-rules.js";

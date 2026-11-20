@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO tenants (code, name, hospital_type)\n         VALUES ($1, $1, 'multi_specialty') RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2c0aa44848b2e0498f4cf4503dec66ea8e455f7d380ae14fd8fd38e35269baff"
+}

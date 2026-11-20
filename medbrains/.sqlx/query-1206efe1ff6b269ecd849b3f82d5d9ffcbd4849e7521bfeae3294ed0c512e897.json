@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM user_favourite_screens WHERE tenant_id = $1 AND user_id = $2 AND path = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1206efe1ff6b269ecd849b3f82d5d9ffcbd4849e7521bfeae3294ed0c512e897"
+}

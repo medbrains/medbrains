@@ -44,26 +44,6 @@ var/log/dev/
 # Local development certificates
 var/local-https/
 
-# React Native — Mobile
-apps/*/.expo/
-apps/mobile-staff/android/
-apps/mobile-staff/ios/
-apps/mobile/android/app/build/
-apps/mobile/android/build/
-apps/mobile/android/.gradle/
-apps/mobile/ios/build/
-apps/mobile/ios/Pods/
-
-# React Native — TV
-apps/tv/android/
-apps/tv/ios/
-apps/tv/android/app/build/
-apps/tv/android/build/
-apps/tv/android/.gradle/
-
-# Metro
-*.hbc
-
 # Profiling
 flamegraph.svg
 perf.data
@@ -105,9 +85,6 @@ crash.*.log
 
 # medbrains-edge dev state (Loro docs + Merkle chain)
 var/
-
-# Detox run artifacts — screenshots and device logs from the last e2e run.
-apps/*/artifacts/
 
 # Environment backups. infra/.env.bak.1650 was found holding four
 # secret-bearing lines and untracked but NOT ignored — one `git add -A` from

@@ -59,6 +59,11 @@ Test after apply: `aws cloudwatch set-alarm-state --region us-east-1 --alarm-nam
 --state-value ALARM --state-reason test` (and the same in ap-south-1 for `medbrains-prod-cpu-high`) — an email must
 arrive; the alarm returns to OK on the next evaluation.
 
+## Email reports (per-hospital servers)
+
+The nightly backup summary and failure email, and the OPD daily report (counts only), are sent from the deploy
+kit: `EMAIL-REPORTS.md`. A report that cannot be sent fails its unit, which pages through `ALERT_TOPIC_ARN`.
+
 ## Not covered
 
 - The old name `medbrains.example-hospital.org` was probed by `envs/standalone/hospital-a` `module "uptime"`; behind the host move's

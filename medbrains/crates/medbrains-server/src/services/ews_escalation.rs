@@ -7,7 +7,8 @@ use sqlx::PgPool;
 
 const PASS_INTERVAL_SECS: u64 = 60;
 
-pub fn spawn(pool: PgPool) {
+/// Start the pass; the handle lets the brick-job supervisor stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match medbrains_nursing::nurse_ews_overdue::escalate_due(&pool).await {
@@ -22,5 +23,5 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }

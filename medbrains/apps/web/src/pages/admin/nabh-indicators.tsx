@@ -19,6 +19,7 @@ import { IconChartBar, IconSearch, IconSettings, IconShieldCheck } from "@tabler
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
+import { NabhIndicatorsStatus } from "@/components/Reports/NabhIndicatorsFault";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { reportsService } from "@/services/reports.service";
@@ -43,8 +44,7 @@ function formatValue(v: number | null | undefined, unit: string): string {
 
 function trafficLight(ind: NabhIndicator): "green" | "amber" | "red" | "gray" {
   if (ind.value_current_month == null || ind.target == null) return "gray";
-  const v = ind.value_current_month;
-  const t = ind.target;
+  const [v, t] = [ind.value_current_month, ind.target];
   if (ind.direction === "lower_better") {
     if (v <= t) return "green";
     if (v <= t * 1.25) return "amber";
@@ -137,7 +137,7 @@ export default function NabhIndicatorsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["nabh-indicators"],
     queryFn: () => reportsService.getNabhIndicators(),
   });
@@ -191,7 +191,7 @@ export default function NabhIndicatorsPage() {
         subtitle={
           data
             ? `${data.period_label} · ${data.coverage.computed} live of ${data.coverage.total_indicators} total`
-            : "Loading"
+            : undefined
         }
       />
 
@@ -251,7 +251,7 @@ export default function NabhIndicatorsPage() {
         </Group>
       </Card>
 
-      {isLoading && <Text c="dimmed">Aggregating from across the system…</Text>}
+      <NabhIndicatorsStatus isLoading={isLoading} isError={isError} />
 
       <Grid align="flex-start" className={classes.indicatorGrid}>
         <Grid.Col span={{ base: 12, lg: 8 }}>
@@ -272,7 +272,7 @@ export default function NabhIndicatorsPage() {
                 </Stack>
               );
             })}
-            {!isLoading && filteredIndicators.length === 0 && (
+            {data && filteredIndicators.length === 0 && (
               <Card withBorder padding="lg">
                 <Text c="dimmed">No indicators match this search/filter.</Text>
               </Card>

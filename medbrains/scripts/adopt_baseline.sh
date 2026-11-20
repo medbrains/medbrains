@@ -28,7 +28,11 @@ APPLY=false
 for arg in "$@"; do [[ "$arg" == "--apply" ]] && APPLY=true; done
 [[ "$DB" == "--apply" ]] && DB="medbrains"
 
-psql_q() { docker compose exec -T postgres psql -U medbrains -d "$DB" -At -c "$1"; }
+# The native dev cluster (scripts/dev/native_stack.sh); DEV_PG_PORT=5435 for Docker's.
+psql_q() {
+    PGPASSWORD="${PGPASSWORD:-medbrains_dev}" "${PG_BIN:-/opt/homebrew/opt/postgresql@17/bin}/psql" \
+        -h 127.0.0.1 -p "${DEV_PG_PORT:-5436}" -U medbrains -d "$DB" -At -c "$1"
+}
 
 # One ledger row per emitted file, each carrying the SHA-384 of that file —
 # the checksum sqlx computes, verified empirically against the old migration

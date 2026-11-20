@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n             SELECT 1 FROM relation_tuples\n             WHERE tenant_id = $1\n               AND status = 'revoked'\n               AND spicedb_sync_status IN ('pending', 'failed')\n               AND (subject_type <> 'user' OR subject_id = $2)\n           ) AS \"pending!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pending!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6d5455d1dca518166de5830581e3eed42a48c317cad7136a660727181ef2744b"
+}

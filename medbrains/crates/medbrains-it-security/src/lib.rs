@@ -355,7 +355,9 @@ pub async fn end_break_glass(
 
     sqlx::query!(
         "UPDATE relation_tuples
-         SET status = 'revoked', revoked_at = now(), revoked_by = $3
+         SET status = 'revoked', revoked_at = now(), revoked_by = $3,
+             spicedb_sync_status = 'pending', spicedb_next_attempt_at = now(),
+             spicedb_last_error = NULL
          WHERE tenant_id = $1
            AND granted_reason = $2
            AND granted_by = $3
