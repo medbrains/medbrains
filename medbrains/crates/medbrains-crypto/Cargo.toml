@@ -16,7 +16,7 @@ thiserror = { workspace = true }
 # JOSE primitives — JWE (RSA-OAEP-256 / ECDH-ES + A256GCM) and
 # JWS (RS256 / ES256). NHCX requires JWE; ABDM HIE requires JWE+JWS
 # at message envelopes. josekit is a mature, audited Rust impl.
-josekit = "0.8"
+josekit = "0.10"
 
 # josekit pulls in openssl-sys; force `vendored` so cross-compiles
 # (mac arm64 → linux arm64 via cargo-zigbuild) build OpenSSL from
@@ -25,7 +25,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 
 # Base64 + AES-GCM + HKDF for ABDM's Fidelius transfer encryption
 # (ECDH on Weierstrass Curve25519 runs on the openssl dependency above).
-base64 = "0.22"
+base64 = "0.23"
 aes-gcm = "0.11"
 hkdf = "0.13"
 sha2.workspace = true

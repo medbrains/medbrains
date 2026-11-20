@@ -25,14 +25,14 @@ pingora-error = "=0.9.1"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "1.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 async-trait = "0.1.92"
 anyhow = "1"
 bytes = "1"
-x509-parser = "0.16"
+x509-parser = "0.18"
 
 [dev-dependencies]
 ipnet = "2"
