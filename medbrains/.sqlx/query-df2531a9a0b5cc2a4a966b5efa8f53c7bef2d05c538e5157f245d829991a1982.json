@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(NULLIF(f.phone, ''), NULLIF(t.phone, '')) FROM tenants t LEFT JOIN facilities f ON f.id = $2 AND f.tenant_id = t.id WHERE t.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "coalesce",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "df2531a9a0b5cc2a4a966b5efa8f53c7bef2d05c538e5157f245d829991a1982"
+}

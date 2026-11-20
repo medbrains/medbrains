@@ -64,6 +64,7 @@ export interface SaveUhiSettings {
 }
 
 export type UhiRequestState =
+  | "initialised"
   | "awaiting_payment"
   | "pending"
   | "confirmed"
@@ -100,4 +101,20 @@ export interface UhiRequest {
   lab_order_ids: string[];
   /** A lab request for a home collection (accepting it books one). */
   home_collection: boolean;
+  /** A visit's slot is held for the patient until this time; it lapses unless confirmed. */
+  slot_held_until: string | null;
+  /** The patient's app reported that the doctor did not see them. */
+  doctor_no_show_at: string | null;
+  /** The booking has a PIN for the desk to check (never the PIN itself). */
+  has_pin: boolean;
+  /** When the desk checked the PIN and it matched. */
+  pin_verified_at: string | null;
+  /** Wrong PINs tried so far; five lock the check. */
+  pin_failed_attempts: number;
+}
+
+/** The desk's PIN check: whether it matched, and the wrong tries left. */
+export interface UhiPinResult {
+  matched: boolean;
+  tries_left: number;
 }
