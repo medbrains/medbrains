@@ -32,7 +32,8 @@ describe("PatientBillingModal cache", () => {
     render(
       <PatientBillingModal
         patientId={PATIENT_ID}
-        control={[true, { open: vi.fn(), close: vi.fn(), toggle: vi.fn() }]}
+        opened
+        onClose={vi.fn()}
       />,
       { queryClient },
     );
