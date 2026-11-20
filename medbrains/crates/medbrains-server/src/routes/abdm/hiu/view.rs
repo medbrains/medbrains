@@ -217,6 +217,7 @@ pub async fn list_requests(
         return Err(AppError::BadRequest("unknown consent status".to_owned()));
     }
     let visible = medbrains_authz_gate::visible_patient_ids(&state, &claims).await?;
+    // all_filter() keeps withdrawn requests out: `r.deleted_at IS NULL`.
     let filter_sql = all_filter();
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let total = sqlx::query_scalar::<_, i64>(&format!(
