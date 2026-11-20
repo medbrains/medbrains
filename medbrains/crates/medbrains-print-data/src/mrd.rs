@@ -24,7 +24,6 @@ use medbrains_core::print_data::{
     VitalsChartPrintData,
 };
 
-use medbrains_kernel::authz::require_permission;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;

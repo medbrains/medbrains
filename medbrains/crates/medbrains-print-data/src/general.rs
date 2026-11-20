@@ -342,10 +342,13 @@ pub async fn get_patient_card_print_data(
     // The desk reprints a lost card for any patient, identity only. Everyone
     // else prints through their relationship with the patient.
     let desk_reprint = holds_card_reprint(&claims);
-    if !desk_reprint {
+    let permit = if desk_reprint {
+        kernel::authz::permit(&claims, permissions::patients::card::REPRINT)?
+    } else {
         let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
         gate::require_patient_access(&state, &claims, patient_id).await?;
-    }
+        permit
+    };
 
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;

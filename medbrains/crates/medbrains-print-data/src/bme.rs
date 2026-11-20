@@ -10,7 +10,6 @@ use axum::{
 use chrono::Utc;
 use medbrains_health_services::patient as gate;
 use medbrains_kernel as kernel;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -113,7 +112,7 @@ pub async fn get_amc_contract_print_data(
         .into_iter()
         .collect();
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(AmcContractPrintData {
         contract_number: contract.contract_number,
@@ -204,7 +203,7 @@ pub async fn get_calibration_certificate_print_data(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     // No parameter readings are printed, because none are recorded.
     //
@@ -329,7 +328,7 @@ pub async fn get_equipment_breakdown_print_data(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(EquipmentBreakdownReportPrintData {
         // ponytail: report_number, impact_assessment, immediate_action_taken,
@@ -577,7 +576,7 @@ pub async fn get_equipment_history_print_data(
     })
     .collect::<Vec<_>>();
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(EquipmentHistoryCardPrintData {
         equipment_name: equip.equipment_name,
@@ -703,7 +702,7 @@ pub async fn get_mgps_log_print_data(
         })
         .collect();
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(MgpsDailyLogPrintData {
         log_date,
@@ -847,7 +846,7 @@ pub async fn get_water_quality_print_data(
         })
         .collect();
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(WaterQualityTestPrintData {
         test_date,
@@ -949,7 +948,7 @@ pub async fn get_dg_ups_log_print_data(
         .flatten()
         .collect();
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(DgUpsRunLogPrintData {
         log_date: first
@@ -1068,7 +1067,7 @@ pub async fn get_fire_inspection_print_data(
         None => item,
     };
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(FireEquipmentInspectionPrintData {
         inspection_date: inspection.inspection_date.format("%d-%m-%Y").to_string(),
@@ -1185,7 +1184,7 @@ pub async fn get_materiovigilance_print_data(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(MateriovigilanceReportPrintData {
         report_number: report.report_number,
@@ -1286,7 +1285,7 @@ pub async fn get_fire_mock_drill_print_data(
         .collect::<Vec<_>>()
         .join(" — ");
 
-    let hospital = get_hospital_info(&state.db, claims.tenant_id).await?;
+    let hospital = get_hospital_info(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(FireMockDrillReportPrintData {
         // ponytail: drill_number, target time, observation category,
@@ -1334,10 +1333,14 @@ struct HospitalInfo {
 
 /// The requesting tenant's name. It used to take the first active tenant on
 /// the server, so a multi-tenant host printed another hospital's letterhead.
-async fn get_hospital_info(pool: &PgPool, tenant_id: Uuid) -> Result<HospitalInfo, AppError> {
+/// Read on the caller's tenant-scoped connection, never the bare pool.
+async fn get_hospital_info(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+) -> Result<HospitalInfo, AppError> {
     let name = sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
         .bind(tenant_id)
-        .fetch_optional(pool)
+        .fetch_optional(conn)
         .await?
         .unwrap_or_default();
 

@@ -177,7 +177,7 @@ pub async fn get_gst_invoice_print_data(
     let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     gate::require_access_via(&state, &claims, gate::links::INVOICE, invoice_id).await?;
-    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
+    let tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     gst_invoice_print_data_in_tx(tx, &claims, invoice_id).await
 }
 
