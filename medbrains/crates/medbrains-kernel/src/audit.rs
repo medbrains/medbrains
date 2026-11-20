@@ -26,6 +26,17 @@ pub async fn audit(tx: &mut Tx, entry: &AuditEntry<'_>) -> Result<(), KernelErro
     Ok(medbrains_db::audit::AuditLogger::log(tx.transaction(), entry).await?)
 }
 
+/// Append `entry` inside a plain `sqlx` transaction (`AuditLogger::log`), for
+/// code not yet on [`Tx`]. Nothing checks the entry against the transaction's
+/// tenant here, so prefer [`audit`] once the caller holds a [`Tx`].
+#[inline]
+pub async fn append(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    entry: &AuditEntry<'_>,
+) -> Result<(), sqlx::Error> {
+    medbrains_db::audit::AuditLogger::log(tx, entry).await
+}
+
 /// The most recent completed chain verification for the tenant.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct ChainVerdict {

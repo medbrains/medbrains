@@ -21,9 +21,25 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Alert, Badge, Button, Modal, Table } from "@/components/ui";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
 
+// A short-dated line still gets picked and dispensed — FEFO put it on this
+// order precisely so somebody uses it in time — but the checker should look
+// twice while they have it in hand.
+const NEAR_EXPIRY_DAYS = 90;
+
+/** Whether a picked line expires within `NEAR_EXPIRY_DAYS`. */
+function isShortDated(line: PickLine): boolean {
+  if (!line.expiry_date) return false;
+  const expiry = new Date(line.expiry_date).getTime();
+  if (Number.isNaN(expiry)) return false;
+  return expiry < Date.now() + NEAR_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/** The checker's screen for one order: scan or confirm each picked line. */
 export function VerifyPackPage() {
+  useRequirePermission(P.PHARMACY.FULFILMENT.VERIFY);
   const { orderId = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -39,17 +55,6 @@ export function VerifyPackPage() {
     queryFn: () => pharmacyService.getFulfilmentPickList(orderId),
     enabled: canVerify && Boolean(orderId),
   });
-
-  // A short-dated line still gets picked and dispensed — FEFO put it on this
-  // order precisely so somebody uses it in time — but the checker should look
-  // twice while they have it in hand.
-  const NEAR_EXPIRY_DAYS = 90;
-  function isShortDated(line: PickLine): boolean {
-    if (!line.expiry_date) return false;
-    const expiry = new Date(line.expiry_date).getTime();
-    if (Number.isNaN(expiry)) return false;
-    return expiry < Date.now() + NEAR_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-  }
 
   const outstanding = lines.filter((line) => !line.verified_at).length;
 
