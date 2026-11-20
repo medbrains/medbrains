@@ -86,6 +86,39 @@ pub async fn seed_canonical_fixtures_for_tenant(
     canonical_fixtures::seed_canonical_fixtures(pool, tenant_id).await
 }
 
+/// Give one hospital the built-in roles, groups and operational masters the first one gets.
+///
+/// The first hospital receives these at every start. The E2E suite provisions one hospital per
+/// Playwright worker (`/api/debug/e2e/tenant`) and needs the same masters there, so this is the
+/// tenant half of the seed, apart from the global references. Idempotent.
+///
+/// # Errors
+/// Propagates the first database error.
+pub async fn seed_tenant(
+    pool: &PgPool,
+    tenant_id: uuid::Uuid,
+) -> Result<(), Box<dyn std::error::Error>> {
+    seed_built_in_roles(pool, tenant_id).await?;
+    seed_default_groups(pool, tenant_id).await?;
+    departments::seed_departments(pool, tenant_id).await?;
+    lab_catalog::seed_lab_catalog(pool, tenant_id).await?;
+    pharmacy_catalog::seed_pharmacy_catalog(pool, tenant_id).await?;
+    procedure_catalog::seed_procedure_catalog(pool, tenant_id).await?;
+    charge_master::seed_charge_master(pool, tenant_id).await?;
+    bed_types::seed_bed_types(pool, tenant_id).await?;
+    tax_categories::seed_tax_categories(pool, tenant_id).await?;
+    payment_methods::seed_payment_methods(pool, tenant_id).await?;
+    services::seed_services(pool, tenant_id).await?;
+    module_config::seed_module_config(pool, tenant_id).await?;
+    store_catalog::seed_store_catalog(pool, tenant_id).await?;
+    insurance_providers::seed_insurance_providers(pool, tenant_id).await?;
+    locations::seed_locations(pool, tenant_id).await?;
+    stations::seed_stations(pool, tenant_id).await?;
+    default_dashboard::seed_default_dashboard(pool, tenant_id).await?;
+    role_dashboards::seed_role_dashboards(pool, tenant_id).await?;
+    Ok(())
+}
+
 /// Advisory lock key (`"MBSEED"` in ASCII) that serialises seeding.
 const SEED_LOCK: i64 = 0x4d42_5345_4544;
 
@@ -183,30 +216,13 @@ async fn seed_everything(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>
     }
 
     // Idempotent seeds — always run (ON CONFLICT DO NOTHING / DO UPDATE)
-    seed_built_in_roles(pool, tenant_id).await?;
-    seed_default_groups(pool, tenant_id).await?;
     ckb::seed_diagnosis_reference(pool).await?; // global reference (no tenant)
     ckb::seed_drug_reference(pool).await?; // global CDS drug reference
     ckb::seed_lab_reference(pool).await?; // global CDS lab reference
     ckb::seed_ingredients(pool).await?; // global ingredient model
     ckb::seed_state_formulary(pool).await?; // global per-state free-drug schemes
     widget_catalog::sync_widget_catalog(pool).await?; // global widget catalogue (code registry)
-    departments::seed_departments(pool, tenant_id).await?;
-    lab_catalog::seed_lab_catalog(pool, tenant_id).await?;
-    pharmacy_catalog::seed_pharmacy_catalog(pool, tenant_id).await?;
-    procedure_catalog::seed_procedure_catalog(pool, tenant_id).await?;
-    charge_master::seed_charge_master(pool, tenant_id).await?;
-    bed_types::seed_bed_types(pool, tenant_id).await?;
-    tax_categories::seed_tax_categories(pool, tenant_id).await?;
-    payment_methods::seed_payment_methods(pool, tenant_id).await?;
-    services::seed_services(pool, tenant_id).await?;
-    module_config::seed_module_config(pool, tenant_id).await?;
-    store_catalog::seed_store_catalog(pool, tenant_id).await?;
-    insurance_providers::seed_insurance_providers(pool, tenant_id).await?;
-    locations::seed_locations(pool, tenant_id).await?;
-    stations::seed_stations(pool, tenant_id).await?;
-    default_dashboard::seed_default_dashboard(pool, tenant_id).await?;
-    role_dashboards::seed_role_dashboards(pool, tenant_id).await?;
+    seed_tenant(pool, tenant_id).await?;
 
     if !production_env() {
         seed_dev_email_defaults(pool, tenant_id).await?;

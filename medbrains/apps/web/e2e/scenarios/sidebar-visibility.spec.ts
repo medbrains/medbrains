@@ -17,6 +17,9 @@ import { test, expect, type Page } from "@playwright/test";
 import { loginAsRole, routeApiDirect } from "../helpers";
 import { getE2EIdentity } from "../helpers/e2e-identities";
 
+// Each test stands alone (its own page, sign-in and data), so workers and shards may split them.
+test.describe.configure({ mode: "parallel" });
+
 // We keep the journeys-project storageState (admin's auth-storage)
 // because Zustand persist hydrates from localStorage at *first* read.
 // With empty storage the SPA boots into /login and stays there.

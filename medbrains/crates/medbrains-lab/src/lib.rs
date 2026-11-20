@@ -15,17 +15,17 @@ use medbrains_core::lab::{
     LabTestCatalog, LabTestPanel,
 };
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use axum::routing::{get, post, put};
+use medbrains_kernel::authz::{is_bypass_role, require_permission};
 use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{
-    is_bypass_role, require_any_permission, require_permission,
-};
 use medbrains_server_core::state::AppState;
 
 pub mod analyser;
@@ -161,7 +161,7 @@ pub async fn grant_lab_order_access(
     order_id: Uuid,
     reason: &str,
 ) -> Result<(), AppError> {
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    let authz_ctx = kernel::authz::authz_context(claims);
     if !is_bypass_role(claims) {
         state
             .authz
@@ -169,8 +169,8 @@ pub async fn grant_lab_order_access(
                 &authz_ctx,
                 "lab_order",
                 order_id,
-                medbrains_authz::Relation::Viewer,
-                medbrains_authz::Subject::User(claims.sub),
+                kernel::authz::Relation::Viewer,
+                kernel::authz::Subject::User(claims.sub),
                 None,
                 Some(reason.to_owned()),
             )
@@ -178,13 +178,13 @@ pub async fn grant_lab_order_access(
             .map_err(|e| AppError::Internal(format!("lab order authz grant failed: {e}")))?;
     }
 
-    medbrains_authz_gate::hand_off(
+    gate::hand_off(
         state,
         claims,
-        medbrains_authz_gate::HandOff {
+        gate::HandOff {
             object_type: "lab_order",
             object_id: order_id,
-            department_code: medbrains_authz_gate::PATHOLOGY,
+            department_code: gate::PATHOLOGY,
         },
     )
     .await
@@ -203,13 +203,7 @@ async fn require_lab_order_of_patient(
     order_id: Uuid,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    medbrains_authz_gate::require_access_via(
-        state,
-        claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    gate::require_access_via(state, claims, gate::links::LAB_ORDER, order_id).await?;
     let matches: bool = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM lab_orders \
           WHERE id = $1 AND tenant_id = $2 AND patient_id = $3 \
@@ -484,14 +478,14 @@ pub async fn list_orders(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListOrdersQuery>,
 ) -> Result<Json<OrderListResponse>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
     // ── ReBAC scope — only lab orders caller has `view` on ────
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let authz_ctx = kernel::authz::authz_context(&claims);
     let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass
         || has_operational_lab_order_scope(&claims)
     {
@@ -500,7 +494,7 @@ pub async fn list_orders(
         Some(
             match state
                 .authz
-                .list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer)
+                .list_accessible(&authz_ctx, "lab_order", kernel::authz::Relation::Viewer)
                 .await
             {
                 Ok(ids) => ids,
@@ -515,8 +509,7 @@ pub async fn list_orders(
         )
     };
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     if visible_ids.as_ref().is_some_and(Vec::is_empty) {
         return Ok(Json(OrderListResponse {
@@ -591,15 +584,14 @@ pub async fn create_order(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::CREATE)?;
     // Raising an order on a visit hands the order to the laboratory, and the
     // order then opens its own view: only the patient's care team may add
     // one. The body's visit is checked against this patient in the tx below.
     // The lab desk books walk-ins on a visit of its own (`direct.rs`).
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let order = create_order_in_tx(&mut tx, &claims, &body).await?;
     tx.commit().await?;
     grant_lab_order_access(&state, &claims, order.id, "lab_order_created").await?;
@@ -823,29 +815,21 @@ pub async fn get_order(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::VIEW)?;
 
     // ── ReBAC pre-check — must hold `view` on the lab_order ───
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let authz_ctx = kernel::authz::authz_context(&claims);
     if !has_operational_lab_order_scope(&claims) {
-        medbrains_server_core::middleware::authorization::collapse(
-            medbrains_server_core::middleware::authorization::outcome_of(
-                state
-                    .authz
-                    .check(
-                        &authz_ctx,
-                        medbrains_authz::Relation::Viewer,
-                        "lab_order",
-                        id,
-                    )
-                    .await,
-                "lab_order",
-            ),
-        )?;
+        kernel::authz::collapse(kernel::authz::outcome_of(
+            state
+                .authz
+                .check(&authz_ctx, kernel::authz::Relation::Viewer, "lab_order", id)
+                .await,
+            "lab_order",
+        ))?;
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let order =
         sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1 AND tenant_id = $2")
@@ -1057,20 +1041,13 @@ pub async fn collect_sample(
     Json(body): Json<CollectSampleRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
     // The draw, not result entry: nurses and phlebotomists collect.
-    require_permission(&claims, permissions::lab::samples::COLLECT)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::COLLECT)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let order = mark_order_collected(
         &mut tx,
@@ -1096,20 +1073,13 @@ pub async fn start_processing(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::results::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
@@ -1136,20 +1106,13 @@ pub async fn complete_order(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::results::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // A test is completed by its results. Completing an empty one billed the
     // patient and told the ward it was done, and only verification noticed
@@ -1212,7 +1175,7 @@ pub async fn complete_order(
     // Emit integration event
     if let Some(ref o) = order {
         // Enrich payload with names for orchestration
-        let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+        let mut conn = kernel::tenant_session(&state.db, &permit).await?;
         let patient_info = sqlx::query_as::<_, (String, String)>(
             "SELECT first_name || ' ' || last_name, uhid FROM patients WHERE id = $1",
         )
@@ -1276,20 +1239,13 @@ pub async fn verify_results(
     // Releasing is its own act, so it is its own code. It used to be `UPDATE`
     // — the code that types the value in — so nothing could grant release to a
     // supervisor without also granting result entry.
-    require_permission(&claims, permissions::lab::results::VERIFY)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::VERIFY)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Releasing is a clinical signature, not a status change, and the status
     // was the only thing being checked. An order could travel
@@ -1496,20 +1452,13 @@ pub async fn cancel_order(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Seeing the patient is not cancelling somebody else's tests.
     let ordered_by: Uuid =
@@ -1519,11 +1468,7 @@ pub async fn cancel_order(
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(AppError::NotFound)?;
-    medbrains_authz_gate::require_order_cancel(
-        &claims,
-        ordered_by,
-        permissions::lab::orders::CANCEL_ANY,
-    )?;
+    gate::require_order_cancel(&claims, ordered_by, permissions::lab::orders::CANCEL_ANY)?;
 
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
@@ -1997,20 +1942,13 @@ pub async fn add_results(
     Path(order_id): Path<Uuid>,
     Json(body): Json<AddResultsRequest>,
 ) -> Result<Json<Vec<LabResult>>, AppError> {
-    require_permission(&claims, permissions::lab::results::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Fetch the order to get patient_id and test_id for delta checks
     let order =
@@ -2059,20 +1997,13 @@ pub async fn list_results(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabResult>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::VIEW)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, LabResult>(
         "SELECT * FROM lab_results WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
@@ -2103,7 +2034,7 @@ pub async fn list_catalog(
     Extension(claims): Extension<Claims>,
     Query(query): Query<CatalogQuery>,
 ) -> Result<Json<Vec<LabTestCatalog>>, AppError> {
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::lab::orders::LIST,
@@ -2112,8 +2043,7 @@ pub async fn list_catalog(
         ],
     )?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let term = query.search.as_deref().map(str::trim).unwrap_or_default();
     // Without a term this is the whole catalogue, retired tests included:
@@ -2139,10 +2069,9 @@ pub async fn create_catalog_entry(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCatalogRequest>,
 ) -> Result<Json<LabTestCatalog>, AppError> {
-    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::catalog::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabTestCatalog>(
         "INSERT INTO lab_test_catalog \
@@ -2193,10 +2122,9 @@ pub async fn update_catalog_entry(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateCatalogRequest>,
 ) -> Result<Json<LabTestCatalog>, AppError> {
-    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::catalog::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabTestCatalog>(
         "UPDATE lab_test_catalog SET \
@@ -2267,10 +2195,9 @@ pub async fn list_panels(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabTestPanel>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, LabTestPanel>(
         "SELECT * FROM lab_test_panels WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
@@ -2288,10 +2215,9 @@ pub async fn get_panel(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PanelDetailResponse>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let panel = sqlx::query_as::<_, LabTestPanel>(
         "SELECT * FROM lab_test_panels WHERE id = $1 AND tenant_id = $2",
@@ -2320,10 +2246,9 @@ pub async fn create_panel(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePanelRequest>,
 ) -> Result<Json<PanelDetailResponse>, AppError> {
-    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::catalog::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let panel = sqlx::query_as::<_, LabTestPanel>(
         "INSERT INTO lab_test_panels \
@@ -2366,10 +2291,9 @@ pub async fn update_panel(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePanelRequest>,
 ) -> Result<Json<PanelDetailResponse>, AppError> {
-    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::catalog::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let panel = sqlx::query_as::<_, LabTestPanel>(
         "UPDATE lab_test_panels SET \
@@ -2432,10 +2356,9 @@ pub async fn delete_panel(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::catalog::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let result = sqlx::query("UPDATE lab_test_panels SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
@@ -2461,20 +2384,13 @@ pub async fn reject_sample(
     Path(id): Path<Uuid>,
     Json(body): Json<RejectSampleRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::results::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Back to `ordered`, not `cancelled`.
     //
@@ -2611,17 +2527,11 @@ pub async fn amend_result(
     Path(order_id): Path<Uuid>,
     Json(body): Json<AmendResultRequest>,
 ) -> Result<Json<LabResultAmendment>, AppError> {
-    require_permission(&claims, permissions::lab::results::AMEND)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::AMEND)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
     // NABL/CAP: every amendment to a reported diagnostic value must carry a documented
     // reason — a lab result cannot be silently changed.
@@ -2631,8 +2541,7 @@ pub async fn amend_result(
         ));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Check report not locked
     let order =
@@ -2783,20 +2692,13 @@ pub async fn list_amendments(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabResultAmendment>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::VIEW)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, LabResultAmendment>(
         "SELECT * FROM lab_result_amendments \
@@ -2881,13 +2783,7 @@ pub async fn acknowledge_critical_alert(
 ) -> Result<Json<LabCriticalAlert>, AppError> {
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_CRITICAL_ALERT,
-        alert_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_CRITICAL_ALERT, alert_id).await?;
 
     let actor = medbrains_kernel::Actor::from_claims(&claims);
     let mut tx = medbrains_kernel::begin(&state.db, actor).await?;
@@ -2946,20 +2842,13 @@ pub async fn update_report_status(
     Path(order_id): Path<Uuid>,
     Json(body): Json<UpdateReportStatusRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::results::UPDATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
@@ -2983,20 +2872,13 @@ pub async fn lock_report(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::results::UPDATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
@@ -3029,14 +2911,13 @@ pub async fn get_cumulative_report(
     Extension(claims): Extension<Claims>,
     Path((patient_id, test_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<CumulativeReportResponse>, AppError> {
-    require_permission(&claims, permissions::lab::reports::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::reports::VIEW)?;
     // The path names the patient outright, and this is their whole trend for one
     // test — fifty results over time. `lab.reports.view` said the caller may read
     // lab reports, not whose.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, CumulativeResultRow>(
         "SELECT lr.order_id, lr.parameter_name, lr.value, \
@@ -3065,10 +2946,9 @@ pub async fn get_tat_monitoring(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TatMonitoringRow>>, AppError> {
-    require_permission(&claims, permissions::lab::reports::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::reports::VIEW)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, TatMonitoringRow>(&format!(
         "{TAT_MONITORING_SELECT} \
@@ -3092,10 +2972,9 @@ pub async fn list_reagent_lots(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabReagentLot>>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, LabReagentLot>(
         "SELECT * FROM lab_reagent_lots WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
@@ -3113,10 +2992,9 @@ pub async fn create_reagent_lot(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReagentLotRequest>,
 ) -> Result<Json<LabReagentLot>, AppError> {
-    require_permission(&claims, permissions::lab::qc::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::CREATE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabReagentLot>(
         "INSERT INTO lab_reagent_lots \
@@ -3148,10 +3026,9 @@ pub async fn update_reagent_lot(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateReagentLotRequest>,
 ) -> Result<Json<LabReagentLot>, AppError> {
-    require_permission(&claims, permissions::lab::qc::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabReagentLot>(
         "UPDATE lab_reagent_lots SET \
@@ -3193,10 +3070,9 @@ pub async fn list_qc_results(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListFilterQuery>,
 ) -> Result<Json<Vec<LabQcResult>>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = if let Some(test_id) = params.test_id {
         sqlx::query_as::<_, LabQcResult>(
@@ -3248,10 +3124,9 @@ pub async fn review_qc_result(
     Path(id): Path<Uuid>,
     Json(body): Json<ReviewQcResultRequest>,
 ) -> Result<Json<LabQcResult>, AppError> {
-    require_permission(&claims, permissions::lab::qc::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let exists: bool = sqlx::query_scalar!(
         "SELECT EXISTS(SELECT 1 FROM lab_qc_results \
@@ -3309,10 +3184,9 @@ pub async fn create_qc_result(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateQcResultRequest>,
 ) -> Result<Json<LabQcResult>, AppError> {
-    require_permission(&claims, permissions::lab::qc::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::CREATE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let mut sd_index: Option<Decimal> = None;
     let mut status = westgard::ACCEPTED;
@@ -3403,10 +3277,9 @@ pub async fn list_calibrations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabCalibration>>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, LabCalibration>(
         "SELECT * FROM lab_calibrations WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
@@ -3424,10 +3297,9 @@ pub async fn create_calibration(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCalibrationRequest>,
 ) -> Result<Json<LabCalibration>, AppError> {
-    require_permission(&claims, permissions::lab::qc::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::CREATE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabCalibration>(
         "INSERT INTO lab_calibrations \
@@ -3462,10 +3334,9 @@ pub async fn list_phlebotomy_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabPhlebotomyQueue>>, AppError> {
-    require_permission(&claims, permissions::lab::phlebotomy::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::phlebotomy::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, LabPhlebotomyQueue>(
         "SELECT * FROM lab_phlebotomy_queue WHERE tenant_id = $1 AND deleted_at IS NULL \
@@ -3488,15 +3359,14 @@ pub async fn create_phlebotomy_entry(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePhlebotomyEntryRequest>,
 ) -> Result<Json<LabPhlebotomyQueue>, AppError> {
-    require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::phlebotomy::MANAGE)?;
     // The draw is the order's work: checked on the order, which must be this
     // patient's.
     require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
 
     let priority = normalize_lab_priority(body.priority.as_deref())?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabPhlebotomyQueue>(
         "INSERT INTO lab_phlebotomy_queue \
@@ -3523,18 +3393,11 @@ pub async fn update_phlebotomy_status(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePhlebotomyStatusRequest>,
 ) -> Result<Json<LabPhlebotomyQueue>, AppError> {
-    require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::phlebotomy::MANAGE)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_PHLEBOTOMY_QUEUE,
-        id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_PHLEBOTOMY_QUEUE, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Set started_at/completed_at/assigned_to based on status transition
     let row = match body.status.as_str() {
@@ -3596,10 +3459,9 @@ pub async fn list_outsourced_orders(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabOutsourcedOrder>>, AppError> {
-    require_permission(&claims, permissions::lab::outsourced::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::outsourced::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, LabOutsourcedOrder>(
         "SELECT * FROM lab_outsourced_orders WHERE tenant_id = $1 AND deleted_at IS NULL \
@@ -3618,17 +3480,10 @@ pub async fn create_outsourced_order(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateOutsourcedOrderRequest>,
 ) -> Result<Json<LabOutsourcedOrder>, AppError> {
-    require_permission(&claims, permissions::lab::outsourced::MANAGE)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        body.order_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::outsourced::MANAGE)?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, body.order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Mark the lab order as outsourced
     sqlx::query(
@@ -3669,18 +3524,11 @@ pub async fn update_outsourced_order(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateOutsourcedOrderRequest>,
 ) -> Result<Json<LabOutsourcedOrder>, AppError> {
-    require_permission(&claims, permissions::lab::outsourced::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::outsourced::MANAGE)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_OUTSOURCED_ORDER,
-        id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_OUTSOURCED_ORDER, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabOutsourcedOrder>(
         "UPDATE lab_outsourced_orders SET \
@@ -3719,20 +3567,13 @@ pub async fn add_on_test(
     Path(parent_order_id): Path<Uuid>,
     Json(body): Json<AddOnTestRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        parent_order_id,
-    )
-    .await?;
+    // its parent. Resolve then authorize — see gate::links.
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, parent_order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Get parent order
     let parent =
@@ -4090,9 +3931,8 @@ pub async fn list_home_collections(
     Extension(claims): Extension<Claims>,
     Query(params): Query<HomeCollectionQuery>,
 ) -> Result<Json<Vec<LabHomeCollection>>, AppError> {
-    require_permission(&claims, permissions::lab::samples::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, LabHomeCollection>(
@@ -4133,10 +3973,9 @@ pub async fn create_home_collection(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateHomeCollectionRequest>,
 ) -> Result<Json<LabHomeCollection>, AppError> {
-    require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::MANAGE)?;
     require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabHomeCollection>(
         "INSERT INTO lab_home_collections \
@@ -4167,17 +4006,10 @@ pub async fn update_home_collection(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateHomeCollectionRequest>,
 ) -> Result<Json<LabHomeCollection>, AppError> {
-    require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::MANAGE)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_HOME_COLLECTION,
-        id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_HOME_COLLECTION, id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let row = sqlx::query_as::<_, LabHomeCollection>(
         "UPDATE lab_home_collections SET \
@@ -4207,19 +4039,12 @@ pub async fn update_home_collection_status(
     Path(id): Path<Uuid>,
     Json(body): Json<HomeCollectionStatusRequest>,
 ) -> Result<Json<LabHomeCollection>, AppError> {
-    require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::MANAGE)?;
 
     // The draw at somebody's address is still a clinical act on their record.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_HOME_COLLECTION,
-        id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_HOME_COLLECTION, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let is_collection = body.status == "collected";
     let collected_at = if is_collection {
@@ -4266,9 +4091,8 @@ pub async fn get_home_collection_stats(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<HomeCollectionStatsRow>>, AppError> {
-    require_permission(&claims, permissions::lab::samples::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, HomeCollectionStatsRow>(
         "SELECT status::text AS status, COUNT(*) AS count \
@@ -4291,9 +4115,8 @@ pub async fn list_collection_centers(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabCollectionCenter>>, AppError> {
-    require_permission(&claims, permissions::lab::samples::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, LabCollectionCenter>(
         "SELECT * FROM lab_collection_centers WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
@@ -4309,10 +4132,9 @@ pub async fn create_collection_center(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCollectionCenterRequest>,
 ) -> Result<Json<LabCollectionCenter>, AppError> {
-    require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::MANAGE)?;
     let center_type = body.center_type.as_deref().unwrap_or("hospital");
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabCollectionCenter>(
         "INSERT INTO lab_collection_centers \
          (tenant_id, code, name, center_type, address, city, phone, \
@@ -4341,9 +4163,8 @@ pub async fn update_collection_center(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateCollectionCenterRequest>,
 ) -> Result<Json<LabCollectionCenter>, AppError> {
-    require_permission(&claims, permissions::lab::samples::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabCollectionCenter>(
         "UPDATE lab_collection_centers SET \
          name = COALESCE($1, name), \
@@ -4381,9 +4202,8 @@ pub async fn list_sample_archive(
     Extension(claims): Extension<Claims>,
     Query(params): Query<SampleArchiveQuery>,
 ) -> Result<Json<Vec<LabSampleArchive>>, AppError> {
-    require_permission(&claims, permissions::lab::samples::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, LabSampleArchive>(
             "SELECT * FROM lab_sample_archive WHERE tenant_id = $1 AND deleted_at IS NULL AND status::text = $2 \
@@ -4411,10 +4231,9 @@ pub async fn create_sample_archive(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSampleArchiveRequest>,
 ) -> Result<Json<LabSampleArchive>, AppError> {
-    require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::MANAGE)?;
     require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabSampleArchive>(
         "INSERT INTO lab_sample_archive \
          (tenant_id, order_id, patient_id, sample_barcode, \
@@ -4440,17 +4259,10 @@ pub async fn retrieve_sample_archive(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabSampleArchive>, AppError> {
-    require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::samples::MANAGE)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_SAMPLE_ARCHIVE,
-        id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_SAMPLE_ARCHIVE, id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabSampleArchive>(
         "UPDATE lab_sample_archive SET \
          status = 'retrieved'::lab_sample_archive_status, \
@@ -4477,9 +4289,8 @@ pub async fn list_report_dispatches(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ReportDispatchQuery>,
 ) -> Result<Json<Vec<LabReportDispatch>>, AppError> {
-    require_permission(&claims, permissions::lab::dispatch::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::dispatch::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = if let Some(order_id) = params.order_id {
         sqlx::query_as::<_, LabReportDispatch>(
             "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 AND deleted_at IS NULL AND order_id = $2 \
@@ -4507,11 +4318,10 @@ pub async fn create_report_dispatch(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReportDispatchRequest>,
 ) -> Result<Json<LabReportDispatch>, AppError> {
-    require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::dispatch::MANAGE)?;
     // A dispatch names the patient whose report is being sent out.
     require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabReportDispatch>(
         "INSERT INTO lab_report_dispatches \
          (tenant_id, order_id, patient_id, dispatch_method, dispatched_to, dispatched_by, notes) \
@@ -4550,7 +4360,7 @@ pub async fn void_report_dispatch(
     Path(id): Path<Uuid>,
     Json(body): Json<VoidDispatchRequest>,
 ) -> Result<Json<LabReportDispatch>, AppError> {
-    require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::dispatch::MANAGE)?;
     let reason = body.reason.trim();
     if reason.is_empty() {
         return Err(AppError::BadRequest(
@@ -4558,8 +4368,7 @@ pub async fn void_report_dispatch(
         ));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Refused once the recipient has confirmed receipt: at that point the
     // dispatch demonstrably happened, and marking it void would falsify the
@@ -4597,9 +4406,8 @@ pub async fn confirm_report_dispatch(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabReportDispatch>, AppError> {
-    require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::dispatch::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabReportDispatch>(
         "UPDATE lab_report_dispatches SET received_confirmation = true, confirmed_at = now() \
          WHERE id = $1 AND tenant_id = $2 RETURNING *",
@@ -4622,9 +4430,8 @@ pub async fn list_report_templates(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ReportTemplateQuery>,
 ) -> Result<Json<Vec<LabReportTemplateListItem>>, AppError> {
-    require_permission(&claims, permissions::lab::dispatch::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::dispatch::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     // List omits header_html/footer_html/report_format — fetched by id when editing.
     const LIST_COLS: &str = "id, tenant_id, department_id, template_name, logo_url, is_default, \
                              is_active, created_at, updated_at";
@@ -4654,9 +4461,8 @@ pub async fn create_report_template(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReportTemplateRequest>,
 ) -> Result<Json<LabReportTemplate>, AppError> {
-    require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::dispatch::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabReportTemplate>(
         "INSERT INTO lab_report_templates \
          (tenant_id, department_id, template_name, header_html, footer_html, \
@@ -4683,9 +4489,8 @@ pub async fn update_report_template(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateReportTemplateRequest>,
 ) -> Result<Json<LabReportTemplate>, AppError> {
-    require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::dispatch::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabReportTemplate>(
         "UPDATE lab_report_templates SET \
          template_name = COALESCE($1, template_name), \
@@ -4747,9 +4552,8 @@ pub async fn list_stat_orders(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TatMonitoringRow>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, TatMonitoringRow>(&format!(
         // Open orders only — the screen counts these as "open" and says
         // "Nothing urgent outstanding" when empty, but the filter used to keep
@@ -4782,9 +4586,8 @@ pub async fn list_eqas(
     Extension(claims): Extension<Claims>,
     Query(params): Query<EqasQuery>,
 ) -> Result<Json<Vec<LabEqasResult>>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = if let Some(test_id) = params.test_id {
         sqlx::query_as::<_, LabEqasResult>(
             "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 AND deleted_at IS NULL AND test_id = $2 \
@@ -4812,10 +4615,9 @@ pub async fn create_eqas(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateEqasRequest>,
 ) -> Result<Json<LabEqasResult>, AppError> {
-    require_permission(&claims, permissions::lab::qc::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::CREATE)?;
     let evaluation = body.evaluation.as_deref().unwrap_or("pending");
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabEqasResult>(
         "INSERT INTO lab_eqas_results \
          (tenant_id, program_name, provider, test_id, cycle, sample_number, \
@@ -4848,9 +4650,8 @@ pub async fn update_eqas(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateEqasRequest>,
 ) -> Result<Json<LabEqasResult>, AppError> {
-    require_permission(&claims, permissions::lab::qc::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabEqasResult>(
         "UPDATE lab_eqas_results SET \
          evaluation = COALESCE($1::lab_eqas_evaluation, evaluation), \
@@ -4881,9 +4682,8 @@ pub async fn list_proficiency_tests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabProficiencyTest>>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, LabProficiencyTest>(
         "SELECT * FROM lab_proficiency_tests WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 200",
@@ -4900,9 +4700,8 @@ pub async fn create_proficiency_test(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateProficiencyTestRequest>,
 ) -> Result<Json<LabProficiencyTest>, AppError> {
-    require_permission(&claims, permissions::lab::qc::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::CREATE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabProficiencyTest>(
         "INSERT INTO lab_proficiency_tests \
          (tenant_id, program, test_id, survey_round, sample_id, assigned_value, \
@@ -4937,9 +4736,8 @@ pub async fn list_nabl_documents(
     Extension(claims): Extension<Claims>,
     Query(params): Query<NablDocumentQuery>,
 ) -> Result<Json<Vec<LabNablDocument>>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let current_only = params.current_only.unwrap_or(false);
     let rows = match (&params.document_type, current_only) {
         (Some(doc_type), true) => {
@@ -4992,9 +4790,8 @@ pub async fn create_nabl_document(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateNablDocumentRequest>,
 ) -> Result<Json<LabNablDocument>, AppError> {
-    require_permission(&claims, permissions::lab::qc::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabNablDocument>(
         "INSERT INTO lab_nabl_documents \
          (tenant_id, document_type, document_number, title, version, \
@@ -5023,9 +4820,8 @@ pub async fn update_nabl_document(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateNablDocumentRequest>,
 ) -> Result<Json<LabNablDocument>, AppError> {
-    require_permission(&claims, permissions::lab::qc::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabNablDocument>(
         "UPDATE lab_nabl_documents SET \
          title = COALESCE($1, title), version = COALESCE($2, version), \
@@ -5059,9 +4855,8 @@ pub async fn get_reagent_consumption(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ReagentConsumptionRow>>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, ReagentConsumptionRow>(
         "SELECT id, reagent_name, lot_number, quantity, quantity_unit, \
          reorder_level, consumption_per_test, expiry_date, is_active \
@@ -5084,17 +4879,10 @@ pub async fn get_histopath_report(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabHistopathReport>, AppError> {
-    require_permission(&claims, permissions::lab::specialized::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::specialized::LIST)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabHistopathReport>(
         "SELECT * FROM lab_histopath_reports WHERE order_id = $1 AND tenant_id = $2",
     )
@@ -5112,13 +4900,12 @@ pub async fn create_histopath_report(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateHistopathRequest>,
 ) -> Result<Json<LabHistopathReport>, AppError> {
-    require_permission(&claims, permissions::lab::specialized::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::specialized::CREATE)?;
     // A pathology report is a diagnosis written onto somebody's record, and the
     // patient came from the request body. `lab.specialized.create` said the
     // caller may write specialised reports, not for whom.
     require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabHistopathReport>(
         "INSERT INTO lab_histopath_reports \
          (tenant_id, order_id, patient_id, specimen_type, clinical_history, \
@@ -5152,17 +4939,10 @@ pub async fn get_cytology_report(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabCytologyReport>, AppError> {
-    require_permission(&claims, permissions::lab::specialized::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::specialized::LIST)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabCytologyReport>(
         "SELECT * FROM lab_cytology_reports WHERE order_id = $1 AND tenant_id = $2",
     )
@@ -5180,13 +4960,12 @@ pub async fn create_cytology_report(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCytologyRequest>,
 ) -> Result<Json<LabCytologyReport>, AppError> {
-    require_permission(&claims, permissions::lab::specialized::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::specialized::CREATE)?;
     // A pathology report is a diagnosis written onto somebody's record, and the
     // patient came from the request body. `lab.specialized.create` said the
     // caller may write specialised reports, not for whom.
     require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabCytologyReport>(
         "INSERT INTO lab_cytology_reports \
          (tenant_id, order_id, patient_id, specimen_type, clinical_indication, \
@@ -5217,17 +4996,10 @@ pub async fn get_molecular_report(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabMolecularReport>, AppError> {
-    require_permission(&claims, permissions::lab::specialized::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::specialized::LIST)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabMolecularReport>(
         "SELECT * FROM lab_molecular_reports WHERE order_id = $1 AND tenant_id = $2",
     )
@@ -5245,13 +5017,12 @@ pub async fn create_molecular_report(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMolecularRequest>,
 ) -> Result<Json<LabMolecularReport>, AppError> {
-    require_permission(&claims, permissions::lab::specialized::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::specialized::CREATE)?;
     // A pathology report is a diagnosis written onto somebody's record, and the
     // patient came from the request body. `lab.specialized.create` said the
     // caller may write specialised reports, not for whom.
     require_lab_order_of_patient(&state, &claims, body.order_id, body.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabMolecularReport>(
         "INSERT INTO lab_molecular_reports \
          (tenant_id, order_id, patient_id, test_method, target_gene, primer_details, \
@@ -5288,9 +5059,8 @@ pub async fn list_b2b_clients(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabB2bClient>>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, LabB2bClient>(
         "SELECT * FROM lab_b2b_clients WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
@@ -5306,9 +5076,8 @@ pub async fn create_b2b_client(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateB2bClientRequest>,
 ) -> Result<Json<LabB2bClient>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabB2bClient>(
         "INSERT INTO lab_b2b_clients \
          (tenant_id, code, name, client_type, address, city, phone, \
@@ -5338,9 +5107,8 @@ pub async fn update_b2b_client(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateB2bClientRequest>,
 ) -> Result<Json<LabB2bClient>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabB2bClient>(
         "UPDATE lab_b2b_clients SET \
          name = COALESCE($1, name), client_type = COALESCE($2, client_type), \
@@ -5376,9 +5144,8 @@ pub async fn list_b2b_rates(
     Extension(claims): Extension<Claims>,
     Path(client_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabB2bRate>>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, LabB2bRate>(
         "SELECT * FROM lab_b2b_rates WHERE tenant_id = $1 AND deleted_at IS NULL AND client_id = $2 \
          ORDER BY created_at DESC LIMIT 5000",
@@ -5397,9 +5164,8 @@ pub async fn create_b2b_rate(
     Path(client_id): Path<Uuid>,
     Json(body): Json<CreateB2bRateRequest>,
 ) -> Result<Json<LabB2bRate>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = sqlx::query_as::<_, LabB2bRate>(
         "INSERT INTO lab_b2b_rates \
          (tenant_id, client_id, test_id, agreed_price, discount_percent, \
@@ -5434,18 +5200,11 @@ pub async fn auto_validate_result(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::results::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::results::CREATE)?;
     // Releasing a result is a clinical act on somebody's record. The patient is
     // two hops off the path id — result, order, patient.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_RESULT,
-        id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_RESULT, id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let result = sqlx::query_as::<_, LabResult>("SELECT * FROM lab_results WHERE id = $1")
         .bind(id)
@@ -5513,7 +5272,7 @@ pub async fn list_doctor_critical_alerts(
     State(state): State<AppState>,
     Path(doctor_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabCriticalAlert>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
 
     // The path names whose list this is, and it was not checked against who
     // was asking. Any holder of `lab.orders.list` -- a receptionist, a
@@ -5526,8 +5285,7 @@ pub async fn list_doctor_critical_alerts(
         return Err(AppError::NotFound);
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Every join is tenant-scoped explicitly. The tenant context is set, so
     // RLS should already contain this, but this query named no tenant on any
@@ -5568,9 +5326,8 @@ pub async fn get_tat_analytics(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<TatAnalyticsRow>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, TatAnalyticsRow>(
         "SELECT tc.name AS test_name, \
@@ -5605,10 +5362,9 @@ pub async fn get_order_crossmatch(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let order = sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1")
         .bind(id)
@@ -5618,7 +5374,7 @@ pub async fn get_order_crossmatch(
     // Crossmatch requests carry no order link: this lists every one the
     // patient has, so it needs the patient's care team. Holding this one
     // order (the laboratory's view) is not enough.
-    medbrains_authz_gate::require_patient_access(&state, &claims, order.patient_id).await?;
+    gate::require_patient_access(&state, &claims, order.patient_id).await?;
 
     let crossmatches = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(r ORDER BY r.created_at DESC), '[]'::json) FROM ( \
@@ -5650,7 +5406,7 @@ pub async fn get_analyzer_worklist(
     Extension(claims): Extension<Claims>,
     Query(params): Query<AnalyzerWorklistQuery>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
     // lab.orders.list is held by audit_officer, doctor, lab_technician,
     // nurse and quality_officer — and quality_officer does not hold
     // patients.view. A bench worklist needs the barcode and the order, not
@@ -5660,8 +5416,7 @@ pub async fn get_analyzer_worklist(
     // those in list_rx_queue's neighbour module.
     let can_view_patient_identity =
         claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Department scoping is taken from the encounter, not the lab order
     // (lab_orders has no direct department_id). Optional filter joins
@@ -5725,17 +5480,10 @@ pub async fn assign_phlebotomist(
     Path(id): Path<Uuid>,
     Json(body): Json<AssignPhlebotomistRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::phlebotomy::MANAGE)?;
 
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_PHLEBOTOMY_QUEUE,
-        id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_PHLEBOTOMY_QUEUE, id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     // Tenant-scoped, and `updated_at` moved. The per-record gate above
     // already resolves this row through its patient, so this is defence in
@@ -5767,7 +5515,7 @@ pub async fn bulk_print_reports(
     Extension(claims): Extension<Claims>,
     Json(body): Json<BulkPrintRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::reports::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::reports::VIEW)?;
     if body.order_ids.len() > MAX_BULK_PRINT_ORDERS {
         return Err(AppError::BadRequest(format!(
             "Print at most {MAX_BULK_PRINT_ORDERS} reports at a time."
@@ -5776,16 +5524,9 @@ pub async fn bulk_print_reports(
     // ponytail: one gate call per order, bounded by MAX_BULK_PRINT_ORDERS; a
     // bulk form of the PatientOrOwn gate if this batch grows.
     for order_id in &body.order_ids {
-        medbrains_authz_gate::require_access_via(
-            &state,
-            &claims,
-            medbrains_authz_gate::links::LAB_ORDER,
-            *order_id,
-        )
-        .await?;
+        gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, *order_id).await?;
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let mut dispatched = 0;
     for order_id in &body.order_ids {
@@ -5841,9 +5582,8 @@ pub async fn get_report_delivery_config(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<ReportDeliveryConfig>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let stored: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='lab' AND key='report_delivery_config'",
@@ -5865,7 +5605,7 @@ pub async fn update_report_delivery_config(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ReportDeliveryConfig>,
 ) -> Result<Json<ReportDeliveryConfig>, AppError> {
-    require_permission(&claims, permissions::lab::report_delivery::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::report_delivery::MANAGE)?;
     if !DELIVERY_METHODS.contains(&body.default_method.as_str()) {
         return Err(AppError::BadRequest(format!(
             "Unknown delivery method '{}'. Choose one of: {}.",
@@ -5887,8 +5627,7 @@ pub async fn update_report_delivery_config(
     }
     let value = serde_json::to_value(&body)
         .map_err(|e| AppError::Internal(format!("delivery config: {e}")))?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     sqlx::query(
         "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
@@ -5911,7 +5650,7 @@ pub async fn list_referral_doctors(
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     // The walk-in counter picks the outside doctor from this list too, and
     // finance picks the referral partner a referral statement is for.
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::lab::b2b::LIST,
@@ -5919,8 +5658,7 @@ pub async fn list_referral_doctors(
             permissions::doctor_payouts::statements::PREPARE,
         ],
     )?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<
         _,
@@ -5973,9 +5711,8 @@ pub async fn create_referral_doctor(
     Extension(claims): Extension<Claims>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO lab_referral_doctors (tenant_id, name, phone, specialization, hospital_name, commission_pct, \
@@ -6002,9 +5739,8 @@ pub async fn update_referral_doctor(
     Path(id): Path<Uuid>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::MANAGE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     sqlx::query(
         "UPDATE lab_referral_doctors SET \
@@ -6035,9 +5771,8 @@ pub async fn list_referral_payouts(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<
         _,
@@ -6085,15 +5820,14 @@ pub async fn create_referral_payout(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReferralPayoutRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::MANAGE)?;
     require_permission(&claims, permissions::doctor_payouts::statements::PREPARE)?;
     if body.period_end < body.period_start {
         return Err(AppError::BadRequest(
             "The period ends before it starts".to_owned(),
         ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let ask = medbrains_doctor_payouts::referral::ReferralAsk {
         tenant_id: claims.tenant_id,
         partner: body.referral_doctor_id,
@@ -6121,9 +5855,8 @@ pub async fn get_b2b_credit_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::b2b::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, (Uuid, String, Option<Decimal>, Option<Decimal>, Option<i32>)>(
         "SELECT id, name, credit_limit, credit_used, payment_terms_days \

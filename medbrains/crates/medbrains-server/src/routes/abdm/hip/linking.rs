@@ -1,6 +1,8 @@
 //! HIP-initiated linking (ABDM v3): when a record is finalised for a
 //! patient whose ABHA is verified, ask the gateway for a link token, then
-//! link the patient's unlinked care contexts with it.
+//! link the patient's unlinked care contexts with it. The token's own life
+//! (one request per patient, recovery from a rejected token) is
+//! `link_token`.
 //!
 //! Both gateway calls are asynchronous: the token arrives at
 //! `on-generate-token` and the outcome at `on_carecontext`, each matched to
@@ -9,13 +11,14 @@
 //! link token is valid for months; it is kept sealed on the patient's ABHA
 //! link and reused until it expires.
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
-use medbrains_abdm::gateway::{GENERATE_LINK_TOKEN_PATH, LINK_CARE_CONTEXT_PATH};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
+use medbrains_abdm::gateway::LINK_CARE_CONTEXT_PATH;
 use medbrains_core::secrets::SecretResolver;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::gateway::Hip;
+use super::link_token::{TokenAsk, link_tx, link_with, request_token};
 use crate::{error::AppError, routes::abdm::abha::secret_key};
 
 /// Why a mental-health care context is not linked.
@@ -77,7 +80,7 @@ impl PatientAbdm {
     }
 
     /// ABDM's gender letters.
-    fn gender_code(&self) -> &'static str {
+    pub(super) fn gender_code(&self) -> &'static str {
         match self.gender.as_str() {
             "male" => "M",
             "female" => "F",
@@ -144,7 +147,8 @@ pub fn patient_entries(uhid: &str, name: &str, contexts: &[(String, String, Stri
     )
 }
 
-fn abha_number_value(abha: Option<&str>) -> Value {
+/// The ABHA number as ABDM's JSON number (digits only), or null.
+pub(super) fn abha_number_value(abha: Option<&str>) -> Value {
     abha.map(|a| a.chars().filter(char::is_ascii_digit).collect::<String>())
         .and_then(|d| d.parse::<u64>().ok())
         .map_or(Value::Null, Value::from)
@@ -242,29 +246,19 @@ pub async fn request_link(
         }
     };
     if let Some(token) = live_token(secrets, &patient).await {
-        return send_links(db, &hip, tenant_id, &patient, &token).await;
+        return link_with(db, &hip, &patient, &token).await;
     }
-    let body = json!({
-        "abhaNumber": abha_number_value(patient.abha_number.as_deref()),
-        "abhaAddress": patient.abha_address,
-        "name": patient.name,
-        "gender": patient.gender_code(),
-        "yearOfBirth": patient.date_of_birth.map(|d| d.year()),
-    });
-    match hip.send(GENERATE_LINK_TOKEN_PATH, None, &body).await {
-        Ok(request_id) => mark(db, tenant_id, &ids, "linking", None, Some(request_id)).await,
-        Err(e) => {
-            mark(
-                db,
-                tenant_id,
-                &ids,
-                "failed",
-                Some(message(&e).as_str()),
-                None,
-            )
-            .await?;
-            Err(e)
-        }
+    // One token request per patient: a second record saved alongside joins it.
+    if request_token(db, &hip, &patient).await? != TokenAsk::Stored {
+        return Ok(());
+    }
+    // A token arrived while we were deciding: link with it.
+    let mut tx = link_tx(db, tenant_id).await?;
+    let patient = load_patient(&mut tx, tenant_id, patient_id).await?;
+    tx.commit().await?;
+    match live_token(secrets, &patient).await {
+        Some(token) => link_with(db, &hip, &patient, &token).await,
+        None => Ok(()),
     }
 }
 
@@ -288,14 +282,17 @@ async fn live_token(secrets: &dyn SecretResolver, p: &PatientAbdm) -> Option<Str
     medbrains_crypto::aead::decrypt_token::<String>(&key, TOKEN_CONTEXT, sealed).ok()
 }
 
-/// Link every unlinked care context of the patient with `token`.
+/// Link every unlinked care context of the patient with `token`. A gateway
+/// refusal is recorded on the care contexts and returned with their ids (the
+/// inner error), so the caller can recover from it; the outer error is a
+/// database fault.
 pub(super) async fn send_links(
     db: &sqlx::PgPool,
     hip: &Hip,
     tenant_id: Uuid,
     p: &PatientAbdm,
     token: &str,
-) -> Result<(), AppError> {
+) -> Result<Result<(), (AppError, Vec<Uuid>)>, AppError> {
     let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let pending = sqlx::query_as::<_, (Uuid, String, String, String)>(
@@ -311,7 +308,7 @@ pub(super) async fn send_links(
     .await?;
     tx.commit().await?;
     if pending.is_empty() {
-        return Ok(());
+        return Ok(Ok(()));
     }
     let ids: Vec<Uuid> = pending.iter().map(|r| r.0).collect();
     let contexts: Vec<(String, String, String)> =
@@ -322,7 +319,9 @@ pub(super) async fn send_links(
         "patient": patient_entries(&p.uhid, &p.name, &contexts),
     });
     match hip.send(LINK_CARE_CONTEXT_PATH, Some(token), &body).await {
-        Ok(request_id) => mark(db, tenant_id, &ids, "linking", None, Some(request_id)).await,
+        Ok(request_id) => mark(db, tenant_id, &ids, "linking", None, Some(request_id))
+            .await
+            .map(Ok),
         Err(e) => {
             mark(
                 db,
@@ -333,7 +332,7 @@ pub(super) async fn send_links(
                 None,
             )
             .await?;
-            Err(e)
+            Ok(Err((e, ids)))
         }
     }
 }
