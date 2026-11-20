@@ -9,6 +9,8 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -18,9 +20,9 @@ use medbrains_core::print_data::{
     PatientCardPrintData, PrescriptionHeaderRow, PrescriptionPrintData, RadiologyReportPrintData,
 };
 
+use medbrains_kernel::authz::is_bypass_role;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
 use medbrains_server_core::state::AppState;
 
 use crate::crossmatch::get_crossmatch_report_print_data;
@@ -32,13 +34,11 @@ pub async fn get_prescription_print_data(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<PrescriptionPrintData>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
-    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
+    let permit = kernel::authz::permit(&claims, permissions::opd::visit::UPDATE)?;
+    gate::require_encounter_access(&state, &claims, encounter_id).await?;
+    let viewer = gate::mental_health::MentalHealthViewer::of(&claims);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // Header: patient + encounter + doctor + department + diagnosis
@@ -74,7 +74,7 @@ pub async fn get_prescription_print_data(
     .bind(claims.tenant_id)
     .bind(viewer.user_id)
     .bind(viewer.can_all)
-    .bind(medbrains_authz_gate::mental_health::TOMBSTONE_LABEL)
+    .bind(gate::mental_health::TOMBSTONE_LABEL)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -146,18 +146,10 @@ pub async fn get_lab_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabReportPrintData>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::VIEW)?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, LabOrderHeaderRow>(
@@ -263,18 +255,10 @@ pub async fn get_radiology_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<RadiologyReportPrintData>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::RADIOLOGY_ORDER,
-        order_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::radiology::orders::VIEW)?;
+    gate::require_access_via(&state, &claims, gate::links::RADIOLOGY_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, RadiologyReportRow>(
@@ -359,13 +343,11 @@ pub async fn get_patient_card_print_data(
     // else prints through their relationship with the patient.
     let desk_reprint = holds_card_reprint(&claims);
     if !desk_reprint {
-        require_permission(&claims, permissions::patients::VIEW)?;
-        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+        let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+        gate::require_patient_access(&state, &claims, patient_id).await?;
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PatientCardRow>(
@@ -467,18 +449,10 @@ pub async fn get_histopath_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<HistopathReportPrintData>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::VIEW)?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // The report the pathologist signed is `lab_histopath_reports` (written by
@@ -632,18 +606,16 @@ pub async fn get_component_slip_print_data(
     Extension(claims): Extension<Claims>,
     Path(transfusion_id): Path<Uuid>,
 ) -> Result<Json<ComponentSlipPrintData>, AppError> {
-    require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
-    medbrains_authz_gate::require_access_via(
+    let permit = kernel::authz::permit(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    gate::require_access_via(
         &state,
         &claims,
-        medbrains_authz_gate::links::TRANSFUSION_RECORD,
+        gate::links::TRANSFUSION_RECORD,
         transfusion_id,
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // The ward and bed are the admission the patient was in when the unit
@@ -757,21 +729,13 @@ pub async fn get_investigation_requisition_print_data(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<InvestigationRequisitionPrintData>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::orders::VIEW)?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_ORDER, order_id).await?;
     // A requisition is printed at the lab desk: a psychiatric diagnosis on it
     // reaches the phlebotomist and the technician.
-    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
+    let viewer = gate::mental_health::MentalHealthViewer::of(&claims);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, InvestigationRequisitionRow>(
@@ -819,7 +783,7 @@ pub async fn get_investigation_requisition_print_data(
     .bind(claims.tenant_id)
     .bind(viewer.user_id)
     .bind(viewer.can_all)
-    .bind(medbrains_authz_gate::mental_health::TOMBSTONE_LABEL)
+    .bind(gate::mental_health::TOMBSTONE_LABEL)
     .fetch_one(&mut *tx)
     .await?;
 

@@ -8,6 +8,8 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::Utc;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -23,7 +25,6 @@ use medbrains_core::print_data::{
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── AMC Contract Summary ──────────────────────────────────────────────────────
@@ -34,13 +35,13 @@ pub async fn get_amc_contract_print_data(
     Extension(claims): Extension<Claims>,
     Path(contract_id): Path<Uuid>,
 ) -> Result<Json<AmcContractPrintData>, AppError> {
-    require_permission(&claims, permissions::bme::contracts::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::bme::contracts::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -145,13 +146,13 @@ pub async fn get_calibration_certificate_print_data(
     Extension(claims): Extension<Claims>,
     Path(calibration_id): Path<Uuid>,
 ) -> Result<Json<CalibrationCertificatePrintData>, AppError> {
-    require_permission(&claims, permissions::bme::calibration::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::bme::calibration::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -254,13 +255,13 @@ pub async fn get_equipment_breakdown_print_data(
     Extension(claims): Extension<Claims>,
     Path(breakdown_id): Path<Uuid>,
 ) -> Result<Json<EquipmentBreakdownReportPrintData>, AppError> {
-    require_permission(&claims, permissions::bme::breakdowns::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::bme::breakdowns::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -403,13 +404,13 @@ pub async fn get_equipment_history_print_data(
     Extension(claims): Extension<Claims>,
     Path(equipment_id): Path<Uuid>,
 ) -> Result<Json<EquipmentHistoryCardPrintData>, AppError> {
-    require_permission(&claims, permissions::bme::equipment::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::bme::equipment::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -623,9 +624,9 @@ pub async fn get_mgps_log_print_data(
     Extension(claims): Extension<Claims>,
     Path(reading_id): Path<Uuid>,
 ) -> Result<Json<MgpsDailyLogPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::gas::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::gas::LIST)?;
 
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -734,9 +735,9 @@ pub async fn get_water_quality_print_data(
     Extension(claims): Extension<Claims>,
     Path(test_id): Path<Uuid>,
 ) -> Result<Json<WaterQualityTestPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::water::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::water::LIST)?;
 
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -880,9 +881,9 @@ pub async fn get_dg_ups_log_print_data(
     Extension(claims): Extension<Claims>,
     Path(reading_id): Path<Uuid>,
 ) -> Result<Json<DgUpsRunLogPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::energy::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::energy::LIST)?;
 
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1011,9 +1012,9 @@ pub async fn get_fire_inspection_print_data(
     Extension(claims): Extension<Claims>,
     Path(inspection_id): Path<Uuid>,
 ) -> Result<Json<FireEquipmentInspectionPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::fire::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::fire::LIST)?;
 
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1109,12 +1110,12 @@ pub async fn get_materiovigilance_print_data(
 ) -> Result<Json<MateriovigilanceReportPrintData>, AppError> {
     // Device adverse-event reporting is a regulatory submission, so it is
     // guarded as one rather than as equipment maintenance.
-    require_permission(&claims, permissions::regulatory::materiovigilance::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::regulatory::materiovigilance::LIST)?;
     // Optional parent: this record is only sometimes about a patient.
-    medbrains_authz_gate::require_access_via_optional(
+    gate::require_access_via_optional(
         &state,
         &claims,
-        medbrains_authz_gate::links::MATERIOVIGILANCE_REPORT,
+        gate::links::MATERIOVIGILANCE_REPORT,
         report_id,
     )
     .await?;
@@ -1123,7 +1124,7 @@ pub async fn get_materiovigilance_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1230,9 +1231,9 @@ pub async fn get_fire_mock_drill_print_data(
     Extension(claims): Extension<Claims>,
     Path(drill_id): Path<Uuid>,
 ) -> Result<Json<FireMockDrillReportPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::fire::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::fire::LIST)?;
 
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
