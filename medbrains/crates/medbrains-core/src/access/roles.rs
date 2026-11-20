@@ -328,6 +328,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // ABDM M3: ask for, and read, the patient's records held elsewhere.
             permissions::abdm::consent::REQUEST,
             permissions::abdm::consent::VIEW,
+            // ABDM M3 (HIU_FLOW_104): the hospital-wide consent list, filtered to
+            // the doctor's own visible patients.
+            permissions::abdm::consent::LIST,
             // Intensive care. No built-in role named a single `icu.*` code, so
             // every ICU endpoint answered 403 to the staff who use it — an ICU
             // nurse could not record a ventilator setting. Granted on the
@@ -1669,6 +1672,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::abdm::abha::UNLINK,
             permissions::abdm::records::NOTIFY,
             permissions::abdm::dashboard::VIEW,
+            // The records custodian answers for every HIU consent request.
+            permissions::abdm::consent::LIST,
         ],
     },
     BuiltInRole {

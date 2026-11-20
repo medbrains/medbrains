@@ -461,9 +461,8 @@ const AnalyticsPage = lazy(() =>
 );
 const ReportsPage = lazy(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
-const AbdmDashboardPage = lazy(() =>
-  import("./pages/abdm/dashboard").then((m) => ({ default: m.AbdmDashboardPage })),
-);
+const AbdmDashboardPage = lazy(() => import("./pages/abdm/dashboard"));
+const AbdmConsentRequestsPage = lazy(() => import("./pages/abdm/consent-requests"));
 const SnomedPage = lazy(() =>
   import("./pages/terminology/snomed").then((m) => ({ default: m.SnomedPage })),
 );
@@ -652,6 +651,7 @@ function routeTable() {
         <Route path="audit" element={<AuditPage />} />
         <Route path="terminology/snomed" element={<SnomedPage />} />
         <Route path="abdm/dashboard" element={<AbdmDashboardPage />} />
+        <Route path="abdm/consent-requests" element={<AbdmConsentRequestsPage />} />
         <Route path="regulatory" element={<RegulatoryPage />} />
         <Route path="privacy-compliance" element={<PrivacyCompliancePage />} />
         <Route path="privacy-compliance/notice" element={<PrivacyNoticePrintPage />} />

@@ -24,18 +24,35 @@ export interface RaiseAbdmConsentRequest {
 
 export interface AbdmConsentRequest {
   id: string;
+  patient_id: string;
+  patient_name: string;
+  uhid: string;
+  /** The ABHA address the request was sent to. */
+  abha_address: string;
+  /** The ABHA number of that address's verified link, when one is held. */
+  abha_number: string | null;
   purpose_code: AbdmPurposeCode;
+  /** The scope asked for; `granted_*` is what the patient gave. */
   hi_types: string[];
   date_from: string;
   date_to: string;
   data_erase_at: string;
+  /** ABDM's answer, or `expired` once the expiry passed with no answer. */
   status: AbdmConsentRequestStatus;
   error: string | null;
   requester_name: string;
   requested_at: string;
+  /** When `status` was reached; for a local expiry, the expiry itself. */
   status_at: string;
   /** When ABDM was last asked where the request stands; null if never. */
   status_checked_at: string | null;
+  /** When the patient granted it; kept after a revocation or expiry. */
+  granted_at: string | null;
+  /** The scope granted, once ABDM sent the artefact; null before. */
+  granted_hi_types: string[] | null;
+  granted_from: string | null;
+  granted_to: string | null;
+  granted_erase_at: string | null;
   records_received: number;
   /** Copies still held — zero once the consent is revoked or expires. */
   records_held: number;

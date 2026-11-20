@@ -19,13 +19,14 @@ use axum::{
 };
 use medbrains_abdm::gateway::CONSENT_STATUS_PATH;
 use medbrains_core::permissions;
+use medbrains_kernel::Actor;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{
     callbacks::{caller_of, connect_hiu, error_of, request_id_of},
     grant::{ANSWERS, ASKED_COLUMNS, Asked, MAX_ARTEFACTS, fetch_all, settle},
-    requests::{AbdmConsentRequest, REQUEST_COLUMNS},
+    requests::{AbdmConsentRequest, load_request},
 };
 use crate::{
     error::AppError,
@@ -181,15 +182,8 @@ pub async fn check(
     for c in &claimed {
         ask(&state, claims.tenant_id, c).await?;
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, AbdmConsentRequest>(&format!(
-        "SELECT {REQUEST_COLUMNS} FROM abdm_consent_requests r WHERE r.tenant_id = $1 AND r.id = $2"
-    ))
-    .bind(claims.tenant_id)
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
+    let row = load_request(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
     Ok(Json(row))
 }

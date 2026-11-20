@@ -60,9 +60,11 @@ export function AbdmOtherHospitalsSection({ patientId }: AbdmOtherHospitalsSecti
           )}
           <Panel title="Requests" bare>
             <ConsentRequestTable
-              patientId={patientId}
               requests={data.requests}
               canCheck={canRequest}
+              emptyText={
+                'No request yet. Ask for the patient\'s records from other hospitals with "Request records".'
+              }
             />
           </Panel>
           <Panel title="Records received" bare>

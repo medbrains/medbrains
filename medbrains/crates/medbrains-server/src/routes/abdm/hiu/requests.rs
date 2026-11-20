@@ -12,6 +12,7 @@ use axum::{
 use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use medbrains_abdm::gateway::CONSENT_INIT_PATH;
 use medbrains_core::permissions;
+use medbrains_kernel::{Actor, Tx};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -46,29 +47,88 @@ pub struct RaiseConsentRequest {
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AbdmConsentRequest {
     pub id: Uuid,
+    pub patient_id: Uuid,
+    pub patient_name: String,
+    pub uhid: String,
+    /// The ABHA address the request was sent to.
+    pub abha_address: String,
+    /// The ABHA number of that address's verified link, when one is held.
+    pub abha_number: Option<String>,
     pub purpose_code: String,
+    /// The scope asked for; see `granted_*` for what the patient gave.
     pub hi_types: Vec<String>,
     pub date_from: DateTime<Utc>,
     pub date_to: DateTime<Utc>,
     pub data_erase_at: DateTime<Utc>,
+    /// ABDM's last answer — or `expired` once `data_erase_at` passed with no
+    /// answer, derived on read (see [`EFFECTIVE_STATUS`]).
     pub status: String,
     pub error: Option<String>,
     pub requester_name: String,
     pub requested_at: DateTime<Utc>,
+    /// When `status` was reached; for a local expiry, the expiry itself.
     pub status_at: DateTime<Utc>,
     /// When ABDM was last asked where the request stands (`on-status`).
     pub status_checked_at: Option<DateTime<Utc>>,
+    /// When the patient granted it (the first artefact), if ever — kept
+    /// after a later revocation or expiry.
+    pub granted_at: Option<DateTime<Utc>>,
+    /// The scope the patient granted, once ABDM's artefact arrived
+    /// (`on-fetch`): the union over the HIPs, narrowed to what was asked.
+    pub granted_hi_types: Option<Vec<String>>,
+    pub granted_from: Option<DateTime<Utc>>,
+    pub granted_to: Option<DateTime<Utc>>,
+    pub granted_erase_at: Option<DateTime<Utc>>,
     pub records_received: i64,
     pub records_held: i64,
 }
 
-pub(super) const REQUEST_COLUMNS: &str = "r.id, r.purpose_code, r.hi_types, r.date_from, r.date_to, \
-     r.data_erase_at, r.status, r.error, r.requester_name, r.requested_at, r.status_at, \
-     r.status_checked_at, \
-     (SELECT count(*) FROM abdm_received_records x WHERE x.consent_request_id = r.id \
-         AND x.deleted_at IS NULL) AS records_received, \
-     (SELECT count(*) FROM abdm_received_records x WHERE x.consent_request_id = r.id \
-         AND x.deleted_at IS NULL AND x.purged_at IS NULL AND x.erase_at > now()) AS records_held";
+/// A request's status as staff see it. ABDM expires a request nobody
+/// answered at its `dataEraseAt` but may not tell us; past it, a request
+/// still waiting reads `expired`, at that time. Derived on read, never
+/// written: a later `notify` or `on-status` still applies as it would have.
+pub(super) const EFFECTIVE_STATUS: &str = "CASE WHEN r.status IN ('requested', \
+     'awaiting_patient') AND r.data_erase_at <= now() THEN 'expired' ELSE r.status END";
+
+/// The artefacts whose scope ABDM has sent (`on-fetch` applied it); before
+/// that an artefact only carries the scope asked for.
+const SCOPE_KNOWN: &str = "a.hi_status NOT IN ('fetching', 'fetch_failed', 'out_of_scope')";
+
+/// `SELECT … FROM` a request with its patient, ABHA number and granted
+/// scope; callers append `WHERE` on `r`.
+pub(super) fn request_select() -> String {
+    format!(
+        "SELECT r.id, r.patient_id, btrim(p.first_name || ' ' || p.last_name) AS patient_name, \
+                p.uhid, r.abha_address, l.abha_number, r.purpose_code, r.hi_types, r.date_from, \
+                r.date_to, r.data_erase_at, {EFFECTIVE_STATUS} AS status, r.error, \
+                r.requester_name, r.requested_at, \
+                CASE WHEN ({EFFECTIVE_STATUS}) = 'expired' AND r.status <> 'expired' \
+                     THEN r.data_erase_at ELSE r.status_at END AS status_at, \
+                r.status_checked_at, g.granted_at, g.granted_hi_types, g.granted_from, \
+                g.granted_to, g.granted_erase_at, \
+                (SELECT count(*) FROM abdm_received_records x WHERE x.consent_request_id = r.id \
+                    AND x.deleted_at IS NULL) AS records_received, \
+                (SELECT count(*) FROM abdm_received_records x WHERE x.consent_request_id = r.id \
+                    AND x.deleted_at IS NULL AND x.purged_at IS NULL AND x.erase_at > now()) \
+                    AS records_held \
+           FROM abdm_consent_requests r \
+           JOIN patients p ON p.tenant_id = r.tenant_id AND p.id = r.patient_id \
+           LEFT JOIN LATERAL (SELECT l.abha_number FROM patient_abha_links l \
+                WHERE l.tenant_id = r.tenant_id AND l.patient_id = r.patient_id \
+                  AND lower(l.abha_address) = lower(r.abha_address) \
+                  AND l.verified_at IS NOT NULL AND l.deleted_at IS NULL \
+                ORDER BY l.verified_at DESC LIMIT 1) l ON true \
+           LEFT JOIN LATERAL (SELECT min(a.created_at) AS granted_at, \
+                array_agg(DISTINCT t ORDER BY t) FILTER (WHERE {SCOPE_KNOWN} AND t IS NOT NULL) \
+                    AS granted_hi_types, \
+                min(a.date_from) FILTER (WHERE {SCOPE_KNOWN}) AS granted_from, \
+                max(a.date_to) FILTER (WHERE {SCOPE_KNOWN}) AS granted_to, \
+                min(a.data_erase_at) FILTER (WHERE {SCOPE_KNOWN}) AS granted_erase_at \
+                FROM abdm_consent_artefacts a LEFT JOIN LATERAL unnest(a.hi_types) t ON true \
+                WHERE a.tenant_id = r.tenant_id AND a.role = 'hiu' \
+                  AND a.consent_request_id = r.id AND a.deleted_at IS NULL) g ON true"
+    )
+}
 
 fn validate(body: &RaiseConsentRequest) -> Result<(&'static str, Vec<String>), AppError> {
     let bad = |m: &str| Err(AppError::BadRequest(m.to_owned()));
@@ -213,11 +273,10 @@ pub async fn raise(
         Err(e @ (AppError::BadRequest(_) | AppError::ServiceUnavailable(_))) => Some(message(&e)),
         Err(other) => return Err(other),
     };
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     if let Some(error) = error {
         // Only while still unanswered: an on-init that raced in stands.
-        // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+        // allow-raw-sql: binds tenant_id inside the kernel's tenant-scoped transaction
         sqlx::query(
             "UPDATE abdm_consent_requests SET status = 'failed', error = $3, status_at = now() \
               WHERE tenant_id = $1 AND id = $2 AND status = 'requested'",
@@ -228,13 +287,25 @@ pub async fn raise(
         .execute(&mut *tx)
         .await?;
     }
-    let row = sqlx::query_as::<_, AbdmConsentRequest>(&format!(
-        "SELECT {REQUEST_COLUMNS} FROM abdm_consent_requests r WHERE r.tenant_id = $1 AND r.id = $2"
-    ))
-    .bind(claims.tenant_id)
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row = load_request(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// One request as staff see it — the row every write hands back.
+///
+/// # Errors
+/// A database fault, or `RowNotFound` for an unknown id.
+pub(super) async fn load_request(
+    tx: &mut Tx,
+    tenant_id: Uuid,
+    id: Uuid,
+) -> Result<AbdmConsentRequest, AppError> {
+    let sql = format!("{} WHERE r.tenant_id = $1 AND r.id = $2", request_select());
+    let row = sqlx::query_as::<_, AbdmConsentRequest>(&sql)
+        .bind(tenant_id)
+        .bind(id)
+        .fetch_one(&mut **tx)
+        .await?;
+    Ok(row)
 }

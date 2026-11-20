@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1257 permissions, one per constant in the Rust source. */
+/** 1258 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -7536,6 +7536,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.consent.list",
+    label: "List consent requests across the hospital",
+    description: "Every consent request this hospital raised as an HIU, newest first and filterable by status, with each patient's ABHA number and address — limited to the patients the user may see.",
+    module: "abdm",
+  },
+  {
     code: "abdm.scanshare.view",
     label: "Work the Scan & Share registration queue",
     description: "See the ABHA profiles patients shared at the registration counters today, with their token numbers; open the matched patient, register a new one from the profile, or dismiss a share.",
@@ -7665,6 +7671,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Doctor",
     permissions: [
       P.ABDM.ABHA.VIEW,
+      P.ABDM.CONSENT.LIST,
       P.ABDM.CONSENT.REQUEST,
       P.ABDM.CONSENT.VIEW,
       P.ABDM.RECORDS.VIEW,
@@ -8980,6 +8987,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "MRD Officer",
     permissions: [
       P.ABDM.ABHA.UNLINK,
+      P.ABDM.CONSENT.LIST,
       P.ABDM.DASHBOARD.VIEW,
       P.ABDM.RECORDS.MANAGE,
       P.ABDM.RECORDS.NOTIFY,

@@ -1,4 +1,9 @@
-import type { AbdmConsentRequestStatus, AbdmLinkStatus, AbdmPurposeCode } from "@medbrains/types";
+import type {
+  AbdmConsentRequest,
+  AbdmConsentRequestStatus,
+  AbdmLinkStatus,
+  AbdmPurposeCode,
+} from "@medbrains/types";
 import type { BadgeTone } from "@/components/ui";
 
 /** How each link status reads on screen — label and tone, never colour alone. */
@@ -64,6 +69,17 @@ export const CONSENT_REQUEST_STATUS: Record<
   },
   failed: { label: "Not sent", tone: "danger", hint: "ABDM did not accept the request." },
 };
+
+/**
+ * What a request's state means for the records. A request that expired with
+ * no answer never shared anything, so it does not say records were erased.
+ */
+export function statusHint(r: Pick<AbdmConsentRequest, "status" | "granted_at">): string {
+  if (r.status === "expired" && r.granted_at === null) {
+    return "The patient did not answer before it expired. Nothing was shared.";
+  }
+  return CONSENT_REQUEST_STATUS[r.status].hint;
+}
 
 /** ABDM's consent purposes in words. */
 export const PURPOSE_LABEL: Record<AbdmPurposeCode, string> = {

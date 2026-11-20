@@ -119,6 +119,7 @@ export const APP_SCREENS: readonly AppScreen[] = [
   { brick: null, path: "/regulatory", labelKey: "regulatory", icon: "IconScale", permission: "regulatory.dashboard.view", anyOf: [], group: "essential" },
   { brick: null, path: "/privacy-compliance", labelKey: "privacyCompliance", icon: "IconUserShield", permission: "regulatory.dpdp.view", anyOf: [], group: "essential" },
   { brick: null, path: "/abdm/dashboard", labelKey: "abdmDashboard", icon: "IconIdBadge2", permission: "abdm.dashboard.view", anyOf: [], group: "essential" },
+  { brick: null, path: "/abdm/consent-requests", labelKey: "abdmConsentRequests", icon: "IconFileCertificate", permission: "abdm.consent.list", anyOf: [], group: "essential" },
   { brick: null, path: "/audit", labelKey: "audit", icon: "IconFileAnalytics", permission: "audit.log.view", anyOf: [], group: "essential" },
   { brick: null, path: "/terminology/snomed", labelKey: "snomed", icon: "IconBinaryTree", permission: "terminology.snomed.view", anyOf: ["terminology.snomed.analytics"], group: "essential" },
   { brick: null, path: "/occupational-health", labelKey: "occHealth", icon: "IconHeartPlus", permission: "occ_health.screenings.list", anyOf: [], group: "essential" },

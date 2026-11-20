@@ -45,6 +45,7 @@ mod abdm_m1_find_test;
 mod abdm_m1_profile_test;
 mod abdm_m2_hip_test;
 mod abdm_m3_hiu_gaps_test;
+mod abdm_m3_hiu_list_test;
 mod abdm_m3_hiu_test;
 mod abdm_mock_flow_test;
 mod abdm_nrces_bundles_test;

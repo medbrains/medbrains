@@ -6,6 +6,7 @@ import type {
   AbdmConnectionTest,
   AbdmConsentPrintData,
   AbdmConsentRequest,
+  AbdmConsentRequestStatus,
   AbdmDashboard,
   AbdmHiuPatientView,
   AbdmPatientRecords,
@@ -18724,6 +18725,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  listAbdmConsentRequests: (params: { status?: AbdmConsentRequestStatus; page: number }) => {
+    const qs = new URLSearchParams({ page: String(params.page) });
+    if (params.status) qs.set("status", params.status);
+    return request<Paginated<AbdmConsentRequest>>(`/abdm/consent-requests?${qs}`);
+  },
   checkAbdmConsentRequestStatus: (id: string) =>
     request<AbdmConsentRequest>(`/abdm/consent-requests/${id}/check-status`, { method: "POST" }),
   getAbdmReceivedRecords: (patientId: string) =>

@@ -27,7 +27,11 @@ pub mod scope;
 pub mod status;
 pub mod view;
 
-use axum::{Router, extract::DefaultBodyLimit, routing::post};
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    routing::{get, post},
+};
 use medbrains_abdm::gateway as paths;
 
 use crate::state::AppState;
@@ -49,5 +53,29 @@ pub fn public_router() -> Router<AppState> {
         .route(
             paths::HIU_DATA_PUSH_PATH,
             post(push::receive).layer(DefaultBodyLimit::max(PUSH_BODY_LIMIT)),
+        )
+}
+
+/// The staff's HIU screens: raise a consent request, list them, check one's
+/// status and read what arrived — behind the signed-in session; each handler
+/// checks its own permission.
+pub fn staff_router() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/abdm/patients/{patient_id}/consent-requests",
+            post(requests::raise),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/received-records",
+            get(view::patient_view),
+        )
+        .route("/api/abdm/consent-requests", get(view::list_requests))
+        .route(
+            "/api/abdm/consent-requests/{id}/check-status",
+            post(status::check),
+        )
+        .route(
+            "/api/abdm/received-records/{id}",
+            get(view::received_record),
         )
 }
