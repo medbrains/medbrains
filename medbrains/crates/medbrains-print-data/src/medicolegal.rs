@@ -5,6 +5,8 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -16,11 +18,9 @@ use medbrains_core::print_data::{
     PoliceVisitEntry, SecondaryCharacters, WoundCertificatePrintData, WoundEntry,
 };
 
+use medbrains_kernel::authz::require_permission;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{
-    require_any_permission, require_permission,
-};
 use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -148,9 +148,9 @@ async fn record_mlc_print_output(
         "prior_print_count": prior_print_count,
         "reprint_reason": reprint_reason,
     });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action: if is_reprint {
@@ -273,9 +273,9 @@ async fn record_mlc_police_intimation_print_output(
         "prior_print_count": prior_print_count,
         "reprint_reason": reprint_reason,
     });
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action: if is_reprint {
@@ -329,13 +329,11 @@ pub async fn get_ama_form_print_data(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<AmaFormPrintData>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    gate::require_admission_access(&state, &claims, admission_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AmaFormRow>(
@@ -471,19 +469,11 @@ pub async fn get_mlc_register_print_data(
     Path(case_id): Path<Uuid>,
     Query(query): Query<MedicolegalPrintQuery>,
 ) -> Result<Json<MlcRegisterPrintData>, AppError> {
-    require_any_permission(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
+    let permit = kernel::authz::permit_any(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::MLC_CASE,
-        case_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::MLC_CASE, case_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, MlcRegisterRow>(
@@ -635,19 +625,18 @@ pub async fn get_mlc_police_intimation_print_data(
     Path(intimation_id): Path<Uuid>,
     Query(query): Query<MedicolegalPrintQuery>,
 ) -> Result<Json<MlcPoliceIntimationPrintData>, AppError> {
-    require_any_permission(&claims, MLC_POLICE_INTIMATION_PRINT_CONTEXT_PERMISSIONS)?;
+    let permit =
+        kernel::authz::permit_any(&claims, MLC_POLICE_INTIMATION_PRINT_CONTEXT_PERMISSIONS)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
+    gate::require_access_via(
         &state,
         &claims,
-        medbrains_authz_gate::links::MLC_POLICE_INTIMATION,
+        gate::links::MLC_POLICE_INTIMATION,
         intimation_id,
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, MlcPoliceIntimationPrintRow>(
@@ -768,19 +757,11 @@ pub async fn get_wound_certificate_print_data(
     Extension(claims): Extension<Claims>,
     Path(case_id): Path<Uuid>,
 ) -> Result<Json<WoundCertificatePrintData>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::emergency::mlc::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::MLC_CASE,
-        case_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::MLC_CASE, case_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, WoundCertRow>(
@@ -922,19 +903,11 @@ pub async fn get_age_estimation_print_data(
     Extension(claims): Extension<Claims>,
     Path(document_id): Path<Uuid>,
 ) -> Result<Json<AgeEstimationPrintData>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::emergency::mlc::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::MLC_DOCUMENT,
-        document_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::MLC_DOCUMENT, document_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AgeEstimationRow>(
@@ -1057,13 +1030,11 @@ pub async fn get_death_declaration_print_data(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<DeathDeclarationPrintData>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // Register "cause of death" is the general field; it stands in for the
@@ -1203,19 +1174,11 @@ pub async fn get_mlc_documentation_print_data(
     Path(case_id): Path<Uuid>,
     Query(query): Query<MedicolegalPrintQuery>,
 ) -> Result<Json<MlcDocumentationPrintData>, AppError> {
-    require_any_permission(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
+    let permit = kernel::authz::permit_any(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::MLC_CASE,
-        case_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::MLC_CASE, case_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, MlcDocRow>(

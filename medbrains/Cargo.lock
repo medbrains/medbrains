@@ -7771,6 +7771,7 @@ dependencies = [
  "medbrains-outbox",
  "medbrains-payment-gateway",
  "medbrains-pharmacy-delivery",
+ "medbrains-pharmacy-finance",
  "medbrains-server-core",
  "medbrains-server-services",
  "medbrains-telehealth",
@@ -8000,10 +8001,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
- "medbrains-authz",
- "medbrains-authz-gate",
  "medbrains-core",
- "medbrains-db",
  "medbrains-health-services",
  "medbrains-kernel",
  "medbrains-outbox",

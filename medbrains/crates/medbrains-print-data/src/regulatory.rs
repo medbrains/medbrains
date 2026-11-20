@@ -9,6 +9,7 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::Datelike;
+use medbrains_kernel as kernel;
 
 use crate::nabh_quality_report::get_nabh_quality_report_print_data;
 use crate::pcpndt_form_f::get_pcpndt_form_f_print_data;
@@ -26,7 +27,6 @@ use medbrains_core::print_data::{
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── NMC Compliance Report ────────────────────────────────
@@ -72,12 +72,10 @@ pub async fn get_nmc_compliance_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<NmcComplianceReportPrintData>, AppError> {
-    require_permission(&claims, permissions::regulatory::checklists::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::regulatory::checklists::LIST)?;
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let sections = sqlx::query_as::<_, ComplianceSectionRow>(
@@ -209,12 +207,10 @@ pub async fn get_nabl_quality_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<NablQualityReportPrintData>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let (total_orders, rejected): (i32, i32) = sqlx::query_as(
@@ -393,12 +389,10 @@ pub async fn get_spcb_bmw_returns_print_data(
     Extension(claims): Extension<Claims>,
     Path(quarter): Path<String>,
 ) -> Result<Json<SpcbBmwReturnsPrintData>, AppError> {
-    require_permission(&claims, permissions::infection_control::biowaste::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::infection_control::biowaste::LIST)?;
     let (start, end) = period_bounds(&quarter)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let categories = sqlx::query_as::<_, BmwCategoryRow>(
@@ -553,11 +547,9 @@ pub async fn get_peso_compliance_print_data(
     Extension(claims): Extension<Claims>,
     Path(year): Path<i32>,
 ) -> Result<Json<PesoComplianceReportPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::gas::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::gas::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let gas_systems = sqlx::query_as::<_, MedicalGasSystemRow>(
@@ -758,11 +750,9 @@ pub async fn get_drug_license_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(license_id): Path<uuid::Uuid>,
 ) -> Result<Json<DrugLicenseReportPrintData>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::pharmacy::stock::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let licence = sqlx::query_as::<_, DrugLicenceRow>(
@@ -882,12 +872,10 @@ pub async fn get_pcpndt_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<PcpndtReportPrintData>, AppError> {
-    require_permission(&claims, permissions::regulatory::pcpndt::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::regulatory::pcpndt::LIST)?;
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // The doctors who performed the period's procedures are its qualified personnel.
@@ -1025,14 +1013,12 @@ pub async fn get_birth_register_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<BirthRegisterPrintData>, AppError> {
-    require_permission(&claims, permissions::mrd::births::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::mrd::births::LIST)?;
     // Deliberately unfiltered: a statutory birth register lists every birth in
     // the period, like the death register below, so it stays permission-gated.
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let entries = sqlx::query_as::<_, BirthRegisterEntryRow>(
@@ -1152,15 +1138,13 @@ pub async fn get_death_register_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<DeathRegisterPrintData>, AppError> {
-    require_permission(&claims, permissions::mrd::deaths::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::mrd::deaths::LIST)?;
     // Deliberately unfiltered: a statutory death register lists every death in
     // the period. Narrowing it to the caller's own patients would make the
     // document wrong as a register, so it stays permission-gated.
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let entries = sqlx::query_as::<_, DeathRegisterEntryRow>(
@@ -1281,14 +1265,12 @@ pub async fn get_mlc_register_summary_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<MlcRegisterSummaryPrintData>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::emergency::mlc::LIST)?;
     // Deliberately unfiltered, as the death register above: a medico-legal
     // register is a statutory summary of the period, not a per-patient read.
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     // Before the queries: `registered_at::date` must be the hospital's date.
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
@@ -1412,11 +1394,9 @@ pub async fn get_aebas_attendance_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<AebasAttendanceReportPrintData>, AppError> {
-    require_permission(&claims, permissions::hr::attendance::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::hr::attendance::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let (total_employees, average_attendance, total_working_days, holidays) =
