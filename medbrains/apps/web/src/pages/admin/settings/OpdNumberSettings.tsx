@@ -54,6 +54,7 @@ export function OpdNumberSettings() {
 function OpdNumberPolicyForm({ view }: { view: OpdNumberView }) {
   const queryClient = useQueryClient();
   const [policy, setPolicy] = useState<OpdNumberPolicy>(() => policyOf(view));
+  /** Change some fields of the policy being edited. */
   const set = (patch: Partial<OpdNumberPolicy>) => setPolicy((p) => ({ ...p, ...patch }));
   const save = useMutation({
     mutationFn: () => patientsService.updateOpdNumberPolicy(policy),
