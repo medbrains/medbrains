@@ -54,6 +54,7 @@ export function usePatientSearchBy(onChange?: () => void) {
   const fallback = data?.default_by ?? "all";
   const wanted = chosen ?? fallback;
   const by: PatientSearchBy = wanted === "opd_number" && !opdOn ? "all" : wanted;
+  /** Pick a field, remember it for this user, and tell the caller. */
   const setBy = (next: PatientSearchBy) => {
     setChosen(next);
     onChange?.();
