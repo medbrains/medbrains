@@ -143,6 +143,8 @@ pub struct CreateEncounterRequest {
     /// The hospital OPD number the desk typed for this visit (or, per patient,
     /// for a patient who has none yet).
     pub opd_number: Option<String>,
+    /// Its register date, for a patient numbered at this visit (old records).
+    pub opd_date: Option<NaiveDate>,
 }
 
 #[derive(Debug, Serialize)]

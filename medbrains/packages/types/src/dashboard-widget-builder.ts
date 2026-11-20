@@ -973,6 +973,8 @@ export interface CreateEncounterRequest {
   chief_complaint?: string;
   /** The hospital OPD number for this visit (or, per patient, for a patient without one). */
   opd_number?: string;
+  /** Its register date (YYYY-MM-DD), for a patient numbered at this visit. */
+  opd_date?: string;
 }
 
 export interface CreateEncounterResponse {
