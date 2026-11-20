@@ -259,7 +259,7 @@
   "medbrains/crates/medbrains-specialty/src/specialty_psychiatry.rs": 17,
   "medbrains/crates/medbrains-sso-login/src/lib.rs": 14,
   "medbrains/crates/medbrains-telehealth/src/cds.rs": 36,
-  "medbrains/crates/medbrains-telehealth/src/doctor_dashboard.rs": 9,
+  "medbrains/crates/medbrains-telehealth/src/doctor_dashboard.rs": 1,
   "medbrains/crates/medbrains-telehealth/src/doctor_profile.rs": 6,
   "medbrains/crates/medbrains-telehealth/src/telemedicine.rs": 24,
   "medbrains/crates/medbrains-tokens/src/lib.rs": 39,

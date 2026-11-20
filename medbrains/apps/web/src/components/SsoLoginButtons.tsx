@@ -13,7 +13,7 @@ import { Button } from "@/components/ui";
  */
 export function SsoLoginButtons({
   providers,
-  returnTo = "/dashboard",
+  returnTo = "/home",
   hideDivider = false,
   onStart,
 }: {

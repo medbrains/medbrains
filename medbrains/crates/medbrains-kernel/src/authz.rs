@@ -14,10 +14,12 @@ use std::collections::HashMap;
 /// The relation an [`authorize`] call asks about, so callers need not reach
 /// past the kernel for it.
 pub use medbrains_authz::Relation;
+/// Who a relation is granted to, for the same reason.
+pub use medbrains_authz::Subject;
 use medbrains_authz::{AuthzBackend, AuthzContext, AuthzError};
 use uuid::Uuid;
 
-use crate::{Claims, KernelError};
+use crate::{Claims, KernelError, Permit};
 
 pub use medbrains_authz::decision::Outcome;
 
@@ -39,6 +41,38 @@ pub fn require_permission(claims: &Claims, perm: &str) -> Result<(), KernelError
         return Ok(());
     }
     Err(KernelError::Forbidden)
+}
+
+/// [`require_permission`], answering with the [`Permit`] the tenancy openers
+/// demand: the role check (RBAC) and the work it allows cannot come apart.
+pub fn permit(claims: &Claims, perm: &str) -> Result<Permit, KernelError> {
+    require_permission(claims, perm)?;
+    Ok(Permit::granted(claims.tenant_id, claims.sub))
+}
+
+/// [`require_any_permission`], answering with a [`Permit`].
+pub fn permit_any(claims: &Claims, perms: &[&str]) -> Result<Permit, KernelError> {
+    require_any_permission(claims, perms)?;
+    Ok(Permit::granted(claims.tenant_id, claims.sub))
+}
+
+/// A record-level decision (ABAC: [`authorize`], a gate's [`Outcome`]) answering
+/// with a [`Permit`]: `Deny` is `NotFound`, `Unknown` is 503, as [`collapse`].
+pub fn permit_outcome(claims: &Claims, outcome: Outcome) -> Result<Permit, KernelError> {
+    collapse(outcome)?;
+    Ok(Permit::granted(claims.tenant_id, claims.sub))
+}
+
+/// [`require_permission`] as an outcome, for callers that must tell a refusal
+/// from a lost context: `Unknown` when the claims carry no tenant.
+pub fn permission_outcome(claims: &Claims, perm: &str) -> Outcome {
+    if claims.tenant_id.is_nil() {
+        Outcome::Unknown
+    } else if is_bypass_role(claims) || claims.permissions.iter().any(|p| p == perm) {
+        Outcome::Allow
+    } else {
+        Outcome::Deny
+    }
 }
 
 /// Require the user to have at least one of the specified permissions.

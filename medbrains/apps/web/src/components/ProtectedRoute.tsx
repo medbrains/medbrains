@@ -1,14 +1,18 @@
 import { userSchema } from "@medbrains/schemas";
 import {
+  clearSession,
+  endClientSession,
   useAuthStore,
   useLocaleStore,
   useModuleStore,
   usePermissionStore,
 } from "@medbrains/stores";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Navigate } from "react-router";
 import { sessionService } from "@/services/session.service";
 import { PageSkeleton } from "./PageSkeleton";
+import { QueryError } from "./QueryError";
 
 /** Subscribe to Zustand persist hydration state without polling */
 function useHasHydrated(): boolean {
@@ -19,22 +23,41 @@ function useHasHydrated(): boolean {
   );
 }
 
+/**
+ * The failure to keep when `/auth/me` could not answer: with no permissions cached from this tab,
+ * nobody can know which apps this person has, so it must read as "couldn't check", never as an
+ * empty launcher. `null` when cached permissions can stand in.
+ */
+function unknownAccessAfter(err: unknown): unknown {
+  return usePermissionStore.getState().userRole ? null : err;
+}
+
+/** What the signed-in app shows while access is unknown: the error, and a reload to retry. */
+function AccessUncheckedError({ error }: { error: unknown }) {
+  return (
+    <QueryError
+      error={error}
+      title="We couldn't check your access"
+      onRetry={() => window.location.reload()}
+    />
+  );
+}
+
 /** Proactive token refresh interval — refresh 2 minutes before the 15-min access token expires */
 const REFRESH_INTERVAL_MS = 13 * 60 * 1000; // 13 minutes
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const hasHydrated = useHasHydrated();
   const user = useAuthStore((s) => s.user);
-  const clearAuth = useAuthStore((s) => s.clearAuth);
   const setPermissions = usePermissionStore((s) => s.setPermissions);
-  const clearPermissions = usePermissionStore((s) => s.clearPermissions);
   const setDisabledModules = useModuleStore((s) => s.setDisabledModules);
   const setRestrictCopy = useModuleStore((s) => s.setRestrictCopy);
-  const clearModules = useModuleStore((s) => s.clearModules);
   const [verified, setVerified] = useState<boolean | null>(null);
+  const [accessUnknown, setAccessUnknown] = useState<unknown>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [mfaEnrollmentRequired, setMfaEnrollmentRequired] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
 
   // ── Initial session verification ──
   useEffect(() => {
@@ -93,9 +116,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         // "session_expired" = refresh was already attempted and failed → truly expired
         const msg = err instanceof Error ? err.message : "";
         if (msg === "session_expired") {
-          clearAuth();
-          clearPermissions();
-          clearModules();
+          clearSession();
           setVerified(false);
           return;
         }
@@ -104,13 +125,12 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           (err as { status?: number }).status ??
           (err as { response?: { status?: number } }).response?.status;
         if (status === 401) {
-          clearAuth();
-          clearPermissions();
-          clearModules();
+          clearSession();
           setVerified(false);
         } else {
           // Backend unreachable (network error) — trust stored auth if present,
           // otherwise treat as unauthenticated.
+          setAccessUnknown(unknownAccessAfter(err));
           setVerified(Boolean(useAuthStore.getState().user));
         }
       });
@@ -118,15 +138,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [
-    hasHydrated,
-    clearAuth,
-    clearPermissions,
-    setPermissions,
-    clearModules,
-    setDisabledModules,
-    setRestrictCopy,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasHydrated, setPermissions, setDisabledModules, setRestrictCopy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Proactive token refresh — keeps session alive during continuous work ──
   useEffect(() => {
@@ -137,9 +149,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     refreshTimer.current = setInterval(() => {
       sessionService.refreshToken().catch(() => {
         // Refresh failed — session expired, force re-login
-        clearAuth();
-        clearPermissions();
-        clearModules();
+        endClientSession(queryClient);
         setVerified(false);
       });
     }, REFRESH_INTERVAL_MS);
@@ -153,9 +163,6 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [
     verified,
     user, // Refresh failed — session expired, force re-login
-    clearAuth,
-    clearPermissions,
-    clearModules,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wait for store hydration + the /auth/me verification (which also hydrates the
@@ -164,9 +171,13 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <PageSkeleton />;
   }
 
-  if (verified === false) {
+  // Signed out of the store (logout, or an expired session) unmounts every
+  // signed-in screen at once, so no poll or socket outlives the session.
+  if (verified === false || !user) {
     return <Navigate to="/login" replace />;
   }
+
+  if (accessUnknown) return <AccessUncheckedError error={accessUnknown} />;
 
   // Seeded/provisioned credential — block the app until the password is rotated
   if (mustChangePassword) {

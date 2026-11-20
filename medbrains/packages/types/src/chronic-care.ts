@@ -755,7 +755,7 @@ export interface UpdateOverbookingRuleRequest {
 //  Batch 2 Analytics & New Endpoint Types
 // ══════════════════════════════════════════════════════════
 
-// Quality — auto-calculate, pending acks, evidence
+// Quality — pending acks, evidence
 export interface PendingAckUser {
   user_id: string;
   full_name: string;

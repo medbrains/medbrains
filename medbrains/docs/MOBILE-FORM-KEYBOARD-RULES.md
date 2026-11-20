@@ -1,5 +1,9 @@
 # Mobile Form & Keyboard Rules — the Power of Ten
 
+> The `@medbrains/ui-mobile` helpers named below were deleted with the React Native apps on
+> 2026-11-17. The rules still bind the native SwiftUI and Compose apps; the helper names are
+> historical (see git history).
+
 **These are LAW for every form on every touch surface** — all `Mobile-*`, all
 `TV-*`, `Desktop-Kiosk`, and any handheld or tablet build. They are not
 consultation-screen rules or registration-screen rules; a rule that applies to

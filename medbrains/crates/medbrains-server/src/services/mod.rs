@@ -7,6 +7,7 @@
 pub mod access_alert_scan;
 pub mod appointment_reminders;
 pub mod breach_deadline_escalation;
+pub mod brick_jobs;
 pub mod bridge_pusher;
 pub mod calibration_lock;
 pub mod critical_alert_escalation;

@@ -18,6 +18,7 @@ why in the PR and ask.
 | Gate | Command | Measures | Baseline |
 |---|---|---|---|
 | Kernel boundary | `make check-kernel-boundary` | App crates that reach tenancy, authorization, audit, sequences, storage or config without going through `medbrains-kernel` | `crates/medbrains-kernel/boundary.txt` |
+| Kernel authz | `make check-kernel-authz` | Functions in `on_facade` crates that name the pool or open kernel work with no authorisation decision (permit, gate, `collapse`); `--coverage` splits RBAC-only from RBAC + ABAC | `scripts/kernel_authz.baseline.txt`, shrinks only (`--tighten`) |
 | Kernel has no domain | `make check-kernel-no-domain` | No domain crates below the kernel and no hospital words in it | none: any hit fails |
 | Size budgets | `make check-size-budgets` | Kernel lines and dependencies, package and crate counts, web first-load size | `scripts/size_budgets.json`; a new kernel dependency needs a reasoned hand edit |
 | UI slop | `make check-ui-slop` | Decorative effects in the web app; any rise fails | `scripts/ui_slop_baseline.json` |

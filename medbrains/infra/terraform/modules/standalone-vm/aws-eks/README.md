@@ -10,6 +10,10 @@ can be exercised end-to-end.
 
 ## Shape (today)
 
+- **Cluster API** — private by default. `endpoint_public_access_cidrs`
+  opens it to listed operator addresses only (never 0.0.0.0/0).
+  Kubernetes secrets are always KMS-encrypted: with the `secrets` key in
+  `kms_key_arns`, or a rotating key the module creates.
 - **Compute** — EKS cluster (default Kubernetes 1.31), one
   managed node group on SPOT t3.medium instances, scales 1-4.
 - **Database** — RDS db.t4g.small Multi-AZ. Will be swapped for
@@ -38,4 +42,4 @@ can be exercised end-to-end.
 - Cert-manager + AWS Load Balancer Controller for ingress.
 - IRSA role for the app's service account.
 - VPC dedicated to the hospital. Today reuses the default VPC.
-- KMS-encrypted everything.
+- KMS-encrypted everything beyond Kubernetes secrets.

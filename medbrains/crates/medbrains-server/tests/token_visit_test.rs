@@ -198,7 +198,7 @@ async fn a_second_visit_the_same_day_gets_its_own_number() {
 /// Then the position is reported — without it a shared number is unreadable on
 /// a board.
 #[tokio::test]
-async fn my_tokens_reports_how_many_are_ahead() {
+async fn patient_tokens_report_how_many_are_ahead() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let department = a_department(&app).await;
@@ -227,7 +227,7 @@ async fn my_tokens_reports_how_many_are_ahead() {
 
     let mine: serde_json::Value = app
         .client
-        .get(app.url(&format!("/api/tokens/mine?patient_id={patient}")))
+        .get(app.url(&format!("/api/tokens/by-patient?patient_id={patient}")))
         .send()
         .await
         .expect("my tokens")
@@ -284,7 +284,7 @@ async fn position_follows_priority_not_arrival() {
 
     let mine: serde_json::Value = app
         .client
-        .get(app.url(&format!("/api/tokens/mine?patient_id={patient}")))
+        .get(app.url(&format!("/api/tokens/by-patient?patient_id={patient}")))
         .send()
         .await
         .expect("my tokens")

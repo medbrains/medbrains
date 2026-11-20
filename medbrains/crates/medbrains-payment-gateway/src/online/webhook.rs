@@ -249,7 +249,7 @@ async fn apply(
             );
         }
         ProviderEvent::Ignored(what) => {
-            tracing::info!(provider = code, what, "webhook not acted on")
+            tracing::info!(provider = code, what, "webhook not acted on");
         }
     }
     Ok(())
