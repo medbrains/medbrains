@@ -7,4 +7,9 @@ export const debugApi = {
     request<unknown>("/debug/e2e/canonical-fixtures", {
       method: "POST",
     }),
+  provisionE2eTenant: (data: Record<string, unknown>) =>
+    request<unknown>("/debug/e2e/tenant", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };

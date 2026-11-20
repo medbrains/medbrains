@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::hip::gateway::authenticate;
+use super::hip::gateway::{Addressee, authenticate_as};
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
@@ -32,13 +32,14 @@ pub struct CallbackAck {
 /// Keep one verified gateway callback for the on-premises server.
 ///
 /// # Errors
-/// 401 without a valid gateway JWT; 404 for an unknown `X-HIP-ID`.
+/// 401 without a valid gateway JWT; 404 for an unknown `X-HIP-ID` / `X-HIU-ID`.
 pub async fn receive_callback(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Json<CallbackAck>, AppError> {
-    let caller = authenticate(&state, &headers).await?;
+    // The relay keeps M2 and M3 callbacks alike for the on-prem server.
+    let caller = authenticate_as(&state, &headers, Addressee::Either).await?;
     let correlation_id = Uuid::parse_str(&caller.request_id).ok();
     let callback_type = headers
         .get("x-hcx-api-call-type")

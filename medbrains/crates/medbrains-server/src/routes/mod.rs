@@ -199,10 +199,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
         .merge(medbrains_fhir_api::router())
         .route("/api/debug/authz-probe", get(health::authz_probe))
-        .route(
-            "/api/debug/e2e/canonical-fixtures",
-            post(debug::seed_canonical_fixtures),
-        )
+        .merge(debug::e2e_router())
         // ── Sharing API (manual per-resource grants) ─────────
         .merge(medbrains_sharing::router())
         .merge(medbrains_identity::router())
