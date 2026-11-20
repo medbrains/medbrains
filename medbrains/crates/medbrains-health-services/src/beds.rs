@@ -18,7 +18,7 @@ pub async fn release_cleaned_bed(
     bed_id: Uuid,
     cleaned_by: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let released = sqlx::query(
+    let released = sqlx::query!(
         "UPDATE bed_states SET \
            status = 'vacant_clean'::bed_status, \
            cleaning_completed_at = NOW(), \
@@ -27,10 +27,10 @@ pub async fn release_cleaned_bed(
            changed_at = NOW() \
          WHERE location_id = $1 AND tenant_id = $2 \
            AND status = 'vacant_dirty'::bed_status AND admission_id IS NULL",
+        bed_id,
+        tenant_id,
+        cleaned_by,
     )
-    .bind(bed_id)
-    .bind(tenant_id)
-    .bind(cleaned_by)
     .execute(conn)
     .await?;
     Ok(released.rows_affected() > 0)

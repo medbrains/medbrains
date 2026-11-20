@@ -4,6 +4,7 @@
  * census over beds in service — and the command centre's occupancy agrees
  * with the bed board instead of reporting an empty hospital.
  */
+import { admitToIpd, createPatientApi, freshWardBeds } from "../helpers/journey-steps";
 import { expect, test } from "./support/world";
 
 test("a hospital admin reads the wards against the usual day", async ({ hospital }) => {
@@ -30,8 +31,13 @@ test("a hospital admin reads the wards against the usual day", async ({ hospital
   await expect(page.getByText("Revenue This Month")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("ipd.png"), fullPage: true });
 
+  // Read from the live bed states. The test occupies a bed of its own: it relied on beds
+  // other specs had left occupied, and read 0% in a hospital where none had run.
+  const [bed] = await freshWardBeds(hospital.admin, 1);
+  if (!bed) throw new Error("a bed of this test's own");
+  const patient = await createPatientApi(hospital.admin);
+  await admitToIpd(hospital.admin, { patientId: patient.id, bedId: bed.bed_id });
   await page.goto("/command-center");
   const occupancy = page.locator(".stat-card").filter({ hasText: "Bed Occupancy" }).first();
-  // Read from the live bed states: some beds are occupied on the dev wards.
   await expect(occupancy.getByText(/^[1-9][\d.]*%$/)).toBeVisible();
 });

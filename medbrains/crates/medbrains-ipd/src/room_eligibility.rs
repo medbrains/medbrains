@@ -8,6 +8,7 @@ use axum::{
     Extension, Json,
     extract::{Query, State},
 };
+use medbrains_health_services::patient as gate;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -51,7 +52,7 @@ pub async fn get_room_eligibility(
         ],
     )?;
     if let Some(admission) = q.admission_id {
-        medbrains_authz_gate::require_admission_access(&state, &claims, admission).await?;
+        gate::require_admission_access(&state, &claims, admission).await?;
     }
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let encounter = match q.admission_id {

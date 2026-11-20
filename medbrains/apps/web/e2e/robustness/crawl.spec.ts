@@ -13,6 +13,9 @@ import { loginAsRole, routeApiDirect } from "../helpers";
 import { getE2EIdentity } from "../helpers/e2e-identities";
 import { waitForSettledScreen } from "../journeys/support/a11y";
 
+// Each test stands alone (its own page, sign-in and data), so workers and shards may split them.
+test.describe.configure({ mode: "parallel" });
+
 const ROLES = [
   "receptionist",
   "front_office_staff",
