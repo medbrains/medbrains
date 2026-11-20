@@ -13,6 +13,9 @@ export const patientsService = {
     api.getPatientContext(...args),
   createPatient: (data: CreatePatientInput) => api.createPatient(data),
   getOpdNumber: () => api.getOpdNumber(),
+  getSearchSettings: () => api.getSearchSettings(),
+  updateSearchSettings: (data: Parameters<typeof api.updateSearchSettings>[0]) =>
+    api.updateSearchSettings(data),
   updateOpdNumberPolicy: (data: Parameters<typeof api.updateOpdNumberPolicy>[0]) =>
     api.updateOpdNumberPolicy(data),
   transliterateName: (text: string, to: string) => api.transliterateName(text, to),

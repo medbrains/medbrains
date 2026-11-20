@@ -7,12 +7,13 @@ import type {
   OpdNumberPolicy,
   OpdNumberScope,
   OpdNumberView,
+  PatientSearchBy,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { OPD_NUMBER_QUERY_KEY } from "@/components/Patient/OpdNumberRow";
-import { Alert, Button, SegmentedControl, Switch, toast } from "@/components/ui";
+import { Alert, Button, SegmentedControl, Select, Switch, toast } from "@/components/ui";
 import { patientsService } from "@/services/patients.service";
 
 const MODES: { value: OpdNumberMode; label: string }[] = [
@@ -47,13 +48,57 @@ export function OpdNumberSettings() {
   if (isError)
     return <Alert tone="danger">Could not load the OPD number setting. Try again.</Alert>;
   if (isLoading || !data) return <Text c="dimmed">Loading…</Text>;
-  return <OpdNumberPolicyForm key={JSON.stringify(policyOf(data))} view={data} />;
+  return (
+    <Stack gap="xl">
+      <OpdNumberPolicyForm key={JSON.stringify(policyOf(data))} view={data} />
+      <SearchDefaultSelect />
+    </Stack>
+  );
+}
+
+const SEARCH_DEFAULTS: { value: PatientSearchBy; label: string }[] = [
+  { value: "all", label: "All fields" },
+  { value: "phone", label: "Phone" },
+  { value: "uhid", label: "UHID" },
+  { value: "name", label: "Name" },
+  { value: "opd_number", label: "OPD number" },
+];
+
+/** The field the patient search box starts on at this hospital; a desk's own choice wins. */
+function SearchDefaultSelect() {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["registration-search-settings"],
+    queryFn: () => patientsService.getSearchSettings(),
+  });
+  const save = useMutation({
+    mutationFn: (default_by: PatientSearchBy) =>
+      patientsService.updateSearchSettings({ default_by }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["registration-search-settings"], saved);
+      toast.success("Search default saved");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  return (
+    <Select
+      label="Patient search starts with"
+      description="Each desk can still pick another field; its last choice is remembered."
+      data={SEARCH_DEFAULTS}
+      value={data?.default_by ?? null}
+      onChange={(v) => v && save.mutate(v as PatientSearchBy)}
+      disabled={!data || save.isPending}
+      allowDeselect={false}
+      maw={560}
+    />
+  );
 }
 
 /** The form: mode, what the number belongs to, prefix, start and backdating. */
 function OpdNumberPolicyForm({ view }: { view: OpdNumberView }) {
   const queryClient = useQueryClient();
   const [policy, setPolicy] = useState<OpdNumberPolicy>(() => policyOf(view));
+  /** Change some fields of the policy being edited. */
   const set = (patch: Partial<OpdNumberPolicy>) => setPolicy((p) => ({ ...p, ...patch }));
   const save = useMutation({
     mutationFn: () => patientsService.updateOpdNumberPolicy(policy),

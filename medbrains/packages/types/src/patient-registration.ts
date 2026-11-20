@@ -869,6 +869,9 @@ export interface MpiMatchResult {
   score: number;
   /** A light record from the online pharmacy: complete it, don't register again. */
   pharmacy_customer: boolean;
+  /** The hospital OPD number and its register date, on desk lookups. */
+  opd_number?: string | null;
+  opd_date?: string | null;
   /** Present on duplicate-check results; absent from plain lookups. */
   band?: MpiMatchBand;
   /** Why, field by field ("Name matches in another spelling", …). */
@@ -926,4 +929,13 @@ export interface OpdNumberPolicy {
 export interface OpdNumberView extends OpdNumberPolicy {
   previous: string | null;
   next: string;
+}
+
+/** Which field the patient search box searches. */
+export type PatientSearchBy = "all" | "phone" | "uhid" | "name" | "opd_number";
+
+/** What the search box offers at this hospital. */
+export interface PatientSearchSettings {
+  default_by: PatientSearchBy;
+  opd_number_enabled: boolean;
 }

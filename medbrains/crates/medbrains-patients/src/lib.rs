@@ -16,6 +16,8 @@ pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
 mod search;
+mod search_settings;
+pub use search::SearchBy;
 
 use medbrains_health_services::patient as gate;
 use medbrains_kernel as kernel;
@@ -104,6 +106,8 @@ pub struct ListPatientsQuery {
     pub sort: Option<String>,
     /// Sort direction: "asc" or "desc" (default desc).
     pub order: Option<String>,
+    /// Search only this field: all (default), phone, uhid, name or `opd_number`.
+    pub by: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1108,8 +1112,9 @@ pub async fn list_patients(
         }
     };
 
+    let by = SearchBy::from_param(params.by.as_deref())?;
     let matcher =
-        search::PatientSearch::for_request(&state, claims.tenant_id, params.search.as_deref())
+        search::PatientSearch::for_request(&state, claims.tenant_id, params.search.as_deref(), by)
             .await?;
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
@@ -3243,6 +3248,7 @@ pub(crate) fn filter_match_result(
 ) -> MatchResult {
     if patient_field_is_hidden(restricted, PATIENT_UHID_FIELD) {
         row.uhid = "Restricted".to_owned();
+        row.opd_number = None; // an identifier like the UHID
     } else if patient_field_is_masked(restricted, PATIENT_UHID_FIELD) {
         row.uhid = mask_identifier_keep_last(&row.uhid, 4);
     }
@@ -3394,6 +3400,8 @@ pub async fn match_patients(
 pub struct FindPatientsQuery {
     /// A UHID, a phone number, or part of a name — whatever the desk was told.
     pub q: String,
+    /// Search only this field: all (default), phone, uhid, name or `opd_number`.
+    pub by: Option<String>,
 }
 
 /// The desk lookup's query: the shared matcher (`search.rs`) for the tiers,
@@ -3405,17 +3413,19 @@ pub(crate) async fn find_matches(
     tenant_id: Uuid,
     matcher: &search::PatientSearch,
 ) -> Result<Vec<MatchResult>, AppError> {
+    // The fuzzy name binds after the matcher's own.
+    let fz = 2 + search::BINDS;
     let sql = format!(
         "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
            (CASE {rank} WHEN 0 THEN 1.0 WHEN 1 THEN 0.9 WHEN 2 THEN 0.8 \
-              ELSE COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) * 0.7 \
-            END)::float8 AS score, pharmacy_customer \
+              ELSE COALESCE(word_similarity(${fz}, first_name || ' ' || last_name), 0) * 0.7 \
+            END)::float8 AS score, pharmacy_customer, opd_number, opd_date \
          FROM patients \
          WHERE tenant_id = $1 AND is_merged = false AND is_active = true \
            AND deleted_at IS NULL \
-           AND ({matches} OR ($7 <> '' AND $7 <% (first_name || ' ' || last_name))) \
+           AND ({matches} OR (${fz} <> '' AND ${fz} <% (first_name || ' ' || last_name))) \
          ORDER BY score DESC, \
-           COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) DESC, \
+           COALESCE(word_similarity(${fz}, first_name || ' ' || last_name), 0) DESC, \
            last_name, first_name \
          LIMIT 20",
         rank = search::rank_sql(2),
@@ -3445,7 +3455,8 @@ pub async fn find_patients(
 ) -> Result<Json<Vec<MatchResult>>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::FIND)?;
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
-    let rows = actions::find(&mut tx, &state, &claims, &params.q).await?;
+    let by = SearchBy::from_param(params.by.as_deref())?;
+    let rows = actions::find_by(&mut tx, (&state, &claims), &params.q, by).await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -5145,4 +5156,5 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/masters/occupations", get(list_occupations))
         .route("/api/masters/relations", get(list_relations))
         .merge(opd_number::router())
+        .merge(search_settings::router())
 }
