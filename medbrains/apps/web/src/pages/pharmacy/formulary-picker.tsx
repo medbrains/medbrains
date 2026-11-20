@@ -1,5 +1,5 @@
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
 import type { PharmacyCatalog } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -26,7 +26,7 @@ export function FormularyPicker({ drugName, onPick }: FormularyPickerProps) {
   const [debounced] = useDebouncedValue(search.trim(), 250);
   const results = useQuery({
     queryKey: ["pharmacy-catalog-search", debounced],
-    queryFn: () => api.listPharmacyCatalog({ search: debounced }),
+    queryFn: () => pharmacyApi.listPharmacyCatalog({ search: debounced }),
     enabled: debounced.length >= MIN_SEARCH,
     staleTime: 60_000,
   });

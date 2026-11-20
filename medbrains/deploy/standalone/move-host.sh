@@ -87,7 +87,7 @@ systemctl restart medbrains-server
 
 say "checking"
 sleep 5
-for i in $(seq 1 24); do
+for _ in $(seq 1 24); do
   code="$(curl -s -o /dev/null -w '%{http_code}' "https://$NEW/api/health" || true)"
   [[ "$code" == "200" ]] && break
   sleep 5

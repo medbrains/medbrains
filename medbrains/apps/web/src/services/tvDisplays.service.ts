@@ -1,25 +1,28 @@
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
+import { tvApi } from "@medbrains/api/modules/tv";
 
 export const tvDisplaysService = {
-  listTvDisplays: (...args: Parameters<typeof api.listTvDisplays>) => api.listTvDisplays(...args),
-  createTvDisplay: (...args: Parameters<typeof api.createTvDisplay>) =>
-    api.createTvDisplay(...args),
-  updateTvDisplay: (...args: Parameters<typeof api.updateTvDisplay>) =>
-    api.updateTvDisplay(...args),
-  deleteTvDisplay: (...args: Parameters<typeof api.deleteTvDisplay>) =>
-    api.deleteTvDisplay(...args),
-  listQueueTokens: (...args: Parameters<typeof api.listQueueTokens>) =>
-    api.listQueueTokens(...args),
-  createQueueToken: (...args: Parameters<typeof api.createQueueToken>) =>
-    api.createQueueToken(...args),
-  callQueueToken: (...args: Parameters<typeof api.callQueueToken>) => api.callQueueToken(...args),
-  completeQueueToken: (...args: Parameters<typeof api.completeQueueToken>) =>
-    api.completeQueueToken(...args),
-  noShowQueueToken: (...args: Parameters<typeof api.noShowQueueToken>) =>
-    api.noShowQueueToken(...args),
-  getQueueState: (...args: Parameters<typeof api.getQueueState>) => api.getQueueState(...args),
-  broadcastAnnouncement: (...args: Parameters<typeof api.broadcastAnnouncement>) =>
-    api.broadcastAnnouncement(...args),
-  listDepartments: (...args: Parameters<typeof api.listDepartments>) =>
-    api.listDepartments(...args),
+  listTvDisplays: (...args: Parameters<typeof tvApi.listTvDisplays>) =>
+    tvApi.listTvDisplays(...args),
+  createTvDisplay: (...args: Parameters<typeof tvApi.createTvDisplay>) =>
+    tvApi.createTvDisplay(...args),
+  updateTvDisplay: (...args: Parameters<typeof tvApi.updateTvDisplay>) =>
+    tvApi.updateTvDisplay(...args),
+  deleteTvDisplay: (...args: Parameters<typeof tvApi.deleteTvDisplay>) =>
+    tvApi.deleteTvDisplay(...args),
+  listQueueTokens: (...args: Parameters<typeof tvApi.listQueueTokens>) =>
+    tvApi.listQueueTokens(...args),
+  createQueueToken: (...args: Parameters<typeof tvApi.createQueueToken>) =>
+    tvApi.createQueueToken(...args),
+  callQueueToken: (...args: Parameters<typeof tvApi.callQueueToken>) =>
+    tvApi.callQueueToken(...args),
+  completeQueueToken: (...args: Parameters<typeof tvApi.completeQueueToken>) =>
+    tvApi.completeQueueToken(...args),
+  noShowQueueToken: (...args: Parameters<typeof tvApi.noShowQueueToken>) =>
+    tvApi.noShowQueueToken(...args),
+  getQueueState: (...args: Parameters<typeof tvApi.getQueueState>) => tvApi.getQueueState(...args),
+  broadcastAnnouncement: (...args: Parameters<typeof tvApi.broadcastAnnouncement>) =>
+    tvApi.broadcastAnnouncement(...args),
+  listDepartments: (...args: Parameters<typeof setupApi.listDepartments>) =>
+    setupApi.listDepartments(...args),
 };

@@ -1,9 +1,9 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const sepsisBundleService = {
-  createSepsisBundle: (data: Parameters<typeof api.createSepsisBundle>[0]) =>
-    api.createSepsisBundle(data),
-  updateSepsisBundle: (id: string, data: Parameters<typeof api.updateSepsisBundle>[1]) =>
-    api.updateSepsisBundle(id, data),
-  listSepsisBundles: (patientId: string) => api.listSepsisBundles(patientId),
+  createSepsisBundle: (data: Parameters<typeof clinicalApi.createSepsisBundle>[0]) =>
+    clinicalApi.createSepsisBundle(data),
+  updateSepsisBundle: (id: string, data: Parameters<typeof clinicalApi.updateSepsisBundle>[1]) =>
+    clinicalApi.updateSepsisBundle(id, data),
+  listSepsisBundles: (patientId: string) => clinicalApi.listSepsisBundles(patientId),
 };

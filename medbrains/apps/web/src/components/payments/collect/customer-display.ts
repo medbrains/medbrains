@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { counterDisplayApi } from "@medbrains/api/modules/counter-display";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CounterDisplayEvent,
@@ -61,7 +61,7 @@ export const useDisplayFeed = create<FeedState>((set, get) => ({
     if (!stationId || !session) return;
     const body = { ...event, session } as CounterDisplayEvent;
     chain = chain
-      .then(() => api.publishCounterDisplayEvent(stationId, body))
+      .then(() => counterDisplayApi.publishCounterDisplayEvent(stationId, body))
       .then(
         () => set({ failed: false }),
         () => set({ failed: true }),
@@ -159,7 +159,7 @@ export function useDisplayStatus(stationId: string | null) {
   const canPublish = useHasPermission(P.BILLING.COUNTER_DISPLAY.PUBLISH);
   return useQuery({
     queryKey: ["counter-display-status", stationId],
-    queryFn: () => api.getCounterDisplayStatus(stationId ?? ""),
+    queryFn: () => counterDisplayApi.getCounterDisplayStatus(stationId ?? ""),
     enabled: canPublish && Boolean(stationId),
     refetchInterval: 15_000,
   });

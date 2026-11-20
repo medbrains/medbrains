@@ -827,8 +827,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::abdm::abha::DEACTIVATE,
             permissions::abdm::abha::UNLINK,
             permissions::abdm::records::NOTIFY,
-            // Teleconsultations booked from UHI patient apps arrive at the desk.
+            // Teleconsultations booked from UHI patient apps arrive at the desk,
+            // and the patient shows the booking's PIN there.
             permissions::uhi::requests::VIEW,
+            permissions::uhi::requests::CHECK_PIN,
             // Scan & Share: the desk receives ABHA profiles shared at its counters.
             permissions::abdm::scanshare::VIEW,
         ],
@@ -1997,6 +1999,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::abdm::abha::UNLINK,
             permissions::abdm::records::NOTIFY,
             permissions::uhi::requests::VIEW,
+            permissions::uhi::requests::CHECK_PIN,
             // Scan & Share: the desk receives ABHA profiles shared at its counters.
             permissions::abdm::scanshare::VIEW,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.

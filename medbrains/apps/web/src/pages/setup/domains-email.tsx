@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Anchor, Card, Code, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { type MailDnsRecord, P } from "@medbrains/types";
 import { IconCheck, IconClock, IconMail, IconUserPlus, IconWorld } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,11 +57,10 @@ function dnsRecords(domain: string): Array<{ type: string; host: string; value: 
 export function DomainsEmailPage() {
   useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const queryClient = useQueryClient();
-
-  const { data: tenant } = useQuery({ queryKey: ["tenant"], queryFn: () => api.getTenant() });
+  const { data: tenant } = useQuery({ queryKey: ["tenant"], queryFn: () => setupApi.getTenant() });
   const { data: email } = useQuery({
     queryKey: ["email-settings"],
-    queryFn: () => api.getEmailSettings(),
+    queryFn: () => adminApi.getEmailSettings(),
   });
   const hasDomain = Boolean(tenant?.custom_domain);
   // Live DNS verification — polls every 8s while records are still propagating.
@@ -70,7 +70,7 @@ export function DomainsEmailPage() {
     isFetching: checking,
   } = useQuery({
     queryKey: ["domain-status"],
-    queryFn: () => api.getDomainStatus(),
+    queryFn: () => adminApi.getDomainStatus(),
     enabled: hasDomain,
     refetchInterval: (query) => (query.state.data && !query.state.data.all_ok ? 8000 : false),
   });
@@ -103,7 +103,7 @@ export function DomainsEmailPage() {
   const set = (patch: Partial<typeof form>) => setForm({ ...value, ...patch });
 
   const save = useMutation({
-    mutationFn: () => api.updateEmailSettings(value),
+    mutationFn: () => adminApi.updateEmailSettings(value),
     onSuccess: () => {
       notifications.show({ title: "Email settings saved", message: "Updated.", color: "success" });
       void queryClient.invalidateQueries({ queryKey: ["email-settings"] });
@@ -114,7 +114,7 @@ export function DomainsEmailPage() {
 
   const [provisioned, setProvisioned] = useState<MailDnsRecord[] | null>(null);
   const provision = useMutation({
-    mutationFn: () => api.provisionMailDomain(tenant?.custom_domain ?? ""),
+    mutationFn: () => adminApi.provisionMailDomain(tenant?.custom_domain ?? ""),
     onSuccess: (res) => {
       setProvisioned(res.dns_records);
       notifications.show({
@@ -152,7 +152,7 @@ export function DomainsEmailPage() {
     defaultValues: { email: "", password: "" },
   });
   const createMailbox = useMutation({
-    mutationFn: (values: MailboxFormInput) => api.createMailbox(values.email, values.password),
+    mutationFn: (values: MailboxFormInput) => adminApi.createMailbox(values.email, values.password),
     onSuccess: (res) => {
       notifications.show({
         title: "Mailbox created",
@@ -172,10 +172,10 @@ export function DomainsEmailPage() {
   const [testTo, setTestTo] = useState("");
   const { data: log = [] } = useQuery({
     queryKey: ["email-log"],
-    queryFn: () => api.getEmailLog(),
+    queryFn: () => adminApi.getEmailLog(),
   });
   const test = useMutation({
-    mutationFn: () => api.sendEmailTest(testTo),
+    mutationFn: () => adminApi.sendEmailTest(testTo),
     onSuccess: () => {
       notifications.show({ title: "Test queued", message: `Sent to ${testTo}.`, color: "success" });
       setTestTo("");

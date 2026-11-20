@@ -1,71 +1,76 @@
-import { api } from "@medbrains/api";
+import { doctorPayoutsApi } from "@medbrains/api/modules/doctor-payouts";
 
 /** Doctor payouts (#4886): every screen's calls, through TanStack Query. */
 export const doctorPayoutsService = {
-  getDoctorPayoutSettings: (...args: Parameters<typeof api.getDoctorPayoutSettings>) =>
-    api.getDoctorPayoutSettings(...args),
-  updateDoctorPayoutSettings: (...args: Parameters<typeof api.updateDoctorPayoutSettings>) =>
-    api.updateDoctorPayoutSettings(...args),
-  setReferralPayoutSwitch: (...args: Parameters<typeof api.setReferralPayoutSwitch>) =>
-    api.setReferralPayoutSwitch(...args),
-  listDoctorAgreements: (...args: Parameters<typeof api.listDoctorAgreements>) =>
-    api.listDoctorAgreements(...args),
-  createDoctorAgreement: (...args: Parameters<typeof api.createDoctorAgreement>) =>
-    api.createDoctorAgreement(...args),
-  updateDoctorAgreement: (...args: Parameters<typeof api.updateDoctorAgreement>) =>
-    api.updateDoctorAgreement(...args),
-  listPayoutRateCards: (...args: Parameters<typeof api.listPayoutRateCards>) =>
-    api.listPayoutRateCards(...args),
-  createPayoutRateCard: (...args: Parameters<typeof api.createPayoutRateCard>) =>
-    api.createPayoutRateCard(...args),
-  newPayoutRateCardVersion: (...args: Parameters<typeof api.newPayoutRateCardVersion>) =>
-    api.newPayoutRateCardVersion(...args),
-  listPayoutRules: (...args: Parameters<typeof api.listPayoutRules>) =>
-    api.listPayoutRules(...args),
-  addPayoutRule: (...args: Parameters<typeof api.addPayoutRule>) => api.addPayoutRule(...args),
-  removePayoutRule: (...args: Parameters<typeof api.removePayoutRule>) =>
-    api.removePayoutRule(...args),
-  calculatePayout: (...args: Parameters<typeof api.calculatePayout>) =>
-    api.calculatePayout(...args),
-  listPayoutLedger: (...args: Parameters<typeof api.listPayoutLedger>) =>
-    api.listPayoutLedger(...args),
-  listPayoutStatements: (...args: Parameters<typeof api.listPayoutStatements>) =>
-    api.listPayoutStatements(...args),
-  getPayoutStatement: (...args: Parameters<typeof api.getPayoutStatement>) =>
-    api.getPayoutStatement(...args),
-  preparePayoutStatement: (...args: Parameters<typeof api.preparePayoutStatement>) =>
-    api.preparePayoutStatement(...args),
-  adjustPayoutStatement: (...args: Parameters<typeof api.adjustPayoutStatement>) =>
-    api.adjustPayoutStatement(...args),
-  disputePayoutStatement: (...args: Parameters<typeof api.disputePayoutStatement>) =>
-    api.disputePayoutStatement(...args),
-  approvePayoutStatement: (...args: Parameters<typeof api.approvePayoutStatement>) =>
-    api.approvePayoutStatement(...args),
-  listDoctorPayouts: (...args: Parameters<typeof api.listDoctorPayouts>) =>
-    api.listDoctorPayouts(...args),
-  runDoctorPayouts: (...args: Parameters<typeof api.runDoctorPayouts>) =>
-    api.runDoctorPayouts(...args),
-  markDoctorPayoutPaid: (...args: Parameters<typeof api.markDoctorPayoutPaid>) =>
-    api.markDoctorPayoutPaid(...args),
-  markDoctorPayoutFailed: (...args: Parameters<typeof api.markDoctorPayoutFailed>) =>
-    api.markDoctorPayoutFailed(...args),
-  getPayoutBankFile: (...args: Parameters<typeof api.getPayoutBankFile>) =>
-    api.getPayoutBankFile(...args),
-  getDaySettlement: (...args: Parameters<typeof api.getDaySettlement>) =>
-    api.getDaySettlement(...args),
-  settleDoctorDay: (...args: Parameters<typeof api.settleDoctorDay>) =>
-    api.settleDoctorDay(...args),
-  createReferralStatement: (...args: Parameters<typeof api.createReferralStatement>) =>
-    api.createReferralStatement(...args),
-  getDoctorPayoutSummary: (...args: Parameters<typeof api.getDoctorPayoutSummary>) =>
-    api.getDoctorPayoutSummary(...args),
-  getPayoutTdsRegister: (...args: Parameters<typeof api.getPayoutTdsRegister>) =>
-    api.getPayoutTdsRegister(...args),
-  getReferralCompliance: (...args: Parameters<typeof api.getReferralCompliance>) =>
-    api.getReferralCompliance(...args),
-  getMyEarnings: (...args: Parameters<typeof api.getMyEarnings>) => api.getMyEarnings(...args),
-  getMyPayoutStatements: (...args: Parameters<typeof api.getMyPayoutStatements>) =>
-    api.getMyPayoutStatements(...args),
-  disputeMyPayoutStatement: (...args: Parameters<typeof api.disputeMyPayoutStatement>) =>
-    api.disputeMyPayoutStatement(...args),
+  getDoctorPayoutSettings: (...args: Parameters<typeof doctorPayoutsApi.getDoctorPayoutSettings>) =>
+    doctorPayoutsApi.getDoctorPayoutSettings(...args),
+  updateDoctorPayoutSettings: (
+    ...args: Parameters<typeof doctorPayoutsApi.updateDoctorPayoutSettings>
+  ) => doctorPayoutsApi.updateDoctorPayoutSettings(...args),
+  setReferralPayoutSwitch: (...args: Parameters<typeof doctorPayoutsApi.setReferralPayoutSwitch>) =>
+    doctorPayoutsApi.setReferralPayoutSwitch(...args),
+  listDoctorAgreements: (...args: Parameters<typeof doctorPayoutsApi.listDoctorAgreements>) =>
+    doctorPayoutsApi.listDoctorAgreements(...args),
+  createDoctorAgreement: (...args: Parameters<typeof doctorPayoutsApi.createDoctorAgreement>) =>
+    doctorPayoutsApi.createDoctorAgreement(...args),
+  updateDoctorAgreement: (...args: Parameters<typeof doctorPayoutsApi.updateDoctorAgreement>) =>
+    doctorPayoutsApi.updateDoctorAgreement(...args),
+  listPayoutRateCards: (...args: Parameters<typeof doctorPayoutsApi.listPayoutRateCards>) =>
+    doctorPayoutsApi.listPayoutRateCards(...args),
+  createPayoutRateCard: (...args: Parameters<typeof doctorPayoutsApi.createPayoutRateCard>) =>
+    doctorPayoutsApi.createPayoutRateCard(...args),
+  newPayoutRateCardVersion: (
+    ...args: Parameters<typeof doctorPayoutsApi.newPayoutRateCardVersion>
+  ) => doctorPayoutsApi.newPayoutRateCardVersion(...args),
+  listPayoutRules: (...args: Parameters<typeof doctorPayoutsApi.listPayoutRules>) =>
+    doctorPayoutsApi.listPayoutRules(...args),
+  addPayoutRule: (...args: Parameters<typeof doctorPayoutsApi.addPayoutRule>) =>
+    doctorPayoutsApi.addPayoutRule(...args),
+  removePayoutRule: (...args: Parameters<typeof doctorPayoutsApi.removePayoutRule>) =>
+    doctorPayoutsApi.removePayoutRule(...args),
+  calculatePayout: (...args: Parameters<typeof doctorPayoutsApi.calculatePayout>) =>
+    doctorPayoutsApi.calculatePayout(...args),
+  listPayoutLedger: (...args: Parameters<typeof doctorPayoutsApi.listPayoutLedger>) =>
+    doctorPayoutsApi.listPayoutLedger(...args),
+  listPayoutStatements: (...args: Parameters<typeof doctorPayoutsApi.listPayoutStatements>) =>
+    doctorPayoutsApi.listPayoutStatements(...args),
+  getPayoutStatement: (...args: Parameters<typeof doctorPayoutsApi.getPayoutStatement>) =>
+    doctorPayoutsApi.getPayoutStatement(...args),
+  preparePayoutStatement: (...args: Parameters<typeof doctorPayoutsApi.preparePayoutStatement>) =>
+    doctorPayoutsApi.preparePayoutStatement(...args),
+  adjustPayoutStatement: (...args: Parameters<typeof doctorPayoutsApi.adjustPayoutStatement>) =>
+    doctorPayoutsApi.adjustPayoutStatement(...args),
+  disputePayoutStatement: (...args: Parameters<typeof doctorPayoutsApi.disputePayoutStatement>) =>
+    doctorPayoutsApi.disputePayoutStatement(...args),
+  approvePayoutStatement: (...args: Parameters<typeof doctorPayoutsApi.approvePayoutStatement>) =>
+    doctorPayoutsApi.approvePayoutStatement(...args),
+  listDoctorPayouts: (...args: Parameters<typeof doctorPayoutsApi.listDoctorPayouts>) =>
+    doctorPayoutsApi.listDoctorPayouts(...args),
+  runDoctorPayouts: (...args: Parameters<typeof doctorPayoutsApi.runDoctorPayouts>) =>
+    doctorPayoutsApi.runDoctorPayouts(...args),
+  markDoctorPayoutPaid: (...args: Parameters<typeof doctorPayoutsApi.markDoctorPayoutPaid>) =>
+    doctorPayoutsApi.markDoctorPayoutPaid(...args),
+  markDoctorPayoutFailed: (...args: Parameters<typeof doctorPayoutsApi.markDoctorPayoutFailed>) =>
+    doctorPayoutsApi.markDoctorPayoutFailed(...args),
+  getPayoutBankFile: (...args: Parameters<typeof doctorPayoutsApi.getPayoutBankFile>) =>
+    doctorPayoutsApi.getPayoutBankFile(...args),
+  getDaySettlement: (...args: Parameters<typeof doctorPayoutsApi.getDaySettlement>) =>
+    doctorPayoutsApi.getDaySettlement(...args),
+  settleDoctorDay: (...args: Parameters<typeof doctorPayoutsApi.settleDoctorDay>) =>
+    doctorPayoutsApi.settleDoctorDay(...args),
+  createReferralStatement: (...args: Parameters<typeof doctorPayoutsApi.createReferralStatement>) =>
+    doctorPayoutsApi.createReferralStatement(...args),
+  getDoctorPayoutSummary: (...args: Parameters<typeof doctorPayoutsApi.getDoctorPayoutSummary>) =>
+    doctorPayoutsApi.getDoctorPayoutSummary(...args),
+  getPayoutTdsRegister: (...args: Parameters<typeof doctorPayoutsApi.getPayoutTdsRegister>) =>
+    doctorPayoutsApi.getPayoutTdsRegister(...args),
+  getReferralCompliance: (...args: Parameters<typeof doctorPayoutsApi.getReferralCompliance>) =>
+    doctorPayoutsApi.getReferralCompliance(...args),
+  getMyEarnings: (...args: Parameters<typeof doctorPayoutsApi.getMyEarnings>) =>
+    doctorPayoutsApi.getMyEarnings(...args),
+  getMyPayoutStatements: (...args: Parameters<typeof doctorPayoutsApi.getMyPayoutStatements>) =>
+    doctorPayoutsApi.getMyPayoutStatements(...args),
+  disputeMyPayoutStatement: (
+    ...args: Parameters<typeof doctorPayoutsApi.disputeMyPayoutStatement>
+  ) => doctorPayoutsApi.disputeMyPayoutStatement(...args),
 };

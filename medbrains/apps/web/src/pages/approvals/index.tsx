@@ -12,7 +12,7 @@
 
 import { Group, SegmentedControl, Stack, Text, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { approvalsApi } from "@medbrains/api/modules/approvals";
 import type { ApprovalRequestDetail, ApprovalRequestSummary, ApprovalStep } from "@medbrains/types";
 import { IconCheck, IconInbox, IconSend, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -54,12 +54,12 @@ export function ApprovalsPage() {
 
   const inbox = useQuery({
     queryKey: ["approvals", "inbox"],
-    queryFn: () => api.listApprovalInbox(),
+    queryFn: () => approvalsApi.listApprovalInbox(),
     enabled: tab === "inbox",
   });
   const mine = useQuery({
     queryKey: ["approvals", "mine"],
-    queryFn: () => api.listMyApprovalRequests(),
+    queryFn: () => approvalsApi.listMyApprovalRequests(),
     enabled: tab === "mine",
   });
 
@@ -181,7 +181,7 @@ interface RequestDrawerProps {
 function RequestDrawer({ requestId, canDecide, onClose, onDecided }: RequestDrawerProps) {
   const detail = useQuery({
     queryKey: ["approvals", "request", requestId],
-    queryFn: () => api.getApprovalRequest(requestId),
+    queryFn: () => approvalsApi.getApprovalRequest(requestId),
   });
 
   return (
@@ -212,7 +212,7 @@ function RequestBody({
 
   const decide = useMutation({
     mutationFn: (decision: "approve" | "reject") =>
-      api.decideApprovalRequest(detail.id, {
+      approvalsApi.decideApprovalRequest(detail.id, {
         decision,
         note: note.trim() || null,
         // The stage this view was rendered from. If the request moved on since

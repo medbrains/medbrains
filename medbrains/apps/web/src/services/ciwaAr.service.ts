@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const ciwaArService = {
-  computeCiwaAr: (data: Parameters<typeof api.computeCiwaAr>[0]) => api.computeCiwaAr(data),
+  computeCiwaAr: (data: Parameters<typeof clinicalApi.computeCiwaAr>[0]) =>
+    clinicalApi.computeCiwaAr(data),
 };

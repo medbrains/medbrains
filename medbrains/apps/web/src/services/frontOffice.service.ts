@@ -1,36 +1,40 @@
-import { api } from "@medbrains/api";
+import { frontOfficeApi } from "@medbrains/api/modules/front-office";
+import { printDataApi } from "@medbrains/api/modules/print-data";
+import { tokensApi } from "@medbrains/api/modules/tokens";
+import { tvApi } from "@medbrains/api/modules/tv";
 
 export const frontOfficeService = {
-  scanVisitorPass: (...args: Parameters<typeof api.scanVisitorPass>) =>
-    api.scanVisitorPass(...args),
-  getVisitorPassPrintData: (...args: Parameters<typeof api.getVisitorPassPrintData>) =>
-    api.getVisitorPassPrintData(...args),
-  listTokenBoard: (params: Parameters<typeof api.listTokenBoard>[0]) => api.listTokenBoard(params),
-  requeueToken: (id: string) => api.requeueToken(id),
-  getQueueStats: api.getQueueStats,
-  listVisitors: api.listVisitors,
-  listVisitorPasses: api.listVisitorPasses,
-  listVisitorLogs: api.listVisitorLogs,
-  createVisitor: api.createVisitor,
-  createVisitorPass: api.createVisitorPass,
-  revokeVisitorPass: api.revokeVisitorPass,
-  checkInVisitor: api.checkInVisitor,
-  checkOutVisitor: api.checkOutVisitor,
-  listQueuePriorityRules: api.listQueuePriorityRules,
-  listQueueDisplayConfig: api.listQueueDisplayConfig,
-  listVisitingHours: api.listVisitingHours,
-  upsertQueuePriorityRule: api.upsertQueuePriorityRule,
-  upsertQueueDisplayConfig: api.upsertQueueDisplayConfig,
-  upsertVisitingHours: api.upsertVisitingHours,
-  listEnquiries: api.listEnquiries,
-  createEnquiry: api.createEnquiry,
-  resolveEnquiry: api.resolveEnquiry,
-  visitorAnalytics: api.visitorAnalytics,
-  queueMetrics: api.queueMetrics,
-  listOpdTokenBoard: () => api.listTokenBoard({ include_finished: true, module: "opd" }),
-  getBillingQueueDisplay: api.getBillingQueueDisplay,
-  getErQueueDisplay: api.getErQueueDisplay,
-  getLabQueueDisplay: api.getLabQueueDisplay,
-  getPharmacyQueueDisplay: api.getPharmacyQueueDisplay,
-  getRadiologyQueueDisplay: api.getRadiologyQueueDisplay,
+  scanVisitorPass: (...args: Parameters<typeof frontOfficeApi.scanVisitorPass>) =>
+    frontOfficeApi.scanVisitorPass(...args),
+  getVisitorPassPrintData: (...args: Parameters<typeof printDataApi.getVisitorPassPrintData>) =>
+    printDataApi.getVisitorPassPrintData(...args),
+  listTokenBoard: (params: Parameters<typeof tokensApi.listTokenBoard>[0]) =>
+    tokensApi.listTokenBoard(params),
+  requeueToken: (id: string) => tokensApi.requeueToken(id),
+  getQueueStats: frontOfficeApi.getQueueStats,
+  listVisitors: frontOfficeApi.listVisitors,
+  listVisitorPasses: frontOfficeApi.listVisitorPasses,
+  listVisitorLogs: frontOfficeApi.listVisitorLogs,
+  createVisitor: frontOfficeApi.createVisitor,
+  createVisitorPass: frontOfficeApi.createVisitorPass,
+  revokeVisitorPass: frontOfficeApi.revokeVisitorPass,
+  checkInVisitor: frontOfficeApi.checkInVisitor,
+  checkOutVisitor: frontOfficeApi.checkOutVisitor,
+  listQueuePriorityRules: frontOfficeApi.listQueuePriorityRules,
+  listQueueDisplayConfig: frontOfficeApi.listQueueDisplayConfig,
+  listVisitingHours: frontOfficeApi.listVisitingHours,
+  upsertQueuePriorityRule: frontOfficeApi.upsertQueuePriorityRule,
+  upsertQueueDisplayConfig: frontOfficeApi.upsertQueueDisplayConfig,
+  upsertVisitingHours: frontOfficeApi.upsertVisitingHours,
+  listEnquiries: frontOfficeApi.listEnquiries,
+  createEnquiry: frontOfficeApi.createEnquiry,
+  resolveEnquiry: frontOfficeApi.resolveEnquiry,
+  visitorAnalytics: frontOfficeApi.visitorAnalytics,
+  queueMetrics: frontOfficeApi.queueMetrics,
+  listOpdTokenBoard: () => tokensApi.listTokenBoard({ include_finished: true, module: "opd" }),
+  getBillingQueueDisplay: tvApi.getBillingQueueDisplay,
+  getErQueueDisplay: tvApi.getErQueueDisplay,
+  getLabQueueDisplay: tvApi.getLabQueueDisplay,
+  getPharmacyQueueDisplay: tvApi.getPharmacyQueueDisplay,
+  getRadiologyQueueDisplay: tvApi.getRadiologyQueueDisplay,
 };

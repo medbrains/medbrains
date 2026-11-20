@@ -209,8 +209,11 @@ dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password f
 		| $(DEV_PSQL) -X -q -v ON_ERROR_STOP=1
 	@echo "medbrains_app and medbrains_outbox_worker log in with medbrains_dev"
 
-.PHONY: test-backups restore-drill
-test-backups: ## Backup kit: script checks + encrypted backup → restore drill end to end (docker, age, pg 17 client)
+.PHONY: test-backups restore-drill check-kit-shell
+check-kit-shell: ## Deploy kit: bash -n and shellcheck (warnings fail) on every script
+	@cd deploy/standalone && files="$$(grep -lE '^#!(/usr/bin/env bash|/bin/bash)' *)" && \
+		for f in $$files; do bash -n "$$f" || exit 1; done && shellcheck -x -S warning $$files && echo "kit shell: ok"
+test-backups: ## Backup kit: script checks + encrypted backup → restore drill end to end (age, pg 17 client + initdb)
 	bash deploy/standalone/test-pg-backup-local.sh
 	bash deploy/standalone/test-backup-drill-e2e.sh
 
