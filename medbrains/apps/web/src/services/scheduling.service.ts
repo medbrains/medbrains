@@ -1,4 +1,5 @@
-import { api } from "@medbrains/api";
+import { opdApi } from "@medbrains/api/modules/opd";
+import { schedulingApi } from "@medbrains/api/modules/scheduling";
 import type {
   CreateBlockRequest,
   CreateOverbookingRuleRequest,
@@ -11,35 +12,37 @@ import type {
 } from "@medbrains/types";
 
 export const schedulingService = {
-  listSchedules: (...args: Parameters<typeof api.listSchedules>) => api.listSchedules(...args),
-  createSchedule: (data: CreateScheduleRequest) => api.createSchedule(data),
-  updateSchedule: (id: string, data: UpdateScheduleRequest) => api.updateSchedule(id, data),
-  deleteSchedule: (id: string) => api.deleteSchedule(id),
-  listScheduleExceptions: (...args: Parameters<typeof api.listScheduleExceptions>) =>
-    api.listScheduleExceptions(...args),
+  listSchedules: (...args: Parameters<typeof opdApi.listSchedules>) =>
+    opdApi.listSchedules(...args),
+  createSchedule: (data: CreateScheduleRequest) => opdApi.createSchedule(data),
+  updateSchedule: (id: string, data: UpdateScheduleRequest) => opdApi.updateSchedule(id, data),
+  deleteSchedule: (id: string) => opdApi.deleteSchedule(id),
+  listScheduleExceptions: (...args: Parameters<typeof opdApi.listScheduleExceptions>) =>
+    opdApi.listScheduleExceptions(...args),
   createScheduleException: (data: CreateScheduleExceptionRequest) =>
-    api.createScheduleException(data),
-  deleteScheduleException: (id: string) => api.deleteScheduleException(id),
-  listPredictions: api.listPredictions,
-  scoreBatch: api.scoreBatch,
-  scoreAppointment: api.scoreAppointment,
-  listWaitlist: api.listWaitlist,
-  createWaitlistEntry: (data: CreateWaitlistRequest) => api.createWaitlistEntry(data),
-  offerSlot: api.offerSlot,
-  respondToOffer: api.respondToOffer,
-  autoFillSlots: api.autoFillSlots,
-  listOverbookingRules: api.listOverbookingRules,
-  createOverbookingRule: (data: CreateOverbookingRuleRequest) => api.createOverbookingRule(data),
+    opdApi.createScheduleException(data),
+  deleteScheduleException: (id: string) => opdApi.deleteScheduleException(id),
+  listPredictions: schedulingApi.listPredictions,
+  scoreBatch: schedulingApi.scoreBatch,
+  scoreAppointment: schedulingApi.scoreAppointment,
+  listWaitlist: schedulingApi.listWaitlist,
+  createWaitlistEntry: (data: CreateWaitlistRequest) => schedulingApi.createWaitlistEntry(data),
+  offerSlot: schedulingApi.offerSlot,
+  respondToOffer: schedulingApi.respondToOffer,
+  autoFillSlots: schedulingApi.autoFillSlots,
+  listOverbookingRules: schedulingApi.listOverbookingRules,
+  createOverbookingRule: (data: CreateOverbookingRuleRequest) =>
+    schedulingApi.createOverbookingRule(data),
   updateOverbookingRule: (id: string, data: UpdateOverbookingRuleRequest) =>
-    api.updateOverbookingRule(id, data),
-  deleteOverbookingRule: api.deleteOverbookingRule,
-  schedulingConflicts: api.schedulingConflicts,
+    schedulingApi.updateOverbookingRule(id, data),
+  deleteOverbookingRule: schedulingApi.deleteOverbookingRule,
+  schedulingConflicts: schedulingApi.schedulingConflicts,
   createRecurringAppointment: (data: CreateRecurringRequest) =>
-    api.createRecurringAppointment(data),
-  createScheduleBlock: (data: CreateBlockRequest) => api.createScheduleBlock(data),
-  promoteWaitlist: api.promoteWaitlist,
-  noshowRates: api.noshowRates,
-  predictionAccuracy: api.predictionAccuracy,
-  waitlistStats: api.waitlistStats,
-  scheduleAnalytics: api.scheduleAnalytics,
+    schedulingApi.createRecurringAppointment(data),
+  createScheduleBlock: (data: CreateBlockRequest) => schedulingApi.createScheduleBlock(data),
+  promoteWaitlist: schedulingApi.promoteWaitlist,
+  noshowRates: schedulingApi.noshowRates,
+  predictionAccuracy: schedulingApi.predictionAccuracy,
+  waitlistStats: schedulingApi.waitlistStats,
+  scheduleAnalytics: schedulingApi.scheduleAnalytics,
 };

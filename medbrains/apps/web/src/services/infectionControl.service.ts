@@ -1,59 +1,79 @@
-import { api } from "@medbrains/api";
+import { infectionControlApi } from "@medbrains/api/modules/infection-control";
 
 export const infectionControlService = {
-  listSurveillanceEvents: (...args: Parameters<typeof api.listSurveillanceEvents>) =>
-    api.listSurveillanceEvents(...args),
-  createSurveillanceEvent: (...args: Parameters<typeof api.createSurveillanceEvent>) =>
-    api.createSurveillanceEvent(...args),
-  listStewardshipRequests: (...args: Parameters<typeof api.listStewardshipRequests>) =>
-    api.listStewardshipRequests(...args),
-  listCultureSurveillance: (...args: Parameters<typeof api.listCultureSurveillance>) =>
-    api.listCultureSurveillance(...args),
-  createStewardshipRequest: (...args: Parameters<typeof api.createStewardshipRequest>) =>
-    api.createStewardshipRequest(...args),
-  reviewStewardshipRequest: (...args: Parameters<typeof api.reviewStewardshipRequest>) =>
-    api.reviewStewardshipRequest(...args),
-  timeoutReviewStewardship: (...args: Parameters<typeof api.timeoutReviewStewardship>) =>
-    api.timeoutReviewStewardship(...args),
-  listBiowasteRecords: (...args: Parameters<typeof api.listBiowasteRecords>) =>
-    api.listBiowasteRecords(...args),
-  createBiowasteRecord: (...args: Parameters<typeof api.createBiowasteRecord>) =>
-    api.createBiowasteRecord(...args),
-  listHygieneAudits: (...args: Parameters<typeof api.listHygieneAudits>) =>
-    api.listHygieneAudits(...args),
-  listDeviceDays: (...args: Parameters<typeof api.listDeviceDays>) => api.listDeviceDays(...args),
-  listIndwellingDevices: (...args: Parameters<typeof api.listIndwellingDevices>) =>
-    api.listIndwellingDevices(...args),
-  createIndwellingDevice: (...args: Parameters<typeof api.createIndwellingDevice>) =>
-    api.createIndwellingDevice(...args),
-  reviewIndwellingDevice: (...args: Parameters<typeof api.reviewIndwellingDevice>) =>
-    api.reviewIndwellingDevice(...args),
-  removeIndwellingDevice: (...args: Parameters<typeof api.removeIndwellingDevice>) =>
-    api.removeIndwellingDevice(...args),
-  createHygieneAudit: (...args: Parameters<typeof api.createHygieneAudit>) =>
-    api.createHygieneAudit(...args),
-  listOutbreaks: (...args: Parameters<typeof api.listOutbreaks>) => api.listOutbreaks(...args),
-  listOutbreakContacts: (...args: Parameters<typeof api.listOutbreakContacts>) =>
-    api.listOutbreakContacts(...args),
-  createOutbreak: (...args: Parameters<typeof api.createOutbreak>) => api.createOutbreak(...args),
-  updateOutbreak: (...args: Parameters<typeof api.updateOutbreak>) => api.updateOutbreak(...args),
-  listNeedleStickIncidents: (...args: Parameters<typeof api.listNeedleStickIncidents>) =>
-    api.listNeedleStickIncidents(...args),
-  icHaiRates: (...args: Parameters<typeof api.icHaiRates>) => api.icHaiRates(...args),
-  icDeviceUtilization: (...args: Parameters<typeof api.icDeviceUtilization>) =>
-    api.icDeviceUtilization(...args),
-  icAntimicrobialConsumption: (...args: Parameters<typeof api.icAntimicrobialConsumption>) =>
-    api.icAntimicrobialConsumption(...args),
-  icSurgicalProphylaxis: (...args: Parameters<typeof api.icSurgicalProphylaxis>) =>
-    api.icSurgicalProphylaxis(...args),
-  icCultureSensitivityReport: (...args: Parameters<typeof api.icCultureSensitivityReport>) =>
-    api.icCultureSensitivityReport(...args),
-  icMdroTracking: (...args: Parameters<typeof api.icMdroTracking>) => api.icMdroTracking(...args),
-  listIcMeetings: (...args: Parameters<typeof api.listIcMeetings>) => api.listIcMeetings(...args),
-  icMonthlySurveillance: (...args: Parameters<typeof api.icMonthlySurveillance>) =>
-    api.icMonthlySurveillance(...args),
-  createIcMeeting: (...args: Parameters<typeof api.createIcMeeting>) =>
-    api.createIcMeeting(...args),
-  createIcExposure: (...args: Parameters<typeof api.createIcExposure>) =>
-    api.createIcExposure(...args),
+  listSurveillanceEvents: (
+    ...args: Parameters<typeof infectionControlApi.listSurveillanceEvents>
+  ) => infectionControlApi.listSurveillanceEvents(...args),
+  createSurveillanceEvent: (
+    ...args: Parameters<typeof infectionControlApi.createSurveillanceEvent>
+  ) => infectionControlApi.createSurveillanceEvent(...args),
+  listStewardshipRequests: (
+    ...args: Parameters<typeof infectionControlApi.listStewardshipRequests>
+  ) => infectionControlApi.listStewardshipRequests(...args),
+  listCultureSurveillance: (
+    ...args: Parameters<typeof infectionControlApi.listCultureSurveillance>
+  ) => infectionControlApi.listCultureSurveillance(...args),
+  createStewardshipRequest: (
+    ...args: Parameters<typeof infectionControlApi.createStewardshipRequest>
+  ) => infectionControlApi.createStewardshipRequest(...args),
+  reviewStewardshipRequest: (
+    ...args: Parameters<typeof infectionControlApi.reviewStewardshipRequest>
+  ) => infectionControlApi.reviewStewardshipRequest(...args),
+  timeoutReviewStewardship: (
+    ...args: Parameters<typeof infectionControlApi.timeoutReviewStewardship>
+  ) => infectionControlApi.timeoutReviewStewardship(...args),
+  listBiowasteRecords: (...args: Parameters<typeof infectionControlApi.listBiowasteRecords>) =>
+    infectionControlApi.listBiowasteRecords(...args),
+  createBiowasteRecord: (...args: Parameters<typeof infectionControlApi.createBiowasteRecord>) =>
+    infectionControlApi.createBiowasteRecord(...args),
+  listHygieneAudits: (...args: Parameters<typeof infectionControlApi.listHygieneAudits>) =>
+    infectionControlApi.listHygieneAudits(...args),
+  listDeviceDays: (...args: Parameters<typeof infectionControlApi.listDeviceDays>) =>
+    infectionControlApi.listDeviceDays(...args),
+  listIndwellingDevices: (...args: Parameters<typeof infectionControlApi.listIndwellingDevices>) =>
+    infectionControlApi.listIndwellingDevices(...args),
+  createIndwellingDevice: (
+    ...args: Parameters<typeof infectionControlApi.createIndwellingDevice>
+  ) => infectionControlApi.createIndwellingDevice(...args),
+  reviewIndwellingDevice: (
+    ...args: Parameters<typeof infectionControlApi.reviewIndwellingDevice>
+  ) => infectionControlApi.reviewIndwellingDevice(...args),
+  removeIndwellingDevice: (
+    ...args: Parameters<typeof infectionControlApi.removeIndwellingDevice>
+  ) => infectionControlApi.removeIndwellingDevice(...args),
+  createHygieneAudit: (...args: Parameters<typeof infectionControlApi.createHygieneAudit>) =>
+    infectionControlApi.createHygieneAudit(...args),
+  listOutbreaks: (...args: Parameters<typeof infectionControlApi.listOutbreaks>) =>
+    infectionControlApi.listOutbreaks(...args),
+  listOutbreakContacts: (...args: Parameters<typeof infectionControlApi.listOutbreakContacts>) =>
+    infectionControlApi.listOutbreakContacts(...args),
+  createOutbreak: (...args: Parameters<typeof infectionControlApi.createOutbreak>) =>
+    infectionControlApi.createOutbreak(...args),
+  updateOutbreak: (...args: Parameters<typeof infectionControlApi.updateOutbreak>) =>
+    infectionControlApi.updateOutbreak(...args),
+  listNeedleStickIncidents: (
+    ...args: Parameters<typeof infectionControlApi.listNeedleStickIncidents>
+  ) => infectionControlApi.listNeedleStickIncidents(...args),
+  icHaiRates: (...args: Parameters<typeof infectionControlApi.icHaiRates>) =>
+    infectionControlApi.icHaiRates(...args),
+  icDeviceUtilization: (...args: Parameters<typeof infectionControlApi.icDeviceUtilization>) =>
+    infectionControlApi.icDeviceUtilization(...args),
+  icAntimicrobialConsumption: (
+    ...args: Parameters<typeof infectionControlApi.icAntimicrobialConsumption>
+  ) => infectionControlApi.icAntimicrobialConsumption(...args),
+  icSurgicalProphylaxis: (...args: Parameters<typeof infectionControlApi.icSurgicalProphylaxis>) =>
+    infectionControlApi.icSurgicalProphylaxis(...args),
+  icCultureSensitivityReport: (
+    ...args: Parameters<typeof infectionControlApi.icCultureSensitivityReport>
+  ) => infectionControlApi.icCultureSensitivityReport(...args),
+  icMdroTracking: (...args: Parameters<typeof infectionControlApi.icMdroTracking>) =>
+    infectionControlApi.icMdroTracking(...args),
+  listIcMeetings: (...args: Parameters<typeof infectionControlApi.listIcMeetings>) =>
+    infectionControlApi.listIcMeetings(...args),
+  icMonthlySurveillance: (...args: Parameters<typeof infectionControlApi.icMonthlySurveillance>) =>
+    infectionControlApi.icMonthlySurveillance(...args),
+  createIcMeeting: (...args: Parameters<typeof infectionControlApi.createIcMeeting>) =>
+    infectionControlApi.createIcMeeting(...args),
+  createIcExposure: (...args: Parameters<typeof infectionControlApi.createIcExposure>) =>
+    infectionControlApi.createIcExposure(...args),
 };

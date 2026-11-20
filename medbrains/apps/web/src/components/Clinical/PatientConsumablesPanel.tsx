@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { indentApi } from "@medbrains/api/modules/indent";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type PatientConsumableIssue, type StoreCatalog } from "@medbrains/types";
 import { IconBox, IconPlus } from "@tabler/icons-react";
@@ -48,13 +48,13 @@ export function PatientConsumablesPanel({
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog(),
+    queryFn: () => indentApi.listStoreCatalog(),
     enabled: canManage,
   });
 
   const { data: issues = [], isLoading } = useQuery({
     queryKey: ["patient-consumables", encounterId],
-    queryFn: () => api.listPatientConsumables({ encounter_id: encounterId }),
+    queryFn: () => indentApi.listPatientConsumables({ encounter_id: encounterId }),
     enabled: canList,
   });
 
@@ -79,7 +79,7 @@ export function PatientConsumablesPanel({
   const issueMutation = useMutation({
     mutationFn: (values: ConsumableFormValues) => {
       const item = catalogById.get(values.catalog_item_id);
-      return api.issueToPatient({
+      return indentApi.issueToPatient({
         patient_id: patientId,
         catalog_item_id: values.catalog_item_id,
         encounter_id: encounterId,

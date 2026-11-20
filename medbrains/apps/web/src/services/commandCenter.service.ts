@@ -1,25 +1,28 @@
-import { api } from "@medbrains/api";
+import { commandCenterApi } from "@medbrains/api/modules/command-center";
 
-export type CreateTransportInput = Parameters<typeof api.createTransportRequest>[0];
-export type AssignTransportInput = Parameters<typeof api.assignTransport>[1];
-export type CreateAlertThresholdInput = Parameters<typeof api.createAlertThreshold>[0];
-export type UpdateAlertThresholdInput = Parameters<typeof api.updateAlertThreshold>[1];
+export type CreateTransportInput = Parameters<typeof commandCenterApi.createTransportRequest>[0];
+export type AssignTransportInput = Parameters<typeof commandCenterApi.assignTransport>[1];
+export type CreateAlertThresholdInput = Parameters<typeof commandCenterApi.createAlertThreshold>[0];
+export type UpdateAlertThresholdInput = Parameters<typeof commandCenterApi.updateAlertThreshold>[1];
 
 export const commandCenterService = {
-  getKpis: () => api.getKpis(),
-  getPatientFlow: () => api.getPatientFlow(),
-  getDepartmentLoad: () => api.getDepartmentLoad(),
-  getActiveAlerts: () => api.getActiveAlerts(),
-  acknowledgeAlert: (id: string) => api.acknowledgeDeptAlert(id),
-  getTurnaroundStats: () => api.getTurnaroundStats(),
-  getBedTurnaround: () => api.getBedTurnaround(),
-  listPendingDischarges: () => api.listPendingDischarges(),
-  listTransportRequests: () => api.listTransportRequests(),
-  createTransportRequest: (data: CreateTransportInput) => api.createTransportRequest(data),
-  assignTransport: (id: string, data: AssignTransportInput) => api.assignTransport(id, data),
-  completeTransport: (id: string) => api.completeTransport(id),
-  listAlertThresholds: () => api.listAlertThresholds(),
-  createAlertThreshold: (data: CreateAlertThresholdInput) => api.createAlertThreshold(data),
+  getKpis: () => commandCenterApi.getKpis(),
+  getPatientFlow: () => commandCenterApi.getPatientFlow(),
+  getDepartmentLoad: () => commandCenterApi.getDepartmentLoad(),
+  getActiveAlerts: () => commandCenterApi.getActiveAlerts(),
+  acknowledgeAlert: (id: string) => commandCenterApi.acknowledgeDeptAlert(id),
+  getTurnaroundStats: () => commandCenterApi.getTurnaroundStats(),
+  getBedTurnaround: () => commandCenterApi.getBedTurnaround(),
+  listPendingDischarges: () => commandCenterApi.listPendingDischarges(),
+  listTransportRequests: () => commandCenterApi.listTransportRequests(),
+  createTransportRequest: (data: CreateTransportInput) =>
+    commandCenterApi.createTransportRequest(data),
+  assignTransport: (id: string, data: AssignTransportInput) =>
+    commandCenterApi.assignTransport(id, data),
+  completeTransport: (id: string) => commandCenterApi.completeTransport(id),
+  listAlertThresholds: () => commandCenterApi.listAlertThresholds(),
+  createAlertThreshold: (data: CreateAlertThresholdInput) =>
+    commandCenterApi.createAlertThreshold(data),
   updateAlertThreshold: (id: string, data: UpdateAlertThresholdInput) =>
-    api.updateAlertThreshold(id, data),
+    commandCenterApi.updateAlertThreshold(id, data),
 };

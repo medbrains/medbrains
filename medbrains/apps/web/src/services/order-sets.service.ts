@@ -1,17 +1,18 @@
-import { api } from "@medbrains/api";
+import { orderSetsApi } from "@medbrains/api/modules/order-sets";
 import type { AddOrderSetItemRequest, CreateOrderSetTemplateRequest } from "@medbrains/types";
 
 export const orderSetsService = {
-  listOrderSetTemplates: api.listOrderSetTemplates,
-  getOrderSetTemplate: api.getOrderSetTemplate,
-  createOrderSetTemplate: (data: CreateOrderSetTemplateRequest) => api.createOrderSetTemplate(data),
-  approveOrderSetTemplate: api.approveOrderSetTemplate,
-  deleteOrderSetTemplate: api.deleteOrderSetTemplate,
-  createOrderSetVersion: api.createOrderSetVersion,
+  listOrderSetTemplates: orderSetsApi.listOrderSetTemplates,
+  getOrderSetTemplate: orderSetsApi.getOrderSetTemplate,
+  createOrderSetTemplate: (data: CreateOrderSetTemplateRequest) =>
+    orderSetsApi.createOrderSetTemplate(data),
+  approveOrderSetTemplate: orderSetsApi.approveOrderSetTemplate,
+  deleteOrderSetTemplate: orderSetsApi.deleteOrderSetTemplate,
+  createOrderSetVersion: orderSetsApi.createOrderSetVersion,
   addOrderSetItem: (templateId: string, data: AddOrderSetItemRequest) =>
-    api.addOrderSetItem(templateId, data),
-  deleteOrderSetItem: api.deleteOrderSetItem,
-  listOrderSetActivations: api.listOrderSetActivations,
-  getOrderSetActivation: api.getOrderSetActivation,
-  getOrderSetAnalytics: api.getOrderSetAnalytics,
+    orderSetsApi.addOrderSetItem(templateId, data),
+  deleteOrderSetItem: orderSetsApi.deleteOrderSetItem,
+  listOrderSetActivations: orderSetsApi.listOrderSetActivations,
+  getOrderSetActivation: orderSetsApi.getOrderSetActivation,
+  getOrderSetAnalytics: orderSetsApi.getOrderSetAnalytics,
 };

@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const camIcuService = {
-  computeCamIcu: (data: Parameters<typeof api.computeCamIcu>[0]) => api.computeCamIcu(data),
+  computeCamIcu: (data: Parameters<typeof clinicalApi.computeCamIcu>[0]) =>
+    clinicalApi.computeCamIcu(data),
 };

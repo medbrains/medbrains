@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { P } from "@medbrains/types";
 import { IconKey, IconServerCog } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,11 +49,11 @@ export function InfrastructurePage() {
 
   const { data: status } = useQuery({
     queryKey: ["infra-status"],
-    queryFn: () => api.getInfraStatus(),
+    queryFn: () => adminApi.getInfraStatus(),
   });
   const { data: ai } = useQuery({
     queryKey: ["ai-settings"],
-    queryFn: () => api.getAiSettings(),
+    queryFn: () => adminApi.getAiSettings(),
   });
 
   const { control, register, handleSubmit } = useForm<AiFormInput>({
@@ -66,7 +66,8 @@ export function InfrastructurePage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (data: AiFormInput) => api.updateAiSettings({ ...data, model: data.model.trim() }),
+    mutationFn: (data: AiFormInput) =>
+      adminApi.updateAiSettings({ ...data, model: data.model.trim() }),
     onSuccess: () => {
       notifications.show({ title: "AI settings saved", message: "Updated.", color: "success" });
       void queryClient.invalidateQueries({ queryKey: ["ai-settings"] });

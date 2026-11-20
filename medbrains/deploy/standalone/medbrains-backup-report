@@ -41,15 +41,9 @@ fi
 SEND="${MEDBRAINS_SEND_MAIL:-/usr/local/bin/medbrains-send-mail}"
 HOST_TAG="$(hostname)"
 
-# Same two shapes as medbrains-pg-backup: the dedicated tier's container,
-# or the attach tier's own Postgres over the owner's URL.
+# Over the owner's URL, as medbrains-pg-backup dumps.
 run_sql() {
-    if command -v docker >/dev/null 2>&1 && docker container inspect medbrains-postgres >/dev/null 2>&1; then
-        docker exec -i medbrains-postgres psql -XAtq -F $'\x1f' -v ON_ERROR_STOP=1 \
-            -U "${POSTGRES_USER:-medbrains}" -d "${POSTGRES_DB:-medbrains}" "$@"
-    else
-        psql -XAtq -F $'\x1f' -v ON_ERROR_STOP=1 "${MIGRATION_DATABASE_URL:-${DATABASE_URL:-}}" "$@"
-    fi
+    psql -XAtq -F $'\x1f' -v ON_ERROR_STOP=1 "${MIGRATION_DATABASE_URL:-${DATABASE_URL:-}}" "$@"
 }
 
 # The newest pg_dump row backup_history holds (the newest completed one for

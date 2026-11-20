@@ -1,5 +1,6 @@
 import { Card, Group, RingProgress, Stack, Text, ThemeIcon } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconCheck, IconCircle } from "@tabler/icons-react";
@@ -18,22 +19,22 @@ export function GettingStartedWidget() {
 
   const departments = useQuery({
     queryKey: ["setup", "departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => setupApi.listDepartments(),
     enabled: isAdmin,
   });
   const services = useQuery({
     queryKey: ["setup", "services"],
-    queryFn: () => api.listServices(),
+    queryFn: () => setupApi.listServices(),
     enabled: isAdmin,
   });
   const sequences = useQuery({
     queryKey: ["setup", "sequences"],
-    queryFn: () => api.listSequences(),
+    queryFn: () => setupApi.listSequences(),
     enabled: isAdmin,
   });
   const invitations = useQuery({
     queryKey: ["invitations"],
-    queryFn: () => api.listInvitations(),
+    queryFn: () => adminApi.listInvitations(),
     enabled: isAdmin,
   });
 

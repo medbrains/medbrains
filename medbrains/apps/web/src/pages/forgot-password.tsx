@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Anchor, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
 import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@medbrains/schemas";
 import { applyServerErrors, ValidationError } from "@medbrains/utils";
 import { IconKey, IconLock, IconUser } from "@tabler/icons-react";
@@ -52,7 +52,7 @@ export function ForgotPasswordPage() {
 
   const requestMutation = useMutation({
     mutationFn: (values: RequestInput) =>
-      api.requestPasswordReset({
+      authApi.requestPasswordReset({
         username: values.username,
         ...(values.hospital_code ? { hospital_code: values.hospital_code } : {}),
       }),
@@ -63,7 +63,7 @@ export function ForgotPasswordPage() {
 
   const confirmMutation = useMutation({
     mutationFn: (values: ConfirmInput) =>
-      api.confirmPasswordReset({
+      authApi.confirmPasswordReset({
         username: account?.username ?? "",
         otp: values.otp,
         new_password: values.new_password,

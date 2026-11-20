@@ -1,4 +1,5 @@
-import { api } from "@medbrains/api";
+import { dietApi } from "@medbrains/api/modules/diet";
+import { ipdApi } from "@medbrains/api/modules/ipd";
 import type {
   CreateDietOrderRequest,
   CreateDietTemplateRequest,
@@ -10,21 +11,21 @@ import type {
 } from "@medbrains/types";
 
 export const dietKitchenService = {
-  listAdmissions: api.listAdmissions,
-  listDietOrders: api.listDietOrders,
-  createDietOrder: (data: CreateDietOrderRequest) => api.createDietOrder(data),
-  listDietTemplates: api.listDietTemplates,
-  createDietTemplate: (data: CreateDietTemplateRequest) => api.createDietTemplate(data),
-  listKitchenMenus: api.listKitchenMenus,
-  createKitchenMenu: (data: CreateKitchenMenuRequest) => api.createKitchenMenu(data),
-  listMealPreps: api.listMealPreps,
-  createMealPrep: (data: CreateMealPrepRequest) => api.createMealPrep(data),
+  listAdmissions: ipdApi.listAdmissions,
+  listDietOrders: dietApi.listDietOrders,
+  createDietOrder: (data: CreateDietOrderRequest) => dietApi.createDietOrder(data),
+  listDietTemplates: dietApi.listDietTemplates,
+  createDietTemplate: (data: CreateDietTemplateRequest) => dietApi.createDietTemplate(data),
+  listKitchenMenus: dietApi.listKitchenMenus,
+  createKitchenMenu: (data: CreateKitchenMenuRequest) => dietApi.createKitchenMenu(data),
+  listMealPreps: dietApi.listMealPreps,
+  createMealPrep: (data: CreateMealPrepRequest) => dietApi.createMealPrep(data),
   updateMealPrepStatus: (id: string, data: UpdateMealPrepStatusRequest) =>
-    api.updateMealPrepStatus(id, data),
-  listMealCounts: api.listMealCounts,
-  listKitchenInventory: api.listKitchenInventory,
+    dietApi.updateMealPrepStatus(id, data),
+  listMealCounts: dietApi.listMealCounts,
+  listKitchenInventory: dietApi.listKitchenInventory,
   createKitchenInventoryItem: (data: CreateKitchenInventoryRequest) =>
-    api.createKitchenInventoryItem(data),
-  listKitchenAudits: api.listKitchenAudits,
-  createKitchenAudit: (data: CreateKitchenAuditRequest) => api.createKitchenAudit(data),
+    dietApi.createKitchenInventoryItem(data),
+  listKitchenAudits: dietApi.listKitchenAudits,
+  createKitchenAudit: (data: CreateKitchenAuditRequest) => dietApi.createKitchenAudit(data),
 };

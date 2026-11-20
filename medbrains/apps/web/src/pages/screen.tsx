@@ -1,5 +1,6 @@
 import { Box, Stack, Text } from "@mantine/core";
-import { ApiError, api, clearNativeAuthTokens, setNativeAuthSession } from "@medbrains/api";
+import { ApiError, clearNativeAuthTokens, setNativeAuthSession } from "@medbrains/api";
+import { deviceApi } from "@medbrains/api/modules/device";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { CounterDisplay } from "@/components/counter-display/CounterDisplay";
@@ -66,7 +67,7 @@ export function ScreenPage() {
     queryKey: ["device-board", token],
     queryFn: async () => {
       try {
-        return await api.getDeviceBoard();
+        return await deviceApi.getDeviceBoard();
       } catch (error) {
         // A refused credential is dropped at once, so pairing starts clean.
         if (isRefused(error)) store(null);

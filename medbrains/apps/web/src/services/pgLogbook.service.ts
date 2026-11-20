@@ -1,13 +1,14 @@
-import { api } from "@medbrains/api";
+import { cdsApi } from "@medbrains/api/modules/cds";
 
 export const pgLogbookService = {
-  listPgLogbook: (...args: Parameters<typeof api.listPgLogbook>) => api.listPgLogbook(...args),
-  createPgLogbookEntry: (...args: Parameters<typeof api.createPgLogbookEntry>) =>
-    api.createPgLogbookEntry(...args),
-  verifyPgLogbookEntry: (...args: Parameters<typeof api.verifyPgLogbookEntry>) =>
-    api.verifyPgLogbookEntry(...args),
-  listCoSignatures: (...args: Parameters<typeof api.listCoSignatures>) =>
-    api.listCoSignatures(...args),
-  updateCoSignature: (...args: Parameters<typeof api.updateCoSignature>) =>
-    api.updateCoSignature(...args),
+  listPgLogbook: (...args: Parameters<typeof cdsApi.listPgLogbook>) =>
+    cdsApi.listPgLogbook(...args),
+  createPgLogbookEntry: (...args: Parameters<typeof cdsApi.createPgLogbookEntry>) =>
+    cdsApi.createPgLogbookEntry(...args),
+  verifyPgLogbookEntry: (...args: Parameters<typeof cdsApi.verifyPgLogbookEntry>) =>
+    cdsApi.verifyPgLogbookEntry(...args),
+  listCoSignatures: (...args: Parameters<typeof cdsApi.listCoSignatures>) =>
+    cdsApi.listCoSignatures(...args),
+  updateCoSignature: (...args: Parameters<typeof cdsApi.updateCoSignature>) =>
+    cdsApi.updateCoSignature(...args),
 };

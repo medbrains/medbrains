@@ -1,11 +1,11 @@
-import { api } from "@medbrains/api";
+import { terminologyApi } from "@medbrains/api/modules/terminology";
 
 /** The hospital's diagnosis coding switch and its licensed ICD-10 catalogue. */
 export const diagnosisCodingService = {
-  get: api.getDiagnosisCoding,
-  set: api.setDiagnosisCoding,
-  listIcd10Releases: api.listIcd10Releases,
-  importIcd10Release: api.importIcd10Release,
+  get: terminologyApi.getDiagnosisCoding,
+  set: terminologyApi.setDiagnosisCoding,
+  listIcd10Releases: terminologyApi.listIcd10Releases,
+  importIcd10Release: terminologyApi.importIcd10Release,
 };
 
 export const DIAGNOSIS_CODING_KEY = ["diagnosis-coding"] as const;

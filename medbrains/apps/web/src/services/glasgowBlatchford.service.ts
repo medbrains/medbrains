@@ -1,6 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const glasgowBlatchfordService = {
-  computeGlasgowBlatchford: (data: Parameters<typeof api.computeGlasgowBlatchford>[0]) =>
-    api.computeGlasgowBlatchford(data),
+  computeGlasgowBlatchford: (data: Parameters<typeof clinicalApi.computeGlasgowBlatchford>[0]) =>
+    clinicalApi.computeGlasgowBlatchford(data),
 };

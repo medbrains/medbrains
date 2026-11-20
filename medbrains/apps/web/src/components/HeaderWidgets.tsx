@@ -1,5 +1,5 @@
 import { Group, Text, Tooltip } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { healthIntelApi } from "@medbrains/api/modules/health-intel";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
@@ -93,7 +93,7 @@ function WeatherWidget() {
   const canView = useHasPermission(P.HEALTH.INTEL.VIEW);
   const { data } = useQuery({
     queryKey: ["health-intel", "environment"],
-    queryFn: () => api.getHealthEnvironment(),
+    queryFn: () => healthIntelApi.getHealthEnvironment(),
     enabled: canView,
     staleTime: 900_000,
     retry: false,

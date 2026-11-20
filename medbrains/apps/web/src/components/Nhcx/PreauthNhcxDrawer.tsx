@@ -1,5 +1,5 @@
 import { Group, SimpleGrid, Stack, Text, Timeline } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxParticipant, NhcxRequestStage, PreauthNhcxView } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -35,7 +35,7 @@ function SendSection({ priorAuthId }: { priorAuthId: string }) {
   const status = useQuery({ queryKey: ["nhcx", "status"], queryFn: nhcxSettingsService.status });
   const send = useMutation({
     mutationFn: () =>
-      api.submitPreauthToNhcx(priorAuthId, {
+      insuranceApi.submitPreauthToNhcx(priorAuthId, {
         recipient_code: recipient ?? "",
         request_stage: stage,
       }),
@@ -164,7 +164,7 @@ export function PreauthNhcxDrawer({ priorAuthId, paNumber, onClose }: PreauthNhc
   const canSubmit = useHasPermission(P.INSURANCE.NHCX.SUBMIT);
   const view = useQuery({
     queryKey: ["preauth-nhcx", priorAuthId],
-    queryFn: () => api.getPreauthNhcx(priorAuthId ?? ""),
+    queryFn: () => insuranceApi.getPreauthNhcx(priorAuthId ?? ""),
     enabled: canView && !!priorAuthId,
     refetchInterval: (q) => (q.state.data?.sla.state === "running" ? POLL_MS : false),
   });

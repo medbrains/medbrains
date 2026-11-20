@@ -5,7 +5,7 @@
  */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { stationsApi } from "@medbrains/api/modules/stations";
 import type {
   CreatePaymentTerminalRequest,
   PaymentTerminal,
@@ -94,13 +94,13 @@ export function PaymentTerminalModal({ terminal, providers, onClose }: PaymentTe
   const connection = watch("connection");
   const viaBridge = kind === "pos" && connection === "bridge";
 
-  const stationsQuery = useQuery({ queryKey: ["stations"], queryFn: () => api.listStations() });
+  const stations = useQuery({ queryKey: ["stations"], queryFn: () => stationsApi.listStations() });
   const onlineQuery = useQuery({
     queryKey: ["payment-providers"],
     queryFn: paymentsService.listPaymentProviders,
     enabled: kind !== "pos",
   });
-  const counters = (stationsQuery.data ?? [])
+  const counters = (stations.data ?? [])
     .filter((s) => COUNTER_TYPES.has(s.station_type))
     .map((s) => ({ value: s.id, label: s.name }));
   const providerOptions =
@@ -163,7 +163,7 @@ export function PaymentTerminalModal({ terminal, providers, onClose }: PaymentTe
           render={({ field, fieldState }) => (
             <Select
               label="Counter"
-              placeholder={stationsQuery.isError ? "Counters could not be loaded" : "Where it sits"}
+              placeholder={stations.isError ? "Counters could not be loaded" : "Where it sits"}
               data={counters}
               searchable
               required

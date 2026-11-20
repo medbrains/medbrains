@@ -1,5 +1,5 @@
 import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { billingApi } from "@medbrains/api/modules/billing";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -22,7 +22,7 @@ export function NhcxAdjudicationCard({ claimId }: NhcxAdjudicationCardProps) {
   const canView = useHasPermission(P.INSURANCE.NHCX.VIEW);
   const view = useQuery({
     queryKey: ["claim-nhcx", claimId],
-    queryFn: () => api.getClaimNhcx(claimId),
+    queryFn: () => billingApi.getClaimNhcx(claimId),
     enabled: canView,
   });
   const rows = useMemo(

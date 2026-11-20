@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2015 # ok/bad always return 0, so A && ok || bad is if/else
 # End-to-end proof of the encrypted backup + restore drill, on a laptop:
-# a throwaway Postgres 17 container, a throwaway age key, and a local
+# a throwaway Postgres 17 cluster, a throwaway age key, and a local
 # directory standing in for the S3 bucket (`aws` stubbed onto it).
 #
 #   bash deploy/standalone/test-backup-drill-e2e.sh
@@ -11,19 +11,21 @@
 # open it); S3 refuses to be used without a key; each run is recorded in
 # backup_history; the drill restores it to identical row counts and lists
 # the sealed secrets by name only; a tampered object fails the drill.
-# Needs docker, age, and pg_dump/pg_restore/psql 17 on PATH.
+# Needs age, pg_dump/pg_restore/psql 17 on PATH, and initdb/pg_ctl 17 in
+# PG_BIN (default: pg_config --bindir).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"
-NAME="mb-backup-e2e-$$"
-trap 'docker rm -f "$NAME" >/dev/null 2>&1; rm -rf "$TMP"' EXIT
+PG_BIN="${PG_BIN:-$(pg_config --bindir 2>/dev/null || true)}"
+export PG_BIN
+trap '"$PG_BIN/pg_ctl" -D "$TMP/pg" -m immediate stop >/dev/null 2>&1; rm -rf "$TMP"' EXIT
 
 fail=0
 ok()  { echo "ok   $1"; }
 bad() { echo "FAIL $1"; fail=1; }
-for tool in docker age age-keygen pg_dump pg_restore psql; do
-    command -v "$tool" >/dev/null || { echo "SKIP: $tool not on PATH"; exit 0; }
+for tool in age age-keygen pg_dump pg_restore psql "$PG_BIN/initdb" "$PG_BIN/pg_ctl"; do
+    command -v "$tool" >/dev/null || { echo "SKIP: $tool not found"; exit 0; }
 done
 
 # ── fixtures ──────────────────────────────────────────────────────────
@@ -33,10 +35,12 @@ age-keygen -o "$TMP/wrong.txt" 2>/dev/null
 mkdir -p "$TMP/etc/medbrains" "$TMP/s3" "$TMP/bin"
 echo "MEDBRAINS_IDENTIFIER_HMAC_KEY=e2e-secret-value-do-not-leak" > "$TMP/etc/medbrains/env"
 
-docker run -d --name "$NAME" -e POSTGRES_PASSWORD=e2e -p 127.0.0.1::5432 postgres:17-alpine >/dev/null
-PORT="$(docker port "$NAME" 5432/tcp | head -1 | sed 's/.*://')"
-SERVER="postgres://postgres:e2e@127.0.0.1:${PORT}"
-for _ in $(seq 1 60); do psql -XAq "$SERVER/postgres" -c 'SELECT 1' >/dev/null 2>&1 && break; sleep 1; done
+# Loopback on a port of its own, trust auth: a laptop-only throwaway.
+PORT=$((55400 + $$ % 500))
+"$PG_BIN/initdb" -D "$TMP/pg" -U postgres --auth=trust -E UTF8 --no-instructions >/dev/null
+"$PG_BIN/pg_ctl" -D "$TMP/pg" -l "$TMP/pg.log" -w \
+    -o "-c listen_addresses=127.0.0.1 -k $TMP -p $PORT" start >/dev/null
+SERVER="postgres://postgres@127.0.0.1:${PORT}"
 psql -XAq -v ON_ERROR_STOP=1 "$SERVER/postgres" -c 'CREATE DATABASE medbrains' >/dev/null
 SRC="$SERVER/medbrains"
 psql -XAq -v ON_ERROR_STOP=1 "$SRC" >/dev/null <<'SQL'
@@ -140,11 +144,12 @@ else bad "drill secrets listing: $drill"; fi
     && ok "drill dropped its scratch database" || bad "drill left a scratch database"
 
 # ── 6. with no --target-url the drill brings its own Postgres 17 ──────
+# Its scratch cluster is socket-only (listen_addresses empty): none may remain.
 drill="$(PATH="$TMP/bin:$PATH" bash "$HERE/medbrains-restore-drill" --from "$monthly" --identity "$TMP/key.txt" 2>&1)"; rc=$?
 if [[ $rc -eq 0 && "$drill" == *"RESTORE DRILL PASSED"* ]] \
-    && [[ -z "$(docker ps -aq --filter name=medbrains-restore-drill-)" ]]; then
-    ok "drill in its own throwaway container passes and removes it"
-else bad "drill in its own container (rc=$rc): $drill"; fi
+    && ! pgrep -f -- '-c listen_addresses= -k' >/dev/null; then
+    ok "drill in its own throwaway cluster passes and removes it"
+else bad "drill in its own cluster (rc=$rc): $drill"; fi
 
 # ── 7. a tampered object fails the drill ──────────────────────────────
 cp "$daily" "$TMP/tampered.dump.age"

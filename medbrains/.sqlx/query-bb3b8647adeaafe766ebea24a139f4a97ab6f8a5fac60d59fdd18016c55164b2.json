@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pin_hash, pin_failed_attempts FROM uhi_transactions WHERE id = $1 AND tenant_id = $2 AND state = 'confirmed' AND deleted_at IS NULL FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pin_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "pin_failed_attempts",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "bb3b8647adeaafe766ebea24a139f4a97ab6f8a5fac60d59fdd18016c55164b2"
+}
