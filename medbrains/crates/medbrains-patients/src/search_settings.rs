@@ -1,9 +1,12 @@
-//! What the patient search box offers at this hospital: the field it searches
-//! by default, and whether OPD numbers are worth offering at all.
+//! What the patient search box and list offer at this hospital: the field the
+//! box searches by default, whether OPD numbers are worth offering, and
+//! whether the list shows every column or only the basic ones.
 //!
 //! `tenant_settings` `registration`/`search_default_by` (all, phone, uhid,
-//! name, `opd_number`; all when unset or unreadable). The search box reads it
-//! with the list or lookup permission, so every desk sees the same default.
+//! name, `opd_number`; all when unset or unreadable) and
+//! `registration`/`patient_list_columns` (full or basic; full when unset or
+//! unreadable, so every other hospital's list is unchanged). Read with the
+//! list or lookup permission, so every desk sees the same thing.
 
 use axum::extract::State;
 use axum::routing::get;
@@ -26,13 +29,19 @@ pub(crate) struct SearchSettings {
     pub default_by: String,
     /// Whether the hospital keeps an OPD number, so "OPD number" is offered.
     pub opd_number_enabled: bool,
+    /// `full` (every column) or `basic` (UHID, name, age and sex, phone, OPD number).
+    pub patient_list_columns: String,
 }
 
-/// A new default.
+/// New settings; a field left out is unchanged.
 #[derive(Debug, Deserialize)]
 pub(crate) struct SearchSettingsUpdate {
-    pub default_by: String,
+    pub default_by: Option<String>,
+    pub patient_list_columns: Option<String>,
 }
+
+/// The list's column sets.
+const COLUMN_SETS: [&str; 2] = ["full", "basic"];
 
 /// The routes, merged into the patients router.
 pub(crate) fn router() -> axum::Router<AppState> {
@@ -46,33 +55,63 @@ pub(crate) fn router() -> axum::Router<AppState> {
 async fn read(state: &AppState, permit: &kernel::Permit) -> Result<SearchSettings, AppError> {
     let tenant_id = permit.tenant_id();
     let mut tx = kernel::actor_tx(&state.db, permit, None).await?;
-    let stored = stored_default(&mut tx, tenant_id).await?;
+    let (stored_by, stored_columns) = stored(&mut tx, tenant_id).await?;
     let policy = opd_number::read_policy(&mut tx, tenant_id).await?;
     tx.commit().await?;
-    // Unreadable is all, never a refusal: the box must always search.
-    let default_by = stored
+    // Unreadable is the default, never a refusal: the box must always search.
+    let default_by = stored_by
         .filter(|by| SearchBy::from_param(Some(by)).is_ok())
         .unwrap_or_else(|| "all".to_owned());
+    let patient_list_columns = stored_columns
+        .filter(|c| COLUMN_SETS.contains(&c.as_str()))
+        .unwrap_or_else(|| "full".to_owned());
     Ok(SearchSettings {
         default_by,
         opd_number_enabled: policy.mode != Mode::Off,
+        patient_list_columns,
     })
 }
 
-/// The stored default, as text.
-async fn stored_default(
+/// The stored search default and column set, as text, in one query.
+async fn stored(
     conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
-) -> Result<Option<String>, AppError> {
-    let value = sqlx::query_scalar!(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'registration' AND key = 'search_default_by' \
-           AND deleted_at IS NULL",
+) -> Result<(Option<String>, Option<String>), AppError> {
+    let rows = sqlx::query!(
+        "SELECT key, value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'registration' \
+           AND key IN ('search_default_by', 'patient_list_columns') AND deleted_at IS NULL",
         tenant_id
     )
-    .fetch_optional(&mut *conn)
+    .fetch_all(&mut *conn)
     .await?;
-    Ok(value.and_then(|v| v.as_str().map(ToOwned::to_owned)))
+    let text = |key: &str| {
+        rows.iter()
+            .find(|r| r.key == key)
+            .and_then(|r| r.value.as_str().map(ToOwned::to_owned))
+    };
+    Ok((text("search_default_by"), text("patient_list_columns")))
+}
+
+/// Save one validated registration setting.
+async fn save(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    (key, value): (&str, &str),
+) -> Result<(), AppError> {
+    sqlx::query!(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'registration', $2, $3) \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
+                       value = EXCLUDED.value, updated_at = now()",
+        tenant_id,
+        key,
+        serde_json::Value::from(value.trim())
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
 }
 
 /// `GET /api/registration/search-settings`: for whoever can search patients.
@@ -87,26 +126,34 @@ pub(crate) async fn get_search_settings(
     Ok(Json(read(&state, &permit).await?))
 }
 
-/// `PUT /api/registration/search-settings`: the hospital's default field.
+/// `PUT /api/registration/search-settings`: the hospital's default field and list columns.
 pub(crate) async fn update_search_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<SearchSettingsUpdate>,
 ) -> Result<Json<SearchSettings>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::admin::settings::general::MANAGE)?;
-    SearchBy::from_param(Some(&body.default_by))?;
+    let columns = body.patient_list_columns.as_deref().map(str::trim);
+    if let Some(by) = body.default_by.as_deref() {
+        SearchBy::from_param(Some(by))?;
+    }
+    if columns.is_some_and(|c| !COLUMN_SETS.contains(&c)) {
+        return Err(AppError::BadRequest(
+            "Patient list columns: full or basic".into(),
+        ));
+    }
     let mut tx = kernel::actor_tx(&state.db, &permit, None).await?;
-    sqlx::query!(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, 'registration', 'search_default_by', $2) \
-         ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
-                       value = EXCLUDED.value, updated_at = now()",
-        permit.tenant_id(),
-        serde_json::Value::from(body.default_by.trim())
-    )
-    .execute(&mut *tx)
-    .await?;
+    if let Some(by) = body.default_by.as_deref() {
+        save(&mut tx, permit.tenant_id(), ("search_default_by", by)).await?;
+    }
+    if let Some(columns) = columns {
+        save(
+            &mut tx,
+            permit.tenant_id(),
+            ("patient_list_columns", columns),
+        )
+        .await?;
+    }
     tx.commit().await?;
     Ok(Json(read(&state, &permit).await?))
 }

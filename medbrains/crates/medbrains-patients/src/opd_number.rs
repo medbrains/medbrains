@@ -151,3 +151,133 @@ pub(crate) async fn assign_at_registration(
     }
     Ok(assigned)
 }
+
+/// A list row's OPD number and date: the patient's own, else their latest
+/// numbered visit's. Empty for a hospital that keeps none.
+#[derive(Debug, Default, Serialize)]
+pub struct OnRow {
+    pub opd_number: Option<String>,
+    pub opd_date: Option<NaiveDate>,
+}
+
+/// The OPD numbers of a page of patients, in one query.
+pub(crate) async fn on_rows(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    patient_ids: &[Uuid],
+) -> Result<std::collections::HashMap<Uuid, OnRow>, AppError> {
+    if patient_ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let rows = sqlx::query!(
+        r#"SELECT p.id AS "id!", COALESCE(p.opd_number, v.encounter_number) AS opd_number,
+                  CASE WHEN p.opd_number IS NOT NULL THEN p.opd_date ELSE v.encounter_date END
+                    AS opd_date
+             FROM patients p
+             LEFT JOIN LATERAL (
+               SELECT e.encounter_number, e.encounter_date FROM encounters e
+                WHERE e.tenant_id = p.tenant_id AND e.patient_id = p.id
+                  AND e.encounter_number IS NOT NULL AND e.deleted_at IS NULL
+                ORDER BY e.encounter_date DESC, e.created_at DESC LIMIT 1
+             ) v ON true
+            WHERE p.tenant_id = $1 AND p.id = ANY($2)
+              AND (p.opd_number IS NOT NULL OR v.encounter_number IS NOT NULL)"#,
+        tenant_id,
+        patient_ids
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            (
+                r.id,
+                OnRow {
+                    opd_number: r.opd_number,
+                    opd_date: r.opd_date,
+                },
+            )
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod db_tests {
+    // The list's OPD numbers against a real database, as the request role:
+    // the patient's own number, else the latest numbered visit's; nothing for
+    // a patient without one or another hospital's patient.
+    #![allow(clippy::expect_used)]
+
+    use medbrains_db_migrations::testing::{APP_ROLE, add_tenant, fresh_db};
+    use uuid::Uuid;
+
+    /// Insert a patient as the owner, with an optional OPD number.
+    async fn patient(db: &sqlx::PgPool, tenant: Uuid, uhid: &str, opd: Option<&str>) -> Uuid {
+        sqlx::query_scalar(
+            "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, \
+                                   opd_number, opd_date) \
+             VALUES ($1, $2, 'Test', 'Patient', 'female', '9000000000', $3, \
+                     CASE WHEN $3 IS NULL THEN NULL ELSE DATE '2019-03-04' END) RETURNING id",
+        )
+        .bind(tenant)
+        .bind(uhid)
+        .bind(opd)
+        .fetch_one(db)
+        .await
+        .expect("patient")
+    }
+
+    #[tokio::test]
+    async fn list_rows_carry_the_patient_or_latest_visit_opd_number() {
+        let db = fresh_db().await.expect("test database");
+        let owner = db.owner().await.expect("owner");
+        let tenant = add_tenant(&owner, "OLR").await.expect("tenant");
+        let other = add_tenant(&owner, "OLS").await.expect("tenant");
+        let own = patient(&owner, tenant, "OLR-1", Some("1043")).await;
+        let by_visit = patient(&owner, tenant, "OLR-2", None).await;
+        let none = patient(&owner, tenant, "OLR-3", None).await;
+        let elsewhere = patient(&owner, other, "OLS-1", Some("1043")).await;
+        for (number, date) in [("7", "2026-01-01"), ("9", "2026-02-01")] {
+            sqlx::query(
+                "INSERT INTO encounters (tenant_id, patient_id, encounter_type, encounter_number, \
+                                         encounter_date) VALUES ($1, $2, 'opd', $3, $4::date)",
+            )
+            .bind(tenant)
+            .bind(by_visit)
+            .bind(number)
+            .bind(date)
+            .execute(&owner)
+            .await
+            .expect("visit");
+        }
+        let app = db.connect(APP_ROLE).await.expect("app");
+        let mut tx = app.begin().await.expect("tx");
+        medbrains_kernel::enter_scope(
+            &mut tx,
+            &medbrains_kernel::Permit::unattended(tenant, "test"),
+            &[],
+        )
+        .await
+        .expect("context");
+        let rows = super::on_rows(&mut tx, tenant, &[own, by_visit, none, elsewhere])
+            .await
+            .expect("rows");
+        assert_eq!(
+            rows.get(&own).and_then(|r| r.opd_number.as_deref()),
+            Some("1043")
+        );
+        assert_eq!(
+            rows.get(&own)
+                .and_then(|r| r.opd_date)
+                .map(|d| d.to_string())
+                .as_deref(),
+            Some("2019-03-04")
+        );
+        assert_eq!(
+            rows.get(&by_visit).and_then(|r| r.opd_number.as_deref()),
+            Some("9")
+        );
+        assert!(!rows.contains_key(&none), "no number, no entry");
+        assert!(!rows.contains_key(&elsewhere), "another hospital's patient");
+    }
+}

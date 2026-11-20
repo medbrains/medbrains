@@ -36,7 +36,8 @@ function rememberedBy(key: string): PatientSearchBy | null {
 
 /**
  * The field the search box searches: this user's last choice, else the
- * hospital's default, else all. Also says whether OPD numbers are offered.
+ * hospital's default, else all. Also says whether OPD numbers are offered and
+ * whether the hospital's patient list shows only the basic columns.
  * `onChange` runs after the desk picks another field (to go back to page one).
  */
 export function usePatientSearchBy(onChange?: () => void) {
@@ -54,6 +55,7 @@ export function usePatientSearchBy(onChange?: () => void) {
   const fallback = data?.default_by ?? "all";
   const wanted = chosen ?? fallback;
   const by: PatientSearchBy = wanted === "opd_number" && !opdOn ? "all" : wanted;
+  /** Pick a field, remember it for this user, and tell the caller. */
   const setBy = (next: PatientSearchBy) => {
     setChosen(next);
     onChange?.();
@@ -63,7 +65,7 @@ export function usePatientSearchBy(onChange?: () => void) {
       // Not remembered this time; the choice still applies.
     }
   };
-  return { by, setBy, opdOn };
+  return { by, setBy, opdOn, basic: data?.patient_list_columns === "basic" };
 }
 
 interface PatientSearchBoxProps {

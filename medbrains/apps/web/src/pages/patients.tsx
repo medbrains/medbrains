@@ -41,6 +41,7 @@ import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { patientsService } from "@/services/patients.service";
+import { patientListColumns } from "./patients/list-columns";
 import { RegisterMatches } from "./patients/register-matches";
 import { PatientRegisterPageInner } from "./patients/register-page-inner";
 import classes from "./patients.module.scss";
@@ -125,7 +126,7 @@ function PatientsPageInner() {
   const [search, setSearch] = useState("");
   const debouncedSearch = usePacedQueryValue(search, 300);
   const [page, setPage] = useState(1);
-  const { by, setBy, opdOn } = usePatientSearchBy(() => setPage(1));
+  const { by, setBy, opdOn, basic } = usePatientSearchBy(() => setPage(1));
   const [sort, setSort] = useState<SortState | null>(null);
 
   const handleSearchChange = (val: string) => {
@@ -400,7 +401,7 @@ function PatientsPageInner() {
       </Card>
 
       <DataTable<Patient>
-        columns={columns}
+        columns={patientListColumns(columns, { opdOn, basic })}
         data={data?.patients ?? []}
         loading={isLoading}
         total={data?.total}

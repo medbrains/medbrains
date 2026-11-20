@@ -938,4 +938,6 @@ export type PatientSearchBy = "all" | "phone" | "uhid" | "name" | "opd_number";
 export interface PatientSearchSettings {
   default_by: PatientSearchBy;
   opd_number_enabled: boolean;
+  /** `basic`: UHID, name, age and sex, phone, OPD number; `full` (default): every column. */
+  patient_list_columns: "full" | "basic";
 }

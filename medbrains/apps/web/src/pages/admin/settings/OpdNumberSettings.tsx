@@ -8,6 +8,7 @@ import type {
   OpdNumberScope,
   OpdNumberView,
   PatientSearchBy,
+  PatientSearchSettings,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,6 +57,11 @@ export function OpdNumberSettings() {
   );
 }
 
+const LIST_COLUMNS = [
+  { value: "full", label: "Every column" },
+  { value: "basic", label: "Basic columns" },
+];
+
 const SEARCH_DEFAULTS: { value: PatientSearchBy; label: string }[] = [
   { value: "all", label: "All fields" },
   { value: "phone", label: "Phone" },
@@ -64,7 +70,10 @@ const SEARCH_DEFAULTS: { value: PatientSearchBy; label: string }[] = [
   { value: "opd_number", label: "OPD number" },
 ];
 
-/** The field the patient search box starts on at this hospital; a desk's own choice wins. */
+/**
+ * The patient list's columns and the field its search box starts on at this
+ * hospital; a desk's own search choice wins.
+ */
 function SearchDefaultSelect() {
   const queryClient = useQueryClient();
   const { data } = useQuery({
@@ -72,25 +81,36 @@ function SearchDefaultSelect() {
     queryFn: () => patientsService.getSearchSettings(),
   });
   const save = useMutation({
-    mutationFn: (default_by: PatientSearchBy) =>
-      patientsService.updateSearchSettings({ default_by }),
+    mutationFn: (
+      change: Partial<Pick<PatientSearchSettings, "default_by" | "patient_list_columns">>,
+    ) => patientsService.updateSearchSettings(change),
     onSuccess: (saved) => {
       queryClient.setQueryData(["registration-search-settings"], saved);
-      toast.success("Search default saved");
+      toast.success("Saved");
     },
     onError: (err: Error) => toast.error(err.message),
   });
   return (
-    <Select
-      label="Patient search starts with"
-      description="Each desk can still pick another field; its last choice is remembered."
-      data={SEARCH_DEFAULTS}
-      value={data?.default_by ?? null}
-      onChange={(v) => v && save.mutate(v as PatientSearchBy)}
-      disabled={!data || save.isPending}
-      allowDeselect={false}
-      maw={560}
-    />
+    <Stack gap="md" maw={560}>
+      <Select
+        label="Patient list shows"
+        description="Basic: UHID, name, age and sex, phone and OPD number."
+        data={LIST_COLUMNS}
+        value={data?.patient_list_columns ?? null}
+        onChange={(v) => v && save.mutate({ patient_list_columns: v as "full" | "basic" })}
+        disabled={!data || save.isPending}
+        allowDeselect={false}
+      />
+      <Select
+        label="Patient search starts with"
+        description="Each desk can still pick another field; its last choice is remembered."
+        data={SEARCH_DEFAULTS}
+        value={data?.default_by ?? null}
+        onChange={(v) => v && save.mutate({ default_by: v as PatientSearchBy })}
+        disabled={!data || save.isPending}
+        allowDeselect={false}
+      />
+    </Stack>
   );
 }
 
