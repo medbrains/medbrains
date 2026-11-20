@@ -204,6 +204,12 @@ jobs:
         run: |
           python3 medbrains/scripts/check_query_fallbacks.py --self-test
           python3 medbrains/scripts/check_query_fallbacks.py
+      # India literals (rupee, en-IN, Kolkata, +91, Aadhaar, GST, NABH, ...) outside
+      # the India pack are baselined per file and only go down (#5935).
+      - name: No new India assumptions outside the India pack
+        run: |
+          python3 medbrains/scripts/check_world_literals.py --self-test
+          python3 medbrains/scripts/check_world_literals.py
       - name: Pages build from the @/components/ui seam
         run: python3 medbrains/scripts/check_ui_seam.py
       - name: No raw interactive HTML in shipped JSX

@@ -4,11 +4,12 @@
 Each meter is a weighted checklist: done counts in full, partial counts half,
 not-started counts nothing. An item counts only with evidence: a PR squash-merged
 on main, a file that exists, or a named test in a file. This writes the
-shields.io endpoint badges (.github/badges/readiness-<id>.json) and the README
-tables between the readiness and regulation markers, so no percentage is ever
-typed by hand. A meter with "assessed": false shows "not assessed" in grey and
-no percentage; "accent": true colours a measured badge purple, not blue; a meter
-with "group": "regulation" goes in the regulation table.
+shields.io endpoint badges (.github/badges/readiness-<id>.json), the README badge
+row and the README tables between the readiness and regulation markers, so no
+percentage is ever typed by hand. A meter with "assessed": false shows "not
+assessed" in grey and no percentage; "accent": true colours a measured badge
+purple, not blue; a meter with "group": "regulation" goes in the regulation table;
+a meter with `live` adds a measured line (LIVE below) to its summary.
 
     python3 scripts/readiness.py            # regenerate badges + README table
     python3 scripts/readiness.py --check    # CI: fail on missing evidence or stale files
@@ -17,6 +18,7 @@ with "group": "regulation" goes in the regulation table.
 --check needs the full history (fetch-depth: 0) to find merged PRs.
 """
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -27,8 +29,12 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "medbrains/docs/readiness.json"
 BADGES = ROOT / ".github/badges"
 README = ROOT / "README.md"
+COUNTRIES = ROOT / "data/geo/countries.json"
+WORLD_LITERALS = ROOT / "medbrains/scripts/check_world_literals.py"
 GROUPS = {None: "readiness", "regulation": "regulation"}  # meter group -> README marker name
 COLOR = {"measured": "0F62FE", "accent": "851B7F", "unassessed": "5D677A"}
+BADGE_START, BADGE_END = "<!-- readiness-badges:start -->", "<!-- readiness-badges:end -->"
+BADGE_URL = "https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/medbrains/medbrains/main/.github/badges/readiness-{}.json"
 CREDIT = {"done": 1.0, "partial": 0.5, "not-started": 0.0}
 LABEL = {"done": "Done", "partial": "Partial", "not-started": "Not started"}
 
@@ -64,6 +70,8 @@ def evidence_errors(data, merged, root=ROOT):
     """Every reason an item's status is not backed by evidence, as readable lines."""
     errors = []
     for meter in data["meters"]:
+        if meter.get("live") and meter["live"] not in LIVE:
+            errors.append(f"{meter['id']}: unknown live line {meter['live']!r}")
         for item in meter["items"]:
             where = f"{meter['id']}/{item['id']}"
             status = item.get("status")
@@ -93,6 +101,37 @@ def check_one(ev, merged, root):
     return None
 
 
+def world_literals_text(live, baseline):
+    """The ratchet line for the world meter from (lines, files) now and in the baseline."""
+    return (f"India literals outside the India pack: {live[0]:,} lines in {live[1]:,} files "
+            f"(baseline {baseline[0]:,} in {baseline[1]:,}; it may only go down, "
+            "`make check-world-literals`).")
+
+
+def world_literals():
+    """Measures the #5935 ratchet now and reads its committed baseline."""
+    spec = importlib.util.spec_from_file_location("check_world_literals", WORLD_LITERALS)
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    baseline = json.loads(check.BASELINE.read_text(encoding="utf-8"))
+    return world_literals_text(check.totals(check.measure()), check.totals(baseline))
+
+
+def countries_text(countries):
+    """How many countries have research, from the country list's `research` fields."""
+    done = sum(1 for c in countries if c.get("research"))
+    return (f"{done} of {len(countries)} countries researched (research only, not built; "
+            "counted from `data/geo/countries.json`), never counted in the percentage.")
+
+
+def countries_researched():
+    """The research line for the country-pack meter, from the committed country list."""
+    return countries_text(json.loads(COUNTRIES.read_text(encoding="utf-8")))
+
+
+LIVE = {"world-literals": world_literals, "countries-researched": countries_researched}
+
+
 def badge(meter):
     """The shields.io endpoint JSON for one meter."""
     color = COLOR["accent" if meter.get("accent") else "measured"]
@@ -108,8 +147,9 @@ def evidence_text(item):
     return ", ".join(parts) or "-"
 
 
-def table(meters):
-    """One README section: a summary row per meter and the item list of each assessed one."""
+def table(meters, live):
+    """One README section: a summary row per meter, the measured `live` lines, and the
+    item list of each assessed meter. `live` maps a meter's `live` key to its line."""
     lines = ["| Meter | Measured | Done | Partial | Not started |", "|---|---|---|---|---|"]
     for m in meters:
         n = {s: sum(i["status"] == s for i in m["items"]) for s in CREDIT}
@@ -117,25 +157,42 @@ def table(meters):
             lines.append(f"| {m['title']} | **{shown(m)}** | {n['done']} | {n['partial']} | {n['not-started']} |")
         else:
             lines.append(f"| {m['title']} | {shown(m)} | - | - | - |")
+    notes = [f"- {m['title']}: {live[m['live']]}" for m in meters if m.get("live")]
+    lines += ["", *notes] if notes else []
     for m in filter(is_assessed, meters):
-        lines += ["", f"<details><summary>{m['title']}: {shown(m)}</summary>", "",
-                  "| Item | Weight | State | Evidence |", "|---|---|---|---|"]
+        lines += ["", f"<details><summary>{m['title']}: {shown(m)}</summary>", ""]
+        if m.get("live"):
+            lines += [f"{m['summary']} {live[m['live']]}", ""]
+        lines += ["| Item | Weight | State | Evidence |", "|---|---|---|---|"]
         lines += [f"| {i['title']} | {i['weight']} | {LABEL[i['status']]} | {evidence_text(i)} |"
                   for i in m["items"]]
         lines += ["", "</details>"]
     return "\n".join(lines)
 
 
-def outputs(data, readme_text):
+def badge_row(data):
+    """The README badge row: one shields.io endpoint badge per readiness meter (regulation ones are listed by hand)."""
+    return "\n".join(f"[![{m['title']}]({BADGE_URL.format(m['id'])})](#readiness)"
+                     for m in data["meters"] if m.get("group") is None)
+
+
+def between(text, start, end, body):
+    """`text` with everything between the two markers replaced by `body`."""
+    head, sep, rest = text.partition(start)
+    if not sep or end not in rest:
+        raise SystemExit(f"README.md has no {start} ... {end} markers")
+    return f"{head}{start}\n{body}\n{end}{rest.partition(end)[2]}"
+
+
+def outputs(data, readme_text, live=None):
     """Every generated file and its expected content, keyed by path."""
     files = {BADGES / f"readiness-{m['id']}.json": badge(m) for m in data["meters"]}
+    live = live if live is not None else {k: f() for k, f in LIVE.items()}
+    readme_text = between(readme_text, BADGE_START, BADGE_END, badge_row(data))
     for group, name in GROUPS.items():
-        start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"
-        head, sep, rest = readme_text.partition(start)
-        if not sep or end not in rest:
-            raise SystemExit(f"README.md has no {start} ... {end} markers")
         meters = [m for m in data["meters"] if m.get("group") == group]
-        readme_text = f"{head}{start}\n{table(meters)}\n{end}{rest.partition(end)[2]}"
+        readme_text = between(readme_text, f"<!-- {name}:start -->", f"<!-- {name}:end -->",
+                              table(meters, live))
     files[README] = readme_text
     return files
 
@@ -158,19 +215,31 @@ def self_test():
     assert "not found" in evidence_errors(data, {1})[0]
     meter["items"][1]["evidence"] = [{"path": "nope/missing.txt"}]
     assert "does not exist" in evidence_errors(data, {1})[0]
-    assert "| T | **88%** | 2 | 1 | 0 |" in table(data["meters"])
+    assert "| T | **88%** | 2 | 1 | 0 |" in table(data["meters"], {})
     assert '"message": "88%"' in badge(meter) and '"0F62FE"' in badge(meter)
     assert '"851B7F"' in badge({**meter, "accent": True})
     # Not assessed: grey even when accented, no number, no item list; evidence rules still hold.
     blank = {"id": "u", "title": "U", "assessed": False, "items": []}
     assert '"message": "not assessed"' in badge(blank) and '"5D677A"' in badge(blank)
     assert '"5D677A"' in badge({**blank, "accent": True})
-    assert "| U | not assessed | - | - | - |" in table([blank])
-    assert "<details>" not in table([blank])
+    assert "| U | not assessed | - | - | - |" in table([blank], {})
+    assert "<details>" not in table([blank], {})
     assert evidence_errors({"meters": [blank]}, set()) == []
-    readme = "a <!-- readiness:start -->x<!-- readiness:end --> b <!-- regulation:start -->y<!-- regulation:end -->"
-    out = outputs({"meters": [meter, {**blank, "group": "regulation"}]}, readme)[README]
+    readme = ("<!-- readiness-badges:start --><!-- readiness-badges:end --> "
+              "a <!-- readiness:start -->x<!-- readiness:end --> b <!-- regulation:start -->y<!-- regulation:end -->")
+    out = outputs({"meters": [meter, {**blank, "group": "regulation"}]}, readme, {})[README]
     assert out.index("| T |") < out.index("regulation:start") < out.index("| U |")
+    # A meter's live line shows under its table and in its summary.
+    lived = dict(meter, live="countries-researched", summary="S.")
+    shown_live = table([lived], {"countries-researched": "2 of 3."})
+    assert "- T: 2 of 3." in shown_live and "S. 2 of 3." in shown_live
+    assert evidence_errors({"meters": [dict(meter, live="nope")]}, {1})[0].endswith("unknown live line 'nope'")
+    countries = [{"code": "IN", "research": 5696}, {"code": "AE", "research": 5426}, {"code": "FR"}]
+    assert countries_text(countries).startswith("2 of 3 countries researched (research only, not built")
+    line = world_literals_text((3400, 980), (3492, 986))
+    assert "3,400 lines in 980 files (baseline 3,492 in 986;" in line, line
+    assert "[![T](" in badge_row(data) and "readiness-t.json" in badge_row(data)
+    assert "readiness-u.json" not in badge_row({"meters": [{**blank, "group": "regulation"}]})
     real = json.loads(SOURCE.read_text(encoding="utf-8"))
     assert all(0 <= percent(m) <= 100 for m in real["meters"])
     print("readiness self-test: ok")
