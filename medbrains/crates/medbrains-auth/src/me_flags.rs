@@ -14,10 +14,7 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 /// Is a from-address set in this hospital's email settings?
-async fn email_configured(
-    conn: &mut PgConnection,
-    tenant_id: Uuid,
-) -> Result<bool, AppError> {
+async fn email_configured(conn: &mut PgConnection, tenant_id: Uuid) -> Result<bool, AppError> {
     let set = sqlx::query_scalar!(
         r#"SELECT COALESCE(btrim(value ->> 'from_address'), '') <> '' AS "set!" FROM tenant_settings
          WHERE tenant_id = $1 AND category = 'email' AND key = 'config' AND deleted_at IS NULL"#,
@@ -43,10 +40,7 @@ pub(crate) async fn email_can_send(configured: bool, secrets: &dyn SecretResolve
 }
 
 /// The hospital restricts copying data out of the app (`security.restrict_copy`).
-async fn restrict_copy(
-    conn: &mut PgConnection,
-    tenant_id: Uuid,
-) -> Result<bool, AppError> {
+async fn restrict_copy(conn: &mut PgConnection, tenant_id: Uuid) -> Result<bool, AppError> {
     Ok(sqlx::query_scalar!(
         r#"SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1
          AND category = 'security' AND key = 'restrict_copy'
