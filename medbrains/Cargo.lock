@@ -6301,7 +6301,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-country"
-version = "3.33.2"
+version = "3.35.2"
 dependencies = [
  "icu_locale_core",
  "medbrains-kernel",
