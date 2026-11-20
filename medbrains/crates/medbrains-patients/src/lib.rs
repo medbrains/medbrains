@@ -15,6 +15,7 @@ pub mod opd_number;
 pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
+mod registration_token;
 mod search;
 
 use medbrains_health_services::patient as gate;
@@ -1614,28 +1615,7 @@ pub async fn create_patient(
     }
 
     // Auto-issue a registration token (skipped if the module is disabled).
-    let patient_label = format!("{} {}", patient.first_name, patient.last_name);
-    // Registration is where a visit starts, so it mints the id the rest of the
-    // journey shares: the lab and pharmacy tokens raised later carry the same
-    // number, and the patient holds one slip instead of three.
-    medbrains_tokens::issue_token_in_tx(
-        &mut tx,
-        claims.tenant_id,
-        medbrains_tokens::IssueToken {
-            visit_id: Some(Uuid::new_v4()),
-            module: "registration",
-            scope: "global",
-            scope_id: None,
-            scope_label: Some("Registration"),
-            priority: "normal",
-            patient_id: Some(patient.id),
-            patient_name: Some(patient_label.trim()),
-            entity_type: Some("patient"),
-            entity_id: Some(patient.id),
-            issued_by: Some(claims.sub),
-        },
-    )
-    .await?;
+    registration_token::issue(&mut tx, &claims, &patient).await?;
     // The registration fee, when the hospital charges one at registration
     // (#4885); hospitals that charge it at the first consultation get it there.
     medbrains_server_services::billing_lanes::charge_registration_fee(

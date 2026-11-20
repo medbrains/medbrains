@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE outbox_events SET payload = payload #- '{body,message,order,authorization,token}' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f92de8b95c8de1be976c1a1f36d8b4dd0e30f0ce0ae77d762160b4420eea2e40"
+}

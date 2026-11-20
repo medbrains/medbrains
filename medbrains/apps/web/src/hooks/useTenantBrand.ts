@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { publicApi } from "@medbrains/api/modules/public";
 import type { PublicTenant } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 export function useTenantBrand(): PublicTenant | null {
   const { data } = useQuery({
     queryKey: ["tenant-by-host"],
-    queryFn: () => api.getTenantByHost(window.location.hostname),
+    queryFn: () => publicApi.getTenantByHost(window.location.hostname),
     retry: false,
     staleTime: 300_000,
   });

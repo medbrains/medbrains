@@ -1,6 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const osmolarGapService = {
-  computeOsmolarGap: (data: Parameters<typeof api.computeOsmolarGap>[0]) =>
-    api.computeOsmolarGap(data),
+  computeOsmolarGap: (data: Parameters<typeof clinicalApi.computeOsmolarGap>[0]) =>
+    clinicalApi.computeOsmolarGap(data),
 };

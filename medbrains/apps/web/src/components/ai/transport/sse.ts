@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { aiApi } from "@medbrains/api/modules/ai";
 import { type AguiState, fromAgui, newAguiState } from "./agui";
 import type { ChatChunk, ChatMessage, ChatTransport, SendOptions } from "./types";
 
@@ -50,7 +50,7 @@ export class SseTransport implements ChatTransport {
 
     let response: Response;
     try {
-      response = await api.chatStream(
+      response = await aiApi.chatStream(
         {
           message: lastUser.content,
           conversation_id: this.conversationId,

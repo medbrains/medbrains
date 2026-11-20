@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
+import { indentApi } from "@medbrains/api/modules/indent";
 import { useHasPermission } from "@medbrains/stores";
 import { type ImplantRegistryEntry, type OtBooking, P } from "@medbrains/types";
 import { IconPlus, IconTool } from "@tabler/icons-react";
@@ -40,12 +40,12 @@ export function OtImplantRegisterPanel({ booking }: { booking: OtBooking }) {
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog(),
+    queryFn: () => indentApi.listStoreCatalog(),
     enabled: canManage,
   });
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["implant-registry", booking.patient_id],
-    queryFn: () => api.listImplantRegistry({ patient_id: booking.patient_id }),
+    queryFn: () => indentApi.listImplantRegistry({ patient_id: booking.patient_id }),
     enabled: canView,
   });
 
@@ -60,7 +60,7 @@ export function OtImplantRegisterPanel({ booking }: { booking: OtBooking }) {
 
   const addMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      api.createImplantEntry({
+      indentApi.createImplantEntry({
         catalog_item_id: values.catalog_item_id,
         patient_id: booking.patient_id,
         surgeon_id: booking.primary_surgeon_id,

@@ -1,6 +1,6 @@
 import { Badge, Button, FileButton, Group, List, Modal, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { IconDownload, IconUpload } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -19,7 +19,7 @@ export function ConfigTransferButtons() {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
 
   const exportMutation = useMutation({
-    mutationFn: () => api.exportTenantConfig(),
+    mutationFn: () => setupApi.exportTenantConfig(),
     onSuccess: (bundle) => {
       const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -34,7 +34,7 @@ export function ConfigTransferButtons() {
   const dryRunMutation = useMutation({
     mutationFn: async (file: File) => {
       const bundle = JSON.parse(await file.text());
-      const result = await api.importTenantConfig({ bundle, dry_run: true });
+      const result = await setupApi.importTenantConfig({ bundle, dry_run: true });
       return { bundle, changes: result.changes };
     },
     onSuccess: (result) => {
@@ -51,7 +51,7 @@ export function ConfigTransferButtons() {
   });
 
   const applyMutation = useMutation({
-    mutationFn: (bundle: unknown) => api.importTenantConfig({ bundle, dry_run: false }),
+    mutationFn: (bundle: unknown) => setupApi.importTenantConfig({ bundle, dry_run: false }),
     onSuccess: (result) => {
       notifications.show({
         title: "Configuration imported",

@@ -1,6 +1,7 @@
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
+import { publicApi } from "@medbrains/api/modules/public";
 
 export const errorTrackingService = {
-  getClientConfig: () => api.getErrorTrackingClientConfig(),
-  getSummary: () => api.getErrorTrackingSummary(),
+  getClientConfig: () => publicApi.getErrorTrackingClientConfig(),
+  getSummary: () => adminApi.getErrorTrackingSummary(),
 };

@@ -1,16 +1,16 @@
-import { api } from "@medbrains/api";
+import { abdmApi } from "@medbrains/api/modules/abdm";
 import type { RaiseAbdmConsentRequest } from "@medbrains/types";
 
 /** ABDM records shared as a Health Information Provider, and received as a User. */
 export const abdmRecordsService = {
-  patientRecords: (patientId: string) => api.getAbdmPatientRecords(patientId),
-  link: (careContextId: string) => api.linkAbdmCareContext(careContextId),
-  sendSmsLink: (patientId: string) => api.sendAbdmSmsLink(patientId),
-  sharingSummary: (month?: string) => api.getAbdmSharingSummary(month),
-  dashboard: (month?: string) => api.getAbdmDashboard(month),
+  patientRecords: (patientId: string) => abdmApi.getAbdmPatientRecords(patientId),
+  link: (careContextId: string) => abdmApi.linkAbdmCareContext(careContextId),
+  sendSmsLink: (patientId: string) => abdmApi.sendAbdmSmsLink(patientId),
+  sharingSummary: (month?: string) => abdmApi.getAbdmSharingSummary(month),
+  dashboard: (month?: string) => abdmApi.getAbdmDashboard(month),
   raiseConsentRequest: (patientId: string, data: RaiseAbdmConsentRequest) =>
-    api.raiseAbdmConsentRequest(patientId, data),
-  checkConsentStatus: (id: string) => api.checkAbdmConsentRequestStatus(id),
-  receivedRecords: (patientId: string) => api.getAbdmReceivedRecords(patientId),
-  receivedRecord: (id: string) => api.getAbdmReceivedRecord(id),
+    abdmApi.raiseAbdmConsentRequest(patientId, data),
+  checkConsentStatus: (id: string) => abdmApi.checkAbdmConsentRequestStatus(id),
+  receivedRecords: (patientId: string) => abdmApi.getAbdmReceivedRecords(patientId),
+  receivedRecord: (id: string) => abdmApi.getAbdmReceivedRecord(id),
 };

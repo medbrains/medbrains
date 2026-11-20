@@ -1,30 +1,38 @@
-import { api } from "@medbrains/api";
+import { campApi } from "@medbrains/api/modules/camp";
+import { marketingApi } from "@medbrains/api/modules/marketing";
+import { patientsApi } from "@medbrains/api/modules/patients";
+import { printDataApi } from "@medbrains/api/modules/print-data";
+import { registrationApi } from "@medbrains/api/modules/registration";
+import { setupApi } from "@medbrains/api/modules/setup";
 
-export type CreatePatientInput = Parameters<typeof api.createPatient>[0];
-export type ListPatientsInput = Parameters<typeof api.listPatients>[0];
-export type ListCampsInput = Parameters<typeof api.listCamps>[0];
+export type CreatePatientInput = Parameters<typeof patientsApi.createPatient>[0];
+export type ListPatientsInput = Parameters<typeof patientsApi.listPatients>[0];
+export type ListCampsInput = Parameters<typeof campApi.listCamps>[0];
 
 export const patientsService = {
-  getPatientCardPrintData: (...args: Parameters<typeof api.getPatientCardPrintData>) =>
-    api.getPatientCardPrintData(...args),
-  listPatients: (params: ListPatientsInput) => api.listPatients(params),
-  getPatient: (...args: Parameters<typeof api.getPatient>) => api.getPatient(...args),
-  getPatientContext: (...args: Parameters<typeof api.getPatientContext>) =>
-    api.getPatientContext(...args),
-  createPatient: (data: CreatePatientInput) => api.createPatient(data),
-  getOpdNumber: () => api.getOpdNumber(),
-  updateOpdNumberPolicy: (data: Parameters<typeof api.updateOpdNumberPolicy>[0]) =>
-    api.updateOpdNumberPolicy(data),
-  transliterateName: (text: string, to: string) => api.transliterateName(text, to),
-  updatePatient: (...args: Parameters<typeof api.updatePatient>) => api.updatePatient(...args),
-  matchPatients: (...args: Parameters<typeof api.matchPatients>) => api.matchPatients(...args),
-  completePatientRegistration: (id: string) => api.completePatientRegistration(id),
-  listDepartments: () => api.listDepartments(),
-  listDoctors: () => api.listDoctors(),
-  listCamps: (params?: ListCampsInput) => api.listCamps(params),
-  lookupMarketingCampaigns: () => api.lookupMarketingCampaigns(),
-  getPatientAcquisition: (patientId: string) => api.getPatientAcquisition(patientId),
-  correctPatientAcquisition: (...args: Parameters<typeof api.correctPatientAcquisition>) =>
-    api.correctPatientAcquisition(...args),
-  listFacilities: () => api.listFacilities(),
+  getPatientCardPrintData: (...args: Parameters<typeof printDataApi.getPatientCardPrintData>) =>
+    printDataApi.getPatientCardPrintData(...args),
+  listPatients: (params: ListPatientsInput) => patientsApi.listPatients(params),
+  getPatient: (...args: Parameters<typeof patientsApi.getPatient>) =>
+    patientsApi.getPatient(...args),
+  getPatientContext: (...args: Parameters<typeof patientsApi.getPatientContext>) =>
+    patientsApi.getPatientContext(...args),
+  createPatient: (data: CreatePatientInput) => patientsApi.createPatient(data),
+  getOpdNumber: () => registrationApi.getOpdNumber(),
+  updateOpdNumberPolicy: (data: Parameters<typeof registrationApi.updateOpdNumberPolicy>[0]) =>
+    registrationApi.updateOpdNumberPolicy(data),
+  transliterateName: (text: string, to: string) => patientsApi.transliterateName(text, to),
+  updatePatient: (...args: Parameters<typeof patientsApi.updatePatient>) =>
+    patientsApi.updatePatient(...args),
+  matchPatients: (...args: Parameters<typeof patientsApi.matchPatients>) =>
+    patientsApi.matchPatients(...args),
+  completePatientRegistration: (id: string) => patientsApi.completePatientRegistration(id),
+  listDepartments: () => setupApi.listDepartments(),
+  listDoctors: () => setupApi.listDoctors(),
+  listCamps: (params?: ListCampsInput) => campApi.listCamps(params),
+  lookupMarketingCampaigns: () => marketingApi.lookupMarketingCampaigns(),
+  getPatientAcquisition: (patientId: string) => patientsApi.getPatientAcquisition(patientId),
+  correctPatientAcquisition: (...args: Parameters<typeof patientsApi.correctPatientAcquisition>) =>
+    patientsApi.correctPatientAcquisition(...args),
+  listFacilities: () => setupApi.listFacilities(),
 };

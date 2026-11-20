@@ -1,5 +1,5 @@
-import { api } from "@medbrains/api";
+import { dashboardApi } from "@medbrains/api/modules/dashboard";
 
 export const dashboardService = {
-  getDashboardStats: api.getDashboardStats,
+  getDashboardStats: dashboardApi.getDashboardStats,
 };

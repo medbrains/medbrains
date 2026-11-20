@@ -9,7 +9,7 @@
  *
  */
 
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
@@ -60,12 +60,13 @@ function useHandoffRest(
   const qc = useQueryClient();
   const query = useQuery<HandoffEntry[]>({
     queryKey: ["handoff", shiftId],
-    queryFn: async () => (await api.listClinicalHandoffEntries(shiftId)).map(toHandoffEntry),
+    queryFn: async () =>
+      (await clinicalApi.listClinicalHandoffEntries(shiftId)).map(toHandoffEntry),
     enabled: enabled && !!shiftId,
   });
   const mutation = useMutation({
     mutationFn: async (entry: HandoffEntryInput) =>
-      toHandoffEntry(await api.createClinicalHandoffEntry(shiftId, entry)),
+      toHandoffEntry(await clinicalApi.createClinicalHandoffEntry(shiftId, entry)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["handoff", shiftId] }),
   });
   const append = useCallback((e: HandoffEntryInput) => mutation.mutate(e), [mutation]);
@@ -78,7 +79,9 @@ function useHandoffRest(
   };
 }
 
-type ClinicalHandoffEntry = Awaited<ReturnType<typeof api.listClinicalHandoffEntries>>[number];
+type ClinicalHandoffEntry = Awaited<
+  ReturnType<typeof clinicalApi.listClinicalHandoffEntries>
+>[number];
 
 function toHandoffEntry(entry: ClinicalHandoffEntry): HandoffEntry {
   return {

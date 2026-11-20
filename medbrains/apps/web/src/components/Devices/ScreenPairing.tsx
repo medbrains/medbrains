@@ -1,5 +1,6 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { ApiError, api } from "@medbrains/api";
+import { ApiError } from "@medbrains/api";
+import { devicePairingApi } from "@medbrains/api/modules/device-pairing";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { useEffectOnce } from "react-use";
@@ -67,7 +68,7 @@ export function ScreenPairing({ onPaired }: ScreenPairingProps) {
   const [hospital, setHospital] = useState(hospitalFromAddress);
   const code = useMutation({
     mutationFn: (hospitalCode: string) =>
-      api.requestDeviceCode({
+      devicePairingApi.requestDeviceCode({
         hospital_code: hospitalCode,
         app_variant: "tv",
       }),
@@ -86,7 +87,7 @@ export function ScreenPairing({ onPaired }: ScreenPairingProps) {
   useQuery({
     queryKey: ["screen-pairing", deviceCode],
     queryFn: async () => {
-      const answer = await api.pollDeviceToken({ device_code: deviceCode ?? "" });
+      const answer = await devicePairingApi.pollDeviceToken({ device_code: deviceCode ?? "" });
       if (answer.status === "approved" && answer.jwt) onPaired(answer.jwt);
       if ((answer.status === "expired" || answer.status === "denied") && hospital) {
         code.mutate(hospital);

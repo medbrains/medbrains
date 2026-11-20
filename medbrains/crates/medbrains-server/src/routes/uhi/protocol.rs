@@ -34,12 +34,25 @@ pub const FULFILMENT_BLOOD_STOCK: &str = "BloodStock";
 pub const FULFILMENT_HOME_COLLECTION: &str = "HomeCollection";
 pub const FULFILMENT_WALK_IN: &str = "WalkIn";
 
-/// Payment stages and states — verified (`core.yml` `Payment`; NHA's
-/// reference HSPA books only on `PAID` or `FREE`).
+/// Payment stages and states — verified (`core.yml` `Payment`).
+///
+/// NHA's reference HSPA books only on `PAID` or `FREE`. An unpaid order is
+/// `NOT_PAID` on the wire (the consultation docs and their Postman
+/// collection); the hospital's own `uhi_transactions.payment_status` keeps
+/// its `NOT-PAID`, which the staff screens read.
 pub const PAYMENT_ON_ORDER: &str = "ON-ORDER";
 pub const PAYMENT_ON_FULFILMENT: &str = "ON-FULFILLMENT";
 pub const PAYMENT_PAID: &str = "PAID";
-pub const PAYMENT_NOT_PAID: &str = "NOT-PAID";
+pub const PAYMENT_NOT_PAID: &str = "NOT_PAID";
+
+/// A consultation's item descriptor: code and name are both `Consultation`
+/// (the consultation docs' service identity).
+pub const CONSULTATION_DESCRIPTOR: &str = "Consultation";
+/// The tag that carries a slot's UUID in a fulfilment — verified (docs).
+pub const TAG_SLOT_ID: &str = "@abdm/gov.in/slot_id";
+/// The order state a patient's app reports in `on_update` when the doctor
+/// did not see them — the only state an EUA sets (docs).
+pub const STATE_DOCTOR_NO_SHOW: &str = "DOCTOR_NO_SHOW";
 /// How the patient app opens the payment link — verified (NHA's EUA sends
 /// `http/get`; `core.yml` lists `https`).
 pub const PAYMENT_TL_METHOD: &str = "http/get";
@@ -177,11 +190,38 @@ impl GatewaySpec {
     }
 }
 
-/// The calls an EUA makes to an HSPA. `update` and `rating` are accepted and
-/// recorded; nothing in this hospital changes on them.
-pub const ACTIONS: [&str; 8] = [
-    "search", "select", "init", "confirm", "status", "cancel", "update", "rating",
+/// The calls an EUA makes to an HSPA.
+///
+/// `update` and `rating` are accepted and recorded; nothing in this hospital changes on them. `on_update` (the
+/// patient reports a doctor no-show) and `on_message` (a chat message) are
+/// the EUA's own callbacks to us, accepted and recorded without an answer.
+/// `select` is here only for the services that still use it: the physical
+/// consultation flow goes from the second `on_search` straight to `init`,
+/// and a consultation `select` is refused ([`refuses_select`]).
+pub const ACTIONS: [&str; 10] = [
+    "search",
+    "select",
+    "init",
+    "confirm",
+    "status",
+    "cancel",
+    "update",
+    "rating",
+    "on_update",
+    "on_message",
 ];
+
+/// The callbacks an EUA sends us; they are recorded and never answered.
+pub const INBOUND_CALLBACKS: [&str; 2] = ["on_update", "on_message"];
+
+/// Whether `service` refuses `select`: consultations do (NHA's consultation
+/// docs: "not part of the Physical Consultation flow").
+pub const fn refuses_select(service: Service) -> bool {
+    matches!(
+        service,
+        Service::PhysicalConsultation | Service::Teleconsultation
+    )
+}
 
 /// A refusal. `kind` is a Beckn error type: `CONTEXT-ERROR` for what the
 /// caller sent, `CORE-ERROR` for our own fault.
@@ -299,6 +339,23 @@ mod tests {
         assert_eq!(s(CONSULTATION_DOMAIN, Some("Vaccination")), None);
         assert_eq!(s(AMBULANCE_DOMAIN, None), Some(Service::Ambulance));
         assert_eq!(s("nic2004:00000", None), None);
+    }
+
+    #[test]
+    fn consultations_refuse_select_and_take_the_apps_callbacks() {
+        use super::{ACTIONS, PAYMENT_NOT_PAID, refuses_select};
+        assert!(refuses_select(Service::PhysicalConsultation));
+        assert!(refuses_select(Service::Teleconsultation));
+        assert!(
+            !refuses_select(Service::Ambulance),
+            "other services keep select"
+        );
+        assert!(ACTIONS.contains(&"on_update") && ACTIONS.contains(&"on_message"));
+        assert_eq!(PAYMENT_NOT_PAID, "NOT_PAID");
+        assert_eq!(
+            (CONSULTATION_DOMAIN, super::CORE_VERSION),
+            ("nic2004:85111", "0.7.1")
+        );
     }
 
     #[test]

@@ -1,19 +1,22 @@
-import { api } from "@medbrains/api";
+import { notesApi } from "@medbrains/api/modules/notes";
 
 export const notesService = {
-  list: () => api.listStickyNotes(),
-  create: (...args: Parameters<typeof api.createStickyNote>) => api.createStickyNote(...args),
-  update: (...args: Parameters<typeof api.updateStickyNote>) => api.updateStickyNote(...args),
-  remove: (...args: Parameters<typeof api.deleteStickyNote>) => api.deleteStickyNote(...args),
-  setShares: (...args: Parameters<typeof api.setStickyNoteShares>) =>
-    api.setStickyNoteShares(...args),
-  removeShare: (...args: Parameters<typeof api.removeStickyNoteShare>) =>
-    api.removeStickyNoteShare(...args),
-  pinNotification: (notificationId: string) => api.pinNotificationToNotes(notificationId),
-  preferences: () => api.getStickyNotePreferences(),
-  setPreferences: (kinds: string[]) => api.setStickyNotePreferences(kinds),
-  setAutoResolve: (...args: Parameters<typeof api.setStickyNoteAutoResolve>) =>
-    api.setStickyNoteAutoResolve(...args),
-  recipients: (...args: Parameters<typeof api.listStickyNoteRecipients>) =>
-    api.listStickyNoteRecipients(...args),
+  list: () => notesApi.listStickyNotes(),
+  create: (...args: Parameters<typeof notesApi.createStickyNote>) =>
+    notesApi.createStickyNote(...args),
+  update: (...args: Parameters<typeof notesApi.updateStickyNote>) =>
+    notesApi.updateStickyNote(...args),
+  remove: (...args: Parameters<typeof notesApi.deleteStickyNote>) =>
+    notesApi.deleteStickyNote(...args),
+  setShares: (...args: Parameters<typeof notesApi.setStickyNoteShares>) =>
+    notesApi.setStickyNoteShares(...args),
+  removeShare: (...args: Parameters<typeof notesApi.removeStickyNoteShare>) =>
+    notesApi.removeStickyNoteShare(...args),
+  pinNotification: (notificationId: string) => notesApi.pinNotificationToNotes(notificationId),
+  preferences: () => notesApi.getStickyNotePreferences(),
+  setPreferences: (kinds: string[]) => notesApi.setStickyNotePreferences(kinds),
+  setAutoResolve: (...args: Parameters<typeof notesApi.setStickyNoteAutoResolve>) =>
+    notesApi.setStickyNoteAutoResolve(...args),
+  recipients: (...args: Parameters<typeof notesApi.listStickyNoteRecipients>) =>
+    notesApi.listStickyNoteRecipients(...args),
 };

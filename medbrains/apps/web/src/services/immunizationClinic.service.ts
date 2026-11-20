@@ -1,9 +1,9 @@
-import { api } from "@medbrains/api";
+import { immunizationsApi } from "@medbrains/api/modules/immunizations";
 
 export const immunizationClinicService = {
-  listDueList: (...args: Parameters<typeof api.listImmunizationDueList>) =>
-    api.listImmunizationDueList(...args),
-  getSettings: () => api.getImmunizationSettings(),
-  updateSettings: (...args: Parameters<typeof api.updateImmunizationSettings>) =>
-    api.updateImmunizationSettings(...args),
+  listDueList: (...args: Parameters<typeof immunizationsApi.listImmunizationDueList>) =>
+    immunizationsApi.listImmunizationDueList(...args),
+  getSettings: () => immunizationsApi.getImmunizationSettings(),
+  updateSettings: (...args: Parameters<typeof immunizationsApi.updateImmunizationSettings>) =>
+    immunizationsApi.updateImmunizationSettings(...args),
 };

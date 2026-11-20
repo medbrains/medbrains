@@ -1,6 +1,6 @@
 /** A consent's answers, shown against the exact questions they were given for. */
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { formsApi } from "@medbrains/api/modules/forms";
 import type { FormAnswers, FormDefinition, ProcedureConsent } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DynamicFields, useDynamicForm } from "@/components/DynamicForm";
@@ -26,7 +26,7 @@ export function ConsentAnswersModal({
   const versionId = consent?.form_version_id ?? null;
   const version = useQuery({
     queryKey: ["form-version", versionId],
-    queryFn: () => api.getFormVersion(versionId ?? ""),
+    queryFn: () => formsApi.getFormVersion(versionId ?? ""),
     enabled: versionId !== null,
   });
   const definition = version.data?.definition ?? stored.definition ?? NO_DEFINITION;

@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { aiApi } from "@medbrains/api/modules/ai";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useEffect } from "react";
@@ -107,7 +107,7 @@ export function useWhispers() {
     let backoff = 3000;
 
     const readStream = async () => {
-      const response = await api.whisperStream(controller.signal);
+      const response = await aiApi.whisperStream(controller.signal);
       if (response.status === 401 || response.status === 403) {
         throw new StreamRefused(`whisper stream ${response.status}`);
       }
