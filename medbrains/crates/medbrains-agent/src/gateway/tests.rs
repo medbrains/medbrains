@@ -108,7 +108,7 @@ impl Hospital for FakeServer {
 fn roster(tenant: Uuid, keys: &[String]) -> PeerRosterDoc {
     PeerRosterDoc {
         tenant_id: tenant,
-        issued_at: chrono::Utc::now().timestamp(),
+        issued_at: ::time::OffsetDateTime::now_utc().unix_timestamp(),
         peers: keys
             .iter()
             .map(|node_id| PeerRosterEntry {

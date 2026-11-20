@@ -51,7 +51,7 @@ def checks_for(path: str) -> dict[str, list[str]]:
         checks["migration-headers"] = ["make", "-s", "check-migration-headers"]
         checks["rls"] = py("../scripts/check_rls.py")
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py")
-    elif rel == "packages/api/src/client.ts":
+    elif rel == "packages/api/src/client.ts" or rel.startswith("packages/api/src/modules/"):
         checks["api-contract"] = py("../scripts/check_api_contract.py")
     elif rel.startswith(("apps/web/src/", "packages/")) and rel.endswith((".ts", ".tsx")) and "/node_modules/" not in rel:
         # --write applies Biome's formatting and safe fixes; what is left is reported.

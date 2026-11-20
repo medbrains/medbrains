@@ -90,6 +90,9 @@ jobs:
       DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
       E2E_BASE_URL: http://localhost:5173
       E2E_BACKEND_URL: http://127.0.0.1:3000
+      # Workers per shard, each in a hospital of its own. The runner has four cores and also
+      # runs the server and Vite: with four workers, nine journeys timed out that pass locally.
+      E2E_WORKERS: "3"
       # Browser coverage (e2e/helpers/coverage.ts) for SonarCloud, which reads main's nightly;
       # a PR run skips the cost.
       E2E_COVERAGE: ${{ github.event_name != 'pull_request' && '1' || '' }}

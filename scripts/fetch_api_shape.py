@@ -31,11 +31,12 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "medbrains" / "scripts"))
+from api_client_source import api_client_source  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CRATES = REPO_ROOT / "medbrains" / "crates"
 TS_TYPES = REPO_ROOT / "medbrains" / "packages" / "types" / "src"
-CLIENT_TS = REPO_ROOT / "medbrains" / "packages" / "api" / "src" / "client.ts"
 
 # Canonical type buckets so a Rust type and a TS type can be compared even
 # though they spell things differently (Uuid↔string, i64↔number, …).
@@ -169,7 +170,7 @@ def _parse_ts_interface_in_file(path: Path, name: str) -> dict | None:
 def _client_index() -> list[dict]:
     """Parse client.ts → [{method, path, request_type, response_type}]."""
     try:
-        src = CLIENT_TS.read_text()
+        src = api_client_source()
     except OSError:
         return []
     out: list[dict] = []

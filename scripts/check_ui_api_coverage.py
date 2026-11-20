@@ -22,6 +22,8 @@ Exit codes:
 import re
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "medbrains" / "scripts"))
+from api_client_source import api_client_source  # noqa: E402
 
 # ── Paths ────────────────────────────────────────────────────────────
 
@@ -44,7 +46,7 @@ def extract_api_methods() -> dict[str, int]:
     Extract all method names from client.ts with their line numbers.
     Returns {method_name: line_number}.
     """
-    source = CLIENT_TS.read_text()
+    source = api_client_source()
     lines = source.split("\n")
     methods: dict[str, int] = {}
 

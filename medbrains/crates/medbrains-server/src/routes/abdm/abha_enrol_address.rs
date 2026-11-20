@@ -13,7 +13,7 @@ use axum::{
 };
 use medbrains_abdm::{
     CreateAddressRequest,
-    errors::code_in,
+    errors::code_of,
     rules::{
         ADDRESS_TAKEN, MIN_ADDRESS_SUGGESTIONS, address_checklist, address_name, address_rules,
         derive_addresses,
@@ -105,7 +105,7 @@ async fn top_up(abdm: &Abdm, id: Uuid, domain: &str, suggestions: &mut Vec<Strin
 /// Whether ABDM refused the address because it is taken.
 fn is_taken(error: &AppError) -> bool {
     matches!(error, AppError::BadRequest(m)
-        if code_in(m) == Some(TAKEN_CODE) || m.to_ascii_lowercase().contains("already exist"))
+        if code_of(m) == Some(TAKEN_CODE) || m.to_ascii_lowercase().contains("already exist"))
 }
 
 /// The address as ABDM takes it, or NHA's rules it breaks.

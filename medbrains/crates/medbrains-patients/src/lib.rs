@@ -2576,7 +2576,11 @@ pub async fn list_patient_insurance(
 
     let rows = sqlx::query_as!(
         PatientInsurance,
-        "SELECT * FROM patient_insurance \
+        "SELECT id, tenant_id, patient_id, insurance_provider, policy_number, group_number, \
+         member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, \
+         valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active, \
+         company_id, created_at, updated_at, deleted_at, deleted_by, delete_reason \
+         FROM patient_insurance \
          WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY priority ASC, created_at",
         patient_id,
@@ -2623,7 +2627,10 @@ pub async fn create_patient_insurance(
           coverage_type, priority, is_active) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, \
                  $13, $14, $15, $16, $17) \
-         RETURNING *",
+         RETURNING id, tenant_id, patient_id, insurance_provider, policy_number, group_number, \
+         member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, \
+         valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active, \
+         company_id, created_at, updated_at, deleted_at, deleted_by, delete_reason",
         claims.tenant_id,
         patient_id,
         &body.insurance_provider,
@@ -2692,7 +2699,10 @@ pub async fn update_patient_insurance(
          is_active = COALESCE($15, is_active), \
          updated_at = now() \
          WHERE id = $16 AND patient_id = $17 AND tenant_id = $18 \
-         RETURNING *",
+         RETURNING id, tenant_id, patient_id, insurance_provider, policy_number, group_number, \
+         member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, \
+         valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active, \
+         company_id, created_at, updated_at, deleted_at, deleted_by, delete_reason",
         &body.insurance_provider,
         &body.policy_number,
         &body.group_number,

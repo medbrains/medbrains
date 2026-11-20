@@ -90,8 +90,12 @@ async fn resolve_template(
 }
 
 /// Tenant branding for the letterhead, from the tenants row + the
-/// letterhead print-template settings.
-async fn branding_context(
+/// letterhead print-template settings. Public so the ABDM HIP prints a
+/// shared record's PDF on the hospital's own letterhead.
+///
+/// # Errors
+/// A database fault.
+pub async fn branding_context(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<serde_json::Value, AppError> {
