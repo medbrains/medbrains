@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE abdm_care_contexts SET link_status = 'linking', last_error = NULL, abdm_request_id = $3 WHERE tenant_id = $1 AND id IN (SELECT id FROM abdm_care_contexts WHERE tenant_id = $1 AND patient_id = $2 AND link_status <> 'linked' AND deleted_at IS NULL AND public.abdm_mental_health_shareable(tenant_id, patient_id, encounter_id) ORDER BY record_date DESC LIMIT $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "45d713367fd02cb080fb1bfc174fc9259f829b9a272d54570b0b7e1056d914b4"
+}

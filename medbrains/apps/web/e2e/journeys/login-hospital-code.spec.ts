@@ -7,16 +7,20 @@
  */
 import { api } from "../helpers/api";
 import { getE2EIdentity } from "../helpers/e2e-identities";
+import { loadWorkerTenant } from "../helpers/worker-tenant";
 import { expect, test } from "./support/world";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-const HOSPITAL = "default";
+// This worker's hospital: the switch below turns its password sign-in off. Read in the test,
+// not at load: the runner collects the file before setup provisions the hospital.
+const hospitalCode = () => loadWorkerTenant().code;
 
 test("a nurse names her hospital first, then signs in with its password", async ({
   hospital,
 }) => {
   const nurse = getE2EIdentity("nurse");
+  const HOSPITAL = hospitalCode();
   const page = await hospital.asPublic();
   await page.goto("/login");
 
@@ -44,6 +48,7 @@ test("a nurse names her hospital first, then signs in with its password", async 
 test("a hospital that signs in with Microsoft only offers Microsoft, with a way back", async ({
   hospital,
 }) => {
+  const HOSPITAL = hospitalCode();
   const suffix = crypto.randomUUID().slice(0, 6);
   const provider = await api<{ id: string }>(hospital.admin, "POST", "/api/admin/sso/providers", {
     code: `ms-${suffix}`,

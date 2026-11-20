@@ -23,14 +23,13 @@ use medbrains_core::print_data::{
     PmChecklistItem, PmChecklistPrintData, PoItem, PurchaseOrderPrintData,
     StockTransferNotePrintData, TransferItem, WorkOrderPrintData,
 };
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use uuid::Uuid;
 
 use medbrains_core::form::FieldAccessLevel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{
-    require_any_permission, require_permission,
-};
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
@@ -43,13 +42,13 @@ pub async fn get_indent_form_print_data(
     Extension(claims): Extension<Claims>,
     Path(indent_id): Path<Uuid>,
 ) -> Result<axum::Json<IndentFormPrintData>, AppError> {
-    require_permission(&claims, permissions::indent::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::indent::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -182,13 +181,13 @@ pub async fn get_purchase_order_print_data(
     Extension(claims): Extension<Claims>,
     Path(po_id): Path<Uuid>,
 ) -> Result<axum::Json<PurchaseOrderPrintData>, AppError> {
-    require_permission(&claims, permissions::procurement::purchase_orders::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::procurement::purchase_orders::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -360,13 +359,13 @@ pub async fn get_grn_print_data(
     Extension(claims): Extension<Claims>,
     Path(grn_id): Path<Uuid>,
 ) -> Result<axum::Json<GrnPrintData>, AppError> {
-    require_permission(&claims, permissions::procurement::grn::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::procurement::grn::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -526,13 +525,13 @@ pub async fn get_material_issue_voucher_print_data(
     Extension(claims): Extension<Claims>,
     Path(indent_id): Path<Uuid>,
 ) -> Result<axum::Json<MaterialIssueVoucherPrintData>, AppError> {
-    require_permission(&claims, permissions::indent::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::indent::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -671,7 +670,7 @@ pub async fn get_stock_transfer_note_print_data(
     Path(transfer_id): Path<Uuid>,
 ) -> Result<axum::Json<StockTransferNotePrintData>, AppError> {
     // The same gate the pharmacy transfer list uses.
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::pharmacy::stores::LIST,
@@ -697,7 +696,7 @@ pub async fn get_stock_transfer_note_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -859,7 +858,7 @@ pub async fn get_ndps_register_print_data(
 ) -> Result<axum::Json<NdpsRegisterPrintData>, AppError> {
     // The NDPS register is a statutory narcotics record under the NDPS Act
     // 1985. Printing it is a controlled-substance disclosure.
-    require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::pharmacy::ndps::LIST)?;
 
     // Validate before it reaches `to_date`, which would answer a bad month
     // with a 500 instead of a 400.
@@ -875,7 +874,7 @@ pub async fn get_ndps_register_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1042,13 +1041,13 @@ pub async fn get_drug_expiry_alert_print_data(
     Extension(claims): Extension<Claims>,
     Path(store_id): Path<Uuid>,
 ) -> Result<axum::Json<DrugExpiryAlertPrintData>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::pharmacy::stock::MANAGE)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1159,13 +1158,13 @@ pub async fn get_equipment_condemnation_print_data(
     Extension(claims): Extension<Claims>,
     Path(condemnation_id): Path<Uuid>,
 ) -> Result<axum::Json<EquipmentCondemnationPrintData>, AppError> {
-    require_permission(&claims, permissions::indent::CONDEMNATION_LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::indent::CONDEMNATION_LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1258,13 +1257,13 @@ pub async fn get_work_order_print_data(
     Extension(claims): Extension<Claims>,
     Path(work_order_id): Path<Uuid>,
 ) -> Result<axum::Json<WorkOrderPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::work_orders::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::work_orders::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1362,13 +1361,13 @@ pub async fn get_pm_checklist_print_data(
     Extension(claims): Extension<Claims>,
     Path(work_order_id): Path<Uuid>,
 ) -> Result<axum::Json<PmChecklistPrintData>, AppError> {
-    require_permission(&claims, permissions::bme::pm::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::bme::pm::LIST)?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = kernel::tenant_session(&state.db, &permit).await?;
     let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
     crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
@@ -1674,7 +1673,7 @@ pub async fn get_dispensing_label_print_data(
     Extension(claims): Extension<Claims>,
     Path(order_item_id): Path<Uuid>,
 ) -> Result<axum::Json<DispensingLabelPrintData>, AppError> {
-    require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::pharmacy::dispensing::CREATE)?;
 
     // The patient is two hops off the path id — item, order, patient — and
     // there is no single-column link for that, so resolve then authorize. A
@@ -1686,14 +1685,12 @@ pub async fn get_dispensing_label_print_data(
         order_item_id,
         claims.tenant_id,
     )
-    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
+    .fetch_optional(&mut *kernel::tenant_session(&state.db, &permit).await?)
     .await?
     .ok_or(AppError::NotFound)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as!(

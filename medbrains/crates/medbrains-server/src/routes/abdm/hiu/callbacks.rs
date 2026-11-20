@@ -30,7 +30,7 @@ use crate::{
     error::AppError,
     routes::abdm::hip::{
         consent::{strings, time},
-        gateway::{Caller, Hip, authenticate},
+        gateway::{Addressee, Caller, Hip, authenticate_as},
     },
     state::AppState,
 };
@@ -46,8 +46,10 @@ pub(super) fn request_id_of(body: &Value) -> Option<Uuid> {
         .and_then(|s| Uuid::parse_str(s).ok())
 }
 
+/// Authenticate an HIU callback: the gateway's JWT and `X-HIU-ID` (never
+/// `X-HIP-ID`, which addresses the HIP side).
 pub(super) async fn caller_of(state: &AppState, headers: &HeaderMap) -> Result<Caller, AppError> {
-    let caller = authenticate(state, headers).await?;
+    let caller = authenticate_as(state, headers, Addressee::Hiu).await?;
     tracing::Span::current().record("tenant_id", tracing::field::display(caller.tenant_id));
     Ok(caller)
 }
@@ -65,7 +67,8 @@ pub(super) async fn connect_hiu(state: &AppState, caller: &Caller) -> Result<Hip
 /// `POST /api/v3/hiu/consent/request/on-init`.
 ///
 /// # Errors
-/// 401 without a valid gateway JWT; 404 for a request we did not send.
+/// 401 without a valid gateway JWT; 404 for a request we did not send. A
+/// repeated on-init is 202 and changes nothing.
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn on_init(
     State(state): State<AppState>,
@@ -103,8 +106,22 @@ pub async fn on_init(
     .bind(error)
     .execute(&mut *tx)
     .await?;
+    // A repeat of an on-init already handled is acknowledged and changes
+    // nothing (the gateway redelivers ~16 minutes later); only an answer to a
+    // request we never sent is 404.
+    let known = done.rows_affected() > 0
+        // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+        || sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM abdm_consent_requests
+                WHERE tenant_id = $1 AND gateway_request_id = $2 AND deleted_at IS NULL)
+                AS "known!""#,
+            caller.tenant_id,
+            request_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
     tx.commit().await?;
-    if done.rows_affected() == 0 {
+    if !known {
         return Err(AppError::NotFound);
     }
     Ok(StatusCode::ACCEPTED)

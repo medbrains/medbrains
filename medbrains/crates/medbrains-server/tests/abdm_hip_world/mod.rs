@@ -229,6 +229,26 @@ impl World {
         StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
     }
 
+    /// A gateway-signed callback with a chosen `REQUEST-ID`, naming the
+    /// hospital by `facility_header` (`X-HIP-ID` or `X-HIU-ID`).
+    pub async fn callback_with(
+        &self,
+        path: &str,
+        (request_id, facility_header): (&str, &str),
+        body: Value,
+    ) -> StatusCode {
+        let resp = reqwest::Client::new()
+            .post(self.app.url(path))
+            .bearer_auth(gateway_jwt(&self.gateway_key))
+            .header("REQUEST-ID", request_id)
+            .header(facility_header, &self.hip_id)
+            .json(&body)
+            .send()
+            .await
+            .expect("callback");
+        StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+
     pub async fn context(&self, reference: &str) -> (Uuid, String, Option<String>) {
         sqlx::query_as("SELECT id, link_status, linked_via FROM abdm_care_contexts WHERE reference_number = $1")
             .bind(reference)

@@ -75,6 +75,13 @@
     },
     {
       "match": "Unable to find a match for profile",
+      "files": "each_structured_record_carries_its_pdf_*",
+      "severity": "error",
+      "offline": true,
+      "reason": "Offline run: a record's PDF rendition (DocumentReference, or Binary for a prescription) fails its profile only on the application/pdf MIME code above, as the HealthDocumentRecord one does; re-checked nightly."
+    },
+    {
+      "match": "Unable to find a match for profile",
       "files": "*-InvoiceRecord.json",
       "severity": "error",
       "offline": true,

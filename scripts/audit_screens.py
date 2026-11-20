@@ -23,11 +23,12 @@ import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "medbrains" / "scripts"))
+from api_client_source import api_client_source  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MEDBRAINS = REPO_ROOT / "medbrains"
 PAGES_DIR = MEDBRAINS / "apps" / "web" / "src" / "pages"
-CLIENT_TS = MEDBRAINS / "packages" / "api" / "src" / "client.ts"
 ROUTES_DIR = MEDBRAINS / "crates" / "medbrains-server" / "src" / "routes"
 ROUTES_MOD = ROUTES_DIR / "mod.rs"
 OUT_DIR = MEDBRAINS / "docs" / "audit"
@@ -97,7 +98,7 @@ RE_HTTP_METHOD = re.compile(r'method:\s*"(GET|POST|PUT|DELETE|PATCH)"')
 
 def parse_client_ts() -> dict[str, tuple[str, str]]:
     """Return {method_name: (http_method, normalized_path)}."""
-    src = CLIENT_TS.read_text()
+    src = api_client_source()
     out: dict[str, tuple[str, str]] = {}
 
     # Walk top-level methods inside `export const api = {`

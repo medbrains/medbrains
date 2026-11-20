@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bed_states SET status = 'vacant_clean'::bed_status, cleaning_completed_at = NOW(), changed_by = $3, reason = 'Turnaround complete', changed_at = NOW() WHERE location_id = $1 AND tenant_id = $2 AND status = 'vacant_dirty'::bed_status AND admission_id IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3ecf2da5c332fefe9b1a1ec4c2dcec69323b7340de463e2ab23d0000249beb4c"
+}
