@@ -30,15 +30,15 @@ public enum Abha {
         return d.count >= mobileLength ? String(d.suffix(mobileLength)) : nil
     }
 
-    /// Why the lookup cannot be sent yet, or nil.
+    /// Why the lookup cannot be sent yet, or nil — NHA's exact words for a
+    /// mobile or Aadhaar number (VRFY_ABHA_301, CRT_ABHA_104).
     public static func lookupProblem(_ method: AbhaVerifyMethod, _ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespaces)
         switch method {
         case .abhaNumber: return digits(trimmed).count == abhaNumberLength ? nil : "An ABHA number is 14 digits"
-        case .mobile: return digits(trimmed).count == mobileLength ? nil : "Enter the 10-digit mobile"
+        case .mobile, .findMobile: return AbhaRules.isValidMobile(trimmed) ? nil : AbhaRules.mobileInvalid
         case .abhaAddress: return trimmed.isEmpty || trimmed.contains(" ") ? "Enter the ABHA address, e.g. priya.v@abdm" : nil
-        case .aadhaar: return digits(trimmed).count == aadhaarLength ? nil : "An Aadhaar number is 12 digits"
-        case .findMobile: return digits(trimmed).count == mobileLength ? nil : "Enter the 10-digit mobile"
+        case .aadhaar: return AbhaRules.isValidAadhaar(trimmed) ? nil : AbhaRules.aadhaarInvalid
         }
     }
 
@@ -62,14 +62,6 @@ public enum Abha {
     public static func cardSummary(_ card: AbhaCardQr) -> String {
         let parts = [card.name, card.gender, card.dateOfBirth.map { "born \($0)" }].compactMap { $0 }
         return parts.isEmpty ? "The card names an ABHA but no details." : parts.joined(separator: " · ")
-    }
-
-    /// An ABHA address the patient chose: letters, numbers, dot or
-    /// underscore; ABDM adds the @ part.
-    public static func addressProblem(_ address: String) -> String? {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._"))
-        if address.isEmpty { return "Choose or type an ABHA address" }
-        return address.unicodeScalars.allSatisfy { $0.isASCII && allowed.contains($0) } ? nil : "Letters, numbers, dot or underscore only"
     }
 
     private static func clean(_ text: String?) -> String {
@@ -142,11 +134,12 @@ public enum Abha {
 
     public static func resendLabel(wait: Int) -> String { wait > 0 ? "Resend OTP in \(wait)s" : "Resend OTP" }
 
-    /// ABDM allows "Resend OTP" twice per OTP (M1 CRT_ABHA_106, VRFY_ABHA_405);
-    /// the server enforces it. `nil` when nothing needs saying.
+    /// ABDM allows "Resend OTP" twice per OTP (M1 CRT_ABHA_106, VRFY_ABHA_405),
+    /// with the count shown; after the second, NHA's 30-minute words. The
+    /// server refuses the same. `nil` when nothing needs saying.
     public static func resendNote(left: Int?) -> String? {
         switch left {
-        case 0?: "The OTP cannot be sent again. If it has not arrived, close this and start again."
+        case 0?: AbhaRules.resendLocked
         case 1?: "One resend left"
         case let n?: "\(n) resends left"
         case nil: nil
@@ -302,8 +295,12 @@ public struct AbhaVerificationStep: Decodable, Hashable, Sendable {
     public let profile: AbhaVerifiedProfile?
     /// Another patient here already carries this ABHA.
     public let alreadyLinked: AbhaLinkedPatient?
-    /// ABHA addresses ABDM suggests, when creating one.
+    /// ABHA addresses ABDM suggests, when creating one (at least 3, CRT_ABHA_112).
     public let suggestions: [String]
+    /// The masked mobile the OTP went to, e.g. `******1234` (CRT_ABHA_105).
+    public let sentTo: String?
+    /// `sbx` or `abdm`: what follows the `@` of a new ABHA address.
+    public let addressDomain: String?
 
     public var stageKind: AbhaStage? { AbhaStage(rawValue: stage) }
 }

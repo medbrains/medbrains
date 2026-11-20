@@ -80,6 +80,27 @@ async fn a_teleconsultation_is_found_and_booked_once() {
         on_search.path, "/api/v1/uhi/on_search",
         "a gateway search is answered to the gateway"
     );
+    // Through the gateway: the doctor, once, named by their HPR ID.
+    let listed = &on_search.body["message"]["catalog"]["providers"][0]["fulfillments"];
+    assert_eq!(listed.as_array().map(Vec::len), Some(1), "{listed}");
+    let hpr = listed[0]["agent"]["id"].clone();
+    assert_eq!(listed[0]["id"], hpr);
+    // Then the app asks this hospital directly for that doctor's slots.
+    let direct = w.message(
+        CONSULTATION_DOMAIN,
+        "search",
+        &id,
+        json!({ "intent": { "provider": { "fulfillments": [{ "type": "Online",
+            "agent": { "id": hpr },
+            "start": { "time": { "timestamp": format!("{day}T00:00:00") } },
+            "end": { "time": { "timestamp": format!("{day}T23:59:59") } } }] } } }),
+    );
+    w.call("search", &direct).await;
+    let on_search = w.deliver(&id, "on_search").await;
+    assert_eq!(
+        on_search.path, "/eua/on_search",
+        "a direct search goes to the app"
+    );
     let provider = &on_search.body["message"]["catalog"]["providers"][0];
     let slots = provider["fulfillments"].as_array().expect("slots");
     assert_eq!(slots.len(), 8, "09:00–13:00 in 30-minute slots: {slots:?}");
@@ -91,20 +112,20 @@ async fn a_teleconsultation_is_found_and_booked_once() {
     );
     let slot = slots[0]["id"].as_str().expect("slot id").to_owned();
 
-    let select = w.message(
+    let init = w.message(
         CONSULTATION_DOMAIN,
-        "select",
+        "init",
         &id,
         json!({ "order": { "items": [{ "id": slot }] } }),
     );
-    w.call("select", &select).await;
-    let on_select = w.deliver(&id, "on_select").await;
+    w.call("init", &init).await;
+    let on_init = w.deliver(&id, "on_init").await;
     assert_eq!(
-        on_select.path, "/eua/on_select",
+        on_init.path, "/eua/on_init",
         "everything else goes to the app"
     );
     assert_eq!(
-        on_select.body["message"]["order"]["quote"]["price"]["currency"],
+        on_init.body["message"]["order"]["quote"]["price"]["currency"],
         "INR"
     );
 

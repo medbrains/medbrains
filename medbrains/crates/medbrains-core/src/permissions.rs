@@ -4655,6 +4655,11 @@ pub mod uhi {
         /// request blood inventory management, a lab request walk-in lab
         /// ordering (and sample management for a home collection).
         pub const RESPOND: &str = "uhi.requests.respond";
+        /// Check a UHI booking's PIN at the desk.
+        ///
+        /// Confirm a UHI booking by the PIN the patient's app shows; the PIN
+        /// is never shown or stored, and five wrong tries lock the check.
+        pub const CHECK_PIN: &str = "uhi.requests.check_pin";
     }
 }
 
