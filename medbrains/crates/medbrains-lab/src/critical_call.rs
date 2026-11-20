@@ -18,6 +18,7 @@ use axum::{
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::lab::LabCriticalCall;
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -74,13 +75,7 @@ pub async fn record_critical_call(
     Json(body): Json<RecordCriticalCallRequest>,
 ) -> Result<Json<LabCriticalCall>, AppError> {
     require_permission(&claims, permissions::lab::results::CRITICAL_CALL)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_CRITICAL_ALERT,
-        alert_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::LAB_CRITICAL_ALERT, alert_id).await?;
 
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let (created, reported): (DateTime<Utc>, String) = sqlx::query_as(

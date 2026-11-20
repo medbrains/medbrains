@@ -80,7 +80,7 @@ medbrains-ipd on_facade 0 -
 medbrains-ipd-post-discharge partial 24 medbrains-db,medbrains-authz-gate
 medbrains-it-security partial 82 medbrains-db
 medbrains-knowledge not_yet 9 medbrains-db
-medbrains-lab partial 276 medbrains-db,medbrains-authz,medbrains-authz-gate
+medbrains-lab on_facade 0 -
 medbrains-lms not_yet 75 medbrains-db
 medbrains-loadtest not_yet 0 -
 medbrains-mail-provisioning on_facade 0 -
