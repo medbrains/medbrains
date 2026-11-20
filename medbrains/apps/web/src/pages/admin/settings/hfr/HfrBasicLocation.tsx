@@ -8,9 +8,9 @@ import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { IconCurrentLocation } from "@tabler/icons-react";
 import { useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
-import { Alert, Button, Input, Select } from "@/components/ui";
+import { Alert, Button, Input } from "@/components/ui";
+import { HfrLgdSelects } from "./HfrLgdSelects";
 import { type BasicForm, COUNTRY } from "./hfrRules";
-import { useHfrMaster } from "./useHfrMaster";
 
 /** HFR-011/012 allow at most six decimal places. */
 const COORD_DECIMALS = 6;
@@ -24,9 +24,6 @@ export function HfrBasicLocation({ form }: SectionProps) {
   const { register, watch, setValue, formState } = form;
   const { errors } = formState;
   const [state, district, sub] = watch(["stateLGDCode", "districtLGDCode", "subDistrictLGDCode"]);
-  const states = useHfrMaster("states");
-  const districts = useHfrMaster("districts", state, "", state !== "");
-  const subDistricts = useHfrMaster("sub-districts", district, "", district !== "");
   const [locError, setLocError] = useState<string | null>(null);
 
   /** Fill the coordinates from this device (HFR-011/012). */
@@ -48,44 +45,15 @@ export function HfrBasicLocation({ form }: SectionProps) {
       <Text fw={600}>Location</Text>
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
         <Input label="Country" value={COUNTRY} readOnly disabled />
-        <Select
-          label="State / UT"
-          placeholder="Select State / UT"
-          searchable
-          withAsterisk
-          data={states.data}
-          value={state || null}
-          onChange={(v) => {
-            setValue("stateLGDCode", v ?? "", { shouldValidate: true });
-            setValue("districtLGDCode", "");
-            setValue("subDistrictLGDCode", "");
+        <HfrLgdSelects
+          value={{ stateLGDCode: state, districtLGDCode: district, subDistrictLGDCode: sub }}
+          onChange={(field, code, picked) => setValue(field, code, { shouldValidate: picked })}
+          errors={{
+            stateLGDCode: errors.stateLGDCode?.message,
+            districtLGDCode: errors.districtLGDCode?.message,
+            subDistrictLGDCode: errors.subDistrictLGDCode?.message,
           }}
-          error={errors.stateLGDCode?.message ?? states.error}
-        />
-        <Select
-          label="District"
-          placeholder="Select District"
-          searchable
-          withAsterisk
-          disabled={state === ""}
-          data={districts.data}
-          value={district || null}
-          onChange={(v) => {
-            setValue("districtLGDCode", v ?? "", { shouldValidate: true });
-            setValue("subDistrictLGDCode", "");
-          }}
-          error={errors.districtLGDCode?.message ?? districts.error}
-        />
-        <Select
-          label="Sub-district"
-          placeholder="Select Sub-District"
-          searchable
-          withAsterisk
-          disabled={district === ""}
-          data={subDistricts.data}
-          value={sub || null}
-          onChange={(v) => setValue("subDistrictLGDCode", v ?? "", { shouldValidate: true })}
-          error={errors.subDistrictLGDCode?.message ?? subDistricts.error}
+          required
         />
       </SimpleGrid>
       <SimpleGrid cols={{ base: 1, sm: 2 }}>

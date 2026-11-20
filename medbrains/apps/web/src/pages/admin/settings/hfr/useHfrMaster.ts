@@ -1,4 +1,4 @@
-import type { HfrMasterKind } from "@medbrains/types";
+import type { HfrFacilityInformation, HfrMasterKind } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { abdmRegistryService } from "@/services/abdmRegistry.service";
@@ -28,4 +28,24 @@ export function useHfrMaster(kind: HfrMasterKind, code = "", code2 = "", enabled
   );
   const error = query.isError ? "Could not load this list from HFR. Try again." : undefined;
   return { data, isLoading: query.isLoading, error, refetch: query.refetch };
+}
+
+/**
+ * The systems of medicine saved in basic information, each with its HFR name
+ * from the `MEDICINE` list (the code stands in until the list loads). The
+ * detailed step asks for specialities per system.
+ */
+export function useHfrSystems(basic: HfrFacilityInformation | null) {
+  const medicine = useHfrMaster("data", "MEDICINE", "", basic !== null);
+  return useMemo(
+    () =>
+      (basic?.systemOfMedicineCode ?? "")
+        .split(",")
+        .filter((c) => c !== "")
+        .map((code) => ({
+          code,
+          name: medicine.data.find((m) => m.value === code)?.label ?? code,
+        })),
+    [basic, medicine.data],
+  );
 }

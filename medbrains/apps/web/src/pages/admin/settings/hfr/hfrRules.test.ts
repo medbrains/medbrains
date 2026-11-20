@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { emptyBasic, fromFacilityInformation, toFacilityInformation } from "./hfrBasicForm";
 import {
   type BasicForm,
   basicSchema,
   checkSpecialities,
-  emptyBasic,
-  fromFacilityInformation,
   searchSchema,
-  toFacilityInformation,
   withTotals,
 } from "./hfrRules";
 

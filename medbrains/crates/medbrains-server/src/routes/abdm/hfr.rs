@@ -13,8 +13,9 @@
 //! Registry hosts and the session token come from `registry_access`.
 
 use axum::{
-    Extension, Json,
+    Extension, Json, Router,
     extract::{Path, State},
+    routing::{get, post, put},
 };
 use chrono::{DateTime, Utc};
 use medbrains_abdm::registry;
@@ -27,6 +28,44 @@ use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
+
+/// The staff HFR routes: linking, the onboarding steps and the HPR sign-in.
+/// Merged into the authenticated section of `build_router`.
+pub fn staff_router() -> Router<AppState> {
+    Router::new()
+        .route("/api/abdm/hfr", get(list_registrations))
+        .route("/api/abdm/hfr/facilities", get(list_facilities))
+        .route("/api/abdm/hfr/facilities/{id}", put(link_facility))
+        .route(
+            "/api/abdm/hfr/hpr-session",
+            post(super::hpr_session::sign_in),
+        )
+        .route(
+            "/api/abdm/hfr/masters/{kind}",
+            get(super::hfr_onboarding::masters),
+        )
+        .route("/api/abdm/hfr/search", post(super::hfr_onboarding::search))
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding",
+            get(super::hfr_onboarding::draft),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/basic",
+            post(super::hfr_steps::save_basic),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/additional",
+            post(super::hfr_steps::save_additional),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/detailed",
+            post(super::hfr_steps::save_detailed),
+        )
+        .route(
+            "/api/abdm/hfr/facilities/{id}/onboarding/submit",
+            post(super::hfr_steps::submit),
+        )
+}
 
 /// DHIS (Digital Health Incentive Scheme) needs at least this many beds with IPD.
 const DHIS_MIN_BEDS: i32 = 10;

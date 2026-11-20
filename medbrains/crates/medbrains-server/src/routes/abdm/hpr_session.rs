@@ -21,10 +21,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::registry_access::{Registry, registry_access, registry_fault};
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_kernel::authz::require_permission;
 
 /// How long a signed-in HPR token is used for: one sitting at the form.
 pub(crate) const HPR_SESSION_TTL: Duration = Duration::from_mins(15);

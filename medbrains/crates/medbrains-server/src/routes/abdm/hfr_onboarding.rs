@@ -31,10 +31,8 @@ use super::hpr_session::{HprSessionView, hpr_sessions};
 use super::registry_access::{
     Registry, RegistryAccess, registry_access, registry_configured, registry_fault,
 };
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_kernel::authz::{permit, require_permission};
 
 /// `get-master-data` types the form uses; anything else is refused so the
 /// endpoint is not an open proxy.
@@ -195,10 +193,9 @@ pub async fn draft(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<OnboardingDraft>, AppError> {
-    require_permission(&claims, permissions::abdm::hfr::REGISTER)?;
+    let permit = permit(&claims, permissions::abdm::hfr::REGISTER)?;
     let registry_configured = registry_configured(&state, &claims.tenant_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = medbrains_kernel::tenancy::tenant_tx(&state.db, &permit).await?;
     // allow-raw-sql: runs in the tenant-scoped transaction and filters tenant_id
     let campus = sqlx::query!(
         "SELECT hfr_tracking_id, hfr_status, hfr_facility_id FROM facilities \
@@ -259,8 +256,8 @@ pub(super) async fn tracking_of(
     claims: &Claims,
     id: Uuid,
 ) -> Result<String, AppError> {
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = permit(claims, permissions::abdm::hfr::REGISTER)?;
+    let mut tx = medbrains_kernel::tenancy::tenant_tx(&state.db, &permit).await?;
     // allow-raw-sql: runs in the tenant-scoped transaction and filters tenant_id
     let tracking = sqlx::query_scalar!(
         "SELECT hfr_tracking_id FROM facilities \

@@ -12,14 +12,15 @@ import { Controller, type UseFormReturn, useForm } from "react-hook-form";
 import { Alert, Button, Input, MultiSelect, Select } from "@/components/ui";
 import { abdmRegistryService } from "@/services/abdmRegistry.service";
 import { HfrBasicContacts, HfrBasicLocation } from "./HfrBasicLocation";
+import { HfrFacilityTypeSelects } from "./HfrFacilityTypeSelects";
 import { HfrWorkingDays } from "./HfrWorkingDays";
+import { toFacilityInformation } from "./hfrBasicForm";
 import {
   type BasicForm,
   basicSchema,
   needsTypeOfService,
   OWNERSHIP_GOVERNMENT,
   SUBTYPE_CENTRAL,
-  toFacilityInformation,
 } from "./hfrRules";
 import { useHfrMaster } from "./useHfrMaster";
 
@@ -87,43 +88,11 @@ export function HfrBasicStep({ facilityId, initial, signedIn, onSaved }: HfrBasi
           kind="SPECIALITY-TYPE"
           required={needsTypeOfService(types.data.find((t) => t.value === typeCode)?.label ?? "")}
         />
-        <Controller
-          control={form.control}
-          name="facilityTypeCode"
-          render={({ field, fieldState }) => (
-            <Select
-              label="Facility type"
-              withAsterisk
-              placeholder={
-                ownership && systems.length
-                  ? "Select facility type"
-                  : "Choose ownership and system of medicine first"
-              }
-              disabled={types.data.length === 0}
-              data={types.data}
-              value={field.value || null}
-              onChange={(v) => {
-                field.onChange(v ?? "");
-                form.setValue("facilitySubType", "");
-              }}
-              error={fieldState.error?.message ?? types.error}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="facilitySubType"
-          render={({ field, fieldState }) => (
-            <Select
-              label="Facility subtype"
-              withAsterisk={subTypes.data.length > 0}
-              disabled={subTypes.data.length === 0}
-              data={subTypes.data}
-              value={field.value || null}
-              onChange={(v) => field.onChange(v ?? "")}
-              error={fieldState.error?.message ?? subTypes.error}
-            />
-          )}
+        <HfrFacilityTypeSelects
+          form={form}
+          types={types}
+          subTypes={subTypes}
+          hasParents={ownership !== "" && systems.length > 0}
         />
       </SimpleGrid>
       <Divider />

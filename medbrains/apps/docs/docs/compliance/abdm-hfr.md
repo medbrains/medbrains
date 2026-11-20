@@ -2,7 +2,7 @@
 title: Register a campus on ABDM's Health Facility Registry
 sidebar_label: ABDM facility registry (HFR)
 sidebar_position: 2
-description: "How a hospital registers or updates each campus on HFR from Settings → Facilities, who has to sign in, and what happens after submission."
+description: "How a hospital registers or updates each campus on ABDM HFR from Settings → Facilities, who has to sign in, and what happens after submission."
 ---
 
 # Register a campus on HFR

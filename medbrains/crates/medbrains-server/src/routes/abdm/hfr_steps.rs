@@ -19,10 +19,8 @@ use uuid::Uuid;
 
 use super::hfr_onboarding::{hfr_access, hfr_error, refuse, saved_steps, tracking_of};
 use super::hpr_session::{HprRole, hpr_token};
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_kernel::authz::{permit, require_permission};
 
 /// HFR accepted a step under this `trackingId`.
 #[derive(Debug, Serialize)]
@@ -65,8 +63,8 @@ async fn record(
         Ok(o) => ("failed", Some(json!(o)), Some(o.errors.join("; "))),
         Err(e) => ("failed", None, Some(e.to_string())),
     };
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = permit(claims, permissions::abdm::hfr::REGISTER)?;
+    let mut tx = medbrains_kernel::tenancy::tenant_tx(&state.db, &permit).await?;
     // allow-raw-sql: runs in the tenant-scoped transaction and filters tenant_id
     sqlx::query!(
         "INSERT INTO abdm_hfr_registrations \
@@ -208,8 +206,8 @@ async fn saved_systems(state: &AppState, claims: &Claims, id: Uuid) -> Result<St
     if tracking.is_empty() {
         return Err(AppError::BadRequest("save basic information first".into()));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = permit(claims, permissions::abdm::hfr::REGISTER)?;
+    let mut tx = medbrains_kernel::tenancy::tenant_tx(&state.db, &permit).await?;
     let steps = saved_steps(&mut tx, (claims.tenant_id, id), &tracking).await?;
     tx.commit().await?;
     let basic = steps.iter().find(|s| s.0 == "basic");
@@ -300,8 +298,8 @@ async fn record_submit(
         .and_then(|o| o.facility_id.as_deref())
         .filter(|f| hfr_rules::is_hfr_id(f))
         .map(str::to_ascii_uppercase);
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = permit(claims, permissions::abdm::hfr::REGISTER)?;
+    let mut tx = medbrains_kernel::tenancy::tenant_tx(&state.db, &permit).await?;
     // allow-raw-sql: runs in the tenant-scoped transaction and filters tenant_id
     sqlx::query!(
         "INSERT INTO abdm_hfr_registrations \

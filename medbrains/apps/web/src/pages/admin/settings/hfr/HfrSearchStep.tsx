@@ -5,25 +5,12 @@
  * this campus instead.
  */
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import type { HfrFacilitySearch, HfrSearchPage } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
-import { Alert, Button, Input, Select, Table } from "@/components/ui";
+import { Alert, Button, Table } from "@/components/ui";
 import { abdmRegistryService } from "@/services/abdmRegistry.service";
-import { searchSchema } from "./hfrRules";
-import { useHfrMaster } from "./useHfrMaster";
-
-const EMPTY_SEARCH: HfrFacilitySearch = {
-  facilityId: "",
-  facilityName: "",
-  ownershipCode: "",
-  stateLGDCode: "",
-  districtLGDCode: "",
-  subDistrictLGDCode: "",
-  pincode: "",
-};
+import { HfrSearchForm } from "./HfrSearchForm";
 
 interface HfrSearchStepProps {
   defaultName: string;
@@ -41,113 +28,17 @@ export function HfrSearchStep({
   onLink,
   onRegisterNew,
 }: HfrSearchStepProps) {
-  const { control, handleSubmit, register, watch, setValue, formState } =
-    useForm<HfrFacilitySearch>({
-      resolver: zodResolver(searchSchema),
-      defaultValues: { ...EMPTY_SEARCH, facilityName: defaultName },
-    });
   const search = useMutation({
     mutationFn: (q: HfrFacilitySearch) => abdmRegistryService.searchHfrFacilities(q),
   });
-  const [state, district] = watch(["stateLGDCode", "districtLGDCode"]);
-  const owners = useHfrMaster("data", "OWNER");
-  const states = useHfrMaster("states");
-  const districts = useHfrMaster("districts", state, "", state !== "");
-  const subDistricts = useHfrMaster("sub-districts", district, "", district !== "");
-  const { errors } = formState;
 
   return (
     <Stack gap="md">
-      <Text size="sm" c="dimmed">
-        Search HFR first: by the facility ID if this campus already has one, otherwise by name,
-        ownership and state.
-      </Text>
-      <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-        <Input
-          label="HFR facility ID"
-          placeholder="IN2710000123"
-          error={errors.facilityId?.message}
-          {...register("facilityId")}
-        />
-        <Input
-          label="Facility name"
-          description="Full or part of the name"
-          error={errors.facilityName?.message}
-          {...register("facilityName")}
-        />
-        <Controller
-          control={control}
-          name="ownershipCode"
-          render={({ field }) => (
-            <Select
-              label="Ownership"
-              placeholder="Select ownership"
-              data={owners.data}
-              value={field.value || null}
-              onChange={(v) => field.onChange(v ?? "")}
-              error={errors.ownershipCode?.message ?? owners.error}
-            />
-          )}
-        />
-        <Select
-          label="State / UT"
-          placeholder="Select State / UT"
-          searchable
-          data={states.data}
-          value={state || null}
-          onChange={(v) => {
-            setValue("stateLGDCode", v ?? "");
-            setValue("districtLGDCode", "");
-            setValue("subDistrictLGDCode", "");
-          }}
-          error={errors.stateLGDCode?.message ?? states.error}
-        />
-        <Select
-          label="District"
-          placeholder="Select District"
-          searchable
-          data={districts.data}
-          disabled={state === ""}
-          value={district || null}
-          onChange={(v) => {
-            setValue("districtLGDCode", v ?? "");
-            setValue("subDistrictLGDCode", "");
-          }}
-          error={districts.error}
-        />
-        <Controller
-          control={control}
-          name="subDistrictLGDCode"
-          render={({ field }) => (
-            <Select
-              label="Sub-district"
-              placeholder="Select Sub-District"
-              searchable
-              data={subDistricts.data}
-              disabled={district === ""}
-              value={field.value || null}
-              onChange={(v) => field.onChange(v ?? "")}
-              error={subDistricts.error}
-            />
-          )}
-        />
-        <Input
-          label="Pincode"
-          inputMode="numeric"
-          maxLength={6}
-          error={errors.pincode?.message}
-          {...register("pincode")}
-        />
-      </SimpleGrid>
-      <Group>
-        <Button
-          tone="primary"
-          loading={search.isPending}
-          onClick={() => void handleSubmit((q) => search.mutate(q))()}
-        >
-          Search HFR
-        </Button>
-      </Group>
+      <HfrSearchForm
+        defaultName={defaultName}
+        searching={search.isPending}
+        onSearch={(q) => search.mutate(q)}
+      />
       {search.isError && (
         <Alert tone="danger" title="HFR search did not answer">
           {search.error.message} Nothing was registered; search again before registering.
