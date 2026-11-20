@@ -29,7 +29,7 @@
  },
  "crates/medbrains-ai/src/lib.rs": {
   "function_lines": 46,
-  "file_lines": 1346
+  "file_lines": 1317
  },
  "crates/medbrains-ai/src/query.rs": {
   "function_lines": 17,
@@ -40,7 +40,7 @@
   "file_lines": 0
  },
  "crates/medbrains-ai/src/turn.rs": {
-  "function_lines": 26,
+  "function_lines": 18,
   "file_lines": 0
  },
  "crates/medbrains-ambulance/src/lib.rs": {
@@ -120,12 +120,12 @@
   "file_lines": 0
  },
  "crates/medbrains-authz-spicedb/src/backend_durable_spicedb.rs": {
-  "function_lines": 15,
-  "file_lines": 615
+  "function_lines": 4,
+  "file_lines": 560
  },
  "crates/medbrains-authz-spicedb/src/backend_spicedb.rs": {
   "function_lines": 0,
-  "file_lines": 600
+  "file_lines": 589
  },
  "crates/medbrains-authz/src/backend_pg.rs": {
   "function_lines": 0,
@@ -269,7 +269,7 @@
  },
  "crates/medbrains-clinical-offline/src/lib.rs": {
   "function_lines": 0,
-  "file_lines": 369
+  "file_lines": 367
  },
  "crates/medbrains-clinical-scores/src/ews/tests.rs": {
   "function_lines": 0,
@@ -309,7 +309,7 @@
  },
  "crates/medbrains-core/src/access/roles.rs": {
   "function_lines": 0,
-  "file_lines": 2008
+  "file_lines": 2005
  },
  "crates/medbrains-core/src/ai_redact/mod.rs": {
   "function_lines": 0,
@@ -405,11 +405,11 @@
  },
  "crates/medbrains-core/src/permissions.rs": {
   "function_lines": 0,
-  "file_lines": 2457
+  "file_lines": 2460
  },
  "crates/medbrains-core/src/print_data.rs": {
   "function_lines": 0,
-  "file_lines": 4656
+  "file_lines": 4625
  },
  "crates/medbrains-core/src/quality.rs": {
   "function_lines": 0,
@@ -425,7 +425,7 @@
  },
  "crates/medbrains-dashboard/src/lib.rs": {
   "function_lines": 465,
-  "file_lines": 1912
+  "file_lines": 1890
  },
  "crates/medbrains-dashboard/src/management_kpis.rs": {
   "function_lines": 5,
@@ -609,7 +609,7 @@
  },
  "crates/medbrains-fhir/src/nrces/mod.rs": {
   "function_lines": 0,
-  "file_lines": 340
+  "file_lines": 330
  },
  "crates/medbrains-fhir/src/nrces/tests.rs": {
   "function_lines": 0,
@@ -697,7 +697,7 @@
  },
  "crates/medbrains-infra-settings/src/lib.rs": {
   "function_lines": 0,
-  "file_lines": 460
+  "file_lines": 393
  },
  "crates/medbrains-infra-utils/src/config_transfer.rs": {
   "function_lines": 68,
@@ -708,12 +708,12 @@
   "file_lines": 327
  },
  "crates/medbrains-ipd-post-discharge/src/lib.rs": {
-  "function_lines": 71,
-  "file_lines": 647
+  "function_lines": 29,
+  "file_lines": 578
  },
  "crates/medbrains-ipd/src/lib.rs": {
-  "function_lines": 1073,
-  "file_lines": 6749
+  "function_lines": 1044,
+  "file_lines": 6532
  },
  "crates/medbrains-it-security/src/lib.rs": {
   "function_lines": 16,
@@ -745,19 +745,19 @@
  },
  "crates/medbrains-lab/src/direct.rs": {
   "function_lines": 0,
-  "file_lines": 304
+  "file_lines": 303
  },
  "crates/medbrains-lab/src/lib.rs": {
-  "function_lines": 561,
-  "file_lines": 4794
+  "function_lines": 529,
+  "file_lines": 4527
  },
  "crates/medbrains-lms/src/lib.rs": {
   "function_lines": 10,
   "file_lines": 1315
  },
  "crates/medbrains-loadtest/src/generated.rs": {
-  "function_lines": 1448,
-  "file_lines": 6593
+  "function_lines": 1445,
+  "file_lines": 6584
  },
  "crates/medbrains-loadtest/src/main.rs": {
   "function_lines": 74,
@@ -888,19 +888,19 @@
   "file_lines": 304
  },
  "crates/medbrains-onboarding/src/lib.rs": {
-  "function_lines": 626,
+  "function_lines": 625,
   "file_lines": 1246
  },
  "crates/medbrains-opd/src/lib.rs": {
-  "function_lines": 1247,
-  "file_lines": 5170
+  "function_lines": 1112,
+  "file_lines": 4936
  },
  "crates/medbrains-opd/src/rx_policy.rs": {
   "function_lines": 4,
   "file_lines": 0
  },
  "crates/medbrains-opd/src/transfer.rs": {
-  "function_lines": 5,
+  "function_lines": 4,
   "file_lines": 0
  },
  "crates/medbrains-order-basket/src/lib.rs": {
@@ -948,8 +948,8 @@
   "file_lines": 0
  },
  "crates/medbrains-ot/src/lib.rs": {
-  "function_lines": 137,
-  "file_lines": 2121
+  "function_lines": 130,
+  "file_lines": 2110
  },
  "crates/medbrains-outbox/src/handlers/email_stub.rs": {
   "function_lines": 108,
@@ -1005,11 +1005,11 @@
  },
  "crates/medbrains-patients/src/immunization_schedule.rs": {
   "function_lines": 0,
-  "file_lines": 354
+  "file_lines": 351
  },
  "crates/medbrains-patients/src/lib.rs": {
-  "function_lines": 920,
-  "file_lines": 3940
+  "function_lines": 892,
+  "file_lines": 3822
  },
  "crates/medbrains-payment-gateway/src/balance_link/issue.rs": {
   "function_lines": 0,
@@ -1069,7 +1069,7 @@
  },
  "crates/medbrains-pharmacy-finance/src/lib.rs": {
   "function_lines": 8,
-  "file_lines": 878
+  "file_lines": 876
  },
  "crates/medbrains-pharmacy-free-dispensing/src/lib.rs": {
   "function_lines": 0,
@@ -1176,28 +1176,28 @@
   "file_lines": 0
  },
  "crates/medbrains-print-data/src/admin.rs": {
-  "function_lines": 39,
-  "file_lines": 1125
+  "function_lines": 37,
+  "file_lines": 1122
  },
  "crates/medbrains-print-data/src/billing.rs": {
-  "function_lines": 263,
-  "file_lines": 1607
+  "function_lines": 228,
+  "file_lines": 1525
  },
  "crates/medbrains-print-data/src/bme.rs": {
   "function_lines": 143,
   "file_lines": 892
  },
  "crates/medbrains-print-data/src/clinical.rs": {
-  "function_lines": 661,
-  "file_lines": 2665
+  "function_lines": 613,
+  "file_lines": 2585
  },
  "crates/medbrains-print-data/src/consent.rs": {
-  "function_lines": 32,
-  "file_lines": 903
+  "function_lines": 18,
+  "file_lines": 862
  },
  "crates/medbrains-print-data/src/general.rs": {
-  "function_lines": 8,
-  "file_lines": 636
+  "function_lines": 0,
+  "file_lines": 528
  },
  "crates/medbrains-print-data/src/gst_invoice.rs": {
   "function_lines": 29,
@@ -1205,31 +1205,31 @@
  },
  "crates/medbrains-print-data/src/hr.rs": {
   "function_lines": 117,
-  "file_lines": 659
+  "file_lines": 657
  },
  "crates/medbrains-print-data/src/medicolegal.rs": {
-  "function_lines": 152,
-  "file_lines": 982
+  "function_lines": 120,
+  "file_lines": 945
  },
  "crates/medbrains-print-data/src/mrd.rs": {
-  "function_lines": 193,
-  "file_lines": 1086
+  "function_lines": 175,
+  "file_lines": 1057
  },
  "crates/medbrains-print-data/src/pcpndt_form_f.rs": {
-  "function_lines": 7,
+  "function_lines": 5,
   "file_lines": 0
  },
  "crates/medbrains-print-data/src/quality.rs": {
-  "function_lines": 55,
-  "file_lines": 531
+  "function_lines": 36,
+  "file_lines": 506
  },
  "crates/medbrains-print-data/src/regulatory.rs": {
-  "function_lines": 210,
-  "file_lines": 1190
+  "function_lines": 189,
+  "file_lines": 1092
  },
  "crates/medbrains-print-data/src/surgical.rs": {
-  "function_lines": 100,
-  "file_lines": 1001
+  "function_lines": 81,
+  "file_lines": 958
  },
  "crates/medbrains-proxy/src/front/site.rs": {
   "function_lines": 0,
@@ -1245,7 +1245,7 @@
  },
  "crates/medbrains-quality/src/lib.rs": {
   "function_lines": 40,
-  "file_lines": 1901
+  "file_lines": 1888
  },
  "crates/medbrains-radiology/src/lib.rs": {
   "function_lines": 264,
@@ -1288,8 +1288,8 @@
   "file_lines": 489
  },
  "crates/medbrains-reports/src/nabh_indicators.rs": {
-  "function_lines": 443,
-  "file_lines": 1109
+  "function_lines": 426,
+  "file_lines": 1088
  },
  "crates/medbrains-reports/src/reports.rs": {
   "function_lines": 1612,
@@ -1360,7 +1360,7 @@
   "file_lines": 807
  },
  "crates/medbrains-seed/src/lib.rs": {
-  "function_lines": 28,
+  "function_lines": 11,
   "file_lines": 0
  },
  "crates/medbrains-seed/src/locations.rs": {
@@ -1421,15 +1421,15 @@
  },
  "crates/medbrains-server-services/src/billing.rs": {
   "function_lines": 116,
-  "file_lines": 715
+  "file_lines": 714
  },
  "crates/medbrains-server-services/src/llm.rs": {
-  "function_lines": 4,
+  "function_lines": 3,
   "file_lines": 0
  },
  "crates/medbrains-server/src/main.rs": {
-  "function_lines": 464,
-  "file_lines": 803
+  "function_lines": 452,
+  "file_lines": 791
  },
  "crates/medbrains-server/src/preflight.rs": {
   "function_lines": 0,
@@ -1441,7 +1441,7 @@
  },
  "crates/medbrains-server/src/routes/abdm/abha_enrol.rs": {
   "function_lines": 0,
-  "file_lines": 429
+  "file_lines": 374
  },
  "crates/medbrains-server/src/routes/abdm/abha_profile.rs": {
   "function_lines": 0,
@@ -1449,7 +1449,7 @@
  },
  "crates/medbrains-server/src/routes/abdm/abha_verify.rs": {
   "function_lines": 15,
-  "file_lines": 422
+  "file_lines": 419
  },
  "crates/medbrains-server/src/routes/abdm/bridge.rs": {
   "function_lines": 0,
@@ -1461,7 +1461,7 @@
  },
  "crates/medbrains-server/src/routes/abdm/hip/bundle_records.rs": {
   "function_lines": 15,
-  "file_lines": 316
+  "file_lines": 314
  },
  "crates/medbrains-server/src/routes/abdm/hip/bundle_sections.rs": {
   "function_lines": 50,
@@ -1469,23 +1469,23 @@
  },
  "crates/medbrains-server/src/routes/abdm/hip/bundles.rs": {
   "function_lines": 13,
-  "file_lines": 316
+  "file_lines": 0
  },
  "crates/medbrains-server/src/routes/abdm/hip/consent.rs": {
   "function_lines": 18,
-  "file_lines": 386
+  "file_lines": 385
  },
  "crates/medbrains-server/src/routes/abdm/hip/discovery.rs": {
-  "function_lines": 9,
-  "file_lines": 313
+  "function_lines": 4,
+  "file_lines": 0
  },
  "crates/medbrains-server/src/routes/abdm/hip/gateway.rs": {
   "function_lines": 0,
   "file_lines": 344
  },
  "crates/medbrains-server/src/routes/abdm/hip/linking.rs": {
-  "function_lines": 11,
-  "file_lines": 336
+  "function_lines": 0,
+  "file_lines": 327
  },
  "crates/medbrains-server/src/routes/abdm/hiu/push.rs": {
   "function_lines": 20,
@@ -1520,8 +1520,8 @@
   "file_lines": 394
  },
  "crates/medbrains-server/src/routes/mod.rs": {
-  "function_lines": 676,
-  "file_lines": 808
+  "function_lines": 673,
+  "file_lines": 805
  },
  "crates/medbrains-server/src/routes/portal.rs": {
   "function_lines": 0,
@@ -1601,7 +1601,7 @@
  },
  "crates/medbrains-setup/src/lib.rs": {
   "function_lines": 554,
-  "file_lines": 5165
+  "file_lines": 5162
  },
  "crates/medbrains-setup/src/workbook/beds.rs": {
   "function_lines": 25,
@@ -1731,10 +1731,6 @@
   "function_lines": 76,
   "file_lines": 1402
  },
- "crates/medbrains-telehealth/src/doctor_dashboard.rs": {
-  "function_lines": 9,
-  "file_lines": 0
- },
  "crates/medbrains-telehealth/src/lib.rs": {
   "function_lines": 57,
   "file_lines": 0
@@ -1757,7 +1753,7 @@
  },
  "crates/medbrains-tokens/src/lib.rs": {
   "function_lines": 36,
-  "file_lines": 1391
+  "file_lines": 1368
  },
  "crates/medbrains-tokens/src/queue_admin.rs": {
   "function_lines": 13,
@@ -1780,8 +1776,8 @@
   "file_lines": 0
  },
  "crates/medbrains-workflow/src/orchestration/default_pipelines.rs": {
-  "function_lines": 4,
-  "file_lines": 708
+  "function_lines": 0,
+  "file_lines": 639
  },
  "crates/medbrains-workflow/src/orchestration/notice_pipelines.rs": {
   "function_lines": 7,
