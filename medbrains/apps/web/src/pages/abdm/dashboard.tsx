@@ -99,7 +99,7 @@ function KpiGrid({ data }: { data: AbdmDashboard }) {
   );
 }
 
-export function AbdmDashboardPage() {
+export default function AbdmDashboardPage() {
   useRequirePermission(P.ABDM.DASHBOARD.VIEW);
   const months = useMemo(() => monthOptions(new Date(), MONTHS_OFFERED), []);
   const [month, setMonth] = useState(months[0]?.value ?? "");

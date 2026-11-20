@@ -2,7 +2,7 @@ import { usePermissionStore } from "@medbrains/stores";
 import { type AbdmConsentRequest, P } from "@medbrains/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@/test/test-utils";
-import { AbdmConsentRequestsPage } from "./consent-requests";
+import AbdmConsentRequestsPage from "./consent-requests";
 
 const list = vi.fn();
 vi.mock("@/services/abdmRecords.service", () => ({

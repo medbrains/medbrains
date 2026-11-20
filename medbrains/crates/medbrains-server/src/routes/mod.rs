@@ -504,26 +504,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/scan-share/{id}/dismiss",
             post(abdm::scan_share::dismiss),
         )
-        .route(
-            "/api/abdm/patients/{patient_id}/consent-requests",
-            post(abdm::hiu::requests::raise),
-        )
-        .route(
-            "/api/abdm/patients/{patient_id}/received-records",
-            get(abdm::hiu::view::patient_view),
-        )
-        .route(
-            "/api/abdm/consent-requests",
-            get(abdm::hiu::view::list_requests),
-        )
-        .route(
-            "/api/abdm/consent-requests/{id}/check-status",
-            post(abdm::hiu::status::check),
-        )
-        .route(
-            "/api/abdm/received-records/{id}",
-            get(abdm::hiu::view::received_record),
-        )
+        .merge(abdm::hiu::staff_router())
         .route(
             "/api/uhi/settings",
             get(uhi::settings::get_settings).put(uhi::settings::save_settings),

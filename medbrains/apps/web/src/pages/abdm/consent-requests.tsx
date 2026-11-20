@@ -26,7 +26,7 @@ const STATUS_OPTIONS = Object.entries(CONSENT_REQUEST_STATUS).map(([value, s]) =
 }));
 
 /** The hospital-wide consent list; never fetched without `abdm.consent.list`. */
-export function AbdmConsentRequestsPage() {
+export default function AbdmConsentRequestsPage() {
   useRequirePermission(P.ABDM.CONSENT.LIST);
   const canList = useHasPermission(P.ABDM.CONSENT.LIST);
   const canCheck = useHasPermission(P.ABDM.CONSENT.REQUEST);

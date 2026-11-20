@@ -461,12 +461,8 @@ const AnalyticsPage = lazy(() =>
 );
 const ReportsPage = lazy(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
-const AbdmDashboardPage = lazy(() =>
-  import("./pages/abdm/dashboard").then((m) => ({ default: m.AbdmDashboardPage })),
-);
-const AbdmConsentRequestsPage = lazy(() =>
-  import("./pages/abdm/consent-requests").then((m) => ({ default: m.AbdmConsentRequestsPage })),
-);
+const AbdmDashboardPage = lazy(() => import("./pages/abdm/dashboard"));
+const AbdmConsentRequestsPage = lazy(() => import("./pages/abdm/consent-requests"));
 const SnomedPage = lazy(() =>
   import("./pages/terminology/snomed").then((m) => ({ default: m.SnomedPage })),
 );
