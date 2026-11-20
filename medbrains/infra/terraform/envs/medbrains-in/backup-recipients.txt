@@ -1,0 +1,3 @@
+# The medbrains.in deployment's backup key, 2026-10-30 (private key kept offline, passphrase-protected).
+# This deployment only: never copy it into the deploy kit (deploy/standalone).
+age108rvm8yeaxq7my9mx33d8k5ee8cfr9k5p2q4q5kr5qpfanyex4qsjgnmjs

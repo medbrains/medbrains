@@ -10,7 +10,9 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::{is_bypass_role, require_permission},
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{is_bypass_role, require_permission},
     state::AppState,
 };
 
@@ -63,8 +65,7 @@ pub async fn my_day(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Pending sign-offs by legal_class. Best-effort across record types
-    // (some tables may not yet have is_signed column — falls back to 0).
+    // Pending sign-offs by legal_class, scoped to this doctor.
     let pending = compute_pending_signoffs(&mut tx, &claims).await?;
 
     // Coverage assignments where I'm covering for someone else right now
@@ -80,10 +81,8 @@ pub async fn my_day(
     .fetch_all(&mut *tx)
     .await?;
 
-    // Today counts — best-effort against existing tables
-    let today = compute_today_counts(&mut tx, &claims)
-        .await
-        .unwrap_or_default();
+    // Today's counts; a failed read fails the request, never shows zeros.
+    let today = compute_today_counts(&mut tx, &claims).await?;
 
     tx.commit().await?;
 
@@ -96,74 +95,60 @@ pub async fn my_day(
     }))
 }
 
+/// Whether the caller may decide refill requests, so whether they are listed
+/// (and counted) among the doctor's pending items.
+fn may_decide_refills(claims: &Claims) -> bool {
+    is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|p| p == permissions::doctor::refill_requests::DECIDE)
+}
+
+/// Counts of the requesting doctor's own pending sign-offs, for the My Day tile.
+///
+/// The same "mine" rule per type as [`list_my_pending_signoffs`], in one
+/// round trip, so the tile counts what the queue lists. A failed read fails
+/// the request rather than showing a zero.
 async fn compute_pending_signoffs(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
 ) -> Result<PendingSignoffs, AppError> {
-    let mut p = PendingSignoffs::default();
-
-    // prescriptions
-    if let Ok((c,)) = sqlx::query_as::<_, (i64,)>(
-        "SELECT COUNT(*)::bigint FROM prescriptions \
-         WHERE tenant_id = $1 AND doctor_id = $2 AND is_signed = FALSE",
+    let mine = sqlx::query_scalar!(
+        r#"SELECT (
+              (SELECT COUNT(*) FROM prescriptions
+                WHERE tenant_id = $1 AND doctor_id = $2 AND is_signed = FALSE
+                  AND deleted_at IS NULL)
+            + (SELECT COUNT(*) FROM lab_results lr
+                 JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id
+                WHERE lr.tenant_id = $1 AND lo.verified_by = $2 AND lr.is_signed = FALSE
+                  AND lr.deleted_at IS NULL AND lo.deleted_at IS NULL)
+            + (SELECT COUNT(*) FROM radiology_reports
+                WHERE tenant_id = $1 AND COALESCE(verified_by, reported_by) = $2
+                  AND is_signed = FALSE AND deleted_at IS NULL)
+            + (SELECT COUNT(*) FROM ipd_discharge_summaries
+                WHERE tenant_id = $1 AND COALESCE(verified_by, prepared_by) = $2
+                  AND is_signed = FALSE AND deleted_at IS NULL)
+            + CASE WHEN $3 THEN (SELECT COUNT(*) FROM prescription_refill_requests
+                WHERE tenant_id = $1 AND doctor_id = $2 AND status = 'with_doctor'
+                  AND deleted_at IS NULL) ELSE 0 END
+           )::bigint AS "count!""#,
+        claims.tenant_id,
+        claims.sub,
+        may_decide_refills(claims),
     )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .fetch_one(&mut **tx)
-    .await
-    {
-        p.clinical += c;
-        p.total += c;
-    }
-
-    // lab_results — finalized but not signed
-    if let Ok((c,)) = sqlx::query_as::<_, (i64,)>(
-        "SELECT COUNT(*)::bigint FROM lab_results \
-         WHERE tenant_id = $1 AND is_signed = FALSE",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut **tx)
-    .await
-    {
-        p.clinical += c;
-        p.total += c;
-    }
-
-    // IPD discharge summaries
-    if let Ok((c,)) = sqlx::query_as::<_, (i64,)>(
-        "SELECT COUNT(*)::bigint FROM ipd_discharge_summaries \
-         WHERE tenant_id = $1 AND is_signed = FALSE \
-           AND (prepared_by = $2 OR verified_by = $2)",
-    )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .fetch_one(&mut **tx)
-    .await
-    {
-        p.clinical += c;
-        p.total += c;
-    }
-
-    // Refill requests waiting for this doctor.
-    let refills: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::bigint FROM prescription_refill_requests \
-         WHERE tenant_id = $1 AND doctor_id = $2 AND status = 'with_doctor' \
-           AND deleted_at IS NULL",
-    )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
     .fetch_one(&mut **tx)
     .await?;
-    p.clinical += refills;
-    p.total += refills;
-
     let substitutions = crate::substitution_signoffs::count(tx, claims).await?;
-    p.clinical += substitutions;
-    p.total += substitutions;
-
-    Ok(p)
+    let clinical = mine + substitutions;
+    Ok(PendingSignoffs {
+        clinical,
+        total: clinical,
+        ..PendingSignoffs::default()
+    })
 }
 
+/// Today's workload counts for the My Day tiles: the doctor's appointments.
 async fn compute_today_counts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
@@ -180,33 +165,23 @@ async fn compute_today_counts(
     // the patient currently in the room: a doctor reading "remaining" wants
     // the work still in front of them, and the count should not drop the
     // moment somebody walks in.
-    let counts = sqlx::query_as::<_, (i64, i64)>(
-        "SELECT \
-            COUNT(*)::bigint, \
-            COUNT(*) FILTER (WHERE status::text IN \
-              ('scheduled','confirmed','checked_in','in_consultation'))::bigint \
-         FROM appointments \
-         WHERE tenant_id = $1 AND doctor_id = $2 \
-           AND appointment_date = current_date",
+    // A failed read fails the request: zeros on a fault would tell a doctor
+    // their day is empty.
+    let counts = sqlx::query!(
+        r#"SELECT
+              COUNT(*)::bigint AS "total!",
+              COUNT(*) FILTER (WHERE status::text IN
+                ('scheduled','confirmed','checked_in','in_consultation'))::bigint AS "remaining!"
+           FROM appointments
+           WHERE tenant_id = $1 AND doctor_id = $2
+             AND appointment_date = current_date AND deleted_at IS NULL"#,
+        claims.tenant_id,
+        claims.sub,
     )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
     .fetch_one(&mut **tx)
-    .await;
-
-    match counts {
-        Ok((total, remaining)) => {
-            t.appointments_total = total;
-            t.appointments_remaining = remaining;
-        }
-        // Left as zero, but said out loud. Swallowing this is how it went
-        // unnoticed that the query named a table that does not exist.
-        Err(err) => tracing::error!(
-            doctor_id = %claims.sub,
-            error = %err,
-            "doctor day: today's appointment counts could not be read"
-        ),
-    }
+    .await?;
+    t.appointments_total = counts.total;
+    t.appointments_remaining = counts.remaining;
 
     Ok(t)
 }
@@ -235,6 +210,14 @@ pub struct PendingSignoffEntry {
     pub transcribed: Option<bool>,
 }
 
+type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+
+/// The requesting doctor's own unsigned records, one list across types.
+///
+/// Each type lists only the rows whose author, as the signing registry
+/// (`medbrains-documents/src/signable/table.rs`) names them, is the caller,
+/// so the list offers exactly what the sign endpoint would accept from this
+/// doctor. A failed read fails the request: an outage is never "nothing to sign".
 pub async fn list_my_pending_signoffs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -243,184 +226,226 @@ pub async fn list_my_pending_signoffs(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (tenant, me) = (claims.tenant_id, claims.sub);
 
-    // Union across signable types. Each table queried independently and
-    // tolerantly — a missing is_signed column won't kill the whole list.
-    let mut entries: Vec<PendingSignoffEntry> = Vec::new();
-
-    if let Ok(rows) = sqlx::query_as::<_, PendingSignoffEntry>(
-        "SELECT 'prescription' AS record_type, p.id AS record_id, \
-                p.created_at, 'clinical' AS legal_class, \
-                COALESCE(p.patient_id, e.patient_id) AS patient_id, \
-                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
-                pat.uhid, \
-                COALESCE(NULLIF(p.notes, ''), CONCAT(( \
-                    SELECT COUNT(*) FROM prescription_items pi \
-                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id \
-                ), ' medication(s)')) AS summary, \
-                CONCAT('Encounter ', p.encounter_id::text) AS context, \
-                CASE WHEN pat.is_medico_legal THEN 'MLC patient' ELSE NULL END AS risk_label, \
-                p.order_mode AS order_mode, \
-                p.countersign_due_at AS countersign_due_at, \
-                (p.transcribed_by IS NOT NULL) AS transcribed \
-         FROM prescriptions p \
-         LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id \
-         LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id \
-            AND pat.id = COALESCE(p.patient_id, e.patient_id) \
-         WHERE p.tenant_id = $1 AND p.doctor_id = $2 AND p.is_signed = FALSE \
-         ORDER BY p.created_at \
-         LIMIT 200",
-    )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .fetch_all(&mut *tx)
-    .await
-    {
-        entries.extend(rows);
-    }
-
-    if let Ok(rows) = sqlx::query_as::<_, PendingSignoffEntry>(
-        "SELECT 'lab_report' AS record_type, lr.id AS record_id, \
-                lr.created_at, 'clinical' AS legal_class, \
-                lo.patient_id, \
-                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
-                pat.uhid, \
-                CONCAT(lr.parameter_name, ': ', lr.value, COALESCE(CONCAT(' ', lr.unit), '')) AS summary, \
-                CONCAT('Sample ', COALESCE(lo.sample_barcode, 'not collected'), ' • ', lo.priority::text) AS context, \
-                CASE \
-                    WHEN lr.flag IS NOT NULL AND lr.flag::text <> 'normal' THEN CONCAT('Result flag: ', lr.flag::text) \
-                    WHEN lo.is_stat THEN 'STAT order' \
-                    WHEN pat.is_medico_legal THEN 'MLC patient' \
-                    ELSE NULL \
-                END AS risk_label, \
-                NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, NULL::boolean AS transcribed \
-         FROM lab_results lr \
-         JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id \
-         JOIN patients pat ON pat.tenant_id = lo.tenant_id AND pat.id = lo.patient_id \
-         WHERE lr.tenant_id = $1 AND lr.is_signed = FALSE \
-         ORDER BY lr.created_at \
-         LIMIT 200",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await
-    {
-        entries.extend(rows);
-    }
-
-    if let Ok(rows) = sqlx::query_as::<_, PendingSignoffEntry>(
-        "SELECT 'radiology_report' AS record_type, rr.id AS record_id, \
-                rr.created_at, 'clinical' AS legal_class, \
-                ro.patient_id, \
-                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
-                pat.uhid, \
-                COALESCE(NULLIF(rr.impression, ''), NULLIF(rr.findings, ''), 'Radiology report') AS summary, \
-                CONCAT(COALESCE(ro.body_part, 'Study'), ' • ', ro.priority::text) AS context, \
-                CASE \
-                    WHEN rr.is_critical THEN 'Critical report' \
-                    WHEN ro.contrast_required THEN 'Contrast study' \
-                    WHEN ro.allergy_flagged THEN 'Allergy flag' \
-                    WHEN pat.is_medico_legal THEN 'MLC patient' \
-                    ELSE NULL \
-                END AS risk_label, \
-                NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, NULL::boolean AS transcribed \
-         FROM radiology_reports rr \
-         JOIN radiology_orders ro ON ro.tenant_id = rr.tenant_id AND ro.id = rr.order_id \
-         JOIN patients pat ON pat.tenant_id = ro.tenant_id AND pat.id = ro.patient_id \
-         WHERE rr.tenant_id = $1 AND rr.is_signed = FALSE \
-         ORDER BY rr.created_at \
-         LIMIT 200",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await
-    {
-        entries.extend(rows);
-    }
-
-    if let Ok(rows) = sqlx::query_as::<_, PendingSignoffEntry>(
-        "SELECT 'discharge_summary' AS record_type, ds.id AS record_id, \
-                ds.created_at, 'clinical' AS legal_class, \
-                a.patient_id, \
-                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
-                pat.uhid, \
-                COALESCE(NULLIF(ds.final_diagnosis, ''), ds.status::text) AS summary, \
-                CONCAT('IPD ', a.status::text, ' • admitted ', a.admitted_at::date::text) AS context, \
-                CASE \
-                    WHEN a.is_critical THEN 'Critical admission' \
-                    WHEN a.isolation_required THEN 'Isolation required' \
-                    WHEN pat.is_medico_legal THEN 'MLC patient' \
-                    ELSE NULL \
-                END AS risk_label, \
-                NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, NULL::boolean AS transcribed \
-         FROM ipd_discharge_summaries ds \
-         JOIN admissions a ON a.tenant_id = ds.tenant_id AND a.id = ds.admission_id \
-         JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id \
-         WHERE ds.tenant_id = $1 AND ds.is_signed = FALSE \
-           AND (ds.prepared_by = $2 OR ds.verified_by = $2) \
-         ORDER BY ds.created_at \
-         LIMIT 200",
-    )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .fetch_all(&mut *tx)
-    .await
-    {
-        entries.extend(rows);
-    }
-
+    let mut entries = prescriptions_to_sign(&mut tx, tenant, me).await?;
+    entries.extend(lab_reports_to_sign(&mut tx, tenant, me).await?);
+    entries.extend(radiology_reports_to_sign(&mut tx, tenant, me).await?);
+    entries.extend(discharge_summaries_to_sign(&mut tx, tenant, me).await?);
     // Refills patients asked for on this doctor's prescriptions. A decision,
     // not a signature; listed only for a doctor who may make it.
-    let may_decide = is_bypass_role(&claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|p| p == permissions::doctor::refill_requests::DECIDE);
-    if may_decide {
-        entries.extend(
-            sqlx::query_as::<_, PendingSignoffEntry>(
-                "SELECT 'refill_request' AS record_type, r.id AS record_id, \
-                        r.created_at, 'clinical' AS legal_class, r.patient_id, \
-                        CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
-                        pat.uhid, \
-                        COALESCE((SELECT string_agg(i.drug_name, ', ' ORDER BY i.created_at) \
-                                    FROM prescription_items i \
-                                   WHERE i.tenant_id = r.tenant_id AND i.prescription_id = r.prescription_id \
-                                     AND i.item_status = 'active'), 'Prescription') AS summary, \
-                        COALESCE(NULLIF(r.patient_note, ''), 'Asked from the patient portal') AS context, \
-                        CASE WHEN p.repeats_used >= p.repeats_allowed THEN 'Refills used up' \
-                             WHEN p.valid_until < CURRENT_DATE THEN 'Prescription expired' \
-                             ELSE NULL END AS risk_label, \
-                        NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, \
-                        NULL::boolean AS transcribed \
-                   FROM prescription_refill_requests r \
-                   JOIN prescriptions p ON p.id = r.prescription_id AND p.tenant_id = r.tenant_id \
-                   JOIN patients pat ON pat.id = r.patient_id AND pat.tenant_id = r.tenant_id \
-                  WHERE r.tenant_id = $1 AND r.doctor_id = $2 AND r.status = 'with_doctor' \
-                    AND r.deleted_at IS NULL \
-                  ORDER BY r.created_at \
-                  LIMIT 200",
-            )
-            .bind(claims.tenant_id)
-            .bind(claims.sub)
-            .fetch_all(&mut *tx)
-            .await?,
-        );
+    if may_decide_refills(&claims) {
+        entries.extend(refills_to_decide(&mut tx, tenant, me).await?);
     }
-
     entries.extend(crate::substitution_signoffs::pending(&mut tx, &claims).await?);
 
     tx.commit().await?;
-    // Verbal/telephone orders carry a 24h countersign deadline — surface them
-    // first, soonest (and overdue) deadline at the top; everything else by age.
-    let is_countersign = |e: &PendingSignoffEntry| {
-        matches!(e.order_mode.as_deref(), Some("verbal" | "telephone"))
-    };
+    sort_countersign_first(&mut entries);
+    Ok(Json(entries))
+}
+
+/// Verbal/telephone orders carry a 24h countersign deadline: they go first,
+/// soonest (and overdue) deadline at the top; everything else by age.
+fn sort_countersign_first(entries: &mut [PendingSignoffEntry]) {
+    let is_countersign =
+        |e: &PendingSignoffEntry| matches!(e.order_mode.as_deref(), Some("verbal" | "telephone"));
     entries.sort_by(|a, b| match (is_countersign(a), is_countersign(b)) {
         (true, false) => std::cmp::Ordering::Less,
         (false, true) => std::cmp::Ordering::Greater,
         (true, true) => a.countersign_due_at.cmp(&b.countersign_due_at),
         (false, false) => a.created_at.cmp(&b.created_at),
     });
-    Ok(Json(entries))
+}
+
+/// Unsigned prescriptions written by `me` (author: `prescriptions.doctor_id`).
+async fn prescriptions_to_sign(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    me: Uuid,
+) -> Result<Vec<PendingSignoffEntry>, AppError> {
+    Ok(sqlx::query_as!(
+        PendingSignoffEntry,
+        r#"SELECT 'prescription' AS "record_type!", p.id AS "record_id!",
+                p.created_at AS "created_at!", 'clinical' AS "legal_class!",
+                COALESCE(p.patient_id, e.patient_id) AS "patient_id?",
+                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS "patient_name?",
+                pat.uhid::text AS "uhid?",
+                COALESCE(NULLIF(p.notes, ''), CONCAT((
+                    SELECT COUNT(*) FROM prescription_items pi
+                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id
+                ), ' medication(s)')) AS "summary?",
+                CONCAT('Encounter ', p.encounter_id::text) AS "context?",
+                CASE WHEN pat.is_medico_legal THEN 'MLC patient' ELSE NULL END AS "risk_label?",
+                p.order_mode AS "order_mode?",
+                p.countersign_due_at AS "countersign_due_at?",
+                (p.transcribed_by IS NOT NULL) AS "transcribed?"
+         FROM prescriptions p
+         LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id
+         LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id
+            AND pat.id = COALESCE(p.patient_id, e.patient_id)
+         WHERE p.tenant_id = $1 AND p.doctor_id = $2 AND p.is_signed = FALSE
+           AND p.deleted_at IS NULL
+         ORDER BY p.created_at
+         LIMIT 200"#,
+        tenant,
+        me,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
+}
+
+/// Unsigned lab results on orders `me` validated.
+///
+/// The author of a lab report is the validating pathologist
+/// (`lab_orders.verified_by`, set by `verify_lab_order`; ISO 15189 / NABL
+/// authorised signatory), not the doctor who ordered the test. A result nobody
+/// has validated has no author yet and is nobody's to sign.
+async fn lab_reports_to_sign(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    me: Uuid,
+) -> Result<Vec<PendingSignoffEntry>, AppError> {
+    Ok(sqlx::query_as!(
+        PendingSignoffEntry,
+        r#"SELECT 'lab_report' AS "record_type!", lr.id AS "record_id!",
+                lr.created_at AS "created_at!", 'clinical' AS "legal_class!",
+                lo.patient_id AS "patient_id?",
+                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS "patient_name?",
+                pat.uhid::text AS "uhid?",
+                CONCAT(lr.parameter_name, ': ', lr.value, COALESCE(CONCAT(' ', lr.unit), '')) AS "summary?",
+                CONCAT('Sample ', COALESCE(lo.sample_barcode, 'not collected'), ' • ', lo.priority::text) AS "context?",
+                CASE
+                    WHEN lr.flag IS NOT NULL AND lr.flag::text <> 'normal' THEN CONCAT('Result flag: ', lr.flag::text)
+                    WHEN lo.is_stat THEN 'STAT order'
+                    WHEN pat.is_medico_legal THEN 'MLC patient'
+                    ELSE NULL
+                END AS "risk_label?",
+                NULL::text AS "order_mode?", NULL::timestamptz AS "countersign_due_at?",
+                NULL::boolean AS "transcribed?"
+         FROM lab_results lr
+         JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id
+         JOIN patients pat ON pat.tenant_id = lo.tenant_id AND pat.id = lo.patient_id
+         WHERE lr.tenant_id = $1 AND lo.verified_by = $2 AND lr.is_signed = FALSE
+           AND lr.deleted_at IS NULL AND lo.deleted_at IS NULL
+         ORDER BY lr.created_at
+         LIMIT 200"#,
+        tenant,
+        me,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
+}
+
+/// Unsigned radiology reports `me` authors: the verifying consultant when one
+/// is named, else the reporting radiologist (`COALESCE(verified_by, reported_by)`).
+async fn radiology_reports_to_sign(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    me: Uuid,
+) -> Result<Vec<PendingSignoffEntry>, AppError> {
+    Ok(sqlx::query_as!(
+        PendingSignoffEntry,
+        r#"SELECT 'radiology_report' AS "record_type!", rr.id AS "record_id!",
+                rr.created_at AS "created_at!", 'clinical' AS "legal_class!",
+                ro.patient_id AS "patient_id?",
+                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS "patient_name?",
+                pat.uhid::text AS "uhid?",
+                COALESCE(NULLIF(rr.impression, ''), NULLIF(rr.findings, ''), 'Radiology report') AS "summary?",
+                CONCAT(COALESCE(ro.body_part, 'Study'), ' • ', ro.priority::text) AS "context?",
+                CASE
+                    WHEN rr.is_critical THEN 'Critical report'
+                    WHEN ro.contrast_required THEN 'Contrast study'
+                    WHEN ro.allergy_flagged THEN 'Allergy flag'
+                    WHEN pat.is_medico_legal THEN 'MLC patient'
+                    ELSE NULL
+                END AS "risk_label?",
+                NULL::text AS "order_mode?", NULL::timestamptz AS "countersign_due_at?",
+                NULL::boolean AS "transcribed?"
+         FROM radiology_reports rr
+         JOIN radiology_orders ro ON ro.tenant_id = rr.tenant_id AND ro.id = rr.order_id
+         JOIN patients pat ON pat.tenant_id = ro.tenant_id AND pat.id = ro.patient_id
+         WHERE rr.tenant_id = $1 AND COALESCE(rr.verified_by, rr.reported_by) = $2
+           AND rr.is_signed = FALSE AND rr.deleted_at IS NULL
+         ORDER BY rr.created_at
+         LIMIT 200"#,
+        tenant,
+        me,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
+}
+
+/// Unsigned discharge summaries `me` authors: the verifying consultant when
+/// one is named, else the preparer (`COALESCE(verified_by, prepared_by)`).
+async fn discharge_summaries_to_sign(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    me: Uuid,
+) -> Result<Vec<PendingSignoffEntry>, AppError> {
+    Ok(sqlx::query_as!(
+        PendingSignoffEntry,
+        r#"SELECT 'discharge_summary' AS "record_type!", ds.id AS "record_id!",
+                ds.created_at AS "created_at!", 'clinical' AS "legal_class!",
+                a.patient_id AS "patient_id?",
+                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS "patient_name?",
+                pat.uhid::text AS "uhid?",
+                COALESCE(NULLIF(ds.final_diagnosis, ''), ds.status::text) AS "summary?",
+                CONCAT('IPD ', a.status::text, ' • admitted ', a.admitted_at::date::text) AS "context?",
+                CASE
+                    WHEN a.is_critical THEN 'Critical admission'
+                    WHEN a.isolation_required THEN 'Isolation required'
+                    WHEN pat.is_medico_legal THEN 'MLC patient'
+                    ELSE NULL
+                END AS "risk_label?",
+                NULL::text AS "order_mode?", NULL::timestamptz AS "countersign_due_at?",
+                NULL::boolean AS "transcribed?"
+         FROM ipd_discharge_summaries ds
+         JOIN admissions a ON a.tenant_id = ds.tenant_id AND a.id = ds.admission_id
+         JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id
+         WHERE ds.tenant_id = $1 AND COALESCE(ds.verified_by, ds.prepared_by) = $2
+           AND ds.is_signed = FALSE AND ds.deleted_at IS NULL
+         ORDER BY ds.created_at
+         LIMIT 200"#,
+        tenant,
+        me,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
+}
+
+/// Refill requests patients sent on `me`'s prescriptions, waiting for a decision.
+async fn refills_to_decide(
+    tx: &mut Tx<'_>,
+    tenant: Uuid,
+    me: Uuid,
+) -> Result<Vec<PendingSignoffEntry>, AppError> {
+    Ok(sqlx::query_as!(
+        PendingSignoffEntry,
+        r#"SELECT 'refill_request' AS "record_type!", r.id AS "record_id!",
+                r.created_at AS "created_at!", 'clinical' AS "legal_class!",
+                r.patient_id AS "patient_id?",
+                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS "patient_name?",
+                pat.uhid::text AS "uhid?",
+                COALESCE((SELECT string_agg(i.drug_name, ', ' ORDER BY i.created_at)
+                            FROM prescription_items i
+                           WHERE i.tenant_id = r.tenant_id AND i.prescription_id = r.prescription_id
+                             AND i.item_status = 'active'), 'Prescription') AS "summary?",
+                COALESCE(NULLIF(r.patient_note, ''), 'Asked from the patient portal') AS "context?",
+                CASE WHEN p.repeats_used >= p.repeats_allowed THEN 'Refills used up'
+                     WHEN p.valid_until < CURRENT_DATE THEN 'Prescription expired'
+                     ELSE NULL END AS "risk_label?",
+                NULL::text AS "order_mode?", NULL::timestamptz AS "countersign_due_at?",
+                NULL::boolean AS "transcribed?"
+           FROM prescription_refill_requests r
+           JOIN prescriptions p ON p.id = r.prescription_id AND p.tenant_id = r.tenant_id
+           JOIN patients pat ON pat.id = r.patient_id AND pat.tenant_id = r.tenant_id
+          WHERE r.tenant_id = $1 AND r.doctor_id = $2 AND r.status = 'with_doctor'
+            AND r.deleted_at IS NULL
+          ORDER BY r.created_at
+          LIMIT 200"#,
+        tenant,
+        me,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
 }

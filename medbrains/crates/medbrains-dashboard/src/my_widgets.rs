@@ -236,5 +236,7 @@ pub async fn set_my_report_widget(
         None => {}
     }
     tx.commit().await?;
-    Ok(Json(json!({ "report_id": report_id, "visible": req.visible })))
+    Ok(Json(
+        json!({ "report_id": report_id, "visible": req.visible }),
+    ))
 }

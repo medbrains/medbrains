@@ -1,4 +1,4 @@
-import { useHasAnyPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useModuleStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { billingService } from "@/services/billing.service";
@@ -12,11 +12,13 @@ import { duesKey } from "./use-dues";
  * drawer for this visit's bills only when something is due on them.
  */
 export function useCollectAtCheckIn() {
-  const canCollect = useHasAnyPermission([
-    P.BILLING.COLLECT_REGISTRATION,
-    P.BILLING.COLLECT_OPD,
-    P.BILLING.COLLECT_CROSS,
-  ]);
+  const billingOn = useModuleStore((s) => !s.disabledModules.has("billing"));
+  const canCollect =
+    useHasAnyPermission([
+      P.BILLING.COLLECT_REGISTRATION,
+      P.BILLING.COLLECT_OPD,
+      P.BILLING.COLLECT_CROSS,
+    ]) && billingOn;
   const queryClient = useQueryClient();
   const open = useCollect((s) => s.open);
   return async (patientId: string, encounterId: string) => {

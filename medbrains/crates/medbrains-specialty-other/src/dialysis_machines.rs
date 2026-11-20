@@ -40,7 +40,10 @@ fn check_choice(value: &str, allowed: &[&str], what: &str) -> Result<(), AppErro
     if allowed.contains(&value) {
         Ok(())
     } else {
-        Err(AppError::BadRequest(format!("{what} must be one of: {}", allowed.join(", "))))
+        Err(AppError::BadRequest(format!(
+            "{what} must be one of: {}",
+            allowed.join(", ")
+        )))
     }
 }
 
@@ -72,7 +75,9 @@ pub async fn save_machine(
     require_permission(&claims, permissions::specialty::other::dialysis::CONFIGURE)?;
     let code = body.code.trim().to_uppercase();
     if code.is_empty() || body.name.trim().is_empty() {
-        return Err(AppError::BadRequest("A machine needs a code and a name".to_owned()));
+        return Err(AppError::BadRequest(
+            "A machine needs a code and a name".to_owned(),
+        ));
     }
     check_choice(&body.serology, SEROLOGIES, "Serology")?;
     let status = body.status.as_deref().unwrap_or("active");
@@ -92,7 +97,12 @@ pub async fn save_machine(
     .bind(body.name.trim())
     .bind(&body.serology)
     .bind(status)
-    .bind(body.location.as_deref().map(str::trim).filter(|l| !l.is_empty()))
+    .bind(
+        body.location
+            .as_deref()
+            .map(str::trim)
+            .filter(|l| !l.is_empty()),
+    )
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -140,7 +150,9 @@ pub async fn set_reuse_policy(
 ) -> Result<Json<ReusePolicy>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::CONFIGURE)?;
     if !(1..=MAX_ALLOWED_USES).contains(&body.max_uses) {
-        return Err(AppError::BadRequest(format!("Reuse must be 1–{MAX_ALLOWED_USES}")));
+        return Err(AppError::BadRequest(format!(
+            "Reuse must be 1–{MAX_ALLOWED_USES}"
+        )));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -254,7 +266,10 @@ pub async fn book_slot(
     .fetch_optional(&mut *tx)
     .await?;
     let id = id.ok_or_else(|| {
-        AppError::Conflict(format!("That machine is already booked for the {} shift", body.shift))
+        AppError::Conflict(format!(
+            "That machine is already booked for the {} shift",
+            body.shift
+        ))
     })?;
     let slot = sqlx::query_as::<_, DialysisSlot>(&format!("{SLOT_SELECT} AND s.id = $2"))
         .bind(claims.tenant_id)
@@ -284,7 +299,9 @@ pub async fn cancel_slot(
     .await?
     .rows_affected();
     if done == 0 {
-        return Err(AppError::Conflict("Only a booked shift can be cancelled".to_owned()));
+        return Err(AppError::Conflict(
+            "Only a booked shift can be cancelled".to_owned(),
+        ));
     }
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "cancelled" })))

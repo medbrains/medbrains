@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT rolsuper AS \"superuser!\", rolbypassrls AS \"bypass!\"\n                     FROM pg_roles WHERE rolname = current_user",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "superuser!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "bypass!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "63eed2d16e91adcbc15b5aa48719e4063aa08ab41a02255c72cadd8259584bcf"
+}

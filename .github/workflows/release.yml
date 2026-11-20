@@ -84,14 +84,14 @@ jobs:
           -p medbrains-server --bin medbrains-server --bin medbrains-archive
           -p medbrains-os-setup --bin medbrains-os-setup
           -p medbrains-agent --bin medbrains-agent
-          -p medbrains-proxy --bin medbrains-front
+          -p medbrains-proxy --bin medbrains-front --bin medbrains-proxy
           -p medbrains-bridge --bin medbrains-bridge
           -p medbrains-edge-app --bin medbrains-edge
           -p medbrains-os-update --bin medbrains-os-update
       - name: Collect
         run: |
           mkdir -p ../bins
-          for b in medbrains-server medbrains-archive medbrains-os-setup medbrains-agent medbrains-front medbrains-bridge medbrains-edge medbrains-os-update; do
+          for b in medbrains-server medbrains-archive medbrains-os-setup medbrains-agent medbrains-front medbrains-proxy medbrains-bridge medbrains-edge medbrains-os-update; do
             cp "target/${{ matrix.triple }}/release/$b" ../bins/
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -415,10 +415,8 @@ jobs:
           version: 0.15.2
           # No cache in a release: a poisoned cache would ship in signed artefacts.
           use-cache: false
-      # The pinned 1.99.1 and both Linux targets, from medbrains/rust-toolchain.toml.
-      - run: rustup toolchain install
-        working-directory: medbrains
       - run: cargo install cargo-zigbuild --locked --version 0.24.0
+      # The script installs the toolchain pinned for that Kanidm release, not medbrains/rust-toolchain.toml.
       - run: OS_WORK="$RUNNER_TEMP/os" medbrains/os/build-kanidm.sh --arch ${{ matrix.arch }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -652,9 +650,16 @@ jobs:
         run: |
           for a in x86-64 arm64; do
             tar -czf "dist/medbrains-server-bins-linux-$a.tar.gz" -C "artifacts/bins-$a" .
+            python3 medbrains/scripts/check_release_bins.py --tarball "dist/medbrains-server-bins-linux-$a.tar.gz"
           done
           tar -czf dist/medbrains-web-dist.tar.gz -C artifacts web-dist
-          find artifacts/android artifacts/ios artifacts/os-* -type f -exec cp {} dist/ \;
+          # Optional: a failed Android, iOS or OS-image job uploads nothing, so only the
+          # directories that exist are copied (v3.35.1 stopped here with no os-* artifact).
+          shopt -s nullglob
+          for d in artifacts/android artifacts/ios artifacts/os-*; do
+            if [ -d "$d" ]; then find "$d" -type f -exec cp {} dist/ \; ; fi
+          done
+          shopt -u nullglob
           cd dist && sha256sum -- * > SHA256SUMS
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign the checksums (keyless)
@@ -699,7 +704,7 @@ jobs:
       contents: write
     # No secrets passed: the desktop job reads its signing secrets from the
     # `release` environment (tag-only), which a caller cannot pass anyway.
-    uses: ./.github/workflows/desktop.yml
+    uses: $/.github/workflows/desktop.yml
     with:
       release-id: ${{ needs.release.outputs.release-id }}
 

@@ -18,7 +18,11 @@ async fn a_cohort(app: &common::TestApp, csrf: &str) -> Uuid {
         .expect("create cohort");
     assert_eq!(resp.status(), reqwest::StatusCode::OK, "create cohort");
     let body: serde_json::Value = resp.json().await.expect("cohort json");
-    body["id"].as_str().unwrap_or_default().parse().expect("cohort id")
+    body["id"]
+        .as_str()
+        .unwrap_or_default()
+        .parse()
+        .expect("cohort id")
 }
 
 /// The person who wrote a campaign cannot approve it.
@@ -55,7 +59,11 @@ async fn the_author_of_a_campaign_cannot_approve_it() {
         .await
         .expect("run json");
     let run_id = created["id"].as_str().unwrap_or_default();
-    assert_eq!(created["status"].as_str(), Some("draft"), "runs start as drafts");
+    assert_eq!(
+        created["status"].as_str(),
+        Some("draft"),
+        "runs start as drafts"
+    );
 
     let submitted = app
         .client
@@ -107,7 +115,11 @@ async fn an_sms_run_without_a_dlt_template_is_refused() {
         .send()
         .await
         .expect("create sms run");
-    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST, "sms needs a DLT id");
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::BAD_REQUEST,
+        "sms needs a DLT id"
+    );
 
     // The same run with a template id is accepted, so the refusal is about the
     // missing id and not about SMS being unsupported.
@@ -124,7 +136,11 @@ async fn an_sms_run_without_a_dlt_template_is_refused() {
         .send()
         .await
         .expect("create sms run with template");
-    assert_eq!(ok.status(), reqwest::StatusCode::OK, "with a DLT id it is accepted");
+    assert_eq!(
+        ok.status(),
+        reqwest::StatusCode::OK,
+        "with a DLT id it is accepted"
+    );
 }
 
 /// A draft cannot skip review.

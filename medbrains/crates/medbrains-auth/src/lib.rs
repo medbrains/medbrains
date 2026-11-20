@@ -1281,6 +1281,9 @@ pub async fn change_password(
 
 const RESET_OTP_TTL_MINUTES: i32 = 10;
 const RESET_OTP_MAX_ATTEMPTS: i32 = 5;
+/// Reset codes one account may be sent in `RESET_CODE_WINDOW_MINUTES`: each is an SMS.
+const RESET_CODES_PER_WINDOW: i64 = 3;
+const RESET_CODE_WINDOW_MINUTES: i32 = 15;
 
 fn hash_otp(otp: &str) -> String {
     let mut hasher = Sha256::new();
@@ -1349,6 +1352,20 @@ pub async fn request_password_reset(
         return Ok(ack);
     };
 
+    // One account gets its share of codes per window and no more, answered
+    // with the same ack so the cap cannot be probed.
+    let recent: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM password_reset_otps \
+          WHERE user_id = $1 AND created_at > now() - make_interval(mins => $2)",
+    )
+    .bind(user_id)
+    .bind(RESET_CODE_WINDOW_MINUTES)
+    .fetch_one(&mut *tx)
+    .await?;
+    if recent >= RESET_CODES_PER_WINDOW {
+        return Ok(ack);
+    }
+
     let mut buf = [0u8; 4];
     getrandom::fill(&mut buf)
         .map_err(|e| AppError::Internal(format!("otp generation failed: {e}")))?;
@@ -1410,10 +1427,10 @@ pub async fn confirm_password_reset(
     headers: HeaderMap,
     Json(body): Json<PasswordResetConfirmBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if body.new_password.len() < 8 {
-        return Err(AppError::BadRequest(
-            "New password must be at least 8 characters".to_owned(),
-        ));
+    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
+    medbrains_server_core::validation::validate_password(&mut errors, "new_password", &body);
+    if errors.has_errors() {
+        return Err(AppError::ValidationFailed(errors));
     }
 
     let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;

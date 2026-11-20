@@ -13,10 +13,11 @@ async fn a_withdrawal_is_a_new_row_and_the_grant_survives_it() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let contact_id: Uuid = sqlx::query_scalar(
         "INSERT INTO mkt_contacts (tenant_id, primary_phone, source) \
@@ -41,7 +42,11 @@ async fn a_withdrawal_is_a_new_row_and_the_grant_survives_it() {
             .send()
             .await
             .expect("consent write");
-        assert!(res.status().is_success(), "{path} rejected: {:?}", res.status());
+        assert!(
+            res.status().is_success(),
+            "{path} rejected: {:?}",
+            res.status()
+        );
     }
 
     let actions: Vec<String> = sqlx::query_scalar(
@@ -69,7 +74,10 @@ async fn a_withdrawal_is_a_new_row_and_the_grant_survives_it() {
         .fetch_one(&app.db)
         .await
         .expect("read cached flag");
-    assert!(!cached, "the denormalised flag must follow the latest ledger row");
+    assert!(
+        !cached,
+        "the denormalised flag must follow the latest ledger row"
+    );
 }
 
 /// A suppression outlives the contact it was recorded against.
@@ -84,10 +92,11 @@ async fn a_suppression_survives_the_contact_being_deleted_and_recreated() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let phone = format!("9{}", &Uuid::new_v4().as_u128().to_string()[..9]);
     let contact_id: Uuid = sqlx::query_scalar(
@@ -111,7 +120,11 @@ async fn a_suppression_survives_the_contact_being_deleted_and_recreated() {
         .send()
         .await
         .expect("add suppression");
-    assert!(res.status().is_success(), "suppression rejected: {:?}", res.status());
+    assert!(
+        res.status().is_success(),
+        "suppression rejected: {:?}",
+        res.status()
+    );
 
     // Retention comes round and the enquiry record goes.
     sqlx::query("DELETE FROM mkt_contacts WHERE id = $1")

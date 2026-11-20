@@ -182,7 +182,11 @@ pub fn assess(norm: &Norm, last_done: Option<DateTime<Utc>>, now: DateTime<Utc>)
     // A record dated in the future is a data-entry mistake, not compliance
     // stretching further ahead than it should. Treated as done now so it does
     // not report a year of cover from one mistyped date.
-    let due_at = if last > now { now + norm.cadence.interval() } else { due_at };
+    let due_at = if last > now {
+        now + norm.cadence.interval()
+    } else {
+        due_at
+    };
 
     let standing = if now > due_at {
         Standing::Overdue
@@ -222,7 +226,9 @@ pub fn assess_all(
         .collect();
 
     all.sort_by(|a, b| {
-        severity(b).cmp(&severity(a)).then(b.days_overdue.cmp(&a.days_overdue))
+        severity(b)
+            .cmp(&severity(a))
+            .then(b.days_overdue.cmp(&a.days_overdue))
     });
     all
 }

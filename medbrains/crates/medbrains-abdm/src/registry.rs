@@ -163,7 +163,10 @@ async fn post(
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await?;
-        return Err(AbdmError::Status { status, message: abdm_message(&body) });
+        return Err(AbdmError::Status {
+            status,
+            message: abdm_message(&body),
+        });
     }
     Ok(response.json::<Value>().await?)
 }

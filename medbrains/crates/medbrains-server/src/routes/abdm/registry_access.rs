@@ -102,7 +102,11 @@ async fn gateway_token(
 }
 
 async fn token_override(state: &AppState) -> Option<String> {
-    dev_override(state.secret_resolver.as_ref(), "ABDM_GATEWAY_TOKEN_OVERRIDE").await
+    dev_override(
+        state.secret_resolver.as_ref(),
+        "ABDM_GATEWAY_TOKEN_OVERRIDE",
+    )
+    .await
 }
 
 /// A registry that could not answer is an outage (503), never "not found".

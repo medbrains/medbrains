@@ -2,6 +2,7 @@
 
 pub mod abha_link;
 pub mod acquisition;
+pub mod actions;
 pub mod contact_consent;
 pub mod dpdp_consent;
 pub mod group_identity;
@@ -12,7 +13,10 @@ pub mod local_name;
 pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
+mod search;
 
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use std::collections::HashMap;
 
 use axum::{
@@ -40,11 +44,9 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use axum::routing::{delete, get, patch, post, put};
+use medbrains_kernel::authz::require_permission;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{
-    require_any_permission, require_permission,
-};
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
@@ -227,7 +229,7 @@ fn mask_json_text(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
-fn filter_patient_response(
+pub(crate) fn filter_patient_response(
     mut row: Patient,
     restricted: &HashMap<String, FieldAccessLevel>,
 ) -> Patient {
@@ -1055,7 +1057,7 @@ pub async fn list_patients(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListPatientsQuery>,
 ) -> Result<Json<PatientListResponse>, AppError> {
-    require_permission(&claims, permissions::patients::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::LIST)?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1071,13 +1073,13 @@ pub async fn list_patients(
     // ── ReBAC filter — only show patients the caller has `view` on ─
     // Bypass roles (super_admin, hospital_admin) skip the lookup
     // entirely; they see every row in their tenant.
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let authz_ctx = kernel::authz::authz_context(&claims);
     let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
         let result = state
             .authz
-            .list_accessible(&authz_ctx, "patient", medbrains_authz::Relation::Viewer)
+            .list_accessible(&authz_ctx, "patient", kernel::authz::Relation::Viewer)
             .await;
         match result {
             Ok(ids) => {
@@ -1100,9 +1102,10 @@ pub async fn list_patients(
         }
     };
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let matcher =
+        search::PatientSearch::for_request(&state, claims.tenant_id, params.search.as_deref())
+            .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // Build dynamic WHERE conditions
     // A deleted patient is gone from search and lists; the record stays for audit.
@@ -1135,81 +1138,48 @@ pub async fn list_patients(
     }
     let mut binds: Vec<BindVal> = Vec::new();
 
-    if let Some(ref search) = params.search {
-        let pattern = format!("%{search}%");
-        conditions.push(format!(
-            "(uhid ILIKE ${bind_idx} OR first_name ILIKE ${bind_idx} \
-             OR last_name ILIKE ${bind_idx} OR phone ILIKE ${bind_idx} \
-             OR full_name_local ILIKE ${bind_idx})"
-        ));
-        binds.push(BindVal {
-            string_val: Some(pattern),
+    // Name words, phone digits, UHID and Aadhaar fingerprint (`search.rs`).
+    let search_at = matcher.as_ref().map(|s| {
+        conditions.push(search::where_sql(bind_idx));
+        binds.extend(s.binds().map(|v| BindVal {
+            string_val: Some(v),
             bool_val: None,
-        });
-        bind_idx += 1;
-    }
+        }));
+        bind_idx += search::BINDS;
+        bind_idx - search::BINDS
+    });
 
-    if let Some(ref category) = params.category {
-        conditions.push(format!("category::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(category.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
+    // Column names are fixed here, never user input; the values are binds.
+    let text_filters = [
+        ("category", &params.category),
+        ("financial_class", &params.financial_class),
+        ("blood_group", &params.blood_group),
+        ("registration_type", &params.registration_type),
+    ];
+    for (column, value) in text_filters {
+        if let Some(value) = value {
+            conditions.push(format!("{column}::text = ${bind_idx}"));
+            binds.push(BindVal {
+                string_val: Some(value.clone()),
+                bool_val: None,
+            });
+            bind_idx += 1;
+        }
     }
-
-    if let Some(ref fc) = params.financial_class {
-        conditions.push(format!("financial_class::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(fc.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(ref bg) = params.blood_group {
-        conditions.push(format!("blood_group::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(bg.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(ref rt) = params.registration_type {
-        conditions.push(format!("registration_type::text = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: Some(rt.clone()),
-            bool_val: None,
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(is_vip) = params.is_vip {
-        conditions.push(format!("is_vip = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: None,
-            bool_val: Some(is_vip),
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(is_mlc) = params.is_medico_legal {
-        conditions.push(format!("is_medico_legal = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: None,
-            bool_val: Some(is_mlc),
-        });
-        bind_idx += 1;
-    }
-
-    if let Some(is_active) = params.is_active {
-        conditions.push(format!("is_active = ${bind_idx}"));
-        binds.push(BindVal {
-            string_val: None,
-            bool_val: Some(is_active),
-        });
-        bind_idx += 1;
+    let flag_filters = [
+        ("is_vip", params.is_vip),
+        ("is_medico_legal", params.is_medico_legal),
+        ("is_active", params.is_active),
+    ];
+    for (column, value) in flag_filters {
+        if let Some(value) = value {
+            conditions.push(format!("{column} = ${bind_idx}"));
+            binds.push(BindVal {
+                string_val: None,
+                bool_val: Some(value),
+            });
+            bind_idx += 1;
+        }
     }
 
     let where_clause = conditions.join(" AND ");
@@ -1244,6 +1214,11 @@ pub async fn list_patients(
         Some("registration_type") => format!("registration_type {sort_dir}"),
         Some("blood_group") => format!("blood_group {sort_dir}"),
         _ => format!("created_at {sort_dir}"),
+    };
+    // A search ranks best match first unless the desk picked a column to sort by.
+    let order_by = match search_at {
+        Some(at) if params.sort.is_none() => format!("{}, {order_by}", search::rank_sql(at)),
+        _ => order_by,
     };
     let data_sql = format!(
         "SELECT * FROM patients WHERE {where_clause} \
@@ -1323,14 +1298,14 @@ pub async fn list_patients(
     // ── Compute _perms for each row in one bulk_check round-trip ──
     // 5 relations × N rows = single gRPC for SpiceDB; falls back to
     // per-row check() for the Postgres backend.
-    let perm_items: Vec<(String, medbrains_authz::Relation, Uuid)> = patients_raw
+    let perm_items: Vec<(String, kernel::authz::Relation, Uuid)> = patients_raw
         .iter()
         .flat_map(|p| {
             let id = p.id;
             [
-                ("patient".to_owned(), medbrains_authz::Relation::Viewer, id),
-                ("patient".to_owned(), medbrains_authz::Relation::Editor, id),
-                ("patient".to_owned(), medbrains_authz::Relation::Owner, id),
+                ("patient".to_owned(), kernel::authz::Relation::Viewer, id),
+                ("patient".to_owned(), kernel::authz::Relation::Editor, id),
+                ("patient".to_owned(), kernel::authz::Relation::Owner, id),
             ]
         })
         .collect();
@@ -1354,20 +1329,20 @@ pub async fn list_patients(
             } else {
                 medbrains_core::perms_block::PermsBlock {
                     view: perms_map
-                        .get(&("patient".to_owned(), medbrains_authz::Relation::Viewer, id))
+                        .get(&("patient".to_owned(), kernel::authz::Relation::Viewer, id))
                         .copied()
                         .unwrap_or(false),
                     edit: perms_map
-                        .get(&("patient".to_owned(), medbrains_authz::Relation::Editor, id))
+                        .get(&("patient".to_owned(), kernel::authz::Relation::Editor, id))
                         .copied()
                         .unwrap_or(false),
                     delete: perms_map
-                        .get(&("patient".to_owned(), medbrains_authz::Relation::Owner, id))
+                        .get(&("patient".to_owned(), kernel::authz::Relation::Owner, id))
                         .copied()
                         .unwrap_or(false),
                     // share == owner in our schema; same lookup
                     share: perms_map
-                        .get(&("patient".to_owned(), medbrains_authz::Relation::Owner, id))
+                        .get(&("patient".to_owned(), kernel::authz::Relation::Owner, id))
                         .copied()
                         .unwrap_or(false),
                     approve: false,
@@ -1409,7 +1384,7 @@ pub async fn create_patient(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePatientRequest>,
 ) -> Result<Json<Patient>, AppError> {
-    require_permission(&claims, permissions::patients::CREATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::CREATE)?;
 
     // Validate field-level write access
     let restricted = field_access::resolve_restricted_fields(
@@ -1474,9 +1449,7 @@ pub async fn create_patient(
     let blood_str = body.blood_group.map(|b| enum_to_str(&b));
     let reg_source_str = body.registration_source.map(|s| enum_to_str(&s));
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     validate_patient_registration_links(&mut tx, &claims.tenant_id, &body).await?;
 
@@ -1669,15 +1642,15 @@ pub async fn create_patient(
 
     tx.commit().await?;
 
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let authz_ctx = kernel::authz::authz_context(&claims);
     state
         .authz
         .write_tuple(
             &authz_ctx,
             "patient",
             patient.id,
-            medbrains_authz::Relation::Owner,
-            medbrains_authz::Subject::User(claims.sub),
+            kernel::authz::Relation::Owner,
+            kernel::authz::Subject::User(claims.sub),
             None,
             // Owner on a patient this call just created. There is no prior
             // record to authorize against — registration is the act that
@@ -1696,8 +1669,8 @@ pub async fn create_patient(
                 &authz_ctx,
                 "patient",
                 patient.id,
-                medbrains_authz::Relation::AttendingPhysician,
-                medbrains_authz::Subject::User(consultant_id),
+                kernel::authz::Relation::AttendingPhysician,
+                kernel::authz::Subject::User(consultant_id),
                 None,
                 Some("patient_concerned_consultant".to_owned()),
             )
@@ -1738,7 +1711,7 @@ pub async fn get_patient(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Patient>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1753,13 +1726,25 @@ pub async fn get_patient(
     // would 404 while everything on it loaded. Refusal is 404 (existence is
     // not leaked); an outage is 503, because a clinician told "no such
     // patient" during a fault will believe it.
-    medbrains_authz_gate::require_patient_access(&state, &claims, id).await?;
+    gate::require_patient_access(&state, &claims, id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
+    let patient = load_patient(&mut tx, id, claims.tenant_id).await?;
+    tx.commit().await?;
 
-    let patient = sqlx::query_as_unchecked!(
+    patient.map_or_else(
+        || Err(AppError::NotFound),
+        |p| Ok(Json(filter_patient_response(p, &restricted))),
+    )
+}
+
+/// One patient row, every column, unmasked: callers mask it for their reader.
+pub(crate) async fn load_patient(
+    conn: &mut sqlx::PgConnection,
+    id: Uuid,
+    tenant_id: Uuid,
+) -> Result<Option<Patient>, AppError> {
+    Ok(sqlx::query_as_unchecked!(
         Patient,
         r#"SELECT id, tenant_id, uhid, abha_id, prefix, first_name, middle_name, last_name, suffix,
                   full_name_local, father_name, mother_name, spouse_name, guardian_name,
@@ -1776,17 +1761,10 @@ pub async fn get_patient(
            FROM patients
            WHERE id = $1 AND tenant_id = $2"#,
         id,
-        claims.tenant_id,
+        tenant_id,
     )
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    patient.map_or_else(
-        || Err(AppError::NotFound),
-        |p| Ok(Json(filter_patient_response(p, &restricted))),
-    )
+    .fetch_optional(conn)
+    .await?)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1799,23 +1777,23 @@ pub async fn update_patient(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePatientRequest>,
 ) -> Result<Json<Patient>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
 
     // ── ReBAC pre-check — must hold `editor` on the specific patient ──
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let authz_ctx = kernel::authz::authz_context(&claims);
     // Forbidden (not NotFound) is right here: reaching this handler means the
     // caller already passed the read gate, so existence is not a secret from
     // them. An outage still has to be distinguishable from a refusal.
-    match medbrains_server_core::middleware::authorization::outcome_of(
+    match kernel::authz::outcome_of(
         state
             .authz
-            .check(&authz_ctx, medbrains_authz::Relation::Editor, "patient", id)
+            .check(&authz_ctx, kernel::authz::Relation::Editor, "patient", id)
             .await,
         "patient",
     ) {
-        medbrains_authz::decision::Outcome::Allow => {}
-        medbrains_authz::decision::Outcome::Deny => return Err(AppError::Forbidden),
-        medbrains_authz::decision::Outcome::Unknown => {
+        kernel::authz::Outcome::Allow => {}
+        kernel::authz::Outcome::Deny => return Err(AppError::Forbidden),
+        kernel::authz::Outcome::Unknown => {
             return Err(AppError::ServiceUnavailable(
                 "authorization backend unavailable".to_owned(),
             ));
@@ -1854,9 +1832,7 @@ pub async fn update_patient(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // Cast optional enums to text for COALESCE, then cast back
     let gender_str = body.gender.map(|g| enum_to_str(&g));
@@ -2026,11 +2002,11 @@ pub async fn list_patient_identifiers(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientIdentifier>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -2039,9 +2015,7 @@ pub async fn list_patient_identifiers(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientIdentifier,
@@ -2068,8 +2042,8 @@ pub async fn create_patient_identifier(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateIdentifierRequest>,
 ) -> Result<Json<PatientIdentifier>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -2091,9 +2065,7 @@ pub async fn create_patient_identifier(
     let is_verified = body.is_verified.unwrap_or(false);
     let is_primary = body.is_primary.unwrap_or(false);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientIdentifier,
@@ -2129,8 +2101,8 @@ pub async fn update_patient_identifier(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateIdentifierRequest>,
 ) -> Result<Json<PatientIdentifier>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -2142,9 +2114,7 @@ pub async fn update_patient_identifier(
 
     let id_type_str = body.id_type.map(|t| enum_to_str(&t));
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientIdentifier,
@@ -2191,12 +2161,10 @@ pub async fn delete_patient_identifier(
     Extension(claims): Extension<Claims>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::DELETE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::DELETE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "UPDATE patient_identifiers SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
@@ -2225,14 +2193,12 @@ pub async fn list_patient_addresses(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientAddress>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientAddress,
@@ -2255,8 +2221,8 @@ pub async fn create_patient_address(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateAddressRequest>,
 ) -> Result<Json<PatientAddress>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.address_line1.is_empty() {
@@ -2275,9 +2241,7 @@ pub async fn create_patient_address(
     let addr_type_str = enum_to_str(&body.address_type);
     let is_primary = body.is_primary.unwrap_or(false);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAddress,
@@ -2318,14 +2282,12 @@ pub async fn update_patient_address(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateAddressRequest>,
 ) -> Result<Json<PatientAddress>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let addr_type_str = body.address_type.map(|t| enum_to_str(&t));
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAddress,
@@ -2377,12 +2339,10 @@ pub async fn delete_patient_address(
     Extension(claims): Extension<Claims>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::DELETE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::DELETE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "UPDATE patient_addresses SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
@@ -2411,14 +2371,12 @@ pub async fn list_patient_contacts(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientContact>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         PatientContact,
@@ -2441,8 +2399,8 @@ pub async fn create_patient_contact(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateContactRequest>,
 ) -> Result<Json<PatientContact>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     validation::validate_person_name(&mut errors, "contact_name", &body.contact_name);
@@ -2459,9 +2417,7 @@ pub async fn create_patient_contact(
     let is_guardian = body.is_legal_guardian.unwrap_or(false);
     let priority = body.priority.unwrap_or(1);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientContact,
@@ -2497,8 +2453,8 @@ pub async fn update_patient_contact(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateContactRequest>,
 ) -> Result<Json<PatientContact>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if let Some(ref name) = body.contact_name {
@@ -2514,9 +2470,7 @@ pub async fn update_patient_contact(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientContact,
@@ -2560,12 +2514,10 @@ pub async fn delete_patient_contact(
     Extension(claims): Extension<Claims>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::DELETE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::DELETE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "UPDATE patient_contacts SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
@@ -2598,21 +2550,19 @@ pub async fn require_patient_viewer(
     claims: &Claims,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
-    medbrains_server_core::middleware::authorization::collapse(
-        medbrains_server_core::middleware::authorization::outcome_of(
-            state
-                .authz
-                .check(
-                    &authz_ctx,
-                    medbrains_authz::Relation::Viewer,
-                    "patient",
-                    patient_id,
-                )
-                .await,
-            "patient",
-        ),
-    )
+    let authz_ctx = kernel::authz::authz_context(claims);
+    Ok(kernel::authz::collapse(kernel::authz::outcome_of(
+        state
+            .authz
+            .check(
+                &authz_ctx,
+                kernel::authz::Relation::Viewer,
+                "patient",
+                patient_id,
+            )
+            .await,
+        "patient",
+    ))?)
 }
 
 pub async fn list_patient_insurance(
@@ -2620,11 +2570,9 @@ pub async fn list_patient_insurance(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientInsurance>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
     require_patient_viewer(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         PatientInsurance,
@@ -2647,8 +2595,8 @@ pub async fn create_patient_insurance(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateInsuranceRequest>,
 ) -> Result<Json<PatientInsurance>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.insurance_provider.is_empty() {
@@ -2664,9 +2612,7 @@ pub async fn create_patient_insurance(
     let priority = body.priority.unwrap_or(1);
     let is_active = body.is_active.unwrap_or(true);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientInsurance,
@@ -2702,13 +2648,13 @@ pub async fn create_patient_insurance(
     tx.commit().await?;
     // A policy on file reaches the TPA desk, which works claims and
     // pre-authorisations for this patient.
-    medbrains_authz_gate::hand_off(
+    gate::hand_off(
         &state,
         &claims,
-        medbrains_authz_gate::HandOff {
+        gate::HandOff {
             object_type: "patient",
             object_id: patient_id,
-            department_code: medbrains_authz_gate::BILLING,
+            department_code: gate::BILLING,
         },
     )
     .await?;
@@ -2721,12 +2667,10 @@ pub async fn update_patient_insurance(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateInsuranceRequest>,
 ) -> Result<Json<PatientInsurance>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientInsurance,
@@ -2780,12 +2724,10 @@ pub async fn delete_patient_insurance(
     Extension(claims): Extension<Claims>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::DELETE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::DELETE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "UPDATE patient_insurance SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false \
@@ -2814,11 +2756,9 @@ pub async fn list_patient_allergies(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientAllergy>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientAllergy,
@@ -2841,8 +2781,8 @@ pub async fn create_patient_allergy(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateAllergyRequest>,
 ) -> Result<Json<CreateAllergyResponse>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.allergen_name.is_empty() {
@@ -2856,9 +2796,7 @@ pub async fn create_patient_allergy(
     let severity_str = body.severity.map(|s| enum_to_str(&s));
     let is_active = body.is_active.unwrap_or(true);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAllergy,
@@ -2954,9 +2892,8 @@ pub async fn list_allergen_catalog(
     Extension(claims): Extension<Claims>,
     Query(query): Query<AllergenCatalogQuery>,
 ) -> Result<Json<Vec<AllergenCatalogEntry>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
 
     let rows = sqlx::query_as::<_, AllergenCatalogEntry>(
         "SELECT allergy_type::text AS allergy_type, name FROM allergen_catalog \
@@ -2979,15 +2916,13 @@ pub async fn update_patient_allergy(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateAllergyRequest>,
 ) -> Result<Json<PatientAllergy>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let allergy_type_str = body.allergy_type.map(|t| enum_to_str(&t));
     let severity_str = body.severity.map(|s| enum_to_str(&s));
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAllergy,
@@ -3069,8 +3004,8 @@ pub async fn verify_patient_allergy(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<VerifyAllergyRequest>,
 ) -> Result<Json<PatientAllergy>, AppError> {
-    require_permission(&claims, permissions::patients::allergies::VERIFY)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::allergies::VERIFY)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
     let reason = body.reason.trim();
     if body.verdict.retires() && reason.is_empty() {
         let mut errors = ValidationErrors::new();
@@ -3078,9 +3013,7 @@ pub async fn verify_patient_allergy(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientAllergy,
@@ -3115,11 +3048,9 @@ pub async fn list_patient_consents(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientConsent>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientConsent,
@@ -3145,8 +3076,8 @@ pub async fn create_patient_consent(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateConsentRequest>,
 ) -> Result<Json<PatientConsent>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.consented_by.is_empty() {
@@ -3161,9 +3092,7 @@ pub async fn create_patient_consent(
     let capture_mode_str = enum_to_str(&body.capture_mode);
     let consent_date = body.consent_date.unwrap_or_else(Utc::now);
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientConsent,
@@ -3203,15 +3132,13 @@ pub async fn update_patient_consent(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateConsentRequest>,
 ) -> Result<Json<PatientConsent>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let consent_status_str = body.consent_status.map(|s| enum_to_str(&s));
     let capture_mode_str = body.capture_mode.map(|m| enum_to_str(&m));
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as_unchecked!(
         PatientConsent,
@@ -3259,12 +3186,10 @@ pub async fn delete_patient_consent(
     Extension(claims): Extension<Claims>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::DELETE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::DELETE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "UPDATE patient_consents SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
@@ -3291,7 +3216,7 @@ pub async fn delete_patient_consent(
 /// Field-access masking for MPI match rows — mirrors filter_patient_response so
 /// /patients/match honours patients.uhid/first_name/last_name/date_of_birth/phone
 /// Mask/Hidden levels instead of leaking cleartext PHI (an unmasked lookup oracle).
-fn filter_match_result(
+pub(crate) fn filter_match_result(
     mut row: MatchResult,
     restricted: &HashMap<String, FieldAccessLevel>,
 ) -> MatchResult {
@@ -3348,7 +3273,7 @@ pub async fn match_patients(
     // desk creates a second record for the same human. Both built-in roles that
     // can register also hold `view`, so this was latent; a custom role granted
     // `patients.create` alone would have hit it.
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[permissions::patients::VIEW, permissions::patients::CREATE],
     )?;
@@ -3367,9 +3292,7 @@ pub async fn match_patients(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // Step 0: the same verified ABHA number is the same person.
     if let Some(abha) = body.abha_number.as_deref() {
@@ -3452,6 +3375,38 @@ pub struct FindPatientsQuery {
     pub q: String,
 }
 
+/// The desk lookup's query: the shared matcher (`search.rs`) for the tiers,
+/// then a fuzzy name for typos. One query, at most 20 rows. The trigram
+/// `<%` is the indexed predicate (migration 1070); the rest is fine unindexed
+/// at a hospital's register size.
+pub(crate) async fn find_matches(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    matcher: &search::PatientSearch,
+) -> Result<Vec<MatchResult>, AppError> {
+    let sql = format!(
+        "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
+           (CASE {rank} WHEN 0 THEN 1.0 WHEN 1 THEN 0.9 WHEN 2 THEN 0.8 \
+              ELSE COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) * 0.7 \
+            END)::float8 AS score, pharmacy_customer \
+         FROM patients \
+         WHERE tenant_id = $1 AND is_merged = false AND is_active = true \
+           AND deleted_at IS NULL \
+           AND ({matches} OR ($7 <> '' AND $7 <% (first_name || ' ' || last_name))) \
+         ORDER BY score DESC, \
+           COALESCE(word_similarity($7, first_name || ' ' || last_name), 0) DESC, \
+           last_name, first_name \
+         LIMIT 20",
+        rank = search::rank_sql(2),
+        matches = search::where_sql(2),
+    );
+    let mut query = sqlx::query_as::<_, MatchResult>(&sql).bind(tenant_id);
+    for value in matcher.binds() {
+        query = query.bind(value);
+    }
+    Ok(query.bind(matcher.exact()).fetch_all(conn).await?)
+}
+
 /// The front desk's lookup: one box, everything the desk might be given.
 ///
 /// `GET /api/patients` is relationship-scoped, which is right for browsing and
@@ -3467,85 +3422,11 @@ pub async fn find_patients(
     Extension(claims): Extension<Claims>,
     Query(params): Query<FindPatientsQuery>,
 ) -> Result<Json<Vec<MatchResult>>, AppError> {
-    require_permission(&claims, permissions::patients::FIND)?;
-
-    // Two characters match half the hospital. A desk lookup is a lookup for
-    // someone in particular, not a way to page through the register.
-    let q = params.q.trim();
-    if q.chars().count() < 3 {
-        return Ok(Json(Vec::new()));
-    }
-    // A name typed in an Indian script finds the local name and, spelled in
-    // English, the English one.
-    let (latin, native) = local_name::search_terms(q);
-
-    let restricted = field_access::resolve_restricted_fields(
-        &state.db,
-        claims.tenant_id,
-        claims.sub,
-        &claims.role,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    // One query, bounded. Exact UHID / phone first, then a name that starts
-    // with the term, then any word of the name that does ("ravi" finds
-    // "Mr.K Ravindran"), then UHID / phone fragments, then a fuzzy name for
-    // typos. The match predicates are the trigram-indexed ones (migration
-    // 1070); the regexp only ranks rows already matched. Similarity alone on
-    // the full name missed partial names: "ravi" scores 0.17 against
-    // "Ravichandran.S Patient", under the old 0.3 floor.
-    let rows = sqlx::query_as::<_, MatchResult>(
-        "WITH p AS ( \
-           SELECT $2::text AS q, \
-                  replace(replace(replace(lower($2), '\\', '\\\\'), '%', '\\%'), '_', '\\_') AS e, \
-                  replace(replace(replace($3::text, '\\', '\\\\'), '%', '\\%'), '_', '\\_') AS local \
-         ) \
-         SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
-         ( \
-           CASE WHEN upper(uhid) = upper(p.q) THEN 1.0 \
-                WHEN phone = p.q THEN 0.95 \
-                WHEN p.local IS NOT NULL AND full_name_local LIKE p.local || '%' THEN 0.92 \
-                WHEN lower(first_name || ' ' || last_name) LIKE p.e || '%' THEN 0.9 \
-                WHEN ' ' || regexp_replace(lower(first_name || ' ' || last_name), '[^a-z0-9]+', ' ', 'g') \
-                     LIKE '% ' || p.e || '%' THEN 0.85 \
-                WHEN uhid ILIKE '%' || p.e || '%' THEN 0.80 \
-                WHEN phone LIKE '%' || p.e || '%' THEN 0.75 \
-                ELSE COALESCE(word_similarity(p.q, first_name || ' ' || last_name), 0) * 0.7 \
-           END \
-         )::float8 AS score, pharmacy_customer \
-         FROM patients, p \
-         WHERE tenant_id = $1 \
-           AND is_merged = false \
-           AND is_active = true \
-           AND deleted_at IS NULL \
-           AND ( \
-             upper(uhid) = upper(p.q) \
-             OR phone = p.q \
-             OR uhid ILIKE '%' || p.e || '%' \
-             OR phone LIKE '%' || p.e || '%' \
-             OR (first_name || ' ' || last_name) ILIKE '%' || p.e || '%' \
-             OR p.q <% (first_name || ' ' || last_name) \
-             OR (p.local IS NOT NULL AND full_name_local LIKE '%' || p.local || '%') \
-           ) \
-         ORDER BY score DESC, last_name, first_name \
-         LIMIT 20",
-    )
-    .bind(claims.tenant_id)
-    .bind(&latin)
-    .bind(native.as_deref())
-    .fetch_all(&mut *tx)
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::FIND)?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
+    let rows = actions::find(&mut tx, &state, &claims, &params.q).await?;
     tx.commit().await?;
-
-    Ok(Json(
-        rows.into_iter()
-            .map(|m| filter_match_result(m, &restricted))
-            .collect(),
-    ))
+    Ok(Json(rows))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3561,16 +3442,14 @@ pub async fn list_religions(
     // maintains. Requiring `patients.view` meant a settings administrator could
     // not read it without also being able to open charts — the wrong trade in the
     // wrong direction, so the settings permission reaches the read instead.
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::patients::VIEW,
             permissions::admin::settings::clinical_masters::LIST,
         ],
     )?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         MasterReligion,
@@ -3595,16 +3474,14 @@ pub async fn list_occupations(
     // maintains. Requiring `patients.view` meant a settings administrator could
     // not read it without also being able to open charts — the wrong trade in the
     // wrong direction, so the settings permission reaches the read instead.
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::patients::VIEW,
             permissions::admin::settings::clinical_masters::LIST,
         ],
     )?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         MasterOccupation,
@@ -3629,7 +3506,7 @@ pub async fn list_relations(
     // maintains. Requiring `patients.view` meant a settings administrator could
     // not read it without also being able to open charts — the wrong trade in the
     // wrong direction, so the settings permission reaches the read instead.
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::patients::VIEW,
@@ -3638,9 +3515,7 @@ pub async fn list_relations(
     )?;
     // `master_relations` is a lookup of relationship types — spouse, son, guardian.
     // No patient data.
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         MasterRelation,
@@ -3674,6 +3549,7 @@ pub struct PatientVisitRow {
     pub prescription_count: Option<i64>,
     pub lab_order_count: Option<i64>,
     pub created_at: DateTime<Utc>,
+    pub close_reason: Option<String>,
 }
 
 /// Consultation history row for patient-level SOAP timeline review.
@@ -3739,12 +3615,10 @@ pub async fn list_patient_visits(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientVisitRow>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // An imported or retrospective visit carries its complaint on the
     // encounter, with no consultation; a consulted one may have both, and the
@@ -3761,7 +3635,8 @@ pub async fn list_patient_visits(
             (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id AND dg.deleted_at IS NULL) AS diagnosis_count,
             (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id AND p.deleted_at IS NULL) AS prescription_count,
             (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.deleted_at IS NULL) AS lab_order_count,
-            e.created_at
+            e.created_at,
+            e.close_reason
          FROM encounters e
          LEFT JOIN users u ON u.id = e.doctor_id
          LEFT JOIN departments d ON d.id = e.department_id
@@ -3794,12 +3669,10 @@ pub async fn list_patient_consultations(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientConsultationHistoryRow>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PatientConsultationHistoryRow>(
         "SELECT
@@ -3886,13 +3759,11 @@ pub async fn list_patient_lab_orders(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientLabOrderRow>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::lab::orders::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientLabOrderRow,
@@ -3945,12 +3816,10 @@ pub async fn list_patient_invoices(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientInvoiceRow>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
     require_patient_viewer(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientInvoiceRow,
@@ -3997,15 +3866,13 @@ pub async fn list_patient_appointments(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientAppointmentRow>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as_unchecked!(
         PatientAppointmentRow,
@@ -4051,14 +3918,13 @@ pub async fn merge_patients(
     State(state): State<AppState>,
     Json(body): Json<MergePatientRequest>,
 ) -> Result<Json<PatientMergeHistory>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
     // BOTH records, because a merge reads one and rewrites the other. Holding
     // access to the survivor alone would let a caller fold a patient they
     // cannot see into one they can, and read them afterwards — the merge
     // itself would be the disclosure. Irreversible, so both or neither.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.surviving_patient_id)
-        .await?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.merged_patient_id).await?;
+    gate::require_patient_access(&state, &claims, body.surviving_patient_id).await?;
+    gate::require_patient_access(&state, &claims, body.merged_patient_id).await?;
 
     if body.surviving_patient_id == body.merged_patient_id {
         return Err(AppError::BadRequest(
@@ -4066,9 +3932,7 @@ pub async fn merge_patients(
         ));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // Validate the surviving patient belongs to the caller's tenant before writing
     // it into merged_into_patient_id — that FK references the GLOBAL patients table,
@@ -4146,11 +4010,9 @@ pub async fn unmerge_patient(
     State(state): State<AppState>,
     Path(merge_history_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let history = sqlx::query_as!(
         PatientMergeHistory,
@@ -4189,15 +4051,13 @@ pub async fn list_merge_history(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientMergeHistory>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // allow-soft-deleted: merge history is the audit record of identity merges; it must stay complete.
     let rows = sqlx::query_as!(
@@ -4232,15 +4092,13 @@ pub async fn list_family_links(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<FamilyLinkRow>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         FamilyLinkRow,
@@ -4286,8 +4144,8 @@ pub async fn create_family_link(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateFamilyLinkRequest>,
 ) -> Result<Json<PatientFamilyLink>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
     if patient_id == body.related_patient_id {
         return Err(AppError::BadRequest(
@@ -4295,9 +4153,7 @@ pub async fn create_family_link(
         ));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let link = sqlx::query_as!(PatientFamilyLink,
         "INSERT INTO patient_family_links (tenant_id, patient_id, related_patient_id, relationship, is_primary_contact, notes, created_by)
@@ -4324,12 +4180,10 @@ pub async fn delete_family_link(
     State(state): State<AppState>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "UPDATE patient_family_links SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND patient_id = $2 AND deleted_at IS NULL",
@@ -4367,12 +4221,10 @@ pub async fn list_patient_documents(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientDocument>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as!(
         PatientDocument,
@@ -4409,12 +4261,10 @@ pub async fn create_patient_document(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateDocumentRequest>,
 ) -> Result<Json<PatientDocument>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let doc = sqlx::query_as!(
         PatientDocument,
@@ -4445,12 +4295,10 @@ pub async fn delete_patient_document(
     State(state): State<AppState>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::DELETE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::DELETE)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let result = sqlx::query!(
         "UPDATE patient_documents SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND patient_id = $2 AND deleted_at IS NULL",
@@ -4493,15 +4341,13 @@ pub async fn record_patient_access(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<RecordAccessRequest>,
 ) -> Result<Json<PatientAccessLogRow>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, PatientAccessLogRow>(
         "INSERT INTO patient_record_access_log \
@@ -4527,15 +4373,13 @@ pub async fn list_patient_access_log(
     State(state): State<AppState>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientAccessLogRow>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PatientAccessLogRow>(
         "SELECT * FROM patient_record_access_log \
@@ -4558,15 +4402,13 @@ pub async fn update_patient_photo(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<UpdatePhotoRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::UPDATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::UPDATE)?;
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let updated = sqlx::query!(
         "UPDATE patients SET photo_url = $1, photo_captured_at = now(), updated_at = now() WHERE id = $2",
@@ -4681,7 +4523,7 @@ pub async fn get_patient_context(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientContext>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -4691,20 +4533,16 @@ pub async fn get_patient_context(
     .await?;
 
     // ReBAC pre-check on the specific patient.
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    medbrains_server_core::middleware::authorization::collapse(
-        medbrains_server_core::middleware::authorization::outcome_of(
-            state
-                .authz
-                .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", id)
-                .await,
-            "patient",
-        ),
-    )?;
+    let authz_ctx = kernel::authz::authz_context(&claims);
+    kernel::authz::collapse(kernel::authz::outcome_of(
+        state
+            .authz
+            .check(&authz_ctx, kernel::authz::Relation::Viewer, "patient", id)
+            .await,
+        "patient",
+    ))?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // ── Patient core ─────────────────────────────────────
     #[derive(sqlx::FromRow)]
@@ -4784,8 +4622,7 @@ pub async fn get_patient_context(
         None
     } else {
         core.date_of_birth.map(|dob| {
-            let today = Utc::now().date_naive();
-            let years = today.years_since(dob).unwrap_or(0);
+            let years = Utc::now().date_naive().years_since(dob).unwrap_or(0);
             i32::try_from(years).unwrap_or(0)
         })
     };
@@ -5060,13 +4897,11 @@ pub async fn get_clinical_timeline(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientTimelineEvent>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let viewer = medbrains_authz_gate::mental_health::MentalHealthViewer::of(&claims);
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let viewer = gate::mental_health::MentalHealthViewer::of(&claims);
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, PatientTimelineEvent>(
         "SELECT * FROM ( \
@@ -5121,7 +4956,7 @@ pub async fn get_clinical_timeline(
 
 /// Tombstone the mental-health entries this viewer may not see.
 fn withhold_timeline(rows: Vec<PatientTimelineEvent>) -> Vec<PatientTimelineEvent> {
-    use medbrains_authz_gate::mental_health::{TOMBSTONE_LABEL, withhold};
+    use gate::mental_health::{TOMBSTONE_LABEL, withhold};
     withhold(
         rows,
         |row| row.withheld,

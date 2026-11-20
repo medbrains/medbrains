@@ -6,8 +6,14 @@ allowBuilds:
   esbuild: true
   sharp: true
 overrides:
+  # Moved from package.json: pnpm reads only one overrides block, and the
+  # package.json one was hiding every entry below.
+  fast-xml-parser@<5.12.0: 5.12.0
   # GHSA-mrhx-c7xc-m3w5 (high) via @astrojs/rss.
   zod@<4.6.6: 4.6.6
   # GHSA-68fv-2mgg-jv7q (high) via sass; GHSA-g7r4-m6w7-qqqr (low) via vite.
   source-map-js@<1.2.2: 1.2.2
   esbuild@>=0.27.3 <0.28.1: 0.28.1
+  # Snyk 2026-11-17: undici CVE-2026-116592 (critical) and five highs
+  # (CVE-2026-116630, -120222, -120415, -120423, -120474), via astro.
+  undici@>=8.0.0 <8.12.4: 8.12.4

@@ -109,6 +109,12 @@ export function BackupStatusCard() {
           </Text>
         )}
 
+        {summary?.lastGood?.error_message && (
+          <Alert tone="warning" title="This backup needs attention">
+            {summary.lastGood.error_message}
+          </Alert>
+        )}
+
         {summary?.failure && (
           <Alert tone="warning" title="The latest run failed">
             {new Date(finishedAt(summary.failure)).toLocaleString()}

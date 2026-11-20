@@ -53,6 +53,14 @@ pub enum SignatureType {
     VerbalWitness,
 }
 
+/// Whether a signature method claims a check nothing here performs. No consent
+/// or document flow sends or verifies a code, so "otp" on a signature would
+/// record a verification that never happened. Both signature writers refuse it.
+#[must_use]
+pub fn claims_unverified_check(signature_type: &str) -> bool {
+    signature_type == "otp"
+}
+
 // ── Structs ────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

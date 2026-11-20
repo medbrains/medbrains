@@ -356,7 +356,9 @@ pub async fn link_confirm(
     .await?;
     let mut linked = Vec::new();
     match request {
-        Some((id, patient_id, refs, hash)) if hash == otp_hash(link_ref, &otp) => {
+        Some((id, patient_id, refs, hash))
+            if medbrains_server_core::codes::constant_time_eq(&hash, &otp_hash(link_ref, &otp)) =>
+        {
             // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
             sqlx::query("UPDATE abdm_link_requests SET status = 'confirmed' WHERE tenant_id = $1 AND id = $2")
                 .bind(caller.tenant_id)

@@ -42,8 +42,53 @@ beforeEach(() => {
   mockFetch.mockReset();
   mockFetch.mockResolvedValue(jsonResponse(200));
   setApiBase("/api");
+  // A token seats a fresh session (so refresh is allowed), then clear it.
+  setCsrfToken("session");
   setCsrfToken(null);
   documentStub.cookie = "";
+});
+
+describe("the refresh storm after a session ends", () => {
+  /** How many times `/auth/refresh` was called. */
+  const refreshCalls = () =>
+    mockFetch.mock.calls.filter(([url]) => String(url).endsWith("/auth/refresh")).length;
+
+  it("sends one refresh for six concurrent 401s", async () => {
+    mockFetch.mockImplementation(async () => jsonResponse(401));
+    const calls = Array.from({ length: 6 }, () => api.me());
+    const results = await Promise.allSettled(calls);
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    expect(refreshCalls()).toBe(1);
+  });
+
+  it("sends no refresh after the server refused one, until a new session", async () => {
+    mockFetch.mockImplementation(async () => jsonResponse(401));
+    await expect(api.me()).rejects.toThrow("session_expired");
+    await expect(api.me()).rejects.toThrow("session_expired");
+    await expect(api.health()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(1);
+
+    setCsrfToken("new-session");
+    await expect(api.me()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(2);
+  });
+
+  it("sends no refresh after logout", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { status: "ok" }));
+    await api.logout();
+    mockFetch.mockImplementation(async () => jsonResponse(401));
+    await expect(api.me()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(0);
+  });
+
+  it("keeps refreshing after a 429, which is not a refusal", async () => {
+    mockFetch.mockImplementation(async (url: string) =>
+      jsonResponse(String(url).endsWith("/auth/refresh") ? 429 : 401),
+    );
+    await expect(api.me()).rejects.toThrow("session_expired");
+    await expect(api.me()).rejects.toThrow("session_expired");
+    expect(refreshCalls()).toBe(2);
+  });
 });
 
 describe("request() error handling", () => {
@@ -9795,13 +9840,14 @@ describe("/quality endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("calculateIndicator → POST /quality/indicators/{param_1}/calculate", async () => {
+  it("setQualityIndicatorDirection → PUT /quality/indicators/{param_1}/direction", async () => {
     mockOk({});
-    await api.calculateIndicator(UUID);
+    await api.setQualityIndicatorDirection(UUID, "lower_better");
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/quality/indicators");
-    expect(opts.method).toBe("POST");
+    expect(url).toContain(`/api/quality/indicators/${UUID}/direction`);
+    expect(opts.method).toBe("PUT");
+    expect(JSON.parse(opts.body)).toEqual({ direction: "lower_better" });
   });
 
   it("listPendingAcks → GET /quality/documents/{param_1}/pending-acks", async () => {

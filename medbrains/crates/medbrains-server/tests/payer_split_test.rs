@@ -26,8 +26,9 @@ async fn the_desk_splits_a_bill_between_insurer_and_patient() {
     .fetch_one(&app.db)
     .await
     .expect("patient");
-    let bill = |n: &str| {
-        sqlx::query_scalar::<_, Uuid>(
+    let bill =
+        |n: &str| {
+            sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO invoices (tenant_id, invoice_number, patient_id, subtotal, total_amount) \
              VALUES ($1, $2, $3, $4, $4) RETURNING id",
         )
@@ -36,7 +37,7 @@ async fn the_desk_splits_a_bill_between_insurer_and_patient() {
         .bind(patient)
         .bind(rust_decimal::Decimal::from(if n == "A" { 6900 } else { 400 }))
         .fetch_one(&app.db)
-    };
+        };
     let invoice = bill("A").await.expect("invoice");
     let self_pay = bill("B").await.expect("invoice");
     let mut items = Vec::new();

@@ -196,20 +196,31 @@ pub fn catalog_text() -> String {
     TOOLS
         .iter()
         .map(|t| {
-            shapes.get(t.name).filter(|s| !s.fields.is_empty()).map_or_else(
-                || format!("- {} ({}): {}", t.name, t.method, t.about),
-                |shape| {
-                    let fields = shape
-                        .fields
-                        .iter()
-                        .map(|f| {
-                            format!("{}{}: {}", f.name, if f.required { "*" } else { "" }, f.field_type)
-                        })
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!("- {} ({}): {} body fields: {{{fields}}} (*=required)", t.name, t.method, t.about)
-                },
-            )
+            shapes
+                .get(t.name)
+                .filter(|s| !s.fields.is_empty())
+                .map_or_else(
+                    || format!("- {} ({}): {}", t.name, t.method, t.about),
+                    |shape| {
+                        let fields = shape
+                            .fields
+                            .iter()
+                            .map(|f| {
+                                format!(
+                                    "{}{}: {}",
+                                    f.name,
+                                    if f.required { "*" } else { "" },
+                                    f.field_type
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!(
+                            "- {} ({}): {} body fields: {{{fields}}} (*=required)",
+                            t.name, t.method, t.about
+                        )
+                    },
+                )
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -239,7 +250,9 @@ fn path_placeholders(path: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest = path;
     while let Some(start) = rest.find('{') {
-        let Some(rel_end) = rest[start..].find('}') else { break };
+        let Some(rel_end) = rest[start..].find('}') else {
+            break;
+        };
         let end = start + rel_end;
         out.push(rest[start + 1..end].to_owned());
         rest = &rest[end + 1..];
@@ -250,7 +263,9 @@ fn path_placeholders(path: &str) -> Vec<String> {
 /// The path-placeholder names for a tool, so the host can split the model's flat
 /// argument object into path params vs body.
 pub fn tool_path_params(name: &str) -> Vec<String> {
-    find_tool(name).map(|t| path_placeholders(t.path)).unwrap_or_default()
+    find_tool(name)
+        .map(|t| path_placeholders(t.path))
+        .unwrap_or_default()
 }
 
 /// Build one endpoint tool's argument schema: path placeholders (required
@@ -265,7 +280,10 @@ fn tool_parameters(spec: &ToolSpec) -> Value {
     }
     if let Some(shape) = shapes().get(spec.name) {
         for f in &shape.fields {
-            props.insert(f.name.clone(), json!({ "type": canon_to_json_type(&f.field_type) }));
+            props.insert(
+                f.name.clone(),
+                json!({ "type": canon_to_json_type(&f.field_type) }),
+            );
             if f.required {
                 required.push(Value::String(f.name.clone()));
             }
@@ -294,8 +312,9 @@ pub fn build_tool_defs() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "report_finding".to_owned(),
-            description: "Report a bug, confusing UX, permission problem, or untranslated text you hit."
-                .to_owned(),
+            description:
+                "Report a bug, confusing UX, permission problem, or untranslated text you hit."
+                    .to_owned(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -460,7 +479,10 @@ mod tests {
 
     #[test]
     fn renders_path_params() {
-        let out = render_path("/api/opd/encounters/{encounter_id}/vitals", &json!({"encounter_id": "abc"}));
+        let out = render_path(
+            "/api/opd/encounters/{encounter_id}/vitals",
+            &json!({"encounter_id": "abc"}),
+        );
         assert_eq!(out, "/api/opd/encounters/abc/vitals");
     }
 
@@ -495,7 +517,10 @@ mod tests {
     fn catalog_lists_contract_fields() {
         // The embedded shapes give create_opd_encounter its real required fields.
         let text = catalog_text();
-        assert!(text.contains("patient_id*"), "required field should be starred: {text}");
+        assert!(
+            text.contains("patient_id*"),
+            "required field should be starred: {text}"
+        );
         assert!(text.contains("body fields:"));
     }
 

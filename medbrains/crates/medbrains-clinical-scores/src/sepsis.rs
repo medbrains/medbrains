@@ -49,7 +49,14 @@ pub fn compute_qsofa(r: &QsofaRequest) -> QsofaResult {
         "Lower risk — sepsis not excluded. Continue monitoring and reassess qSOFA if the clinical \
          picture changes; screen for organ dysfunction if infection is suspected."
     };
-    QsofaResult { total, respiratory_rate, systolic_bp, mentation, high_risk, response }
+    QsofaResult {
+        total,
+        respiratory_rate,
+        systolic_bp,
+        mentation,
+        high_risk,
+        response,
+    }
 }
 
 /// `POST /api/clinical/qsofa` — compute the qSOFA sepsis screen from bedside parameters.

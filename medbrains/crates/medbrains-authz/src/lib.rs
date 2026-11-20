@@ -12,13 +12,13 @@
 //! questions does not compile a gRPC stack.
 
 pub mod backend_pg;
+pub mod backend_test;
+pub mod caveat;
 pub mod classification;
 pub mod context;
 pub mod decision;
-pub mod field_class;
-pub mod backend_test;
-pub mod caveat;
 pub mod error;
+pub mod field_class;
 pub mod registry;
 pub mod relations;
 

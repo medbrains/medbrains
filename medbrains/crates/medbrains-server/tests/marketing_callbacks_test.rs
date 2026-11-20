@@ -14,10 +14,11 @@ async fn the_desk_can_open_the_calls_it_owes() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let phone = format!("89{}", &Uuid::new_v4().as_u128().to_string()[..8]);
     let contact_id: Uuid = sqlx::query_scalar(
@@ -86,7 +87,10 @@ async fn the_desk_can_open_the_calls_it_owes() {
         .await
         .expect("summary json");
     assert!(summary["overdue"].as_i64() >= Some(1), "{summary}");
-    assert!(summary["oldest_overdue_seconds"].as_i64() >= Some(7000), "{summary}");
+    assert!(
+        summary["oldest_overdue_seconds"].as_i64() >= Some(7000),
+        "{summary}"
+    );
 }
 
 /// Closing a callback records that the call happened.
@@ -99,10 +103,11 @@ async fn completing_a_callback_writes_the_call_onto_the_timeline() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let contact_id: Uuid = sqlx::query_scalar(
         "INSERT INTO mkt_contacts (tenant_id, primary_phone, source) \
@@ -132,7 +137,11 @@ async fn completing_a_callback_writes_the_call_onto_the_timeline() {
         .send()
         .await
         .expect("complete callback");
-    assert!(res.status().is_success(), "complete rejected: {:?}", res.status());
+    assert!(
+        res.status().is_success(),
+        "complete rejected: {:?}",
+        res.status()
+    );
 
     let logged: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM mkt_interactions \
@@ -143,7 +152,10 @@ async fn completing_a_callback_writes_the_call_onto_the_timeline() {
     .fetch_one(&app.db)
     .await
     .expect("count interactions");
-    assert_eq!(logged, 1, "closing a callback must record the call it represents");
+    assert_eq!(
+        logged, 1,
+        "closing a callback must record the call it represents"
+    );
 
     let contacted: Option<chrono::DateTime<chrono::Utc>> =
         sqlx::query_scalar("SELECT last_contacted_at FROM mkt_contacts WHERE id = $1")
@@ -183,10 +195,11 @@ async fn rescheduling_keeps_the_call_owed() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
 
     let contact_id: Uuid = sqlx::query_scalar(
         "INSERT INTO mkt_contacts (tenant_id, primary_phone, source) \
@@ -217,7 +230,11 @@ async fn rescheduling_keeps_the_call_owed() {
         .send()
         .await
         .expect("reschedule");
-    assert!(res.status().is_success(), "reschedule rejected: {:?}", res.status());
+    assert!(
+        res.status().is_success(),
+        "reschedule rejected: {:?}",
+        res.status()
+    );
 
     let status: String = sqlx::query_scalar("SELECT status FROM mkt_tasks WHERE id = $1")
         .bind(task_id)

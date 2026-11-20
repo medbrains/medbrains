@@ -103,8 +103,26 @@ pub async fn consult_due_at(
     Ok(due_at(&fee_timing(tx, tenant_id, "opd").await?, moment))
 }
 
-/// Charge the registration fee, once per patient, if the hospital charges one
-/// and it is due at `moment`.
+/// Whether the hospital runs the Billing brick at all.
+///
+/// A hospital with Billing switched off (Registration + OPD only) has no desk to
+/// collect a bill, so no clinical action may open a draft invoice or queue a
+/// charge for it. Switching Billing on later does not back-fill what was done
+/// while it was off. A read error is returned, never read as on or off.
+///
+/// # Errors
+/// The module status could not be read.
+pub async fn billing_brick_on(tx: &mut Tx<'_>, tenant_id: &Uuid) -> Result<bool, AppError> {
+    Ok(
+        medbrains_server_core::middleware::entitlement::module_enabled_in_tx(
+            tx, *tenant_id, "billing",
+        )
+        .await?,
+    )
+}
+
+/// Charge the registration fee, once per patient, if the hospital charges one,
+/// runs the Billing brick, and the fee is due at `moment`.
 ///
 /// # Errors
 /// A database fault.
@@ -115,6 +133,9 @@ pub async fn charge_registration_fee(
     encounter_id: Option<Uuid>,
     moment: FeeMoment,
 ) -> Result<(), AppError> {
+    if !billing_brick_on(tx, &tenant_id).await? {
+        return Ok(());
+    }
     let timing = fee_timing(tx, tenant_id, "registration").await?;
     let Some(fee) = timing.fee_amount.filter(|f| *f > Decimal::ZERO) else {
         return Ok(());

@@ -10,6 +10,7 @@ medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-health-services = { path = "../medbrains-health-services" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

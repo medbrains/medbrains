@@ -79,7 +79,13 @@ struct ProviderCreds {
 
 /// AEAD master key from the secret store. The development key is for development only.
 async fn oauth_token_key(state: &AppState) -> Result<Vec<u8>, AppError> {
-    medbrains_core::secrets::sealing::sealing_key(state.secret_resolver.as_ref(), OAUTH_TOKEN_KEY_SECRET, DEV_OAUTH_TOKEN_KEY).await.map_err(AppError::from)
+    medbrains_core::secrets::sealing::sealing_key(
+        state.secret_resolver.as_ref(),
+        OAUTH_TOKEN_KEY_SECRET,
+        DEV_OAUTH_TOKEN_KEY,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 fn encrypt<T: Serialize>(key: &[u8], value: &T) -> Result<String, AppError> {

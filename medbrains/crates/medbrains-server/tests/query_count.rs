@@ -10,10 +10,18 @@
 //!
 //! Work a handler hands to `tokio::spawn` runs in another task and is not
 //! counted: the budget is for the round trips a user waits on.
+//!
+//! Nor are sqlx's type lookups (#5990). The first time a pooled connection
+//! meets a user-defined type in a result, sqlx asks `pg_catalog` what it is
+//! (two statements per enum) and caches the answer on that connection. Which
+//! connection a request gets depends on what earlier tests ran, so counting
+//! them made the invoice list (two enum columns, +4) fail once at random. They
+//! are paid once per connection and type, never per row.
 
 use std::cell::Cell;
 use std::sync::OnceLock;
 
+use tracing::field::{Field, Visit};
 use tracing::subscriber::Interest;
 use tracing::{Event, Metadata, Subscriber};
 use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
@@ -47,11 +55,42 @@ impl<S: Subscriber> Layer<S> for CountStatements {
     /// Bump the current request's counter; events outside a request (the
     /// test's own seeding) have no counter and are ignored.
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        if event.metadata().target() == SQLX_TARGET {
+        if event.metadata().target() == SQLX_TARGET && !is_type_lookup(event) {
             // `try_with` fails only outside a counted request: nothing to count.
             let _outside_a_request = QUERIES.try_with(|n| n.set(n.get().saturating_add(1)));
         }
     }
+}
+
+/// The catalog tables sqlx reads to fill a connection's type cache, and which
+/// application code here never reads.
+const TYPE_LOOKUP_TABLES: &[&str] = &[
+    "pg_catalog.pg_type",
+    "pg_catalog.pg_enum",
+    "pg_catalog.pg_attribute",
+];
+
+/// Collects an sqlx event's `summary` and `db.statement` fields as one string.
+#[derive(Debug, Default)]
+struct StatementText(String);
+
+impl Visit for StatementText {
+    /// Append each field's text; the SQL is in one of the two.
+    fn record_str(&mut self, _field: &Field, value: &str) {
+        self.0.push_str(value);
+    }
+
+    /// Fields recorded by `Debug` (elapsed, counts) carry no SQL.
+    fn record_debug(&mut self, _field: &Field, _value: &dyn std::fmt::Debug) {}
+}
+
+/// Whether this sqlx event is one of its per-connection type lookups.
+fn is_type_lookup(event: &Event<'_>) -> bool {
+    let mut text = StatementText::default();
+    event.record(&mut text);
+    TYPE_LOOKUP_TABLES
+        .iter()
+        .any(|table| text.0.contains(table))
 }
 
 /// Install the counting layer as the process's tracing subscriber, once.

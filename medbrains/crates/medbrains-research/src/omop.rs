@@ -197,7 +197,10 @@ fn unrestricted<'a>(name: &str, rows: &'a [RawRow]) -> Vec<&'a RawRow> {
 
 /// Build the bundle for `period` from `sources`, keyed under `salt`.
 #[must_use]
-#[expect(clippy::too_many_lines, reason = "the CDM tables in order, each a few lines")]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the CDM tables in order, each a few lines"
+)]
 pub fn bundle(
     sources: &Sources,
     map: &ConceptMap,

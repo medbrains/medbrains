@@ -243,7 +243,11 @@ fn a_paid_visit_is_not_reopened_by_a_late_drawer_event() {
         image_url: Some("http://evil/qr.png".into()),
         close_by: None,
     };
-    assert_eq!(apply(&paid, bad_qr), Err(Rejected::Qr), "still checked, not waved through");
+    assert_eq!(
+        apply(&paid, bad_qr),
+        Err(Rejected::Qr),
+        "still checked, not waved through"
+    );
     let cleared = apply(&paid, DisplayEvent::Cleared { session: s })
         .expect("valid")
         .expect("applies");

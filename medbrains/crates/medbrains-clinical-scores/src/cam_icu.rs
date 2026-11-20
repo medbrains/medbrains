@@ -97,7 +97,9 @@ pub async fn cam_icu_assessment(
 ) -> Result<Json<CamIcuResult>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     if !(-5..=4).contains(&body.rass) {
-        return Err(AppError::BadRequest("rass must be between -5 and +4".to_owned()));
+        return Err(AppError::BadRequest(
+            "rass must be between -5 and +4".to_owned(),
+        ));
     }
     Ok(Json(compute_cam_icu(&body)))
 }

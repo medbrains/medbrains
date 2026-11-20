@@ -311,7 +311,12 @@ pub async fn verify_share_code(
         tx.commit().await?;
         return Err(refused());
     };
-    if attempts >= CODE_ATTEMPTS || hash(shared.link_id, body.code.trim()) != code_hash {
+    if attempts >= CODE_ATTEMPTS
+        || !medbrains_server_core::codes::constant_time_eq(
+            &hash(shared.link_id, body.code.trim()),
+            &code_hash,
+        )
+    {
         // Five wrong tries burn the code: it is no longer a secret.
         sqlx::query(
             "UPDATE radiology_share_otps SET attempts = attempts + 1, \

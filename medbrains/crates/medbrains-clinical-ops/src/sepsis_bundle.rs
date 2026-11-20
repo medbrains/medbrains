@@ -105,7 +105,10 @@ fn build_view(b: SepsisBundle) -> SepsisBundleView {
             required: fluids_required,
         },
     ];
-    SepsisBundleView { bundle: b, elements }
+    SepsisBundleView {
+        bundle: b,
+        elements,
+    }
 }
 
 /// All required elements delivered within one hour of recognition.
@@ -114,8 +117,8 @@ fn compute_compliant(b: &SepsisBundle) -> bool {
     let core = on_time(r, b.lactate_measured_at)
         && on_time(r, b.blood_cultures_at)
         && on_time(r, b.antibiotics_at);
-    let fluids = !b.fluids_indicated
-        || (on_time(r, b.fluids_started_at) && on_time(r, b.vasopressors_at));
+    let fluids =
+        !b.fluids_indicated || (on_time(r, b.fluids_started_at) && on_time(r, b.vasopressors_at));
     core && fluids
 }
 
@@ -139,8 +142,7 @@ pub async fn create_sepsis_bundle(
 ) -> Result<Json<SepsisBundleView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
     // A sepsis bundle is an emergency treatment record on the named patient.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let recognised_at = body.recognised_at.unwrap_or_else(Utc::now);
 
     let mut tx = state.db.begin().await?;
@@ -268,8 +270,7 @@ pub async fn list_sepsis_bundles(
 ) -> Result<Json<Vec<SepsisBundleView>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     // One patient's sepsis bundles — an empty list here reads as "no sepsis".
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, SepsisBundle>(&format!(

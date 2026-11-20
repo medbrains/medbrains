@@ -29,7 +29,8 @@ const PASS_INTERVAL_SECS: u64 = 30;
 const DEFAULT_ESCALATE_SECS: i32 = 120;
 const DEFAULT_SUPERVISOR_SECS: i32 = 300;
 
-pub fn spawn(pool: PgPool) {
+/// Start the pass; the handle lets the brick-job supervisor stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match escalate_unanswered(&pool).await {
@@ -41,7 +42,7 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }
 
 #[derive(sqlx::FromRow)]
@@ -60,7 +61,11 @@ struct LateCall {
 }
 
 /// Which tier a wait has reached, or `None` while it is still within time.
-fn tier_for(waiting_seconds: i32, escalate_secs: i32, supervisor_secs: i32) -> Option<&'static str> {
+fn tier_for(
+    waiting_seconds: i32,
+    escalate_secs: i32,
+    supervisor_secs: i32,
+) -> Option<&'static str> {
     if waiting_seconds >= supervisor_secs {
         Some("supervisor")
     } else if waiting_seconds >= escalate_secs {
@@ -76,7 +81,10 @@ fn tier_for(waiting_seconds: i32, escalate_secs: i32, supervisor_secs: i32) -> O
 /// straight to supervisor and does not also send the charge-nurse message
 /// afterwards: the later tier subsumes the earlier one.
 fn advances(current: Option<&str>, tier: &str) -> bool {
-    matches!((current, tier), (None, _) | (Some("charge_nurse"), "supervisor"))
+    matches!(
+        (current, tier),
+        (None, _) | (Some("charge_nurse"), "supervisor")
+    )
 }
 
 async fn escalate_unanswered(pool: &PgPool) -> Result<u64, AppError> {

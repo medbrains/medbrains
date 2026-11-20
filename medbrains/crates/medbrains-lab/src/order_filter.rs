@@ -65,7 +65,12 @@ pub(crate) fn build_order_filter(
     // (`term%`) on the identifier columns so the existing btree indexes are
     // usable; the name is matched anywhere because people are found by their
     // second name as often as their first.
-    if let Some(term) = params.q.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    if let Some(term) = params
+        .q
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
         conditions.push(format!(
             "(sample_barcode ILIKE ${idx} \
               OR EXISTS (SELECT 1 FROM patients p \
@@ -134,8 +139,14 @@ mod tests {
 
         let (clause, binds, next) = build_order_filter(&params, Some(&ids));
 
-        assert_eq!(clause, "tenant_id = $1 AND id = ANY($2::uuid[]) AND status::text = $3");
-        assert_eq!(binds, vec![Bind::UuidList(ids), Bind::Text("pending".to_owned())]);
+        assert_eq!(
+            clause,
+            "tenant_id = $1 AND id = ANY($2::uuid[]) AND status::text = $3"
+        );
+        assert_eq!(
+            binds,
+            vec![Bind::UuidList(ids), Bind::Text("pending".to_owned())]
+        );
         assert_eq!(next, 4, "LIMIT/OFFSET take $4 and $5");
     }
 

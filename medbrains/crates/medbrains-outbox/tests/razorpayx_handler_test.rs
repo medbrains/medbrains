@@ -1,6 +1,7 @@
 //! RazorpayX virtual-account handler tests — `wiremock`, no live keys.
 //! Covers the create-VA request contract + error mapping; the success path
 //! writes to the DB (skipped here, like the Razorpay/Cashfree handler tests).
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use async_trait::async_trait;
 use medbrains_core::secrets::{SecretError, SecretResolver};

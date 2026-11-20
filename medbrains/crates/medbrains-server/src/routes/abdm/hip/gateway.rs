@@ -193,9 +193,7 @@ impl Hip {
     #[tracing::instrument(skip_all, fields(tenant_id = %self.tenant_id))]
     pub async fn send_as_hiu(&self, path: &str, body: &Value) -> Result<Uuid, AppError> {
         self.with_session(|s| async move {
-            self.gateway
-                .send_as_hiu(path, &s, &self.hip_id, body)
-                .await
+            self.gateway.send_as_hiu(path, &s, &self.hip_id, body).await
         })
         .await
     }
@@ -351,7 +349,8 @@ impl Trust {
             .into_iter()
             .flatten()
             .filter_map(Value::as_str);
-        ids.chain(roles).any(|v| self.callers.iter().any(|c| c == v))
+        ids.chain(roles)
+            .any(|v| self.callers.iter().any(|c| c == v))
     }
 }
 
@@ -367,16 +366,26 @@ async fn verify_gateway_token(
     let trust = Trust::load(secrets).await;
     // Unverified, only to pick whose keys to verify with; checked again below.
     let peeked = medbrains_crypto::jws::peek_claims(token).map_err(|_| refused("not a JWT"))?;
-    let issuer = peeked.get("iss").and_then(Value::as_str).unwrap_or_default();
+    let issuer = peeked
+        .get("iss")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let environment = trust.environment_of(issuer).ok_or_else(|| {
-        tracing::warn!(issuer, "abdm callback refused: issuer is not a configured ABDM gateway");
+        tracing::warn!(
+            issuer,
+            "abdm callback refused: issuer is not a configured ABDM gateway"
+        );
         refused("issuer")
     })?;
     let claims = verify_signature(secrets, (environment, session_from), token).await?;
     if claims.get("iss").and_then(Value::as_str) != Some(issuer) {
         return Err(refused("issuer"));
     }
-    if claims.get("typ").and_then(Value::as_str).is_some_and(|t| t != "Bearer") {
+    if claims
+        .get("typ")
+        .and_then(Value::as_str)
+        .is_some_and(|t| t != "Bearer")
+    {
         return Err(refused("not an access token"));
     }
     if !trust.names_the_gateway(&claims) {
@@ -430,7 +439,9 @@ async fn verify_signature(
         }
     }
     let Some((db, tenant_id)) = session_from else {
-        return Err(refused("no gateway keys cached and no hospital to fetch them as"));
+        return Err(refused(
+            "no gateway keys cached and no hospital to fetch them as",
+        ));
     };
     let auth = session(db, secrets, tenant_id).await?;
     let jwks = gateway
@@ -500,7 +511,10 @@ mod tests {
             t.environment_of("https://dev.ndhm.gov.in/auth/realms/central-registry"),
             Some(medbrains_abdm::AbdmEnvironment::Sandbox)
         );
-        assert_eq!(t.environment_of("https://evil.example/realms/central-registry"), None);
+        assert_eq!(
+            t.environment_of("https://evil.example/realms/central-registry"),
+            None
+        );
         assert_eq!(t.environment_of(""), None);
     }
 }

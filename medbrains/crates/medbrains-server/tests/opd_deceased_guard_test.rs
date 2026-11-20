@@ -86,6 +86,11 @@ async fn deceased_patient_cannot_start_opd_encounter() {
         "a deceased patient must not start a new OPD visit"
     );
     let body: serde_json::Value = blocked.json().await.expect("conflict json");
-    let msg = serde_json::to_string(&body).unwrap_or_default().to_lowercase();
-    assert!(msg.contains("deceased"), "the 409 body should mention deceased: {body}");
+    let msg = serde_json::to_string(&body)
+        .unwrap_or_default()
+        .to_lowercase();
+    assert!(
+        msg.contains("deceased"),
+        "the 409 body should mention deceased: {body}"
+    );
 }

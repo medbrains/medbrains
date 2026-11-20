@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ca.patient_id, ca.parameter_name, ca.value, r.unit AS \"unit?\",\n                  ca.created_at, p.first_name AS \"first_name?\", p.last_name AS \"last_name?\",\n                  p.uhid AS \"uhid?\"\n             FROM lab_critical_alerts ca\n             LEFT JOIN lab_results r ON r.id = ca.result_id AND r.tenant_id = ca.tenant_id\n             LEFT JOIN patients p ON p.id = ca.patient_id AND p.tenant_id = ca.tenant_id\n            WHERE ca.tenant_id = $1 AND ca.acknowledged_at IS NULL AND ca.deleted_at IS NULL\n              AND (ca.notified_to = $2 OR ca.escalated_to = $2)\n            ORDER BY ca.created_at LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "parameter_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "value",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "unit?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "uhid?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0aeb1c77b73f53801ae7d31b896c783490ee74aaf058069cba159cef30304ed1"
+}

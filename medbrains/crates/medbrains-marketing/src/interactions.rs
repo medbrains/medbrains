@@ -39,14 +39,8 @@ pub async fn ingest_call(
     tenant_id: Uuid,
     event: &CallEvent,
 ) -> Result<Uuid, AppError> {
-    let contact = resolve_or_create(
-        tx,
-        tenant_id,
-        CHANNEL_PHONE,
-        &event.caller_number,
-        "call",
-    )
-    .await?;
+    let contact =
+        resolve_or_create(tx, tenant_id, CHANNEL_PHONE, &event.caller_number, "call").await?;
 
     // Idempotent on the switch's own call id. Providers retry a webhook they
     // did not get a 2xx for, and an AMI reconnect replays events across the

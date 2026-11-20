@@ -22,7 +22,7 @@ test("a doctor refers a patient to a named doctor in another department", async 
   await api(hospital.admin, "POST", "/api/setup/users", {
     username: `cardio_${suffix}`,
     email: `cardio_${suffix}@e2e.medbrains.localhost`,
-    password: `Cardio-${suffix}-Pass1!`,
+    password: `Heart-Clinic-${suffix}-7!`,
     full_name: cardiologist,
     role: "doctor",
     department_ids: [cardiology.id],

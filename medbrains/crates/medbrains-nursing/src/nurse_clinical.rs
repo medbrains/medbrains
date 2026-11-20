@@ -216,7 +216,10 @@ pub async fn create_wound(
     .bind(claims.sub)
     .bind(&body.notes)
     .bind(&body.body_site_code)
-    .bind(body.body_site_laterality.map(medbrains_core::body_site::Laterality::as_str))
+    .bind(
+        body.body_site_laterality
+            .map(medbrains_core::body_site::Laterality::as_str),
+    )
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;

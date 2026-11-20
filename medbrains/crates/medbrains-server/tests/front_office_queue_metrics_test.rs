@@ -56,7 +56,10 @@ async fn queue_metrics_load_once_a_token_is_called() {
         .json()
         .await
         .expect("encounter json");
-    let queue_id = created["queue"]["id"].as_str().expect("queue id").to_owned();
+    let queue_id = created["queue"]["id"]
+        .as_str()
+        .expect("queue id")
+        .to_owned();
 
     let called = app
         .client
@@ -65,7 +68,11 @@ async fn queue_metrics_load_once_a_token_is_called() {
         .send()
         .await
         .expect("call request");
-    assert!(called.status().is_success(), "calling the token: {}", called.status());
+    assert!(
+        called.status().is_success(),
+        "calling the token: {}",
+        called.status()
+    );
 
     let response = app
         .get(
@@ -83,5 +90,8 @@ async fn queue_metrics_load_once_a_token_is_called() {
         .expect("rows")
         .iter()
         .find_map(|r| r["max_wait_minutes"].as_f64());
-    assert!(longest.is_some(), "the called token's hour reports a longest wait: {body}");
+    assert!(
+        longest.is_some(),
+        "the called token's hour reports a longest wait: {body}"
+    );
 }

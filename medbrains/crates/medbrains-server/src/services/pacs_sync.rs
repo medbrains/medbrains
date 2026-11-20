@@ -25,7 +25,8 @@ const PASS_INTERVAL_SECS: u64 = 60;
 /// Change-feed pages read per tenant per pass (100 changes each).
 const MAX_PAGES: usize = 20;
 
-pub fn spawn(pool: PgPool) {
+/// Start the pass; the handle lets the brick-job supervisor stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let secrets = crate::secret_backend::build_secret_resolver().await;
         loop {
@@ -36,7 +37,7 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }
 
 #[derive(sqlx::FromRow)]

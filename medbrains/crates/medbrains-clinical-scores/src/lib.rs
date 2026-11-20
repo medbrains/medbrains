@@ -60,10 +60,16 @@ pub fn router() -> Router<AppState> {
         .route("/api/clinical/cpot", post(cpot::cpot_score))
         .route("/api/clinical/wells-pe", post(wells_pe::wells_pe_score))
         .route("/api/clinical/wells-dvt", post(wells_dvt::wells_dvt_score))
-        .route("/api/clinical/cha2ds2-vasc", post(cha2ds2_vasc::cha2ds2_vasc_score))
+        .route(
+            "/api/clinical/cha2ds2-vasc",
+            post(cha2ds2_vasc::cha2ds2_vasc_score),
+        )
         .route("/api/clinical/has-bled", post(has_bled::has_bled_score))
         .route("/api/clinical/ciwa-ar", post(ciwa_ar::ciwa_ar_score))
-        .route("/api/clinical/child-pugh", post(child_pugh::child_pugh_score))
+        .route(
+            "/api/clinical/child-pugh",
+            post(child_pugh::child_pugh_score),
+        )
         .route(
             "/api/clinical/lung-protective",
             post(lung_protective::lung_protective),

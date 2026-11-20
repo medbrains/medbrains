@@ -37,7 +37,7 @@ async fn department(app: &common::TestApp, tag: &str) -> Uuid {
 async fn doctor(app: &common::TestApp, csrf: &str, dept: Uuid) -> (Uuid, Client, String) {
     let suffix = Uuid::new_v4().simple().to_string()[..8].to_lowercase();
     let username = format!("wv_doc_{suffix}");
-    let password = format!("WvDoc#{suffix}Aa9");
+    let password = format!("WvDoc#Key{suffix}Aa9");
     let made = post(
         app,
         csrf,

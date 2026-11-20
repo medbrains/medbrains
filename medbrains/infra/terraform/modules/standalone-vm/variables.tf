@@ -273,3 +273,21 @@ variable "attach_alert_topic_arn" {
   type        = string
   default     = ""
 }
+
+variable "acm_certificate_arn" {
+  description = "ACM certificate for the aws-fargate ALB. With it, 443 serves the app and 80 redirects to HTTPS."
+  type        = string
+  default     = ""
+}
+
+variable "allow_plain_http" {
+  description = "Keep the aws-fargate ALB on plain HTTP when there is no certificate. Off by default, so a plan without a certificate fails."
+  type        = bool
+  default     = false
+}
+
+variable "eks_public_access_cidrs" {
+  description = "CIDRs that may reach the aws-eks cluster API from the internet. Empty keeps the endpoint private."
+  type        = list(string)
+  default     = []
+}

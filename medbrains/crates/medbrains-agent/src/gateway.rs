@@ -80,7 +80,10 @@ pub(crate) struct RosterGate {
 impl RosterGate {
     /// Takes in what the server issued, and returns the tenant it is for.
     fn replace(&self, doc: &PeerRosterDoc) -> Uuid {
-        let peers = doc.peers.iter().map(|p| (p.node_id.clone(), p.binding.clone()));
+        let peers = doc
+            .peers
+            .iter()
+            .map(|p| (p.node_id.clone(), p.binding.clone()));
         let roster = PeerRoster::new(doc.tenant_id, doc.issued_at, peers.collect());
         *self.roster.write().unwrap_or_else(PoisonError::into_inner) = Some(roster);
         doc.tenant_id
@@ -101,9 +104,10 @@ impl RosterGate {
 impl PeerGatekeeper for RosterGate {
     fn admit(&self, node_id: &str, claimed_tenant: Uuid) -> Admission {
         let held = self.roster.read().unwrap_or_else(PoisonError::into_inner);
-        held.as_ref().map_or(Admission::Refuse(RefusalReason::NotPaired), |roster| {
-            roster.admit_peer(node_id, claimed_tenant, chrono::Utc::now().timestamp())
-        })
+        held.as_ref()
+            .map_or(Admission::Refuse(RefusalReason::NotPaired), |roster| {
+                roster.admit_peer(node_id, claimed_tenant, chrono::Utc::now().timestamp())
+            })
     }
 }
 
@@ -194,13 +198,23 @@ impl Gateway {
         let connected = self.connected_now();
         let report = self.given_up_report();
         let synced = self.hospital.sync(&connected, report).await?;
-        *self.last_sync.lock().unwrap_or_else(PoisonError::into_inner) = Instant::now();
+        *self
+            .last_sync
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Instant::now();
         self.gate.replace(&synced.roster);
         self.streams
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .retain(|node_id, _| synced.roster.peers.iter().any(|peer| peer.node_id == *node_id));
-        self.endpoint.set_user_data_for_address_lookup(synced.hospital.clone().try_into().ok());
+            .retain(|node_id, _| {
+                synced
+                    .roster
+                    .peers
+                    .iter()
+                    .any(|peer| peer.node_id == *node_id)
+            });
+        self.endpoint
+            .set_user_data_for_address_lookup(synced.hospital.clone().try_into().ok());
         *self.name.write().unwrap_or_else(PoisonError::into_inner) = synced.hospital;
         self.changes.send_replace(());
         Ok(())
@@ -228,7 +242,10 @@ impl Gateway {
     fn given_up_report(&self) -> GivenUpReport {
         let now = Instant::now();
         let mut given_up = self.given_up.lock().unwrap_or_else(PoisonError::into_inner);
-        GivenUpReport { count: given_up.due(now), paused: given_up.paused(now) }
+        GivenUpReport {
+            count: given_up.due(now),
+            paused: given_up.paused(now),
+        }
     }
 
     /// One round of keeping the roster current. A server silent for too long means a removal could
@@ -238,7 +255,10 @@ impl Gateway {
             return;
         };
         tracing::warn!(%error, "could not sync machines with the server");
-        let heard = *self.last_sync.lock().unwrap_or_else(PoisonError::into_inner);
+        let heard = *self
+            .last_sync
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if heard.elapsed() < self.max_silence {
             return;
         }
@@ -349,7 +369,11 @@ impl Gateway {
     }
 
     /// Serves an admitted machine, its screen or its clock, until it is closed or refused.
-    async fn serve_admitted(self: &Arc<Self>, conn: Connection, arrival: Arrival) -> anyhow::Result<()> {
+    async fn serve_admitted(
+        self: &Arc<Self>,
+        conn: Connection,
+        arrival: Arrival,
+    ) -> anyhow::Result<()> {
         let node_id = conn.remote_id().to_string();
         match self.tunnel_admission(&node_id).await {
             Verdict::Admit(_) => {}
@@ -389,7 +413,11 @@ impl Gateway {
             if read != WHOAMI_SIZE {
                 continue;
             }
-            let name = self.name.read().unwrap_or_else(PoisonError::into_inner).clone();
+            let name = self
+                .name
+                .read()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
             let reply = whoami_reply(&self.endpoint.id().to_string(), &name);
             drop(socket.send_to(reply.as_bytes(), from).await);
         }
@@ -419,14 +447,16 @@ pub(crate) fn whoami_reply(id: &str, name: &str) -> String {
 
 /// A 32-byte value from hex.
 pub(crate) fn decode_32(value: &str) -> anyhow::Result<[u8; 32]> {
-    hex::decode(value)?.try_into().map_err(|_| anyhow::anyhow!("not 32 bytes"))
+    hex::decode(value)?
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("not 32 bytes"))
 }
 
+#[cfg(test)]
+mod attack_tests;
 mod door;
 mod front;
 mod join;
-#[cfg(test)]
-mod attack_tests;
 #[cfg(test)]
 mod tests;
 

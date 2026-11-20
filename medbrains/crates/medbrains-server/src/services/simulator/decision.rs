@@ -10,8 +10,8 @@
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use medbrains_server_core::state::AppState;
 use medbrains_core::ai_redact::Redacted;
+use medbrains_server_core::state::AppState;
 use medbrains_server_services::llm;
 
 use super::agent_tools::ToolDef;
@@ -86,7 +86,9 @@ pub async fn choose_action(
             .or_else(|| payload.pointer("/error/message"))
             .and_then(Value::as_str)
             .unwrap_or("unknown error");
-        return Err(AppError::BadRequest(format!("AI call failed ({status}): {msg}")));
+        return Err(AppError::BadRequest(format!(
+            "AI call failed ({status}): {msg}"
+        )));
     }
 
     let Some(tc) = payload.pointer("/choices/0/message/tool_calls/0") else {
@@ -138,7 +140,12 @@ pub async fn generate_goals(
         .map_or(text.as_str(), |i| &text[i + "</reasoning>".len()..]);
     let goals: Vec<String> = cleaned
         .lines()
-        .map(|l| l.trim().trim_start_matches(['-', '*', '•', '·', ' ']).trim().to_owned())
+        .map(|l| {
+            l.trim()
+                .trim_start_matches(['-', '*', '•', '·', ' '])
+                .trim()
+                .to_owned()
+        })
         .filter(|l| l.len() >= 12)
         .take(3)
         .collect();
@@ -186,7 +193,9 @@ async fn complete_text(
             .or_else(|| payload.pointer("/error/message"))
             .and_then(Value::as_str)
             .unwrap_or("unknown error");
-        return Err(AppError::BadRequest(format!("AI call failed ({status}): {msg}")));
+        return Err(AppError::BadRequest(format!(
+            "AI call failed ({status}): {msg}"
+        )));
     }
     Ok(payload
         .pointer("/choices/0/message/content")

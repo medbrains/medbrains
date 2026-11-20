@@ -97,7 +97,14 @@ pub fn compute_must(
     } else {
         "high"
     };
-    MustScore { bmi, bmi_score, weight_loss_score, acute_score, total, risk }
+    MustScore {
+        bmi,
+        bmi_score,
+        weight_loss_score,
+        acute_score,
+        total,
+        risk,
+    }
 }
 
 const COLS: &str = "id, patient_id, admission_id, height_cm, weight_kg, bmi, weight_loss_percent, \
@@ -112,16 +119,21 @@ pub async fn create_nutrition_screening(
 ) -> Result<Json<NutritionScreening>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
     // A nutrition screening is a clinical assessment of the named patient.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.height_cm < 50.0 || body.height_cm > 260.0 {
-        return Err(AppError::BadRequest("height_cm must be between 50 and 260".into()));
+        return Err(AppError::BadRequest(
+            "height_cm must be between 50 and 260".into(),
+        ));
     }
     if body.weight_kg <= 0.0 || body.weight_kg > 500.0 {
-        return Err(AppError::BadRequest("weight_kg must be between 0 and 500".into()));
+        return Err(AppError::BadRequest(
+            "weight_kg must be between 0 and 500".into(),
+        ));
     }
     if !(0.0..=100.0).contains(&body.weight_loss_percent) {
-        return Err(AppError::BadRequest("weight_loss_percent must be between 0 and 100".into()));
+        return Err(AppError::BadRequest(
+            "weight_loss_percent must be between 0 and 100".into(),
+        ));
     }
     let s = compute_must(
         body.height_cm,
@@ -174,8 +186,7 @@ pub async fn list_nutrition_screenings(
 ) -> Result<Json<Vec<NutritionScreening>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
     // One patient's screening history.
-    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, NutritionScreening>(&format!(

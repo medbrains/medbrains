@@ -54,11 +54,13 @@ pub async fn list_dialyzers(
     medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, Dialyzer>(&format!("{SELECT} AND patient_id = $2 ORDER BY issued_at DESC LIMIT 50"))
-        .bind(claims.tenant_id)
-        .bind(q.patient_id)
-        .fetch_all(&mut *tx)
-        .await?;
+    let rows = sqlx::query_as::<_, Dialyzer>(&format!(
+        "{SELECT} AND patient_id = $2 ORDER BY issued_at DESC LIMIT 50"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -82,15 +84,23 @@ pub async fn issue_dialyzer(
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if !SEROLOGIES.contains(&body.serology.as_str()) {
-        return Err(AppError::BadRequest(format!("Serology must be one of: {}", SEROLOGIES.join(", "))));
+        return Err(AppError::BadRequest(format!(
+            "Serology must be one of: {}",
+            SEROLOGIES.join(", ")
+        )));
     }
     let label = body.label.trim().to_uppercase();
     if label.is_empty() {
-        return Err(AppError::BadRequest("Write the dialyzer's label".to_owned()));
+        return Err(AppError::BadRequest(
+            "Write the dialyzer's label".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let max_uses = dialysis_rules::max_uses_for(&body.serology, reuse_limit(&mut tx, claims.tenant_id).await?);
+    let max_uses = dialysis_rules::max_uses_for(
+        &body.serology,
+        reuse_limit(&mut tx, claims.tenant_id).await?,
+    );
     let id: Option<Uuid> = sqlx::query_scalar(
         "INSERT INTO dialyzers (tenant_id, patient_id, label, model, serology, max_uses, baseline_tcv_ml, \
                                 last_tcv_ml, issued_by) \
@@ -106,7 +116,8 @@ pub async fn issue_dialyzer(
     .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?;
-    let id = id.ok_or_else(|| AppError::Conflict(format!("A dialyzer labelled {label} already exists")))?;
+    let id = id
+        .ok_or_else(|| AppError::Conflict(format!("A dialyzer labelled {label} already exists")))?;
     let row = sqlx::query_as::<_, Dialyzer>(&format!("{SELECT} AND id = $2"))
         .bind(claims.tenant_id)
         .bind(id)
@@ -139,11 +150,16 @@ pub async fn reprocess_dialyzer(
         .await?
         .ok_or(AppError::NotFound)?;
     if d.status != "in_use" {
-        return Err(AppError::Conflict("This dialyzer has been discarded".to_owned()));
+        return Err(AppError::Conflict(
+            "This dialyzer has been discarded".to_owned(),
+        ));
     }
     let measured = body.tcv_ml.to_f64().unwrap_or(0.0);
     // The first measurement becomes the baseline when none was taken at issue.
-    let baseline = d.baseline_tcv_ml.and_then(|b| b.to_f64()).unwrap_or(measured);
+    let baseline = d
+        .baseline_tcv_ml
+        .and_then(|b| b.to_f64())
+        .unwrap_or(measured);
     let passes = dialysis_rules::tcv_passes(baseline, measured);
     sqlx::query(
         "UPDATE dialyzers SET last_tcv_ml = $3, baseline_tcv_ml = COALESCE(baseline_tcv_ml, $3), \
@@ -156,7 +172,10 @@ pub async fn reprocess_dialyzer(
     .bind(claims.tenant_id)
     .bind(body.tcv_ml)
     .bind(passes)
-    .bind(format!("TCV {measured} ml is below {}% of {baseline} ml", dialysis_rules::MIN_TCV_PERCENT))
+    .bind(format!(
+        "TCV {measured} ml is below {}% of {baseline} ml",
+        dialysis_rules::MIN_TCV_PERCENT
+    ))
     .execute(&mut *tx)
     .await?;
     let row = sqlx::query_as::<_, Dialyzer>(&format!("{SELECT} AND id = $2"))
@@ -198,7 +217,9 @@ pub async fn discard_dialyzer(
     .await?
     .rows_affected();
     if done == 0 {
-        return Err(AppError::Conflict("This dialyzer is already discarded".to_owned()));
+        return Err(AppError::Conflict(
+            "This dialyzer is already discarded".to_owned(),
+        ));
     }
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "discarded" })))
@@ -220,7 +241,11 @@ pub(crate) async fn take_for_session(
     dialyzer: Option<Uuid>,
     slot: Option<Uuid>,
 ) -> Result<SessionUse, AppError> {
-    let mut out = SessionUse { dialyzer_use: None, machine_id: None, machine_code: None };
+    let mut out = SessionUse {
+        dialyzer_use: None,
+        machine_id: None,
+        machine_code: None,
+    };
     if let Some(id) = dialyzer {
         let (owner, status, uses, max_uses): (Uuid, String, i32, i32) = sqlx::query_as(
             "SELECT patient_id, status, uses, max_uses FROM dialyzers \
@@ -231,7 +256,12 @@ pub(crate) async fn take_for_session(
         .fetch_optional(&mut **tx)
         .await?
         .ok_or(AppError::NotFound)?;
-        let state = DialyzerState { patient_matches: owner == patient, status: &status, uses, max_uses };
+        let state = DialyzerState {
+            patient_matches: owner == patient,
+            status: &status,
+            uses,
+            max_uses,
+        };
         if let Some(refusal) = dialysis_rules::refuse_use(&state) {
             return Err(AppError::Conflict(refusal));
         }
@@ -254,8 +284,9 @@ pub(crate) async fn take_for_session(
         .bind(patient)
         .fetch_optional(&mut **tx)
         .await?;
-        let (machine, code) = booked
-            .ok_or_else(|| AppError::Conflict("That shift is not booked for this patient".to_owned()))?;
+        let (machine, code) = booked.ok_or_else(|| {
+            AppError::Conflict("That shift is not booked for this patient".to_owned())
+        })?;
         out.machine_id = Some(machine);
         out.machine_code = Some(code);
     }

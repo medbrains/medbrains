@@ -23,7 +23,13 @@ pub fn appointment_actions(status: &str, is_today: bool) -> Vec<&'static str> {
 
 /// Whether a slot may be offered: available, and not already behind us.
 #[must_use]
-pub fn slot_is_bookable(date: &str, start_time: &str, today: &str, now_time: &str, is_available: bool) -> bool {
+pub fn slot_is_bookable(
+    date: &str,
+    start_time: &str,
+    today: &str,
+    now_time: &str,
+    is_available: bool,
+) -> bool {
     if !is_available {
         return false;
     }
@@ -40,8 +46,14 @@ mod tests {
 
     #[test]
     fn only_todays_open_bookings_can_be_checked_in_or_missed() {
-        assert_eq!(appointment_actions("scheduled", true), vec!["check_in", "no_show"]);
-        assert_eq!(appointment_actions("confirmed", true), vec!["check_in", "no_show"]);
+        assert_eq!(
+            appointment_actions("scheduled", true),
+            vec!["check_in", "no_show"]
+        );
+        assert_eq!(
+            appointment_actions("confirmed", true),
+            vec!["check_in", "no_show"]
+        );
         assert!(appointment_actions("scheduled", false).is_empty());
         assert!(appointment_actions("checked_in", true).is_empty());
         assert!(appointment_actions("no_show", true).is_empty());
@@ -50,10 +62,40 @@ mod tests {
 
     #[test]
     fn a_slot_behind_us_or_full_is_not_offered() {
-        assert!(slot_is_bookable("2026-09-17", "09:00:00", "2026-09-16", "15:00:00", true));
-        assert!(slot_is_bookable("2026-09-16", "16:00:00", "2026-09-16", "15:00:00", true));
-        assert!(!slot_is_bookable("2026-09-16", "09:00:00", "2026-09-16", "15:00:00", true));
-        assert!(!slot_is_bookable("2026-09-15", "16:00:00", "2026-09-16", "15:00:00", true));
-        assert!(!slot_is_bookable("2026-09-17", "09:00:00", "2026-09-16", "15:00:00", false));
+        assert!(slot_is_bookable(
+            "2026-09-17",
+            "09:00:00",
+            "2026-09-16",
+            "15:00:00",
+            true
+        ));
+        assert!(slot_is_bookable(
+            "2026-09-16",
+            "16:00:00",
+            "2026-09-16",
+            "15:00:00",
+            true
+        ));
+        assert!(!slot_is_bookable(
+            "2026-09-16",
+            "09:00:00",
+            "2026-09-16",
+            "15:00:00",
+            true
+        ));
+        assert!(!slot_is_bookable(
+            "2026-09-15",
+            "16:00:00",
+            "2026-09-16",
+            "15:00:00",
+            true
+        ));
+        assert!(!slot_is_bookable(
+            "2026-09-17",
+            "09:00:00",
+            "2026-09-16",
+            "15:00:00",
+            false
+        ));
     }
 }

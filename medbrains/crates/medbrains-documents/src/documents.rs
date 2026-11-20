@@ -1048,6 +1048,8 @@ pub async fn list_output_signatures(
     Ok(Json(rows))
 }
 
+/// `POST /api/documents/outputs/{id}/signatures`: records a signature on a
+/// generated document. Refuses the OTP method, which nothing here verifies.
 pub async fn add_output_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1058,6 +1060,13 @@ pub async fn add_output_signature(
     // A signature on a generated document is the signer's word; the same
     // fresh step-up as every other signature.
     medbrains_server_core::step_up::require_step_up(&state, &proof, &claims)?;
+    if medbrains_core::consent::claims_unverified_check(&body.signature_type) {
+        return Err(AppError::BadRequest(
+            "An OTP signature needs a verified code, and none can be verified here. \
+             Sign another way."
+                .to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

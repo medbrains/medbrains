@@ -83,7 +83,10 @@ impl Handler for VirtualAccountCreateHandler {
 
         let status = resp.status();
         if !status.is_success() {
-            return Err(classify_status(status, &resp.text().await.unwrap_or_default()));
+            return Err(classify_status(
+                status,
+                &resp.text().await.unwrap_or_default(),
+            ));
         }
         let body: Value = resp
             .json()

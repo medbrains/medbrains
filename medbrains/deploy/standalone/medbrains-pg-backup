@@ -21,11 +21,11 @@
 # rather than letting a directory of dumps read as disaster recovery.
 #
 # Encryption. Every dump is sealed with age to the PUBLIC keys in
-# BACKUP_AGE_RECIPIENTS_FILE before it leaves pg_dump's pipe. The private
-# key is not on this host — the founder keeps it offline — so nothing on
-# this machine, root included, can read a past backup. S3 refuses to take
-# anything else: an S3 destination without recipients is an error, never
-# a plaintext upload, and the bucket policy only accepts *.age keys there.
+# BACKUP_AGE_RECIPIENTS_FILE before it leaves pg_dump's pipe. The keys are
+# the hospital's own (install.sh) and the private key is kept offline, so
+# nothing on this machine, root included, can read a past backup. No
+# recipients is an error on either destination, never a plaintext dump,
+# and the bucket policy only accepts *.age keys.
 #
 # Every run records a row in backup_history (Admin → Settings → System
 # health shows its age) and exits non-zero on any failure, which
@@ -41,6 +41,7 @@ BACKUP_DIR="${BACKUP_DIR:-}"
 BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
 RECIPIENTS="${BACKUP_AGE_RECIPIENTS_FILE:-/etc/medbrains/backup-recipients.txt}"
 SECRETS_DIR="${BACKUP_SECRETS_DIR:-/etc/medbrains}"
+IDENTITY="${BACKUP_IDENTITY_FILE:-/root/medbrains-backup-identity.txt}"
 
 if [[ -z "$BACKUP_BUCKET" && -z "$BACKUP_DIR" ]]; then
     echo "ERROR: no backup destination. Set BACKUP_BUCKET (S3) or BACKUP_DIR" >&2
@@ -115,21 +116,40 @@ on_exit() {
 }
 trap on_exit EXIT
 
-ENCRYPT=0
-if [[ -s "$RECIPIENTS" ]]; then
-    command -v age >/dev/null 2>&1 || { echo "ERROR: $RECIPIENTS is set but age is not installed" >&2; exit 1; }
-    # A malformed recipients file would otherwise surface only after the
-    # whole database had been dumped into a pipe that refuses it.
-    age -R "$RECIPIENTS" </dev/null >/dev/null || { echo "ERROR: $RECIPIENTS holds no valid age recipient" >&2; exit 1; }
-    ENCRYPT=1
-elif [[ -n "$BACKUP_BUCKET" ]]; then
-    echo "ERROR: refusing to send an unencrypted dump off the host." >&2
-    echo "       Put the backup public key (age1…) in $RECIPIENTS —" >&2
+if [[ ! -s "$RECIPIENTS" ]]; then
+    echo "ERROR: refusing to write an unencrypted dump." >&2
+    echo "       Put this hospital's backup public key (age1…) in $RECIPIENTS —" >&2
     echo "       deploy/standalone/README.md, 'Encrypted off-site backups'." >&2
     exit 1
 fi
-seal() { if [[ "$ENCRYPT" == "1" ]]; then age -R "$RECIPIENTS"; else cat; fi; }
-SUFFIX=""; [[ "$ENCRYPT" == "1" ]] && SUFFIX=".age"
+command -v age >/dev/null 2>&1 || { echo "ERROR: $RECIPIENTS is set but age is not installed" >&2; exit 1; }
+# A malformed recipients file would otherwise surface only after the
+# whole database had been dumped into a pipe that refuses it.
+age -R "$RECIPIENTS" </dev/null >/dev/null || { echo "ERROR: $RECIPIENTS holds no valid age recipient" >&2; exit 1; }
+
+# The MedBrains project's own key, which kits before 3.33.1 installed on
+# every host. A hospital cannot open a backup sealed to it. The run still
+# seals and keeps the dump (no backup is worse), but says so loudly here and
+# on System health until the key is rotated. Only the project's own server
+# sets BACKUP_PROJECT_KEY_IS_OURS=1.
+PROJECT_KEY=age108rvm8yeaxq7my9mx33d8k5ee8cfr9k5p2q4q5kr5qpfanyex4qsjgnmjs
+NOTICE=""
+# Uncommented lines only: a key commented out is not a recipient.
+if [[ "${BACKUP_PROJECT_KEY_IS_OURS:-0}" != "1" ]] \
+    && grep -qE "^[[:space:]]*${PROJECT_KEY}[[:space:]]*$" "$RECIPIENTS"; then
+    NOTICE="Sealed to the MedBrains project key, which this hospital does not hold. Rotate to your own key: deploy/standalone/README.md, 'Rotate the backup key'."
+    echo "WARNING: $NOTICE" >&2
+fi
+# install.sh makes a keypair here when no key was given. While its private
+# half stays on this host, root here can read every backup. The path only,
+# never the contents.
+if [[ -e "$IDENTITY" ]]; then
+    KEPT="The backup private key is still on this server ($IDENTITY). Copy it offline, then remove it here: deploy/standalone/README.md, 'Encrypted off-site backups'."
+    echo "WARNING: $KEPT" >&2
+    NOTICE="${NOTICE:+$NOTICE }$KEPT"
+fi
+seal() { age -R "$RECIPIENTS"; }
+SUFFIX=".age"
 
 # --format=custom + --compress=9 = small, restorable via pg_restore.
 #
@@ -219,7 +239,6 @@ else
 
     install -d -m 0700 "$BACKUP_DIR"
     DEST="${BACKUP_DIR}/${HOSTNAME_TAG}-${DATE}.dump${SUFFIX}"
-    [[ "$ENCRYPT" == "1" ]] || echo "WARN: no $RECIPIENTS — this dump is NOT encrypted" >&2
 
     echo "==> dumping postgres → ${DEST}"
     # Written under .partial and renamed. A dump interrupted halfway
@@ -232,7 +251,7 @@ else
     mv "${DEST}.partial" "$DEST"
     SIZE="$(wc -c < "$DEST" | tr -d ' ')"
 
-    if [[ "$ENCRYPT" == "1" && -d "$SECRETS_DIR" ]]; then
+    if [[ -d "$SECRETS_DIR" ]]; then
         S="${BACKUP_DIR}/${HOSTNAME_TAG}-${DATE}.secrets.tar.age"
         secrets > "${S}.partial" && mv "${S}.partial" "$S"
     fi
@@ -247,7 +266,7 @@ else
         -mtime +1 -print -delete
 fi
 
-record completed "$DEST" "${SIZE:-}" ""
+record completed "$DEST" "${SIZE:-}" "$NOTICE"
 
 # ponytail: no integrity check here. `pg_dump | age | aws s3 cp` under
 # `set -o pipefail` already fails this unit when any stage dies mid-stream,
