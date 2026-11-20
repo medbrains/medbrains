@@ -43,7 +43,7 @@ pub async fn find_by(
         return Ok(Vec::new());
     }
     let Some(matcher) =
-        search::PatientSearch::for_request(state, claims.tenant_id, Some(query), by).await?
+        search::PatientSearch::for_query(state, claims.tenant_id, Some(query), by).await?
     else {
         return Ok(Vec::new());
     };

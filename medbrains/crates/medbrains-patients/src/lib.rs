@@ -16,6 +16,7 @@ pub mod opd_number;
 pub mod pharmacy_customer;
 pub mod privacy_requests;
 mod registration_rules;
+mod registration_token;
 mod search;
 mod search_settings;
 pub use search::SearchBy;
@@ -1065,10 +1066,8 @@ pub async fn list_patients(
         }
     };
 
-    let by = SearchBy::from_param(params.by.as_deref())?;
-    let matcher =
-        search::PatientSearch::for_request(&state, claims.tenant_id, params.search.as_deref(), by)
-            .await?;
+    let q = (params.search.as_deref(), params.by.as_deref());
+    let matcher = search::PatientSearch::for_request(&state, claims.tenant_id, q).await?;
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     // Build dynamic WHERE conditions
@@ -1314,12 +1313,7 @@ pub async fn list_patients(
                 }
             };
             PatientWithPerms {
-                // An identifier like the UHID: hidden wherever the UHID is.
-                opd: if patient_field_is_hidden(&restricted, PATIENT_UHID_FIELD) {
-                    opd_number::OnRow::default()
-                } else {
-                    opd_rows.remove(&id).unwrap_or_default()
-                },
+                opd: opd_number::take(&mut opd_rows, id, &restricted),
                 patient: filter_patient_response(p, &restricted).into(),
                 outstanding_balance: if scrub_billing_amount {
                     Decimal::ZERO
@@ -1579,28 +1573,7 @@ pub async fn create_patient(
     }
 
     // Auto-issue a registration token (skipped if the module is disabled).
-    let patient_label = format!("{} {}", patient.first_name, patient.last_name);
-    // Registration is where a visit starts, so it mints the id the rest of the
-    // journey shares: the lab and pharmacy tokens raised later carry the same
-    // number, and the patient holds one slip instead of three.
-    medbrains_tokens::issue_token_in_tx(
-        &mut tx,
-        claims.tenant_id,
-        medbrains_tokens::IssueToken {
-            visit_id: Some(Uuid::new_v4()),
-            module: "registration",
-            scope: "global",
-            scope_id: None,
-            scope_label: Some("Registration"),
-            priority: "normal",
-            patient_id: Some(patient.id),
-            patient_name: Some(patient_label.trim()),
-            entity_type: Some("patient"),
-            entity_id: Some(patient.id),
-            issued_by: Some(claims.sub),
-        },
-    )
-    .await?;
+    registration_token::issue(&mut tx, &claims, &patient).await?;
     // The registration fee, when the hospital charges one at registration
     // (#4885); hospitals that charge it at the first consultation get it there.
     medbrains_server_services::billing_lanes::charge_registration_fee(
@@ -1671,11 +1644,7 @@ pub async fn create_patient(
     )
     .await;
 
-    Ok(Json(opd_number::CreatedPatient {
-        patient: filter_patient_response(patient, &restricted),
-        opd_number: assigned.as_ref().map(|a| a.number.clone()),
-        opd_date: assigned.and_then(|a| a.opd_date),
-    }))
+    Ok(Json(opd_number::created(patient, &restricted, assigned)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4458,8 +4427,8 @@ pub struct PatientContext {
     pub is_unknown_patient: bool,
     pub is_deceased: bool,
     /// The hospital OPD number and its register date, when it keeps one per patient.
-    pub opd_number: Option<String>,
-    pub opd_date: Option<NaiveDate>,
+    #[serde(flatten)]
+    pub opd: opd_number::OnRow,
     // Pending consents
     pub pending_consents: Vec<PendingConsentContext>,
     // Financial
@@ -4522,16 +4491,13 @@ pub async fn get_patient_context(
         is_deceased: bool,
         preferred_language: Option<String>,
         attributes: serde_json::Value,
-        opd_number: Option<String>,
-        opd_date: Option<NaiveDate>,
     }
 
     let core = sqlx::query_as::<_, PatientCoreRow>(
         r"SELECT id, uhid, first_name, middle_name, last_name, date_of_birth,
                  gender::text AS gender, COALESCE(no_known_allergies, false) AS no_known_allergies,
                  is_medico_legal, mlc_number,
-                 is_vip, is_unknown_patient, is_deceased, preferred_language, attributes,
-                 opd_number, opd_date
+                 is_vip, is_unknown_patient, is_deceased, preferred_language, attributes
             FROM patients
            WHERE id = $1 AND tenant_id = $2",
     )
@@ -4804,6 +4770,7 @@ pub async fn get_patient_context(
     let primary_insurance = insurance_iter.next();
     let secondary_insurance = insurance_iter.next();
 
+    let opd = opd_number::of_patient(&mut tx, (claims.tenant_id, id), &restricted).await?;
     tx.commit().await?;
 
     Ok(Json(PatientContext {
@@ -4821,11 +4788,7 @@ pub async fn get_patient_context(
         is_vip: core.is_vip,
         is_unknown_patient: core.is_unknown_patient,
         is_deceased: core.is_deceased,
-        // An identifier like the UHID: hidden wherever the UHID is.
-        opd_number: core
-            .opd_number
-            .filter(|_| !patient_field_is_hidden(&restricted, PATIENT_UHID_FIELD)),
-        opd_date: core.opd_date,
+        opd,
         pending_consents,
         outstanding_balance,
         preferred_language: core.preferred_language,
@@ -5119,5 +5082,4 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/masters/occupations", get(list_occupations))
         .route("/api/masters/relations", get(list_relations))
         .merge(opd_number::router())
-        .merge(search_settings::router())
 }
