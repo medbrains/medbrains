@@ -19487,6 +19487,11 @@ export const api = {
     request<unknown>("/debug/e2e/canonical-fixtures", {
       method: "POST",
     }),
+  provisionE2eTenant: (data: Record<string, unknown>) =>
+    request<unknown>("/debug/e2e/tenant", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getOpdAppointmentReminderConfig: () => request<unknown>("/opd/appointments/reminder-config"),
   updateOpdAppointmentReminderConfig: (data: Record<string, unknown>) =>
     request<unknown>("/opd/appointments/reminder-config", {
