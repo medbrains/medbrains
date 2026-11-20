@@ -26,7 +26,7 @@ import {
   IconPrinter,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useClinicalEmit, VisitSummaryPrint } from "@/components";
 import { CampRegistrationModal } from "@/components/Camp/CampRegistrationModal";
@@ -36,7 +36,7 @@ import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorksp
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientContextSummary } from "@/components/Patient/PatientContextSummary";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { PANEL_COMPONENTS } from "@/components/panels/registry";
+import { EncounterPanels } from "@/components/panels/EncounterPanels";
 import { usePanels } from "@/components/panels/use-panels";
 import { Badge, Button, PermissionGate, toast } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
@@ -152,8 +152,7 @@ export function EncounterDetail({
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
   // Controlled so the Patient Flow "IPD" chip can open the same Admit modal.
   const admitControl = useDisclosure(false);
-  // Billing's and Emergency's modals are their bricks' `opd.encounter` panels, opened from the
-  // flow chip of the same brick; only the open one is mounted, so its chunk loads on first use.
+  // Brick panels (Billing, Emergency) open from the flow chip of the same brick.
   const encounterPanels = usePanels("opd.encounter");
   const [openPanel, setOpenPanel] = useState<string | null>(null);
   const campControl = useDisclosure(false);
@@ -427,22 +426,13 @@ export function EncounterDetail({
           </>
         }
       />
-      {encounterPanels.map(({ id }) => {
-        const Panel = PANEL_COMPONENTS["opd.encounter"][id];
-        return (
-          Panel &&
-          openPanel === id && (
-            <Suspense key={id} fallback={null}>
-              <Panel
-                patientId={patientId}
-                encounterId={encounterId}
-                opened
-                onClose={() => setOpenPanel(null)}
-              />
-            </Suspense>
-          )
-        );
-      })}
+      <EncounterPanels
+        panels={encounterPanels}
+        openPanel={openPanel}
+        patientId={patientId}
+        encounterId={encounterId}
+        onClose={() => setOpenPanel(null)}
+      />
       <CampRegistrationModal
         patientId={patientId}
         patientName={patientName}
