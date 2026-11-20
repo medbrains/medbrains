@@ -53,12 +53,21 @@ const FORMATS: &[&str] = &[
     "%-d %b %Y",
 ];
 
-/// The instants every rendering is taken for: a whole second, a value with
-/// nanoseconds, the evening that is already next year in IST, a leap day,
-/// and a pre-2000 instant (negative Postgres microseconds).
+/// The instants every rendering is taken for: a whole second, values with
+/// milli-, micro- and nanoseconds (chrono pads fractions to 3, 6 or 9
+/// digits), the evening that is already next year in IST, a leap day, and a
+/// pre-2000 instant (negative Postgres microseconds).
 fn instants() -> Vec<(&'static str, Option<DateTime<Utc>>)> {
     vec![
         ("whole", DateTime::from_timestamp(1_795_152_600, 0)),
+        (
+            "millis",
+            DateTime::from_timestamp(1_795_152_600, 120_000_000),
+        ),
+        (
+            "micros",
+            DateTime::from_timestamp(1_795_152_600, 123_400_000),
+        ),
         (
             "nanos",
             DateTime::from_timestamp(1_795_152_600, 123_456_789),
