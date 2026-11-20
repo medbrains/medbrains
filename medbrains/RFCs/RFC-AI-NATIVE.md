@@ -84,6 +84,10 @@ Checked against `main` on 2026-11-10. Nothing in the "missing" column should be 
 
 ### Layer 3. Agent tools API (MCP)
 
+> **Proposed change (2026-11-18):** `RFC-AI-NATIVE-OS.md` proposes replacing this layer with a
+> curated, typed action catalogue behind a kernel action broker, with MCP only at an outside
+> gateway. Until the owner decides, this layer stands as written.
+
 - An MCP server **generated** from `docs/openapi.json`: one tool per operation that has a
   permission, with the permission, data class and read/write kind as tool metadata. Operations with
   no permission are not exposed. Read tools first; write tools are draft-only.

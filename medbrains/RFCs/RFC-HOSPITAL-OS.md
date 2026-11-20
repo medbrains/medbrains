@@ -528,6 +528,10 @@ that run them best (the moat). Order: Studio → Command Centre → Rounds.
 
 ## 8f. AI and plugins the MCP way
 
+> **Proposed change (2026-11-18):** `RFC-AI-NATIVE-OS.md` proposes that MCP is used only at an
+> outside gateway, and that the OS AI core is typed actions, a kernel action broker and a plan
+> interpreter with information-flow labels. Items 1 and AI5 below would change if it is accepted.
+
 MCP (Model Context Protocol) is how AI assistants plug into tools and data: a server declares
 **tools**, **resources** and **prompts** with JSON schemas; any AI client can discover and use
 them. MedBrains adopts the same idea in three places, all through the kernel.
