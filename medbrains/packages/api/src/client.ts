@@ -1603,11 +1603,13 @@ import type {
   NewsFeedListItem,
   NhcxClaimTaskRequest,
   NhcxConnectionTest,
+  NhcxDirectoryRefresh,
   NhcxDocumentPick,
   NhcxEligibilityCheck,
   NhcxParticipant,
   NhcxPayerQuery,
   NhcxPayment,
+  NhcxPolicyLookup,
   NhcxPreparedClaimDocuments,
   NhcxQueuedResponse,
   NhcxSearchRequest,
@@ -6136,6 +6138,21 @@ export const api = {
   /** NHCX payer directory (the recipient_code source for claim submission). */
   listNhcxParticipants: (role?: string) =>
     request<NhcxParticipant[]>(`/nhcx/participants${role ? `?role=${role}` : ""}`),
+
+  /** Fill the payer directory from the NHCX registry (`/fetch/participants/list`). */
+  refreshNhcxParticipants: () =>
+    request<NhcxDirectoryRefresh>("/nhcx/participants/refresh", { method: "POST" }),
+
+  /** The last NHCX registry lookup of a patient's policies. */
+  listNhcxPatientPolicies: (patientId: string) =>
+    request<NhcxPolicyLookup>(`/insurance/nhcx/policies?patient_id=${patientId}`),
+
+  /** Ask the NHCX registry which policies are linked to the patient, by ABHA first. */
+  lookupNhcxPatientPolicies: (patientId: string) =>
+    request<NhcxPolicyLookup>("/insurance/nhcx/policies/lookup", {
+      method: "POST",
+      body: JSON.stringify({ patient_id: patientId }),
+    }),
 
   upsertNhcxParticipant: (data: UpsertNhcxParticipantRequest) =>
     request<NhcxParticipant>("/nhcx/participants", {

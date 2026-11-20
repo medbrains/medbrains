@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.identifier_type, p.payer_id, pay.participant_name AS \"payer_name?\",\n                  p.processing_id, proc.participant_name AS \"processor_name?\", p.member_id,\n                  p.product_id, p.product_name, p.fetched_at\n             FROM nhcx_patient_policies p\n             LEFT JOIN nhcx_participants pay\n                    ON pay.tenant_id = p.tenant_id AND pay.participant_code = p.payer_id\n             LEFT JOIN nhcx_participants proc\n                    ON proc.tenant_id = p.tenant_id AND proc.participant_code = p.processing_id\n            WHERE p.tenant_id = $1 AND p.patient_id = $2\n            ORDER BY p.fetched_at DESC, p.product_name LIMIT 50",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "identifier_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "payer_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "payer_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "processing_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "processor_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "member_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "product_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "product_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "fetched_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "6d325bffe3a4a8b6feb5cc553d7806ad60cd3575fee5d2b8fe86037ebb8a7dc6"
+}

@@ -1076,6 +1076,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::corporate::CREATE,
             permissions::billing::corporate::UPDATE,
             permissions::insurance::nhcx::SUBMIT,
+            permissions::insurance::nhcx::LOOKUP_POLICIES,
             permissions::insurance::nhcx::VIEW,
             permissions::insurance::nhcx::RESPOND,
             permissions::insurance::nhcx::PAYMENTS,
@@ -2281,6 +2282,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::nhcx::VIEW,
             permissions::insurance::nhcx::RESPOND,
             permissions::insurance::nhcx::CANCEL,
+            permissions::insurance::nhcx::REFRESH_DIRECTORY,
+            permissions::insurance::nhcx::LOOKUP_POLICIES,
             permissions::insurance::nhcx::PAYMENTS,
             // A final claim carries the discharge summary, the itemised bill
             // and the lab reports as PDFs, printed as the person sending —

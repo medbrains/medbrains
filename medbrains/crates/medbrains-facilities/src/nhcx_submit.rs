@@ -96,7 +96,7 @@ pub async fn submit_claim_to_nhcx(
     Json(body): Json<SubmitToNhcxRequest>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::insurance::nhcx::SUBMIT)?;
-    let recipient = nhcx_common::required_recipient(&body.recipient_code)?;
+    let payer = nhcx_common::required_recipient(&body.recipient_code)?;
     let (use_, operation) = if body.r#use.as_deref() == Some("claim") {
         ("claim", NhcxOperation::Claim)
     } else {
@@ -119,14 +119,18 @@ pub async fn submit_claim_to_nhcx(
     // The path names a claim; the patient whose name, UHID and ABHA go to an
     // external payer is `claim.patient_id`.
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, claim.patient_id).await?;
-    nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
+    // The envelope goes to the policy's processor; the bundle names the insurer.
+    let recipient =
+        nhcx_common::reachable_processor(&mut tx, claims.tenant_id, claim.patient_id, payer)
+            .await?;
+    let recipient = recipient.as_str();
 
     let sender = Sender {
         state: &state,
         claims: &claims,
         picks: body.documents.as_deref(),
     };
-    let built = build(&mut tx, &sender, &claim, (recipient, use_)).await?;
+    let built = build(&mut tx, &sender, &claim, (payer, use_)).await?;
     // A request's correlation id is its own api call id.
     let call = Uuid::new_v4();
     let ids = (call, call);
@@ -161,7 +165,7 @@ async fn build(
     tx: &mut Tx<'_>,
     sender: &Sender<'_>,
     claim: &ClaimRow,
-    (recipient, use_): (&str, &str),
+    (insurer, use_): (&str, &str),
 ) -> Result<Built, AppError> {
     let tenant_id = sender.claims.tenant_id;
     let patient = nhcx_common::load_patient(tx, tenant_id, claim.patient_id).await?;
@@ -186,7 +190,7 @@ async fn build(
         policy: &policy,
         provider: &provider,
         doctor: None,
-        recipient,
+        recipient: insurer,
     };
     if use_ == "claim" {
         let claim_ref = ClaimRef {

@@ -7,8 +7,8 @@
 //! `nhcx.cancel`, `nhcx.reprocess`, `nhcx.payment_ack`.
 //!
 //! Each message follows the HCX open protocol (v0.7.1): the FHIR bundle is
-//! the plaintext of a JWE encrypted for the payer's certificate (from the
-//! payer directory), the `x-hcx-*` routing headers ride in the JWE protected
+//! the plaintext of a JWE encrypted for the recipient's certificate (from the
+//! registry's `/fetch/certs`, cached a day in the payer directory), the `x-hcx-*` routing headers ride in the JWE protected
 //! header, and the HTTP body is `{"payload": "<compact JWE>"}`, posted with a
 //! gateway session token. The payer answers later, at the callback receiver.
 //!
@@ -27,6 +27,7 @@
 //! A record a payer has already answered is never marked failed.
 
 pub mod config;
+pub mod registry;
 pub mod session;
 
 use async_trait::async_trait;
@@ -67,6 +68,10 @@ struct Message {
     #[serde(default)]
     workflow_id: Option<String>,
     bundle: Value,
+    /// Set when the payer could not decrypt the last send: the certificate
+    /// is fetched again before this one (T-SES-02), and only once.
+    #[serde(default)]
+    key_retry: bool,
 }
 
 /// The ids one attempt goes out under.
@@ -134,29 +139,11 @@ impl NhcxHandler {
             .await
             .map_err(from_config)?;
         let attempt = self.attempt(&mut tx, ctx, msg).await?;
-        let cert = sqlx::query_scalar::<_, Option<String>>(
-            "SELECT encryption_cert FROM nhcx_participants \
-             WHERE tenant_id = $1 AND participant_code = $2 AND is_active",
-        )
-        .bind(ctx.tenant_id)
-        .bind(&msg.recipient_code)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| transient(&e))?;
         tx.commit().await.map_err(|e| transient(&e))?;
 
         let sender = stored.participant_code().ok_or_else(|| {
             HandlerError::Permanent("this hospital has no NHCX participant code".to_owned())
         })?;
-        let cert = cert
-            .flatten()
-            .filter(|c| !c.trim().is_empty())
-            .ok_or_else(|| {
-                HandlerError::Permanent(format!(
-                    "payer {} has no encryption certificate in the NHCX payer directory",
-                    msg.recipient_code
-                ))
-            })?;
         let creds = config::credentials(&stored, ctx.secret_resolver.as_ref())
             .await
             .map_err(from_config)?;
@@ -169,6 +156,10 @@ impl NhcxHandler {
                 SessionError::Unavailable(_) => HandlerError::Transient(e.to_string()),
             })?;
 
+        let registry =
+            registry::Registry::new(&ctx.http_client, endpoints.registry.clone(), token.clone());
+        let cert =
+            registry::recipient_cert(ctx, &registry, &msg.recipient_code, msg.key_retry).await?;
         let headers = Envelope {
             sender,
             msg,

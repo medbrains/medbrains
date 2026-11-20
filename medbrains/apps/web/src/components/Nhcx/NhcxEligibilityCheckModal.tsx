@@ -1,12 +1,16 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
 import type { NhcxParticipant } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { QueryError } from "@/components/QueryError";
 import { Button, Modal, toast } from "@/components/ui";
 import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 import { NhcxPayerSelect } from "./NhcxPayerSelect";
 import { NhcxSetupAlert } from "./NhcxSetupAlert";
+import { canSendTo, routedTo } from "./nhcxSummary";
 
 interface NhcxEligibilityCheckModalProps {
   patientId: string;
@@ -34,6 +38,16 @@ export function NhcxEligibilityCheckModal({
     queryFn: nhcxSettingsService.status,
     enabled: opened,
   });
+
+  const canLookup = useHasPermission(P.INSURANCE.NHCX.LOOKUP_POLICIES);
+  const policies = useQuery({
+    queryKey: ["nhcx-policies", patientId],
+    queryFn: () => api.listNhcxPatientPolicies(patientId),
+    enabled: opened && canLookup,
+  });
+  // A failed lookup must not read as "goes to the payer itself".
+  const sentTo =
+    recipientCode && !policies.isError ? routedTo(policies.data?.policies, recipientCode) : null;
 
   const check = useMutation({
     mutationFn: () =>
@@ -70,6 +84,24 @@ export function NhcxEligibilityCheckModal({
             setPayer(chosen);
           }}
         />
+        {policies.isError && (
+          <QueryError
+            error={policies.error}
+            onRetry={() => void policies.refetch()}
+            title="This patient's NHCX policies didn't load"
+          />
+        )}
+        {sentTo && (
+          <Text size="sm">
+            Goes to{" "}
+            <Text span ff="monospace">
+              {sentTo}
+            </Text>
+            {sentTo !== recipientCode
+              ? ", who processes this patient's policy with that insurer."
+              : "."}
+          </Text>
+        )}
         <Group justify="flex-end">
           <Button tone="secondary" onClick={onClose}>
             Cancel
@@ -77,7 +109,7 @@ export function NhcxEligibilityCheckModal({
           <Button
             onClick={() => check.mutate()}
             loading={check.isPending}
-            disabled={status.data?.ready !== true || !payer?.has_encryption_cert}
+            disabled={status.data?.ready !== true || !canSendTo(payer)}
           >
             Check eligibility
           </Button>

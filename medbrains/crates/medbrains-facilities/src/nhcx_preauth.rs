@@ -96,7 +96,7 @@ async fn build(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     pa: &PaRow,
-    recipient: &str,
+    insurer: &str,
 ) -> Result<serde_json::Value, AppError> {
     let patient = nhcx_common::load_patient(tx, tenant_id, pa.patient_id).await?;
     let (_, policy) =
@@ -130,7 +130,7 @@ async fn build(
         policy: &policy,
         provider: &provider,
         doctor: doctor.as_ref(),
-        recipient,
+        recipient: insurer,
     };
     let content = ClaimContent {
         id: pa.id,
@@ -161,15 +161,14 @@ pub async fn submit_preauth_to_nhcx(
     Json(body): Json<SubmitPreauthToNhcxRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::insurance::nhcx::SUBMIT)?;
-    let recipient = nhcx_common::required_recipient(&body.recipient_code)?;
+    let payer = nhcx_common::required_recipient(&body.recipient_code)?;
     let stage = body.request_stage.as_deref().unwrap_or("initial");
     if !STAGES.contains(&stage) {
         return Err(AppError::BadRequest(format!(
             "unknown request stage {stage}"
         )));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = nhcx_common::tenant_tx(&state, claims.tenant_id).await?;
     nhcx_common::require_nhcx_onboarded(&mut tx, claims.tenant_id).await?;
     let pa = load_pa(&mut tx, claims.tenant_id, id).await?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, pa.patient_id).await?;
@@ -179,8 +178,10 @@ pub async fn submit_preauth_to_nhcx(
             pa.status
         )));
     }
-    nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
-    let bundle = build(&mut tx, claims.tenant_id, &pa, recipient).await?;
+    // The envelope goes to the policy's processor; the bundle names the insurer.
+    let recipient =
+        nhcx_common::reachable_processor(&mut tx, claims.tenant_id, pa.patient_id, payer).await?;
+    let bundle = build(&mut tx, claims.tenant_id, &pa, payer).await?;
 
     // A request's correlation id is its own api call id.
     let api_call_id = Uuid::new_v4();
@@ -204,7 +205,7 @@ pub async fn submit_preauth_to_nhcx(
     .bind(correlation_id)
     .bind(api_call_id)
     .bind(workflow_id)
-    .bind(recipient)
+    .bind(&recipient)
     .bind(stage)
     .bind(claims.sub)
     .bind(pa.id)
@@ -232,7 +233,7 @@ pub async fn submit_preauth_to_nhcx(
         record: NhcxRecord::PriorAuth,
         record_id: pa.id,
         operation: NhcxOperation::Preauth,
-        recipient,
+        recipient: &recipient,
         correlation_id,
         api_call_id,
         workflow_id: Some(workflow_id),

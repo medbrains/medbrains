@@ -2,6 +2,7 @@ import { api } from "@medbrains/api";
 import type { NhcxParticipant } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Select } from "@/components/ui";
+import { canSendTo } from "./nhcxSummary";
 
 interface NhcxPayerSelectProps {
   value: string | null;
@@ -11,8 +12,9 @@ interface NhcxPayerSelectProps {
   error?: string;
 }
 
-/** Pick the payer from the NHCX payer directory; payers without an
- * encryption certificate are listed but cannot be chosen. */
+/** Pick the payer from the NHCX payer directory; a hand-entered payer without
+ * an encryption certificate is listed but cannot be chosen (a registry payer
+ * gets its certificate from NHCX on the first send). */
 export function NhcxPayerSelect({ value, onChange, enabled = true, error }: NhcxPayerSelectProps) {
   const payers = useQuery({
     queryKey: ["nhcx-participants"],
@@ -32,15 +34,15 @@ export function NhcxPayerSelect({ value, onChange, enabled = true, error }: Nhcx
       }
       data={list.map((p) => ({
         value: p.participant_code,
-        label: p.has_encryption_cert
+        label: canSendTo(p)
           ? `${p.participant_name} (${p.participant_code})`
           : `${p.participant_name} (${p.participant_code}) — no encryption certificate`,
-        disabled: !p.has_encryption_cert,
+        disabled: !canSendTo(p),
       }))}
       placeholder="Select the payer"
       searchable
       error={error ?? (payers.isError ? "Could not load the payer directory" : undefined)}
-      nothingFoundMessage="No payers — add one in the NHCX payer directory first"
+      nothingFoundMessage="No payers — refresh the NHCX payer directory first"
     />
   );
 }

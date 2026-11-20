@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (EXISTS (SELECT 1 FROM nhcx_participants\n                            WHERE tenant_id = $1 AND participant_code = $2 AND is_active\n                              AND (COALESCE(btrim(encryption_cert), '') <> ''\n                                   OR source = 'registry'))\n                OR EXISTS (SELECT 1 FROM nhcx_patient_policies\n                            WHERE tenant_id = $1 AND processing_id = $2)) AS \"reachable!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reachable!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "405e21d2cfd5314df0a433953db3791415971740c17990f1e871843dd64d294b"
+}

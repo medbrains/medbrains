@@ -30,8 +30,21 @@ pub(crate) struct Inbound<'a> {
     pub(crate) response: &'a Value,
 }
 
-/// Route a callback to the record it answers.
+/// Route a callback to the record it answers; a payer's key refusal also
+/// sends the refused message again, once ([`crate::key_retry::resend`]).
 pub(crate) async fn apply(
+    tx: &mut Tx<'_>,
+    resource: &str,
+    action: &str,
+    m: &Inbound<'_>,
+) -> Result<Matched, AppError> {
+    let matched = route(tx, resource, action, m).await?;
+    crate::key_retry::resend(tx, m).await?;
+    Ok(matched)
+}
+
+/// The record a callback answers, by its resource and action.
+async fn route(
     tx: &mut Tx<'_>,
     resource: &str,
     action: &str,

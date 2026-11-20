@@ -11,6 +11,7 @@ import { claimPicks } from "./claimDocuments";
 import { NhcxClaimDocumentsPicker } from "./NhcxClaimDocumentsPicker";
 import { NhcxPayerSelect } from "./NhcxPayerSelect";
 import { NhcxSetupAlert } from "./NhcxSetupAlert";
+import { canSendTo } from "./nhcxSummary";
 
 interface SubmitToNhcxModalProps {
   claimId: string;
@@ -150,7 +151,7 @@ export function SubmitToNhcxModal({
           <Button
             onClick={() => submit.mutate()}
             loading={submit.isPending}
-            disabled={!ready || !payer?.has_encryption_cert || (isClaim && !prepared.data)}
+            disabled={!ready || !canSendTo(payer) || (isClaim && !prepared.data)}
           >
             Submit to NHCX
           </Button>

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nhcx_patient_policies (tenant_id, patient_id, identifier_type, payer_id, processing_id, member_id, product_id, product_name, fetched_by) SELECT $1, $2, $3, r.payer_id, r.processing_id, r.member_id, r.product_id, r.product_name, $4 FROM jsonb_to_recordset($5) AS r(payer_id text, processing_id text, member_id text, product_id text, product_name text)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "291af6c5dc17d8ba064a6e025180bfae72de7e7eebc5b990dc62516fd02f6388"
+}

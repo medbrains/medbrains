@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM nhcx_patient_policies WHERE tenant_id = $1 AND patient_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "615e4918068e257be950c0230ebf33d79e122391ff187c753e3d0dbf712d5cff"
+}
