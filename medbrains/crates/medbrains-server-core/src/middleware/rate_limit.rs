@@ -47,12 +47,8 @@ impl RateLimiter {
         }
     }
 
-    /// Record an attempt and return whether the request is allowed.
-    pub fn check_and_record(&self, ip: IpAddr) -> bool {
-        self.check_and_record_class(ip, "default", MAX_ATTEMPTS, WINDOW_SECS)
-    }
-
-    /// Class-scoped variant — distinct sliding windows per (ip, class).
+    /// Record an attempt and return whether it is allowed — a distinct sliding
+    /// window per (ip, class).
     #[allow(clippy::significant_drop_tightening)]
     pub fn check_and_record_class(
         &self,
@@ -107,19 +103,41 @@ impl Default for RateLimiter {
     }
 }
 
+/// Session refreshes per IP per minute. A logout or an expired session can
+/// make every open screen ask at once, and a ward shares one address; a
+/// refresh token is 256 random bits, so this bounds load, not guessing.
+/// Inferred, not from a spec.
+const REFRESH_PER_MINUTE: usize = 30;
+/// Reads of how a hospital signs in, per IP per minute. Public, read-only and
+/// carrying no credential, so there is nothing to guess; the bound is only
+/// against a runaway client. Inferred, not from a spec.
+const SIGN_IN_OPTIONS_PER_MINUTE: usize = 120;
+
+/// The budget a request behind the login limiter is counted against. Only
+/// credential guesses (login, password reset, OTP) share the strict
+/// `MAX_ATTEMPTS` window; a refresh storm or the sign-in page loading must
+/// never use it up and lock a person out of signing in.
+fn auth_budget(path: &str) -> (&'static str, usize) {
+    match path {
+        "/api/auth/refresh" => ("refresh", REFRESH_PER_MINUTE),
+        "/api/auth/sign-in-options" => ("sign_in_options", SIGN_IN_OPTIONS_PER_MINUTE),
+        _ => ("default", MAX_ATTEMPTS),
+    }
+}
+
 /// Axum middleware that rate-limits based on client IP.
 pub async fn rate_limit_middleware(
     State(limiter): State<RateLimiter>,
     request: Request,
     next: Next,
 ) -> Response {
-    let ip = extract_client_ip(&request);
-
-    if let Some(ip) = ip
-        && !limiter.check_and_record(ip)
+    let (class, max) = auth_budget(request.uri().path());
+    if let Some(ip) = extract_client_ip(&request)
+        && !limiter.check_and_record_class(ip, class, max, WINDOW_SECS)
     {
         return (
             StatusCode::TOO_MANY_REQUESTS,
+            [(axum::http::header::RETRY_AFTER, WINDOW_SECS.to_string())],
             axum::Json(serde_json::json!({
                 "error": "too_many_requests",
                 "detail": "Too many login attempts. Please try again later.",
@@ -288,7 +306,34 @@ fn extract_client_ip(request: &Request) -> Option<IpAddr> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PAIRING_CALLS_PER_MINUTE, PAIRING_CODES_PER_MINUTE, pairing_budget};
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use super::{
+        MAX_ATTEMPTS, PAIRING_CALLS_PER_MINUTE, PAIRING_CODES_PER_MINUTE, RateLimiter, WINDOW_SECS,
+        auth_budget, pairing_budget,
+    };
+
+    /// Count one request to `path` from `ip` the way `rate_limit_middleware` does.
+    fn hit(limiter: &RateLimiter, ip: IpAddr, path: &str) -> bool {
+        let (class, max) = auth_budget(path);
+        limiter.check_and_record_class(ip, class, max, WINDOW_SECS)
+    }
+
+    #[test]
+    fn refreshes_and_sign_in_page_loads_never_use_up_the_login_budget() {
+        let limiter = RateLimiter::new();
+        let ip = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 7));
+        for _ in 0..10 {
+            assert!(hit(&limiter, ip, "/api/auth/refresh"));
+            assert!(hit(&limiter, ip, "/api/auth/sign-in-options"));
+        }
+        for _ in 0..MAX_ATTEMPTS {
+            assert!(hit(&limiter, ip, "/api/auth/login"));
+        }
+        // Brute force is as bounded as before: the sixth guess is refused.
+        assert!(!hit(&limiter, ip, "/api/auth/login"));
+        assert!(!hit(&limiter, ip, "/api/auth/password-reset/request"));
+    }
 
     #[test]
     fn asking_for_a_pairing_code_is_counted_apart_and_tighter() {

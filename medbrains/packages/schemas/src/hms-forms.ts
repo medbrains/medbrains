@@ -15,6 +15,7 @@ import {
   positiveNumber,
   requiredTrimmed,
 } from "./form-primitives.js";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "./password.js";
 import { registrationCatalogue } from "./registration.generated.js";
 import { isoDay, registrationProblems } from "./registration-rules.js";
 
@@ -1299,7 +1300,7 @@ const usernameField = requiredTrimmed("Username is required", 30)
   );
 
 const strongPasswordField = requiredTrimmed("Temporary password is required")
-  .refine((value) => value.length >= 8, "Password must be at least 8 characters")
+  .refine((value) => value.length >= PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT)
   .refine((value) => /[A-Z]/.test(value), "Password must contain at least one uppercase letter")
   .refine((value) => /[a-z]/.test(value), "Password must contain at least one lowercase letter")
   .refine((value) => /\d/.test(value), "Password must contain at least one digit")

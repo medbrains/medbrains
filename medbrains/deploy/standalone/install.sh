@@ -581,6 +581,19 @@ install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-ba
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-log-archive.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-log-archive" /usr/local/bin/medbrains-log-archive
+# Per-hospital export (docs/ops/BACKUP-RESTORE.md). Installed everywhere;
+# the timer runs only when TENANT_EXPORT names tenants in the env file.
+install -m 0644 "$DEPLOY_DIR/medbrains-tenant-export.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-tenant-export.timer" /etc/systemd/system/
+install -m 0755 "$DEPLOY_DIR/medbrains-tenant-export" /usr/local/bin/medbrains-tenant-export
+# Email reports (docs/ops/EMAIL-REPORTS.md). Installed everywhere; they send
+# nothing until BACKUP_REPORT_TO / DAILY_REPORT_TO are set in the env file.
+install -m 0644 "$DEPLOY_DIR/medbrains-backup-report@.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-daily-report.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-daily-report.timer" /etc/systemd/system/
+for bin in medbrains-send-mail medbrains-backup-report medbrains-daily-report; do
+    install -m 0755 "$DEPLOY_DIR/$bin" "/usr/local/bin/$bin"
+done
 # Backup public keys. Every backup is sealed to them, so they must belong to
 # whoever runs this install: the hospital, never the project. Order:
 #   1. BACKUP_AGE_RECIPIENT (one age1… key per line) — set it to rotate.
@@ -699,8 +712,9 @@ if [[ -n "${ALERT_TOPIC_ARN:-}" ]]; then
 fi
 
 # CERT-In direction (iv) log archive: the bucket ops.tf grants this host
-# (terraform output prod_ops). Unset = no archive, warned about below.
-for key in LOG_ARCHIVE_BUCKET LOG_ARCHIVE_PREFIX; do
+# (terraform output prod_ops). Unset = no archive, warned about below. The
+# PITR settings ride along (medbrains-wal-g-setup reads them from the file).
+for key in LOG_ARCHIVE_BUCKET LOG_ARCHIVE_PREFIX PITR_ENABLED WALG_S3_PREFIX WALG_S3_SSE_KMS_ID; do
     [[ -n "${!key:-}" ]] || continue
     if grep -q "^$key=" /etc/medbrains/env 2>/dev/null; then
         sed -i "s|^$key=.*|$key=${!key}|" /etc/medbrains/env
@@ -761,6 +775,24 @@ if systemctl is-active --quiet medbrains-server.service \
         exit 1
     fi
 fi
+# Point-in-time recovery (docs/ops/BACKUP-RESTORE.md). Off unless the env file
+# says PITR_ENABLED=1; then the setup checks the cluster is MedBrains' alone,
+# configures WAL-G and, beside the container, restarts it once for
+# archive_mode. A failure here leaves the nightly dump as the only backup:
+# loud, not fatal, so a deploy is never blocked by an opt-in.
+install -m 0755 "$DEPLOY_DIR/medbrains-wal-g" /usr/local/bin/medbrains-wal-g
+install -m 0755 "$DEPLOY_DIR/medbrains-restore-test" /usr/local/bin/medbrains-restore-test
+install -m 0644 "$DEPLOY_DIR/medbrains-restore-test.service" "$DEPLOY_DIR/medbrains-restore-test.timer" /etc/systemd/system/
+systemctl daemon-reload
+if [[ "$(env_value PITR_ENABLED)" == "1" ]]; then
+    if ! bash "$DEPLOY_DIR/medbrains-wal-g-setup" --apply --restart-if-needed; then
+        echo "    WARNING: PITR_ENABLED=1 but medbrains-wal-g-setup failed (above). Point-in-time"
+        echo "             recovery is NOT running; the nightly dump still is."
+    fi
+    systemctl enable --now medbrains-restore-test.timer
+else
+    systemctl disable --now medbrains-restore-test.timer 2>/dev/null || true
+fi
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
 # BACKUP_BUCKET) AND re-run migrations if RESET_PGDATA=1 wiped them.
@@ -807,6 +839,40 @@ else
     echo "    WARNING: no LOG_ARCHIVE_BUCKET — host logs are NOT archived. CERT-In"
     echo "             direction (iv) needs 180 days in India; journald alone keeps"
     echo "             at most 2G. See deploy/standalone/README.md 'Log archive'."
+fi
+if [[ -n "$(env_value TENANT_EXPORT)" ]]; then
+    systemctl enable --now medbrains-tenant-export.timer
+else
+    systemctl disable --now medbrains-tenant-export.timer 2>/dev/null || true
+fi
+# The OPD daily report: its read-only role first (counts columns only), then
+# the timer, at DAILY_REPORT_ONCALENDAR when set. Not fatal: the report is a
+# convenience, and the role needs the migrated tables the server just made.
+if [[ -n "$(env_value DAILY_REPORT_TO)" ]]; then
+    ONCAL="$(env_value DAILY_REPORT_ONCALENDAR)"
+    ONCAL="${ONCAL#\"}"; ONCAL="${ONCAL%\"}"
+    mkdir -p /etc/systemd/system/medbrains-daily-report.timer.d
+    if [[ -n "$ONCAL" ]]; then
+        printf '[Timer]\nOnCalendar=\nOnCalendar=%s\n' "$ONCAL" \
+            > /etc/systemd/system/medbrains-daily-report.timer.d/schedule.conf
+    else
+        rm -f /etc/systemd/system/medbrains-daily-report.timer.d/schedule.conf
+    fi
+    systemctl daemon-reload
+    if db_report_role_configure /etc/medbrains/env; then
+        systemctl enable --now medbrains-daily-report.timer
+    else
+        systemctl disable --now medbrains-daily-report.timer 2>/dev/null || true
+        echo "    WARNING: the daily report's database role could not be set up, so the"
+        echo "             report is OFF. Once the server has migrated, run:"
+        echo "             sudo bash $DEPLOY_DIR/db-roles.sh --report && sudo systemctl enable --now medbrains-daily-report.timer"
+    fi
+else
+    systemctl disable --now medbrains-daily-report.timer 2>/dev/null || true
+fi
+if [[ -n "$(env_value BACKUP_REPORT_TO)$(env_value DAILY_REPORT_TO)" && -z "$(env_value SMTP_HOST)" ]]; then
+    echo "    WARNING: report recipients are set but SMTP_HOST is not — every report"
+    echo "             email will fail (and page). See docs/ops/EMAIL-REPORTS.md."
 fi
 systemctl enable --now medbrains-host-check.timer
 if [[ -z "$(env_value ALERT_TOPIC_ARN)" ]]; then

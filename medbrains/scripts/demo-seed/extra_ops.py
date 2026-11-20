@@ -335,21 +335,21 @@ def seed_dental_ophtho():
         r = call("POST", "/specialty/ophthalmology/exams", dict(patient_id=PT[ph], encounter_id=opd_enc(ph), **body))
         if r: sp[k] = r["id"]; save()
 
-QI = [  # code, name, category, unit, freq, target, values [(dept, num, den, note)]
- ("NABH-HH", "Hand hygiene compliance rate", "infection_control", "%", "monthly", 90,
+QI = [  # code, name, category, unit, freq, target, direction, values [(dept, num, den, note)]
+ ("NABH-HH", "Hand hygiene compliance rate", "infection_control", "%", "monthly", 90, "higher_better",
   [("SURG", 33, 40, "From hand-hygiene audit"), ("GEN-MEDICINE", 21, 30, "From hand-hygiene audit"), ("PAED", 23, 25, "From hand-hygiene audit")]),
- ("NABH-FALL", "Patient falls per 1000 patient-days", "patient_safety", "per 1000", "monthly", 1, [("GEN-MEDICINE", 1, 120, "1 fall (no injury)")]),
- ("NABH-NM", "Medication near-miss reporting count", "medication_safety", "count", "monthly", None, [("GEN-MEDICINE", 1, None, "LASA near miss")]),
- ("NABH-CAUTI", "CAUTI rate per 1000 catheter-days", "infection_control", "per 1000", "monthly", 2, [("GEN-MEDICINE", 1, 85, "1 CAUTI")]),
+ ("NABH-FALL", "Patient falls per 1000 patient-days", "patient_safety", "per 1000", "monthly", 1, "lower_better", [("GEN-MEDICINE", 1, 120, "1 fall (no injury)")]),
+ ("NABH-NM", "Medication near-miss reporting count", "medication_safety", "count", "monthly", None, "higher_better", [("GEN-MEDICINE", 1, None, "LASA near miss")]),
+ ("NABH-CAUTI", "CAUTI rate per 1000 catheter-days", "infection_control", "per 1000", "monthly", 2, "lower_better", [("GEN-MEDICINE", 1, 85, "1 CAUTI")]),
 ]
 def seed_quality_indicators():
     qi = bucket("quality_indicators")
     have = {i["code"]: i["id"] for i in lst("/quality/indicators")}
     first = TODAY.replace(day=1).isoformat()
-    for code, name, cat_, unit, freq, tgt, vals in QI:
+    for code, name, cat_, unit, freq, tgt, direction, vals in QI:
         rec = qi.setdefault(code, {})
         if "id" not in rec:
-            body = dict(code=code, name=name, category=cat_, unit=unit, frequency=freq, auto_calculated=False)
+            body = dict(code=code, name=name, category=cat_, unit=unit, frequency=freq, direction=direction)
             if tgt is not None: body["target_value"] = tgt
             iid = have.get(code) or (call("POST", "/quality/indicators", body) or {}).get("id")
             if not iid: continue

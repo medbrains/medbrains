@@ -58,6 +58,15 @@ export interface ModuleConfig {
   depends_on: string[];
   created_at: string;
   updated_at: string;
+  /** This brick's background jobs and whether this server runs them. */
+  background_jobs: BackgroundJobStatus[];
+}
+
+/** One brick background job on the Modules screen. */
+export interface BackgroundJobStatus {
+  id: string;
+  label: string;
+  running: boolean;
 }
 
 // Sequences

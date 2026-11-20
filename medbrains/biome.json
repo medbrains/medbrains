@@ -97,7 +97,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/types/src/permissions.ts"],
+      "includes": ["packages/types/src/permissions.ts", "packages/types/src/app-screens.generated.ts"],
       "formatter": { "enabled": false }
     }
   ]

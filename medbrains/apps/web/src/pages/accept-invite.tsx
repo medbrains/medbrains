@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Center, Group, Loader, Stack, Text, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@medbrains/schemas";
+import { applyServerErrors } from "@medbrains/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router";
 import { z } from "zod";
-import { Alert, Badge, Button, Input, PasswordField } from "@/components/ui";
+import { Alert, Badge, Button, Input, NewPasswordField } from "@/components/ui";
 import { toast } from "@/components/ui/toast";
 
 const schema = z.object({
@@ -14,7 +16,7 @@ const schema = z.object({
     .min(3, "At least 3 characters")
     .regex(/^[a-z][a-z0-9_]*$/, "Lowercase letters, numbers and _ only"),
   full_name: z.string().min(2, "Your name is required"),
-  password: z.string().min(8, "At least 8 characters"),
+  password: z.string().min(PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT),
 });
 type FormInput = z.infer<typeof schema>;
 
@@ -38,6 +40,7 @@ export function AcceptInvitePage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<FormInput>({
     resolver: zodResolver(schema),
@@ -50,7 +53,11 @@ export function AcceptInvitePage() {
       toast.success("Account created — you can sign in now.", { title: "Welcome" });
       void navigate("/login");
     },
-    onError: (err: Error) => toast.error(err.message, { title: "Could not accept invitation" }),
+    onError: (err: Error) => {
+      if (!applyServerErrors(err, setError)) {
+        toast.error(err.message, { title: "Could not accept invitation" });
+      }
+    },
   });
 
   return (
@@ -89,7 +96,7 @@ export function AcceptInvitePage() {
               error={errors.username?.message}
               {...register("username")}
             />
-            <PasswordField
+            <NewPasswordField
               label="Password"
               error={errors.password?.message}
               {...register("password")}

@@ -3,7 +3,7 @@
  * Per RFCs/sprints/SPRINT-doctor-activities.md §2.5.
  */
 import { Card, Divider, Grid, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
-import type { DoctorProfile, MyDayResponse } from "@medbrains/types";
+import type { DoctorProfile } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconActivity,
@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { doctorService } from "@/services/doctor.service";
+import { useMyDay } from "./useMyDay";
 
 export function MyDayPage() {
   useRequirePermission(P.DOCTOR.DASHBOARD.VIEW_OWN);
@@ -31,11 +32,7 @@ export function MyDayPage() {
     retry: 0,
   });
 
-  const { data: myDay, isLoading } = useQuery<MyDayResponse>({
-    queryKey: ["my-day"],
-    queryFn: () => doctorService.getMyDay(),
-    refetchInterval: 30_000,
-  });
+  const { myDay, isLoading, shown } = useMyDay();
 
   return (
     <div>
@@ -56,7 +53,7 @@ export function MyDayPage() {
               leftSection={<IconClipboardCheck size={14} />}
               onClick={() => navigate("/doctor/signoffs")}
             >
-              Sign-off queue ({myDay?.pending_signoffs.total ?? 0})
+              Sign-off queue ({shown.signoffs})
             </Button>
             <Button
               tone="ghost"
@@ -73,7 +70,7 @@ export function MyDayPage() {
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="md">
         <StatCard
           label="Appointments today"
-          value={myDay?.today.appointments_total ?? 0}
+          value={shown.appointments}
           sub={
             myDay?.today.appointments_remaining
               ? `${myDay.today.appointments_remaining} remaining`
@@ -84,7 +81,7 @@ export function MyDayPage() {
         />
         <StatCard
           label="Pending sign-offs"
-          value={myDay?.pending_signoffs.total ?? 0}
+          value={shown.signoffs}
           sub={
             myDay && myDay.pending_signoffs.medico_legal > 0
               ? `${myDay.pending_signoffs.medico_legal} medico-legal`
@@ -95,13 +92,13 @@ export function MyDayPage() {
         />
         <StatCard
           label="OT cases today"
-          value={myDay?.today.ot_cases ?? 0}
+          value={shown.otCases}
           icon={<IconActivity size={20} stroke={1.5} />}
           color="info"
         />
         <StatCard
           label="Critical alerts"
-          value={myDay?.today.critical_alerts ?? 0}
+          value={shown.criticalAlerts}
           icon={<IconAlertTriangle size={20} stroke={1.5} />}
           color="danger"
         />
@@ -146,7 +143,7 @@ export function MyDayPage() {
                 description="Review and sign pending records"
                 icon={<IconSignature size={20} />}
                 onClick={() => navigate("/doctor/signoffs")}
-                badge={myDay?.pending_signoffs.total ?? 0}
+                badge={shown.signoffBadge}
               />
               <QuickAction
                 label="Today's appointments"

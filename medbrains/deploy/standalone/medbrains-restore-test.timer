@@ -1,0 +1,13 @@
+[Unit]
+Description=Monthly MedBrains restore test (opt-in with PITR_ENABLED)
+
+[Timer]
+# The 1st, 05:00 in the server's zone: after the dump (02:30), the base
+# backup (03:00) and OS updates (03:30), before the working day.
+OnCalendar=*-*-01 05:00:00
+Persistent=true
+RandomizedDelaySec=900
+Unit=medbrains-restore-test.service
+
+[Install]
+WantedBy=timers.target

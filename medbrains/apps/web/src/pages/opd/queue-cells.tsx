@@ -6,6 +6,7 @@ import type { FieldAccessLevel, QueueEntry } from "@medbrains/types";
 import { IconHeartbeat, IconHeartOff } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components";
+import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
 import {
   appointmentSlotLabel,
   appointmentStatusLabel,
@@ -153,6 +154,18 @@ export function QueueVitalsCell({ row }: { row: QueueEntry }) {
       shape="pill"
       size="xs"
       tone="neutral"
+    />
+  );
+}
+
+/** The row's prints: the visit's token ticket and the patient's ID card. */
+export function QueueRowPrintMenu({ row }: { row: QueueEntry }) {
+  return (
+    <OpdCardPrintMenu
+      compact
+      encounterId={row.encounter_id}
+      token={row.token_code}
+      patientId={row.patient_id}
     />
   );
 }

@@ -41,6 +41,18 @@ pub struct ModuleConfig {
     pub depends_on: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// This brick's background jobs and whether this server runs them; not stored.
+    #[sqlx(skip)]
+    #[serde(default)]
+    pub background_jobs: Vec<BackgroundJobStatus>,
+}
+
+/// One brick background job as the Modules screen shows it.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BackgroundJobStatus {
+    pub id: String,
+    pub label: String,
+    pub running: bool,
 }
 
 /// Module activation status.

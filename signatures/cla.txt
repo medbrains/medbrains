@@ -1,0 +1,4 @@
+# Contributor licence agreement signatures (CLA.md).
+# One line per signer: GitHub username, then the date signed (YYYY-MM-DD).
+# A contributor signs by adding their own line in their first pull request; the
+# commit that adds it, made from their account, is the record of the signature.
