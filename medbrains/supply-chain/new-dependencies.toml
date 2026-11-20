@@ -29,6 +29,27 @@
 
 [[review]]
 ecosystem = "npm"
+name = "@bruits/satteri-android-arm64"
+reviewed-by = "owner (2026-11-19)"
+why = "Platform binary of Satteri, the Markdown/MDX processor astro 7.4.7 pulls in for the website build; published from github.com/bruits/satteri by Astro core maintainers"
+checked = "maintainers (princesseuh, goulvenclech), repository matches, build-only for the static website"
+
+[[review]]
+ecosystem = "npm"
+name = "@bruits/satteri-freebsd-x64"
+reviewed-by = "owner (2026-11-19)"
+why = "Platform binary of Satteri (see above); optional, never installed on our build machines"
+checked = "maintainers, repository matches, build-only"
+
+[[review]]
+ecosystem = "npm"
+name = "@rolldown/binding-wasm32-wasi"
+reviewed-by = "owner (2026-11-19)"
+why = "WASI binding of Rolldown, the Vite/astro bundler; build-only for the website"
+checked = "maintainers (yyx990803, sapphi-red, broooooklyn), repository github.com/rolldown/rolldown matches"
+
+[[review]]
+ecosystem = "npm"
 name = "@allurereport/aql"
 reviewed-by = "DomnicAmalan"
 date = "2026-11-14"
@@ -690,6 +711,12 @@ date = "2026-11-14"
 why = "part of the journey coverage tooling (monocart-coverage-reports), which turns Playwright browser coverage into LCOV for SonarCloud; required by monocart-coverage-reports@3.2.0"
 checked = "yazl@3.3.1: maintainers thejoshwolfe; repository git+https://github.com/thejoshwolfe/yazl.git; install scripts: none; published 2024-11-23"
 
+
+[[cooldown-exception]]
+ecosystem = "cargo"
+name = "heapless"
+version = "0.9.4"
+reason = "RUSTSEC-2026-0574, RUSTSEC-2026-0575, RUSTSEC-2026-0576, RUSTSEC-2026-0577, RUSTSEC-2026-0578, RUSTSEC-2026-0579, RUSTSEC-2026-0580, RUSTSEC-2026-0581, RUSTSEC-2026-0582: 0.9.4 (2026-11-18) is the only patched release; replaces 0.9.3 under generic-btree (loro CRDT, edge + mobile core)"
 
 [[cooldown-exception]]
 ecosystem = "cargo"

@@ -147,6 +147,34 @@ and `::consent::check`, which still answer `Outcome` (§3a).
 - **Safety-critical gates are kernel or service code, never configuration.** Flows and plugins can
   add checks, never remove them (RFC-SOP-FLOWS §3, §11).
 
+### 3.4 Moving an app crate onto the kernel (recipe, 2026-11-19)
+
+One crate per PR, three commits:
+
+1. **Mechanical.** `python3 scripts/kernel_codemod.py crates/medbrains-<app>`, then
+   `rustfmt --edition 2024 --config-path rustfmt.toml crates/medbrains-<app>/src/*.rs`. Commit
+   the output untouched, naming the command, so a reviewer can re-run it and diff. It rewrites
+   `begin` + `set_tenant_context` / `set_full_context` / `set_audit_context` into
+   `kernel::tenant_tx` / `scoped_tx` / `actor_tx`, lone setters into `enter_tenant` /
+   `enter_scope`, `tenant_conn` into `tenant_session`, `AuditLogger::log` into `audit::append`,
+   `medbrains_authz::` into `kernel::authz::`, `medbrains_authz_gate::` into `gate::`
+   (`medbrains_health_services::patient`), and server-core authorization into `kernel::authz`.
+   Each function's first `require_permission` / `require_any_permission` before an opener
+   becomes `let permit = kernel::authz::permit(..)?` and the openers take `&permit`. It drops
+   `medbrains-db`, `medbrains-authz`, `medbrains-authz-gate` from `[dependencies]` when unused.
+2. **Hand fixes**, from `cargo check -p medbrains-<app> --tests`: an opener with no decision
+   before it does not compile (it still passes a tenant id). Give it the decision the caller
+   already makes, or, for a scheduled pass, `Permit::unattended(tenant_id, "why")`. Tail
+   expressions that returned server-core's `AppError` wrap as `Ok(…?)`. A read on the bare pool
+   (`.fetch_all(&state.db)`) goes through `tenant_session`.
+3. **Baseline.** `make check-kernel-boundary` reports the improvement; the owner runs
+   `python3 scripts/check_kernel_boundary.py --update` and the file is committed. Then
+   `python3 scripts/check_kernel_authz.py --coverage` for the RBAC-only list: record-level
+   (ABAC) checks are added in their own PR, never in the move.
+
+The openers keep the plain `sqlx` transaction so helpers do not change; moving a crate on to
+`kernel::Tx` / `work` is a later, separate step.
+
 ## 3a. Amendment (2026-11-01): the kernel is technical, and everything is small
 
 **Owner decisions:** "the kernel should handle technicals instead of hospital-focused" and "the OS
