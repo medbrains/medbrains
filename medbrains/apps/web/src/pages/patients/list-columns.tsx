@@ -47,6 +47,7 @@ export function patientListColumns(
   columns: Column<Patient>[],
   { opdOn, basic }: { opdOn: boolean; basic: boolean },
 ): Column<Patient>[] {
+  /** `list` with `add` inserted after the column `key`. */
   const after = (list: Column<Patient>[], key: string, add: Column<Patient>[]) => {
     const at = list.findIndex((c) => c.key === key) + 1;
     return [...list.slice(0, at), ...add, ...list.slice(at)];
