@@ -1,23 +1,13 @@
 // HR EmployeesTab — split from hr.tsx (pure move).
 
-import {
-  Group,
-  NumberInput,
-  PasswordInput,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Switch, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { Designation, Employee } from "@medbrains/types";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, NewPasswordField, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { EmployeeDetailDrawer } from "./employee-detail-drawer";
 import { statusBadgeTone } from "./shared";
@@ -320,9 +310,8 @@ export function EmployeesTab({
                 value={form.login_username}
                 onChange={(e) => setForm({ ...form, login_username: e.currentTarget.value })}
               />
-              <PasswordInput
+              <NewPasswordField
                 label="Temporary password"
-                description="They'll be asked to change it on first sign-in"
                 value={form.login_password}
                 onChange={(e) => setForm({ ...form, login_password: e.currentTarget.value })}
               />

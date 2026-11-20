@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n             SELECT 1 FROM crossmatch_requests xm\n             LEFT JOIN blood_components bc\n               ON bc.id = xm.component_id AND bc.tenant_id = xm.tenant_id\n              WHERE xm.tenant_id = b.tenant_id AND xm.patient_id = b.patient_id\n                AND xm.status IN ('compatible', 'issued') AND xm.deleted_at IS NULL\n                AND xm.tested_at >= GREATEST(now(), COALESCE($3, b.scheduled_start))\n                                    - interval '72 hours'\n                AND (xm.component_id IS NULL OR (\n                     bc.deleted_at IS NULL\n                     AND bc.status IN ('available', 'reserved', 'crossmatched', 'issued')\n                     AND bc.expiry_at > GREATEST(now(), COALESCE($3, b.scheduled_start))\n                     AND (bc.issued_to_patient IS NULL OR bc.issued_to_patient = b.patient_id)))\n           ) AS \"covered!\"\n           FROM ot_bookings b\n          WHERE b.id = $1 AND b.tenant_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "covered!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ffbf09a44361faf9ccdbd667989118ff275503bdb81bc630ade494c0bed8b41c"
+}

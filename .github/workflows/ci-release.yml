@@ -1,0 +1,24 @@
+# CI for pushes to release and hotfix branches: the whole of ci.yml, with no dependency cache.
+#
+# A cache restored into the run that verifies a release could have been written by another
+# run (cache poisoning), so these pushes install and build from clean. Pull requests and
+# pushes to main run ci.yml directly and keep their caches.
+name: CI release
+
+on:
+  push:
+    branches: ['release/**', 'hotfix/**']
+
+permissions: {}
+
+jobs:
+  ci:
+    name: CI
+    permissions:
+      contents: read
+      # The per-test summary check runs in ci.yml's web and Rust test jobs.
+      checks: write
+    # `$/` is the same repository at the running commit (GitHub, 2026-07-30).
+    uses: $/.github/workflows/ci.yml
+    with:
+      no-cache: true

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"total!\" FROM (SELECT 1 FROM lab_critical_alerts\n             WHERE tenant_id = $1 AND acknowledged_at IS NULL AND deleted_at IS NULL\n               AND (notified_to = $2 OR escalated_to = $2) LIMIT $3) s",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ac547d5581ddeab6fd4bdba1947f006e396bc86bd311afe6136fbd67a0a25b06"
+}

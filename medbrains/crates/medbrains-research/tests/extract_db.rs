@@ -1,6 +1,7 @@
 //! The extract against a real database: the SQL reads what the release
 //! needs, keeps to the hospital, and leaves medico-legal stays out. Runs
 //! against [`common::database`] (it plants and removes two hospitals).
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 mod common;
 

@@ -1,0 +1,117 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH due AS (\n             SELECT q.id FROM opd_queues q JOIN encounters e ON e.id = q.encounter_id\n              WHERE q.tenant_id = $1 AND q.deleted_at IS NULL AND q.kind = 'primary'\n                AND q.status IN ('called'::queue_status, 'in_consultation'::queue_status)\n                AND COALESCE(q.called_at, q.updated_at) < now() - make_interval(mins => $2)\n                AND COALESCE(q.doctor_id, e.doctor_id, e.created_by) IS NOT NULL\n              ORDER BY q.id LIMIT $3\n              FOR UPDATE OF q SKIP LOCKED\n           )\n           UPDATE opd_queues q SET status = 'completed'::queue_status,\n                  completed_at = now(), updated_at = now()\n             FROM due WHERE q.id = due.id\n           RETURNING q.id AS \"id!\", q.tenant_id AS \"tenant_id!\",\n                     q.encounter_id AS \"encounter_id!\", q.department_id AS \"department_id!\",\n                     q.doctor_id, q.token_number AS \"token_number!\",\n                     q.status AS \"status!: QueueStatus\", q.queue_date AS \"queue_date!\",\n                     q.called_at, q.completed_at, q.created_at AS \"created_at!\",\n                     q.updated_at AS \"updated_at!\", q.kind AS \"kind!\", q.referral_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "encounter_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "department_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "doctor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "token_number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "status!: QueueStatus",
+        "type_info": {
+          "Custom": {
+            "name": "queue_status",
+            "kind": {
+              "Enum": [
+                "waiting",
+                "called",
+                "in_consultation",
+                "completed",
+                "no_show",
+                "cancelled",
+                "expired"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "queue_date!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "called_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "referral_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "aea3bbd116e5d2a7ec4bab83f481fd868d2c3f696c437c20168999b040886156"
+}

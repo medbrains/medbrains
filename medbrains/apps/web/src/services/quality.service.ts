@@ -9,8 +9,8 @@ export const qualityService = {
     api.listIndicatorValues(...args),
   recordIndicatorValue: (...args: Parameters<typeof api.recordIndicatorValue>) =>
     api.recordIndicatorValue(...args),
-  calculateIndicator: (...args: Parameters<typeof api.calculateIndicator>) =>
-    api.calculateIndicator(...args),
+  setQualityIndicatorDirection: (...args: Parameters<typeof api.setQualityIndicatorDirection>) =>
+    api.setQualityIndicatorDirection(...args),
   listQualityIncidents: (...args: Parameters<typeof api.listQualityIncidents>) =>
     api.listQualityIncidents(...args),
   getQualityIncident: (...args: Parameters<typeof api.getQualityIncident>) =>

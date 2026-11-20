@@ -6,6 +6,7 @@
 //!   `config`) consumed by the AI config module. The API key itself is never
 //!   stored here or returned — only a reference to a key in the secret backend.
 
+pub mod ai_settings;
 pub mod domain_ownership;
 pub mod preflight;
 use axum::extract::rejection::JsonRejection;
@@ -45,94 +46,6 @@ pub async fn get_infra_status(
         secrets_backend: state.secret_resolver.backend_label(),
         deploy_mode: DeployMode::from_env().as_code(),
         startup_checks: preflight::report(),
-    }))
-}
-
-#[derive(Debug, Serialize)]
-pub struct AiSettings {
-    pub provider: String,
-    pub model: String,
-}
-
-/// GET /api/admin/ai-settings
-pub async fn get_ai_settings(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<AiSettings>, AppError> {
-    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let stored = sqlx::query_scalar!(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'ai' AND key = 'config' AND deleted_at IS NULL",
-        claims.tenant_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-    tx.commit().await?;
-
-    let cfg = stored.unwrap_or_default();
-    let field = |name: &str| {
-        cfg.get(name)
-            .and_then(serde_json::Value::as_str)
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(ToOwned::to_owned)
-    };
-
-    Ok(Json(AiSettings {
-        provider: field("provider").unwrap_or_else(|| "anthropic".to_owned()),
-        model: field("model").unwrap_or_default(),
-    }))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateAiSettings {
-    pub provider: String,
-    pub model: String,
-}
-
-/// PUT /api/admin/ai-settings
-pub async fn update_ai_settings(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    body: Result<Json<UpdateAiSettings>, JsonRejection>,
-) -> Result<Json<AiSettings>, AppError> {
-    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
-    let Json(body) = body?;
-
-    let provider = body.provider.trim();
-    if provider != "anthropic" {
-        return Err(AppError::BadRequest(format!(
-            "AI provider '{provider}' is not supported by this build"
-        )));
-    }
-
-    // Anthropic has no key to store: access is AWS identity federation,
-    // configured per node and checked at startup (`ai.anthropic_federation`).
-    let value = serde_json::json!({
-        "provider": provider,
-        "model": body.model.trim(),
-    });
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query!(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, 'ai', 'config', $2) \
-         ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, updated_at = now()",
-        claims.tenant_id,
-        &value,
-    )
-    .execute(&mut *tx)
-    .await?;
-    tx.commit().await?;
-
-    Ok(Json(AiSettings {
-        provider: provider.to_owned(),
-        model: body.model.trim().to_owned(),
     }))
 }
 
@@ -553,7 +466,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/admin/infra-status", get(get_infra_status))
         .route(
             "/api/admin/ai-settings",
-            get(get_ai_settings).put(update_ai_settings),
+            get(ai_settings::get_ai_settings).put(ai_settings::update_ai_settings),
         )
         .route(
             "/api/admin/email-settings",

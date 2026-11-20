@@ -26,4 +26,5 @@ log = "0.4"
 workspace = true
 
 [dev-dependencies]
+medbrains-db-migrations = { path = "../medbrains-db-migrations", features = ["testing"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

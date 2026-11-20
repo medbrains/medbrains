@@ -1,6 +1,7 @@
 //! Zoom meeting handler tests — `wiremock`, no live Zoom app.
 //! Covers the S2S-OAuth token + create-meeting two-step error mapping. The
 //! success path writes to the DB (skipped, like the other adapter tests).
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use async_trait::async_trait;
 use medbrains_core::secrets::{SecretError, SecretResolver};

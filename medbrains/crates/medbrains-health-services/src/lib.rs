@@ -7,5 +7,6 @@
 //! Consent answers `Allow`, `Deny` or `Unknown`, never a boolean, so an outage
 //! cannot read as a refusal or a grant.
 
+pub mod actions;
 pub mod consent;
 pub mod patient;

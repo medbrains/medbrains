@@ -1,3 +1,6 @@
+import { useModuleStore } from "@medbrains/stores";
+import { appOfRoute } from "@/layouts/appPanel";
+
 type RoutePreloader = () => Promise<unknown>;
 
 const routePreloaders: Record<string, RoutePreloader> = {
@@ -6,6 +9,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/patients": () => import("@/pages/patients"),
   "/opd": () => import("@/pages/opd"),
   "/opd/appointments": () => import("@/pages/appointments"),
+  "/opd/reports": () => import("@/pages/opd/reports"),
   "/opd/pg-logbook": () => import("@/pages/pg-logbook"),
   "/doctor/signoffs": () => import("@/pages/doctor/signoffs"),
   "/lab": () => import("@/pages/lab"),
@@ -94,10 +98,16 @@ function routePreloadKey(path: string): string {
   return path;
 }
 
+/**
+ * Starts fetching the page chunk behind `path` before it is opened, once. A path of a switched-off
+ * app is never warmed: its route is not registered and its code must not be downloaded.
+ */
 export function preloadRoute(path: string): void {
   const key = routePreloadKey(path);
   const preload = routePreloaders[key];
-  if (!preload || routePreloads.has(key)) {
+  const app = appOfRoute(path);
+  const isAppOff = app !== null && useModuleStore.getState().disabledModules.has(app);
+  if (!preload || routePreloads.has(key) || isAppOff) {
     return;
   }
 

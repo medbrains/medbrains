@@ -9,6 +9,8 @@ rust-version.workspace = true
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-health-services = { path = "../medbrains-health-services" }
 medbrains-reports = { path = "../medbrains-reports" }
 axum = { workspace = true }
 serde = { workspace = true }
@@ -18,6 +20,10 @@ chrono = { workspace = true }
 sqlx = { workspace = true }
 rust_decimal = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+medbrains-db-migrations = { path = "../medbrains-db-migrations" }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

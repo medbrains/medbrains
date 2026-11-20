@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-backup-report — emails the nightly backup's outcome
+# to BACKUP_REPORT_TO. Started by medbrains-pg-backup.service itself:
+#
+#   OnSuccess= → medbrains-backup-report@success  the daily summary
+#   OnFailure= → medbrains-backup-report@failure  at once, beside the SNS page
+#                                                 (medbrains-alert@), not instead
+#
+#   medbrains-backup-report --success|--failure [--print|--dry-run]
+#
+# Why: the SNS page reaches whoever confirmed the topic, which on a
+# hospital's own server is often nobody at the hospital. The hospital should
+# see every night that its backup ran, how big it was, where it went, how
+# many are kept, and when a restore was last proven.
+#
+# The last restore drill: medbrains-restore-drill runs on the operator's
+# machine with the offline key (the server cannot read its own backups, by
+# design), so the server cannot observe it. The drill prints a
+# RESTORE_DRILL_LAST=… line; the operator puts it in /etc/medbrains/env.
+#
+# If the email cannot be sent this exits non-zero, so the unit fails and its
+# own OnFailure= pages through SNS. A report that silently did not arrive
+# reads exactly like a backup nobody needs to worry about.
+
+set -euo pipefail
+
+MODE="" PRINT=0
+for a in "$@"; do
+    case "$a" in
+        --success) MODE=success ;;
+        --failure) MODE=failure ;;
+        --print|--dry-run) PRINT=1 ;;
+        *) echo "usage: medbrains-backup-report --success|--failure [--print]" >&2; exit 2 ;;
+    esac
+done
+[[ -n "$MODE" ]] || { echo "usage: medbrains-backup-report --success|--failure [--print]" >&2; exit 2; }
+if [[ "$PRINT" == "0" && -z "${BACKUP_REPORT_TO:-}" ]]; then
+    echo "BACKUP_REPORT_TO is not set — no backup report email configured"
+    exit 0
+fi
+SEND="${MEDBRAINS_SEND_MAIL:-/usr/local/bin/medbrains-send-mail}"
+HOST_TAG="$(hostname)"
+
+# Same two shapes as medbrains-pg-backup: the dedicated tier's container,
+# or the attach tier's own Postgres over the owner's URL.
+run_sql() {
+    if command -v docker >/dev/null 2>&1 && docker container inspect medbrains-postgres >/dev/null 2>&1; then
+        docker exec -i medbrains-postgres psql -XAtq -F $'\x1f' -v ON_ERROR_STOP=1 \
+            -U "${POSTGRES_USER:-medbrains}" -d "${POSTGRES_DB:-medbrains}" "$@"
+    else
+        psql -XAtq -F $'\x1f' -v ON_ERROR_STOP=1 "${MIGRATION_DATABASE_URL:-${DATABASE_URL:-}}" "$@"
+    fi
+}
+
+# The newest pg_dump row backup_history holds (the newest completed one for
+# the summary), as fields split on the unit separator: a tab would let
+# read(1) collapse an empty size into the next field.
+last_backup() {
+    local only=""
+    [[ "$MODE" == "success" ]] && only="AND status = 'completed'"
+    run_sql -c "SELECT status, file_path, coalesce(file_size_bytes::text, ''),
+                       to_char(started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI \"UTC\"'),
+                       coalesce(extract(epoch FROM completed_at - started_at)::int::text, ''),
+                       coalesce(replace(error_message, E'\\t', ' '), '')
+                  FROM backup_history WHERE backup_type = 'pg_dump' AND deleted_at IS NULL $only
+                 ORDER BY started_at DESC LIMIT 1" 2>/dev/null
+}
+
+# Number of dumps kept and the oldest one's name, for one place.
+retained() { # label s3-prefix
+    local names
+    if [[ -n "${BACKUP_BUCKET:-}" ]]; then
+        names="$(aws s3 ls "s3://${BACKUP_BUCKET}/$2/${HOST_TAG}/" 2>/dev/null | awk '/\.dump\.age$/ {print $4}' | sort)" \
+            || { echo "  $1: could not list s3://${BACKUP_BUCKET}/$2/${HOST_TAG}/"; return; }
+    else
+        names="$(find "${BACKUP_DIR:-/nonexistent}" -maxdepth 1 -type f -name '*.dump.age' -exec basename {} \; 2>/dev/null | sort || true)"
+    fi
+    if [[ -z "$names" ]]; then
+        echo "  $1: none"
+    else
+        echo "  $1: $(wc -l <<<"$names" | tr -d ' ') kept, oldest $(head -1 <<<"$names")"
+    fi
+}
+
+# Bytes as MiB/GiB, for a reader who is not an engineer.
+human() { awk -v b="$1" 'BEGIN { if (b == "") print "unknown"; else if (b >= 1073741824) printf "%.2f GiB\n", b/1073741824; else printf "%.1f MiB\n", b/1048576 }'; }
+
+HOSPITAL="$(run_sql -c "SELECT string_agg(name, ', ' ORDER BY name) FROM tenants WHERE is_active AND deleted_at IS NULL" 2>/dev/null || true)"
+HOSPITAL="${HOSPITAL:-$HOST_TAG}"
+TODAY="$(date +%F)"
+ROW="$(last_backup || true)"
+IFS=$'\x1f' read -r st dest size started secs err <<<"${ROW:-}" || true
+
+BODY="$(mktemp)"
+trap 'rm -f "$BODY"' EXIT
+if [[ "$MODE" == "success" ]]; then
+    SUBJECT="[$HOSPITAL] Backup OK $TODAY"
+    {
+        echo "The nightly database backup on $HOST_TAG completed."
+        echo
+        echo "Status:     ${st:-completed (backup_history unreadable: details below may be missing)}"
+        echo "Started:    ${started:-unknown}"
+        echo "Duration:   ${secs:-unknown}${secs:+ s}"
+        echo "Dump size:  $(human "${size:-}") (encrypted)"
+        if [[ -n "${BACKUP_BUCKET:-}" ]]; then
+            echo "Uploaded to: s3://${BACKUP_BUCKET}/ prefix ${BACKUP_PREFIX:-pg-backups}/${HOST_TAG}/ (monthly: ${BACKUP_MONTHLY_PREFIX:-${BACKUP_PREFIX:-pg-backups}-monthly}/)"
+        else
+            echo "Written to: ${BACKUP_DIR:-unknown} on this server (NOT offsite)"
+        fi
+        echo "File:       ${dest:-unknown}"
+        echo
+        echo "Backups retained:"
+        if [[ -n "${BACKUP_BUCKET:-}" ]]; then
+            retained "daily" "${BACKUP_PREFIX:-pg-backups}"
+            retained "monthly" "${BACKUP_MONTHLY_PREFIX:-${BACKUP_PREFIX:-pg-backups}-monthly}"
+        else
+            retained "on disk" ""
+        fi
+        echo
+        echo "Last restore drill: ${RESTORE_DRILL_LAST:-never recorded. Run medbrains-restore-drill and set RESTORE_DRILL_LAST in /etc/medbrains/env}"
+        [[ -n "${RESTORE_TEST_LAST:-}" ]] && echo "Last automatic restore test (point-in-time archive): $RESTORE_TEST_LAST"
+        [[ -n "${err:-}" ]] && { echo; echo "Notice: $err"; }
+    } > "$BODY"
+else
+    SUBJECT="[$HOSPITAL] Backup FAILED $TODAY"
+    {
+        echo "The nightly database backup on $HOST_TAG FAILED."
+        echo "The alarm topic has been paged as well. No new backup was taken."
+        echo
+        echo "Last recorded attempt: ${st:-unknown} at ${started:-unknown}"
+        [[ -n "${err:-}" ]] && echo "Error: $err"
+        echo
+        echo "Last 40 log lines (journalctl -u medbrains-pg-backup):"
+        journalctl -u medbrains-pg-backup -n 40 --no-pager 2>/dev/null || echo "(journal unavailable)"
+        echo
+        echo "Fix the cause, then run: sudo systemctl start medbrains-pg-backup"
+        echo "Runbook: docs/ops/BACKUP-RESTORE.md"
+    } > "$BODY"
+fi
+
+MAIL_PRINT="$PRINT" "$SEND" "${BACKUP_REPORT_TO:-print-only}" "$SUBJECT" "$BODY"
