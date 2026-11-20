@@ -144,6 +144,10 @@ export const P = {
       VIEW: "admin.kernel.view",
     },
     KERNEL_VIEW: "admin.kernel.view",
+    LOCALE_PROFILE: {
+      UPDATE: "admin.locale_profile.update",
+    },
+    LOCALE_PROFILE_UPDATE: "admin.locale_profile.update",
     MIGRATION_MANAGE: "admin.migration.manage",
     NOTIFICATIONS: {
       SIMULATOR: {

@@ -26,7 +26,7 @@ use medbrains_server_core::permissions::{
     refuse_bypass_target, refuse_escalation_now, refuse_roles_beyond_own, refuse_self_change,
 };
 use medbrains_server_core::settings_guard::{
-    refuse_admin_only_category, refuse_own_endpoint_category,
+    refuse_admin_only_category, refuse_locale_profile_key, refuse_own_endpoint_category,
 };
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors, validate_password};
@@ -2664,7 +2664,6 @@ pub async fn delete_service(
 // ── Bed Types CRUD ───────────────────────────────────────────
 
 use axum::extract::Query;
-use medbrains_core::geo::GeoCountry;
 use medbrains_core::onboarding::{BedType, PaymentMethod, TaxCategory};
 
 pub async fn list_bed_types(
@@ -3080,6 +3079,9 @@ pub struct UpdateSettingRequest {
     pub value: Value,
 }
 
+/// `PUT /api/setup/settings`: write one generic tenant setting. Categories
+/// with their own screen, the sign-in policy and the locale profile's keys
+/// are refused here, each with the place where they are changed.
 pub async fn update_setting(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3088,6 +3090,7 @@ pub async fn update_setting(
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     refuse_own_endpoint_category(&body.category)?;
     refuse_admin_only_category(&claims, &body.category)?;
+    refuse_locale_profile_key(&body.category, &body.key)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -3593,35 +3596,34 @@ fn normalize_secure_device_setting(
     Ok(normalized)
 }
 
-// ── Helper: upsert a single tenant setting within a transaction ──
-
-async fn upsert_setting_in_tx(
+/// Name the hospital's country through the one shared path (onboarding uses
+/// it too): `true` when this set it for the first time and brought its
+/// presets. A different country than the one set is refused with 409.
+pub async fn name_country(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
-    category: &str,
-    key: &str,
-    value: &str,
-) -> Result<(), AppError> {
-    let json_val = Value::String(value.to_owned());
-    sqlx::query(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, $2, $3, $4) \
-         ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, \
-                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
-    )
-    .bind(tenant_id)
-    .bind(category)
-    .bind(key)
-    .bind(&json_val)
-    .execute(&mut **tx)
-    .await?;
-
-    Ok(())
+    country_id: Option<Uuid>,
+) -> Result<bool, AppError> {
+    let Some(country_id) = country_id else {
+        return Ok(false);
+    };
+    match medbrains_country::presets::set_country_once(tx, tenant_id, country_id).await? {
+        medbrains_country::presets::CountrySet::FirstSet => Ok(true),
+        medbrains_country::presets::CountrySet::Unchanged => Ok(false),
+        medbrains_country::presets::CountrySet::Refused => Err(AppError::Conflict(
+            "The country is part of the locale profile; change it in Settings, Locale profile, \
+             where a second person approves it"
+                .to_owned(),
+        )),
+    }
 }
 
 // ── PUT /api/setup/tenant/geo (enhanced — auto-populates defaults) ──
 
+/// `PUT /api/setup/tenant/geo`: save the hospital's location and, when the
+/// country is set for the first time, fill units and date format from it and
+/// the locale profile's zone and currency where the profile has none yet. A
+/// different country is refused (409): that is a locale-profile change set.
 pub async fn update_tenant_geo_with_presets(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3632,98 +3634,20 @@ pub async fn update_tenant_geo_with_presets(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // Save geo IDs
-    sqlx::query(
-        "UPDATE tenants SET \
-         country_id = $1, state_id = $2, district_id = $3, \
-         latitude = $4, longitude = $5 \
-         WHERE id = $6",
+    let defaults_applied = name_country(&mut tx, claims.tenant_id, body.country_id).await?;
+    // The rest of the location; the country is set once, above.
+    sqlx::query!(
+        // The request carries degrees as f64; the columns are numeric.
+        "UPDATE tenants SET state_id = $1, district_id = $2, \
+          latitude = $3::float8, longitude = $4::float8 WHERE id = $5",
+        body.state_id,
+        body.district_id,
+        body.latitude,
+        body.longitude,
+        claims.tenant_id,
     )
-    .bind(body.country_id)
-    .bind(body.state_id)
-    .bind(body.district_id)
-    .bind(body.latitude)
-    .bind(body.longitude)
-    .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
-
-    // If country changed, auto-populate defaults from country presets
-    let mut defaults_applied = false;
-    if let Some(country_id) = body.country_id {
-        let country = sqlx::query_as::<_, GeoCountry>("SELECT * FROM geo_countries WHERE id = $1")
-            .bind(country_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-        if let Some(c) = country {
-            // Update tenant-level fields
-            sqlx::query(
-                "UPDATE tenants SET \
-                 timezone = $1, currency = COALESCE($2, currency), \
-                 locale = $3 \
-                 WHERE id = $4",
-            )
-            .bind(&c.default_timezone)
-            .bind(&c.currency)
-            .bind(&c.default_locale)
-            .bind(claims.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-
-            // Determine units from measurement system
-            let is_imperial = c.measurement_system == "imperial";
-            let temp_unit = if is_imperial { "fahrenheit" } else { "celsius" };
-            let weight_unit = if is_imperial { "lbs" } else { "kg" };
-            let height_unit = if is_imperial { "in" } else { "cm" };
-
-            // Upsert units settings
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "measurement_system",
-                &c.measurement_system,
-            )
-            .await?;
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "temperature_unit",
-                temp_unit,
-            )
-            .await?;
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "weight_unit",
-                weight_unit,
-            )
-            .await?;
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "units",
-                "height_unit",
-                height_unit,
-            )
-            .await?;
-
-            // Upsert locale settings
-            upsert_setting_in_tx(
-                &mut tx,
-                claims.tenant_id,
-                "locale",
-                "date_format",
-                &c.date_format,
-            )
-            .await?;
-
-            defaults_applied = true;
-        }
-    }
 
     tx.commit().await?;
 

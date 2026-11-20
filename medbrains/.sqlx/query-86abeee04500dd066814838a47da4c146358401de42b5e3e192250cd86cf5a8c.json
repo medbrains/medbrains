@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (EXISTS (SELECT 1 FROM invoices WHERE tenant_id = $1)\n                    OR EXISTS (SELECT 1 FROM payments WHERE tenant_id = $1)\n                    OR EXISTS (SELECT 1 FROM receipts WHERE tenant_id = $1)\n                    OR EXISTS (SELECT 1 FROM patient_advances WHERE tenant_id = $1)\n                    OR EXISTS (SELECT 1 FROM journal_entries WHERE tenant_id = $1)) AS \"has!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "has!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "86abeee04500dd066814838a47da4c146358401de42b5e3e192250cd86cf5a8c"
+}

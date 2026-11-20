@@ -84,9 +84,39 @@ pub fn refuse_admin_only_category(claims: &Claims, category: &str) -> Result<(),
     )))
 }
 
+/// Refuse a generic write of a locale-profile key with a 400 naming the screen.
+///
+/// Those values change only through a change set a second person approves;
+/// the database refuses the rest too, this says so before it tries.
+///
+/// # Errors
+/// [`AppError::BadRequest`] for `locale/<profile key>`.
+pub fn refuse_locale_profile_key(category: &str, key: &str) -> Result<(), AppError> {
+    // The profile's own field list (the database guard's
+    // `locale_profile_keys()` is checked against it in the change-set tests);
+    // `locale/date_format` is not a profile field.
+    if category.trim() == medbrains_country::profile::CATEGORY
+        && medbrains_country::Field::from_key(key.trim()).is_some()
+    {
+        return Err(AppError::BadRequest(format!(
+            "'locale/{}' is part of the locale profile; change it in Settings, Locale profile",
+            key.trim()
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn locale_profile_keys_are_refused_but_date_format_is_not() {
+        assert!(refuse_locale_profile_key("locale", "currency").is_err());
+        assert!(refuse_locale_profile_key(" locale ", "timezone ").is_err());
+        assert!(refuse_locale_profile_key("locale", "date_format").is_ok());
+        assert!(refuse_locale_profile_key("units", "currency").is_ok());
+    }
 
     #[test]
     fn secret_bearing_categories_are_refused_and_ordinary_ones_pass() {

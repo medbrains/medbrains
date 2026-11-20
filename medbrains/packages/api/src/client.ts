@@ -59,6 +59,7 @@ import type {
   // Lab Phase 3
   // Lab
   // Lab Phase 2
+  LocaleProfile,
   // Specialty Clinical: Maternity
   // MRD
   // Phase 4 Print Data - Regulatory
@@ -690,6 +691,8 @@ export interface MeResponse {
   disabled_modules: string[];
   /** The tenant restricts copying data out of the app (enforced by the DLP guard). */
   restrict_copy: boolean;
+  /** How this user's screens format; `null` when it could not be resolved. */
+  locale_profile: LocaleProfile | null;
 }
 
 export interface RefreshResponse {

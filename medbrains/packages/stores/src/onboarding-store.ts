@@ -58,9 +58,10 @@ interface HospitalDetails {
   website?: string | null;
   registration_no?: string | null;
   accreditation?: string | null;
-  timezone: string;
-  currency: string;
-  fy_start_month: number;
+  /** Left out, the hospital's country pack decides. */
+  timezone?: string | null;
+  currency?: string | null;
+  fy_start_month?: number | null;
 }
 
 interface GeoData {

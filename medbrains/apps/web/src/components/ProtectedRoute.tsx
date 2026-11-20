@@ -66,7 +66,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     sessionService
       .me()
-      .then(async (resp) => {
+      .then((resp) => {
         if (cancelled) return;
         // The HttpOnly cookie is the source of truth. Hydrate the store on a cold
         // load when it's empty — SSO lands via a full-page redirect that sets the
@@ -94,18 +94,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         setDisabledModules(resp.disabled_modules ?? []);
         setRestrictCopy(resp.restrict_copy === true);
 
-        // Load locale/units settings for the tenant
-        try {
-          const [unitsRows, localeRows] = await Promise.all([
-            sessionService.getTenantSettings("units"),
-            sessionService.getTenantSettings("locale"),
-          ]);
-          if (!cancelled) {
-            useLocaleStore.getState().setFromTenantSettings([...unitsRows, ...localeRows]);
-          }
-        } catch {
-          // Non-critical — defaults will be used
-        }
+        // The locale profile rides on /auth/me (one round trip). `null` is a
+        // failed resolution: the shell says so and renders neutrally.
+        useLocaleStore.getState().setProfile(resp.locale_profile ?? null);
 
         if (!cancelled) {
           setVerified(true);
@@ -129,7 +120,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           setVerified(false);
         } else {
           // Backend unreachable (network error) — trust stored auth if present,
-          // otherwise treat as unauthenticated.
+          // otherwise treat as unauthenticated. The profile did not load either.
+          useLocaleStore.getState().setProfile(null);
           setAccessUnknown(unknownAccessAfter(err));
           setVerified(Boolean(useAuthStore.getState().user));
         }

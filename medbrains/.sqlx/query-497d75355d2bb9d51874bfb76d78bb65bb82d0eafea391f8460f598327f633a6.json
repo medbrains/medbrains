@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT f.id, f.name, s.key AS \"key?\", s.value AS \"value?\" FROM facilities f LEFT JOIN scoped_settings s ON s.tenant_id = f.tenant_id AND s.scope = 'facility' AND s.scope_id = f.id AND s.category = 'locale' AND s.deleted_at IS NULL WHERE f.tenant_id = $1 AND f.deleted_at IS NULL ORDER BY f.name, f.id LIMIT 2000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "key?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "value?",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "497d75355d2bb9d51874bfb76d78bb65bb82d0eafea391f8460f598327f633a6"
+}

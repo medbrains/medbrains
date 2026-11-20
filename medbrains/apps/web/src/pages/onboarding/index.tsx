@@ -28,8 +28,10 @@ import { WelcomeStep } from "./WelcomeStep";
 const steps = [
   { label: "Welcome", description: "Prerequisites" },
   { label: "Admin Setup", description: "Hospital & admin account" },
-  { label: "Hospital Details", description: "Address & contact" },
-  { label: "Geography", description: "Location & regulators" },
+  // The country comes first: the hospital's zone, currency and fiscal year
+  // follow from it (RFC-WORLD-READY §2.2).
+  { label: "Geography", description: "Country, location & regulators" },
+  { label: "Hospital Details", description: "Address, contact, zone & currency" },
   { label: "Facilities", description: "Institutional hierarchy" },
   { label: "Locations", description: "Campus to bed tree" },
   { label: "Departments", description: "Departments & working hours", essential: true },
@@ -87,9 +89,9 @@ export function OnboardingPage() {
       case 1:
         return <AdminStep onNext={goNext} onBack={goBack} draftRef={adminDraftRef} />;
       case 2:
-        return <HospitalStep onNext={goNext} onBack={goBack} />;
-      case 3:
         return <GeoRegulatoryStep onNext={goNext} onBack={goBack} />;
+      case 3:
+        return <HospitalStep onNext={goNext} onBack={goBack} />;
       case 4:
         return <FacilitiesStep onNext={goNext} onBack={goBack} />;
       case 5:

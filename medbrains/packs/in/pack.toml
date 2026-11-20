@@ -1,0 +1,64 @@
+# India (RFC-WORLD-READY §3). Reproduces what an Indian hospital runs on today;
+# the sweeps (#5927-#5934) move India's literals here one area at a time, each
+# with a no-change golden. Values below are today's, not new policy.
+
+[pack]
+id = "in"
+country = "IN"
+name = "India"
+version = "1.0.0"
+status = "built_for"
+
+[defaults]
+currency = "INR"
+# en-IN groups numbers in lakhs and crores (12,34,567): what every screen shows today.
+locale = "en-IN"
+# The UI languages shipped today (apps/web/public/locales).
+languages = ["en", "hi", "ta"]
+timezones = ["Asia/Kolkata"]
+calendars = { primary = "gregory", also = [] }
+hour_cycle = "h12"
+week_start = "mon"
+# April to March (Income-tax Act 1961 previous year); tenants.fy_start_month default today.
+fiscal_year_start = 4
+name_order = "given_family"
+
+[rules]
+audit_append_only = true
+audit_phi_reads = true
+consent_required = true
+encryption_at_rest = true
+encryption_in_transit = true
+ai_per_item_accept = true
+
+[rules.retention_years]
+# The MRD default today (mrd retention_years DEFAULT 5).
+medical_record = 5
+audit_log = 3
+
+# NDPS Act 1985: register, dual sign and dual-lock storage.
+[[rules.controlled_schedules]]
+code = "NDPS"
+label = "NDPS (narcotic and psychotropic)"
+controlled = true
+gates = ["rx_required", "dual_sign", "register_entry", "dual_lock_storage"]
+
+# Drugs and Cosmetics Rules 1945, Schedule X: prescription kept in duplicate.
+[[rules.controlled_schedules]]
+code = "X"
+label = "Schedule X"
+controlled = true
+gates = ["rx_required", "dual_sign", "register_entry", "duplicate_copy"]
+
+# Schedule H1: prescription and a register entry; not a controlled medicine.
+[[rules.controlled_schedules]]
+code = "H1"
+label = "Schedule H1"
+controlled = false
+gates = ["rx_required", "register_entry"]
+
+[[rules.controlled_schedules]]
+code = "H"
+label = "Schedule H"
+controlled = false
+gates = ["rx_required"]

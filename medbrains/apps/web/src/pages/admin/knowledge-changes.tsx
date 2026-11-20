@@ -40,6 +40,19 @@ function readPrefill(params: URLSearchParams): EditorPrefill | null {
   return { area, op, target: params.get("target") };
 }
 
+/**
+ * The areas this editor drafts for someone with these manage rights. Flow
+ * switches are proposed from the switchboard and the locale profile from
+ * Settings, not here.
+ */
+function draftableAreas(manageInteractions: boolean, manageCriticals: boolean): KnowledgeArea[] {
+  return AREAS.filter((a) => {
+    if (a === "drug_interactions") return manageInteractions;
+    if (a === "critical_value_rules") return manageCriticals;
+    return false;
+  });
+}
+
 export function KnowledgeChangesPage() {
   useRequirePermission(P.KNOWLEDGE.CHANGE_SETS.LIST);
   const userId = useAuthStore((s) => s.user?.id);
@@ -58,16 +71,10 @@ export function KnowledgeChangesPage() {
     canApprove: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.APPROVE),
     canApply: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.APPLY),
     canRollback: useHasPermission(P.KNOWLEDGE.CHANGE_SETS.ROLLBACK),
+    canApplyLocaleProfile: useHasPermission(P.ADMIN.LOCALE_PROFILE.UPDATE),
     canDraft: canCreate && (manageInteractions || manageCriticals || canSwitch),
   };
-  // Flow switches are proposed from the switchboard, not this editor.
-  const draftAreas = AREAS.filter((a) =>
-    a === "flow_switches"
-      ? false
-      : a === "drug_interactions"
-        ? manageInteractions
-        : manageCriticals,
-  );
+  const draftAreas = draftableAreas(manageInteractions, manageCriticals);
   const [params, setParams] = useSearchParams();
   const [prefill] = useState(() => readPrefill(params));
   const [editorOpen, editor] = useDisclosure(prefill !== null && canCreate);
@@ -92,7 +99,7 @@ export function KnowledgeChangesPage() {
     <Stack gap="md">
       <PageHeader
         title="Knowledge changes"
-        subtitle="Drug interactions and critical lab values: preview who a change affects, approve, apply, roll back"
+        subtitle="Drug interactions, critical lab values, flow switches and the locale profile: preview who a change affects, approve, apply, roll back"
         actions={
           can.canDraft && draftAreas.length > 0 ? (
             <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={editor.open}>

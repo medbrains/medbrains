@@ -456,6 +456,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    // A country pack that fails to parse or lowers the security and
+    // compliance floor is refused before the server serves anyone
+    // (RFC-WORLD-READY §1a); the profile on every screen depends on it.
+    medbrains_country::pack::packs()
+        .map_err(|e| format!("country packs refused, server not started: {e}"))?;
+
     // Every startup check, reported at once; production does not serve on a
     // failure. After seeding, so a fresh database is judged as it will run.
     let findings = medbrains_server::preflight::run(

@@ -1,5 +1,6 @@
 pub mod email_verification;
 mod password;
+mod setup_locale;
 pub mod sizing;
 pub mod trial;
 
@@ -403,9 +404,11 @@ pub struct SetupHospitalDetails {
     pub website: Option<String>,
     pub registration_no: Option<String>,
     pub accreditation: Option<String>,
-    pub timezone: String,
-    pub currency: String,
-    pub fy_start_month: i32,
+    /// Left out, the country's pack decides (RFC-WORLD-READY §2.2): nothing
+    /// is assumed about where a hospital is.
+    pub timezone: Option<String>,
+    pub currency: Option<String>,
+    pub fy_start_month: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -700,13 +703,16 @@ pub async fn setup(
         if let Some(ref phone) = details.phone {
             validation::validate_optional_phone(&mut errors, "hospital_details.phone", phone);
         }
-        if details.currency.len() != 3 {
+        if details.currency.as_ref().is_some_and(|c| c.len() != 3) {
             errors.add(
                 "hospital_details.currency",
                 "Currency must be exactly 3 characters",
             );
         }
-        if !(1..=12).contains(&details.fy_start_month) {
+        if details
+            .fy_start_month
+            .is_some_and(|m| !(1..=12).contains(&m))
+        {
             errors.add(
                 "hospital_details.fy_start_month",
                 "Month must be between 1 and 12",
@@ -795,11 +801,15 @@ pub async fn setup(
 
     // 1. Update tenant details
     if let Some(ref details) = body.hospital_details {
+        setup_locale::check_locale_choices(details)?;
+        // A zone, currency or fiscal year written here is the profile's first
+        // value (migration 1462); one left out keeps the column and the pack decides.
         sqlx::query(
             "UPDATE tenants SET \
              address_line1 = $1, address_line2 = $2, city = $3, pincode = $4, \
              phone = $5, email = $6, website = $7, registration_no = $8, \
-             accreditation = $9, timezone = $10, currency = $11, fy_start_month = $12 \
+             accreditation = $9, timezone = COALESCE($10, timezone), \
+             currency = COALESCE($11, currency), fy_start_month = COALESCE($12, fy_start_month) \
              WHERE id = $13",
         )
         .bind(&details.address_line1)
@@ -819,18 +829,9 @@ pub async fn setup(
         .await?;
     }
 
-    // 2. Update tenant geo
+    // 2. Update tenant geo; the country brings its pack's presets once.
     if let Some(ref geo) = body.geo {
-        sqlx::query(
-            "UPDATE tenants SET country_id = $1, state_id = $2, district_id = $3 \
-             WHERE id = $4",
-        )
-        .bind(geo.country_id)
-        .bind(geo.state_id)
-        .bind(geo.district_id)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
-        .await?;
+        setup_locale::write_geo(&mut tx, claims.tenant_id, geo).await?;
     }
 
     // 3. Create "Main Hospital" facility (upsert — may already exist from init)

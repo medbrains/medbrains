@@ -21,7 +21,8 @@ use medbrains_server_core::{
     middleware::auth::Claims,
     middleware::authorization::require_permission,
     settings_guard::{
-        OWN_ENDPOINT_CATEGORIES, refuse_admin_only_category, refuse_own_endpoint_category,
+        OWN_ENDPOINT_CATEGORIES, refuse_admin_only_category, refuse_locale_profile_key,
+        refuse_own_endpoint_category,
     },
     state::AppState,
 };
@@ -105,6 +106,18 @@ struct DiffEntry {
     action: &'static str,
 }
 
+/// What importing `incoming` does to a setting whose stored value is `existing`.
+fn setting_action(
+    existing: Option<&serde_json::Value>,
+    incoming: &serde_json::Value,
+) -> &'static str {
+    match existing {
+        None => "create",
+        Some(current) if current != incoming => "update",
+        Some(_) => "unchanged",
+    }
+}
+
 /// POST /api/setup/config-import
 #[allow(clippy::too_many_lines)]
 pub async fn import_config(
@@ -162,15 +175,16 @@ pub async fn import_config(
         .fetch_optional(&mut *tx)
         .await?;
 
-        let action = match &existing {
-            None => "create",
-            Some(current) if *current != entry.value => "update",
-            Some(_) => "unchanged",
-        };
+        let action = setting_action(existing.as_ref(), &entry.value);
         if action != "unchanged" {
             // An unchanged sign-in policy re-imports, so an exported bundle
             // still round-trips; changing it needs a bypass administrator.
             refuse_admin_only_category(&claims, &entry.category)?;
+            // First set (a new hospital) imports; changing a profile value
+            // needs its change set.
+            if action == "update" {
+                refuse_locale_profile_key(&entry.category, &entry.key)?;
+            }
             diff.push(DiffEntry {
                 kind: "setting",
                 item: format!("{}/{}", entry.category, entry.key),

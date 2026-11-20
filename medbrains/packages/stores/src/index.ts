@@ -8,11 +8,13 @@ export { useIntegrationBuilderStore } from "./integration-builder-store.js";
 export {
   useHeightUnit,
   useLocaleConfig,
+  useLocaleProfile,
+  useLocaleProfileStatus,
   useMeasurementSystem,
   useTemperatureUnit,
   useWeightUnit,
 } from "./locale-hooks.js";
-export { useLocaleStore } from "./locale-store.js";
+export { type LocaleProfileStatus, useLocaleStore } from "./locale-store.js";
 export { useModuleRegistryStore } from "./module-registry-store.js";
 export { useModuleStore } from "./module-store.js";
 export { useOnboardingStore } from "./onboarding-store.js";

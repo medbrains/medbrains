@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1257 permissions, one per constant in the Rust source. */
+/** 1258 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5795,6 +5795,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "admin.kernel.view",
     label: "See whether the kernel is doing its job",
     description: "When the audit chain was last verified and whether it held, whether the database enforces hospital separation, which authorisation engine is answering, how settings are resolved, and which modules already go only through the kernel. Shows no patient data.",
+    module: "admin",
+  },
+  {
+    code: "admin.locale_profile.update",
+    label: "Propose changes to the locale profile",
+    description: "Draft a change to the hospital's or a facility's country, region, currency, time zone, language, calendar or fiscal year. The change switches regulatory rules, so a second person approves it before it applies, and it is audited with the values before and after. Held by the hospital administrator only; kept apart from the general settings code so it is never held by accident.",
     module: "admin",
   },
   {

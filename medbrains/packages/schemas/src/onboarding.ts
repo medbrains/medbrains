@@ -86,13 +86,21 @@ export const updateTenantSchema = z.object({
   website: z.string().url("Invalid URL").optional().nullable().or(z.literal("")),
   registration_no: z.string().max(100).optional().nullable(),
   accreditation: z.string().max(100).optional().nullable(),
-  timezone: z.string().min(1, "Timezone is required"),
-  currency: z.string().length(3, "Currency must be exactly 3 characters"),
+  // Left empty, the country's pack decides; nothing is assumed (RFC-WORLD-READY §2.2).
+  timezone: z.string().optional().nullable(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, "Currency is an ISO 4217 code such as INR or AED")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   fy_start_month: z.coerce
     .number()
     .int()
     .min(1, "Month must be 1-12")
-    .max(12, "Month must be 1-12"),
+    .max(12, "Month must be 1-12")
+    .optional()
+    .nullable(),
 });
 
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;

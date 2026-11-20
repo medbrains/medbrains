@@ -1,11 +1,22 @@
 import type {
   HeightUnit,
   LocaleConfig,
+  LocaleProfile,
   MeasurementSystem,
   TemperatureUnit,
   WeightUnit,
 } from "@medbrains/types";
-import { useLocaleStore } from "./locale-store.js";
+import { type LocaleProfileStatus, useLocaleStore } from "./locale-store.js";
+
+/** The resolved locale profile, or `null` while loading or after a failed load. */
+export function useLocaleProfile(): LocaleProfile | null {
+  return useLocaleStore((s) => s.profile);
+}
+
+/** Whether the profile is loading, ready or failed, so a screen can say which. */
+export function useLocaleProfileStatus(): LocaleProfileStatus {
+  return useLocaleStore((s) => s.profileStatus);
+}
 
 export function useLocaleConfig(): LocaleConfig {
   return useLocaleStore((s) => s.config);

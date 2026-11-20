@@ -47,6 +47,8 @@ COPY apps/desktop/src-tauri/ apps/desktop/src-tauri/
 COPY .sqlx/ .sqlx/
 COPY docs/openapi.json docs/openapi.json
 COPY packages/privacy/ packages/privacy/
+# Country packs, compiled into medbrains-country with include_str! (RFC-WORLD-READY §3.2).
+COPY packs/ packs/
 # The release error reports carry (crates/medbrains-error-tracking): the
 # release workflow passes medbrains@<version>; unset, the crate version.
 ARG MEDBRAINS_RELEASE

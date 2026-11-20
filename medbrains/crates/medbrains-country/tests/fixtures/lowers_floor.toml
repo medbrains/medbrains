@@ -1,0 +1,37 @@
+# A deliberately bad pack: it drops dual sign from a controlled medicine, keeps
+# audit logs for one year and lets AI text be saved without a person accepting
+# it. The loader must refuse it (RFC-WORLD-READY §1a).
+
+[pack]
+id = "zz"
+country = "ZZ"
+name = "Lowers the floor"
+version = "1.0.0"
+status = "built_for"
+
+[defaults]
+currency = "XXX"
+locale = "en"
+languages = ["en"]
+timezones = ["UTC"]
+calendars = { primary = "gregory", also = [] }
+fiscal_year_start = 1
+name_order = "given_family"
+
+[rules]
+audit_append_only = true
+audit_phi_reads = true
+consent_required = true
+encryption_at_rest = true
+encryption_in_transit = true
+ai_per_item_accept = false
+
+[rules.retention_years]
+medical_record = 3
+audit_log = 1
+
+[[rules.controlled_schedules]]
+code = "C"
+label = "Controlled"
+controlled = true
+gates = ["rx_required", "register_entry"]

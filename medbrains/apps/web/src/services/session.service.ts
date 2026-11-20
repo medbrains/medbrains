@@ -8,8 +8,6 @@ export const sessionService = {
   refreshToken: (...args: Parameters<typeof api.refreshToken>) => api.refreshToken(...args),
   reportClientError: (...args: Parameters<typeof api.reportClientError>) =>
     api.reportClientError(...args),
-  getTenantSettings: (...args: Parameters<typeof api.getTenantSettings>) =>
-    api.getTenantSettings(...args),
   setApiBase,
   setStrictResponseValidation,
 };

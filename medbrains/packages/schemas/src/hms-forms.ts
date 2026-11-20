@@ -4230,15 +4230,6 @@ export const generalSettingsFormSchema = z.object({
   website: z.string(),
   registration_no: z.string(),
   accreditation: z.string(),
-  timezone: requiredTrimmed("Timezone is required", 80),
-  currency: requiredTrimmed("Currency is required", 3).refine(
-    (value) => /^[A-Z]{3}$/.test(value.trim()),
-    "Currency must be a 3-letter ISO code",
-  ),
-  fy_start_month: z.string().refine((value) => {
-    const month = Number(value);
-    return Number.isInteger(month) && month >= 1 && month <= 12;
-  }, "Financial year start month is required"),
   custom_domain: z
     .string()
     .refine(

@@ -1,6 +1,6 @@
 import { Divider, Group, Loader, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useLocaleStore } from "@medbrains/stores";
+import { useLocaleProfile } from "@medbrains/stores";
 import type { GeoCountry, GeoDistrict, GeoState } from "@medbrains/types";
 import {
   IconCheck,
@@ -10,9 +10,10 @@ import {
   IconSearch,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PinCodeInput } from "@/components/PinCodeInput";
 import { Button } from "@/components/ui";
+import { refreshLocaleProfile } from "@/services/localeProfile.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 // ── GeoSettings ──────────────────────────────────────────
@@ -40,6 +41,15 @@ export function GeoSettings() {
     staleTime: 5 * 60_000,
   });
 
+  // A country the profile holds is changed on Locale profile (a second person
+  // approves it); here it is shown, not offered: the server refuses a change.
+  const profileCountry = useLocaleProfile()?.values.country;
+  const lockedCountryId = useMemo(
+    () => countries?.find((c: GeoCountry) => c.code === profileCountry)?.id ?? null,
+    [countries, profileCountry],
+  );
+  const countryId = lockedCountryId ?? selectedCountryId;
+
   const countryOptions = (countries ?? []).map((c: GeoCountry) => ({
     value: c.id,
     label: `${c.name} (${c.code})`,
@@ -48,9 +58,9 @@ export function GeoSettings() {
   // ── Geo: States (dependent on country) ─────────────────
 
   const { data: states, isLoading: statesLoading } = useQuery({
-    queryKey: ["geo-states", selectedCountryId],
-    queryFn: () => tenantSettingsService.geoStates(selectedCountryId ?? ""),
-    enabled: !!selectedCountryId,
+    queryKey: ["geo-states", countryId],
+    queryFn: () => tenantSettingsService.geoStates(countryId ?? ""),
+    enabled: !!countryId,
     staleTime: 5 * 60_000,
   });
 
@@ -78,7 +88,7 @@ export function GeoSettings() {
   const saveGeoMutation = useMutation({
     mutationFn: () =>
       tenantSettingsService.updateTenantGeo({
-        country_id: selectedCountryId ?? undefined,
+        country_id: profileCountry ? undefined : (selectedCountryId ?? undefined),
         state_id: selectedStateId ?? undefined,
         district_id: selectedDistrictId ?? undefined,
       }),
@@ -92,35 +102,17 @@ export function GeoSettings() {
       void queryClient.invalidateQueries({ queryKey: ["setup-tenant"] });
 
       if (result.defaults_applied) {
-        // Refresh locale settings in store
-        Promise.all([
-          tenantSettingsService.getTenantSettings("units"),
-          tenantSettingsService.getTenantSettings("locale"),
-        ])
-          .then(([units, locale]) => {
-            useLocaleStore.getState().setFromTenantSettings(
-              [...units, ...locale].map((r) => ({
-                category: r.category,
-                key: r.key,
-                value: r.value,
-              })),
-            );
-          })
-          // The defaults are saved; only this screen's copy is stale until reload.
-          .catch(() =>
-            notifications.show({
-              title: "Reload to see the new units",
-              message: "The defaults were saved, but this screen could not read them back.",
-              color: "yellow",
-            }),
-          );
+        // The first country brought the profile's country, zone, currency
+        // and units: reload it so every screen formats with them now (a
+        // failed reload shows the "did not load" banner, never stale values).
+        void refreshLocaleProfile();
 
         void queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
 
         notifications.show({
           title: "Defaults auto-configured",
           message:
-            "Measurement units, date format, timezone, and currency have been set based on the selected country. You can override them in the Units & Locale tab.",
+            "Measurement units and date format came from the country, and its time zone and currency became the locale profile. Change units on Units & Locale, and the profile on Locale profile.",
           color: "primary",
           icon: <IconInfoCircle size={16} />,
           autoClose: 6000,
@@ -177,25 +169,31 @@ export function GeoSettings() {
       <Stack gap="md" maw={480}>
         <Select
           label="Country"
-          placeholder="Select country"
+          placeholder={profileCountry ?? "Select country"}
           data={countryOptions}
-          value={selectedCountryId}
+          value={countryId}
           onChange={handleCountryChange}
           searchable
-          clearable
+          clearable={!profileCountry}
+          disabled={profileCountry !== undefined}
+          description={
+            profileCountry
+              ? "Part of the locale profile: change it in Settings, Locale profile, where a second person approves it."
+              : "Set once here; after that it changes on Locale profile."
+          }
           rightSection={countriesLoading ? <Loader size={16} /> : undefined}
           nothingFoundMessage="No countries found"
         />
 
         <Select
           label="State"
-          placeholder={selectedCountryId ? "Select state" : "Select a country first"}
+          placeholder={countryId ? "Select state" : "Select a country first"}
           data={stateOptions}
           value={selectedStateId}
           onChange={handleStateChange}
           searchable
           clearable
-          disabled={!selectedCountryId}
+          disabled={!countryId}
           rightSection={statesLoading ? <Loader size={16} /> : undefined}
           nothingFoundMessage="No states found"
         />
@@ -220,7 +218,7 @@ export function GeoSettings() {
           leftSection={<IconDeviceFloppy size={16} />}
           onClick={handleSave}
           loading={saveGeoMutation.isPending}
-          disabled={!selectedCountryId}
+          disabled={!countryId}
         >
           Save Geography
         </Button>

@@ -135,7 +135,7 @@ const knowledgeImpact = z.looseObject({
 });
 const knowledgeChangeSet = z.looseObject({
   id,
-  area: z.enum(["drug_interactions", "critical_value_rules", "flow_switches"]),
+  area: z.enum(["drug_interactions", "critical_value_rules", "flow_switches", "locale_profile"]),
   title: z.string(),
   status: knowledgeStatus,
   author_id: id,

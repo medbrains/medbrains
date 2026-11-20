@@ -15,6 +15,7 @@ const MANAGE: Record<KnowledgeArea, string[]> = {
   drug_interactions: [P.PHARMACY.INTERACTIONS.MANAGE, P.ADMIN.SETTINGS.GENERAL.MANAGE],
   critical_value_rules: [P.LAB.CATALOG.MANAGE, P.ADMIN.SETTINGS.GENERAL.MANAGE],
   flow_switches: [P.FLOWS.SWITCH],
+  locale_profile: [P.ADMIN.LOCALE_PROFILE.UPDATE],
 };
 
 /** Drafting a change set needs `create` and the area's manage permission. */

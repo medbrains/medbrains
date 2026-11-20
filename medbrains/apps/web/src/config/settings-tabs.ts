@@ -1,37 +1,3 @@
-import {
-  IconAlertTriangle,
-  IconApps,
-  IconBed,
-  IconBinaryTree,
-  IconBug,
-  IconBuildingCommunity,
-  IconCash,
-  IconChartBar,
-  IconClockCog,
-  IconCloudOff,
-  IconCreditCard,
-  IconHash,
-  IconHeartbeat,
-  IconHeartRateMonitor,
-  IconMapPin,
-  IconMedicalCross,
-  IconMicrophone,
-  IconNotebook,
-  IconPalette,
-  IconPill,
-  IconPlug,
-  IconPrinter,
-  IconQrcode,
-  IconRuler2,
-  IconSettings,
-  IconShare,
-  IconShieldCheck,
-  IconShieldLock,
-  IconSitemap,
-  IconStethoscope,
-  IconTableOptions,
-  IconWorld,
-} from "@tabler/icons-react";
 import type { ComponentType } from "react";
 import { AbdmScanShareSettings } from "@/pages/admin/settings/AbdmScanShareSettings";
 import { AbdmSettings } from "@/pages/admin/settings/AbdmSettings";
@@ -58,6 +24,7 @@ import { FacilitiesSettings } from "@/pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "@/pages/admin/settings/GeneralSettings";
 import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
 import { Hl7AdtSettings } from "@/pages/admin/settings/Hl7AdtSettings";
+import { LocaleProfileSettings } from "@/pages/admin/settings/LocaleProfileSettings";
 import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
@@ -186,6 +153,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconRuler2",
     requiredPermission: "admin.settings.general.manage",
     component: UnitsLocaleSettings,
+  },
+  {
+    value: "locale-profile",
+    i18nKey: "settings.localeProfile",
+    icon: "IconLanguage",
+    requiredPermission: "admin.locale_profile.update",
+    component: LocaleProfileSettings,
   },
   {
     value: "facilities",
@@ -447,38 +421,3 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: OfflineModeSettings,
   },
 ];
-
-export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
-  IconMicrophone,
-  IconBinaryTree,
-  IconClockCog,
-  IconSettings,
-  IconWorld,
-  IconRuler2,
-  IconBuildingCommunity,
-  IconMapPin,
-  IconSitemap,
-  IconTableOptions,
-  IconApps,
-  IconHash,
-  IconMedicalCross,
-  IconHeartbeat,
-  IconBed,
-  IconCash,
-  IconCreditCard,
-  IconPalette,
-  IconPlug,
-  IconPrinter,
-  IconQrcode,
-  IconShare,
-  IconShieldCheck,
-  IconShieldLock,
-  IconPill,
-  IconAlertTriangle,
-  IconNotebook,
-  IconStethoscope,
-  IconChartBar,
-  IconHeartRateMonitor,
-  IconBug,
-  IconCloudOff,
-};

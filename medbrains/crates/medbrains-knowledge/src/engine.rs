@@ -17,11 +17,13 @@ use uuid::Uuid;
 
 use crate::adapter::{Adapter, Tx};
 use crate::critical_values::CriticalValues;
+use crate::engine_checks::{apply_area_permission, check_new_set, parse_statuses};
 use crate::flow_switches::FlowSwitches;
 use crate::flows::{self, Applied};
 use crate::interactions::DrugInteractions;
+use crate::locale_profile::LocaleProfile;
 use crate::model::{
-    Area, KnowledgeChangeSet, KnowledgeChangeSetDetail, KnowledgeLiveRow, NewKnowledgeChangeSet, Op,
+    Area, KnowledgeChangeSet, KnowledgeChangeSetDetail, KnowledgeLiveRow, NewKnowledgeChangeSet,
 };
 use crate::offices::{approve_as_office, offices};
 use crate::store::{self, NewSet};
@@ -33,6 +35,7 @@ macro_rules! by_area {
             Area::DrugInteractions => $($f)::+::<DrugInteractions>($($arg),*).await,
             Area::CriticalValueRules => $($f)::+::<CriticalValues>($($arg),*).await,
             Area::FlowSwitches => $($f)::+::<FlowSwitches>($($arg),*).await,
+            Area::LocaleProfile => $($f)::+::<LocaleProfile>($($arg),*).await,
         }
     };
 }
@@ -43,6 +46,7 @@ const fn manage(area: Area) -> &'static [&'static str] {
         Area::DrugInteractions => DrugInteractions::MANAGE,
         Area::CriticalValueRules => CriticalValues::MANAGE,
         Area::FlowSwitches => FlowSwitches::MANAGE,
+        Area::LocaleProfile => LocaleProfile::MANAGE,
     }
 }
 
@@ -51,6 +55,7 @@ const fn kind(area: Area) -> &'static str {
         Area::DrugInteractions => DrugInteractions::KIND,
         Area::CriticalValueRules => CriticalValues::KIND,
         Area::FlowSwitches => FlowSwitches::KIND,
+        Area::LocaleProfile => LocaleProfile::KIND,
     }
 }
 
@@ -76,6 +81,8 @@ fn require_drafting(claims: &Claims, area: Area, is_rollback: bool) -> Result<()
     require_any_permission(claims, manage(area))
 }
 
+/// Change sets, optionally by area and by one or more statuses.
+///
 /// # Errors
 /// Forbidden without `list`.
 pub async fn list(
@@ -85,8 +92,9 @@ pub async fn list(
     status: Option<&str>,
 ) -> Result<Vec<KnowledgeChangeSet>, AppError> {
     require_permission(claims, permissions::knowledge::change_sets::LIST)?;
+    let statuses = status.map(parse_statuses);
     let mut tx = begin(pool, claims).await?;
-    let sets = store::list_sets(&mut tx, claims.tenant_id, area, status).await?;
+    let sets = store::list_sets(&mut tx, claims.tenant_id, area, statuses.as_deref()).await?;
     tx.commit().await?;
     Ok(sets)
 }
@@ -144,16 +152,7 @@ pub async fn create(
     body: &NewKnowledgeChangeSet,
 ) -> Result<KnowledgeChangeSetDetail, AppError> {
     require_drafting(claims, body.area, false)?;
-    if body.area == Area::FlowSwitches && body.items.iter().any(|i| i.op != Op::Update) {
-        return Err(AppError::BadRequest(
-            "Switch settings are changed, never added or removed".to_owned(),
-        ));
-    }
-    if body.title.trim().is_empty() || body.reason.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "A title and a reason are required".to_owned(),
-        ));
-    }
+    check_new_set(body)?;
     let mut tx = begin(pool, claims).await?;
     let items = by_area!(
         body.area,
@@ -320,8 +319,8 @@ pub async fn apply(
     require_permission(claims, permissions::knowledge::change_sets::APPLY)?;
     let mut tx = begin(pool, claims).await?;
     let set = store::load_set(&mut tx, claims.tenant_id, id, true).await?;
-    if area_of(&set)? == Area::FlowSwitches {
-        require_permission(claims, permissions::flows::PUBLISH)?;
+    if let Some(code) = apply_area_permission(area_of(&set)?) {
+        require_permission(claims, code)?;
     }
     if set.status != "approved" {
         return Err(AppError::Conflict(format!(

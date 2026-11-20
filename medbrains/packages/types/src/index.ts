@@ -453,9 +453,10 @@ export interface OnboardingSetupRequest {
     website?: string | null;
     registration_no?: string | null;
     accreditation?: string | null;
-    timezone: string;
-    currency: string;
-    fy_start_month: number;
+    /** Left out, the hospital's country pack decides. */
+    timezone?: string | null;
+    currency?: string | null;
+    fy_start_month?: number | null;
   };
   geo?: {
     country_id?: string;
@@ -3708,8 +3709,8 @@ export interface HospitalGroup {
   logo_url: string | null;
   primary_color: string | null;
   config: Record<string, unknown>;
-  default_currency: string;
-  timezone: string;
+  default_currency: string | null;
+  timezone: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

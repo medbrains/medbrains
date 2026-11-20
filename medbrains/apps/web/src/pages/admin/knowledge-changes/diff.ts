@@ -23,9 +23,17 @@ export interface FieldChange {
 
 const EMPTY = "—";
 
+/** One stored value as the diff shows it: a track as stations, a list joined. */
 export function showValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return EMPTY;
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  // A list of codes (a locale profile's languages).
+  if (Array.isArray(value) && value.every((v) => typeof v === "string")) return value.join(", ");
+  // A locale profile's calendars: Gregorian plus what is shown beside it.
+  if (typeof value === "object" && !Array.isArray(value) && "also" in value) {
+    const also = (value as { also: string[] }).also;
+    return also.length > 0 ? `Gregorian, also ${also.join(", ")}` : "Gregorian";
+  }
   // A flow track: its stations in order, branches named.
   if (Array.isArray(value)) {
     return value

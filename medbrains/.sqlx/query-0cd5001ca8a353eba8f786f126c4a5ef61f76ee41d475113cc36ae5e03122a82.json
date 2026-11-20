@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO scoped_settings (tenant_id, scope, scope_id, category, key, value) SELECT $1, 'facility', $2, 'locale', k, v FROM unnest($3::text[], $4::jsonb[]) AS t(k, v)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "TextArray",
+        "JsonbArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0cd5001ca8a353eba8f786f126c4a5ef61f76ee41d475113cc36ae5e03122a82"
+}

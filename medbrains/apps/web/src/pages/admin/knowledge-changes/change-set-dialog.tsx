@@ -4,6 +4,7 @@ import type { KnowledgeChangeSetDetail, KnowledgeProof } from "@medbrains/types"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Divider, Modal, toast } from "@/components/ui";
 import { knowledgeChangesService as svc } from "@/services/knowledgeChanges.service";
+import { refreshLocaleProfile } from "@/services/localeProfile.service";
 import { DiffTable } from "./diff-table";
 import { ImpactPanel } from "./impact-panel";
 import { AREA_LABEL, STATUS } from "./labels";
@@ -67,6 +68,10 @@ export function ChangeSetDialog({ id, userId, can, onClose, onOpen }: ChangeSetD
       void qc.invalidateQueries({ queryKey: ["knowledge-changes"] });
       if (action.kind === "proof") saveProof(result as KnowledgeProof);
       if (action.kind === "rollback") onOpen((result as KnowledgeChangeSetDetail).id);
+      // The profile formats every screen: show the applied values now.
+      if (action.kind === "apply" && detail.data?.area === "locale_profile") {
+        void refreshLocaleProfile();
+      }
     },
     // A refused apply leaves the set stale; show the new state.
     onError: () => void qc.invalidateQueries({ queryKey: ["knowledge-changes"] }),

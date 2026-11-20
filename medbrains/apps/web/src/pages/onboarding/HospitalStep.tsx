@@ -1,37 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Select, Stack, TextInput } from "@mantine/core";
+import { Stack, TextInput } from "@mantine/core";
 import type { UpdateTenantInput } from "@medbrains/schemas";
 import { updateTenantSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
-import { Controller, type Resolver, useForm } from "react-hook-form";
+import { type Resolver, useForm } from "react-hook-form";
 import { Button } from "@/components/ui";
+import { HospitalLocaleFields } from "./HospitalLocaleFields";
 import classes from "./onboarding.module.scss";
 
 interface Props {
   onNext: () => void;
   onBack: () => void;
 }
-
-const timezones = [
-  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST)" },
-  { value: "Asia/Dubai", label: "Asia/Dubai (GST)" },
-  { value: "America/New_York", label: "America/New_York (EST)" },
-  { value: "Europe/London", label: "Europe/London (GMT)" },
-];
-
-const currencies = [
-  { value: "INR", label: "INR - Indian Rupee" },
-  { value: "USD", label: "USD - US Dollar" },
-  { value: "EUR", label: "EUR - Euro" },
-  { value: "GBP", label: "GBP - British Pound" },
-];
-
-const fyMonths = [
-  { value: "1", label: "January" },
-  { value: "4", label: "April" },
-  { value: "7", label: "July" },
-  { value: "10", label: "October" },
-];
 
 export function HospitalStep({ onNext, onBack }: Props) {
   const stored = useOnboardingStore((s) => s.hospitalDetails);
@@ -49,9 +29,9 @@ export function HospitalStep({ onNext, onBack }: Props) {
       website: stored?.website ?? "",
       registration_no: stored?.registration_no ?? "",
       accreditation: stored?.accreditation ?? "",
-      timezone: stored?.timezone ?? "Asia/Kolkata",
-      currency: stored?.currency ?? "INR",
-      fy_start_month: stored?.fy_start_month ?? 4,
+      timezone: stored?.timezone ?? null,
+      currency: stored?.currency ?? null,
+      fy_start_month: stored?.fy_start_month ?? null,
     },
   });
 
@@ -66,9 +46,10 @@ export function HospitalStep({ onNext, onBack }: Props) {
       website: data.website || null,
       registration_no: data.registration_no || null,
       accreditation: data.accreditation || null,
-      timezone: data.timezone,
-      currency: data.currency,
-      fy_start_month: data.fy_start_month,
+      // Empty means "the country's": the server applies its presets.
+      timezone: data.timezone || null,
+      currency: data.currency || null,
+      fy_start_month: data.fy_start_month ?? null,
     });
     onNext();
   });
@@ -135,45 +116,7 @@ export function HospitalStep({ onNext, onBack }: Props) {
             {...form.register("accreditation")}
             error={form.formState.errors.accreditation?.message}
           />
-          <Controller
-            control={form.control}
-            name="timezone"
-            render={({ field }) => (
-              <Select
-                label="Timezone"
-                data={timezones}
-                value={field.value}
-                onChange={(v) => field.onChange(v ?? "Asia/Kolkata")}
-                error={form.formState.errors.timezone?.message}
-              />
-            )}
-          />
-          <Controller
-            control={form.control}
-            name="currency"
-            render={({ field }) => (
-              <Select
-                label="Currency"
-                data={currencies}
-                value={field.value}
-                onChange={(v) => field.onChange(v ?? "INR")}
-                error={form.formState.errors.currency?.message}
-              />
-            )}
-          />
-          <Controller
-            control={form.control}
-            name="fy_start_month"
-            render={({ field }) => (
-              <Select
-                label="Financial Year Start"
-                data={fyMonths}
-                value={String(field.value)}
-                onChange={(v) => field.onChange(Number(v ?? "4"))}
-                error={form.formState.errors.fy_start_month?.message}
-              />
-            )}
-          />
+          <HospitalLocaleFields form={form} />
         </div>
 
         <div className={classes.navButtons}>

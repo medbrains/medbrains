@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT code, currency, default_timezone, date_format, measurement_system FROM geo_countries WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "currency",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "default_timezone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "date_format",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "measurement_system",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f1c53d948eba5219c0a4cbbdf4f2ea2956dcd3db3cac7e92ff4d2bfe7cb5b881"
+}
