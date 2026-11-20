@@ -41,6 +41,8 @@ import json
 import os
 import re
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from api_client_source import api_client_source  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "docs", "authz-manifest.json")
@@ -61,8 +63,7 @@ def spicedb_entities() -> dict[str, list[str]]:
 
 def api_methods() -> dict[str, str]:
     """`clientMethodName -> "/path"` from the TypeScript client."""
-    path = os.path.join(ROOT, "packages/api/src/client.ts")
-    text = open(path, encoding="utf-8").read()
+    text = api_client_source()
     out: dict[str, str] = {}
     # `listApiKeys: () => request<T>("/admin/api-keys")` and template forms.
     for match in re.finditer(
