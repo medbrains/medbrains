@@ -63,7 +63,7 @@ async fn a_lab_technician_sees_who_each_order_is_for() {
     assert_eq!(resp.status(), StatusCode::OK);
 
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("lab_{tag}"), format!("Lab#{tag}Aa9"));
+    let (username, password) = (format!("lab_{tag}"), format!("Lab#Key{tag}Aa9"));
     let created = app
         .client
         .post(app.url("/api/setup/users"))

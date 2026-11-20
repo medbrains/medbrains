@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n             bc.bag_number::text AS \"bag_number!\",\n             bd.donated_at::date::text AS \"donation_date!\",\n             bc.expiry_at::date::text AS \"expiry_date!\",\n             bc.blood_group::text AS \"donor_blood_group!\",\n             bc.volume_ml,\n             COALESCE(xm.result, xm.status::text) AS \"crossmatch_result!\",\n             bc.status::text AS \"issue_status!\"\n           FROM crossmatch_requests xm\n           JOIN blood_components bc ON bc.id = xm.component_id AND bc.tenant_id = xm.tenant_id\n           JOIN blood_donations bd ON bd.id = bc.donation_id AND bd.tenant_id = bc.tenant_id\n          WHERE xm.id = $1 AND xm.tenant_id = $2 AND xm.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bag_number!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "donation_date!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "expiry_date!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "donor_blood_group!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "volume_ml",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "crossmatch_result!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "issue_status!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "bb6e9f1927d062d5d1087301483ff1865b576c183f9bb8f8464c4f4392a7d3cf"
+}

@@ -16,8 +16,8 @@
 <!-- Check all that apply -->
 - [ ] Backend (Rust/Axum)
 - [ ] Frontend (React/Mantine)
-- [ ] Mobile (React Native)
-- [ ] TV Display
+- [ ] Mobile (SwiftUI / Compose)
+- [ ] TV Display (Compose for TV)
 - [ ] Database/Migrations
 - [ ] Shared Packages (@medbrains/*)
 - [ ] CI/CD

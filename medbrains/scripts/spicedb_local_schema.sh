@@ -12,7 +12,8 @@ set -euo pipefail
 # covers two things:
 #
 #   * the schema file's hash — an edited schema must be pushed;
-#   * the SpiceDB container's id — a recreated container has an empty schema
+#   * the SpiceDB instance (container id, or SPICEDB_INSTANCE_ID from the
+#     native stack) — a recreated container has an empty schema
 #     even though the file is untouched, and skipping there would leave every
 #     authz check failing against a schema that was never loaded.
 #
@@ -35,9 +36,11 @@ if [[ "$SPICEDB_SKIP_START" != "true" ]]; then
 fi
 
 schema_hash="$(shasum -a 256 "$SPICEDB_SCHEMA_FILE" | cut -d' ' -f1)"
-# Empty when docker is unreachable, which simply means no skip — the safe way
-# to be wrong, since a missed write leaves every authz check broken.
-container_id="$(docker compose ps -q spicedb 2>/dev/null || true)"
+# The native stack passes SPICEDB_INSTANCE_ID (it changes when the spicedb
+# database is recreated). Otherwise the Docker container id; empty when docker
+# is unreachable, which simply means no skip — the safe way to be wrong,
+# since a missed write leaves every authz check broken.
+container_id="${SPICEDB_INSTANCE_ID:-$(docker compose ps -q spicedb 2>/dev/null || true)}"
 want="${schema_hash}:${container_id}"
 
 if [[ "$SPICEDB_FORCE_SCHEMA" != "true" && -n "$container_id" && -f "$STAMP_FILE" ]]; then

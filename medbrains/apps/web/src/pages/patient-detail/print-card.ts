@@ -20,7 +20,7 @@ function registrationAllergySummary(allergies: readonly string[]) {
 }
 
 function buildRegistrationCardContent(data: RegistrationCardPrintData) {
-  const hospitalName = registrationCardValue(data.hospital_name, "MedBrains HMS");
+  const hospitalName = escapeHtml(data.hospital_name ?? "");
   const printedAt = new Date().toLocaleString("en-IN");
 
   return `

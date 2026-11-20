@@ -10,9 +10,10 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -63,9 +64,8 @@ pub async fn list_privacy_requests(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<PrivacyRequest>>, AppError> {
-    require_permission(&claims, permissions::patients::privacy_requests::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::privacy_requests::LIST)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, PrivacyRequest>(&format!(
         "{SELECT} WHERE r.tenant_id = $1 AND r.deleted_at IS NULL \
            AND ($2::text IS NULL OR r.status = $2) \
@@ -175,15 +175,14 @@ pub async fn create_privacy_request(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePrivacyRequest>,
 ) -> Result<Json<PrivacyRequest>, AppError> {
-    require_permission(&claims, permissions::patients::privacy_requests::CREATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::privacy_requests::CREATE)?;
+    gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.received_via.as_deref() == Some("portal") {
         return Err(AppError::BadRequest(
             "Staff record desk, email, phone or letter requests".to_owned(),
         ));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let row = record_request(&mut tx, (claims.tenant_id, Some(claims.sub)), &body).await?;
     tx.commit().await?;
     Ok(Json(row))
@@ -216,7 +215,7 @@ pub async fn decide_privacy_request(
     Path(id): Path<Uuid>,
     Json(body): Json<DecidePrivacyRequest>,
 ) -> Result<Json<PrivacyRequest>, AppError> {
-    require_permission(&claims, permissions::patients::privacy_requests::DECIDE)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::privacy_requests::DECIDE)?;
     if !["completed", "refused"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest(
             "A request is completed or refused".to_owned(),
@@ -231,8 +230,7 @@ pub async fn decide_privacy_request(
             "Say what was done".to_owned()
         }));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let updated = sqlx::query(
         "UPDATE privacy_requests SET status = $3, decision = $4, decided_by = $5, decided_at = now() \
          WHERE id = $1 AND tenant_id = $2 AND status = 'open' AND deleted_at IS NULL",
@@ -293,10 +291,9 @@ pub async fn patient_data_summary(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientDataSummary>, AppError> {
-    require_permission(&claims, permissions::patients::privacy_requests::LIST)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::privacy_requests::LIST)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let summary = data_summary(&mut tx, claims.tenant_id, patient_id).await?;
     tx.commit().await?;
     Ok(Json(summary))

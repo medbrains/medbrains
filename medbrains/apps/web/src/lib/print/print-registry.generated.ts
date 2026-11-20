@@ -526,11 +526,25 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     fetch: (id) => api.getOpdBillPrintData(id),
   },
   {
+    key: "opd-card",
+    label: "OPD card",
+    idKind: "patient",
+    permission: "patients.view",
+    fetch: (id) => api.getOpdCardPrintData(id),
+  },
+  {
     key: "opd-prescription",
     label: "OPD prescription",
     idKind: "encounter",
     permission: "opd.visit.update",
     fetch: (id) => api.getOpdPrescriptionPrintData(id),
+  },
+  {
+    key: "opd-visit-card",
+    label: "OPD visit card",
+    idKind: "encounter",
+    permission: "patients.view",
+    fetch: (id) => api.getOpdVisitCardPrintData(id),
   },
   {
     key: "operation-notes",

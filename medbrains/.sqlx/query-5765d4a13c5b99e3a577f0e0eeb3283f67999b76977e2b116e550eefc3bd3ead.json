@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT path FROM user_favourite_screens WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at, path LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5765d4a13c5b99e3a577f0e0eeb3283f67999b76977e2b116e550eefc3bd3ead"
+}

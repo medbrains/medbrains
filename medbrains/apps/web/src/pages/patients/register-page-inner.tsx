@@ -3,7 +3,6 @@
 import { Card, Divider, Grid, Group, Modal, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type { PatientRegistrationInitialValues } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -24,6 +23,7 @@ import { PageHeader, useClinicalEmit } from "@/components";
 import { shareRegistrationValues } from "@/components/abha/scanShare";
 import type { PatientRegistrationLinkedServicesOptions } from "@/components/Patient/PatientRegisterForm";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
+import { useOpdVisitGates } from "@/components/Patient/useOpdVisitGates";
 import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
@@ -34,7 +34,9 @@ import { patientsService } from "@/services/patients.service";
 import type { ScanShareRegistrationState } from "../front-office/scan-share-tab";
 import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow";
 import classes from "../patients.module.scss";
+import { campRegistrationValues } from "./campRegistration";
 import { DuplicateMatchTable } from "./DuplicateMatchTable";
+import { registeredNoticeText, showRegisteredNotice } from "./registered-notice";
 import { registrationAction } from "./registrationGate";
 
 const NO_MATCHES: MpiMatchResult[] = [];
@@ -105,6 +107,7 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** The registration screen: registers the patient, then files them to a camp or the OPD queue. */
 export function PatientRegisterPageInner() {
   const { t } = useTranslation("patients");
   const emit = useClinicalEmit();
@@ -124,7 +127,8 @@ export function PatientRegisterPageInner() {
   // report a successful registration while the patient was never filed to the
   // camp and never queued.
   const canRegisterToCamp = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
-  const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  // Both off while the EMR is: registration must not leave a visit in an app nobody can open.
+  const { opdOn, canCreateOpdVisit } = useOpdVisitGates();
   const isCampRegistration = source === "camp" && Boolean(sourceCampId);
   const { data: camps = [], isLoading: campContextLoading } = useQuery({
     queryKey: ["camp-camps", "patient-registration-page", sourceCampId],
@@ -139,17 +143,8 @@ export function PatientRegisterPageInner() {
   const registrationModeLabel = isCampRegistration
     ? (selectedCamp?.name ?? t("registrationPage.mode.camp"))
     : t("registrationPage.mode.hospital");
-  const campInitialValues: PatientRegistrationInitialValues | undefined = isCampRegistration
-    ? {
-        registration_type: "camp",
-        registration_source: "camp",
-        camp_id: sourceCampId,
-        camp_name: selectedCamp?.name,
-        department_id: selectedCamp?.organizing_department_id ?? undefined,
-        referred_by_facility: selectedCamp?.venue_name ?? selectedCamp?.name,
-        create_opd_visit: true,
-        open_opd_after_registration: true,
-      }
+  const campInitialValues = isCampRegistration
+    ? campRegistrationValues(sourceCampId, selectedCamp, opdOn)
     : undefined;
   const shareProfile = scanShare?.step.profile;
   const initialValues = shareProfile ? shareRegistrationValues(shareProfile) : campInitialValues;
@@ -293,34 +288,12 @@ export function PatientRegisterPageInner() {
       }
       // The visit exists but the queue gave no number (outside its hours,
       // paused, full): say why, so the desk can tell the patient when to return.
-      if (tokenRefused) {
-        notifications.show({
-          title: t("notify.patientRegisteredNoToken"),
-          message: t("notify.patientRegisteredTokenRefused", {
-            uhid: patient.uhid,
-            reason: tokenRefused,
-          }),
-          color: "warning",
-        });
-      } else {
-        notifications.show({
-          title: queueWarning
-            ? t("notify.patientRegisteredOpdQueuePending")
-            : t("notify.patientRegistered"),
-          message: queueWarning
-            ? t("notify.patientRegisteredQueueWarning", {
-                queueWarning,
-                uhid: patient.uhid,
-              })
-            : tokenNumber
-              ? t("notify.patientRegisteredWithToken", {
-                  token: tokenNumber,
-                  uhid: patient.uhid,
-                })
-              : t("notify.patientRegisteredWithUhid", { uhid: patient.uhid }),
-          color: queueWarning ? "warning" : "success",
-        });
-      }
+      showRegisteredNotice({
+        ...registeredNoticeText(t, { uhid: patient.uhid, tokenRefused, queueWarning, tokenNumber }),
+        patientId: patient.id,
+        encounterId,
+        tokenNumber: tokenRefused ? null : tokenNumber,
+      });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       if (encounterId) {
         void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
@@ -329,7 +302,7 @@ export function PatientRegisterPageInner() {
       if (campId) {
         void queryClient.invalidateQueries({ queryKey: ["camp-registrations"] });
       }
-      if (encounterId && linkedServices?.openOpdAfterRegistration) {
+      if (encounterId && linkedServices?.openOpdAfterRegistration && opdOn) {
         void navigate(
           patientRegistrationOpdHandoffRoute({
             campId,

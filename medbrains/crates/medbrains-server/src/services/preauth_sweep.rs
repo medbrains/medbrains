@@ -12,7 +12,9 @@ const PASS_INTERVAL_SECS: u64 = 3600;
 /// Run the sweep now and then every hour, for the life of the server. Each
 /// hospital's place in its visits is kept between passes, so one with more
 /// visits than a pass checks is covered over the following passes.
-pub fn spawn(pool: PgPool) {
+///
+/// Returns the task, so the brick-job supervisor can stop it when its brick goes off.
+pub fn spawn(pool: PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut cursors = HashMap::new();
         loop {
@@ -32,5 +34,5 @@ pub fn spawn(pool: PgPool) {
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
-    });
+    })
 }

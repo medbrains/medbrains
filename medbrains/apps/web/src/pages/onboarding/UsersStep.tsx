@@ -1,14 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Modal,
-  MultiSelect,
-  NumberInput,
-  PasswordInput,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Modal, MultiSelect, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateRoleInput, CreateUserInput } from "@medbrains/schemas";
 import { createRoleSchema, createUserSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -17,7 +8,7 @@ import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tab
 import { useState } from "react";
 import { Controller, type Resolver, useForm } from "react-hook-form";
 import { CsvImportModal, SelectLabel } from "@/components";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, NewPasswordField } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -261,7 +252,7 @@ export function UsersStep({ onNext, onBack }: Props) {
               error={form.formState.errors.email?.message}
               type="email"
             />
-            <PasswordInput
+            <NewPasswordField
               label="Password"
               {...form.register("password")}
               error={form.formState.errors.password?.message}

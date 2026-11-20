@@ -6,10 +6,10 @@ and reports a violation back to the agent at once (exit 2, the reason on
 stderr) — so a rule is met when the code is written, not at the merge gate.
 Silent when everything passes or the file is outside the checked areas.
 
-    route / handler Rust  → authz collapse, soft-delete filter, partial upserts,
+    route / handler Rust  → authz collapse, soft-delete filter, partial upserts, size ratchet,
                             API contract (when it registers routes)
     migration SQL         → migration headers, RLS coverage, partial upserts
-    web TS/TSX            → Biome on the file, raw HTML, UI seam, AI label
+    web TS/TSX            → Biome on the file, raw HTML, UI seam, AI label, size ratchet
     packages/api client   → API contract
 """
 
@@ -43,6 +43,7 @@ def checks_for(path: str) -> dict[str, list[str]]:
         checks["authz-collapse"] = py("scripts/check_authz_collapse.py")
         checks["soft-delete-filter"] = py("scripts/check_soft_delete_filter.py")
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py", path)
+        checks["rust-size"] = py("scripts/check_rust_size.py", path)
         with open(path, encoding="utf-8") as fh:
             if ".route(" in fh.read():
                 checks["api-contract"] = py("../scripts/check_api_contract.py")
@@ -55,6 +56,8 @@ def checks_for(path: str) -> dict[str, list[str]]:
     elif rel.startswith(("apps/web/src/", "packages/")) and rel.endswith((".ts", ".tsx")) and "/node_modules/" not in rel:
         # --write applies Biome's formatting and safe fixes; what is left is reported.
         checks["biome"] = ["npx", "biome", "check", "--write", rel]
+        if rel.startswith("apps/web/src/"):
+            checks["web-size"] = py("scripts/check_web_size.py", path)
         if rel.endswith(".tsx"):
             checks["raw-html"] = py("scripts/check_raw_html.py")
             checks["ui-seam"] = py("scripts/check_ui_seam.py")

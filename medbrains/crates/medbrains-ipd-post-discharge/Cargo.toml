@@ -10,6 +10,8 @@ medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-kernel = { path = "../medbrains-kernel" }
+medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-pharmacy = { path = "../medbrains-pharmacy" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 axum = { workspace = true }
@@ -19,6 +21,7 @@ uuid = { workspace = true }
 sqlx = { workspace = true }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

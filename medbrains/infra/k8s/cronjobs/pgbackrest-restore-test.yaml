@@ -35,6 +35,9 @@ spec:
         spec:
           serviceAccountName: pgbackrest-restore-test-sa
           restartPolicy: Never
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           # Big enough to actually run a Postgres restore — 8GB RAM keeps shared_buffers comfortable
           containers:
             - name: restore
@@ -79,7 +82,11 @@ spec:
                   ephemeral-storage: 100Gi
               securityContext:
                 runAsNonRoot: true
-                runAsUser: 999       # postgres uid
+                # postgres uid in the image. A uid above 10000 would not clash with a
+                # host user, but postgres refuses to start without a passwd entry, so
+                # that waits on the image creating one (Snyk 2026-11-17, low).
+                runAsUser: 999
+                runAsGroup: 999
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
                 capabilities:

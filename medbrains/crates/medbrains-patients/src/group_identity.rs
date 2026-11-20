@@ -24,9 +24,10 @@ use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 use medbrains_server_services::patient_match::MatchResult;
@@ -130,8 +131,8 @@ pub async fn get_group_identity(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<GroupIdentity>, AppError> {
-    require_permission(&claims, permissions::patients::group_identity::VIEW)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::group_identity::VIEW)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -139,8 +140,7 @@ pub async fn get_group_identity(
         &claims.role,
     )
     .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let group = store::group(&mut tx, claims.tenant_id).await?;
     let shares = group.as_ref().is_some_and(|g| g.share_clinical_records);
     let (links, candidates) = if shares {
@@ -183,10 +183,9 @@ pub async fn scan_group_identity(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<ScanOutcome>, AppError> {
-    require_permission(&claims, permissions::patients::group_identity::LINK)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::group_identity::LINK)?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let group = sharing(store::group(&mut tx, claims.tenant_id).await?)?;
     let me = store::Local {
         group_id: group.id,
@@ -210,7 +209,7 @@ pub async fn list_candidates(
     Extension(claims): Extension<Claims>,
     Query(q): Query<QueueQuery>,
 ) -> Result<Json<Vec<GroupCandidate>>, AppError> {
-    require_permission(&claims, permissions::patients::group_identity::LINK)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::group_identity::LINK)?;
     let status = q.status.as_deref().unwrap_or("pending");
     if !matches!(status, "pending" | "linked" | "rejected") {
         return Err(AppError::BadRequest(
@@ -224,8 +223,7 @@ pub async fn list_candidates(
         &claims.role,
     )
     .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     sharing(store::group(&mut tx, claims.tenant_id).await?)?;
     let rows = store::queue(&mut tx, claims.tenant_id, status).await?;
     tx.commit().await?;
@@ -252,7 +250,7 @@ pub async fn decide_candidate(
     Path(id): Path<Uuid>,
     Json(body): Json<DecisionRequest>,
 ) -> Result<Json<GroupCandidate>, AppError> {
-    require_permission(&claims, permissions::patients::group_identity::LINK)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::group_identity::LINK)?;
     let link = match body.decision.as_str() {
         "link" => true,
         "reject" => false,
@@ -263,8 +261,7 @@ pub async fn decide_candidate(
     } else {
         Some(reason(body.reason.as_deref())?)
     };
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let group = sharing(store::group(&mut tx, claims.tenant_id).await?)?;
     let who = (group.id, claims.sub, claims.tenant_id);
     let decided = store::decide(&mut tx, who, id, link, why.as_deref()).await?;
@@ -284,10 +281,9 @@ pub async fn unlink(
     Path(id): Path<Uuid>,
     Json(body): Json<UnlinkRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::group_identity::LINK)?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::group_identity::LINK)?;
     let why = reason(Some(&body.reason))?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     sharing(store::group(&mut tx, claims.tenant_id).await?)?;
     store::unlink(&mut tx, id, claims.sub, &why).await?;
     tx.commit().await?;

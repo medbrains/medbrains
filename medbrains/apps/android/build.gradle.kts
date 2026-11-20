@@ -38,14 +38,24 @@ allprojects {
         // nobody has run with --write-locks yet. Every configuration that has a lock is enforced.
     }
     // Build tools only (lint, Kotlin plugin): raise Bouncy Castle to the app's 1.86 for
-    // GHSA-9pwp-9qqc-pr26, GHSA-qp49-qgx5-5m26 and GHSA-cj8j-37rh-8475, and lint's guava to
-    // 33.7.2-jre for GHSA-xxph-c9ww-hj94. The app's -android guava pin is left alone.
+    // GHSA-9pwp-9qqc-pr26, GHSA-qp49-qgx5-5m26 and GHSA-cj8j-37rh-8475; lint's guava to
+    // 33.7.2-jre for GHSA-xxph-c9ww-hj94, its commons-lang3 to 3.18.0 for GHSA-j288-q9x7-2f5v and
+    // its httpclient to 4.5.14 for GHSA-7r82-7xv7-xcpj; the Kotlin plugin's OpenTelemetry API to
+    // 1.67.0 for GHSA-rcgg-9c38-7xpx and GHSA-ccrj-gw8r-854m. The app's -android guava pin is
+    // in app-patient.
     configurations.configureEach {
         val isLintTool = name == "androidLintTool"
         resolutionStrategy.eachDependency {
-            if (requested.group == "org.bouncycastle") useVersion("1.86")
-            if (isLintTool && requested.group == "com.google.guava" && requested.name == "guava") {
-                useVersion("33.7.2-jre")
+            val group = requested.group
+            val artifact = requested.name
+            if (group == "org.bouncycastle") useVersion("1.86")
+            if (group == "io.opentelemetry" && artifact in setOf("opentelemetry-api", "opentelemetry-context")) {
+                useVersion("1.67.0")
+            }
+            if (isLintTool) {
+                if (group == "com.google.guava" && artifact == "guava") useVersion("33.7.2-jre")
+                if (group == "org.apache.commons" && artifact == "commons-lang3") useVersion("3.18.0")
+                if (group == "org.apache.httpcomponents" && artifact == "httpclient") useVersion("4.5.14")
             }
         }
     }

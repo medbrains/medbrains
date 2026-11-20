@@ -62,6 +62,14 @@ The Outpatient Department (OPD) module manages the full lifecycle of an outpatie
 **Regulatory note**: NABH OPD.2 — structured clinical documentation; ICD-10 coding mandatory (MOHFW EHR Standards 2016); IPSG Goal 3 — medication reconciliation at every encounter.  
 **Existing test**: JNY-HOS-001 in `apps/web/e2e/scenarios/actor-perspective-journeys.spec.ts` (automated)
 
+**When the doctor does not close the visit**: a hospital admin can set **OPD → Close OPD visits
+automatically after** (page header, beside the registration lock; off by default). Every five
+minutes, a visit whose patient was called in (or is in consultation) longer ago than that is closed
+as if the doctor pressed complete: visit and appointment completed, consultation charged, draft bill
+finalised, token off the board. Unsigned notes stay drafts and can still be edited and signed. The
+queue and the visit timeline show **Closed automatically**, and the audit log records the system as
+the actor with the minutes. Patients still waiting are never closed.
+
 ---
 
 ## Scenario 3: Nurse Enters Triage Vitals — Actor: Nurse
@@ -101,3 +109,20 @@ The Outpatient Department (OPD) module manages the full lifecycle of an outpatie
 **Exit / Outcome**: Patient self-checked in; position in doctor's queue assigned; wait time displayed.  
 **Regulatory note**: NABH OPD.1 — identity confirmation still required (kiosk verifies name shown to patient).  
 **Existing test**: JNY-PAT-001 in `apps/web/e2e/scenarios/actor-perspective-journeys.spec.ts` (automated — covers token issuance and QR check-in)
+
+---
+
+## OPD reports — Actor: Medical Superintendent / Quality Officer / Hospital Admin
+
+**Entry point**: OPD app side panel → **OPD reports** (`/opd/reports`), shown only to holders of `opd.reports.view`.
+
+**Steps**:
+1. Pick **Today**, **This week** (from Monday), **This month**, or **Custom** (a range of a year or less).
+2. Read the four tiles: OPD visits, registrations, new patients, repeat patients.
+3. Visits by day are drawn as a bar chart and listed in the **By day** table; **Download CSV** saves that table.
+4. **By doctor** lists visits per doctor; visits with no doctor yet are one row.
+
+**Definitions** (the same as the 21:00 daily report email): an OPD visit is an OPD encounter on its visit date, not cancelled or deleted; a registration is a patient registered that day in the hospital's time zone, not a merged duplicate; a repeat patient is one seen that day who had an earlier visit, a new patient one who had none.
+
+**Exit / Outcome**: Counts only. No patient names, phone numbers or UHIDs appear. If the numbers cannot be read the screen says "Couldn't load OPD reports" with Retry, never zeros.  
+**Existing test**: `crates/medbrains-server/tests/opd_reports_test.rs`, `apps/web/src/pages/opd/reports.test.tsx`

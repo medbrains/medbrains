@@ -124,12 +124,20 @@ pub async fn read_statuses(
     tenant_id: Uuid,
 ) -> Result<HashMap<String, String>, DbError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    Ok(statuses_on(&mut conn, tenant_id).await?)
+}
+
+/// The statuses query, on a connection the caller already holds (its own or a transaction's).
+async fn statuses_on(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+) -> Result<HashMap<String, String>, sqlx::Error> {
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT code, status::text FROM module_config \
          WHERE tenant_id = $1 AND deleted_at IS NULL",
     )
     .bind(tenant_id)
-    .fetch_all(&mut *conn)
+    .fetch_all(conn)
     .await?;
     Ok(rows.into_iter().collect())
 }
@@ -196,6 +204,29 @@ pub async fn module_entitlement(db: &PgPool, tenant_id: Uuid, code: &str) -> Out
             Outcome::Unknown
         }
     }
+}
+
+/// Whether the tenant has module `code`, read on the caller's transaction.
+///
+/// For work that runs inside another module's write (an automatic charge from an OPD visit),
+/// where no pool connection should be taken mid-transaction. A read error comes back as the
+/// error, never as on or off; the caller's transaction is then aborted, so callers that must
+/// survive it read inside a savepoint. Uses and fills the same per-tenant cache.
+///
+/// # Errors
+/// The `module_config` read failed.
+pub async fn module_enabled_in_tx(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    code: &str,
+) -> Result<bool, sqlx::Error> {
+    if let Some(outcome) = cached_outcome(tenant_id, code) {
+        return Ok(outcome == Outcome::Allow);
+    }
+    let by_code = statuses_on(conn, tenant_id).await?;
+    let on = effective_outcome(code, &by_code) == Outcome::Allow;
+    remember(tenant_id, by_code);
+    Ok(on)
 }
 
 /// Require the tenant to have module `code`. `403` when it is disabled (or an add-on not

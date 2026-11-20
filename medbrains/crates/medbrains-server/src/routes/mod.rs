@@ -294,7 +294,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/queue-tokens/{id}/status-link",
             get(appointments::queue_token_status_link),
         )
-        .merge(gated("opd", appointments::router(), &state))
+        .merge(gated("opd", appointments::router().merge(medbrains_opd::opd_only_router()), &state))
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────

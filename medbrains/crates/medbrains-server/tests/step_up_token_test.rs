@@ -190,7 +190,7 @@ async fn repeated_wrong_step_up_passwords_lock_the_account_and_are_audited() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let tag = Uuid::new_v4().simple().to_string()[..10].to_owned();
-    let (username, password) = (format!("lock_{tag}"), format!("Lock#{tag}Aa9"));
+    let (username, password) = (format!("lock_{tag}"), format!("Lock#Key{tag}Aa9"));
     let user: Value = app
         .client
         .post(app.url("/api/setup/users"))
