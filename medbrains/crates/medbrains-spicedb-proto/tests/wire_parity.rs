@@ -2,7 +2,7 @@
 //! `spicedb-rs-proto` 1.49.2 types they replace. The hex below was produced by
 //! encoding these same values with that crate; a field renumbered, renamed into
 //! a different tag, or dropped would change it.
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 use medbrains_spicedb_proto::authzed::api::v1;
 use medbrains_spicedb_proto::google::rpc::Status;

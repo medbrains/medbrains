@@ -234,6 +234,7 @@ impl AuthzBackend for InMemoryBackend {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -1,0 +1,53 @@
+import { Grid, Select } from "@mantine/core";
+import type { PatientRegistrationFormInput } from "@medbrains/schemas";
+import { type Control, Controller, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import { soleOption } from "@/lib/sole-option";
+
+interface RegistrationDepartmentColProps {
+  control: Control<PatientRegistrationFormInput>;
+  options: { value: string; label: string }[];
+  error?: string;
+  /** Shown when the department look-up failed, so the desk is not offered an empty list. */
+  unavailable?: string;
+  /** Marks the picker required: an OPD visit cannot be queued without a department. */
+  required?: boolean;
+}
+
+/**
+ * The registration department picker. Renders nothing when the hospital has one
+ * department: the form submits that one, so the desk is not asked.
+ */
+export function RegistrationDepartmentCol({
+  control,
+  options,
+  error,
+  unavailable,
+  required = false,
+}: RegistrationDepartmentColProps) {
+  const { t } = useTranslation("patients");
+  const current = useWatch({ control, name: "department_id" });
+  if (soleOption(options, current)) return null;
+  return (
+    <Grid.Col span={{ base: 12, sm: 6 }}>
+      <Controller
+        control={control}
+        name="department_id"
+        render={({ field }) => (
+          <Select
+            label={t("registrationForm.label.department")}
+            withAsterisk={required}
+            placeholder={t("registrationForm.placeholder.department")}
+            data-testid="picker-department"
+            data={options}
+            value={field.value ?? null}
+            onChange={(v) => field.onChange(v ?? undefined)}
+            error={error ?? unavailable}
+            searchable
+            clearable
+          />
+        )}
+      />
+    </Grid.Col>
+  );
+}

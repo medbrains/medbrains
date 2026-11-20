@@ -1,0 +1,72 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT indicator_code AS \"indicator_code!\", indicator_name AS \"indicator_name!\",\n                  category AS \"category!\", numerator AS \"numerator?\", denominator AS \"denominator?\",\n                  rate AS \"rate!\", benchmark AS \"benchmark?\", target AS \"target?\",\n                  direction AS \"direction?: IndicatorDirection\"\n           FROM (\n             SELECT DISTINCT ON (qi.id)\n               COALESCE(qi.indicator_code, qi.code) AS indicator_code,\n               COALESCE(qi.indicator_name, qi.name) AS indicator_name,\n               qi.category, qi.display_order,\n               ROUND(v.numerator_value)::int AS numerator,\n               ROUND(v.denominator_value)::int AS denominator,\n               v.calculated_value::float8 AS rate,\n               COALESCE(qi.benchmark, qi.benchmark_national::float8) AS benchmark,\n               qi.target_value::float8 AS target, qi.direction\n             FROM quality_indicator_values v\n             JOIN quality_indicators qi ON qi.id = v.indicator_id\n               AND qi.tenant_id = v.tenant_id AND qi.deleted_at IS NULL\n             WHERE v.deleted_at IS NULL AND v.calculated_value IS NOT NULL\n               AND v.period_start >= $1 AND v.period_end < $2 AND v.tenant_id = $3\n             ORDER BY qi.id, v.period_end DESC\n           ) latest\n           ORDER BY category, display_order, indicator_code LIMIT 1000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "indicator_code!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "indicator_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "category!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "numerator?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "denominator?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "rate!",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "benchmark?",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "target?",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "direction?: IndicatorDirection",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Date",
+        "Date",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    ]
+  },
+  "hash": "42c4176d53ac39d80937eed81d47ee6385ae34d3d5f720fbd4486f5035727ec6"
+}

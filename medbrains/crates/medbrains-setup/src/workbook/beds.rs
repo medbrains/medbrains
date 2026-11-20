@@ -122,9 +122,9 @@ pub(crate) async fn import(
         .execute(&mut **tx)
         .await?;
         if inserted {
-            tally.added += 1
+            tally.added += 1;
         } else {
-            tally.updated += 1
+            tally.updated += 1;
         }
         if !wards_touched.contains(&ward) {
             wards_touched.push(ward);

@@ -1,0 +1,4287 @@
+{
+ "src/AuthedRoutes.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 750
+ },
+ "src/components/Assets/AssetMovements.tsx": {
+  "function_lines": 71,
+  "complexity": 0,
+  "file_lines": 338
+ },
+ "src/components/BedSelect.tsx": {
+  "function_lines": 26,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/BodySite/AnatomyScene.tsx": {
+  "function_lines": 173,
+  "complexity": 16,
+  "file_lines": 0
+ },
+ "src/components/BodySite/BodySitePicker.tsx": {
+  "function_lines": 49,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/components/Clinical/DiagnosisPanel.tsx": {
+  "function_lines": 188,
+  "complexity": 4,
+  "file_lines": 577
+ },
+ "src/components/Clinical/Icd11CodeSelect.tsx": {
+  "function_lines": 57,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/Clinical/PatientConsumablesPanel.tsx": {
+  "function_lines": 43,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Clinical/PrescriptionItemsTable.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Clinical/PrescriptionViews.tsx": {
+  "function_lines": 22,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Clinical/StructuredHistory.tsx": {
+  "function_lines": 160,
+  "complexity": 1,
+  "file_lines": 511
+ },
+ "src/components/Clinical/VisitSummaryPrint.tsx": {
+  "function_lines": 29,
+  "complexity": 12,
+  "file_lines": 402
+ },
+ "src/components/Clinical/VitalsRecorder.tsx": {
+  "function_lines": 177,
+  "complexity": 5,
+  "file_lines": 481
+ },
+ "src/components/Clinical/case-sheet/CaseSheet.tsx": {
+  "function_lines": 76,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Clinical/case-sheet/NoteCard.tsx": {
+  "function_lines": 0,
+  "complexity": 9,
+  "file_lines": 0
+ },
+ "src/components/Clinical/case-sheet/NoteDraftEditor.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Clinical/dictation/DictationPanel.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Clinical/prescription-view-panels.tsx": {
+  "function_lines": 1,
+  "complexity": 10,
+  "file_lines": 529
+ },
+ "src/components/ConfigTransferButtons.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/CsvImportModal.tsx": {
+  "function_lines": 75,
+  "complexity": 3,
+  "file_lines": 326
+ },
+ "src/components/DataTable.tsx": {
+  "function_lines": 150,
+  "complexity": 17,
+  "file_lines": 550
+ },
+ "src/components/DataTableAdvancedFilter.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/DepartmentSelect.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Devices/PendingScreensCard.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Doctor/CriticalValueInbox.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Doctor/SignWorkspace.tsx": {
+  "function_lines": 33,
+  "complexity": 5,
+  "file_lines": 519
+ },
+ "src/components/Doctor/VerbalOrderRegister.tsx": {
+  "function_lines": 66,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/DoctorSearchSelect.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/DocumentPreview/DocumentPreviewModal.tsx": {
+  "function_lines": 47,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/DocumentPreview/DocumentRenderer.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 377
+ },
+ "src/components/DocumentPreview/SignatureCapture.tsx": {
+  "function_lines": 77,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/DynamicForm/FieldControl.tsx": {
+  "function_lines": 19,
+  "complexity": 13,
+  "file_lines": 0
+ },
+ "src/components/EarlyWarning/EwsPlanModal.tsx": {
+  "function_lines": 20,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Emergency/ErBaysTab.tsx": {
+  "function_lines": 74,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Emergency/ErDischargeSummaryPanel.tsx": {
+  "function_lines": 32,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Emergency/ErObservationPanel.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Emergency/ErTriageAssessmentPanel.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/EmployeeSearchSelect.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/EncounterSelect.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Flows/PatientTicket.tsx": {
+  "function_lines": 39,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Handoff/StationHandoffPanel.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/HealthPulse/BlogSection.tsx": {
+  "function_lines": 65,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/ConnectorsTab.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/ControlRoom.tsx": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 302
+ },
+ "src/components/Integration/FieldMappingEditor.tsx": {
+  "function_lines": 192,
+  "complexity": 22,
+  "file_lines": 646
+ },
+ "src/components/Integration/FreeformMapperCanvas.tsx": {
+  "function_lines": 34,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/HrmsLinkForm.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/MapperToolbar.tsx": {
+  "function_lines": 36,
+  "complexity": 23,
+  "file_lines": 0
+ },
+ "src/components/Integration/MappingCard.tsx": {
+  "function_lines": 282,
+  "complexity": 15,
+  "file_lines": 843
+ },
+ "src/components/Integration/MappingRow.tsx": {
+  "function_lines": 149,
+  "complexity": 7,
+  "file_lines": 398
+ },
+ "src/components/Integration/NodePalette.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/NodePropertyPanel.tsx": {
+  "function_lines": 257,
+  "complexity": 16,
+  "file_lines": 652
+ },
+ "src/components/Integration/OperationConfig.tsx": {
+  "function_lines": 306,
+  "complexity": 18,
+  "file_lines": 473
+ },
+ "src/components/Integration/PipelineCanvas.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/PipelineLedger.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/PreviewPanel.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Integration/SourcePanel.tsx": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 329
+ },
+ "src/components/Integration/TransformChain.tsx": {
+  "function_lines": 45,
+  "complexity": 0,
+  "file_lines": 361
+ },
+ "src/components/Integration/VisualFieldMapper.tsx": {
+  "function_lines": 353,
+  "complexity": 77,
+  "file_lines": 669
+ },
+ "src/components/Integration/mapperSync.ts": {
+  "function_lines": 26,
+  "complexity": 21,
+  "file_lines": 343
+ },
+ "src/components/Integration/operationRegistry.ts": {
+  "function_lines": 0,
+  "complexity": 24,
+  "file_lines": 617
+ },
+ "src/components/Integration/transformEvaluator.ts": {
+  "function_lines": 205,
+  "complexity": 91,
+  "file_lines": 580
+ },
+ "src/components/Integration/typeInference.ts": {
+  "function_lines": 0,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/components/Ipd/DamaModal.tsx": {
+  "function_lines": 134,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Ipd/MarkDeathModal.tsx": {
+  "function_lines": 57,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Ipd/MiniAddBed.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Ipd/TransferOutModal.tsx": {
+  "function_lines": 61,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Ipd/WristbandPrintModal.tsx": {
+  "function_lines": 51,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/Lab/LabReportPrint.tsx": {
+  "function_lines": 0,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/components/Lab/MiniAddLabTest.tsx": {
+  "function_lines": 71,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Materials/AddProductModal.tsx": {
+  "function_lines": 51,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Materials/InventoryView.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Materials/RequisitionsInbox.tsx": {
+  "function_lines": 28,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/MedReconciliationPanel.tsx": {
+  "function_lines": 60,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/BirthsTab.tsx": {
+  "function_lines": 123,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/CaseSheetDrawers.tsx": {
+  "function_lines": 115,
+  "complexity": 0,
+  "file_lines": 381
+ },
+ "src/components/Mrd/CaseSheetsTab.tsx": {
+  "function_lines": 219,
+  "complexity": 5,
+  "file_lines": 417
+ },
+ "src/components/Mrd/DeathsTab.tsx": {
+  "function_lines": 113,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/DigitizeTab.tsx": {
+  "function_lines": 116,
+  "complexity": 0,
+  "file_lines": 313
+ },
+ "src/components/Mrd/RecordsTab.tsx": {
+  "function_lines": 134,
+  "complexity": 0,
+  "file_lines": 337
+ },
+ "src/components/Mrd/RetentionTab.tsx": {
+  "function_lines": 55,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/RoiTab.tsx": {
+  "function_lines": 75,
+  "complexity": 0,
+  "file_lines": 398
+ },
+ "src/components/Mrd/StatsTab.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/StorageLocationsTab.tsx": {
+  "function_lines": 148,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/caseSheetColumns.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/file-requests/FileRequestsTab.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Mrd/file-requests/VisitFilePanel.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Nhcx/NhcxExchangeCard.tsx": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/Nhcx/NhcxPayerDirectory.tsx": {
+  "function_lines": 32,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Nhcx/NhcxPaymentsPanel.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Nhcx/SubmitToNhcxModal.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/NotificationCenter.tsx": {
+  "function_lines": 58,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Nurse/AdministerModal.tsx": {
+  "function_lines": 76,
+  "complexity": 17,
+  "file_lines": 0
+ },
+ "src/components/Nurse/BedsideTransfusionsPanel.tsx": {
+  "function_lines": 44,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Nurse/InfusionsPanel.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 436
+ },
+ "src/components/Nurse/MedicationRound.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Nurse/MonitorReadingsPanel.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Nurse/MyShiftWidget.tsx": {
+  "function_lines": 39,
+  "complexity": 10,
+  "file_lines": 0
+ },
+ "src/components/Nurse/StartTransfusionModal.tsx": {
+  "function_lines": 95,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/OnlineCheckoutPanel.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/OrderBasket/BasketItemRow.tsx": {
+  "function_lines": 0,
+  "complexity": 12,
+  "file_lines": 0
+ },
+ "src/components/OrderBasket/OrderBasketWorkspace.tsx": {
+  "function_lines": 183,
+  "complexity": 2,
+  "file_lines": 673
+ },
+ "src/components/OrderBasket/pickers/DrugPickerForm.tsx": {
+  "function_lines": 121,
+  "complexity": 15,
+  "file_lines": 0
+ },
+ "src/components/OrderBasket/pickers/RadiologyPickerForm.tsx": {
+  "function_lines": 103,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Ot/OtImplantRegisterPanel.tsx": {
+  "function_lines": 108,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Patient/ActivePackagesSection.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 506
+ },
+ "src/components/Patient/MiniRegisterPatient.tsx": {
+  "function_lines": 125,
+  "complexity": 0,
+  "file_lines": 314
+ },
+ "src/components/Patient/NewPrivacyRequestForm.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Patient/PatientContextBanner.tsx": {
+  "function_lines": 99,
+  "complexity": 11,
+  "file_lines": 381
+ },
+ "src/components/Patient/PatientContextSummary.tsx": {
+  "function_lines": 72,
+  "complexity": 27,
+  "file_lines": 358
+ },
+ "src/components/Patient/PatientFlowNavigator.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Patient/PatientJourneyActions.tsx": {
+  "function_lines": 36,
+  "complexity": 18,
+  "file_lines": 528
+ },
+ "src/components/Patient/PatientRegisterForm.tsx": {
+  "function_lines": 1302,
+  "complexity": 143,
+  "file_lines": 2287
+ },
+ "src/components/Patient/PrivacyRequestsCard.tsx": {
+  "function_lines": 0,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/components/Patient/abdm/ConsentRequestModal.tsx": {
+  "function_lines": 42,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Patient/groupIdentity/GroupIdentitySection.tsx": {
+  "function_lines": 9,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/PatientSearchSelect.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Pharmacy/CreditNotesTab.tsx": {
+  "function_lines": 240,
+  "complexity": 0,
+  "file_lines": 777
+ },
+ "src/components/Pharmacy/DispenseModal.tsx": {
+  "function_lines": 151,
+  "complexity": 12,
+  "file_lines": 475
+ },
+ "src/components/Pharmacy/MiniAddDrug.tsx": {
+  "function_lines": 103,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Pharmacy/PharmacyDispensingView.tsx": {
+  "function_lines": 0,
+  "complexity": 7,
+  "file_lines": 0
+ },
+ "src/components/Pharmacy/PharmacyLabel.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Pharmacy/PharmacyRegistry.tsx": {
+  "function_lines": 100,
+  "complexity": 0,
+  "file_lines": 301
+ },
+ "src/components/Pharmacy/StoreIndentsTab.tsx": {
+  "function_lines": 113,
+  "complexity": 0,
+  "file_lines": 472
+ },
+ "src/components/Pharmacy/SubstituteModal.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Procurement/ConsignmentPanel.tsx": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Procurement/MiniAddVendor.tsx": {
+  "function_lines": 119,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/ProtectedRoute.tsx": {
+  "function_lines": 42,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/Queues/QueueCountersDrawer.tsx": {
+  "function_lines": 57,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Queues/QueueFormDrawer.tsx": {
+  "function_lines": 210,
+  "complexity": 3,
+  "file_lines": 447
+ },
+ "src/components/Queues/QueueHoursDrawer.tsx": {
+  "function_lines": 45,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Queues/QueueLanesDrawer.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Radiology/ShareLinkForm.tsx": {
+  "function_lines": 20,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Radiology/ShareStudyModal.tsx": {
+  "function_lines": 13,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Reports/ReportChart.tsx": {
+  "function_lines": 76,
+  "complexity": 0,
+  "file_lines": 447
+ },
+ "src/components/SearchOrCreate.tsx": {
+  "function_lines": 42,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/components/SepsisBundlePanel.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/Sharing/ShareDrawer.tsx": {
+  "function_lines": 122,
+  "complexity": 0,
+  "file_lines": 372
+ },
+ "src/components/SpotlightProvider.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/TableValueBadge.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 316
+ },
+ "src/components/TokenBoardLive.tsx": {
+  "function_lines": 31,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/TopProgressBar.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/VirtualAccountPanel.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/abha/AbhaCloseModal.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/abha/AbhaCreateDrawer.tsx": {
+  "function_lines": 52,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/abha/AbhaVerifyDrawer.tsx": {
+  "function_lines": 82,
+  "complexity": 6,
+  "file_lines": 0
+ },
+ "src/components/abha/ScanShareFindDrawer.tsx": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/admin/MiniAddDepartment.tsx": {
+  "function_lines": 29,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/admin/MiniCreateDoctor.tsx": {
+  "function_lines": 165,
+  "complexity": 0,
+  "file_lines": 322
+ },
+ "src/components/admin/UserCreateDrawer.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 496
+ },
+ "src/components/ai/AiAssistantMount.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/ai/AiChatPanel.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/ai/Message.tsx": {
+  "function_lines": 0,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/components/ai/transport/agui.ts": {
+  "function_lines": 0,
+  "complexity": 8,
+  "file_lines": 0
+ },
+ "src/components/ai/transport/sse.ts": {
+  "function_lines": 0,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/components/ai/useAiChat.ts": {
+  "function_lines": 40,
+  "complexity": 22,
+  "file_lines": 0
+ },
+ "src/components/ai/widgets/format.ts": {
+  "function_lines": 0,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/components/dashboard/DashboardWidgetCard.tsx": {
+  "function_lines": 64,
+  "complexity": 33,
+  "file_lines": 408
+ },
+ "src/components/dashboard/WidgetExpandedView.tsx": {
+  "function_lines": 0,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/components/login/PasswordSignIn.tsx": {
+  "function_lines": 14,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/modals/CreateDepartmentModal.tsx": {
+  "function_lines": 17,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/modals/CreateFacilityModal.tsx": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/modals/CreateLocationModal.tsx": {
+  "function_lines": 17,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/modals/CreateRoleModal.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/notes/NoteEditorModal.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/payments/CardTerminalPanel.tsx": {
+  "function_lines": 93,
+  "complexity": 16,
+  "file_lines": 0
+ },
+ "src/components/payments/ResolveCardSaleModal.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/payments/collect/CollectBody.tsx": {
+  "function_lines": 206,
+  "complexity": 28,
+  "file_lines": 448
+ },
+ "src/components/payments/collect/tender-tiles.ts": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/components/use-data-table-state.ts": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/components/use-data-table-virtual.ts": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/config/navigation.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 1757
+ },
+ "src/config/settings-tabs.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 484
+ },
+ "src/config/token-workflows.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 419
+ },
+ "src/features/prescription/RxCompose.tsx": {
+  "function_lines": 163,
+  "complexity": 35,
+  "file_lines": 484
+ },
+ "src/features/prescription/RxDoctor.tsx": {
+  "function_lines": 265,
+  "complexity": 43,
+  "file_lines": 650
+ },
+ "src/features/prescription/RxPrint.tsx": {
+  "function_lines": 0,
+  "complexity": 6,
+  "file_lines": 0
+ },
+ "src/features/prescription/RxSuiteWriter.tsx": {
+  "function_lines": 237,
+  "complexity": 30,
+  "file_lines": 517
+ },
+ "src/features/prescription/RxTable.tsx": {
+  "function_lines": 64,
+  "complexity": 13,
+  "file_lines": 0
+ },
+ "src/features/prescription/SafetyOverrideModal.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/features/prescription/rxAdapter.ts": {
+  "function_lines": 0,
+  "complexity": 17,
+  "file_lines": 0
+ },
+ "src/features/prescription/rxModel.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 537
+ },
+ "src/forms/opd.form.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 357
+ },
+ "src/forms/ot.form.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 376
+ },
+ "src/hooks/useHashTabs.ts": {
+  "function_lines": 0,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/hooks/useWhispers.ts": {
+  "function_lines": 0,
+  "complexity": 21,
+  "file_lines": 0
+ },
+ "src/layouts/AppLayout.tsx": {
+  "function_lines": 270,
+  "complexity": 13,
+  "file_lines": 731
+ },
+ "src/lib/status-colors.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 478
+ },
+ "src/lib/text-shape.ts": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/pages/admin/InviteUsersPanel.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/IssueApiKeyDrawer.tsx": {
+  "function_lines": 89,
+  "complexity": 0,
+  "file_lines": 324
+ },
+ "src/pages/admin/RoleFieldAccessDrawer.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/SimulatorAgentRunner.tsx": {
+  "function_lines": 47,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/SimulatorRunFindingsDrawer.tsx": {
+  "function_lines": 0,
+  "complexity": 7,
+  "file_lines": 0
+ },
+ "src/pages/admin/access-requests.tsx": {
+  "function_lines": 42,
+  "complexity": 0,
+  "file_lines": 458
+ },
+ "src/pages/admin/api-keys.tsx": {
+  "function_lines": 39,
+  "complexity": 0,
+  "file_lines": 322
+ },
+ "src/pages/admin/connected-apps/AppReviewModal.tsx": {
+  "function_lines": 0,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/pages/admin/connected-apps/index.tsx": {
+  "function_lines": 46,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/coverage.tsx": {
+  "function_lines": 62,
+  "complexity": 0,
+  "file_lines": 329
+ },
+ "src/pages/admin/devices.tsx": {
+  "function_lines": 111,
+  "complexity": 13,
+  "file_lines": 1194
+ },
+ "src/pages/admin/doctor-packages.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 417
+ },
+ "src/pages/admin/doctor-schedules.tsx": {
+  "function_lines": 322,
+  "complexity": 22,
+  "file_lines": 977
+ },
+ "src/pages/admin/doctors.tsx": {
+  "function_lines": 392,
+  "complexity": 5,
+  "file_lines": 1282
+ },
+ "src/pages/admin/document-templates.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/flows/condition-form.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/flows/metro-map.tsx": {
+  "function_lines": 29,
+  "complexity": 7,
+  "file_lines": 0
+ },
+ "src/pages/admin/flows/station-node.tsx": {
+  "function_lines": 0,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/pages/admin/flows/station-panel.tsx": {
+  "function_lines": 15,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/flows/switchboard.tsx": {
+  "function_lines": 62,
+  "complexity": 3,
+  "file_lines": 323
+ },
+ "src/pages/admin/flows/test-drive.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/flows/track-builder.tsx": {
+  "function_lines": 56,
+  "complexity": 7,
+  "file_lines": 0
+ },
+ "src/pages/admin/forms/FieldEditor.tsx": {
+  "function_lines": 27,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/forms/FormEditorDrawer.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/forms/NewFormModal.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/forms/index.tsx": {
+  "function_lines": 14,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/groups.tsx": {
+  "function_lines": 40,
+  "complexity": 0,
+  "file_lines": 487
+ },
+ "src/pages/admin/history-import.tsx": {
+  "function_lines": 33,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/knowledge-changes.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/knowledge-changes/editor.tsx": {
+  "function_lines": 44,
+  "complexity": 0,
+  "file_lines": 315
+ },
+ "src/pages/admin/knowledge-changes/row-form.tsx": {
+  "function_lines": 0,
+  "complexity": 6,
+  "file_lines": 0
+ },
+ "src/pages/admin/knowledge-changes/set-actions.tsx": {
+  "function_lines": 8,
+  "complexity": 11,
+  "file_lines": 0
+ },
+ "src/pages/admin/machines.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 407
+ },
+ "src/pages/admin/nabh-indicators.tsx": {
+  "function_lines": 47,
+  "complexity": 0,
+  "file_lines": 350
+ },
+ "src/pages/admin/paired-devices.tsx": {
+  "function_lines": 94,
+  "complexity": 1,
+  "file_lines": 626
+ },
+ "src/pages/admin/queues.tsx": {
+  "function_lines": 44,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/research-exports/exports-table.tsx": {
+  "function_lines": 0,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/admin/research-exports/request-form.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/roles.tsx": {
+  "function_lines": 64,
+  "complexity": 0,
+  "file_lines": 469
+ },
+ "src/pages/admin/settings.tsx": {
+  "function_lines": 117,
+  "complexity": 0,
+  "file_lines": 598
+ },
+ "src/pages/admin/settings/AbdmBridgeCard.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/AbdmSettings.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/AbdmSharingSettings.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/AccessMatrixSettings.tsx": {
+  "function_lines": 878,
+  "complexity": 42,
+  "file_lines": 3857
+ },
+ "src/pages/admin/settings/BedTypesSettings.tsx": {
+  "function_lines": 119,
+  "complexity": 0,
+  "file_lines": 372
+ },
+ "src/pages/admin/settings/BillingTaxSettings.tsx": {
+  "function_lines": 122,
+  "complexity": 0,
+  "file_lines": 711
+ },
+ "src/pages/admin/settings/BrandingSettings.tsx": {
+  "function_lines": 61,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/ClinicalConfigSettings.tsx": {
+  "function_lines": 28,
+  "complexity": 0,
+  "file_lines": 508
+ },
+ "src/pages/admin/settings/ClinicalMastersSettings.tsx": {
+  "function_lines": 96,
+  "complexity": 8,
+  "file_lines": 872
+ },
+ "src/pages/admin/settings/ClinicalProtocolsSettings.tsx": {
+  "function_lines": 41,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/ComplianceSettings.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/ConsultationTemplatesSettings.tsx": {
+  "function_lines": 89,
+  "complexity": 0,
+  "file_lines": 321
+ },
+ "src/pages/admin/settings/CriticalValueRulesSettings.tsx": {
+  "function_lines": 82,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/DepartmentsSettings.tsx": {
+  "function_lines": 147,
+  "complexity": 0,
+  "file_lines": 599
+ },
+ "src/pages/admin/settings/DeviceIntegrationsSettings.tsx": {
+  "function_lines": 118,
+  "complexity": 30,
+  "file_lines": 334
+ },
+ "src/pages/admin/settings/DictationSettings.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/DrugInteractionsSettings.tsx": {
+  "function_lines": 78,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/EwsPolicySettings.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/FacilitiesSettings.tsx": {
+  "function_lines": 156,
+  "complexity": 0,
+  "file_lines": 642
+ },
+ "src/pages/admin/settings/GeneralSettings.tsx": {
+  "function_lines": 88,
+  "complexity": 0,
+  "file_lines": 355
+ },
+ "src/pages/admin/settings/GeoSettings.tsx": {
+  "function_lines": 72,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/Hl7AdtDestinationForm.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/Hl7AdtSettings.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/Icd10CatalogueSection.tsx": {
+  "function_lines": 48,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/LocationsSettings.tsx": {
+  "function_lines": 88,
+  "complexity": 0,
+  "file_lines": 614
+ },
+ "src/pages/admin/settings/MasterDataStatusSettings.tsx": {
+  "function_lines": 1961,
+  "complexity": 18,
+  "file_lines": 2761
+ },
+ "src/pages/admin/settings/ModulesSettings.tsx": {
+  "function_lines": 58,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/NhcxSettings.tsx": {
+  "function_lines": 87,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/OfflineModeSettings.tsx": {
+  "function_lines": 33,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/OperationsSettings.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 363
+ },
+ "src/pages/admin/settings/PaymentExceptionsSettings.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/PaymentTerminalModal.tsx": {
+  "function_lines": 111,
+  "complexity": 0,
+  "file_lines": 301
+ },
+ "src/pages/admin/settings/PaymentTerminalsSettings.tsx": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/PrintTemplateSettings.tsx": {
+  "function_lines": 229,
+  "complexity": 8,
+  "file_lines": 597
+ },
+ "src/pages/admin/settings/SequencesSettings.tsx": {
+  "function_lines": 93,
+  "complexity": 0,
+  "file_lines": 360
+ },
+ "src/pages/admin/settings/ServicesSettings.tsx": {
+  "function_lines": 129,
+  "complexity": 4,
+  "file_lines": 506
+ },
+ "src/pages/admin/settings/SnomedSettings.tsx": {
+  "function_lines": 33,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/StandardsSettings.tsx": {
+  "function_lines": 257,
+  "complexity": 87,
+  "file_lines": 547
+ },
+ "src/pages/admin/settings/SystemHealthSettings.tsx": {
+  "function_lines": 52,
+  "complexity": 0,
+  "file_lines": 325
+ },
+ "src/pages/admin/settings/UhiSettings.tsx": {
+  "function_lines": 100,
+  "complexity": 7,
+  "file_lines": 337
+ },
+ "src/pages/admin/settings/UnitsLocaleSettings.tsx": {
+  "function_lines": 33,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/pages/admin/settings/access-matrix-actions.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 315
+ },
+ "src/pages/admin/settings/access-matrix-coverage.ts": {
+  "function_lines": 0,
+  "complexity": 11,
+  "file_lines": 1153
+ },
+ "src/pages/admin/settings/device-integrations-i18n.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 310
+ },
+ "src/pages/admin/settings/report-event-coverage.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 376
+ },
+ "src/pages/admin/simulator.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/sso.tsx": {
+  "function_lines": 107,
+  "complexity": 0,
+  "file_lines": 402
+ },
+ "src/pages/admin/storage.tsx": {
+  "function_lines": 12,
+  "complexity": 0,
+  "file_lines": 473
+ },
+ "src/pages/admin/test-cycles/CycleProgress.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/test-cycles/index.tsx": {
+  "function_lines": 17,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/users.tsx": {
+  "function_lines": 339,
+  "complexity": 8,
+  "file_lines": 1034
+ },
+ "src/pages/admin/webhooks/WebhookDrawer.tsx": {
+  "function_lines": 13,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/admin/webhooks/index.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ambulance/drivers-tab.tsx": {
+  "function_lines": 114,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ambulance/fleet-tab.tsx": {
+  "function_lines": 175,
+  "complexity": 0,
+  "file_lines": 412
+ },
+ "src/pages/ambulance/maintenance-tab.tsx": {
+  "function_lines": 111,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ambulance/trips-tab.tsx": {
+  "function_lines": 185,
+  "complexity": 0,
+  "file_lines": 415
+ },
+ "src/pages/analytics/ClinicalTab.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 362
+ },
+ "src/pages/analytics/IpdCensusTab.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/analytics/LabTatTab.tsx": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/analytics/RevenueTab.tsx": {
+  "function_lines": 59,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/appointments.tsx": {
+  "function_lines": 279,
+  "complexity": 5,
+  "file_lines": 611
+ },
+ "src/pages/appointments/book-modal.tsx": {
+  "function_lines": 164,
+  "complexity": 0,
+  "file_lines": 373
+ },
+ "src/pages/approvals/index.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 374
+ },
+ "src/pages/assets.tsx": {
+  "function_lines": 436,
+  "complexity": 0,
+  "file_lines": 843
+ },
+ "src/pages/assistant.tsx": {
+  "function_lines": 43,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/audit/AccessAlertsTab.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/audit/AccessLogTab.tsx": {
+  "function_lines": 100,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/audit/AuditLogTab.tsx": {
+  "function_lines": 115,
+  "complexity": 0,
+  "file_lines": 417
+ },
+ "src/pages/audit/BreakGlassReviewTab.tsx": {
+  "function_lines": 67,
+  "complexity": 4,
+  "file_lines": 361
+ },
+ "src/pages/audit/DataProcessorsTab.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/audit/EntityTimelineTab.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/audit/processor-form.tsx": {
+  "function_lines": 50,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/bedside-portal.tsx": {
+  "function_lines": 206,
+  "complexity": 30,
+  "file_lines": 661
+ },
+ "src/pages/bedside-portal/education-library.tsx": {
+  "function_lines": 90,
+  "complexity": 0,
+  "file_lines": 303
+ },
+ "src/pages/bedside-portal/operations-panel.tsx": {
+  "function_lines": 62,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing-counter.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing-tpa-pipeline.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing-worklist.tsx": {
+  "function_lines": 49,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/PayerSplitPanel.tsx": {
+  "function_lines": 31,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/accounting-tabs.tsx": {
+  "function_lines": 731,
+  "complexity": 0,
+  "file_lines": 2194
+ },
+ "src/pages/billing/advances.tsx": {
+  "function_lines": 249,
+  "complexity": 0,
+  "file_lines": 469
+ },
+ "src/pages/billing/audit-log.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/billing-entity-modal.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/billing-lane-modal.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/charge-attention/ChargeAttentionTab.tsx": {
+  "function_lines": 44,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/pages/billing/charge-master.tsx": {
+  "function_lines": 114,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/claim-detail-drawer.tsx": {
+  "function_lines": 0,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/pages/billing/corporate-detail.tsx": {
+  "function_lines": 159,
+  "complexity": 0,
+  "file_lines": 429
+ },
+ "src/pages/billing/corporate.tsx": {
+  "function_lines": 116,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/create-invoice-drawer.tsx": {
+  "function_lines": 39,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/credit-patients.tsx": {
+  "function_lines": 197,
+  "complexity": 0,
+  "file_lines": 410
+ },
+ "src/pages/billing/day-close.tsx": {
+  "function_lines": 135,
+  "complexity": 0,
+  "file_lines": 402
+ },
+ "src/pages/billing/exchange-rates-section.tsx": {
+  "function_lines": 17,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/installment-pay-modal.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/installments.tsx": {
+  "function_lines": 103,
+  "complexity": 0,
+  "file_lines": 327
+ },
+ "src/pages/billing/insurance-claims.tsx": {
+  "function_lines": 353,
+  "complexity": 0,
+  "file_lines": 638
+ },
+ "src/pages/billing/invoice-detail.tsx": {
+  "function_lines": 555,
+  "complexity": 48,
+  "file_lines": 1235
+ },
+ "src/pages/billing/packages.tsx": {
+  "function_lines": 166,
+  "complexity": 0,
+  "file_lines": 343
+ },
+ "src/pages/billing/page-inner.tsx": {
+  "function_lines": 304,
+  "complexity": 51,
+  "file_lines": 752
+ },
+ "src/pages/billing/rate-plans.tsx": {
+  "function_lines": 113,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/refunds-credits.tsx": {
+  "function_lines": 314,
+  "complexity": 0,
+  "file_lines": 595
+ },
+ "src/pages/billing/reports.tsx": {
+  "function_lines": 99,
+  "complexity": 7,
+  "file_lines": 626
+ },
+ "src/pages/billing/settings.tsx": {
+  "function_lines": 108,
+  "complexity": 0,
+  "file_lines": 341
+ },
+ "src/pages/billing/settlements/DecisionModal.tsx": {
+  "function_lines": 14,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/pages/billing/settlements/InsuranceSettlementsTab.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/settlements/RecordSettlementModal.tsx": {
+  "function_lines": 99,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/billing/shared.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 400
+ },
+ "src/pages/blood-bank/CreateDonationForm.tsx": {
+  "function_lines": 50,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/blood-bank/DonorDeferralModal.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/blood-bank/TransfusionMonitorDrawer.tsx": {
+  "function_lines": 71,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/blood-bank/TtiResultsDrawer.tsx": {
+  "function_lines": 30,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/blood-bank/cold-chain-tab.tsx": {
+  "function_lines": 112,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/blood-bank/compliance-tab.tsx": {
+  "function_lines": 111,
+  "complexity": 0,
+  "file_lines": 512
+ },
+ "src/pages/blood-bank/crossmatch-tab.tsx": {
+  "function_lines": 29,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/blood-bank/donors-tab.tsx": {
+  "function_lines": 65,
+  "complexity": 0,
+  "file_lines": 563
+ },
+ "src/pages/blood-bank/inventory-tab.tsx": {
+  "function_lines": 151,
+  "complexity": 0,
+  "file_lines": 547
+ },
+ "src/pages/blood-bank/returns-msbos-tab.tsx": {
+  "function_lines": 88,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/blood-bank/transfusions-tab.tsx": {
+  "function_lines": 105,
+  "complexity": 0,
+  "file_lines": 435
+ },
+ "src/pages/bme.tsx": {
+  "function_lines": 0,
+  "complexity": 7,
+  "file_lines": 0
+ },
+ "src/pages/bme/analytics-tab.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/bme/breakdowns-tab.tsx": {
+  "function_lines": 66,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/bme/calibration-tab.tsx": {
+  "function_lines": 134,
+  "complexity": 3,
+  "file_lines": 356
+ },
+ "src/pages/bme/contracts-tab.tsx": {
+  "function_lines": 333,
+  "complexity": 7,
+  "file_lines": 666
+ },
+ "src/pages/bme/equipment-tab.tsx": {
+  "function_lines": 74,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/bme/pm-tab.tsx": {
+  "function_lines": 196,
+  "complexity": 3,
+  "file_lines": 528
+ },
+ "src/pages/bme/recalibrate-drawer.tsx": {
+  "function_lines": 28,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp.tsx": {
+  "function_lines": 93,
+  "complexity": 12,
+  "file_lines": 402
+ },
+ "src/pages/camp/camp-create.tsx": {
+  "function_lines": 104,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/camp-detail.tsx": {
+  "function_lines": 224,
+  "complexity": 0,
+  "file_lines": 557
+ },
+ "src/pages/camp/camps-tab.tsx": {
+  "function_lines": 65,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/clinical-route.tsx": {
+  "function_lines": 47,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/counters-tab.tsx": {
+  "function_lines": 80,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/followup-create.tsx": {
+  "function_lines": 52,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/followups-tab.tsx": {
+  "function_lines": 66,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/lab-sample-create.tsx": {
+  "function_lines": 42,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/patient-context-panel.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/registration-create.tsx": {
+  "function_lines": 155,
+  "complexity": 0,
+  "file_lines": 367
+ },
+ "src/pages/camp/registrations-tab.tsx": {
+  "function_lines": 122,
+  "complexity": 0,
+  "file_lines": 337
+ },
+ "src/pages/camp/screening-create.tsx": {
+  "function_lines": 181,
+  "complexity": 4,
+  "file_lines": 381
+ },
+ "src/pages/camp/screening-history-fields.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/screenings-tab.tsx": {
+  "function_lines": 59,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/camp/shared.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 303
+ },
+ "src/pages/care-view.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 343
+ },
+ "src/pages/care-view/EscalationsTab.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/care-view/GlasgowBlatchfordTab.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/care-view/HypoglycemiaTab.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/care-view/MeowsTab.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/care-view/MyTasksTab.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/care-view/News2Tab.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/care-view/NutritionTab.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/care-view/PatientGridTab.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 395
+ },
+ "src/pages/care-view/SofaTab.tsx": {
+  "function_lines": 13,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/case-management/case-board-tab.tsx": {
+  "function_lines": 407,
+  "complexity": 28,
+  "file_lines": 855
+ },
+ "src/pages/case-management/discharge-barriers-tab.tsx": {
+  "function_lines": 94,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/case-management/referrals-tab.tsx": {
+  "function_lines": 105,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/case-sheet-review.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/chronic-care/drug-ogram-tab.tsx": {
+  "function_lines": 14,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/chronic-care/enrollments-tab.tsx": {
+  "function_lines": 42,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/chronic-care/programs-tab.tsx": {
+  "function_lines": 73,
+  "complexity": 0,
+  "file_lines": 317
+ },
+ "src/pages/clinical-kb/ihip-tab.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-kb/nikshay-tab.tsx": {
+  "function_lines": 46,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-kb/override-modal.tsx": {
+  "function_lines": 15,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-kb/reports-tab.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-kb/resolve-report-modal.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-kb/state-list-tab.tsx": {
+  "function_lines": 53,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-kb/tb-details-modal.tsx": {
+  "function_lines": 40,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-trials.tsx": {
+  "function_lines": 30,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-trials/ae-modal.tsx": {
+  "function_lines": 27,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-trials/create-trial-modal.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-trials/irb-modal.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-trials/randomization-modal.tsx": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/clinical-trials/visits-modal.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/command-center/alerts-thresholds-tab.tsx": {
+  "function_lines": 165,
+  "complexity": 0,
+  "file_lines": 417
+ },
+ "src/pages/command-center/bed-management-tab.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/command-center/discharge-coordinator-tab.tsx": {
+  "function_lines": 44,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/command-center/overview-tab.tsx": {
+  "function_lines": 72,
+  "complexity": 0,
+  "file_lines": 356
+ },
+ "src/pages/command-center/transport-tab.tsx": {
+  "function_lines": 170,
+  "complexity": 0,
+  "file_lines": 469
+ },
+ "src/pages/communications/alerts-tab.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/communications/clinical-tab.tsx": {
+  "function_lines": 52,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/communications/complaints-tab.tsx": {
+  "function_lines": 86,
+  "complexity": 0,
+  "file_lines": 323
+ },
+ "src/pages/communications/config-tab.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/communications/dlt-tab.tsx": {
+  "function_lines": 102,
+  "complexity": 0,
+  "file_lines": 322
+ },
+ "src/pages/communications/feedback-tab.tsx": {
+  "function_lines": 69,
+  "complexity": 1,
+  "file_lines": 319
+ },
+ "src/pages/communications/messages-tab.tsx": {
+  "function_lines": 43,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/components-inputs.tsx": {
+  "function_lines": 27,
+  "complexity": 0,
+  "file_lines": 759
+ },
+ "src/pages/consent/audit-tab.tsx": {
+  "function_lines": 22,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/consent/death-certificate-form.tsx": {
+  "function_lines": 88,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/consent/medico-legal-opinion-form.tsx": {
+  "function_lines": 89,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/consent/signatures-tab.tsx": {
+  "function_lines": 45,
+  "complexity": 0,
+  "file_lines": 310
+ },
+ "src/pages/consent/template-form.tsx": {
+  "function_lines": 54,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/pages/consent/templates-tab.tsx": {
+  "function_lines": 110,
+  "complexity": 0,
+  "file_lines": 317
+ },
+ "src/pages/consent/verification-tab.tsx": {
+  "function_lines": 29,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/cssd/LoadContentsDrawer.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/cssd/LoadRecallPanel.tsx": {
+  "function_lines": 6,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/cssd/equipment-tab.tsx": {
+  "function_lines": 161,
+  "complexity": 0,
+  "file_lines": 370
+ },
+ "src/pages/cssd/instruments-tab.tsx": {
+  "function_lines": 121,
+  "complexity": 0,
+  "file_lines": 312
+ },
+ "src/pages/cssd/issuance-tab.tsx": {
+  "function_lines": 97,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/cssd/sterilization-tab.tsx": {
+  "function_lines": 203,
+  "complexity": 0,
+  "file_lines": 518
+ },
+ "src/pages/dashboard.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/diet-kitchen.tsx": {
+  "function_lines": 13,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/pages/diet-kitchen/audits-tab.tsx": {
+  "function_lines": 73,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/diet-kitchen/diet-orders-tab.tsx": {
+  "function_lines": 214,
+  "complexity": 16,
+  "file_lines": 425
+ },
+ "src/pages/diet-kitchen/diet-templates-tab.tsx": {
+  "function_lines": 93,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/pages/diet-kitchen/inventory-tab.tsx": {
+  "function_lines": 72,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/diet-kitchen/kitchen-tab.tsx": {
+  "function_lines": 247,
+  "complexity": 2,
+  "file_lines": 583
+ },
+ "src/pages/doctor-payouts/agreement-drawer.tsx": {
+  "function_lines": 64,
+  "complexity": 7,
+  "file_lines": 376
+ },
+ "src/pages/doctor-payouts/payout-run-tab.tsx": {
+  "function_lines": 65,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/doctor-payouts/rate-calculator.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/doctor-payouts/rate-cards-tab.tsx": {
+  "function_lines": 44,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/doctor-payouts/reports-tab.tsx": {
+  "function_lines": 16,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/doctor-payouts/rule-drawer.tsx": {
+  "function_lines": 17,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/doctor-payouts/statements-tab.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/doctor/my-day.tsx": {
+  "function_lines": 32,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/doctor/profile.tsx": {
+  "function_lines": 10,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/doctor/signoffs.tsx": {
+  "function_lines": 3,
+  "complexity": 1,
+  "file_lines": 306
+ },
+ "src/pages/documents/outputs-tab.tsx": {
+  "function_lines": 47,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/documents/print-queue-tab.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/documents/print-routing-tab.tsx": {
+  "function_lines": 40,
+  "complexity": 0,
+  "file_lines": 403
+ },
+ "src/pages/documents/printers-tab.tsx": {
+  "function_lines": 128,
+  "complexity": 0,
+  "file_lines": 381
+ },
+ "src/pages/documents/review-schedule-tab.tsx": {
+  "function_lines": 49,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/documents/templates-tab.tsx": {
+  "function_lines": 331,
+  "complexity": 9,
+  "file_lines": 590
+ },
+ "src/pages/emergency.tsx": {
+  "function_lines": 145,
+  "complexity": 20,
+  "file_lines": 325
+ },
+ "src/pages/emergency/codes.tsx": {
+  "function_lines": 187,
+  "complexity": 0,
+  "file_lines": 581
+ },
+ "src/pages/emergency/mass-casualty.tsx": {
+  "function_lines": 184,
+  "complexity": 0,
+  "file_lines": 435
+ },
+ "src/pages/emergency/mlc-case-detail.tsx": {
+  "function_lines": 813,
+  "complexity": 51,
+  "file_lines": 1770
+ },
+ "src/pages/emergency/mlc-examination-panel.tsx": {
+  "function_lines": 74,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/emergency/mlc-injuries-panel.tsx": {
+  "function_lines": 80,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/emergency/mlc-print-previews.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 345
+ },
+ "src/pages/emergency/mlc.tsx": {
+  "function_lines": 416,
+  "complexity": 5,
+  "file_lines": 723
+ },
+ "src/pages/emergency/resuscitation-visit-panel.tsx": {
+  "function_lines": 107,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/emergency/resuscitation.tsx": {
+  "function_lines": 146,
+  "complexity": 0,
+  "file_lines": 325
+ },
+ "src/pages/emergency/shared.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 355
+ },
+ "src/pages/emergency/visit-command-bar.tsx": {
+  "function_lines": 87,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/emergency/visit-context-rail.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/emergency/visit-detail-page.tsx": {
+  "function_lines": 104,
+  "complexity": 7,
+  "file_lines": 0
+ },
+ "src/pages/emergency/visit-form.tsx": {
+  "function_lines": 45,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/emergency/visits.tsx": {
+  "function_lines": 81,
+  "complexity": 0,
+  "file_lines": 340
+ },
+ "src/pages/facilities/energy-tab.tsx": {
+  "function_lines": 66,
+  "complexity": 1,
+  "file_lines": 346
+ },
+ "src/pages/facilities/fire-drills-section.tsx": {
+  "function_lines": 41,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/facilities/fire-safety-tab.tsx": {
+  "function_lines": 83,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/facilities/mgps-tab.tsx": {
+  "function_lines": 125,
+  "complexity": 2,
+  "file_lines": 348
+ },
+ "src/pages/facilities/water-quality-tab.tsx": {
+  "function_lines": 106,
+  "complexity": 0,
+  "file_lines": 324
+ },
+ "src/pages/facilities/work-orders-tab.tsx": {
+  "function_lines": 155,
+  "complexity": 3,
+  "file_lines": 430
+ },
+ "src/pages/flow/live-tab.tsx": {
+  "function_lines": 33,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/flow/zone-form.tsx": {
+  "function_lines": 68,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/force-password-change.tsx": {
+  "function_lines": 14,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/forgot-password.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/front-office.tsx": {
+  "function_lines": 126,
+  "complexity": 14,
+  "file_lines": 351
+ },
+ "src/pages/front-office/enquiry-desk-tab.tsx": {
+  "function_lines": 39,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/front-office/patient-flow-hub.tsx": {
+  "function_lines": 41,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/front-office/queue-config-tab.tsx": {
+  "function_lines": 247,
+  "complexity": 0,
+  "file_lines": 492
+ },
+ "src/pages/front-office/scan-share-tab.tsx": {
+  "function_lines": 74,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/front-office/token-boards-tab.tsx": {
+  "function_lines": 178,
+  "complexity": 39,
+  "file_lines": 890
+ },
+ "src/pages/front-office/visitor-management-tab.tsx": {
+  "function_lines": 158,
+  "complexity": 0,
+  "file_lines": 428
+ },
+ "src/pages/health-packages.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/health-pulse.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare/advance-directives-panel.tsx": {
+  "function_lines": 33,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare/bereavement-panel.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare/billing-panel.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare/caregiver-education-panel.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare/escalations-panel.tsx": {
+  "function_lines": 15,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare/hospice-panel.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-healthcare/remote-vitals-panel.tsx": {
+  "function_lines": 13,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/home-visits.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 312
+ },
+ "src/pages/housekeeping/bmw-tab.tsx": {
+  "function_lines": 259,
+  "complexity": 0,
+  "file_lines": 652
+ },
+ "src/pages/housekeeping/linen-tab.tsx": {
+  "function_lines": 252,
+  "complexity": 15,
+  "file_lines": 559
+ },
+ "src/pages/housekeeping/par-audit-tab.tsx": {
+  "function_lines": 39,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/housekeeping/room-bed-tab.tsx": {
+  "function_lines": 125,
+  "complexity": 0,
+  "file_lines": 354
+ },
+ "src/pages/housekeeping/schedules-tab.tsx": {
+  "function_lines": 153,
+  "complexity": 1,
+  "file_lines": 389
+ },
+ "src/pages/hr/attendance-tab.tsx": {
+  "function_lines": 91,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/hr/campus-fence-modal.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/hr/compliance-tab.tsx": {
+  "function_lines": 176,
+  "complexity": 0,
+  "file_lines": 421
+ },
+ "src/pages/hr/employee-detail-drawer.tsx": {
+  "function_lines": 117,
+  "complexity": 1,
+  "file_lines": 387
+ },
+ "src/pages/hr/employees-tab.tsx": {
+  "function_lines": 183,
+  "complexity": 0,
+  "file_lines": 410
+ },
+ "src/pages/hr/holidays-tab.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/hr/leave-calendar-tab.tsx": {
+  "function_lines": 108,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/pages/hr/leave-calendar-view.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/hr/leave-request-modal.tsx": {
+  "function_lines": 40,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/hr/leave-tab.tsx": {
+  "function_lines": 40,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/hr/payroll.tsx": {
+  "function_lines": 95,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/hr/roster-tab.tsx": {
+  "function_lines": 275,
+  "complexity": 0,
+  "file_lines": 563
+ },
+ "src/pages/hr/training-tab.tsx": {
+  "function_lines": 203,
+  "complexity": 7,
+  "file_lines": 451
+ },
+ "src/pages/icu/analytics-tab.tsx": {
+  "function_lines": 0,
+  "complexity": 4,
+  "file_lines": 0
+ },
+ "src/pages/icu/devices-tab.tsx": {
+  "function_lines": 106,
+  "complexity": 0,
+  "file_lines": 308
+ },
+ "src/pages/icu/flowsheets-tab.tsx": {
+  "function_lines": 183,
+  "complexity": 0,
+  "file_lines": 553
+ },
+ "src/pages/icu/neonatal-tab.tsx": {
+  "function_lines": 175,
+  "complexity": 0,
+  "file_lines": 502
+ },
+ "src/pages/icu/nutrition-tab.tsx": {
+  "function_lines": 68,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/icu/scores-tab.tsx": {
+  "function_lines": 29,
+  "complexity": 4,
+  "file_lines": 307
+ },
+ "src/pages/icu/ventilator-tab.tsx": {
+  "function_lines": 198,
+  "complexity": 0,
+  "file_lines": 388
+ },
+ "src/pages/indent.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/indent/analytics-panel.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 488
+ },
+ "src/pages/indent/assets-implants-panel.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 538
+ },
+ "src/pages/indent/catalog-panel.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/indent/create-indent-panel.tsx": {
+  "function_lines": 55,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/indent/flow-tracker-panel.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 365
+ },
+ "src/pages/indent/indent-list-panel.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 449
+ },
+ "src/pages/infection-control.tsx": {
+  "function_lines": 10,
+  "complexity": 14,
+  "file_lines": 0
+ },
+ "src/pages/infection-control/InvasiveDevicesPanel.tsx": {
+  "function_lines": 104,
+  "complexity": 0,
+  "file_lines": 330
+ },
+ "src/pages/infection-control/analytics-tab.tsx": {
+  "function_lines": 135,
+  "complexity": 3,
+  "file_lines": 339
+ },
+ "src/pages/infection-control/biowaste-tab.tsx": {
+  "function_lines": 113,
+  "complexity": 0,
+  "file_lines": 318
+ },
+ "src/pages/infection-control/hygiene-tab.tsx": {
+  "function_lines": 120,
+  "complexity": 0,
+  "file_lines": 415
+ },
+ "src/pages/infection-control/meetings-tab.tsx": {
+  "function_lines": 121,
+  "complexity": 1,
+  "file_lines": 370
+ },
+ "src/pages/infection-control/outbreak-tab.tsx": {
+  "function_lines": 96,
+  "complexity": 0,
+  "file_lines": 323
+ },
+ "src/pages/infection-control/stewardship-tab.tsx": {
+  "function_lines": 191,
+  "complexity": 22,
+  "file_lines": 434
+ },
+ "src/pages/infection-control/surveillance-tab.tsx": {
+  "function_lines": 91,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/insurance/appeals-tab.tsx": {
+  "function_lines": 59,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/insurance/prior-auth-tab.tsx": {
+  "function_lines": 261,
+  "complexity": 16,
+  "file_lines": 624
+ },
+ "src/pages/insurance/rules-tab.tsx": {
+  "function_lines": 73,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/insurance/verification-tab.tsx": {
+  "function_lines": 61,
+  "complexity": 5,
+  "file_lines": 302
+ },
+ "src/pages/inter-hospital-stock.tsx": {
+  "function_lines": 33,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/inter-hospital-transfers.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd-workspace.ts": {
+  "function_lines": 0,
+  "complexity": 15,
+  "file_lines": 672
+ },
+ "src/pages/ipd/FinalBillChecklist.tsx": {
+  "function_lines": 44,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/pages/ipd/admission-detail.tsx": {
+  "function_lines": 454,
+  "complexity": 24,
+  "file_lines": 972
+ },
+ "src/pages/ipd/admission-form.tsx": {
+  "function_lines": 101,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/admissions.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/assessments.tsx": {
+  "function_lines": 138,
+  "complexity": 0,
+  "file_lines": 332
+ },
+ "src/pages/ipd/attenders.tsx": {
+  "function_lines": 52,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/bed-dashboard.tsx": {
+  "function_lines": 368,
+  "complexity": 24,
+  "file_lines": 653
+ },
+ "src/pages/ipd/bed-transfer-modal.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/bed-turnaround.tsx": {
+  "function_lines": 0,
+  "complexity": 6,
+  "file_lines": 0
+ },
+ "src/pages/ipd/billing.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/birth-records.tsx": {
+  "function_lines": 93,
+  "complexity": 6,
+  "file_lines": 0
+ },
+ "src/pages/ipd/checklist.tsx": {
+  "function_lines": 27,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/clinical-docs.tsx": {
+  "function_lines": 94,
+  "complexity": 2,
+  "file_lines": 450
+ },
+ "src/pages/ipd/death-summary.tsx": {
+  "function_lines": 67,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/discharge-summary.tsx": {
+  "function_lines": 130,
+  "complexity": 9,
+  "file_lines": 342
+ },
+ "src/pages/ipd/discharge-tab.tsx": {
+  "function_lines": 34,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/discharge-tat.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/insurance-pa.tsx": {
+  "function_lines": 0,
+  "complexity": 24,
+  "file_lines": 0
+ },
+ "src/pages/ipd/ip-type-config.tsx": {
+  "function_lines": 23,
+  "complexity": 9,
+  "file_lines": 0
+ },
+ "src/pages/ipd/nursing-assessment-form.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/nursing-care-plan-form.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/overview.tsx": {
+  "function_lines": 26,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/patient-scores.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/transfer-log.tsx": {
+  "function_lines": 13,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ipd/ward-beds-panel.tsx": {
+  "function_lines": 53,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/kiosk/self-checkin.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab.tsx": {
+  "function_lines": 153,
+  "complexity": 18,
+  "file_lines": 534
+ },
+ "src/pages/lab/AnalyserReviewModal.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/b2b-clients.tsx": {
+  "function_lines": 133,
+  "complexity": 0,
+  "file_lines": 307
+ },
+ "src/pages/lab/b2b-rates.tsx": {
+  "function_lines": 69,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/calibrations.tsx": {
+  "function_lines": 57,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/catalog.tsx": {
+  "function_lines": 302,
+  "complexity": 0,
+  "file_lines": 502
+ },
+ "src/pages/lab/collection-centers.tsx": {
+  "function_lines": 90,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/cumulative-drawer.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/cytology.tsx": {
+  "function_lines": 89,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/dispatch-create.tsx": {
+  "function_lines": 12,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/dispatch.tsx": {
+  "function_lines": 59,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/eqas.tsx": {
+  "function_lines": 175,
+  "complexity": 0,
+  "file_lines": 375
+ },
+ "src/pages/lab/histopath.tsx": {
+  "function_lines": 91,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/home-collections.tsx": {
+  "function_lines": 108,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/molecular.tsx": {
+  "function_lines": 98,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/nabl-documents.tsx": {
+  "function_lines": 116,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/order-create.tsx": {
+  "function_lines": 107,
+  "complexity": 0,
+  "file_lines": 348
+ },
+ "src/pages/lab/order-detail.tsx": {
+  "function_lines": 500,
+  "complexity": 28,
+  "file_lines": 1114
+ },
+ "src/pages/lab/outsourced.tsx": {
+  "function_lines": 72,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/panels.tsx": {
+  "function_lines": 122,
+  "complexity": 0,
+  "file_lines": 317
+ },
+ "src/pages/lab/phlebotomy.tsx": {
+  "function_lines": 39,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/proficiency-testing.tsx": {
+  "function_lines": 120,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/qc-results.tsx": {
+  "function_lines": 165,
+  "complexity": 0,
+  "file_lines": 487
+ },
+ "src/pages/lab/reagent-lots.tsx": {
+  "function_lines": 123,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/referral-credit.tsx": {
+  "function_lines": 41,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/sample-archive.tsx": {
+  "function_lines": 41,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/lab/tat-analytics.tsx": {
+  "function_lines": 32,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/login.tsx": {
+  "function_lines": 0,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/long-term-care.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/long-term-care/family-panel.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/long-term-care/medications-panel.tsx": {
+  "function_lines": 29,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/long-term-care/readmission-risk-panel.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/long-term-care/referral-panel.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/long-term-care/snf-panel.tsx": {
+  "function_lines": 19,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing.tsx": {
+  "function_lines": 0,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/marketing/add-touchpoint-modal.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/callbacks-tab.tsx": {
+  "function_lines": 95,
+  "complexity": 0,
+  "file_lines": 345
+ },
+ "src/pages/marketing/campaigns-tab.tsx": {
+  "function_lines": 145,
+  "complexity": 0,
+  "file_lines": 339
+ },
+ "src/pages/marketing/camps-panel.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/catchment-map.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/channels-tab.tsx": {
+  "function_lines": 43,
+  "complexity": 0,
+  "file_lines": 312
+ },
+ "src/pages/marketing/cohorts-tab.tsx": {
+  "function_lines": 161,
+  "complexity": 0,
+  "file_lines": 423
+ },
+ "src/pages/marketing/convert-lead-modal.tsx": {
+  "function_lines": 30,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/distribution-form.tsx": {
+  "function_lines": 128,
+  "complexity": 0,
+  "file_lines": 391
+ },
+ "src/pages/marketing/distributions-tab.tsx": {
+  "function_lines": 36,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/enquiries-tab.tsx": {
+  "function_lines": 72,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/enquiry-detail-drawer.tsx": {
+  "function_lines": 57,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/pages/marketing/funnel-tab.tsx": {
+  "function_lines": 47,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/outreach-tab.tsx": {
+  "function_lines": 81,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/run-detail-drawer.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/screen-pop-tab.tsx": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/pages/marketing/settings-tab.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/stage-progression.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/marketing/suppression-list.tsx": {
+  "function_lines": 56,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/materials.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/mrd.tsx": {
+  "function_lines": 61,
+  "complexity": 15,
+  "file_lines": 0
+ },
+ "src/pages/nurse-activities.tsx": {
+  "function_lines": 56,
+  "complexity": 18,
+  "file_lines": 352
+ },
+ "src/pages/nurse-activities/code-blue-tab.tsx": {
+  "function_lines": 40,
+  "complexity": 2,
+  "file_lines": 302
+ },
+ "src/pages/nurse-activities/handoff-workflow-panel.tsx": {
+  "function_lines": 50,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/nurse-activities/io-tab.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 312
+ },
+ "src/pages/nurse-activities/roster-tab.tsx": {
+  "function_lines": 68,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/nurse-activities/safety-tab.tsx": {
+  "function_lines": 162,
+  "complexity": 8,
+  "file_lines": 496
+ },
+ "src/pages/nurse-activities/vitals-tab.tsx": {
+  "function_lines": 45,
+  "complexity": 1,
+  "file_lines": 352
+ },
+ "src/pages/occupational-health/ExposuresPanel.tsx": {
+  "function_lines": 70,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/occupational-health/drug-screens-panel.tsx": {
+  "function_lines": 69,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/occupational-health/hazard-registry-panel.tsx": {
+  "function_lines": 50,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/occupational-health/injuries-panel.tsx": {
+  "function_lines": 155,
+  "complexity": 0,
+  "file_lines": 376
+ },
+ "src/pages/occupational-health/screenings-panel.tsx": {
+  "function_lines": 278,
+  "complexity": 10,
+  "file_lines": 663
+ },
+ "src/pages/occupational-health/vaccinations-panel.tsx": {
+  "function_lines": 76,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/AdminStep.tsx": {
+  "function_lines": 69,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/BedConfigStep.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/BillingTaxStep.tsx": {
+  "function_lines": 83,
+  "complexity": 0,
+  "file_lines": 346
+ },
+ "src/pages/onboarding/DepartmentsStep.tsx": {
+  "function_lines": 106,
+  "complexity": 0,
+  "file_lines": 381
+ },
+ "src/pages/onboarding/FacilitiesStep.tsx": {
+  "function_lines": 63,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/GeoRegulatoryStep.tsx": {
+  "function_lines": 22,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/HospitalStep.tsx": {
+  "function_lines": 51,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/LocationsStep.tsx": {
+  "function_lines": 28,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/ModulesStep.tsx": {
+  "function_lines": 14,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/ReviewStep.tsx": {
+  "function_lines": 53,
+  "complexity": 8,
+  "file_lines": 306
+ },
+ "src/pages/onboarding/SequencesStep.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/ServicesStep.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/onboarding/UsersStep.tsx": {
+  "function_lines": 145,
+  "complexity": 0,
+  "file_lines": 394
+ },
+ "src/pages/onboarding/index.tsx": {
+  "function_lines": 33,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd.tsx": {
+  "function_lines": 40,
+  "complexity": 0,
+  "file_lines": 452
+ },
+ "src/pages/opd/NewConsentModal.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/admit-to-ipd-button.tsx": {
+  "function_lines": 58,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/consultation.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/encounter-detail.tsx": {
+  "function_lines": 260,
+  "complexity": 0,
+  "file_lines": 676
+ },
+ "src/pages/opd/follow-up.tsx": {
+  "function_lines": 67,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/group-appointment-modal.tsx": {
+  "function_lines": 71,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/investigations.tsx": {
+  "function_lines": 183,
+  "complexity": 9,
+  "file_lines": 625
+ },
+ "src/pages/opd/page-inner.tsx": {
+  "function_lines": 360,
+  "complexity": 11,
+  "file_lines": 700
+ },
+ "src/pages/opd/prescriptions.tsx": {
+  "function_lines": 69,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/referral-actions.tsx": {
+  "function_lines": 15,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/specialty-tab.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/today-appointments-panel.tsx": {
+  "function_lines": 39,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/opd/visit-form.tsx": {
+  "function_lines": 124,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/vitals-counter.tsx": {
+  "function_lines": 46,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/opd/vitals.tsx": {
+  "function_lines": 44,
+  "complexity": 5,
+  "file_lines": 0
+ },
+ "src/pages/opd/workflow-tabs.tsx": {
+  "function_lines": 597,
+  "complexity": 10,
+  "file_lines": 2581
+ },
+ "src/pages/order-sets/builder-tab.tsx": {
+  "function_lines": 217,
+  "complexity": 0,
+  "file_lines": 465
+ },
+ "src/pages/order-sets/templates-tab.tsx": {
+  "function_lines": 146,
+  "complexity": 0,
+  "file_lines": 357
+ },
+ "src/pages/ot.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ot/BookingConsentPanel.tsx": {
+  "function_lines": 20,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ot/anesthesia-tab.tsx": {
+  "function_lines": 58,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ot/bookings-tab.tsx": {
+  "function_lines": 154,
+  "complexity": 0,
+  "file_lines": 520
+ },
+ "src/pages/ot/case-record-tab.tsx": {
+  "function_lines": 138,
+  "complexity": 14,
+  "file_lines": 304
+ },
+ "src/pages/ot/checklist-tab.tsx": {
+  "function_lines": 19,
+  "complexity": 10,
+  "file_lines": 0
+ },
+ "src/pages/ot/handoff-cards.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ot/overview-tab.tsx": {
+  "function_lines": 57,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/pages/ot/postop-tab.tsx": {
+  "function_lines": 117,
+  "complexity": 10,
+  "file_lines": 0
+ },
+ "src/pages/ot/preop-tab.tsx": {
+  "function_lines": 125,
+  "complexity": 3,
+  "file_lines": 0
+ },
+ "src/pages/ot/schedule-tab.tsx": {
+  "function_lines": 14,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/patient-detail/allergies-tab.tsx": {
+  "function_lines": 126,
+  "complexity": 0,
+  "file_lines": 341
+ },
+ "src/pages/patient-detail/billing-tab.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 347
+ },
+ "src/pages/patient-detail/chronic-care-tab.tsx": {
+  "function_lines": 56,
+  "complexity": 1,
+  "file_lines": 688
+ },
+ "src/pages/patient-detail/documents-tab.tsx": {
+  "function_lines": 53,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/patient-detail/family-links-tab.tsx": {
+  "function_lines": 50,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/patient-detail/growth-tab.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/patient-detail/immunizations-tab.tsx": {
+  "function_lines": 102,
+  "complexity": 0,
+  "file_lines": 305
+ },
+ "src/pages/patient-detail/merge-tab.tsx": {
+  "function_lines": 56,
+  "complexity": 0,
+  "file_lines": 371
+ },
+ "src/pages/patient-detail/overview-tab.tsx": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/pages/patient-detail/page-inner.tsx": {
+  "function_lines": 287,
+  "complexity": 60,
+  "file_lines": 688
+ },
+ "src/pages/patient-edit.tsx": {
+  "function_lines": 47,
+  "complexity": 7,
+  "file_lines": 0
+ },
+ "src/pages/patients.tsx": {
+  "function_lines": 155,
+  "complexity": 0,
+  "file_lines": 449
+ },
+ "src/pages/patients/register-page-inner.tsx": {
+  "function_lines": 255,
+  "complexity": 27,
+  "file_lines": 585
+ },
+ "src/pages/pg-logbook.tsx": {
+  "function_lines": 74,
+  "complexity": 0,
+  "file_lines": 441
+ },
+ "src/pages/pharmacy-finance.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy-finance/day-close-form.tsx": {
+  "function_lines": 25,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy-finance/day-close-tab.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy-finance/open-drawer-modal.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/arrange-delivery-drawer.tsx": {
+  "function_lines": 46,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/catalog.tsx": {
+  "function_lines": 315,
+  "complexity": 4,
+  "file_lines": 561
+ },
+ "src/pages/pharmacy/create-return-modal.tsx": {
+  "function_lines": 124,
+  "complexity": 0,
+  "file_lines": 301
+ },
+ "src/pages/pharmacy/deliveries.tsx": {
+  "function_lines": 15,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/delivery-actions.tsx": {
+  "function_lines": 45,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/dispatch-view.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/fulfilment-queue.tsx": {
+  "function_lines": 128,
+  "complexity": 0,
+  "file_lines": 367
+ },
+ "src/pages/pharmacy/ndps-register.tsx": {
+  "function_lines": 116,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/nppa-ceilings.tsx": {
+  "function_lines": 27,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/online-order-review.tsx": {
+  "function_lines": 32,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/online-orders.tsx": {
+  "function_lines": 26,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/online-refunds.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/online-returns.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/order-detail.tsx": {
+  "function_lines": 237,
+  "complexity": 41,
+  "file_lines": 573
+ },
+ "src/pages/pharmacy/order-form.tsx": {
+  "function_lines": 61,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/orders.tsx": {
+  "function_lines": 198,
+  "complexity": 5,
+  "file_lines": 419
+ },
+ "src/pages/pharmacy/page-inner.tsx": {
+  "function_lines": 178,
+  "complexity": 98,
+  "file_lines": 371
+ },
+ "src/pages/pharmacy/pos-counter.tsx": {
+  "function_lines": 534,
+  "complexity": 30,
+  "file_lines": 1058
+ },
+ "src/pages/pharmacy/pos-return-form.tsx": {
+  "function_lines": 53,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/quarantine.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/returns.tsx": {
+  "function_lines": 94,
+  "complexity": 1,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/rx-billing-estimate.tsx": {
+  "function_lines": 106,
+  "complexity": 6,
+  "file_lines": 318
+ },
+ "src/pages/pharmacy/rx-detail-view.tsx": {
+  "function_lines": 52,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/rx-queue.tsx": {
+  "function_lines": 333,
+  "complexity": 29,
+  "file_lines": 615
+ },
+ "src/pages/pharmacy/shared.tsx": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 631
+ },
+ "src/pages/pharmacy/stock.tsx": {
+  "function_lines": 406,
+  "complexity": 35,
+  "file_lines": 956
+ },
+ "src/pages/pharmacy/storefront-rules.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/storefront-settings.tsx": {
+  "function_lines": 23,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/substitute-panel.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/transfer-create-drawer.tsx": {
+  "function_lines": 80,
+  "complexity": 2,
+  "file_lines": 305
+ },
+ "src/pages/pharmacy/transfers-view.tsx": {
+  "function_lines": 69,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/pharmacy/verify-view.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/portal/index.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/portal/portal-privacy.tsx": {
+  "function_lines": 29,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/portal/portal-refill-choice.tsx": {
+  "function_lines": 27,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/privacy-compliance/DrillsTab.tsx": {
+  "function_lines": 52,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/privacy-compliance/PoliciesTab.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/privacy-compliance/PolicyEditorModal.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/procurement.tsx": {
+  "function_lines": 50,
+  "complexity": 13,
+  "file_lines": 0
+ },
+ "src/pages/procurement/grn-create-form.tsx": {
+  "function_lines": 82,
+  "complexity": 0,
+  "file_lines": 349
+ },
+ "src/pages/procurement/grn-panel.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/procurement/grn-scan-panel.tsx": {
+  "function_lines": 27,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/procurement/grn-scan-review.tsx": {
+  "function_lines": 82,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/procurement/purchase-order-panel.tsx": {
+  "function_lines": 192,
+  "complexity": 0,
+  "file_lines": 622
+ },
+ "src/pages/procurement/rate-contract-panel.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/procurement/supplier-payments-panel.tsx": {
+  "function_lines": 63,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/procurement/vendor-panel.tsx": {
+  "function_lines": 63,
+  "complexity": 0,
+  "file_lines": 320
+ },
+ "src/pages/profile.tsx": {
+  "function_lines": 33,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/profile/my-leave-card.tsx": {
+  "function_lines": 50,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/public-booking.tsx": {
+  "function_lines": 94,
+  "complexity": 0,
+  "file_lines": 417
+ },
+ "src/pages/public-enquiry.tsx": {
+  "function_lines": 12,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/quality/accreditation-tab.tsx": {
+  "function_lines": 223,
+  "complexity": 3,
+  "file_lines": 549
+ },
+ "src/pages/quality/analytics-reviews-tab.tsx": {
+  "function_lines": 142,
+  "complexity": 1,
+  "file_lines": 387
+ },
+ "src/pages/quality/audits-tab.tsx": {
+  "function_lines": 212,
+  "complexity": 6,
+  "file_lines": 537
+ },
+ "src/pages/quality/committees-tab.tsx": {
+  "function_lines": 199,
+  "complexity": 1,
+  "file_lines": 522
+ },
+ "src/pages/quality/documents-tab.tsx": {
+  "function_lines": 181,
+  "complexity": 1,
+  "file_lines": 444
+ },
+ "src/pages/quality/incidents-tab.tsx": {
+  "function_lines": 353,
+  "complexity": 13,
+  "file_lines": 780
+ },
+ "src/pages/quality/indicators-tab.tsx": {
+  "function_lines": 290,
+  "complexity": 12,
+  "file_lines": 618
+ },
+ "src/pages/radiology/PacsSettingsCard.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/appointments-tab.tsx": {
+  "function_lines": 78,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/create-order-drawer.tsx": {
+  "function_lines": 173,
+  "complexity": 0,
+  "file_lines": 329
+ },
+ "src/pages/radiology/dosimetry-panel.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/exam-form-drawer.tsx": {
+  "function_lines": 70,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/exams-tab.tsx": {
+  "function_lines": 35,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/link-study-modal.tsx": {
+  "function_lines": 4,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/modalities-tab.tsx": {
+  "function_lines": 79,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/pages/radiology/order-detail-drawer.tsx": {
+  "function_lines": 74,
+  "complexity": 8,
+  "file_lines": 0
+ },
+ "src/pages/radiology/pregnancy-check-card.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/radiation-equipment-panel.tsx": {
+  "function_lines": 33,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/radiology-orders-tab.tsx": {
+  "function_lines": 97,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/radiology/reference-levels-panel.tsx": {
+  "function_lines": 9,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/adr-tab.tsx": {
+  "function_lines": 186,
+  "complexity": 0,
+  "file_lines": 437
+ },
+ "src/pages/regulatory/calendar-tab.tsx": {
+  "function_lines": 42,
+  "complexity": 5,
+  "file_lines": 601
+ },
+ "src/pages/regulatory/checklist-detail-drawer.tsx": {
+  "function_lines": 82,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/checklists-tab.tsx": {
+  "function_lines": 42,
+  "complexity": 0,
+  "file_lines": 376
+ },
+ "src/pages/regulatory/complete-form-f-drawer.tsx": {
+  "function_lines": 66,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/create-checklist-drawer.tsx": {
+  "function_lines": 59,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/dashboard-tab.tsx": {
+  "function_lines": 49,
+  "complexity": 1,
+  "file_lines": 457
+ },
+ "src/pages/regulatory/license-dashboard-tab.tsx": {
+  "function_lines": 32,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/mock-surveys-tab.tsx": {
+  "function_lines": 56,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/nabl-documents-tab.tsx": {
+  "function_lines": 2,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/pcpndt-tab.tsx": {
+  "function_lines": 65,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/regulatory/submissions-tab.tsx": {
+  "function_lines": 54,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/remote-access.tsx": {
+  "function_lines": 14,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/reports.tsx": {
+  "function_lines": 129,
+  "complexity": 2,
+  "file_lines": 376
+ },
+ "src/pages/reports/chart-options.ts": {
+  "function_lines": 0,
+  "complexity": 20,
+  "file_lines": 0
+ },
+ "src/pages/reports/report-catalog.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 1051
+ },
+ "src/pages/reports/report-helpers.tsx": {
+  "function_lines": 0,
+  "complexity": 1,
+  "file_lines": 378
+ },
+ "src/pages/retrospective.tsx": {
+  "function_lines": 31,
+  "complexity": 0,
+  "file_lines": 463
+ },
+ "src/pages/scheduling/analytics-tab.tsx": {
+  "function_lines": 38,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/scheduling/overbooking-tab.tsx": {
+  "function_lines": 153,
+  "complexity": 0,
+  "file_lines": 331
+ },
+ "src/pages/scheduling/predictions-tab.tsx": {
+  "function_lines": 28,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/scheduling/recurring-blocks-tab.tsx": {
+  "function_lines": 169,
+  "complexity": 0,
+  "file_lines": 376
+ },
+ "src/pages/scheduling/waitlist-tab.tsx": {
+  "function_lines": 169,
+  "complexity": 0,
+  "file_lines": 414
+ },
+ "src/pages/security/access-control-tab.tsx": {
+  "function_lines": 242,
+  "complexity": 0,
+  "file_lines": 526
+ },
+ "src/pages/security/breach-assessment-form.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/security/cctv-tab.tsx": {
+  "function_lines": 45,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/security/code-debriefs-tab.tsx": {
+  "function_lines": 45,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/security/incidents-tab.tsx": {
+  "function_lines": 122,
+  "complexity": 0,
+  "file_lines": 330
+ },
+ "src/pages/security/intelligence/findings-table.tsx": {
+  "function_lines": 43,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/security/intelligence/internal-tab.tsx": {
+  "function_lines": 17,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/security/medbrains-access/MedbrainsAccessPage.tsx": {
+  "function_lines": 56,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/security/medbrains-access/grant-form.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/security/patient-safety-tab.tsx": {
+  "function_lines": 165,
+  "complexity": 0,
+  "file_lines": 388
+ },
+ "src/pages/security/tag-event-panel.tsx": {
+  "function_lines": 18,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/setup/domains-email.tsx": {
+  "function_lines": 172,
+  "complexity": 12,
+  "file_lines": 576
+ },
+ "src/pages/setup/index.tsx": {
+  "function_lines": 1,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/AncVisitDrawer.tsx": {
+  "function_lines": 32,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/cancer-registry/AbstractModal.tsx": {
+  "function_lines": 22,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/cancer-registry/index.tsx": {
+  "function_lines": 22,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/cath-lab.tsx": {
+  "function_lines": 139,
+  "complexity": 0,
+  "file_lines": 408
+ },
+ "src/pages/specialty/dental.tsx": {
+  "function_lines": 8,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/dental/ChartTab.tsx": {
+  "function_lines": 51,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/dental/PerioTab.tsx": {
+  "function_lines": 11,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/dental/PerioToothForm.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/dental/TreatmentTab.tsx": {
+  "function_lines": 40,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/dialysis/dialyzer-picker.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/dialysis/machines-panel.tsx": {
+  "function_lines": 16,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/dialysis/shifts-panel.tsx": {
+  "function_lines": 21,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/endoscopy.tsx": {
+  "function_lines": 142,
+  "complexity": 0,
+  "file_lines": 377
+ },
+ "src/pages/specialty/maternity.tsx": {
+  "function_lines": 262,
+  "complexity": 10,
+  "file_lines": 649
+ },
+ "src/pages/specialty/ophtho/ExamDrawer.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/ophtho/ExamFields.tsx": {
+  "function_lines": 52,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/other.tsx": {
+  "function_lines": 481,
+  "complexity": 24,
+  "file_lines": 902
+ },
+ "src/pages/specialty/palliative.tsx": {
+  "function_lines": 297,
+  "complexity": 36,
+  "file_lines": 602
+ },
+ "src/pages/specialty/pmr.tsx": {
+  "function_lines": 155,
+  "complexity": 0,
+  "file_lines": 390
+ },
+ "src/pages/specialty/psychiatry.tsx": {
+  "function_lines": 10,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/AdmissionForm.tsx": {
+  "function_lines": 83,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/AdmissionsTab.tsx": {
+  "function_lines": 58,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/AssessmentsTab.tsx": {
+  "function_lines": 12,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/CounselingTab.tsx": {
+  "function_lines": 31,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/DirectiveSection.tsx": {
+  "function_lines": 77,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/EctTab.tsx": {
+  "function_lines": 55,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/MhrbTab.tsx": {
+  "function_lines": 28,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/PsychOverviewTab.tsx": {
+  "function_lines": 7,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/RegisterPsychPatientModal.tsx": {
+  "function_lines": 24,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/RepresentativeSection.tsx": {
+  "function_lines": 46,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/specialty/psychiatry/RestraintTab.tsx": {
+  "function_lines": 134,
+  "complexity": 0,
+  "file_lines": 320
+ },
+ "src/pages/specialty/psychiatry/ScreeningsTab.tsx": {
+  "function_lines": 37,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/store/store-cart.tsx": {
+  "function_lines": 38,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/store/store-sign-in.tsx": {
+  "function_lines": 5,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/telemedicine.tsx": {
+  "function_lines": 203,
+  "complexity": 0,
+  "file_lines": 509
+ },
+ "src/pages/terminology/SnomedAnalyticsTab.tsx": {
+  "function_lines": 3,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/terminology/SnomedBrowseTab.tsx": {
+  "function_lines": 24,
+  "complexity": 2,
+  "file_lines": 0
+ },
+ "src/pages/token-console.tsx": {
+  "function_lines": 196,
+  "complexity": 25,
+  "file_lines": 441
+ },
+ "src/pages/trial/account-step.tsx": {
+  "function_lines": 12,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/tv-displays.tsx": {
+  "function_lines": 53,
+  "complexity": 0,
+  "file_lines": 332
+ },
+ "src/pages/tv-displays/announcements-tab.tsx": {
+  "function_lines": 6,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/tv-displays/displays-tab.tsx": {
+  "function_lines": 193,
+  "complexity": 0,
+  "file_lines": 471
+ },
+ "src/pages/tv-displays/queue-tokens-tab.tsx": {
+  "function_lines": 245,
+  "complexity": 0,
+  "file_lines": 662
+ },
+ "src/pages/uhi-requests.tsx": {
+  "function_lines": 29,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/utilization-review/los-monitoring-tab.tsx": {
+  "function_lines": 43,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/utilization-review/payer-log-tab.tsx": {
+  "function_lines": 54,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/utilization-review/reviews-tab.tsx": {
+  "function_lines": 186,
+  "complexity": 0,
+  "file_lines": 461
+ },
+ "src/pages/utilization-review/status-tracking-tab.tsx": {
+  "function_lines": 53,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/pages/ward-stock.tsx": {
+  "function_lines": 90,
+  "complexity": 0,
+  "file_lines": 0
+ },
+ "src/utils/printCopies.ts": {
+  "function_lines": 0,
+  "complexity": 0,
+  "file_lines": 453
+ }
+}

@@ -8,7 +8,9 @@ Fails when:
     menu would still show it with the brick off;
   - the module seed list names no brick, or its dependencies differ from the table;
   - a permission group in permissions.rs is placed nowhere (no brick, not the base plate, not
-    listed as a brick still to be made).
+    listed as a brick still to be made);
+  - the server's main.rs starts a job (`path::spawn(`) that is not a platform job, so it would run
+    with its brick off: brick jobs go in BRICK_JOBS and are started by the supervisor.
 
 Reports, and ratchets: bricks whose routes have no server module check yet, so switching them off
 only hides the menu. The number may fall, never rise (`UNGUARDED_CEILING`).
@@ -26,6 +28,8 @@ PERMISSIONS = ROOT / "crates/medbrains-core/src/permissions.rs"
 SEED = ROOT / "crates/medbrains-seed/src/module_config.rs"
 NAV = ROOT / "apps/web/src/config/navigation.ts"
 CRATES = ROOT / "crates"
+SERVER_MAIN = ROOT / "crates/medbrains-server/src/main.rs"
+BRICK_JOBS_RS = ROOT / "crates/medbrains-server/src/services/brick_jobs.rs"
 
 # Bricks switched off by the Modules screen whose API still answers. Lower this as checks land.
 UNGUARDED_CEILING = 0
@@ -118,6 +122,17 @@ def seed_rows() -> dict[str, list[str]]:
     return {code: strings(deps) for code, deps in rows}
 
 
+def unplaced_jobs() -> list[str]:
+    """Jobs main.rs starts by path that PLATFORM_JOBS does not list."""
+    text = BRICK_JOBS_RS.read_text()
+    start = text.index("pub const PLATFORM_JOBS")
+    platform = set(re.findall(r'"([a-z_:]+)"', text[start : text.index("];", start)]))
+    main = SERVER_MAIN.read_text()
+    called = re.findall(r"([a-z_]+(?:::[a-z_]+)*)::spawn\(", main)
+    jobs = {c.removeprefix("medbrains_server::services::") for c in called if c != "tokio"}
+    return [f"main.rs starts job {job} with no brick: add it to BRICK_JOBS or PLATFORM_JOBS" for job in sorted(jobs - platform)]
+
+
 def main() -> int:
     """Run every check, print the ratchet line and each failure; 1 if anything failed."""
     bricks, placed = read_bricks()
@@ -135,6 +150,7 @@ def main() -> int:
         elif sorted(deps) != sorted(bricks[code]["deps"]):
             problems.append(f"seed dependencies for {code} {deps} differ from bricks.rs {bricks[code]['deps']}")
     problems += untagged_menu_entries(bricks, placed)
+    problems += unplaced_jobs()
     in_bricks = {group for brick in bricks.values() for group in brick["groups"]}
     for group in sorted(permission_groups() - in_bricks - placed):
         problems.append(f"permission group placed nowhere: {group} (add it to a brick, BASE_PLATE or NOT_YET_BRICKS)")

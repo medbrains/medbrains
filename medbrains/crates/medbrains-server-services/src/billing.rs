@@ -48,9 +48,7 @@ pub struct BatchTrace {
 #[derive(Debug)]
 pub struct AutoChargeResult {
     pub invoice_id: Uuid,
-    #[allow(dead_code)]
     pub item_id: Uuid,
-    #[allow(dead_code)]
     pub was_new_invoice: bool,
     pub skipped_duplicate: bool,
 }
@@ -144,16 +142,16 @@ pub async fn verified_admission_id_for_invoice_in_tx(
     admission_id_for_encounter_in_tx(tx, tenant_id, encounter_id).await
 }
 
-/// Check if auto-billing is enabled for a specific module.
+/// Whether auto-billing is on for `module`: never while the Billing brick is off.
 ///
-/// A read error is returned, never read as "off". Callers posting a charge go
-/// through `charge_or_queue`, which reads this in a savepoint and queues the
-/// charge when the answer is unknown.
+/// A read error is returned, never read as "off". Callers posting a charge go through
+/// `charge_or_queue`, which reads this in a savepoint and queues the charge when unknown.
 pub async fn is_auto_billing_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     module: &str,
 ) -> Result<bool, AppError> {
+    let brick_on = crate::billing_lanes::billing_brick_on(tx, tenant_id).await?;
     let key = format!("auto_charge_{module}");
     let val = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
@@ -165,7 +163,7 @@ pub async fn is_auto_billing_enabled(
     .await?;
 
     match val {
-        Some(v) => Ok(v.as_bool().unwrap_or_else(|| v.as_str() == Some("true"))),
+        Some(v) => Ok(brick_on && v.as_bool().unwrap_or_else(|| v.as_str() == Some("true"))),
         // Default-on: auto-billing should be the standard behaviour
         // when a clinical action (lab order completed, Rx dispensed,
         // imaging reported) emits its event. Operators can disable
@@ -173,7 +171,7 @@ pub async fn is_auto_billing_enabled(
         // tenant_settings. This is opposite to the prior default
         // (false) which silently dropped charges and triggered the
         // "consumption report not affected after dispense" feedback.
-        None => Ok(true),
+        None => Ok(brick_on),
     }
 }
 

@@ -29,13 +29,15 @@ use medbrains_server_core::state::AppState;
 
 // ── Helper: fetch hospital name from tenants table ───────
 
+/// The hospital name printed in a document header, read from `tenants`;
+/// takes a bare connection so a kernel unit of work can call it too.
 pub(crate) async fn hospital_name(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
 ) -> Result<Option<String>, AppError> {
     let name = sqlx::query_scalar::<_, Option<String>>("SELECT name FROM tenants WHERE id = $1")
         .bind(tenant_id)
-        .fetch_optional(&mut **tx)
+        .fetch_optional(&mut *conn)
         .await?
         .flatten();
     Ok(name)

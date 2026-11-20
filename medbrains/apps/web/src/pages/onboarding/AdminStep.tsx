@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Divider, Progress, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import type { OnboardingInitInput } from "@medbrains/schemas";
-import { onboardingInitSchema } from "@medbrains/schemas";
+import { onboardingInitSchema, PASSWORD_RULE } from "@medbrains/schemas";
 import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
 import { applyServerErrors } from "@medbrains/utils";
 import { IconBuildingHospital, IconLock, IconMail, IconUser } from "@tabler/icons-react";
@@ -218,7 +218,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
             <div>
               <TextInput
                 label="Password"
-                placeholder="Minimum 8 characters"
+                description={PASSWORD_RULE}
                 withAsterisk
                 leftSection={<IconLock size={16} />}
                 type="password"

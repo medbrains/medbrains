@@ -11,11 +11,12 @@ use axum::extract::{Path, State};
 use axum::{Extension, Json};
 use chrono::NaiveDate;
 use medbrains_core::permissions;
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use medbrains_pharmacy::MedicationSafetyWarning;
 use medbrains_pharmacy::rx_safety::{self, RxLine};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_any_permission;
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use sqlx::{Postgres, Transaction};
@@ -183,9 +184,9 @@ async fn audit(
     action: &str,
     values: &serde_json::Value,
 ) -> Result<(), AppError> {
-    medbrains_db::audit::AuditLogger::log(
+    kernel::audit::append(
         tx,
-        &medbrains_db::audit::AuditEntry {
+        &kernel::audit::AuditEntry {
             tenant_id: claims.tenant_id,
             user_id: Some(claims.sub),
             action,
@@ -217,17 +218,16 @@ pub async fn list_live_stewardship_requests(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<LiveStewardshipRequest>>, AppError> {
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::opd::visit::UPDATE,
             permissions::nurse::prescriptions::DRAFT,
         ],
     )?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    gate::require_patient_access(&state, &claims, patient_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let rows = sqlx::query_as::<_, LiveStewardshipRequest>(
         "SELECT id, antibiotic_name, request_status::text AS request_status, auto_stop_date \
            FROM antibiotic_stewardship_requests \

@@ -120,8 +120,8 @@ Settings → System health** shows the age of the last good one and turns red
 after 26 h. `medbrains-host-check` (hourly) pages through `ALERT_TOPIC_ARN`
 on the same threshold, and a failed run pages via `OnFailure=`.
 
-RPO 24 h (≤ 5 min with WAL-G opted in); RTO ≈ 2 h for a lost host — see
-`docs/ops/BACKUP-RESTORE.md`.
+RPO 24 h (≤ 6 min with point-in-time recovery, `PITR_ENABLED=1`); RTO ≈ 2 h for a lost host — see
+`docs/ops/BACKUP-RESTORE.md` ("Backup quality matrix").
 
 ### Steps to switch it on (in order)
 

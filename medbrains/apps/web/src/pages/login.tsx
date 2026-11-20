@@ -65,7 +65,7 @@ export function LoginPage() {
     retry: false,
   });
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/home" replace />;
 
   const hospital = choosing ? null : options.data;
   return (
@@ -117,7 +117,7 @@ export function LoginPage() {
             <HospitalCodeStep
               initialCode={code ?? ""}
               unknownCode={!choosing && code && options.data === null ? code : null}
-              failed={!choosing && options.isError}
+              lookupError={!choosing && options.error}
               checking={options.isFetching}
               onSubmit={(next) => {
                 setChoosing(false);

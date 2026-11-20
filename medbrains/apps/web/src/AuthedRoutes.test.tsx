@@ -1,11 +1,8 @@
-import {
-  Children,
-  type ComponentType,
-  isValidElement,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import { APP_SCREENS } from "@medbrains/types";
+import type { ComponentType } from "react";
+import type { RouteObject } from "react-router";
 import { describe, expect, it, vi } from "vitest";
+import { appOfRoute, enabledRoutes } from "./layouts/appPanel";
 
 type Loader = () => Promise<{ default: ComponentType }>;
 
@@ -24,30 +21,61 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
-const { AuthedRoutes } = await import("./AuthedRoutes");
-
-interface RouteProps {
-  path?: string;
-  index?: boolean;
-  element?: ReactNode;
-  children?: ReactNode;
-}
+const { AUTHED_ROUTES } = await import("./AuthedRoutes");
 
 /** Lists the full address of every route in the tree, parents first. */
-function collectPaths(node: ReactNode, prefix: string, out: string[]): string[] {
-  Children.forEach(node, (child) => {
-    if (!isValidElement(child)) return;
-    const props = (child as ReactElement<RouteProps>).props;
-    const here = props.path ? `${prefix}/${props.path}` : prefix;
-    if (props.path || props.index) out.push(props.index ? `${here} (index)` : here);
-    collectPaths(props.children, here, out);
-  });
+function collectPaths(routes: RouteObject[], prefix = "", out: string[] = []): string[] {
+  for (const route of routes) {
+    const here = route.path ? `${prefix}/${route.path}` : prefix;
+    if (route.path || route.index) out.push(route.index ? `${here} (index)` : here);
+    collectPaths(route.children ?? [], here, out);
+  }
   return out;
 }
 
+/** Shell routes no app owns and no menu screen lists: home, errors, redirects, tools. */
+const SHELL_ROUTES = new Set([
+  "/home",
+  "/forbidden",
+  "/*",
+  "/admin/simulator",
+  "/oauth/callback",
+  "/components-inputs",
+  "/demo/dicom/*",
+  "/assistant",
+  "/remote-access",
+  "/profile",
+  "/assets",
+  "/specialty",
+  "/admin",
+  "/admin/device-integrations",
+  "/admin/integration-builder/*",
+  "/admin/tv-displays",
+]);
+
 describe("the signed-in routes", () => {
+  it("register no route of a switched-off app, and every route of the others", () => {
+    const all = collectPaths(AUTHED_ROUTES);
+    const left = collectPaths(enabledRoutes(AUTHED_ROUTES, new Set(["pharmacy", "lab"])));
+    const gone = all.filter((p) => !left.includes(p));
+    expect(gone).toContain("/pharmacy/orders/:orderId");
+    expect(gone).toContain("/ward-stock");
+    expect(gone.every((p) => ["pharmacy", "lab"].includes(appOfRoute(p) ?? ""))).toBe(true);
+    expect(left).toContain("/opd/encounters/:encounterId");
+  });
+
+  it("belong to a screen in the registry, or are named shell routes", () => {
+    // A brick's page at an address no registry screen covers would open with the brick off.
+    const covered = (p: string) =>
+      APP_SCREENS.some((screen) => p === screen.path || p.startsWith(`${screen.path}/`));
+    const unowned = collectPaths(AUTHED_ROUTES)
+      .map((p) => p.replace(" (index)", ""))
+      .filter((p) => !covered(p) && !SHELL_ROUTES.has(p));
+    expect(unowned).toEqual([]);
+  });
+
   it("give each address exactly one screen", () => {
-    const paths = collectPaths(AuthedRoutes().props.children, "", []);
+    const paths = collectPaths(AUTHED_ROUTES);
     const seen = new Set<string>();
     const duplicates = paths.filter((p) => seen.size === seen.add(p).size);
     expect(paths.length).toBeGreaterThan(100);

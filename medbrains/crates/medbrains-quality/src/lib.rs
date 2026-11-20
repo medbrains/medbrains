@@ -29,11 +29,12 @@ use medbrains_core::quality::{
     QualityCommitteeMeeting, QualityDocument, QualityDocumentAcknowledgment, QualityIncident,
     QualityIncidentListItem, QualityIndicator, QualityIndicatorValue,
 };
+use medbrains_core::quality_target::IndicatorDirection;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get, patch, post};
+use axum::routing::{get, patch, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::audit::ActorWithheld;
 use medbrains_server_core::middleware::auth::Claims;
@@ -65,7 +66,13 @@ pub struct CreateIndicatorRequest {
     pub target_value: Option<Decimal>,
     pub threshold_warning: Option<Decimal>,
     pub threshold_critical: Option<Decimal>,
-    pub auto_calculated: Option<bool>,
+    pub direction: IndicatorDirection,
+}
+
+/// Body of `PUT /api/quality/indicators/{id}/direction`.
+#[derive(Debug, Deserialize)]
+pub struct SetIndicatorDirectionRequest {
+    pub direction: IndicatorDirection,
 }
 
 #[derive(Debug, Deserialize)]
@@ -383,8 +390,8 @@ pub async fn create_indicator(
          (tenant_id, code, name, description, category, sub_category, \
           numerator_description, denominator_description, unit, \
           frequency, target_value, threshold_warning, threshold_critical, \
-          auto_calculated) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE($14,false)) \
+          direction) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -400,7 +407,7 @@ pub async fn create_indicator(
     .bind(body.target_value)
     .bind(body.threshold_warning)
     .bind(body.threshold_critical)
-    .bind(body.auto_calculated)
+    .bind(body.direction)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1760,68 +1767,38 @@ pub async fn update_audit(
     Ok(Json(row))
 }
 
-// ══════════════════════════════════════════════════════════
-//  Indicator auto-calculation handler
-// ══════════════════════════════════════════════════════════
-
-pub async fn calculate_indicator(
+/// Sets which way an indicator meets its target.
+///
+/// Rows created before the direction existed, and rows the migration could not
+/// classify, have none, and the NABH report refuses to call them met until set.
+pub async fn set_indicator_direction(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Json(body): Json<SetIndicatorDirectionRequest>,
+) -> Result<axum::http::StatusCode, AppError> {
     require_permission(&claims, permissions::quality::indicators::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
-    // Verify indicator exists
-    let _indicator = sqlx::query_as::<_, QualityIndicator>(
-        "SELECT * FROM quality_indicators WHERE id = $1 AND tenant_id = $2",
+    let direction = match body.direction {
+        IndicatorDirection::HigherBetter => "higher_better",
+        IndicatorDirection::LowerBetter => "lower_better",
+    };
+    sqlx::query_scalar!(
+        "UPDATE quality_indicators SET direction = $3, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING id",
+        id,
+        claims.tenant_id,
+        direction,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // For auto-calculated indicators, compute based on recent period
-    let now = chrono::Utc::now();
-    let period_start = (now - chrono::Duration::days(30)).date_naive();
-    let period_end = now.date_naive();
-
-    // Count-based calculation: count of existing values in the period
-    let value = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM quality_indicator_values \
-         WHERE indicator_id = $1 AND tenant_id = $2 AND period_start >= $3",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(period_start)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or(0);
-
-    let calculated = Decimal::from(value);
-
-    // Store the calculated value
-    let row = sqlx::query_as::<_, QualityIndicatorValue>(
-        "INSERT INTO quality_indicator_values \
-         (tenant_id, indicator_id, period_start, period_end, calculated_value, recorded_by) \
-         VALUES ($1, $2, $3, $4, $5, $6) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(id)
-    .bind(period_start)
-    .bind(period_end)
-    .bind(calculated)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"indicator_value": row})))
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2589,8 +2566,8 @@ pub fn router() -> axum::Router<AppState> {
             get(get_audit).patch(update_audit),
         )
         .route(
-            "/api/quality/indicators/{id}/calculate",
-            post(calculate_indicator),
+            "/api/quality/indicators/{id}/direction",
+            put(set_indicator_direction),
         )
         .route(
             "/api/quality/documents/{id}/pending-acks",

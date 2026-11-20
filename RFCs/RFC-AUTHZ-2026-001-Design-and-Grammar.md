@@ -1207,6 +1207,52 @@ visits, consultations, lab orders, documents, timeline); **financial** direct-on
 
 ---
 
+### 16.9 Combining the two engines while a revocation is in flight (#6028)
+
+`DurableSpiceDbBackend` used to allow a check when **either** engine said yes.
+Postgres revokes first and SpiceDB later (through the outbox), so a revoked
+grant kept answering yes until the SpiceDB delete landed, and two revocation
+paths never queued that delete at all: ending a break-glass session, and any
+revocation of a raw schema relation (`dept_member` and the like), which the
+outbox marked `skipped`.
+
+**The rule now.** Postgres `relation_tuples` is authoritative for whether a
+grant exists. Its yes stands on its own. A SpiceDB yes that Postgres does not
+share stands only while **no revocation that could reach the caller is pending
+in SpiceDB** — a tuple with `status = 'revoked'` and
+`spicedb_sync_status IN ('pending','failed')` whose subject is the caller, or
+any department, access-group or tuple-set subject (memberships are resolved
+inside SpiceDB, so they cannot be ruled out). While one is pending, Postgres
+alone answers. A fault in Postgres (including in that lookup) is unknown, never
+allow; a SpiceDB fault falls back to Postgres. `check`, `bulk_check` and
+`list_accessible` follow the same rule. Every revoke path now queues the
+SpiceDB delete in the same statement that revokes, raw relations are synced by
+name, and migration 1470 re-queues the revocations that never reached SpiceDB.
+
+Rejected: requiring both engines to agree (the schema-only relations below,
+including the 365 live `dept_member` tuples, would be refused everywhere —
+a ward-wide lockout rather than a closed hole); trusting SpiceDB alone (a
+SpiceDB outage would then refuse everything Postgres can answer).
+
+Known residual: SpiceDB reads use `minimize_latency`, so after the delete is
+applied a cached yes can survive for SpiceDB's quantization window (seconds).
+RFC §5.1 asks for `at_least_as_fresh` reads on PHI; that needs stored
+zedtokens and is a follow-up.
+
+**Which engine evaluates each relation** (storage is always Postgres):
+
+| Relation | Rust enum | SpiceDB schema | Evaluated by |
+|---|---|---|---|
+| `owner`, `editor`, `viewer` | yes | yes | both, same meaning |
+| `attending_physician` | yes | as `attending` | both (renamed on write) |
+| `consultant`, `phlebotomist`, `nurse`, `referred_to`, `followup_assignee`, `auditor`, `billing_viewer` | yes | written as `viewer` | Postgres exactly; SpiceDB as a plain viewer (wider) |
+| `approver`, `billing_editor` | yes | written as `editor` | Postgres exactly; SpiceDB as a plain editor (wider) |
+| `attending`, `creator`, `dept_member`, `doctor`, `group_member`, `ordering_provider`, `patient_attending`, `prescriber`, `runner`, `ward_member` | no | yes | SpiceDB only; refused while a revocation is pending or SpiceDB is down |
+
+Parity, the lossy mapping and the posture finding at `backend_pg.rs:102` stay
+open under §16.4 and the follow-up issue; this section changes only how the two
+answers are combined.
+
 ## Open questions
 
 - **The four grammar decisions (§2B.5)** — runtime vs codegen, author audience,

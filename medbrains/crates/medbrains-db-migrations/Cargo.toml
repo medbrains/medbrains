@@ -10,6 +10,13 @@ rust-version.workspace = true
 [dependencies]
 sqlx = { workspace = true }
 tracing = { workspace = true }
+# Only for the `testing` feature, which test code enables as a dev-dependency;
+# the server's build never compiles it.
+tokio = { workspace = true, optional = true }
+
+[features]
+# Per-test copies of a migrated template database (src/testing.rs).
+testing = ["dep:tokio"]
 
 [lints]
 workspace = true

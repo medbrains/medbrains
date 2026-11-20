@@ -1,14 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Button,
-  Group,
-  MultiSelect,
-  NumberInput,
-  PasswordInput,
-  Select,
-  Stack,
-  TextInput,
-} from "@mantine/core";
+import { Button, Group, MultiSelect, NumberInput, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { MiniDoctorFormInput } from "@medbrains/schemas";
 import { miniDoctorFormSchema } from "@medbrains/schemas";
@@ -17,6 +8,7 @@ import { IconCheck, IconStethoscope } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { NewPasswordField } from "@/components/ui";
 import { joinRuns } from "@/lib/text-shape";
 import { adminAccessService } from "@/services/adminAccess.service";
 
@@ -228,7 +220,7 @@ export function MiniCreateDoctor({ searchText, onCreated, onCancel }: MiniCreate
         control={control}
         name="password"
         render={({ field }) => (
-          <PasswordInput
+          <NewPasswordField
             label="Temporary password"
             required
             value={field.value}

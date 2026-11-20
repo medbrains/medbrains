@@ -652,7 +652,7 @@ pub async fn create_employee(
         let password = body.login_password.as_deref().unwrap_or("");
         let role = body.login_role.as_deref().unwrap_or("");
         validation::validate_username(&mut errors, "login_username", username);
-        validation::validate_password(&mut errors, "login_password", password);
+        validation::validate_password(&mut errors, "login_password", (password, username));
         if role.is_empty() {
             errors.add("login_role", "Role is required to provision a login");
         }

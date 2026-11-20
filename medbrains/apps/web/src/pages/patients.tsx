@@ -380,7 +380,7 @@ function PatientsPageInner() {
           </Stack>
           <Group gap="xs" className={classes.directoryControls}>
             <TextInput
-              placeholder={t("placeholder.searchByUhid,Name,OrPhone...")}
+              placeholder={t("placeholder.searchPatients")}
               leftSection={<IconSearch size={16} />}
               aria-label={t("directory.searchLabel")}
               value={search}

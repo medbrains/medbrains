@@ -1,5 +1,7 @@
 import { MutationObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { useModuleStore } from "./module-store.js";
+import { usePermissionStore } from "./permission-store.js";
 import { createQueryClient } from "./query-client.js";
 
 /**
@@ -63,5 +65,20 @@ describe("the app-wide mutation failure net", () => {
       onMutationError,
       "an expired session logs the user out; a toast about it is noise",
     ).not.toHaveBeenCalled();
+  });
+
+  it("drops the session's apps and permissions when the session expires", async () => {
+    useModuleStore.getState().setDisabledModules(["opd"]);
+    usePermissionStore.getState().setPermissions("doctor", ["patients.list"]);
+    const observer = new MutationObserver(createQueryClient(), {
+      mutationFn: async () => {
+        throw new Error("session_expired");
+      },
+    });
+    await observer.mutate().catch(() => {});
+
+    expect(useModuleStore.getState().disabledModules.size).toBe(0);
+    expect(usePermissionStore.getState().userRole).toBeNull();
+    expect(usePermissionStore.getState().userPermissions.size).toBe(0);
   });
 });
