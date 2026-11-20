@@ -1,17 +1,21 @@
-import { api } from "@medbrains/api";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
 
 export const deliveryService = {
-  getDeliveryOptions: (...args: Parameters<typeof api.getDeliveryOptions>) =>
-    api.getDeliveryOptions(...args),
-  arrangeDelivery: (...args: Parameters<typeof api.arrangeDelivery>) =>
-    api.arrangeDelivery(...args),
-  listDeliveries: (...args: Parameters<typeof api.listDeliveries>) => api.listDeliveries(...args),
-  listDeliveryRunners: () => api.listDeliveryRunners(),
-  dispatchDelivery: (...args: Parameters<typeof api.dispatchDelivery>) =>
-    api.dispatchDelivery(...args),
-  completeDelivery: (...args: Parameters<typeof api.completeDelivery>) =>
-    api.completeDelivery(...args),
-  failDelivery: (...args: Parameters<typeof api.failDelivery>) => api.failDelivery(...args),
-  cancelDelivery: (...args: Parameters<typeof api.cancelDelivery>) => api.cancelDelivery(...args),
-  assignDelivery: (...args: Parameters<typeof api.assignDelivery>) => api.assignDelivery(...args),
+  getDeliveryOptions: (...args: Parameters<typeof pharmacyApi.getDeliveryOptions>) =>
+    pharmacyApi.getDeliveryOptions(...args),
+  arrangeDelivery: (...args: Parameters<typeof pharmacyApi.arrangeDelivery>) =>
+    pharmacyApi.arrangeDelivery(...args),
+  listDeliveries: (...args: Parameters<typeof pharmacyApi.listDeliveries>) =>
+    pharmacyApi.listDeliveries(...args),
+  listDeliveryRunners: () => pharmacyApi.listDeliveryRunners(),
+  dispatchDelivery: (...args: Parameters<typeof pharmacyApi.dispatchDelivery>) =>
+    pharmacyApi.dispatchDelivery(...args),
+  completeDelivery: (...args: Parameters<typeof pharmacyApi.completeDelivery>) =>
+    pharmacyApi.completeDelivery(...args),
+  failDelivery: (...args: Parameters<typeof pharmacyApi.failDelivery>) =>
+    pharmacyApi.failDelivery(...args),
+  cancelDelivery: (...args: Parameters<typeof pharmacyApi.cancelDelivery>) =>
+    pharmacyApi.cancelDelivery(...args),
+  assignDelivery: (...args: Parameters<typeof pharmacyApi.assignDelivery>) =>
+    pharmacyApi.assignDelivery(...args),
 };

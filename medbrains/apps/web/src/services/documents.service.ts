@@ -1,28 +1,33 @@
-import { api } from "@medbrains/api";
+import { documentsApi } from "@medbrains/api/modules/documents";
 
 export const documentsService = {
-  listDocumentTemplates: (...args: Parameters<typeof api.listDocumentTemplates>) =>
-    api.listDocumentTemplates(...args),
-  createDocumentTemplate: (...args: Parameters<typeof api.createDocumentTemplate>) =>
-    api.createDocumentTemplate(...args),
-  updateDocumentTemplate: (...args: Parameters<typeof api.updateDocumentTemplate>) =>
-    api.updateDocumentTemplate(...args),
-  deleteDocumentTemplate: (...args: Parameters<typeof api.deleteDocumentTemplate>) =>
-    api.deleteDocumentTemplate(...args),
-  setDefaultTemplate: (...args: Parameters<typeof api.setDefaultTemplate>) =>
-    api.setDefaultTemplate(...args),
-  listDocumentOutputs: (...args: Parameters<typeof api.listDocumentOutputs>) =>
-    api.listDocumentOutputs(...args),
-  voidDocumentOutput: (...args: Parameters<typeof api.voidDocumentOutput>) =>
-    api.voidDocumentOutput(...args),
-  listReviewSchedule: (...args: Parameters<typeof api.listReviewSchedule>) =>
-    api.listReviewSchedule(...args),
-  createReviewSchedule: (...args: Parameters<typeof api.createReviewSchedule>) =>
-    api.createReviewSchedule(...args),
-  markReviewed: (...args: Parameters<typeof api.markReviewed>) => api.markReviewed(...args),
-  listPrinters: (...args: Parameters<typeof api.listPrinters>) => api.listPrinters(...args),
-  createPrinter: (...args: Parameters<typeof api.createPrinter>) => api.createPrinter(...args),
-  setPrinterActive: (id: string, isActive: boolean) => api.setPrinterActive(id, isActive),
-  listPrintJobs: (...args: Parameters<typeof api.listPrintJobs>) => api.listPrintJobs(...args),
-  updatePrintJob: (...args: Parameters<typeof api.updatePrintJob>) => api.updatePrintJob(...args),
+  listDocumentTemplates: (...args: Parameters<typeof documentsApi.listDocumentTemplates>) =>
+    documentsApi.listDocumentTemplates(...args),
+  createDocumentTemplate: (...args: Parameters<typeof documentsApi.createDocumentTemplate>) =>
+    documentsApi.createDocumentTemplate(...args),
+  updateDocumentTemplate: (...args: Parameters<typeof documentsApi.updateDocumentTemplate>) =>
+    documentsApi.updateDocumentTemplate(...args),
+  deleteDocumentTemplate: (...args: Parameters<typeof documentsApi.deleteDocumentTemplate>) =>
+    documentsApi.deleteDocumentTemplate(...args),
+  setDefaultTemplate: (...args: Parameters<typeof documentsApi.setDefaultTemplate>) =>
+    documentsApi.setDefaultTemplate(...args),
+  listDocumentOutputs: (...args: Parameters<typeof documentsApi.listDocumentOutputs>) =>
+    documentsApi.listDocumentOutputs(...args),
+  voidDocumentOutput: (...args: Parameters<typeof documentsApi.voidDocumentOutput>) =>
+    documentsApi.voidDocumentOutput(...args),
+  listReviewSchedule: (...args: Parameters<typeof documentsApi.listReviewSchedule>) =>
+    documentsApi.listReviewSchedule(...args),
+  createReviewSchedule: (...args: Parameters<typeof documentsApi.createReviewSchedule>) =>
+    documentsApi.createReviewSchedule(...args),
+  markReviewed: (...args: Parameters<typeof documentsApi.markReviewed>) =>
+    documentsApi.markReviewed(...args),
+  listPrinters: (...args: Parameters<typeof documentsApi.listPrinters>) =>
+    documentsApi.listPrinters(...args),
+  createPrinter: (...args: Parameters<typeof documentsApi.createPrinter>) =>
+    documentsApi.createPrinter(...args),
+  setPrinterActive: (id: string, isActive: boolean) => documentsApi.setPrinterActive(id, isActive),
+  listPrintJobs: (...args: Parameters<typeof documentsApi.listPrintJobs>) =>
+    documentsApi.listPrintJobs(...args),
+  updatePrintJob: (...args: Parameters<typeof documentsApi.updatePrintJob>) =>
+    documentsApi.updatePrintJob(...args),
 };

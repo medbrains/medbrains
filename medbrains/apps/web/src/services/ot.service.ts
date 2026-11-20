@@ -1,58 +1,59 @@
-import { api } from "@medbrains/api";
+import { otApi } from "@medbrains/api/modules/ot";
 
 export const otService = {
-  listOtRooms: (...args: Parameters<typeof api.listOtRooms>) => api.listOtRooms(...args),
-  getOtSchedule: (...args: Parameters<typeof api.getOtSchedule>) => api.getOtSchedule(...args),
-  listOtBookings: (...args: Parameters<typeof api.listOtBookings>) => api.listOtBookings(...args),
-  createOtBooking: (...args: Parameters<typeof api.createOtBooking>) =>
-    api.createOtBooking(...args),
-  getOtBooking: (...args: Parameters<typeof api.getOtBooking>) => api.getOtBooking(...args),
-  getOtBookingConsents: (bookingId: string) => api.getOtBookingConsents(bookingId),
+  listOtRooms: (...args: Parameters<typeof otApi.listOtRooms>) => otApi.listOtRooms(...args),
+  getOtSchedule: (...args: Parameters<typeof otApi.getOtSchedule>) => otApi.getOtSchedule(...args),
+  listOtBookings: (...args: Parameters<typeof otApi.listOtBookings>) =>
+    otApi.listOtBookings(...args),
+  createOtBooking: (...args: Parameters<typeof otApi.createOtBooking>) =>
+    otApi.createOtBooking(...args),
+  getOtBooking: (...args: Parameters<typeof otApi.getOtBooking>) => otApi.getOtBooking(...args),
+  getOtBookingConsents: (bookingId: string) => otApi.getOtBookingConsents(bookingId),
   linkOtBookingConsent: (bookingId: string, consentId: string) =>
-    api.linkOtBookingConsent(bookingId, consentId),
+    otApi.linkOtBookingConsent(bookingId, consentId),
   unlinkOtBookingConsent: (bookingId: string, consentId: string, reason: string) =>
-    api.unlinkOtBookingConsent(bookingId, consentId, reason),
+    otApi.unlinkOtBookingConsent(bookingId, consentId, reason),
   certifyOtEmergencyConsent: (bookingId: string, reason?: string) =>
-    api.certifyOtEmergencyConsent(bookingId, reason),
-  updateOtBookingStatus: (...args: Parameters<typeof api.updateOtBookingStatus>) =>
-    api.updateOtBookingStatus(...args),
-  listPreopAssessments: (...args: Parameters<typeof api.listPreopAssessments>) =>
-    api.listPreopAssessments(...args),
-  createPreopAssessment: (...args: Parameters<typeof api.createPreopAssessment>) =>
-    api.createPreopAssessment(...args),
-  updatePreopAssessment: (...args: Parameters<typeof api.updatePreopAssessment>) =>
-    api.updatePreopAssessment(...args),
-  getPreopHandoff: (...args: Parameters<typeof api.getPreopHandoff>) =>
-    api.getPreopHandoff(...args),
-  upsertPreopHandoff: (...args: Parameters<typeof api.upsertPreopHandoff>) =>
-    api.upsertPreopHandoff(...args),
-  getPostopHandoff: (...args: Parameters<typeof api.getPostopHandoff>) =>
-    api.getPostopHandoff(...args),
-  upsertPostopHandoff: (...args: Parameters<typeof api.upsertPostopHandoff>) =>
-    api.upsertPostopHandoff(...args),
-  listSafetyChecklists: (...args: Parameters<typeof api.listSafetyChecklists>) =>
-    api.listSafetyChecklists(...args),
-  createSafetyChecklist: (...args: Parameters<typeof api.createSafetyChecklist>) =>
-    api.createSafetyChecklist(...args),
-  updateSafetyChecklist: (...args: Parameters<typeof api.updateSafetyChecklist>) =>
-    api.updateSafetyChecklist(...args),
-  getCaseRecord: (...args: Parameters<typeof api.getCaseRecord>) => api.getCaseRecord(...args),
-  createCaseRecord: (...args: Parameters<typeof api.createCaseRecord>) =>
-    api.createCaseRecord(...args),
-  getAnesthesiaRecord: (...args: Parameters<typeof api.getAnesthesiaRecord>) =>
-    api.getAnesthesiaRecord(...args),
-  createAnesthesiaRecord: (...args: Parameters<typeof api.createAnesthesiaRecord>) =>
-    api.createAnesthesiaRecord(...args),
-  getPostopRecord: (...args: Parameters<typeof api.getPostopRecord>) =>
-    api.getPostopRecord(...args),
-  createPostopRecord: (...args: Parameters<typeof api.createPostopRecord>) =>
-    api.createPostopRecord(...args),
-  updatePostopRecord: (...args: Parameters<typeof api.updatePostopRecord>) =>
-    api.updatePostopRecord(...args),
-  createOtRoom: (...args: Parameters<typeof api.createOtRoom>) => api.createOtRoom(...args),
-  listSurgeonPreferences: (...args: Parameters<typeof api.listSurgeonPreferences>) =>
-    api.listSurgeonPreferences(...args),
-  createSurgeonPreference: (...args: Parameters<typeof api.createSurgeonPreference>) =>
-    api.createSurgeonPreference(...args),
-  otUtilization: (...args: Parameters<typeof api.otUtilization>) => api.otUtilization(...args),
+    otApi.certifyOtEmergencyConsent(bookingId, reason),
+  updateOtBookingStatus: (...args: Parameters<typeof otApi.updateOtBookingStatus>) =>
+    otApi.updateOtBookingStatus(...args),
+  listPreopAssessments: (...args: Parameters<typeof otApi.listPreopAssessments>) =>
+    otApi.listPreopAssessments(...args),
+  createPreopAssessment: (...args: Parameters<typeof otApi.createPreopAssessment>) =>
+    otApi.createPreopAssessment(...args),
+  updatePreopAssessment: (...args: Parameters<typeof otApi.updatePreopAssessment>) =>
+    otApi.updatePreopAssessment(...args),
+  getPreopHandoff: (...args: Parameters<typeof otApi.getPreopHandoff>) =>
+    otApi.getPreopHandoff(...args),
+  upsertPreopHandoff: (...args: Parameters<typeof otApi.upsertPreopHandoff>) =>
+    otApi.upsertPreopHandoff(...args),
+  getPostopHandoff: (...args: Parameters<typeof otApi.getPostopHandoff>) =>
+    otApi.getPostopHandoff(...args),
+  upsertPostopHandoff: (...args: Parameters<typeof otApi.upsertPostopHandoff>) =>
+    otApi.upsertPostopHandoff(...args),
+  listSafetyChecklists: (...args: Parameters<typeof otApi.listSafetyChecklists>) =>
+    otApi.listSafetyChecklists(...args),
+  createSafetyChecklist: (...args: Parameters<typeof otApi.createSafetyChecklist>) =>
+    otApi.createSafetyChecklist(...args),
+  updateSafetyChecklist: (...args: Parameters<typeof otApi.updateSafetyChecklist>) =>
+    otApi.updateSafetyChecklist(...args),
+  getCaseRecord: (...args: Parameters<typeof otApi.getCaseRecord>) => otApi.getCaseRecord(...args),
+  createCaseRecord: (...args: Parameters<typeof otApi.createCaseRecord>) =>
+    otApi.createCaseRecord(...args),
+  getAnesthesiaRecord: (...args: Parameters<typeof otApi.getAnesthesiaRecord>) =>
+    otApi.getAnesthesiaRecord(...args),
+  createAnesthesiaRecord: (...args: Parameters<typeof otApi.createAnesthesiaRecord>) =>
+    otApi.createAnesthesiaRecord(...args),
+  getPostopRecord: (...args: Parameters<typeof otApi.getPostopRecord>) =>
+    otApi.getPostopRecord(...args),
+  createPostopRecord: (...args: Parameters<typeof otApi.createPostopRecord>) =>
+    otApi.createPostopRecord(...args),
+  updatePostopRecord: (...args: Parameters<typeof otApi.updatePostopRecord>) =>
+    otApi.updatePostopRecord(...args),
+  createOtRoom: (...args: Parameters<typeof otApi.createOtRoom>) => otApi.createOtRoom(...args),
+  listSurgeonPreferences: (...args: Parameters<typeof otApi.listSurgeonPreferences>) =>
+    otApi.listSurgeonPreferences(...args),
+  createSurgeonPreference: (...args: Parameters<typeof otApi.createSurgeonPreference>) =>
+    otApi.createSurgeonPreference(...args),
+  otUtilization: (...args: Parameters<typeof otApi.otUtilization>) => otApi.otUtilization(...args),
 };

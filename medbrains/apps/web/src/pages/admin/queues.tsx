@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { queuesApi } from "@medbrains/api/modules/queues";
 import { previewQueueNumber } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type QueueRow } from "@medbrains/types";
@@ -52,11 +52,11 @@ export function QueuesPage() {
   const [lanesOf, setLanesOf] = useState<QueueRow | null>(null);
   const [hoursOf, setHoursOf] = useState<QueueRow | null>(null);
   const [countersOf, setCountersOf] = useState<QueueRow | null>(null);
-  const queues = useQuery({ queryKey: ["queues"], queryFn: () => api.listQueues() });
+  const queues = useQuery({ queryKey: ["queues"], queryFn: () => queuesApi.listQueues() });
 
   const setStatus = useMutation({
     mutationFn: ({ row, status }: { row: QueueRow; status: QueueRow["status"] }) =>
-      api.updateQueue(row.id, { ...row, status }),
+      queuesApi.updateQueue(row.id, { ...row, status }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["queues"] }),
     onError: (error: Error) => toast.error(error.message, { title: "Queue not changed" }),
   });

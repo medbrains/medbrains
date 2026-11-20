@@ -1,5 +1,6 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { dashboardsApi } from "@medbrains/api/modules/dashboards";
+import { widgetTemplatesApi } from "@medbrains/api/modules/widget-templates";
 import type { DashboardWidget, WidgetTemplate } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -25,7 +26,7 @@ export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const templates = useQuery({
     queryKey: ["widget-templates"],
-    queryFn: () => api.listWidgetTemplates(),
+    queryFn: () => widgetTemplatesApi.listWidgetTemplates(),
     enabled: opened,
     staleTime: 300_000,
   });
@@ -39,7 +40,7 @@ export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
   );
   const toggle = useMutation({
     mutationFn: ({ code, visible }: { code: string; visible: boolean }) =>
-      api.setMyWidget(code, visible),
+      dashboardsApi.setMyWidget(code, visible),
     onMutate: ({ code, visible }) => setPending((p) => ({ ...p, [code]: visible })),
     onSettled: async (_data, _error, { code }) => {
       await queryClient.invalidateQueries({ queryKey: ["my-dashboard"] });

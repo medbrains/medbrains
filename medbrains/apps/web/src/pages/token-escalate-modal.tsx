@@ -1,5 +1,5 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { tokensApi } from "@medbrains/api/modules/tokens";
 import { type ModuleToken, TOKEN_PRIORITY_LABEL } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -37,7 +37,7 @@ export function TokenEscalateModal({
 
   const escalate = useMutation({
     mutationFn: () =>
-      api.escalateTokenPriority(token?.id ?? "", { priority, reason: reason.trim() }),
+      tokensApi.escalateTokenPriority(token?.id ?? "", { priority, reason: reason.trim() }),
     onSuccess: (updated) => {
       toast.success(
         `${updated.number} moved up — ${TOKEN_PRIORITY_LABEL[updated.priority] ?? updated.priority}`,

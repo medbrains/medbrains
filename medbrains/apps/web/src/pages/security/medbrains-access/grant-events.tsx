@@ -3,7 +3,7 @@
  * request that never answered says so rather than looking like a success.
  */
 import { Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { securityApi } from "@medbrains/api/modules/security";
 import type { VendorAccessEvent } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -26,7 +26,7 @@ export function GrantEvents({ grantId }: { grantId: string }) {
   const [page, setPage] = useState(1);
   const events = useQuery({
     queryKey: ["vendor-access-events", grantId, page],
-    queryFn: () => api.listVendorAccessEvents(grantId, page),
+    queryFn: () => securityApi.listVendorAccessEvents(grantId, page),
   });
   const total = events.data?.meta.total ?? 0;
   return (

@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { cssdApi } from "@medbrains/api/modules/cssd";
 import type {
   CreateCssdInstrumentRequest,
   CreateCssdIssuanceRequest,
@@ -11,30 +11,30 @@ import type {
 } from "@medbrains/types";
 
 export const cssdService = {
-  listCssdInstruments: api.listCssdInstruments,
-  createCssdInstrument: (data: CreateCssdInstrumentRequest) => api.createCssdInstrument(data),
-  listCssdSets: api.listCssdSets,
-  createCssdSet: (data: CreateCssdSetRequest) => api.createCssdSet(data),
-  listCssdLoads: api.listCssdLoads,
-  createCssdLoad: (data: CreateCssdLoadRequest) => api.createCssdLoad(data),
+  listCssdInstruments: cssdApi.listCssdInstruments,
+  createCssdInstrument: (data: CreateCssdInstrumentRequest) => cssdApi.createCssdInstrument(data),
+  listCssdSets: cssdApi.listCssdSets,
+  createCssdSet: (data: CreateCssdSetRequest) => cssdApi.createCssdSet(data),
+  listCssdLoads: cssdApi.listCssdLoads,
+  createCssdLoad: (data: CreateCssdLoadRequest) => cssdApi.createCssdLoad(data),
   updateCssdLoadStatus: (id: string, status: LoadStatus) =>
-    api.updateCssdLoadStatus(id, { status }),
-  listCssdLoadItems: (loadId: string) => api.listCssdLoadItems(loadId),
-  listCssdLoadIssuances: (loadId: string) => api.listCssdLoadIssuances(loadId),
-  recallCssdLoad: (loadId: string, reason: string) => api.recallCssdLoad(loadId, reason),
-  addCssdLoadItem: (...args: Parameters<typeof api.addCssdLoadItem>) =>
-    api.addCssdLoadItem(...args),
-  getCssdSetItems: (setId: string) => api.getCssdSetItems(setId),
-  listCssdIndicators: api.listCssdIndicators,
+    cssdApi.updateCssdLoadStatus(id, { status }),
+  listCssdLoadItems: (loadId: string) => cssdApi.listCssdLoadItems(loadId),
+  listCssdLoadIssuances: (loadId: string) => cssdApi.listCssdLoadIssuances(loadId),
+  recallCssdLoad: (loadId: string, reason: string) => cssdApi.recallCssdLoad(loadId, reason),
+  addCssdLoadItem: (...args: Parameters<typeof cssdApi.addCssdLoadItem>) =>
+    cssdApi.addCssdLoadItem(...args),
+  getCssdSetItems: (setId: string) => cssdApi.getCssdSetItems(setId),
+  listCssdIndicators: cssdApi.listCssdIndicators,
   recordCssdIndicator: (loadId: string, data: RecordCssdIndicatorRequest) =>
-    api.recordCssdIndicator(loadId, data),
-  listCssdIssuances: api.listCssdIssuances,
-  createCssdIssuance: (data: CreateCssdIssuanceRequest) => api.createCssdIssuance(data),
-  returnCssdIssuance: api.returnCssdIssuance,
-  recallCssdIssuance: api.recallCssdIssuance,
-  listCssdSterilizers: api.listCssdSterilizers,
-  createCssdSterilizer: (data: CreateCssdSterilizerRequest) => api.createCssdSterilizer(data),
-  listCssdMaintenanceLogs: api.listCssdMaintenanceLogs,
+    cssdApi.recordCssdIndicator(loadId, data),
+  listCssdIssuances: cssdApi.listCssdIssuances,
+  createCssdIssuance: (data: CreateCssdIssuanceRequest) => cssdApi.createCssdIssuance(data),
+  returnCssdIssuance: cssdApi.returnCssdIssuance,
+  recallCssdIssuance: cssdApi.recallCssdIssuance,
+  listCssdSterilizers: cssdApi.listCssdSterilizers,
+  createCssdSterilizer: (data: CreateCssdSterilizerRequest) => cssdApi.createCssdSterilizer(data),
+  listCssdMaintenanceLogs: cssdApi.listCssdMaintenanceLogs,
   createCssdMaintenanceLog: (sterilizerId: string, data: CreateCssdMaintenanceRequest) =>
-    api.createCssdMaintenanceLog(sterilizerId, data),
+    cssdApi.createCssdMaintenanceLog(sterilizerId, data),
 };

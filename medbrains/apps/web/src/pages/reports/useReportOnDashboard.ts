@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { dashboardsApi } from "@medbrains/api/modules/dashboards";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +13,7 @@ export function useReportOnDashboard(reportId: string) {
   const queryClient = useQueryClient();
   const { data: mine } = useQuery({
     queryKey: ["my-dashboard"],
-    queryFn: () => api.getMyDashboard(),
+    queryFn: () => dashboardsApi.getMyDashboard(),
     staleTime: 120_000,
     enabled: canPlace,
   });
@@ -21,7 +21,7 @@ export function useReportOnDashboard(reportId: string) {
     (w) => w.data_source?.type === "report" && w.data_source.report_id === reportId,
   );
   const toggle = useMutation({
-    mutationFn: () => api.setMyReportWidget(reportId, !placed),
+    mutationFn: () => dashboardsApi.setMyReportWidget(reportId, !placed),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["my-dashboard"] });
       toast.success(placed ? "Removed from your dashboard" : "Added to your dashboard");

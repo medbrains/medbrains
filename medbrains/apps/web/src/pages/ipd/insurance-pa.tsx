@@ -2,7 +2,7 @@
 // each with its NHCX exchange and IRDAI clock.
 
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxPreauthSlaRow, PriorAuthRequestRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -51,7 +51,7 @@ export function InsurancePaTab({
   });
   const sla = useQuery({
     queryKey: ["nhcx-sla", patientId],
-    queryFn: () => api.getNhcxSla(patientId),
+    queryFn: () => insuranceApi.getNhcxSla(patientId),
     enabled: canViewNhcx && !!patientId,
   });
   const slaById = useMemo(

@@ -24,7 +24,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "medbrains" / "scripts"))
-from api_client_source import api_client_source  # noqa: E402
+from api_client_source import api_client_source, api_object_pattern  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MEDBRAINS = REPO_ROOT / "medbrains"
@@ -37,7 +37,7 @@ OUT_JSON = OUT_DIR / "screen-backend.json"
 
 # ── Page parsing ─────────────────────────────────────────────────────
 
-RE_API_CALL = re.compile(r"\bapi\.(\w+)")
+RE_API_CALL = re.compile(r"\b" + api_object_pattern() + r"\.(\w+)")
 RE_GUARD = re.compile(r"useRequirePermission\(\s*([^)\s,]+)")
 RE_HAS_PERM = re.compile(r"useHas(?:All|Any)?Permission(?:s)?\(\s*([^)\s,]+)")
 RE_USEQUERY = re.compile(r"\b(useQuery|useQueries|useMutation|useMutations|useInfiniteQuery)\b")
