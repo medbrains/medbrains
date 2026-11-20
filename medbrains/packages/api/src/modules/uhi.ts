@@ -1,5 +1,5 @@
 /** The `/uhi` API area. Moved from `client.ts`; one module per first path segment. */
-import type { SaveUhiSettings, UhiRequest, UhiSettingsView } from "@medbrains/types";
+import type { SaveUhiSettings, UhiPinResult, UhiRequest, UhiSettingsView } from "@medbrains/types";
 import { request } from "../client.js";
 
 export const uhiApi = {
@@ -21,5 +21,10 @@ export const uhiApi = {
     request<UhiRequest>(`/uhi/requests/${id}/decline`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+  checkUhiPin: (id: string, pin: string) =>
+    request<UhiPinResult>(`/uhi/requests/${id}/check-pin`, {
+      method: "POST",
+      body: JSON.stringify({ pin }),
     }),
 };

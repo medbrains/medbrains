@@ -3736,9 +3736,11 @@ export const P = {
   UHI: {
     CONFIGURE: "uhi.configure",
     REQUESTS: {
+      CHECK_PIN: "uhi.requests.check_pin",
       RESPOND: "uhi.requests.respond",
       VIEW: "uhi.requests.view",
     },
+    REQUESTS_CHECK_PIN: "uhi.requests.check_pin",
     REQUESTS_RESPOND: "uhi.requests.respond",
     REQUESTS_VIEW: "uhi.requests.view",
   },

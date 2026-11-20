@@ -29,7 +29,12 @@ export function PatientBillingModal({ patientId, encounterId, control }: Patient
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["patient-invoices", patientId],
+    // Its own entry under the patient's invoice prefix: the patient record
+    // caches `["patient-invoices", id]` as a plain row array, this list is the
+    // paged `{ invoices }` shape. One key for both handed each the other's
+    // data; the prefix keeps every `["patient-invoices", id]` invalidation
+    // refreshing both.
+    queryKey: ["patient-invoices", patientId, "billing-list"],
     queryFn: () => billingService.listInvoices({ patient_id: patientId }),
     enabled: opened,
   });

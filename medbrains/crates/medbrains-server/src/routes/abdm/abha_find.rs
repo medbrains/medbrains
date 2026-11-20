@@ -12,12 +12,12 @@ use uuid::Uuid;
 
 use super::abha::{Abdm, connect, map_abdm_error};
 use super::abha_address::request_otp;
-use super::abha_common::{AccountChoice, VerificationStep, digits, env_name, gender_name, update};
+use super::abha_common::{
+    AccountChoice, OTP_TRANSACTION_MINUTES, VerificationStep, env_name, gender_name, mobile_digits,
+    update,
+};
 use super::abha_verify::Row;
 use crate::{error::AppError, middleware::auth::Claims, state::AppState};
-
-/// How long a search can be used to pick an ABHA and verify it.
-const SEARCH_LIFETIME_MINUTES: i32 = 30;
 
 /// The OTP request for the account at `index_cipher`, chained to `search_txn`.
 pub(super) fn found_otp_request(index_cipher: String, search_txn: String) -> RequestOtpRequest {
@@ -57,20 +57,16 @@ fn choices(found: &[SearchedAbha]) -> Vec<AccountChoice> {
 /// Search the mobile and keep what ABDM listed, waiting for a pick.
 ///
 /// # Errors
-/// 400 for a malformed mobile, or when no ABHA is registered on it
-/// (VRFY_ABHA_303); 503 when ABDM is not answering.
+/// 400 "Please enter a valid mobile number." for a malformed mobile
+/// (`VRFY_ABHA_301`), or when no ABHA is registered on it
+/// (`VRFY_ABHA_303`); 503 when ABDM is not answering.
 pub(super) async fn search(
     state: &AppState,
     claims: &Claims,
     abdm: &Abdm,
     mobile: &str,
 ) -> Result<VerificationStep, AppError> {
-    let mobile = digits(mobile);
-    if mobile.len() != 10 {
-        return Err(AppError::BadRequest(
-            "a mobile number has 10 digits".to_owned(),
-        ));
-    }
+    let mobile = mobile_digits(mobile)?;
     let cipher = abdm.encrypt(&mobile)?;
     let found = abdm
         .client
@@ -101,7 +97,7 @@ pub(super) async fn search(
     .bind(&cipher)
     .bind(&found.txn_id)
     .bind(stored)
-    .bind(SEARCH_LIFETIME_MINUTES)
+    .bind(OTP_TRANSACTION_MINUTES)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -123,6 +119,8 @@ pub(super) async fn search(
         profile: None,
         already_linked: None,
         suggestions: Vec::new(),
+        sent_to: None,
+        address_domain: None,
     })
 }
 

@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.doctor_id, s.slot_date, s.slot_start, count(*) AS \"n!\"\n             FROM uhi_transactions t JOIN uhi_slot_ids s ON s.id = t.slot_id\n            WHERE t.tenant_id = $1 AND t.state = 'initialised' AND t.appointment_id IS NULL\n              AND t.deleted_at IS NULL\n              AND t.slot_held_until > now() AND ($2::uuid IS NULL OR t.id <> $2)\n              AND s.doctor_id = ANY($3) AND s.slot_date BETWEEN $4 AND $5\n            GROUP BY 1, 2, 3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "doctor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "slot_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "slot_start",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "n!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "UuidArray",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "40c57872b379cdf7feca4a3ab49b6ec57353b2a5fdd1539c696cb6f8a8fdf2f5"
+}

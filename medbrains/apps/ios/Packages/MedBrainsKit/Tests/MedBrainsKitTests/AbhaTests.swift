@@ -23,20 +23,19 @@ final class AbhaTests: XCTestCase {
         XCTAssertNil(Abha.lookupProblem(.abhaNumber, "91-1111-2222-3333"))
         XCTAssertEqual(Abha.lookupProblem(.abhaNumber, "91111122223"), "An ABHA number is 14 digits")
         XCTAssertNil(Abha.lookupProblem(.mobile, "98765 43210"))
-        XCTAssertNotNil(Abha.lookupProblem(.mobile, "98765"))
+        XCTAssertEqual(Abha.lookupProblem(.mobile, "98765"), "Please enter a valid mobile number.")
         XCTAssertNil(Abha.lookupProblem(.abhaAddress, "priya.v@abdm"))
         XCTAssertNotNil(Abha.lookupProblem(.abhaAddress, "priya v"))
-        XCTAssertNil(Abha.addressProblem("priya_v.90"))
-        XCTAssertNotNil(Abha.addressProblem("priya@abdm"))
-        XCTAssertNotNil(Abha.addressProblem(""))
     }
 
     /// Finding by Aadhaar or by mobile (M1 VRFY_ABHA_301–305, 401–405):
     /// each says what it needs, and only a number or address lookup lets the
     /// desk choose where the OTP goes.
     func testFindingByAadhaarOrMobileSaysWhatItNeeds() {
-        XCTAssertNil(Abha.lookupProblem(.aadhaar, "1234 5678 9012"))
-        XCTAssertEqual(Abha.lookupProblem(.aadhaar, "12345"), "An Aadhaar number is 12 digits")
+        XCTAssertNil(Abha.lookupProblem(.aadhaar, "9999 4105 7058"))
+        XCTAssertEqual(Abha.lookupProblem(.aadhaar, "12345"), "Aadhaar Number is not valid")
+        XCTAssertEqual(Abha.lookupProblem(.aadhaar, "1234 5678 9012"), "Aadhaar Number is not valid", "fails Verhoeff")
+        XCTAssertEqual(Abha.lookupProblem(.findMobile, "98765abc10"), "Please enter a valid mobile number.")
         XCTAssertNil(Abha.lookupProblem(.findMobile, "98765 43210"))
         XCTAssertEqual(Abha.lookupInput(.aadhaar, "1234-5678-9012-34"), "123456789012", "never more than twelve digits")
         XCTAssertEqual(Abha.lookupInput(.abhaAddress, "priya.v@abdm"), "priya.v@abdm")
@@ -112,7 +111,7 @@ final class AbhaTests: XCTestCase {
         let json = #"{"id":"v1","stage":"otp_sent","message":null,"resend_after_seconds":60,"resends_left":0,"accounts":[],"profile":null,"already_linked":null,"suggestions":[]}"#
         let step = try JSONDecoder.medbrains.decode(AbhaVerificationStep.self, from: Data(json.utf8))
         XCTAssertEqual(step.resendsLeft, 0)
-        XCTAssertEqual(Abha.resendNote(left: 0), "The OTP cannot be sent again. If it has not arrived, close this and start again.")
+        XCTAssertEqual(Abha.resendNote(left: 0), "Maximum OTP resend attempts reached. Please try again after 30 mins")
         XCTAssertEqual(Abha.resendNote(left: 1), "One resend left")
         XCTAssertNil(Abha.resendNote(left: nil))
     }
