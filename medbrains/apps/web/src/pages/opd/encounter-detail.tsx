@@ -1,7 +1,7 @@
 import { nullOn404 } from "@medbrains/api";
 // OPD EncounterDetail — split from opd.tsx (pure move).
 
-import { Card, Group, Menu, Modal, Stack, Tabs, Text } from "@mantine/core";
+import { Card, Group, Loader, Menu, Modal, Stack, Tabs, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasAnyPermission, useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type {
@@ -26,7 +26,7 @@ import {
   IconPrinter,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useClinicalEmit, VisitSummaryPrint } from "@/components";
 import { PatientBillingModal } from "@/components/Billing/PatientBillingModal";
@@ -65,8 +65,6 @@ import { InvestigationsTab } from "./investigations";
 import { PrescriptionsWorkspace } from "./prescriptions-workspace";
 import { SpecialtyTab } from "./specialty-tab";
 import { CertificatesTab } from "./tabs/certificates-tab";
-import { ChartsTab } from "./tabs/charts-tab";
-import { VitalsTab } from "./vitals";
 import {
   ConsentsTab,
   DocketTab,
@@ -77,6 +75,11 @@ import {
   RemindersTab,
   TimelineTab,
 } from "./workflow-tabs";
+
+// Vitals pulls the CRDT engine (loro, a 3.6 MB wasm) and Charts pulls recharts; each is fetched
+// when its tab opens, not with the encounter.
+const VitalsTab = lazy(() => import("./vitals").then((m) => ({ default: m.VitalsTab })));
+const ChartsTab = lazy(() => import("./tabs/charts-tab").then((m) => ({ default: m.ChartsTab })));
 
 /**
  * What each tab's endpoints actually accept.
@@ -541,7 +544,9 @@ export function EncounterDetail({
           }}
         >
           <Tabs.Panel value="vitals">
-            <VitalsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
+            <Suspense fallback={<Loader size="sm" />}>
+              <VitalsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
+            </Suspense>
           </Tabs.Panel>
           <Tabs.Panel value="consultation" keepMounted>
             <ConsultationTab encounterId={encounterId} patientId={patientId} />
@@ -606,7 +611,9 @@ export function EncounterDetail({
           </Tabs.Panel>
           <Tabs.Panel value="charts">
             <PermissionGate codes={TAB_PERMISSIONS.charts} label="observation charts">
-              <ChartsTab patientId={patientId} />
+              <Suspense fallback={<Loader size="sm" />}>
+                <ChartsTab patientId={patientId} />
+              </Suspense>
             </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="timeline">

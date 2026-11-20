@@ -10,6 +10,7 @@ import {
   IconStethoscope,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
@@ -21,17 +22,13 @@ import {
   VitalsRecorder,
 } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { QueryError } from "@/components/QueryError";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { safeReturnPath } from "@/lib/return-path";
 import { opdService } from "@/services/opd.service";
-import { EncounterDetail } from "./opd/encounter-detail";
 import { OpdPageInner } from "./opd/page-inner";
-
-export { EncounterDetail } from "./opd/encounter-detail";
-
-import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import {
   protectedOpdQueueIdentity,
   queueStatusIcon,
@@ -45,6 +42,12 @@ import {
   type OpdQueueRowActionPermissions,
   resolveOpdQueueRowActions,
 } from "./opd-queue-actions";
+
+// The queue page and the encounter share this module; the encounter (every clinical tab) is
+// fetched when one is opened, not with the queue.
+const EncounterDetail = lazy(() =>
+  import("./opd/encounter-detail").then((m) => ({ default: m.EncounterDetail })),
+);
 
 export function OpdPage() {
   useRequirePermission(P.OPD.QUEUE_LIST);
@@ -196,15 +199,17 @@ export function OpdEncounterPage() {
         </Group>
 
         <Card withBorder p={0} style={{ flex: 1, overflow: "hidden" }}>
-          <EncounterDetail
-            encounterId={encounter.id}
-            patientId={patient.id}
-            patientName={displayPatientName}
-            uhid={displayUhid}
-            doctorId={encounter.doctor_id}
-            departmentId={encounter.department_id ?? ""}
-            canUpdate={canUpdate}
-          />
+          <Suspense fallback={<Loader />}>
+            <EncounterDetail
+              encounterId={encounter.id}
+              patientId={patient.id}
+              patientName={displayPatientName}
+              uhid={displayUhid}
+              doctorId={encounter.doctor_id}
+              departmentId={encounter.department_id ?? ""}
+              canUpdate={canUpdate}
+            />
+          </Suspense>
         </Card>
       </Stack>
     </ClinicalEventProvider>
