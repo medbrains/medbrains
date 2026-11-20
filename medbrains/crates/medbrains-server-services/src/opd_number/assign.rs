@@ -198,7 +198,7 @@ async fn set_number(
 }
 
 /// Refuse `number` when another patient or visit holds it, naming the UHID and
-/// the date of that use (never the other patient's name) and the next free one.
+/// the date of that use (the register date where there is one) (never the other patient's name) and the next free one.
 async fn refuse_if_used(
     conn: &mut PgConnection,
     tenant_id: Uuid,
@@ -208,7 +208,7 @@ async fn refuse_if_used(
 ) -> Result<(), AppError> {
     let used = sqlx::query!(
         r#"SELECT uhid AS "uhid!", used_on AS "used_on!" FROM (
-             SELECT p.uhid, p.created_at::date AS used_on, p.id AS row_id FROM patients p
+             SELECT p.uhid, COALESCE(p.opd_date, p.created_at::date) AS used_on, p.id AS row_id FROM patients p
               WHERE p.tenant_id = $1 AND p.opd_number IS NOT NULL AND p.deleted_at IS NULL
                 AND (substring(p.opd_number FROM '([0-9]+)$'))::bigint = $2
              UNION ALL

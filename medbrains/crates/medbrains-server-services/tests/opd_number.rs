@@ -336,6 +336,16 @@ async fn an_old_record_keeps_its_paper_date_and_nothing_else_moves() {
         before, after,
         "created_at and the visit count must not move"
     );
+    // A later desk typing 12 is told the register date, not the entry date.
+    let (late, _) = patient_with_visit(&db, tenant, "Later").await;
+    let Err(AppError::Conflict(message)) = assign(&db, tenant, (late, None), Some("12")).await
+    else {
+        panic!("12 is in use");
+    };
+    assert!(
+        message.contains(&paper.format("%d %b %Y").to_string()),
+        "{message}"
+    );
 }
 
 #[tokio::test]
