@@ -1,5 +1,6 @@
 import { Group, getDefaultZIndex, Stack, Text } from "@mantine/core";
-import { ApiError, api, setStepUpHandler } from "@medbrains/api";
+import { ApiError, setStepUpHandler } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
 import { useRef, useState } from "react";
 import { useEffectOnce } from "react-use";
 import { Button, Input, Modal } from "@/components/ui";
@@ -40,7 +41,7 @@ export function StepUpGate() {
   const submit = async () => {
     setSubmitting(true);
     try {
-      await api.stepUp(password);
+      await authApi.stepUp(password);
       finish(true);
     } catch (error) {
       // The server says which: a wrong password, or the account locked after

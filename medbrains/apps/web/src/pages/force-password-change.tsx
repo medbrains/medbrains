@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
 import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@medbrains/schemas";
 import { clearSession, useAuthStore } from "@medbrains/stores";
 import { applyServerErrors, ValidationError } from "@medbrains/utils";
@@ -72,7 +72,7 @@ export function ForcePasswordChangePage() {
 
   const changeMutation = useMutation({
     mutationFn: (values: ForcePasswordChangeInput) =>
-      api.changePassword({
+      authApi.changePassword({
         current_password: values.current_password,
         new_password: values.new_password,
         ...(needsEmail ? { email: values.email.trim() } : {}),

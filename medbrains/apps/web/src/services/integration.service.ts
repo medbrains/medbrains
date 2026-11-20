@@ -1,34 +1,43 @@
-import { api } from "@medbrains/api";
+import { integrationApi } from "@medbrains/api/modules/integration";
+import { orchestrationApi } from "@medbrains/api/modules/orchestration";
+import { schemaApi } from "@medbrains/api/modules/schema";
 
 export const integrationService = {
-  listDefaultPipelines: (...args: Parameters<typeof api.listDefaultPipelines>) =>
-    api.listDefaultPipelines(...args),
-  setDefaultPipelineEnabled: (...args: Parameters<typeof api.setDefaultPipelineEnabled>) =>
-    api.setDefaultPipelineEnabled(...args),
-  listUncoveredEvents: (...args: Parameters<typeof api.listUncoveredEvents>) =>
-    api.listUncoveredEvents(...args),
-  getJobStats: (...args: Parameters<typeof api.getJobStats>) => api.getJobStats(...args),
-  listJobs: (...args: Parameters<typeof api.listJobs>) => api.listJobs(...args),
-  listNodeTemplates: (...args: Parameters<typeof api.listNodeTemplates>) =>
-    api.listNodeTemplates(...args),
-  listConnectors: (...args: Parameters<typeof api.listConnectors>) => api.listConnectors(...args),
-  createConnector: (...args: Parameters<typeof api.createConnector>) =>
-    api.createConnector(...args),
-  testConnector: (...args: Parameters<typeof api.testConnector>) => api.testConnector(...args),
-  listOrchestrationEvents: (...args: Parameters<typeof api.listOrchestrationEvents>) =>
-    api.listOrchestrationEvents(...args),
-  listPipelineExecutions: (...args: Parameters<typeof api.listPipelineExecutions>) =>
-    api.listPipelineExecutions(...args),
-  listPipelines: (...args: Parameters<typeof api.listPipelines>) => api.listPipelines(...args),
-  updatePipelineStatus: (...args: Parameters<typeof api.updatePipelineStatus>) =>
-    api.updatePipelineStatus(...args),
-  deletePipeline: (...args: Parameters<typeof api.deletePipeline>) => api.deletePipeline(...args),
-  triggerPipeline: (...args: Parameters<typeof api.triggerPipeline>) =>
-    api.triggerPipeline(...args),
-  listEventSchemas: (...args: Parameters<typeof api.listEventSchemas>) =>
-    api.listEventSchemas(...args),
-  listSchemaModules: (...args: Parameters<typeof api.listSchemaModules>) =>
-    api.listSchemaModules(...args),
-  listModuleEntities: (...args: Parameters<typeof api.listModuleEntities>) =>
-    api.listModuleEntities(...args),
+  listDefaultPipelines: (...args: Parameters<typeof integrationApi.listDefaultPipelines>) =>
+    integrationApi.listDefaultPipelines(...args),
+  setDefaultPipelineEnabled: (
+    ...args: Parameters<typeof integrationApi.setDefaultPipelineEnabled>
+  ) => integrationApi.setDefaultPipelineEnabled(...args),
+  listUncoveredEvents: (...args: Parameters<typeof integrationApi.listUncoveredEvents>) =>
+    integrationApi.listUncoveredEvents(...args),
+  getJobStats: (...args: Parameters<typeof orchestrationApi.getJobStats>) =>
+    orchestrationApi.getJobStats(...args),
+  listJobs: (...args: Parameters<typeof orchestrationApi.listJobs>) =>
+    orchestrationApi.listJobs(...args),
+  listNodeTemplates: (...args: Parameters<typeof integrationApi.listNodeTemplates>) =>
+    integrationApi.listNodeTemplates(...args),
+  listConnectors: (...args: Parameters<typeof orchestrationApi.listConnectors>) =>
+    orchestrationApi.listConnectors(...args),
+  createConnector: (...args: Parameters<typeof orchestrationApi.createConnector>) =>
+    orchestrationApi.createConnector(...args),
+  testConnector: (...args: Parameters<typeof orchestrationApi.testConnector>) =>
+    orchestrationApi.testConnector(...args),
+  listOrchestrationEvents: (...args: Parameters<typeof orchestrationApi.listOrchestrationEvents>) =>
+    orchestrationApi.listOrchestrationEvents(...args),
+  listPipelineExecutions: (...args: Parameters<typeof integrationApi.listPipelineExecutions>) =>
+    integrationApi.listPipelineExecutions(...args),
+  listPipelines: (...args: Parameters<typeof integrationApi.listPipelines>) =>
+    integrationApi.listPipelines(...args),
+  updatePipelineStatus: (...args: Parameters<typeof integrationApi.updatePipelineStatus>) =>
+    integrationApi.updatePipelineStatus(...args),
+  deletePipeline: (...args: Parameters<typeof integrationApi.deletePipeline>) =>
+    integrationApi.deletePipeline(...args),
+  triggerPipeline: (...args: Parameters<typeof integrationApi.triggerPipeline>) =>
+    integrationApi.triggerPipeline(...args),
+  listEventSchemas: (...args: Parameters<typeof schemaApi.listEventSchemas>) =>
+    schemaApi.listEventSchemas(...args),
+  listSchemaModules: (...args: Parameters<typeof schemaApi.listSchemaModules>) =>
+    schemaApi.listSchemaModules(...args),
+  listModuleEntities: (...args: Parameters<typeof schemaApi.listModuleEntities>) =>
+    schemaApi.listModuleEntities(...args),
 };

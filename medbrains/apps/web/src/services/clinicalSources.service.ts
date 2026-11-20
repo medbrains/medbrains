@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 // API DTOs live with the service (not the hook) so the service never has to
 // import back from the hook — that was the one circular dependency in the app.
@@ -22,17 +22,17 @@ interface NarrativeNotes {
   last_edited_at?: string;
 }
 
-type NursingNotesResponse = Awaited<ReturnType<typeof api.getNursingShiftNotes>>;
+type NursingNotesResponse = Awaited<ReturnType<typeof clinicalApi.getNursingShiftNotes>>;
 
 export const clinicalSourcesService = {
   getNursingNotes: async (shiftId: string): Promise<NarrativeNotes> =>
-    toNarrativeNotes(await api.getNursingShiftNotes(shiftId)),
+    toNarrativeNotes(await clinicalApi.getNursingShiftNotes(shiftId)),
   updateNursingNotes: async (shiftId: string, text: string): Promise<NarrativeNotes> =>
-    toNarrativeNotes(await api.updateNursingShiftNotes(shiftId, { text })),
+    toNarrativeNotes(await clinicalApi.updateNursingShiftNotes(shiftId, { text })),
   listTriageEntries: async (visitId: string): Promise<TriageEntry[]> =>
-    (await api.listClinicalTriageEntries(visitId)).map(toTriageEntry),
+    (await clinicalApi.listClinicalTriageEntries(visitId)).map(toTriageEntry),
   createTriageEntry: async (visitId: string, entry: TriageEntryInput): Promise<TriageEntry> =>
-    toTriageEntry(await api.createClinicalTriageEntry(visitId, entry)),
+    toTriageEntry(await clinicalApi.createClinicalTriageEntry(visitId, entry)),
 };
 
 function toNarrativeNotes(entry: NursingNotesResponse): NarrativeNotes {
@@ -43,7 +43,9 @@ function toNarrativeNotes(entry: NursingNotesResponse): NarrativeNotes {
   };
 }
 
-type ClinicalTriageEntry = Awaited<ReturnType<typeof api.listClinicalTriageEntries>>[number];
+type ClinicalTriageEntry = Awaited<
+  ReturnType<typeof clinicalApi.listClinicalTriageEntries>
+>[number];
 
 function toTriageEntry(entry: ClinicalTriageEntry): TriageEntry {
   return {

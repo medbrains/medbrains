@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { formsApi } from "@medbrains/api/modules/forms";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -28,7 +28,7 @@ export function NewFormModal({ opened, onClose, onCreated }: NewFormModalProps) 
     mode: "onTouched",
   });
   const create = useMutation({
-    mutationFn: (values: NewForm) => api.createFormTemplate(values),
+    mutationFn: (values: NewForm) => formsApi.createFormTemplate(values),
     onSuccess: (template) => {
       void queryClient.invalidateQueries({ queryKey: ["form-templates"] });
       reset();

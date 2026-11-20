@@ -1,5 +1,5 @@
 import { Group, Menu, Tooltip, UnstyledButton } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { aiApi } from "@medbrains/api/modules/ai";
 import { IconHistory, IconMaximize, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useMemo, useRef } from "react";
@@ -55,12 +55,12 @@ export function AiAssistantMount({ suggestions }: AiAssistantMountProps) {
   // a brand-new thread appears on the next refetch/focus).
   const { data: conversations = [] } = useQuery({
     queryKey: ["ai-conversations"],
-    queryFn: () => api.listAiConversations(),
+    queryFn: () => aiApi.listAiConversations(),
     enabled: isOpen,
   });
 
   const openConversation = async (id: string) => {
-    const loaded = await api.getAiConversationMessages(id);
+    const loaded = await aiApi.getAiConversationMessages(id);
     controller.hydrate(loaded.map(fromStored));
     transport.setConversationId(id);
   };

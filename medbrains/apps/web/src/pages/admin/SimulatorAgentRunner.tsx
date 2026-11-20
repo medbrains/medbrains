@@ -1,5 +1,6 @@
 import { Box, Card, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { useHasPermission } from "@medbrains/stores";
 import type { SimulatorAgentProfile, SimulatorProfile } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -56,7 +57,7 @@ export function SimulatorAgentRunner() {
   const canListRoles = useHasPermission(P.ADMIN.ROLES.LIST);
   const { data: roleOptions = [] } = useQuery({
     queryKey: ["roles"],
-    queryFn: () => api.listRoles(),
+    queryFn: () => setupApi.listRoles(),
     enabled: canListRoles,
   });
 
@@ -80,7 +81,7 @@ export function SimulatorAgentRunner() {
         verify: true,
         sweep: sweepAll,
       };
-      const schedule = await api.createSimulatorSchedule({
+      const schedule = await adminApi.createSimulatorSchedule({
         name: autonomous ? "Autonomous agent sim (census-paced)" : "Agent simulation",
         description: autonomous
           ? "Self-running agents at real-hospital volume — no human trigger"
@@ -90,7 +91,7 @@ export function SimulatorAgentRunner() {
       });
       // Autonomous: the census pacer drives it on the 30s tick — no run-now.
       // One-off: kick it immediately.
-      return autonomous ? schedule : api.runSimulatorNow(schedule.id);
+      return autonomous ? schedule : adminApi.runSimulatorNow(schedule.id);
     },
     onSuccess: () => {
       toast.success(

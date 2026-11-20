@@ -23,7 +23,7 @@ import re
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "medbrains" / "scripts"))
-from api_client_source import api_client_source  # noqa: E402
+from api_client_source import api_client_source, api_object_pattern  # noqa: E402
 
 # ── Paths ────────────────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ def extract_api_methods() -> dict[str, int]:
 # But the main pattern is direct usage: api.methodName
 # Negative lookbehind rejects `api.` embedded in URLs/identifiers
 # (e.g. https://api.open-meteo.com), only matching real `api.method()` calls.
-RE_API_CALL = re.compile(r"(?<![\w./])api\.(\w+)")
+RE_API_CALL = re.compile(r"(?<![\w./])" + api_object_pattern() + r"\.(\w+)")
 
 
 def scan_file_for_api_refs(file_path: Path) -> list[tuple[str, int]]:

@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +16,7 @@ export function NhcxSlaBreaches() {
   const canView = useHasPermission(P.INSURANCE.NHCX.VIEW);
   const report = useQuery({
     queryKey: ["nhcx-sla"],
-    queryFn: () => api.getNhcxSla(),
+    queryFn: () => insuranceApi.getNhcxSla(),
     enabled: canView,
   });
   if (!canView) return null;

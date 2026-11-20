@@ -1,5 +1,5 @@
 import { Center, Divider, Group, Loader, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { dashboardApi } from "@medbrains/api/modules/dashboard";
 import type { SsoPublicProvider } from "@medbrains/types";
 import { IconLockSquareRounded } from "@tabler/icons-react";
 import { useState } from "react";
@@ -45,7 +45,7 @@ export function SsoLoginButtons({
     onStart?.();
     setRedirectingTo(name);
     // Hand off to the IdP; the callback sets the session cookie and returns to returnTo.
-    window.location.href = api.ssoAuthorizeUrl(id, returnTo);
+    window.location.href = dashboardApi.ssoAuthorizeUrl(id, returnTo);
   };
 
   return (

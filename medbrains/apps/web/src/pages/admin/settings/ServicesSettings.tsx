@@ -11,7 +11,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { type ServiceSettingsFormInput, serviceSettingsFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { DepartmentRow, ServiceRow } from "@medbrains/types";
@@ -474,7 +474,7 @@ export function ServicesSettings() {
         title="Import Services"
         requiredColumns={["code", "name"]}
         optionalColumns={["service_type", "base_price", "description", "department_id"]}
-        onImport={api.importServices}
+        onImport={setupApi.importServices}
       />
 
       <Modal

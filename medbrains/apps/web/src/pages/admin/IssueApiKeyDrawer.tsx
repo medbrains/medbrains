@@ -16,7 +16,7 @@
 
 import { Accordion, Group, NumberInput, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { usePermissionStore } from "@medbrains/stores";
 import type { CreatedApiKey } from "@medbrains/types";
 import { PERMISSIONS } from "@medbrains/types";
@@ -85,7 +85,7 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
 
   const issue = useMutation({
     mutationFn: () =>
-      api.createApiKey({
+      adminApi.createApiKey({
         name: name.trim(),
         description: description.trim() || undefined,
         permissions: [...selected],

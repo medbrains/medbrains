@@ -1,26 +1,28 @@
-import { api } from "@medbrains/api";
+import { consentApi } from "@medbrains/api/modules/consent";
 
 export const consentService = {
-  listConsentTemplates: (...args: Parameters<typeof api.listConsentTemplates>) =>
-    api.listConsentTemplates(...args),
-  getConsentTemplate: (...args: Parameters<typeof api.getConsentTemplate>) =>
-    api.getConsentTemplate(...args),
-  createConsentTemplate: (...args: Parameters<typeof api.createConsentTemplate>) =>
-    api.createConsentTemplate(...args),
-  updateConsentTemplate: (...args: Parameters<typeof api.updateConsentTemplate>) =>
-    api.updateConsentTemplate(...args),
-  deleteConsentTemplate: (...args: Parameters<typeof api.deleteConsentTemplate>) =>
-    api.deleteConsentTemplate(...args),
-  listConsentAudit: (...args: Parameters<typeof api.listConsentAudit>) =>
-    api.listConsentAudit(...args),
-  verifyConsent: (...args: Parameters<typeof api.verifyConsent>) => api.verifyConsent(...args),
-  getPatientConsentSummary: (...args: Parameters<typeof api.getPatientConsentSummary>) =>
-    api.getPatientConsentSummary(...args),
-  revokeConsent: (...args: Parameters<typeof api.revokeConsent>) => api.revokeConsent(...args),
-  listConsentSignatures: (...args: Parameters<typeof api.listConsentSignatures>) =>
-    api.listConsentSignatures(...args),
-  createConsentSignature: (...args: Parameters<typeof api.createConsentSignature>) =>
-    api.createConsentSignature(...args),
-  deleteConsentSignature: (...args: Parameters<typeof api.deleteConsentSignature>) =>
-    api.deleteConsentSignature(...args),
+  listConsentTemplates: (...args: Parameters<typeof consentApi.listConsentTemplates>) =>
+    consentApi.listConsentTemplates(...args),
+  getConsentTemplate: (...args: Parameters<typeof consentApi.getConsentTemplate>) =>
+    consentApi.getConsentTemplate(...args),
+  createConsentTemplate: (...args: Parameters<typeof consentApi.createConsentTemplate>) =>
+    consentApi.createConsentTemplate(...args),
+  updateConsentTemplate: (...args: Parameters<typeof consentApi.updateConsentTemplate>) =>
+    consentApi.updateConsentTemplate(...args),
+  deleteConsentTemplate: (...args: Parameters<typeof consentApi.deleteConsentTemplate>) =>
+    consentApi.deleteConsentTemplate(...args),
+  listConsentAudit: (...args: Parameters<typeof consentApi.listConsentAudit>) =>
+    consentApi.listConsentAudit(...args),
+  verifyConsent: (...args: Parameters<typeof consentApi.verifyConsent>) =>
+    consentApi.verifyConsent(...args),
+  getPatientConsentSummary: (...args: Parameters<typeof consentApi.getPatientConsentSummary>) =>
+    consentApi.getPatientConsentSummary(...args),
+  revokeConsent: (...args: Parameters<typeof consentApi.revokeConsent>) =>
+    consentApi.revokeConsent(...args),
+  listConsentSignatures: (...args: Parameters<typeof consentApi.listConsentSignatures>) =>
+    consentApi.listConsentSignatures(...args),
+  createConsentSignature: (...args: Parameters<typeof consentApi.createConsentSignature>) =>
+    consentApi.createConsentSignature(...args),
+  deleteConsentSignature: (...args: Parameters<typeof consentApi.deleteConsentSignature>) =>
+    consentApi.deleteConsentSignature(...args),
 };

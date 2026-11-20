@@ -26,7 +26,7 @@ import os
 import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from api_client_source import api_client_source  # noqa: E402
+from api_client_source import api_client_source, api_object_pattern  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, "apps/web/src")
@@ -57,7 +57,7 @@ def ai_api_methods() -> set[str]:
 
 
 def ai_service_functions(methods: set[str]) -> set[str]:
-    wrapped = re.compile(r"api\.(" + "|".join(sorted(methods)) + r")\b")
+    wrapped = re.compile(api_object_pattern() + r"\.(" + "|".join(sorted(methods)) + r")\b")
     names: set[str] = set()
     for dirpath, _dirs, files in os.walk(SERVICES):
         for name in files:
@@ -75,7 +75,7 @@ def offenders() -> list[tuple[str, str]]:
     methods = ai_api_methods()
     services = ai_service_functions(methods)
     source = re.compile(
-        r"\bapi\.(" + "|".join(sorted(methods)) + r")\b"
+        r"\b" + api_object_pattern() + r"\.(" + "|".join(sorted(methods)) + r")\b"
         r"|\.(" + "|".join(sorted(services) or ["$^"]) + r")\("
         r"|\b(" + "|".join(ASSISTANT_PIECES) + r")\b"
     )
