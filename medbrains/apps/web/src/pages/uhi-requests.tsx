@@ -49,6 +49,31 @@ const ACCEPT_LABEL: Partial<Record<UhiService, string>> = {
 };
 
 /**
+ * Which actions a row offers this user: answering needs the UHI respond
+ * permission plus the service module's own; the PIN check needs its own code.
+ */
+function useUhiRowGates() {
+  const canRespond = useHasPermission(P.UHI.REQUESTS.RESPOND);
+  const canDispatch = useHasPermission(P.AMBULANCE.TRIPS.CREATE);
+  const canIssueBlood = useHasPermission(P.BLOOD_BANK.INVENTORY.MANAGE);
+  const canOrderLab = useHasPermission(P.LAB.ORDERS.DIRECT);
+  const canBookCollection = useHasPermission(P.LAB.SAMPLES.MANAGE);
+  const canCheckPin = useHasPermission(P.UHI.REQUESTS.CHECK_PIN);
+  // Each service's accept needs its module's own permission as well.
+  const serviceGate: Partial<Record<UhiService, (r: UhiRequest) => boolean>> = {
+    ambulance: () => canDispatch,
+    blood_bank: () => canIssueBlood,
+    lab_tests: (r) => canOrderLab && (!r.home_collection || canBookCollection),
+  };
+  const mayAnswer = (r: UhiRequest) =>
+    canRespond && r.state === "pending" && (serviceGate[r.service]?.(r) ?? false);
+  /** Offer the PIN check only on a confirmed booking with a PIN and tries left. */
+  const mayCheckPin = (r: UhiRequest) =>
+    canCheckPin && r.state === "confirmed" && r.has_pin && r.pin_failed_attempts < MAX_PIN_TRIES;
+  return { mayAnswer, mayCheckPin };
+}
+
+/**
  * UHI requests: what patient apps booked or asked for through NHA's Unified
  * Health Interface. Consultations are booked straight into the day's
  * appointments (a teleconsultation paid online is held until it is paid; a
@@ -59,13 +84,8 @@ const ACCEPT_LABEL: Partial<Record<UhiService, string>> = {
  */
 export function UhiRequestsPage() {
   useRequirePermission(P.UHI.REQUESTS.VIEW);
-  const canRespond = useHasPermission(P.UHI.REQUESTS.RESPOND);
-  const canDispatch = useHasPermission(P.AMBULANCE.TRIPS.CREATE);
-  const canIssueBlood = useHasPermission(P.BLOOD_BANK.INVENTORY.MANAGE);
-  const canOrderLab = useHasPermission(P.LAB.ORDERS.DIRECT);
-  const canCheckPin = useHasPermission(P.UHI.REQUESTS.CHECK_PIN);
+  const { mayAnswer, mayCheckPin } = useUhiRowGates();
   const [checkingPin, setCheckingPin] = useState<UhiRequest | null>(null);
-  const canBookCollection = useHasPermission(P.LAB.SAMPLES.MANAGE);
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [declining, setDeclining] = useState<UhiRequest | null>(null);
@@ -93,18 +113,6 @@ export function UhiRequestsPage() {
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not decline" }),
   });
-
-  // Each service's accept needs its module's own permission as well.
-  const serviceGate: Partial<Record<UhiService, (r: UhiRequest) => boolean>> = {
-    ambulance: () => canDispatch,
-    blood_bank: () => canIssueBlood,
-    lab_tests: (r) => canOrderLab && (!r.home_collection || canBookCollection),
-  };
-  const mayAnswer = (r: UhiRequest) =>
-    canRespond && r.state === "pending" && (serviceGate[r.service]?.(r) ?? false);
-  /** Offer the PIN check only on a confirmed booking with a PIN and tries left. */
-  const mayCheckPin = (r: UhiRequest) =>
-    canCheckPin && r.state === "confirmed" && r.has_pin && r.pin_failed_attempts < MAX_PIN_TRIES;
 
   return (
     <Stack>

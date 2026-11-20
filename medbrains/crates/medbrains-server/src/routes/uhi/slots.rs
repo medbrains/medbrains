@@ -356,7 +356,7 @@ pub async fn find_slot(
     let Ok(id) = Uuid::parse_str(id) else {
         return Ok(None);
     };
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: filters tenant_id on the caller's tenant tx; FORCE RLS
     let Some(named) = sqlx::query!(
         "SELECT doctor_id, slot_date, slot_start FROM uhi_slot_ids \
           WHERE tenant_id = $1 AND id = $2",

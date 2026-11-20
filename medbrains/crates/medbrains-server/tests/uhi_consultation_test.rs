@@ -30,7 +30,7 @@ fn tomorrow() -> chrono::NaiveDate {
 }
 
 /// The intent of a search tomorrow for a visit, narrowed by `agent`.
-fn intent(agent: Value) -> Value {
+fn intent(agent: &Value) -> Value {
     let day = tomorrow();
     json!({ "intent": { "fulfillment": { "type": "Physical", "agent": agent,
         "start": { "time": { "timestamp": format!("{day}T00:00:00") } },
@@ -43,7 +43,7 @@ async fn slots(w: &World, id: &str, name: &str) -> Vec<Value> {
         CONSULTATION_DOMAIN,
         "search",
         id,
-        intent(json!({ "name": name })),
+        intent(&json!({ "name": name })),
     );
     w.call("search", &search).await;
     let on_search = w.deliver(id, "on_search").await;
@@ -132,7 +132,7 @@ async fn search_is_two_stage_with_stable_slot_uuids() {
         CONSULTATION_DOMAIN,
         "search",
         &id,
-        intent(json!({ "name": name })),
+        intent(&json!({ "name": name })),
     );
     let (status, _) = w.send("search", &gateway, None, true).await;
     assert_eq!(status, StatusCode::OK);

@@ -199,7 +199,7 @@ async fn forget_pin(ctx: &HandlerCtx, payload: &Value) -> Result<(), AppError> {
         "outbox drops a delivered UHI PIN from its own row",
     );
     let mut tx = medbrains_kernel::tenancy::tenant_tx(&ctx.pool, &permit).await?;
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: its own row by id on an unattended tenant_tx; FORCE RLS
     sqlx::query!(
         "UPDATE outbox_events \
             SET payload = payload #- '{body,message,order,authorization,token}' \

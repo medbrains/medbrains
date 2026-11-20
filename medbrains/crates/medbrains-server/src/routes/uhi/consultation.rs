@@ -136,7 +136,7 @@ pub async fn hold(
     (slot, order): (&Slot, &Value),
     who: Holder<'_>,
 ) -> Result<DateTime<Utc>, AppError> {
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: by id on the inbound tenant tx; uhi_transactions is FORCE RLS
     let until = sqlx::query_scalar!(
         r#"UPDATE uhi_transactions SET slot_id = $2, state = 'initialised', order_details = $3,
                 slot_held_until = now() + make_interval(mins => $4),
@@ -171,7 +171,7 @@ pub async fn issue_pin(tx: &mut Tx<'_>, txn_id: Uuid) -> Result<String, AppError
         .hash_password(pin.as_bytes())
         .map_err(|e| AppError::Internal(format!("uhi pin hash: {e}")))?
         .to_string();
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: by id on the inbound tenant tx; uhi_transactions is FORCE RLS
     sqlx::query!(
         "UPDATE uhi_transactions SET pin_hash = $2, pin_failed_attempts = 0, \
                 slot_held_until = NULL WHERE id = $1",
@@ -213,7 +213,7 @@ pub async fn helpline(
     tenant_id: Uuid,
     facility_id: Option<Uuid>,
 ) -> Result<Option<String>, AppError> {
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: binds tenant_id for tenants and facilities on the caller's tx
     Ok(sqlx::query_scalar!(
         "SELECT COALESCE(NULLIF(f.phone, ''), NULLIF(t.phone, '')) FROM tenants t \
            LEFT JOIN facilities f ON f.id = $2 AND f.tenant_id = t.id WHERE t.id = $1",
@@ -236,7 +236,7 @@ pub async fn record_update(tx: &mut Tx<'_>, txn_id: Uuid, body: &Value) -> Resul
     if state != Some(STATE_DOCTOR_NO_SHOW) {
         return Ok(());
     }
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: by id on the inbound tenant tx; uhi_transactions is FORCE RLS
     sqlx::query!(
         "UPDATE uhi_transactions SET doctor_no_show_at = COALESCE(doctor_no_show_at, now()) \
           WHERE id = $1",
@@ -279,7 +279,7 @@ pub async fn check_pin(
         return Err(AppError::BadRequest("the PIN is four digits".to_owned()));
     }
     let mut tx = medbrains_kernel::tenancy::tenant_tx(&state.db, &permit).await?;
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: filters tenant_id on the permit's tenant_tx; locks the row for the try
     let row = sqlx::query!(
         "SELECT pin_hash, pin_failed_attempts FROM uhi_transactions \
           WHERE id = $1 AND tenant_id = $2 AND state = 'confirmed' AND deleted_at IS NULL \
@@ -299,7 +299,7 @@ pub async fn check_pin(
         ));
     }
     let matched = pin_matches(&hash, pin)?;
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: the row locked above, same tenant_tx; FORCE RLS
     let failed = sqlx::query_scalar!(
         "UPDATE uhi_transactions SET \
             pin_verified_at = CASE WHEN $2 THEN now() ELSE pin_verified_at END, \

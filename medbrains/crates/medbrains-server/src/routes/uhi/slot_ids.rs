@@ -28,7 +28,7 @@ pub async fn assign_ids(
     let doctors: Vec<Uuid> = slots.iter().map(|s| s.doctor_id).collect();
     let dates: Vec<NaiveDate> = slots.iter().map(|s| s.date).collect();
     let starts: Vec<NaiveTime> = slots.iter().map(|s| s.start).collect();
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: binds tenant_id on the caller's tenant tx; table is FORCE RLS
     let rows = sqlx::query!(
         "INSERT INTO uhi_slot_ids (tenant_id, doctor_id, slot_date, slot_start) \
          SELECT $1, d, s, t FROM UNNEST($2::uuid[], $3::date[], $4::time[]) AS u(d, s, t) \
@@ -63,7 +63,7 @@ pub(super) async fn held(
     (first, last): (NaiveDate, NaiveDate),
     holder: Option<Uuid>,
 ) -> Result<HashMap<(Uuid, NaiveDate, NaiveTime), i64>, AppError> {
-    // allow-raw-sql: compile-checked, on the caller's tenant-scoped (RLS) transaction
+    // allow-raw-sql: filters tenant_id on the caller's tenant tx; FORCE RLS
     let rows = sqlx::query!(
         r#"SELECT s.doctor_id, s.slot_date, s.slot_start, count(*) AS "n!"
              FROM uhi_transactions t JOIN uhi_slot_ids s ON s.id = t.slot_id

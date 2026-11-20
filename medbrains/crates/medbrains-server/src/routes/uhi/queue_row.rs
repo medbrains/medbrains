@@ -82,6 +82,7 @@ pub struct UhiRequest {
     pub pin_failed_attempts: i32,
 }
 
+/// One line for the desk queue saying what was booked, read from the Beckn order.
 fn summary(service: &str, order: &Value) -> String {
     let s = |p: &str| order.pointer(p).and_then(Value::as_str).unwrap_or_default();
     match service {
