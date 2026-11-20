@@ -30,7 +30,8 @@ import { useCreateInline } from "@/hooks/useCreateInline";
 import { abdmRegistryService } from "@/services/abdmRegistry.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { FacilityHfrCell } from "./FacilityHfrCell";
-import { FacilityHfrModal, HFR_QUERY_KEY } from "./FacilityHfrModal";
+import { FacilityHfrDialogs } from "./FacilityHfrDialogs";
+import { HFR_QUERY_KEY } from "./FacilityHfrModal";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -623,13 +624,11 @@ export function FacilitiesSettings() {
         </Table.Tbody>
       </Table>
 
-      {hfrFacility && (
-        <FacilityHfrModal
-          facility={hfrFacility}
-          registryConfigured={hfrQuery.data?.registry_configured ?? false}
-          onClose={() => setHfrFacilityId(null)}
-        />
-      )}
+      <FacilityHfrDialogs
+        facility={hfrFacility}
+        registryConfigured={hfrQuery.data?.registry_configured ?? false}
+        onClose={() => setHfrFacilityId(null)}
+      />
 
       <FacilityModal
         opened={modalOpen}

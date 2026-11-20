@@ -3,7 +3,8 @@
  *
  * Link: enter the HFR ID the campus already holds — verified against HFR
  * search when ABDM keys exist, saved as "registered" (unconfirmed) when not.
- * Register: submit a new registration through the HFR API; needs keys.
+ * Register or update: HFR's official flow, in its own full-screen step
+ * (`hfr/HfrOnboardingModal`), opened from here.
  */
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +14,7 @@ import type { FacilityHfr } from "@medbrains/types";
 import { IconExternalLink } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Controller, useController, useForm } from "react-hook-form";
+import { useController, useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   Alert,
@@ -22,7 +23,6 @@ import {
   Modal,
   NumberField,
   SegmentedControl,
-  Select,
   Switch,
 } from "@/components/ui";
 import { abdmRegistryService } from "@/services/abdmRegistry.service";
@@ -45,29 +45,21 @@ const linkSchema = z.object({
 });
 type LinkForm = z.infer<typeof linkSchema>;
 
-const registerSchema = z.object({
-  ownership: z.enum(["government", "private", "trust"]),
-  state_lgd_code: z.string().regex(/^\d+$/, "Numeric LGD state code"),
-  district_lgd_code: z.string().regex(/^\d+$/, "Numeric LGD district code"),
-  pincode: z.string().regex(/^\d{6}$/, "6 digits"),
-  hfr_bed_count: bedsSchema,
-  hfr_ipd: z.boolean(),
-});
-type RegisterForm = z.infer<typeof registerSchema>;
-
-const OWNERSHIP_OPTIONS = [
-  { value: "government", label: "Government" },
-  { value: "private", label: "Private" },
-  { value: "trust", label: "Trust" },
-];
-
 interface FacilityHfrModalProps {
   facility: FacilityHfr;
   registryConfigured: boolean;
   onClose: () => void;
+  /** Open the full-screen official registration / update flow instead. */
+  onOnboard: () => void;
 }
 
-export function FacilityHfrModal({ facility, registryConfigured, onClose }: FacilityHfrModalProps) {
+/** Link an existing HFR ID, or hand over to the registration flow. */
+export function FacilityHfrModal({
+  facility,
+  registryConfigured,
+  onClose,
+  onOnboard,
+}: FacilityHfrModalProps) {
   const [mode, setMode] = useState<"link" | "register">("link");
   return (
     <Modal opened onClose={onClose} title={`Health Facility Registry — ${facility.name}`} size="lg">
@@ -77,7 +69,7 @@ export function FacilityHfrModal({ facility, registryConfigured, onClose }: Faci
           onChange={(v) => setMode(v === "register" ? "register" : "link")}
           data={[
             { value: "link", label: "Link existing HFR ID" },
-            { value: "register", label: "Register new" },
+            { value: "register", label: "Register or update on HFR" },
           ]}
         />
         {!registryConfigured && (
@@ -89,11 +81,7 @@ export function FacilityHfrModal({ facility, registryConfigured, onClose }: Faci
         {mode === "link" ? (
           <LinkHfrForm facility={facility} onDone={onClose} />
         ) : (
-          <RegisterHfrForm
-            facility={facility}
-            registryConfigured={registryConfigured}
-            onDone={onClose}
-          />
+          <OnboardPrompt registryConfigured={registryConfigured} onOnboard={onOnboard} />
         )}
       </Stack>
     </Modal>
@@ -170,73 +158,21 @@ function LinkHfrForm({ facility, onDone }: { facility: FacilityHfr; onDone: () =
   );
 }
 
-function RegisterHfrForm({
-  facility,
+/** Where registration happens: HFR's own flow, or its portal. */
+function OnboardPrompt({
   registryConfigured,
-  onDone,
+  onOnboard,
 }: {
-  facility: FacilityHfr;
   registryConfigured: boolean;
-  onDone: () => void;
+  onOnboard: () => void;
 }) {
-  const { control, handleSubmit, register, formState } = useForm<RegisterForm>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      ownership: "private",
-      state_lgd_code: "",
-      district_lgd_code: "",
-      pincode: "",
-      hfr_bed_count: facility.hfr_bed_count ?? facility.bed_count,
-      hfr_ipd: facility.hfr_ipd,
-    },
-  });
-  const beds = useController({ control, name: "hfr_bed_count" }).field;
-  const ipd = useController({ control, name: "hfr_ipd" }).field;
-  const submit = useHfrMutation(
-    (form: RegisterForm) =>
-      abdmRegistryService.registerFacilityHfr(facility.id, { ...form, specializations: [] }),
-    onDone,
-  );
-  const { errors } = formState;
   return (
     <Stack gap="sm">
       <Text size="sm" c="dimmed">
-        Name, address, phone and email are taken from this facility's record. You can also register
-        on the HFR portal and link the ID it issues.
+        Registration follows HFR's own steps: search HFR first, then basic, additional and detailed
+        information, then submit with the facility manager's and a verifier's HPR sign-in. A started
+        registration resumes where it stopped.
       </Text>
-      <Controller
-        control={control}
-        name="ownership"
-        render={({ field }) => (
-          <Select
-            label="Ownership"
-            data={OWNERSHIP_OPTIONS}
-            value={field.value}
-            onChange={(v) => field.onChange(v ?? "private")}
-            allowDeselect={false}
-          />
-        )}
-      />
-      <Group grow>
-        <Input
-          label="LGD state code"
-          error={errors.state_lgd_code?.message}
-          {...register("state_lgd_code")}
-        />
-        <Input
-          label="LGD district code"
-          error={errors.district_lgd_code?.message}
-          {...register("district_lgd_code")}
-        />
-        <Input label="Pincode" error={errors.pincode?.message} {...register("pincode")} />
-      </Group>
-      <BedsAndIpd
-        beds={beds.value}
-        onBeds={beds.onChange}
-        ipd={ipd.value}
-        onIpd={ipd.onChange}
-        bedsError={errors.hfr_bed_count?.message}
-      />
       <Group justify="space-between">
         <Button
           tone="ghost"
@@ -248,13 +184,8 @@ function RegisterHfrForm({
         >
           HFR portal
         </Button>
-        <Button
-          tone="primary"
-          disabled={!registryConfigured}
-          loading={submit.isPending}
-          onClick={() => void handleSubmit((f) => submit.mutate(f))()}
-        >
-          Submit to HFR
+        <Button tone="primary" disabled={!registryConfigured} onClick={onOnboard}>
+          Open HFR registration
         </Button>
       </Group>
     </Stack>

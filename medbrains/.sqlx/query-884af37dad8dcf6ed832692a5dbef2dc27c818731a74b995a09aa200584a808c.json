@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT hfr_tracking_id, hfr_status, hfr_facility_id FROM facilities WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hfr_tracking_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "hfr_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "hfr_facility_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "884af37dad8dcf6ed832692a5dbef2dc27c818731a74b995a09aa200584a808c"
+}

@@ -16,10 +16,9 @@
 //! - HFR facility search `POST /FacilityManagement/v1.5/facility/search`: official.
 //! - HFR bridge linkage `POST /v1/bridges/MutipleHRPAddUpdateServices`
 //!   (sic): official (HFR documentation, "Link bridge with facility").
-//! - HFR registration `create-facility` and HPR `POST /api/v1/search/hpr`:
-//!   NOT official. The real flows are the four-step `basic-information` …
-//!   `submit-facility` and `GET /v1/search/searchByHprId/{hprId}`; until
-//!   they are built these answer 404, which is reported as a fault.
+//! - HPR search `GET /v1/search/searchByHprId/{hprId}`: official.
+//! - HFR registration: the four official calls `basic-information` …
+//!   `submit-facility`, in [`crate::hfr_onboarding`].
 //!
 //! A registry that answers anything but 2xx is a fault (`Err`), never "not
 //! registered": only a 2xx that does not list the ID is a refusal.
@@ -34,8 +33,8 @@ pub const HPR_SANDBOX_BASE_URL: &str = HFR_SANDBOX_BASE_URL;
 pub const HPR_PRODUCTION_BASE_URL: &str = HFR_PRODUCTION_BASE_URL;
 
 pub const HFR_SEARCH_PATH: &str = "/FacilityManagement/v1.5/facility/search";
-pub const HFR_REGISTER_PATH: &str = "/FacilityManagement/v1.5/facility/create-facility";
-pub const HPR_SEARCH_PATH: &str = "/api/v1/search/hpr";
+/// `GET {HPR_SEARCH_PATH}/{hprId}`.
+pub const HPR_SEARCH_PATH: &str = "/v1/search/searchByHprId";
 pub const HFR_BRIDGE_LINK_PATH: &str = "/v1/bridges/MutipleHRPAddUpdateServices";
 
 /// Nesting depth searched for a matching record in a registry response. The
@@ -84,22 +83,6 @@ pub async fn hfr_search(
     ))
 }
 
-/// Submit a facility registration. Returns the HFR ID when HFR issues one
-/// synchronously (it usually issues it only after NHA approval).
-pub async fn hfr_register(
-    http: &reqwest::Client,
-    base_url: &str,
-    token: &str,
-    body: &Value,
-) -> Result<(Option<String>, Value), AbdmError> {
-    let value = post(http, &join(base_url, HFR_REGISTER_PATH), token, body).await?;
-    let id = ["facilityId", "id"]
-        .iter()
-        .find_map(|k| value.get(*k).and_then(Value::as_str))
-        .map(str::to_owned);
-    Ok((id, value))
-}
-
 /// Bind our bridge to a facility as HIP and HIU (HFR test cases
 /// HFR-118..123). HFR answers 200 with one item per HRP: `servicesLinked`
 /// or `error` — the caller reads them.
@@ -112,7 +95,8 @@ pub async fn hfr_link_bridge(
     post(http, &join(base_url, HFR_BRIDGE_LINK_PATH), token, body).await
 }
 
-/// Look an HPR ID up (hyphenated or bare 14 digits both match).
+/// Look an HPR ID up on the official path (hyphenated or bare 14 digits
+/// both match). HPR answers an array of accounts.
 pub async fn hpr_search(
     http: &reqwest::Client,
     base_url: &str,
@@ -120,55 +104,97 @@ pub async fn hpr_search(
     hpr_id: &str,
 ) -> Result<Option<RegistryMatch>, AbdmError> {
     let bare: String = hpr_id.chars().filter(char::is_ascii_digit).collect();
-    let body = json!({ "hprId": hpr_id, "idNumber": bare });
-    let value = post(http, &join(base_url, HPR_SEARCH_PATH), token, &body).await?;
-    let hit = find_match(
-        &value,
-        &["hprIdNumber", "hprId", "idNumber"],
-        hpr_id,
-        &["name"],
-    )
-    .or_else(|| {
-        find_match(
-            &value,
-            &["hprIdNumber", "hprId", "idNumber"],
-            &bare,
-            &["name"],
-        )
-    });
-    Ok(hit)
+    let url = format!("{}/{hpr_id}", join(base_url, HPR_SEARCH_PATH));
+    let value = send(http, reqwest::Method::GET, &url, token, &[], None).await?;
+    Ok(hpr_match(&value, hpr_id, &bare))
 }
 
-fn join(base: &str, path: &str) -> String {
+/// The account in an HPR search answer whose number is `hpr_id` or `bare`.
+fn hpr_match(value: &Value, hpr_id: &str, bare: &str) -> Option<RegistryMatch> {
+    let keys = ["hprIdNumber", "hprId", "idNumber"];
+    find_match(value, &keys, hpr_id, &["name"])
+        .or_else(|| find_match(value, &keys, bare, &["name"]))
+}
+
+/// The official HFR search (HFR-001…009), one page of hits. `page` and
+/// `resultsPerPage` are fixed at 1 and 10: the workbook says the user never
+/// fills them.
+pub async fn hfr_search_page(
+    http: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    query: &crate::hfr_onboarding::FacilitySearch,
+) -> Result<crate::hfr_onboarding::SearchPage, AbdmError> {
+    let value = post(http, &join(base_url, HFR_SEARCH_PATH), token, &query.body()).await?;
+    Ok(crate::hfr_onboarding::SearchPage::read(&value))
+}
+
+/// `base` and `path` with exactly one slash between them.
+pub(crate) fn join(base: &str, path: &str) -> String {
     format!("{}{path}", base.trim_end_matches('/'))
 }
 
-async fn post(
+/// POST a JSON body with the gateway token; see [`send`].
+pub(crate) async fn post(
     http: &reqwest::Client,
     url: &str,
     token: &str,
     body: &Value,
 ) -> Result<Value, AbdmError> {
-    let response = http
-        .post(url)
+    send(http, reqwest::Method::POST, url, token, &[], Some(body)).await
+}
+
+/// One registry call: the gateway token as Bearer, a fresh `REQUEST-ID`,
+/// `extra` headers (the HPR tokens), and the JSON answer. Any non-2xx is
+/// an `Err`, never an empty answer.
+pub(crate) async fn send(
+    http: &reqwest::Client,
+    method: reqwest::Method,
+    url: &str,
+    token: &str,
+    extra: &[(&str, &str)],
+    body: Option<&Value>,
+) -> Result<Value, AbdmError> {
+    let text = send_text(http, method, url, token, extra, body).await?;
+    serde_json::from_str(&text).map_err(|_| AbdmError::Status {
+        status: reqwest::StatusCode::BAD_GATEWAY,
+        message: "the registry answered something that is not JSON".to_owned(),
+    })
+}
+
+/// [`send`], returning the body as text (HPR's certificate is not JSON).
+pub(crate) async fn send_text(
+    http: &reqwest::Client,
+    method: reqwest::Method,
+    url: &str,
+    token: &str,
+    extra: &[(&str, &str)],
+    body: Option<&Value>,
+) -> Result<String, AbdmError> {
+    let mut request = http
+        .request(method, url)
         .bearer_auth(token)
         .header("REQUEST-ID", uuid::Uuid::new_v4().to_string())
         .header(
             "TIMESTAMP",
             chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-        )
-        .json(body)
-        .send()
-        .await?;
+        );
+    for (name, value) in extra {
+        request = request.header(*name, *value);
+    }
+    if let Some(body) = body {
+        request = request.json(body);
+    }
+    let response = request.send().await?;
     let status = response.status();
+    let text = response.text().await?;
     if !status.is_success() {
-        let body = response.text().await?;
         return Err(AbdmError::Status {
             status,
-            message: abdm_message(&body),
+            message: abdm_message(&text),
         });
     }
-    Ok(response.json::<Value>().await?)
+    Ok(text)
 }
 
 /// The first object (depth-bounded) whose `id_keys` field equals `target`.
@@ -245,5 +271,18 @@ mod tests {
             find_match(&Value::Null, &["facilityId"], "IN0410000183", &[]),
             None
         );
+    }
+
+    /// HPR's official search answers an array; the number matches hyphenated
+    /// or bare, and an empty array is "not listed", not a fault.
+    #[test]
+    fn finds_professional_in_official_hpr_answer() {
+        let body =
+            json!([{ "hprIdNumber": "71-1234-5678-9012", "name": "Dr A", "hprId": "a@hpr.abdm" }]);
+        let hit = hpr_match(&body, "71-1234-5678-9012", "71123456789012");
+        assert_eq!(hit.and_then(|m| m.name).as_deref(), Some("Dr A"));
+        let bare = json!([{ "hprIdNumber": "71123456789012", "name": "Dr B" }]);
+        assert!(hpr_match(&bare, "71-1234-5678-9012", "71123456789012").is_some());
+        assert!(hpr_match(&json!([]), "71-1234-5678-9012", "71123456789012").is_none());
     }
 }

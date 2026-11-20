@@ -345,13 +345,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Pharmacy Payments ────────────────────────────
         .merge(gated("pharmacy", medbrains_pharmacy_payments::router(), &state))
         // ── ABDM (Phase 11): HFR/HPR registries + gateway HIP relay ─
-        .route("/api/abdm/hfr", get(abdm::hfr::list_registrations))
-        .route("/api/abdm/hfr/facilities", get(abdm::hfr::list_facilities))
-        .route("/api/abdm/hfr/facilities/{id}", put(abdm::hfr::link_facility))
-        .route(
-            "/api/abdm/hfr/facilities/{id}/register",
-            post(abdm::hfr::register_facility),
-        )
+        .merge(abdm::hfr::staff_router())
         .route("/api/abdm/hpr/coverage", get(abdm::hpr::coverage))
         .route("/api/abdm/hpr/doctors/{id}", put(abdm::hpr::set_hpr_id))
         .route(

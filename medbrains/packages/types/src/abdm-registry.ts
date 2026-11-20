@@ -29,16 +29,6 @@ export interface LinkHfrRequest {
   hfr_ipd: boolean;
 }
 
-export interface RegisterHfrRequest {
-  ownership: "government" | "private" | "trust";
-  state_lgd_code: string;
-  district_lgd_code: string;
-  pincode: string;
-  hfr_bed_count: number | null;
-  hfr_ipd: boolean;
-  specializations: string[];
-}
-
 export interface HfrRegistration {
   id: string;
   facility_id: string | null;
