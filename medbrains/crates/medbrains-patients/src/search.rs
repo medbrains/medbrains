@@ -96,9 +96,21 @@ pub(crate) struct PatientSearch {
 }
 
 impl PatientSearch {
+    /// The request's `search` and `by` parameters as a search; a bad `by` is refused.
+    ///
+    /// # Errors
+    /// [`AppError::BadRequest`] for an unknown `by`.
+    pub(crate) async fn for_request(
+        state: &AppState,
+        tenant_id: Uuid,
+        (query, by): (Option<&str>, Option<&str>),
+    ) -> Result<Option<Self>, AppError> {
+        Self::for_query(state, tenant_id, query, SearchBy::from_param(by)?).await
+    }
+
     /// Parse the request's query for the field `by` names, fetching the
     /// fingerprint key only for an Aadhaar-shaped query searched across all fields.
-    pub(crate) async fn for_request(
+    pub(crate) async fn for_query(
         state: &AppState,
         tenant_id: Uuid,
         query: Option<&str>,

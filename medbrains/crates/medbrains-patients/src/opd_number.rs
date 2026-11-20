@@ -34,6 +34,7 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/registration/opd-number", get(get_opd_number))
         .route("/api/registration/opd-number/policy", put(update_policy))
+        .merge(crate::search_settings::router())
 }
 
 /// Read the policy and the previous and next number in the caller's transaction.
@@ -150,4 +151,47 @@ pub(crate) async fn assign_at_registration(
         audit(tx, claims, "patients.opd_number.dated", (&none, new)).await?;
     }
     Ok(assigned)
+}
+
+/// The registration response: the patient as this user may see them, and the
+/// number and date registration gave them.
+pub(crate) fn created(
+    patient: medbrains_core::patient::Patient,
+    restricted: &std::collections::HashMap<String, medbrains_core::form::FieldAccessLevel>,
+    assigned: Option<Assigned>,
+) -> CreatedPatient {
+    CreatedPatient {
+        patient: crate::filter_patient_response(patient, restricted),
+        opd_number: assigned.as_ref().map(|a| a.number.clone()),
+        opd_date: assigned.and_then(|a| a.opd_date),
+    }
+}
+
+/// A patient's OPD number and date as a screen shows them; empty for a
+/// hospital that keeps none.
+#[derive(Debug, Default, Serialize)]
+pub struct OnRow {
+    pub opd_number: Option<String>,
+    pub opd_date: Option<NaiveDate>,
+}
+
+/// One patient's OPD number and date, for the patient header. An identifier
+/// like the UHID: empty wherever the UHID is hidden from this user.
+pub(crate) async fn of_patient(
+    conn: &mut sqlx::PgConnection,
+    (tenant_id, patient_id): (Uuid, Uuid),
+    restricted: &std::collections::HashMap<String, medbrains_core::form::FieldAccessLevel>,
+) -> Result<OnRow, AppError> {
+    if crate::patient_field_is_hidden(restricted, crate::PATIENT_UHID_FIELD) {
+        return Ok(OnRow::default());
+    }
+    let row = sqlx::query_as!(
+        OnRow,
+        "SELECT opd_number, opd_date FROM patients WHERE tenant_id = $1 AND id = $2",
+        tenant_id,
+        patient_id
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
+    Ok(row.unwrap_or_default())
 }
