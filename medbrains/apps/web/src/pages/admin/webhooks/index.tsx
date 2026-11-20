@@ -1,5 +1,5 @@
 import { Code, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { useHasPermission } from "@medbrains/stores";
 import {
   P,
@@ -29,14 +29,14 @@ export function WebhooksPage() {
   const [editing, setEditing] = useState<WebhookSubscription | "new" | null>(null);
   const [secret, setSecret] = useState<WebhookWithSecret | null>(null);
   const [watching, setWatching] = useState<WebhookSubscription | null>(null);
-  const list = useQuery({ queryKey: ["webhooks"], queryFn: () => api.listWebhooks() });
+  const list = useQuery({ queryKey: ["webhooks"], queryFn: () => adminApi.listWebhooks() });
   const deliveries = useQuery({
     queryKey: ["webhook-deliveries", watching?.id],
-    queryFn: () => api.listWebhookDeliveries(watching?.id ?? ""),
+    queryFn: () => adminApi.listWebhookDeliveries(watching?.id ?? ""),
     enabled: watching !== null,
   });
   const rotate = useMutation({
-    mutationFn: (id: string) => api.rotateWebhookSecret(id),
+    mutationFn: (id: string) => adminApi.rotateWebhookSecret(id),
     onSuccess: setSecret,
   });
 

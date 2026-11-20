@@ -1,8 +1,9 @@
-import { api } from "@medbrains/api";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
 
-export type CreatePharmacyCatalogInput = Parameters<typeof api.createPharmacyCatalog>[0];
+export type CreatePharmacyCatalogInput = Parameters<typeof pharmacyApi.createPharmacyCatalog>[0];
 
 export const pharmacyCatalogService = {
-  listPharmacyCatalog: () => api.listPharmacyCatalog(),
-  createPharmacyCatalog: (data: CreatePharmacyCatalogInput) => api.createPharmacyCatalog(data),
+  listPharmacyCatalog: () => pharmacyApi.listPharmacyCatalog(),
+  createPharmacyCatalog: (data: CreatePharmacyCatalogInput) =>
+    pharmacyApi.createPharmacyCatalog(data),
 };

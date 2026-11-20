@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxFoundClaim } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -33,7 +33,7 @@ export function NhcxSearchPanel() {
   const [outcome, setOutcome] = useState<OutcomeFilter>("all");
   const searches = useQuery({
     queryKey: ["nhcx-searches"],
-    queryFn: () => api.listNhcxSearches(),
+    queryFn: () => insuranceApi.listNhcxSearches(),
     enabled: canView,
     refetchInterval: (q) => (q.state.data?.some((s) => !s.result) ? POLL_MS : false),
   });

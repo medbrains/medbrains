@@ -19,7 +19,9 @@ use uuid::Uuid;
 
 use super::{
     inbound::{Reply, Txn, set_state},
-    protocol::{Context, STATE_CANCELLED, STATE_PENDING, Service},
+    protocol::{
+        Context, PAYMENT_NOT_PAID, PAYMENT_ON_FULFILMENT, STATE_CANCELLED, STATE_PENDING, Service,
+    },
     settings::Subscription,
     teleconsult::current,
 };
@@ -171,7 +173,7 @@ fn quote(sub: &Subscription, ctx: &Context, body: &Value) -> Reply {
     // No price yet — never ₹0: the hospital prices it when it accepts.
     order["quote"] = json!({ "price": { "currency": "INR" } });
     if ctx.action == "init" {
-        order["payment"] = json!({ "type": "ON-FULFILLMENT", "status": "NOT-PAID" });
+        order["payment"] = json!({ "type": PAYMENT_ON_FULFILMENT, "status": PAYMENT_NOT_PAID });
     }
     Reply::message(json!({ "order": order }))
 }

@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, SegmentedControl, SimpleGrid, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { indentApi } from "@medbrains/api/modules/indent";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
 import { useHasPermission } from "@medbrains/stores";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -68,7 +69,7 @@ export function AddProductModal() {
     mutationFn: async (values: FormValues) => {
       const code = values.code?.trim() || codeFromName(values.name);
       if (effectiveType === "drug") {
-        await api.createPharmacyCatalog({
+        await pharmacyApi.createPharmacyCatalog({
           code,
           name: values.name,
           generic_name: values.generic_name || undefined,
@@ -80,7 +81,7 @@ export function AddProductModal() {
         });
         return;
       }
-      await api.createStoreCatalogItem({
+      await indentApi.createStoreCatalogItem({
         code,
         name: values.name,
         category: values.category || undefined,

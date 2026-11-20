@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { queuesApi } from "@medbrains/api/modules/queues";
 import type { QueueCategory, QueueRow } from "@medbrains/types";
 import { IconLock, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -57,7 +57,7 @@ export function QueueLanesDrawer({ queue, onClose }: QueueLanesDrawerProps) {
   const queryClient = useQueryClient();
   const lanes = useQuery({
     queryKey: ["queue-lanes", queue?.id],
-    queryFn: () => api.listQueueCategories(queue?.id ?? ""),
+    queryFn: () => queuesApi.listQueueCategories(queue?.id ?? ""),
     enabled: Boolean(queue),
   });
   // `values` keeps the form in step with the loaded lanes when the drawer is
@@ -69,7 +69,7 @@ export function QueueLanesDrawer({ queue, onClose }: QueueLanesDrawerProps) {
 
   const save = useMutation({
     mutationFn: (values: LanesForm) =>
-      api.replaceQueueCategories(
+      queuesApi.replaceQueueCategories(
         queue?.id ?? "",
         values.lanes.map((lane) => ({
           ...lane,

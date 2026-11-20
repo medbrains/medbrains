@@ -44,15 +44,13 @@ if [[ "$ATTACH_REUSE_POSTGRES" == "1" && -z "$ATTACH_DATABASE_URL" ]]; then
 fi
 
 # SpiceDB stores its graph in Postgres and connects over the local unix
-# socket as peer, so it needs a Postgres on the host rather than one in a
-# container. That is exactly the attach-reuse case, which is why the default
-# follows it. Set INSTALL_SPICEDB=1 explicitly to install it anywhere else.
+# socket as peer. It has run on attach-reuse hosts, so that is the default;
+# set INSTALL_SPICEDB=1 to install it beside the kit's own Postgres too.
 INSTALL_SPICEDB="${INSTALL_SPICEDB:-$ATTACH_REUSE_POSTGRES}"
 
-# Docker exists in this kit to run Postgres. Reusing the host's means we
-# have no reason to install a container runtime on somebody's server.
-NEED_DOCKER=1
-[[ "$ATTACH_REUSE_POSTGRES" == "1" ]] && NEED_DOCKER=0
+# The kit's own Postgres: one native cluster (native-postgres.sh). On an
+# attach host it is a cluster of its own, so a host 17/main is never touched.
+[[ "$ATTACH_MODE" == "1" ]] && PG_CLUSTER="${PG_CLUSTER:-medbrains}"
 
 if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" ]]; then
     cat <<USAGE
@@ -97,6 +95,19 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./native-postgres.sh
+. "$DEPLOY_DIR/native-postgres.sh"
+
+# A host still on the old kit's Postgres container must be moved first: this
+# kit no longer runs it, and installing a second, empty Postgres beside a
+# live one would start the server on the empty one.
+if [[ "$ATTACH_REUSE_POSTGRES" != "1" && ! -s "$PG_MARKER" ]] && command -v docker >/dev/null 2>&1 \
+    && docker container inspect medbrains-postgres >/dev/null 2>&1; then
+    echo "ERROR: this host runs Postgres in the medbrains-postgres container. Move it to the"
+    echo "       native cluster first, then re-run install.sh:"
+    echo "         sudo bash $DEPLOY_DIR/migrate-docker-postgres-to-native.sh --dry-run"
+    exit 1
+fi
 
 echo "==> [1/9] Installing system packages"
 apt-get update -qq
@@ -104,8 +115,8 @@ PACKAGES=(ca-certificates curl gnupg lsb-release openssl)
 # certbot is only ours to run when we own 80/443. On an attach host the
 # proxy already there holds them and renews its own certificates.
 [[ "$ATTACH_REUSE_TLS" == "1" ]] || PACKAGES+=(certbot)
-# pg_dump for the backup timer, which cannot shell into a container that
-# does not exist when the host's own Postgres is the database.
+# pg_dump for the backup timer against the host's own Postgres; the kit's
+# own cluster brings postgresql-client-17 with it (native-postgres.sh).
 [[ "$ATTACH_REUSE_POSTGRES" == "1" ]] && PACKAGES+=(postgresql-client)
 apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 # age seals every backup to an offline public key (medbrains-pg-backup).
@@ -127,24 +138,6 @@ else
     echo "    OS security updates: left to the host's owner (OS_AUTO_UPDATES=1 to turn them on)"
 fi
 
-# Docker CE + compose plugin from Docker's official apt repo.
-# Ubuntu 24.04 noble doesn't ship docker-compose-plugin; the
-# legacy docker.io package also lacks `docker compose`.
-if [[ "$NEED_DOCKER" == "1" ]] && ! command -v docker >/dev/null 2>&1; then
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-        | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-    UBU_CODENAME="$(lsb_release -cs)"
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-https://download.docker.com/linux/ubuntu $UBU_CODENAME stable" \
-        > /etc/apt/sources.list.d/docker.list
-    apt-get update -qq
-    apt-get install -y --no-install-recommends \
-        docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    systemctl enable --now docker
-fi
-
 echo "==> [2/9] Creating medbrains system user + directory tree"
 if ! id -u medbrains >/dev/null 2>&1; then
     useradd --system --home /var/lib/medbrains --shell /usr/sbin/nologin medbrains
@@ -154,7 +147,6 @@ install -d -o medbrains -g medbrains -m 0750 \
     /var/lib/medbrains/objects \
     /var/lib/medbrains/cold \
     /var/lib/medbrains/archive \
-    /var/lib/medbrains/pgdata \
     /var/lib/medbrains-edge \
     /var/lib/medbrains-edge/docs \
     /var/lib/medbrains-edge/chain \
@@ -298,70 +290,39 @@ if [[ "$ATTACH_MODE" == "1" ]]; then
     db_env_set "$OWNER_KEY" "$NEW_DB_URL" /etc/medbrains/env
 fi
 
-echo "==> [4/9] Bringing up postgres-17 via docker compose"
-install -m 0644 "$DEPLOY_DIR/docker-compose.prod.yml" /etc/medbrains/docker-compose.yml
-# Pull the postgres password out of /etc/medbrains/env for the
-# compose file to consume.
-DBPW="$(db_url_password "$(env_value "$(db_roles_owner_key /etc/medbrains/env)")")"
+echo "==> [4/9] PostgreSQL $PG_MAJOR (native, systemd)"
+if [[ "$ATTACH_REUSE_POSTGRES" == "1" ]]; then
+    echo "    Reusing the Postgres already on this host — none installed."
+else
+    pg_native_install "${PG_PORT:-5432}"
+    pg_native_owner "${PG_PORT:-5432}" \
+        "$(db_url_password "$(env_value "$(db_roles_owner_key /etc/medbrains/env)")")"
+    echo "    $PG_UNIT on 127.0.0.1/::1:${PG_PORT:-5432}, database medbrains ($PG_LOCALE)"
+fi
+
+# Optional extras that exist only as containers (docker-compose.prod.yml).
+# Docker is never installed by this kit: an operator who turns one on
+# installs it first, deliberately. docs/DECISIONS.md, 2026-11-20.
 ICD_LOCAL_SERVICE="$(env_value MEDBRAINS_ICD_LOCAL_SERVICE)"
 ICD_API_ACCEPT_LICENSE="$(env_value ICD_API_ACCEPT_LICENSE)"
 ICD_API_PORT="$(env_value ICD_API_PORT)"
-ICD_API_INCLUDE="$(env_value ICD_API_INCLUDE)"
-ICD_API_SAVE_ANALYTICS="$(env_value ICD_API_SAVE_ANALYTICS)"
 # The env file carries the default 8382; the attach preflight already
 # decided whether this host can give us that port. Its answer wins.
-if [[ "$ATTACH_MODE" == "1" ]]; then
-    ICD_API_PORT="$ICD_PORT"
-fi
+[[ "$ATTACH_MODE" == "1" ]] && ICD_API_PORT="$ICD_PORT"
+install -m 0644 "$DEPLOY_DIR/docker-compose.prod.yml" /etc/medbrains/docker-compose.yml
 cat > /etc/medbrains/.compose-env <<COMPOSE_ENV
-POSTGRES_DB=medbrains
-POSTGRES_USER=medbrains
-POSTGRES_PASSWORD=$DBPW
 ICD_API_ACCEPT_LICENSE=${ICD_API_ACCEPT_LICENSE:-false}
 ICD_API_PORT=${ICD_API_PORT:-8382}
-ICD_API_INCLUDE=${ICD_API_INCLUDE:-2026-01_en}
-ICD_API_SAVE_ANALYTICS=${ICD_API_SAVE_ANALYTICS:-false}
-PG_PORT=${PG_PORT:-5432}
-GOTENBERG_PORT=${GOTENBERG_PORT:-3005}
+ICD_API_INCLUDE=$(env_value ICD_API_INCLUDE | grep . || echo 2026-01_en)
+ICD_API_SAVE_ANALYTICS=$(env_value ICD_API_SAVE_ANALYTICS | grep . || echo false)
 COMPOSE_ENV
 chmod 600 /etc/medbrains/.compose-env
 
-# If a container exists with the bind-mount layout from earlier
-# install runs, tear it down + drop the broken pgdata so the new
-# named-volume layout can init cleanly. No user data risk on first
-# bootstrap: the database hasn't been migrated yet at this point.
-if [[ "$NEED_DOCKER" == "1" ]] && docker container inspect medbrains-postgres >/dev/null 2>&1; then
-    OLD_MOUNT="$(docker inspect medbrains-postgres --format '{{ range .Mounts }}{{.Source}}{{end}}' 2>/dev/null || true)"
-    if [[ "$OLD_MOUNT" == "/var/lib/medbrains/pgdata" ]]; then
-        echo "    Migrating from bind-mount to named volume — tearing down old container + pgdata"
-        docker compose --env-file /etc/medbrains/.compose-env \
-            -f /etc/medbrains/docker-compose.yml down -v 2>/dev/null || true
-        rm -rf /var/lib/medbrains/pgdata/*
-    fi
-fi
-
-# Operator opt-in: RESET_PGDATA=1 forces a wipe of the named volume.
-# Use this when the application binary's embedded sqlx migrations
-# diverge from what's recorded in _sqlx_migrations (e.g. major sqlx
-# version bump). Never set this with real production data.
-if [[ "${RESET_PGDATA:-0}" == "1" && "$NEED_DOCKER" == "1" ]]; then
-    echo "    RESET_PGDATA=1 — wiping named volume + all data"
-    docker compose --env-file /etc/medbrains/.compose-env \
-        -f /etc/medbrains/docker-compose.yml down -v 2>/dev/null || true
-fi
-
-if [[ "$ATTACH_REUSE_POSTGRES" == "1" ]]; then
-    echo "    Reusing the Postgres already on this host — no container started."
-else
-    docker compose --env-file /etc/medbrains/.compose-env \
-        -f /etc/medbrains/docker-compose.yml up -d postgres
-fi
-
 if [[ "${ICD_LOCAL_SERVICE:-false}" == "true" ]]; then
     if ! command -v docker >/dev/null 2>&1; then
-        echo "ERROR: MEDBRAINS_ICD_LOCAL_SERVICE=true needs docker, which was not"
-        echo "       installed because this host's own Postgres is being reused."
-        echo "       Install docker on the host, or leave the ICD sidecar off."
+        echo "ERROR: MEDBRAINS_ICD_LOCAL_SERVICE=true runs WHO's ICD-API container, and this kit"
+        echo "       does not install docker. Install docker yourself, or leave the sidecar off"
+        echo "       (the server then uses WHO's cloud API or its local ICD cache)."
         exit 1
     fi
     if [[ "${ICD_API_ACCEPT_LICENSE:-false}" != "true" ]]; then
@@ -383,16 +344,6 @@ if [[ "$INSTALL_RUSTRAK" == "1" ]]; then
     grep -q '^INSTALL_RUSTRAK=1$' /etc/medbrains/env || echo "INSTALL_RUSTRAK=1" >> /etc/medbrains/env
     DOMAIN="$DOMAIN" ADMIN_EMAIL="$ADMIN_EMAIL" bash "$DEPLOY_DIR/install-rustrak.sh" \
         || echo "    WARNING: Rustrak install failed — error tracking stays off."
-fi
-
-if [[ "$ATTACH_REUSE_POSTGRES" != "1" ]]; then
-    echo "    Waiting for postgres ready…"
-    for _ in {1..30}; do
-        if docker exec medbrains-postgres pg_isready -U medbrains >/dev/null 2>&1; then
-            break
-        fi
-        sleep 1
-    done
 fi
 
 # Before the server's first boot: it connects with whatever the env names.
@@ -504,29 +455,6 @@ else
     echo "    /tmp/medbrains-web/ not found — leaving SPA static dir as-is."
 fi
 
-
-# medbrains-server.service declares Requires=docker.service, which is correct
-# when the unit brings up its own dockerised Postgres. Reusing the host's
-# Postgres means docker is never installed, and a hard Requires on a missing
-# unit makes the service refuse to start at all - "Unit docker.service not
-# found". A drop-in clears the dependency rather than editing the shipped unit,
-# so the original stays valid for the non-attach shape.
-install_attach_dropins() {
-    [[ "$ATTACH_REUSE_POSTGRES" == "1" ]] || return 0
-    local unit=/etc/systemd/system/medbrains-server.service
-    [[ -f "$unit" ]] || return 0
-    grep -q '^Requires=docker.service' "$unit" || return 0
-
-    # The unit is edited in place rather than overridden with a drop-in.
-    # A drop-in with `Requires=` to reset the list was tried first and did not
-    # work - systemd still resolved Requires=docker.service after a
-    # daemon-reload, and the service refused to start with "Unit
-    # docker.service not found". The original is kept alongside so the
-    # non-attach shape can be restored.
-    cp -n "$unit" "$unit.orig" 2>/dev/null || true
-    sed -i 's|^Requires=docker.service$||; s|^After=network-online.target docker.service$|After=network-online.target postgresql.service|' "$unit"
-    echo "    attach: removed the docker dependency (host Postgres in use)"
-}
 
 # CERT-In direction (i): clocks synced to NIC/NPL NTP or sources traceable
 # to them. Adds India's public servers as extra sources to whichever daemon
@@ -738,21 +666,6 @@ systemctl restart systemd-journald || true
 
 configure_time_sync
 
-# The shipped unit hard-requires docker.service because the dedicated
-# shape runs Postgres in a container. When the host's own Postgres is
-# the database there is no docker, and Requires= would fail the unit.
-if [[ "$NEED_DOCKER" != "1" ]]; then
-    for unit in medbrains-server medbrains-pg-backup; do
-        mkdir -p "/etc/systemd/system/$unit.service.d"
-        cat > "/etc/systemd/system/$unit.service.d/attach.conf" <<'DROPIN'
-[Unit]
-Requires=
-After=network-online.target
-DROPIN
-    done
-fi
-
-install_attach_dropins
 systemctl daemon-reload
 # Pre-deploy dump. A re-deploy restarts the server, and the restart runs
 # the new binary's migrations; take a backup first, through the same unit
@@ -777,7 +690,7 @@ if systemctl is-active --quiet medbrains-server.service \
 fi
 # Point-in-time recovery (docs/ops/BACKUP-RESTORE.md). Off unless the env file
 # says PITR_ENABLED=1; then the setup checks the cluster is MedBrains' alone,
-# configures WAL-G and, beside the container, restarts it once for
+# configures WAL-G and, on the kit's own cluster, restarts it once for
 # archive_mode. A failure here leaves the nightly dump as the only backup:
 # loud, not fatal, so a deploy is never blocked by an opt-in.
 install -m 0755 "$DEPLOY_DIR/medbrains-wal-g" /usr/local/bin/medbrains-wal-g
@@ -795,7 +708,7 @@ else
 fi
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
-# BACKUP_BUCKET) AND re-run migrations if RESET_PGDATA=1 wiped them.
+# BACKUP_BUCKET) and run the new binary's migrations.
 systemctl restart medbrains-server.service
 systemctl enable --now medbrains-archive.timer
 BACKUP_BUCKET="${BACKUP_BUCKET:-$(env_value BACKUP_BUCKET)}"
@@ -902,7 +815,7 @@ fi
 if [[ "$INSTALL_SPICEDB" == "1" ]]; then
     echo "==> Installing SpiceDB (ReBAC index)"
     if [[ -f "$DEPLOY_DIR/install-spicedb.sh" ]]; then
-        DEPLOY_DIR="$DEPLOY_DIR" bash "$DEPLOY_DIR/install-spicedb.sh" || {
+        env DEPLOY_DIR="$DEPLOY_DIR" bash "$DEPLOY_DIR/install-spicedb.sh" || {
             echo "    WARNING: SpiceDB install failed — MedBrains is unaffected,"
             echo "             it answers authorization from Postgres either way."
         }
@@ -969,7 +882,7 @@ echo "==> [9/9] Verification — wait up to 30s for service to be active + healt
 ATTEMPTS=15
 SLEEP_SECS=2
 HEALTHY=0
-for i in $(seq 1 "$ATTEMPTS"); do
+for _ in $(seq 1 "$ATTEMPTS"); do
     STATE="$(systemctl is-active medbrains-server.service 2>/dev/null || true)"
     if [[ "$STATE" == "active" ]] && \
        curl -fsS --max-time 3 "http://127.0.0.1:${APP_PORT:-3000}/api/health" >/dev/null 2>&1; then

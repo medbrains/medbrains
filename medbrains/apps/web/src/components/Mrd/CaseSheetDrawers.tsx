@@ -1,5 +1,5 @@
 import { Anchor, Box, Group, Select, Stack, Text, Textarea } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { apiApi } from "@medbrains/api/modules/api";
 import type { MrdCaseSheetFileFormInput, MrdCaseSheetReprintFormInput } from "@medbrains/schemas";
 import type {
   MrdCaseSheetCompletenessResponse,
@@ -124,7 +124,7 @@ export function CaseSheetDrawers({
                     {/* The print filed onto this page, e.g. the visit's notes. */}
                     {page.document_output_id && (
                       <Anchor
-                        href={api.downloadDocumentUrl(page.document_output_id)}
+                        href={apiApi.downloadDocumentUrl(page.document_output_id)}
                         target="_blank"
                         rel="noopener"
                         size="xs"

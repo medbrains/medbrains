@@ -1,9 +1,9 @@
-import { api } from "@medbrains/api";
+import { lmsApi } from "@medbrains/api/modules/lms";
 
 export const lmsService = {
-  listCourses: api.listLmsCourses,
-  listMyEnrollments: api.myLmsEnrollments,
-  listPaths: api.listLmsPaths,
-  complianceOverview: api.lmsComplianceOverview,
-  listMyCertificates: api.myLmsCertificates,
+  listCourses: lmsApi.listLmsCourses,
+  listMyEnrollments: lmsApi.myLmsEnrollments,
+  listPaths: lmsApi.listLmsPaths,
+  complianceOverview: lmsApi.lmsComplianceOverview,
+  listMyCertificates: lmsApi.myLmsCertificates,
 };

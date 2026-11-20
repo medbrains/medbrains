@@ -23,6 +23,11 @@ const base: UhiRequest = {
   hold_expires_at: null,
   lab_order_ids: [],
   home_collection: false,
+  slot_held_until: null,
+  doctor_no_show_at: null,
+  has_pin: false,
+  pin_verified_at: null,
+  pin_failed_attempts: 0,
 };
 
 describe("UhiPaymentCell", () => {

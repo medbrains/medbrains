@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { formsApi } from "@medbrains/api/modules/forms";
 import { useHasPermission } from "@medbrains/stores";
 import { type FormTemplateListItem, P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
@@ -19,6 +19,8 @@ const STATUS: Record<FormTemplateListItem["status"], { label: string; tone: Badg
   retired: { label: "Retired", tone: "neutral" },
 };
 
+const TEMPLATES_KEY = ["form-templates"];
+
 /** The hospital's own forms: build one, or customise a built-in one, and publish it. */
 export function FormTemplatesPage() {
   useRequirePermission(P.FORMS.TEMPLATES.LIST);
@@ -26,13 +28,13 @@ export function FormTemplatesPage() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const list = useQuery({ queryKey: ["form-templates"], queryFn: () => api.listFormTemplates() });
+  const list = useQuery({ queryKey: TEMPLATES_KEY, queryFn: () => formsApi.listFormTemplates() });
 
   const customise = useMutation({
     mutationFn: (item: FormTemplateListItem) =>
-      api.createFormTemplate({ code: item.code, name: item.name, module: item.module }),
+      formsApi.createFormTemplate({ code: item.code, name: item.name, module: item.module }),
     onSuccess: (template) => {
-      void queryClient.invalidateQueries({ queryKey: ["form-templates"] });
+      void queryClient.invalidateQueries({ queryKey: TEMPLATES_KEY });
       setEditing(template.id);
     },
     onError: (error: Error) => toast.error(error.message, { title: "Couldn't start customising" }),

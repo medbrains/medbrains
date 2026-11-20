@@ -20,6 +20,8 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { formatDateTime } from "@/lib/date-utils";
 import { uhiService } from "@/services/uhi.service";
 import { UhiPaymentCell } from "./uhi-payment-cell";
+import { UhiPinCheck } from "./uhi-pin-check";
+import { MAX_PIN_TRIES, UhiVisitNotes } from "./uhi-visit-notes";
 
 const SERVICE_LABEL: Record<UhiService, string> = {
   teleconsultation: "Teleconsultation",
@@ -30,6 +32,7 @@ const SERVICE_LABEL: Record<UhiService, string> = {
 };
 
 const STATE: Record<UhiRequestState, { label: string; tone: BadgeTone }> = {
+  initialised: { label: "Slot held — not confirmed yet", tone: "warning" },
   awaiting_payment: { label: "Held — waiting for payment", tone: "warning" },
   pending: { label: "Waiting for us", tone: "warning" },
   confirmed: { label: "Confirmed", tone: "success" },
@@ -46,19 +49,44 @@ const ACCEPT_LABEL: Partial<Record<UhiService, string>> = {
 };
 
 /**
- * UHI requests: what patient apps booked or asked for through NHA's Unified
- * Health Interface. Consultations are booked straight into the day's
- * appointments (a teleconsultation paid online is held until it is paid);
- * ambulance, blood and lab requests wait here for someone to say whether the
- * hospital can help, and that answer goes back to the app.
+ * Which actions a row offers this user: answering needs the UHI respond
+ * permission plus the service module's own; the PIN check needs its own code.
  */
-export function UhiRequestsPage() {
-  useRequirePermission(P.UHI.REQUESTS.VIEW);
+function useUhiRowGates() {
   const canRespond = useHasPermission(P.UHI.REQUESTS.RESPOND);
   const canDispatch = useHasPermission(P.AMBULANCE.TRIPS.CREATE);
   const canIssueBlood = useHasPermission(P.BLOOD_BANK.INVENTORY.MANAGE);
   const canOrderLab = useHasPermission(P.LAB.ORDERS.DIRECT);
   const canBookCollection = useHasPermission(P.LAB.SAMPLES.MANAGE);
+  const canCheckPin = useHasPermission(P.UHI.REQUESTS.CHECK_PIN);
+  // Each service's accept needs its module's own permission as well.
+  const serviceGate: Partial<Record<UhiService, (r: UhiRequest) => boolean>> = {
+    ambulance: () => canDispatch,
+    blood_bank: () => canIssueBlood,
+    lab_tests: (r) => canOrderLab && (!r.home_collection || canBookCollection),
+  };
+  /** Offer accept/decline only on a pending request the user may answer for its service. */
+  const mayAnswer = (r: UhiRequest) =>
+    canRespond && r.state === "pending" && (serviceGate[r.service]?.(r) ?? false);
+  /** Offer the PIN check only on a confirmed booking with a PIN and tries left. */
+  const mayCheckPin = (r: UhiRequest) =>
+    canCheckPin && r.state === "confirmed" && r.has_pin && r.pin_failed_attempts < MAX_PIN_TRIES;
+  return { mayAnswer, mayCheckPin };
+}
+
+/**
+ * UHI requests: what patient apps booked or asked for through NHA's Unified
+ * Health Interface. Consultations are booked straight into the day's
+ * appointments (a teleconsultation paid online is held until it is paid; a
+ * visit's slot is held for 15 minutes between init and confirm, and the desk
+ * checks the PIN the patient's app shows);
+ * ambulance, blood and lab requests wait here for someone to say whether the
+ * hospital can help, and that answer goes back to the app.
+ */
+export function UhiRequestsPage() {
+  useRequirePermission(P.UHI.REQUESTS.VIEW);
+  const { mayAnswer, mayCheckPin } = useUhiRowGates();
+  const [checkingPin, setCheckingPin] = useState<UhiRequest | null>(null);
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [declining, setDeclining] = useState<UhiRequest | null>(null);
@@ -86,15 +114,6 @@ export function UhiRequestsPage() {
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not decline" }),
   });
-
-  // Each service's accept needs its module's own permission as well.
-  const serviceGate: Partial<Record<UhiService, (r: UhiRequest) => boolean>> = {
-    ambulance: () => canDispatch,
-    blood_bank: () => canIssueBlood,
-    lab_tests: (r) => canOrderLab && (!r.home_collection || canBookCollection),
-  };
-  const mayAnswer = (r: UhiRequest) =>
-    canRespond && r.state === "pending" && (serviceGate[r.service]?.(r) ?? false);
 
   return (
     <Stack>
@@ -175,12 +194,17 @@ export function UhiRequestsPage() {
                         {`Slot let go at ${formatDateTime(r.hold_expires_at)} unless paid`}
                       </Text>
                     )}
+                    <UhiVisitNotes request={r} />
                   </Table.Td>
                   <Table.Td>
                     <UhiPaymentCell request={r} />
                   </Table.Td>
                   <Table.Td>
-                    {mayAnswer(r) ? (
+                    {mayCheckPin(r) ? (
+                      <Button size="xs" tone="primary" onClick={() => setCheckingPin(r)}>
+                        Check PIN
+                      </Button>
+                    ) : mayAnswer(r) ? (
                       <Group gap="xs">
                         <Button
                           size="xs"
@@ -206,6 +230,7 @@ export function UhiRequestsPage() {
           </Table>
         </Card>
       )}
+      <UhiPinCheck request={checkingPin} onClose={() => setCheckingPin(null)} />
       <Modal
         opened={declining !== null}
         onClose={() => setDeclining(null)}

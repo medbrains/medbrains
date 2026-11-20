@@ -1,6 +1,7 @@
-import { api } from "@medbrains/api";
+import { abdmApi } from "@medbrains/api/modules/abdm";
+import { fhirApi } from "@medbrains/api/modules/fhir";
 
 export const standardsService = {
-  fhirMetadata: () => api.fhirMetadata(),
-  listFacilityHfr: () => api.listFacilityHfr(),
+  fhirMetadata: () => fhirApi.fhirMetadata(),
+  listFacilityHfr: () => abdmApi.listFacilityHfr(),
 };

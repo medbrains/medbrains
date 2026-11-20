@@ -7,5 +7,28 @@
       "src/**/*.tsx",
       "src/**/*.scss"
     ]
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/**", "!src/**/*.test.ts", "!src/**/*.test.tsx", "!src/test/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-router-dom": "Import from `react-router`. Router v7 ships both, and under Vite they resolve to two modules with two React contexts — a hook taken from this one looks for a Router in a context the app never filled, and throws `useNavigate() may be used only in the context of a <Router>` at mount.",
+                  "@medbrains/api": {
+                    "importNames": ["api"],
+                    "message": "Import the API area you call from `@medbrains/api/modules/<area>` (e.g. `patientsApi`). `api` holds every area, so importing it puts the whole client (about 400 KB) back into this screen's download, and into first load if the shell reaches it."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
