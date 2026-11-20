@@ -84,8 +84,8 @@ patch manager, a key vault, a backup tool. Each closes a gap and adds a seam.
 
 MedBrains goes the other way. It is one compiled program that serves every
 module, on one PostgreSQL database. For hospitals that want an appliance, there
-is also the MedBrains operating system: a small Linux system we build
-ourselves, with the database, the server and its front door on it and nothing
+is also [MedBrains OS](/os), our own operating system: a small Linux system we
+build ourselves, with the database, the server and its front door on it and nothing
 else. It is built directly on Linux with no Docker inside it, so there is no
 container layer to patch separately. Updates come down one signed path.
 
