@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tenants SET state_id = $1, district_id = $2, latitude = $3::float8, longitude = $4::float8 WHERE id = $5",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Float8",
+        "Float8",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "20e663bd32c53fe72af7cd66a6453b4ddfb8eb935414fac853f1b15f479c7ea4"
+}

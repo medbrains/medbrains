@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::adapter::{Adapter, Tx};
 use crate::critical_values::CriticalValues;
-use crate::engine_checks::{check_new_set, parse_statuses, require_apply_area};
+use crate::engine_checks::{apply_area_permission, check_new_set, parse_statuses};
 use crate::flow_switches::FlowSwitches;
 use crate::flows::{self, Applied};
 use crate::interactions::DrugInteractions;
@@ -319,7 +319,9 @@ pub async fn apply(
     require_permission(claims, permissions::knowledge::change_sets::APPLY)?;
     let mut tx = begin(pool, claims).await?;
     let set = store::load_set(&mut tx, claims.tenant_id, id, true).await?;
-    require_apply_area(claims, area_of(&set)?)?;
+    if let Some(code) = apply_area_permission(area_of(&set)?) {
+        require_permission(claims, code)?;
+    }
     if set.status != "approved" {
         return Err(AppError::Conflict(format!(
             "Only an approved change can be applied; this one is {}",

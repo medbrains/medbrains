@@ -3637,8 +3637,9 @@ pub async fn update_tenant_geo_with_presets(
     let defaults_applied = name_country(&mut tx, claims.tenant_id, body.country_id).await?;
     // The rest of the location; the country is set once, above.
     sqlx::query!(
-        "UPDATE tenants SET state_id = $1, district_id = $2, latitude = $3, longitude = $4 \
-          WHERE id = $5",
+        // The request carries degrees as f64; the columns are numeric.
+        "UPDATE tenants SET state_id = $1, district_id = $2, \
+          latitude = $3::float8, longitude = $4::float8 WHERE id = $5",
         body.state_id,
         body.district_id,
         body.latitude,

@@ -68,6 +68,7 @@ function setAbilities(
   };
 }
 
+/** The note box and the buttons a change set offers this user at its status. */
 export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps) {
   const [note, setNote] = useState("");
   const {

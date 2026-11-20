@@ -1,12 +1,10 @@
 //! The checks the change-set service makes before it opens a transaction:
-//! the shape of a new set, the status filter, and who may apply which area.
+//! the shape of a new set, the status filter, and which code applying an area needs.
 //!
 //! Split from `engine.rs` so the service reads as the order of operations.
 
 use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 
 use crate::model::{Area, NewKnowledgeChangeSet, Op};
 
@@ -42,15 +40,13 @@ pub(crate) fn parse_statuses(status: &str) -> Vec<String> {
         .collect()
 }
 
-/// The permission applying a set of `area` needs on top of `apply`.
-pub(crate) fn require_apply_area(claims: &Claims, area: Area) -> Result<(), AppError> {
+/// The code applying a set of `area` needs on top of `apply`, if any.
+pub(crate) const fn apply_area_permission(area: Area) -> Option<&'static str> {
     match area {
-        Area::FlowSwitches => require_permission(claims, permissions::flows::PUBLISH),
+        Area::FlowSwitches => Some(permissions::flows::PUBLISH),
         // Switching a hospital's country switches its regulatory rules: only
         // the hospital administrator applies it, after a second person approved.
-        Area::LocaleProfile => {
-            require_permission(claims, permissions::admin::locale_profile::UPDATE)
-        }
-        Area::DrugInteractions | Area::CriticalValueRules => Ok(()),
+        Area::LocaleProfile => Some(permissions::admin::locale_profile::UPDATE),
+        Area::DrugInteractions | Area::CriticalValueRules => None,
     }
 }
