@@ -70,6 +70,17 @@ pub mod patients {
         pub const REPRINT: &str = "patients.card.reprint";
     }
 
+    pub mod opd_number {
+        /// Give an OPD date before today.
+        ///
+        /// For entering old paper records: the day the OPD number was issued
+        /// in the register, before today, never in the future. Only where the
+        /// hospital allows backdating. Audited with the old and new date; the
+        /// record's own entry time is never changed, and no visit, bill or
+        /// token is created for the earlier date.
+        pub const BACKDATE: &str = "patients.opd_number.backdate";
+    }
+
     pub mod group_identity {
         /// See a patient's records at other group hospitals.
         ///

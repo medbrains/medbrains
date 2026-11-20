@@ -117,6 +117,10 @@ export interface Patient {
   id: string;
   tenant_id: string;
   uhid: string;
+  /** The hospital OPD number, when it keeps one per patient; set by registration. */
+  opd_number?: string | null;
+  /** The day that number was issued in the paper register (YYYY-MM-DD). */
+  opd_date?: string | null;
   abha_id: string | null;
   prefix: string | null;
   first_name: string;
@@ -584,6 +588,10 @@ export interface CreatePatientRequest {
   financial_class?: FinancialClass;
   /** The campaign the patient came through, picked at the desk. */
   campaign_id?: string;
+  /** The hospital OPD number the desk typed, when it keeps one per patient. */
+  opd_number?: string;
+  /** The day that number was issued in the paper register (YYYY-MM-DD); today if absent. */
+  opd_date?: string;
   abha_number?: string;
   abha_address?: string;
   /** The desk's "Verify ABHA" record; with it the ABHA is saved as verified. */

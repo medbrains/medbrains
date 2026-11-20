@@ -1,18 +1,22 @@
 //! The hospital OPD number at the desk, over HTTP.
 //!
-//! The policy screen and the previous and next number the registration form
-//! shows. The rules live in `medbrains_server_services::opd_number`; this is HTTP.
+//! The policy screen, the previous and next number the registration form
+//! shows, and the number registration gives. The rules live in `medbrains_server_services::opd_number`; this is HTTP.
 
 use axum::extract::State;
 use axum::routing::{get, put};
 use axum::{Extension, Json};
+use chrono::NaiveDate;
 use medbrains_core::permissions;
 use medbrains_kernel as kernel;
+use medbrains_kernel::audit::AuditEntry;
+use medbrains_kernel::authz::Outcome;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
-use medbrains_server_services::opd_number::{self, Policy};
+use medbrains_server_services::opd_number::{self, Assigned, Entry, Policy, Target};
 use serde::Serialize;
+use uuid::Uuid;
 
 /// The policy and the numbers the form shows beside the field.
 #[derive(Debug, Serialize)]
@@ -72,4 +76,78 @@ pub async fn update_policy(
     opd_number::write_policy(&mut tx, claims.tenant_id, &policy).await?;
     tx.commit().await?;
     Ok(Json(view(&state, &permit).await?))
+}
+
+/// Whether the caller may give an OPD date before today. An unknown answer
+/// is an error, never a quiet "no".
+fn may_backdate(claims: &Claims) -> Result<bool, AppError> {
+    match kernel::authz::permission_outcome(claims, permissions::patients::opd_number::BACKDATE) {
+        Outcome::Allow => Ok(true),
+        Outcome::Deny => Ok(false),
+        Outcome::Unknown => Err(AppError::ServiceUnavailable(
+            "permissions unavailable".into(),
+        )),
+    }
+}
+
+/// The audit row for a number given or corrected: old and new number and date.
+async fn audit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    action: &'static str,
+    (old, new): (&serde_json::Value, &Assigned),
+) -> Result<(), AppError> {
+    let (entity_type, entity_id) = match new.target {
+        Target::Patient(id) => ("patient", id),
+        Target::Visit(id) => ("encounter", id),
+    };
+    let new_values = serde_json::json!({ "opd_number": &new.number, "opd_date": new.opd_date });
+    kernel::audit::append(
+        tx,
+        &AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action,
+            entity_type,
+            entity_id: Some(entity_id),
+            old_values: Some(old),
+            new_values: Some(&new_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+/// A registered patient and the OPD number and date registration gave them,
+/// so the desk sees an automatic number at once.
+#[derive(Debug, Serialize)]
+pub struct CreatedPatient {
+    #[serde(flatten)]
+    pub patient: medbrains_core::patient::Patient,
+    pub opd_number: Option<String>,
+    pub opd_date: Option<NaiveDate>,
+}
+
+/// Give a newly registered patient their OPD number and date when the hospital
+/// keeps one per patient. A date the desk chose (an old paper record) is
+/// audited; `created_at` is untouched and nothing else is created.
+pub(crate) async fn assign_at_registration(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    patient_id: Uuid,
+    body: &crate::CreatePatientRequest,
+) -> Result<Option<Assigned>, AppError> {
+    let entry = Entry {
+        typed: body.opd_number.as_deref(),
+        opd_date: body.opd_date,
+        may_backdate: may_backdate(claims)?,
+    };
+    let ids = (patient_id, None);
+    let assigned = opd_number::assign(tx, claims.tenant_id, ids, entry).await?;
+    if let Some(new) = assigned.as_ref().filter(|_| body.opd_date.is_some()) {
+        let none = serde_json::json!({ "opd_number": null, "opd_date": null });
+        audit(tx, claims, "patients.opd_number.dated", (&none, new)).await?;
+    }
+    Ok(assigned)
 }

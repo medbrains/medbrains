@@ -50,6 +50,7 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 use medbrains_server_services::billing_lanes::{self, FeeMoment};
+use medbrains_server_services::opd_number::{self, Assigned, Target};
 
 const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
     permissions::opd::queue::VIEW,
@@ -138,6 +139,9 @@ pub struct CreateEncounterRequest {
     /// Tagged rows must be excluded from regulator-facing reports.
     #[serde(default)]
     pub is_dummy: Option<bool>,
+    /// The hospital OPD number the desk typed for this visit (or, per patient,
+    /// for a patient who has none yet).
+    pub opd_number: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -934,7 +938,7 @@ pub async fn create_encounter(
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned);
 
-    let encounter = sqlx::query_as::<_, Encounter>(
+    let mut encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
           encounter_date, notes, attributes, visit_type, is_dummy, chief_complaints, created_by) \
@@ -954,6 +958,20 @@ pub async fn create_encounter(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+    let ids = (encounter.patient_id, Some(encounter.id));
+    let entry = opd_number::Entry {
+        typed: body.opd_number.as_deref(),
+        ..Default::default()
+    };
+    let assigned = opd_number::assign(&mut tx, claims.tenant_id, ids, entry).await?;
+    if let Some(Assigned {
+        target: Target::Visit(_),
+        number,
+        ..
+    }) = assigned
+    {
+        encounter.encounter_number = Some(number);
+    }
 
     let token = generate_opd_token(&mut tx, &claims.tenant_id).await?;
 

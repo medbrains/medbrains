@@ -394,6 +394,10 @@ pub struct CreatePatientRequest {
     pub financial_class: Option<FinancialClass>,
     /// The campaign the patient came through, picked at the desk.
     pub campaign_id: Option<Uuid>,
+    /// The hospital OPD number the desk typed, when its policy is per patient.
+    pub opd_number: Option<String>,
+    /// The day that number was issued in the paper register; today if absent.
+    pub opd_date: Option<NaiveDate>,
 
     // ── Digital identity / clinical intake context ──
     pub abha_number: Option<String>,
@@ -1384,7 +1388,7 @@ pub async fn create_patient(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePatientRequest>,
-) -> Result<Json<Patient>, AppError> {
+) -> Result<Json<opd_number::CreatedPatient>, AppError> {
     let permit = kernel::authz::permit(&claims, permissions::patients::CREATE)?;
 
     // Validate field-level write access
@@ -1529,6 +1533,7 @@ pub async fn create_patient(
     )
     .fetch_one(&mut *tx)
     .await?;
+    let assigned = opd_number::assign_at_registration(&mut tx, &claims, patient.id, &body).await?;
     if let Some(local) = body.full_name_local.as_deref() {
         local_name::save(&mut tx, claims.tenant_id, patient.id, local).await?;
         patient.full_name_local = Some(local.trim().to_owned()).filter(|n| !n.is_empty());
@@ -1700,7 +1705,11 @@ pub async fn create_patient(
     )
     .await;
 
-    Ok(Json(filter_patient_response(patient, &restricted)))
+    Ok(Json(opd_number::CreatedPatient {
+        patient: filter_patient_response(patient, &restricted),
+        opd_number: assigned.as_ref().map(|a| a.number.clone()),
+        opd_date: assigned.and_then(|a| a.opd_date),
+    }))
 }
 
 // ══════════════════════════════════════════════════════════

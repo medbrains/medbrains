@@ -754,6 +754,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::card::REPRINT,
             permissions::patients::group_identity::VIEW,
             permissions::patients::CREATE,
+            permissions::patients::opd_number::BACKDATE,
             permissions::patients::UPDATE,
             permissions::patients::privacy_requests::LIST,
             permissions::patients::privacy_requests::CREATE,
