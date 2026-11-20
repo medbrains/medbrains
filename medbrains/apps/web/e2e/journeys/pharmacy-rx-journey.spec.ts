@@ -23,6 +23,10 @@ import {
   receiveStock,
 } from "./support/pos-counter";
 import { expect, freshPerson, type Hospital, test } from "./support/world";
+import { ownClientHeaders } from "../helpers/worker-tenant";
+
+// Each test stands alone (its own page, sign-in and data), so workers and shards may split them.
+test.describe.configure({ mode: "parallel" });
 
 const stamp = () => `${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
@@ -85,7 +89,7 @@ async function signIn(
   password: string,
 ): Promise<AuthContext> {
   const post = () =>
-    request.post(`${E2E_BACKEND_URL}/api/auth/login`, { data: { username, password } });
+    request.post(`${E2E_BACKEND_URL}/api/auth/login`, { headers: ownClientHeaders(), data: { username, password } });
   let resp = await post();
   // Five sign-ins a minute per address; a journey with several staff meets it.
   for (let attempt = 0; resp.status() === 429 && attempt < 4; attempt += 1) {
@@ -693,6 +697,7 @@ test("a witness's password is guarded by their sign-in lockout", async ({ hospit
   expect(await rightButLocked.text()).toContain("locked");
   // It is their sign-in lockout: the witness cannot sign in either.
   const signInLocked = await request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: { username: witness.username, password: witness.password },
   });
   expect(signInLocked.status(), "the witness's sign-in is locked").not.toBe(200);

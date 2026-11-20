@@ -73,8 +73,21 @@ pub fn retry(code: &str) -> Option<Retry> {
     entry(code).map(|e| e.1)
 }
 
-/// The code [`describe`] put at the end of its sentence, when there is one.
-fn code_of(described: &str) -> Option<&str> {
+/// The codes ABDM refuses a stored link token with.
+///
+/// Invalid or expired (ABDM-1026), or issued for another ABHA address
+/// (ABDM-1038). Either way the token is useless and a new one must be
+/// generated, never resent.
+pub const LINK_TOKEN_REJECTED_CODES: &[&str] = &["ABDM-1026", "ABDM-1038"];
+
+/// ABDM's "calls out of order": resume from the step after the last one ABDM
+/// confirmed, never resend the refused call in place.
+pub const OUT_OF_SEQUENCE: &str = "ABDM-2406";
+
+/// The code [`describe`] put at the end of its sentence, when there is one —
+/// how a refusal already turned into staff words still says which code it was.
+#[must_use]
+pub fn code_of(described: &str) -> Option<&str> {
     described
         .strip_suffix(')')?
         .rsplit_once("(code ")
@@ -92,6 +105,12 @@ pub fn retry_later(described: &str) -> bool {
 #[must_use]
 pub fn is_deactivated(code: &str) -> bool {
     DEACTIVATED_CODES.contains(&normalize(code).as_str())
+}
+
+/// Whether `code` says the stored link token is no longer usable.
+#[must_use]
+pub fn is_link_token_rejected(code: &str) -> bool {
+    LINK_TOKEN_REJECTED_CODES.contains(&normalize(code).as_str())
 }
 
 /// The code and message out of any ABDM error body: `{error:{code,message}}`,

@@ -5,6 +5,8 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -17,7 +19,6 @@ use medbrains_core::print_data::{
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── Case Sheet Cover ─────────────────────────────────────
@@ -50,12 +51,10 @@ pub async fn get_case_sheet_cover_print_data(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<CaseSheetCoverPrintData>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::ipd::admissions::VIEW)?;
+    gate::require_admission_access(&state, &claims, admission_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CaseSheetCoverRow>(
@@ -185,18 +184,10 @@ pub async fn get_preop_assessment_print_data(
     Extension(claims): Extension<Claims>,
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<PreopAssessmentPrintData>, AppError> {
-    require_permission(&claims, permissions::ot::preop::LIST)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::OT_BOOKING,
-        booking_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::ot::preop::LIST)?;
+    gate::require_access_via(&state, &claims, gate::links::OT_BOOKING, booking_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PreopAssessmentRow>(
@@ -687,18 +678,10 @@ pub async fn get_surgical_safety_checklist_print_data(
 ) -> Result<Json<SurgicalSafetyChecklistPrintData>, AppError> {
     // Gated on the checklist's own permission, not `ipd.admissions.view`: this
     // is the OT safety record, and the code for reading it already exists.
-    require_permission(&claims, permissions::ot::safety_checklist::LIST)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::OT_BOOKING,
-        booking_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::ot::safety_checklist::LIST)?;
+    gate::require_access_via(&state, &claims, gate::links::OT_BOOKING, booking_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, SurgicalSafetyRow>(
@@ -916,18 +899,10 @@ pub async fn get_anesthesia_record_print_data(
     Extension(claims): Extension<Claims>,
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<AnesthesiaRecordPrintData>, AppError> {
-    require_permission(&claims, permissions::ot::anesthesia::LIST)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::OT_BOOKING,
-        booking_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::ot::anesthesia::LIST)?;
+    gate::require_access_via(&state, &claims, gate::links::OT_BOOKING, booking_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AnesthesiaRecordRow>(
@@ -1072,18 +1047,10 @@ pub async fn get_operation_notes_print_data(
     Extension(claims): Extension<Claims>,
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<OperationNotesPrintData>, AppError> {
-    require_permission(&claims, permissions::ot::case_records::LIST)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::OT_BOOKING,
-        booking_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::ot::case_records::LIST)?;
+    gate::require_access_via(&state, &claims, gate::links::OT_BOOKING, booking_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, OperationNotesRow>(
@@ -1243,18 +1210,10 @@ pub async fn get_postop_orders_print_data(
     Extension(claims): Extension<Claims>,
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<PostopOrdersPrintData>, AppError> {
-    require_permission(&claims, permissions::ot::postop::LIST)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::OT_BOOKING,
-        booking_id,
-    )
-    .await?;
+    let permit = kernel::authz::permit(&claims, permissions::ot::postop::LIST)?;
+    gate::require_access_via(&state, &claims, gate::links::OT_BOOKING, booking_id).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PostopOrdersRow>(
@@ -1415,20 +1374,18 @@ pub async fn get_transfusion_monitoring_print_data(
     Extension(claims): Extension<Claims>,
     Path(transfusion_id): Path<Uuid>,
 ) -> Result<Json<TransfusionMonitoringPrintData>, AppError> {
-    require_permission(&claims, permissions::nurse::transfusion::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::nurse::transfusion::VIEW)?;
     // A transfusion with no admission answers 404 here, as the bedside
     // endpoints do: there is no patient to authorize it against.
-    medbrains_authz_gate::require_access_via(
+    gate::require_access_via(
         &state,
         &claims,
-        medbrains_authz_gate::links::BEDSIDE_TRANSFUSION,
+        gate::links::BEDSIDE_TRANSFUSION,
         transfusion_id,
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, TransfusionMonitoringRow>(
