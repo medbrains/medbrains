@@ -62,6 +62,20 @@ export function isValidMobile(typed: string): boolean {
   return /^\d{10}$/.test(withoutSpaces(typed));
 }
 
+/**
+ * The Aadhaar field's error: NHA's exact words, once the desk has tried to
+ * send or typed all 12 digits (CRT_ABHA_104).
+ */
+export function aadhaarFieldError(typed: string, tried: boolean): string | undefined {
+  if (!tried && typed.length !== 12) return undefined;
+  return isValidAadhaar(typed) ? undefined : ABHA_MESSAGES.aadhaarInvalid;
+}
+
+/** The mobile field's error, once something is typed: NHA's exact words. */
+export function mobileFieldError(typed: string): string | undefined {
+  return typed && !isValidMobile(typed) ? ABHA_MESSAGES.mobileInvalid : undefined;
+}
+
 /** The part before the `@`, whether or not the desk typed `@{domain}`. */
 export function addressName(typed: string, domain: string): string {
   const t = typed.trim();

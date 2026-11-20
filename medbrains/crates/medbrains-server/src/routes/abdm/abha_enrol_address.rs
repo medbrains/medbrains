@@ -20,6 +20,7 @@ use medbrains_abdm::{
     },
 };
 use medbrains_core::permissions;
+use medbrains_kernel::authz::require_permission;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -27,10 +28,7 @@ use super::abha::{Abdm, connect, map_abdm_error};
 use super::abha_address::address_domain;
 use super::abha_common::{VerificationStep, peek_token, update};
 use super::abha_enrol::{finish, load, step};
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
 /// ABDM's code for an ABHA address someone already has.
 const TAKEN_CODE: &str = "ABDM-1101";

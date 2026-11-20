@@ -25,6 +25,7 @@ pub mod abha_optout;
 pub mod abha_profile;
 pub mod abha_qr;
 pub mod abha_verify;
+pub mod abha_verify_answer;
 pub mod bridge;
 mod bridge_rules;
 pub mod dashboard;

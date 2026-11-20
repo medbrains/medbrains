@@ -3,11 +3,13 @@ import { render, screen } from "@/test/test-utils";
 import { AbhaAddressRules } from "./AbhaAddressRules";
 import {
   ABHA_MESSAGES,
+  aadhaarFieldError,
   addressChecklist,
   addressName,
   isValidAadhaar,
   isValidAddress,
   isValidMobile,
+  mobileFieldError,
   splitAbdmMessage,
   verhoeffOk,
 } from "./abhaRules";
@@ -88,5 +90,15 @@ describe("AbhaAddressRules", () => {
     render(<AbhaAddressRules name="priya..v" domain="sbx" />);
     expect(screen.getByText("At most one dot (.) — not met")).toBeInTheDocument();
     expect(screen.getByText("8–18 characters, including @sbx — met")).toBeInTheDocument();
+  });
+});
+
+describe("field errors", () => {
+  it("shows the Aadhaar error only once tried or complete", () => {
+    expect(aadhaarFieldError("1234", false)).toBeUndefined();
+    expect(aadhaarFieldError("1234", true)).toBe(ABHA_MESSAGES.aadhaarInvalid);
+    expect(aadhaarFieldError("123456789012", false)).toBe(ABHA_MESSAGES.aadhaarInvalid);
+    expect(mobileFieldError("")).toBeUndefined();
+    expect(mobileFieldError("12345")).toBe(ABHA_MESSAGES.mobileInvalid);
   });
 });

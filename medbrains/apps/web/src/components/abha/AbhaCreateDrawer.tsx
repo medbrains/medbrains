@@ -2,19 +2,9 @@ import { Group, Stack, Text } from "@mantine/core";
 import type { AbhaVerificationStep } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { useInterval } from "react-use";
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Chip,
-  ChipGroup,
-  Input,
-  Modal,
-  PasswordField,
-} from "@/components/ui";
+import { Alert, Button, Checkbox, Input, Modal, PasswordField } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
-import { AbhaAddressRules } from "./AbhaAddressRules";
+import { AbhaAddressStep } from "./AbhaAddressStep";
 import { AbhaFailureAlert } from "./AbhaFailureAlert";
 import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
 import {
@@ -22,14 +12,10 @@ import {
   ABHA_ENROL_CONSENT_TITLE,
   ABHA_ENROL_CONSENT_VERSION,
 } from "./abhaConsent";
-import {
-  ABHA_MESSAGES,
-  addressName,
-  isValidAadhaar,
-  isValidAddress,
-  isValidMobile,
-} from "./abhaRules";
+import { aadhaarFieldError, isValidAadhaar, isValidMobile, mobileFieldError } from "./abhaRules";
+import { OtpSentTo } from "./OtpSentTo";
 import { ResendOtpButton } from "./ResendOtpButton";
+import { useResendWait } from "./useResendWait";
 
 interface AbhaCreateDrawerProps extends AbhaConfirmProps {
   opened: boolean;
@@ -60,10 +46,8 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
   const [tried, setTried] = useState(false);
   const [otp, setOtp] = useState("");
   const [mobile, setMobile] = useState(digitsOnly(formMobile ?? "").slice(-10));
-  const [address, setAddress] = useState("");
   const [step, setStep] = useState<AbhaVerificationStep | null>(null);
-  const [wait, setWait] = useState(0);
-  useInterval(() => setWait((w) => w - 1), wait > 0 ? 1000 : null);
+  const [wait, setWait] = useResendWait();
 
   const advance = (next: AbhaVerificationStep) => {
     setOtp("");
@@ -90,31 +74,9 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
     mutationFn: (id: string) => abhaService.enrolmentMobileOtp(id, otp),
     onSuccess: advance,
   });
-  const choose = useMutation({
-    mutationFn: (id: string) => abhaService.chooseAddress(id, address),
-    onSuccess: advance,
-  });
-  const keep = useMutation({
-    mutationFn: (id: string) => abhaService.chooseAddress(id, "", true),
-    onSuccess: advance,
-  });
-  // CRT_ABHA_112: a taken address is a choice for the desk, not a failure.
-  const taken = choose.error?.message === ABHA_MESSAGES.addressTaken;
-  const failure = [start, resend, aadhaarOtp, mobileOtp, keep, choose]
-    .filter((m) => !(m === choose && taken))
-    .find((m) => m.isError)?.error;
-  const aadhaarError =
-    (tried || aadhaar.length === 12) && !isValidAadhaar(aadhaar)
-      ? ABHA_MESSAGES.aadhaarInvalid
-      : undefined;
-  const mobileError = mobile && !isValidMobile(mobile) ? ABHA_MESSAGES.mobileInvalid : undefined;
-  const domain = step?.address_domain ?? "abdm";
-  const addressValid = isValidAddress(addressName(address, domain), domain);
-  const sentTo = step?.sent_to && (
-    <Text size="sm" ff="monospace">
-      OTP sent to {step.sent_to}
-    </Text>
-  );
+  const failure = [start, resend, aadhaarOtp, mobileOtp].find((m) => m.isError)?.error;
+  const aadhaarError = aadhaarFieldError(aadhaar, tried);
+  const mobileError = mobileFieldError(mobile);
 
   const otpInput = (
     <Input
@@ -169,7 +131,7 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
       {step?.stage === "otp_sent" && (
         <Stack>
           <Text size="sm">{step.message ?? "ABDM has sent an OTP to the Aadhaar mobile."}</Text>
-          {sentTo}
+          <OtpSentTo to={step.sent_to} />
           {otpInput}
           <Input
             label="Mobile for the ABHA"
@@ -201,7 +163,7 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
       {step?.stage === "mobile_otp_sent" && (
         <Stack>
           <Text size="sm">{step.message ?? "ABDM has sent an OTP to the new mobile."}</Text>
-          {sentTo}
+          <OtpSentTo to={step.sent_to} />
           {otpInput}
           <Button
             tone="primary"
@@ -220,71 +182,7 @@ function CreateFlow({ mobile: formMobile, ...confirm }: AbhaCreateDrawerProps) {
         </Stack>
       )}
 
-      {step?.stage === "choose_address" && (
-        <Stack>
-          <Text size="sm" fw={600}>
-            Choose an ABHA address — the patient's easy-to-remember health ID
-          </Text>
-          {step.suggestions.length > 0 && (
-            <ChipGroup
-              value={address}
-              onChange={(v) => {
-                setAddress(String(v));
-                choose.reset();
-              }}
-            >
-              <Group gap="xs">
-                {step.suggestions.map((s) => (
-                  <Chip key={s} value={s}>
-                    {s}
-                  </Chip>
-                ))}
-              </Group>
-            </ChipGroup>
-          )}
-          <Input
-            label="Or type one"
-            description={`ABDM adds @${domain}.`}
-            value={address}
-            onChange={(e) => {
-              setAddress(e.currentTarget.value.trim());
-              choose.reset();
-            }}
-          />
-          <AbhaAddressRules name={addressName(address, domain)} domain={domain} />
-          {taken ? (
-            <Alert tone="warning" title={ABHA_MESSAGES.addressTaken}>
-              <Group mt="xs">
-                <Button
-                  tone="primary"
-                  loading={keep.isPending}
-                  onClick={() => keep.mutate(step.id)}
-                >
-                  Proceed with the existing ABHA address
-                </Button>
-                <Button
-                  tone="secondary"
-                  onClick={() => {
-                    choose.reset();
-                    setAddress("");
-                  }}
-                >
-                  Create a new ABHA address
-                </Button>
-              </Group>
-            </Alert>
-          ) : (
-            <Button
-              tone="primary"
-              disabled={!addressValid}
-              loading={choose.isPending}
-              onClick={() => choose.mutate(step.id)}
-            >
-              Create ABHA address
-            </Button>
-          )}
-        </Stack>
-      )}
+      {step?.stage === "choose_address" && <AbhaAddressStep step={step} onDone={advance} />}
 
       {step?.stage === "verified" && step.profile && (
         <AbhaVerifiedStep step={step} profile={step.profile} {...confirm} />

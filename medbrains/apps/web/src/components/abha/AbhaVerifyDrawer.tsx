@@ -8,14 +8,15 @@ import type {
 import { IconQrcode } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { useInterval } from "react-use";
 import { Alert, Button, Input, Modal, PasswordField, Select } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
 import { AbhaFailureAlert } from "./AbhaFailureAlert";
 import { AbhaQrScanModal } from "./AbhaQrScanModal";
 import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
 import { ABHA_MESSAGES, isValidAadhaar, isValidMobile } from "./abhaRules";
+import { OtpSentTo } from "./OtpSentTo";
 import { ResendOtpButton } from "./ResendOtpButton";
+import { useResendWait } from "./useResendWait";
 
 interface AbhaVerifyDrawerProps extends AbhaConfirmProps {
   opened: boolean;
@@ -65,21 +66,42 @@ function lookupError(method: AbhaVerifyMethod, value: string): string | undefine
   return undefined;
 }
 
+/**
+ * The typed value's refusal, shown once the desk has tried to send it; an
+ * invalid mobile or Aadhaar is refused here, so no search and no OTP.
+ */
+function useTriedLookup(method: AbhaVerifyMethod, value: string) {
+  const [tried, setTried] = useState(false);
+  const attempt = (send: () => void) => {
+    setTried(true);
+    if (!lookupError(method, value)) send();
+  };
+  return { error: tried ? lookupError(method, value) : undefined, attempt };
+}
+
+/** All that is left once the ABHA is closed: ABDM's confirmation. */
+function AbhaClosed({ message }: { message: string }) {
+  return (
+    <Alert tone="success" title="The ABHA is closed">
+      {message}
+    </Alert>
+  );
+}
+
 function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDrawerProps) {
   const [method, setMethod] = useState<AbhaVerifyMethod>("abha_number");
   const [via, setVia] = useState<AbhaOtpVia>("aadhaar");
   const [value, setValue] = useState("");
-  const [tried, setTried] = useState(false);
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<AbhaVerificationStep | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [card, setCard] = useState<AbhaCardQr | null>(null);
   const [scanning, setScanning] = useState(false);
   const [closed, setClosed] = useState<string | null>(null);
-  const [wait, setWait] = useState(0);
-  useInterval(() => setWait((w) => w - 1), wait > 0 ? 1000 : null);
+  const [wait, setWait] = useResendWait();
 
   const advance = (next: AbhaVerificationStep) => {
+    setOtp("");
     setStep(next);
     setWait(next.resend_after_seconds ?? 0);
   };
@@ -95,10 +117,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
   });
   const verify = useMutation({
     mutationFn: (id: string) => abhaService.submitOtp(id, otp),
-    onSuccess: (next) => {
-      setOtp("");
-      advance(next);
-    },
+    onSuccess: advance,
   });
   const choose = useMutation({
     mutationFn: ({ id, number }: { id: string; number: string }) =>
@@ -106,7 +125,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
     onSuccess: advance,
   });
   const failure = [start, resend, verify, choose].find((m) => m.isError)?.error;
-  const valueError = tried ? lookupError(method, value) : undefined;
+  const lookup = useTriedLookup(method, value);
   const readCard = (read: AbhaCardQr) => {
     setScanning(false);
     setCard(read);
@@ -114,13 +133,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
     setValue(read.abha_number ?? read.abha_address ?? "");
   };
 
-  if (closed) {
-    return (
-      <Alert tone="success" title="The ABHA is closed">
-        {closed}
-      </Alert>
-    );
-  }
+  if (closed) return <AbhaClosed message={closed} />;
 
   return (
     <Stack>
@@ -157,7 +170,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
               inputMode="numeric"
               autoComplete="off"
               value={value}
-              error={valueError}
+              error={lookup.error}
               onChange={(e) => setValue(digitsOnly(e.currentTarget.value).slice(0, 12))}
               data-autofocus
             />
@@ -167,7 +180,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
               inputMode={method === "abha_address" ? "text" : "numeric"}
               autoComplete="off"
               value={value}
-              error={valueError}
+              error={lookup.error}
               onChange={(e) => setValue(e.currentTarget.value)}
               data-autofocus
             />
@@ -192,11 +205,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
           <Button
             tone="primary"
             loading={start.isPending}
-            onClick={() => {
-              // An invalid mobile or Aadhaar is refused here: no search, no OTP.
-              setTried(true);
-              if (!lookupError(method, value)) start.mutate();
-            }}
+            onClick={() => lookup.attempt(() => start.mutate())}
           >
             {method === "find_mobile" ? "Find ABHAs" : "Send OTP"}
           </Button>
@@ -208,11 +217,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
           <Text size="sm">
             {step.message ?? "ABDM has sent the patient an OTP."} Ask them to read it out.
           </Text>
-          {step.sent_to && (
-            <Text size="sm" ff="monospace">
-              OTP sent to {step.sent_to}
-            </Text>
-          )}
+          <OtpSentTo to={step.sent_to} />
           <Input
             label="OTP"
             inputMode="numeric"
