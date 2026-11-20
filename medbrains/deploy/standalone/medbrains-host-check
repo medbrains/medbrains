@@ -4,7 +4,7 @@
 # Two failure modes that AWS cannot see and that kill a single-host
 # deployment silently:
 #
-#   Disk. The host has one root volume carrying Postgres, docker images,
+#   Disk. The host has one root volume carrying Postgres,
 #   the journal AND all three object tiers (MEDBRAINS_OBJECTS_HOT/COLD/
 #   ARCHIVE all live under /var/lib/medbrains). AWS/EC2 publishes no disk
 #   metric and there is no CloudWatch agent here. A full disk puts
@@ -157,11 +157,7 @@ if [[ "${WAL_ARCHIVING:-0}" == "1" ]]; then
     archiver_sql="SELECT coalesce(last_failed_time > coalesce(last_archived_time, 'epoch'), false),
                 failed_count, coalesce(last_archived_wal, '-'), coalesce(last_archived_time::text, 'never')
            FROM pg_stat_archiver"
-    if docker container inspect medbrains-postgres >/dev/null 2>&1; then
-        row="$(docker exec medbrains-postgres psql -XAt -U "${POSTGRES_USER:-medbrains}" -d postgres -c "$archiver_sql" 2>/dev/null)" || row=""
-    else
-        row="$(runuser -u postgres -- psql -XAt -p "${WAL_PGPORT:-5432}" -c "$archiver_sql" 2>/dev/null)" || row=""
-    fi
+    row="$(runuser -u postgres -- psql -XAt -p "${WAL_PGPORT:-5432}" -c "$archiver_sql" 2>/dev/null)" || row=""
     if [[ -z "$row" ]]; then
         echo "wal: could not query pg_stat_archiver — unknown, not treated as failed" >&2
     else

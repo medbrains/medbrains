@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# /usr/local/bin/medbrains-wal-g — runs WAL-G for this server's Postgres, on
-# either tier: the host's own Postgres (attach) or the medbrains-postgres
-# container (dedicated tier, postgres:17-alpine). Opt-in point-in-time
+# /usr/local/bin/medbrains-wal-g — runs WAL-G for this server's native
+# Postgres: the kit's own cluster, or the host's own (attach). Opt-in point-in-time
 # recovery, set up by medbrains-wal-g-setup; docs/ops/BACKUP-RESTORE.md.
 #
 #   medbrains-wal-g push                 ship spooled WAL to S3 (timer, every minute)
@@ -13,50 +12,31 @@
 #   medbrains-wal-g fetch-wal NAME FILE  one archived WAL file (exit 1 when absent)
 #   medbrains-wal-g fetch-wals DIR [MAX] every segment since the newest base backup
 #
-# Why a spool: Postgres runs archive_command where Postgres runs. In the
-# alpine container that is musl, and WAL-G ships glibc builds only, so
-# archive_command copies each finished segment into medbrains-wal-spool/
-# inside the data directory (the one place the container and the host both
-# see without a new mount, so enabling this never recreates the container)
-# and `push` uploads it from the host. The host's own Postgres uses the same
-# spool: one archiving path to test. RPO = archive_timeout (300 s) + the push
-# interval (60 s). A restored data directory carries a stale spool: empty it.
+# Why a spool: archive_command only copies each finished segment into
+# medbrains-wal-spool/ inside the data directory, and `push` uploads it on
+# its own timer. It began as the way round the old musl container, which
+# WAL-G's glibc builds could not run in; it stays because it is the path
+# already tested, and an S3 outage shows as spool age, which host-check
+# watches. RPO = archive_timeout (300 s) + the push interval (60 s). A restored data directory carries a stale spool: empty it.
 
 set -euo pipefail
 
 CONF=/etc/medbrains/walg.yaml
 BIN=/usr/local/bin/wal-g
 SPOOL_NAME=medbrains-wal-spool
-CONTAINER=medbrains-postgres
 # The AWS SDK in WAL-G finds ~/.aws/credentials through $HOME only, and a
 # systemd unit without User= sets none (the Lightsail tier's key is root's).
 [[ $EUID -eq 0 ]] && export HOME=/root
 
-# Whether Postgres is the dedicated tier's container (else the host's own).
-is_container() {
-    command -v docker >/dev/null 2>&1 && docker container inspect "$CONTAINER" >/dev/null 2>&1
-}
-
-# WAL-G as whoever owns the data: postgres over the socket on the host's own
-# Postgres (peer auth), root beside the container (TCP as its superuser; the
-# password comes from .compose-env through the environment, never argv).
+# WAL-G as the owner of the data: postgres over the socket (peer auth).
 walg() {
-    if is_container; then
-        PGHOST=127.0.0.1 PGPORT="${PG_PORT:-5432}" PGUSER="${POSTGRES_USER:-medbrains}" \
-            PGPASSWORD="${POSTGRES_PASSWORD:-}" PGDATABASE=postgres "$BIN" --config "$CONF" "$@"
-    else
-        runuser -u postgres -- env PGHOST=/var/run/postgresql PGPORT="${WAL_PGPORT:-5432}" \
-            PGDATABASE=postgres "$BIN" --config "$CONF" "$@"
-    fi
+    runuser -u postgres -- env PGHOST=/var/run/postgresql PGPORT="${WAL_PGPORT:-5432}" \
+        PGDATABASE=postgres "$BIN" --config "$CONF" "$@"
 }
 
-# The data directory as this host sees it (the container's volume on disk).
+# The cluster's data directory.
 data_dir() {
-    if is_container; then
-        docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Source}}{{end}}{{end}}' "$CONTAINER"
-    else
-        runuser -u postgres -- psql -XAtq -p "${WAL_PGPORT:-5432}" -c 'SHOW data_directory'
-    fi
+    runuser -u postgres -- psql -XAtq -p "${WAL_PGPORT:-5432}" -c 'SHOW data_directory'
 }
 
 # Uploads every finished file in the spool, oldest name first, and removes
@@ -81,7 +61,7 @@ check() {
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' RETURN
     chmod 0755 "$tmp"
-    is_container || chown postgres "$tmp"
+    chown postgres "$tmp"
     walg st ls >/dev/null || { echo "cannot list the archive prefix" >&2; return 1; }
     name="canary/$(date -u +%Y%m%dT%H%M%SZ).txt"
     echo "medbrains wal-g canary $name" > "$tmp/up"
@@ -92,8 +72,7 @@ check() {
 }
 
 # Every archived WAL segment from the newest base backup's start onward, into
-# DIR, so a server that cannot run WAL-G (the alpine container) can replay
-# with restore_command = 'cp <DIR>/%f %p'. Walks segment names (timeline, log,
+# DIR, so a scratch server can replay without WAL-G's config, with restore_command = 'cp <DIR>/%f %p'. Walks segment names (timeline, log,
 # segment; 256 segments of 16 MB per log) until the first one the archive
 # does not have, capped at MAX (default 10000, 160 GB). Prints the count.
 fetch_wals() {

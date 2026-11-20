@@ -285,9 +285,16 @@ async fn dated(
     Ok(assigned.and_then(|a| a.opd_date))
 }
 
-/// The date the hospital's clock says it is (tenants default to UTC).
-fn today() -> NaiveDate {
-    chrono::Utc::now().date_naive()
+/// The date the hospital's clock says it is: the server dates by the
+/// hospital's timezone, not the database's UTC date.
+async fn today(db: &PgPool, tenant: Uuid) -> NaiveDate {
+    sqlx::query_scalar(
+        "SELECT (timezone(COALESCE(timezone, 'UTC'), now()))::date FROM tenants WHERE id = $1",
+    )
+    .bind(tenant)
+    .fetch_one(db)
+    .await
+    .unwrap()
 }
 
 #[tokio::test]
@@ -307,7 +314,7 @@ async fn an_old_record_keeps_its_paper_date_and_nothing_else_moves() {
     .fetch_one(&db)
     .await
     .unwrap();
-    let paper = today() - Duration::days(400);
+    let paper = today(&db, tenant).await - Duration::days(400);
     // A number below today's highest is normal for old records.
     assert!(
         assign(
@@ -358,7 +365,8 @@ async fn a_backdate_is_refused_without_permission_setting_or_for_the_future() {
     };
     let tenant = hospital(&db, Some(on)).await;
     let off = hospital(&db, Some(policy(Mode::Manual, Scope::Patient, ""))).await;
-    let past = today() - Duration::days(30);
+    let now = today(&db, tenant).await;
+    let past = now - Duration::days(30);
     let (a, _) = patient_with_visit(&db, tenant, "No permission").await;
     assert!(matches!(
         dated(&db, tenant, a, ("1", past, false)).await,
@@ -370,7 +378,7 @@ async fn a_backdate_is_refused_without_permission_setting_or_for_the_future() {
         Err(AppError::BadRequest(_))
     ));
     let (c, _) = patient_with_visit(&db, tenant, "Future").await;
-    let future = today() + Duration::days(2);
+    let future = now + Duration::days(2);
     assert!(matches!(
         dated(&db, tenant, c, ("2", future, true)).await,
         Err(AppError::BadRequest(_))
@@ -386,8 +394,8 @@ async fn a_backdate_is_refused_without_permission_setting_or_for_the_future() {
     assert_eq!(numbered, 0);
     // Today needs neither the setting nor the permission.
     assert_eq!(
-        dated(&db, off, b, ("3", today(), false)).await.unwrap(),
-        Some(today())
+        dated(&db, off, b, ("3", now, false)).await.unwrap(),
+        Some(now)
     );
 }
 

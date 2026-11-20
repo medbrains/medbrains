@@ -127,7 +127,7 @@ async fn ahead_of(app: &common::TestApp, department: Uuid, token: &serde_json::V
     let row: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM tokens \
           WHERE module = 'opd' AND scope = 'department' AND scope_id = $1 \
-            AND token_date = CURRENT_DATE AND status = 'waiting' AND seq < $2",
+            AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date AND status = 'waiting' AND seq < $2",
     )
     .bind(department)
     .bind(seq)
@@ -238,7 +238,7 @@ async fn nobody_waiting_is_reordered_against_anybody_else() {
     let order: Vec<(Uuid, i32)> = sqlx::query_as(
         "SELECT id, seq FROM tokens \
           WHERE module = 'opd' AND scope = 'department' AND scope_id = $1 \
-            AND token_date = CURRENT_DATE AND status = 'waiting' \
+            AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date AND status = 'waiting' \
           ORDER BY seq",
     )
     .bind(department)
