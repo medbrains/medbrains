@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, concat_ws(' ', first_name, last_name) AS \"name!\",\n                  date_part('year', date_of_birth)::int AS year\n             FROM patients\n            WHERE tenant_id = $1 AND deleted_at IS NULL AND length($2) >= 10\n              AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = right($2, 10)\n              AND gender::text = $3\n            ORDER BY created_at LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "year",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "30037cb9ff47307194f32387f5e124564ae702bb1e9a3ba2ee891dc8793c4ea9"
+}

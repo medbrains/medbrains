@@ -12,6 +12,9 @@ import { expect, test } from "@playwright/test";
 import { NAV_GROUPS, type NavItemConfig } from "@/config/navigation";
 import { navigateTo, routeApiDirect } from "../helpers";
 
+// Each test stands alone (its own page, sign-in and data), so workers and shards may split them.
+test.describe.configure({ mode: "parallel" });
+
 interface PageCase {
   path: string;
   label: string;

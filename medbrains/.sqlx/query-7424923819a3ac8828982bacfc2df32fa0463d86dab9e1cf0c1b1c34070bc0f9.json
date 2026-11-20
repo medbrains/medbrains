@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT token_request_id,\n                  COALESCE(token_requested_at > now() - make_interval(mins => $3), false)\n                      AS \"in_flight!\",\n                  COALESCE(linking_token IS NOT NULL AND token_expiry > now() + interval '1 minute',\n                           false) AS \"stored!\"\n             FROM patient_abha_links WHERE tenant_id = $1 AND id = $2 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token_request_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "in_flight!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "stored!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "7424923819a3ac8828982bacfc2df32fa0463d86dab9e1cf0c1b1c34070bc0f9"
+}

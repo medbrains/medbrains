@@ -10,7 +10,7 @@ import { test as base, type Browser, expect, type Page } from "@playwright/test"
 import { loginAsRole, routeApiDirect } from "../../helpers";
 import { type AuthContext, api, getAuthContextFromCookies } from "../../helpers/api";
 import { saveCoverage, startCoverage } from "../../helpers/coverage";
-import { getE2EIdentity } from "../../helpers/e2e-identities";
+import { authStatePath, getE2EIdentity } from "../../helpers/e2e-identities";
 
 export interface Department {
   id: string;
@@ -119,7 +119,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         return { id: user.id, page, username, password };
       },
       asAdmin: async () => {
-        const page = await openPage(browser, "e2e/.auth/user.json");
+        const page = await openPage(browser, authStatePath);
         pages.push(page);
         return page;
       },

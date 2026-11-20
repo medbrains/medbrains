@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO abdm_callback_replays (tenant_id, request_id, path, answer) VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id, request_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0601cc4cd255fda20aeb06d1315e3bdfcac68478d05c3aaeea7596892b1a0f95"
+}
