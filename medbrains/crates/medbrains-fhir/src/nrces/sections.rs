@@ -58,3 +58,19 @@ pub const DISCHARGE_DOCUMENT: SectionCode = sct("373942005", "Discharge summary"
 pub const WELLNESS_DOCUMENT_TITLE: &str = "Document Reference";
 /// The trailing narratives above: a sliced section must come before them.
 pub const UNSLICED: [SectionCode; 2] = [OP_ADVICE, HOSPITAL_COURSE];
+
+/// A section's text as the XHTML narrative FHIR wants, one paragraph a line.
+pub(super) fn narrative(lines: &[String]) -> serde_json::Value {
+    let body: String = lines
+        .iter()
+        .map(|l| format!("<p>{}</p>", escape(l)))
+        .collect();
+    serde_json::json!({ "status": "generated", "div": format!("<div xmlns=\"http://www.w3.org/1999/xhtml\">{body}</div>") })
+}
+
+/// `s` with the characters XHTML gives meaning to escaped.
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}

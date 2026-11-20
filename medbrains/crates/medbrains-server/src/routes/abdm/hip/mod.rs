@@ -21,6 +21,7 @@
 pub mod bundle_bills;
 pub mod bundle_check;
 pub mod bundle_files;
+pub mod bundle_parties;
 pub mod bundle_pdf;
 pub mod bundle_records;
 pub mod bundle_sections;

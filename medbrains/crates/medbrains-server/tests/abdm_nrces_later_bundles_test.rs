@@ -138,9 +138,10 @@ async fn the_later_hi_types_are_captured_and_meet_their_profiles() {
         ),
     );
     let mut tx = db.begin().await.expect("tx");
-    let bundles = build(&mut tx, tenant, p, &captured, &files, None)
+    let bundles = build(&mut tx, tenant, p, &captured, &files)
         .await
-        .expect("bundles");
+        .expect("bundles")
+        .0;
     tx.rollback().await.ok();
     assert_eq!(bundles.len(), 5, "one bundle per care context");
 
@@ -190,9 +191,10 @@ async fn the_later_hi_types_are_captured_and_meet_their_profiles() {
     );
 
     let mut tx = db.begin().await.expect("tx");
-    let without = build(&mut tx, tenant, p, &captured, &Files::new(), None)
+    let without = build(&mut tx, tenant, p, &captured, &Files::new())
         .await
-        .expect("bundles");
+        .expect("bundles")
+        .0;
     tx.rollback().await.ok();
     assert_eq!(
         without.len(),

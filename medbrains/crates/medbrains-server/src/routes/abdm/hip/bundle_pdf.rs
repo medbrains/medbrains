@@ -20,7 +20,8 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::bundle_records::{Tx, parties};
-use crate::error::AppError;
+use super::bundles::ContextRow;
+use crate::{error::AppError, state::AppState};
 
 /// The largest rendition sent inline. A record's printed copy is tens of
 /// KB; anything near this is a runaway record, not a page.
@@ -40,6 +41,30 @@ pub struct Print<'a> {
     pub renderer: Option<&'a GotenbergClient>,
     /// Shown on the printed copy only; the FHIR Patient does not carry it.
     pub abha_address: Option<&'a str>,
+}
+
+/// The transfer's bundles, each structured record with its printed PDF:
+/// the uploaded documents read from storage, the bundles built, then each
+/// record printed and its PDF attached.
+///
+/// # Errors
+/// As [`super::bundles::build`] and [`attach`].
+pub async fn printed_bundles(
+    state: &AppState,
+    tx: Tx<'_, '_>,
+    (tenant_id, patient_id): (Uuid, Uuid),
+    contexts: &[ContextRow],
+) -> Result<Vec<(String, Value)>, AppError> {
+    let files = super::bundle_records::document_files(state, tx, tenant_id, contexts).await?;
+    let (mut out, abha_address) =
+        super::bundles::build(tx, tenant_id, patient_id, contexts, &files).await?;
+    let print = Print {
+        tenant_id,
+        renderer: state.gotenberg.as_ref(),
+        abha_address: abha_address.as_deref(),
+    };
+    attach(tx, &print, &mut out).await?;
+    Ok(out)
 }
 
 /// Print each structured record in `out` and attach the PDF where its

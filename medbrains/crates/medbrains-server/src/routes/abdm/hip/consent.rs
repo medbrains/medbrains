@@ -23,7 +23,8 @@ use medbrains_abdm::gateway::{CONSENT_ON_NOTIFY_PATH, HI_NOTIFY_PATH, HI_ON_REQU
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::bundles::{self, ContextRow};
+use super::bundle_pdf::printed_bundles;
+use super::bundles::ContextRow;
 use super::gateway::{Caller, Hip, authenticate};
 use super::linking::message;
 use crate::{error::AppError, state::AppState};
@@ -386,17 +387,8 @@ async fn transfer(
     .fetch_all(&mut *tx)
     .await?;
     let patient_id = a.patient_id.ok_or(AppError::NotFound)?;
-    let files =
-        super::bundle_records::document_files(state, &mut tx, caller.tenant_id, &contexts).await?;
-    let documents = bundles::build(
-        &mut tx,
-        caller.tenant_id,
-        patient_id,
-        &contexts,
-        &files,
-        state.gotenberg.as_ref(),
-    )
-    .await?;
+    let documents =
+        printed_bundles(state, &mut tx, (caller.tenant_id, patient_id), &contexts).await?;
     super::bundle_check::record(&mut tx, caller.tenant_id, patient_id, &documents).await?;
     tx.commit().await?;
 

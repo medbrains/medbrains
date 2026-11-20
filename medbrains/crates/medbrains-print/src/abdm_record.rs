@@ -42,6 +42,7 @@ pub const HTML: &str = r#"{% extends "base.html" %}
 {% endblock content %}"#;
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use crate::engine::render_html;
 
