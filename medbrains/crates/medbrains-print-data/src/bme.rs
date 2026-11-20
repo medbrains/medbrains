@@ -1331,16 +1331,11 @@ struct HospitalInfo {
     name: String,
 }
 
-/// The requesting tenant's name. It used to take the first active tenant on
-/// the server, so a multi-tenant host printed another hospital's letterhead.
-/// Read on the caller's tenant-scoped connection, never the bare pool.
-async fn get_hospital_info(
-    conn: &mut sqlx::PgConnection,
-    tenant_id: Uuid,
-) -> Result<HospitalInfo, AppError> {
+/// The caller's own hospital name (it once took the first tenant: a wrong letterhead).
+async fn get_hospital_info(c: &mut sqlx::PgConnection, id: Uuid) -> Result<HospitalInfo, AppError> {
     let name = sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
-        .bind(tenant_id)
-        .fetch_optional(conn)
+        .bind(id)
+        .fetch_optional(c)
         .await?
         .unwrap_or_default();
 
