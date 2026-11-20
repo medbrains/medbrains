@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT method, route, message,\n                  COALESCE(SUM(count) FILTER (WHERE day >= $2), 0)::int8 AS \"current!\",\n                  COALESCE(SUM(count) FILTER (WHERE day < $2), 0)::int8 AS \"previous!\",\n                  COALESCE(array_agg(DISTINCT role ORDER BY role)\n                           FILTER (WHERE day >= $2), '{}') AS \"roles!\"\n             FROM form_friction_daily\n            WHERE tenant_id = $1 AND day >= $3\n            GROUP BY method, route, message\n            ORDER BY 4 DESC, 5 DESC\n            LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "method",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "route",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "current!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "previous!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "roles!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "0b5a3316b43b7d2ecd8dfba78908df6523a50a9a1521b9e87fbab56ae44301a5"
+}

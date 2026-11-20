@@ -3,7 +3,7 @@
 //! Sprint A spec: `RFCs/sprints/SPRINT-A-outbox.md` §7.
 
 use axum::extract::rejection::JsonRejection;
-use axum::{Extension, Json, extract::State};
+use axum::{Extension, Json, Router, extract::State, routing::get};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 
@@ -127,4 +127,12 @@ pub async fn update_system_state(
         set_by: row.3,
         updated_at: row.4,
     }))
+}
+
+/// Read and set the tenant's system state, merged into the admin router.
+pub fn router() -> Router<AppState> {
+    Router::new().route(
+        "/api/admin/system_state",
+        get(get_system_state).post(update_system_state),
+    )
 }

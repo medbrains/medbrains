@@ -134,6 +134,10 @@ export const P = {
       VIEW: "admin.error_tracking.view",
     },
     ERROR_TRACKING_VIEW: "admin.error_tracking.view",
+    FORM_FRICTION: {
+      VIEW: "admin.form_friction.view",
+    },
+    FORM_FRICTION_VIEW: "admin.form_friction.view",
     HISTORY_IMPORT: {
       RUN: "admin.history_import.run",
       VIEW: "admin.history_import.view",

@@ -131,6 +131,7 @@ export const APP_SCREENS: readonly AppScreen[] = [
   { brick: null, path: "/setup", labelKey: "setupCenter", icon: "IconListDetails", permission: "admin.settings.general.manage", anyOf: [], group: "essential" },
   { brick: null, path: "/admin/workbook", labelKey: "onboardingWorkbook", icon: "IconFileSpreadsheet", permission: "admin.workbook.import", anyOf: [], group: "advanced" },
   { brick: null, path: "/admin/kernel", labelKey: "kernel", icon: "IconCpu", permission: "admin.kernel.view", anyOf: [], group: "dev_only" },
+  { brick: null, path: "/admin/form-friction", labelKey: "formFriction", icon: "IconForms", permission: "admin.form_friction.view", anyOf: [], group: "advanced" },
   { brick: null, path: "/admin/research-exports", labelKey: "researchExports", icon: "IconFileAnalytics", permission: "research.dataset.export", anyOf: [], group: "advanced" },
   { brick: null, path: "/admin/knowledge-changes", labelKey: "knowledgeChanges", icon: "IconGitCompare", permission: "knowledge.change_sets.list", anyOf: [], group: "advanced" },
   { brick: null, path: "/admin/settings", labelKey: "settings", icon: "IconSettings", permission: "admin.settings.general.manage", anyOf: [], group: "essential" },

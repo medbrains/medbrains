@@ -1,0 +1,71 @@
+---
+title: Find the forms that refuse saves
+sidebar_position: 11
+description: "How an administrator or quality officer reads Admin → Form friction to find the screens whose saves the server refuses most, and what to do about each one."
+---
+
+import ThemedImage from "@theme/ThemedImage";
+import useBaseUrl from "@docusaurus/useBaseUrl";
+
+# Find the forms that refuse saves
+
+**Who:** a hospital administrator, quality officer or medical superintendent. You need the
+**See which forms the server refuses most** permission (`admin.form_friction.view`).
+**You need:** nothing else. MedBrains counts refusals from the moment the server starts.
+
+When a member of staff presses **Save** and the server refuses the entry (for example "Right eye
+axis given without a cylinder"), the form let a bad entry through. Form friction counts those
+refused saves per screen (a refused search or report query is not counted), so you can find the forms that need a check of their own, or a server rule
+that is wrong.
+
+The report counts screens, never people. It keeps the screen, the day, the role of the person
+who saved and the reason with every typed value removed: numbers become `#`, quoted text becomes
+`[value]` and names are taken out. No patient, no staff member and no entered value is stored.
+
+## 1. Open the report
+
+1. Go to **Admin** → **Form friction**.
+2. Pick **7 days**, **30 days** or **90 days**. **Expected:** the total for the period and for the
+   same number of days before it, then a table of screens.
+
+## 2. Read a row
+
+<ThemedImage
+  alt="The form friction report: the ophthalmology exam screen refused three saves for a right eye axis given without a cylinder."
+  sources={{
+    light: useBaseUrl("/img/guide/admin-form-friction-light.webp"),
+    dark: useBaseUrl("/img/guide/admin-form-friction-dark.webp"),
+  }}
+/>
+
+Each row is one screen, most refused first:
+
+| Column | What it means |
+|---|---|
+| **Screen** | A readable name built from the server route, with the route under it (for example `POST /api/specialty/ophthalmology/exams`). |
+| **Refused** | Saves refused in this period. |
+| **Against the period before** | **New** (none before), a rise in amber, a fall in green, or **Same**. |
+| **Most common reasons** | Up to five reasons, how often each came up, and the roles that met it, by role name. |
+
+## 3. Act on a row
+
+1. If the reason is a rule staff could have been told on the form, raise it with the team that
+   owns the screen so the form checks it before **Save**.
+2. If the reason looks wrong for your hospital (staff entered a correct value and were refused),
+   raise it as a possible wrong server rule.
+3. After a fix ships, come back after a week. **Expected:** the row shows a fall, or is gone.
+
+## Check it worked
+
+Refusals are written once a minute. After a refused save, the screen appears in the report
+within about a minute.
+
+## If something goes wrong
+
+| What you see | Why | What to do |
+|---|---|---|
+| **Refused saves are unknown** | The server did not answer. This is not a count of zero. | Select **Try again**. If it stays, check the server is running. |
+| **No save was refused in the last N days** | No screen refused a save in that period. | Pick a longer period to see older refusals. |
+| **Form friction** is not in the menu | Your role lacks `admin.form_friction.view`. | Ask an administrator to grant it. |
+
+Counts are kept for about 400 days, then the oldest month is removed.

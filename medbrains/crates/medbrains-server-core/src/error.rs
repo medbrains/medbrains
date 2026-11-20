@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use crate::form_friction::Refusal;
 use crate::validation::ValidationErrors;
 
 /// Unified error type for the HTTP layer.
@@ -72,12 +73,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         // Handle validation errors specially — return 422 with field-level errors
         if let Self::ValidationFailed(errors) = self {
-            tracing::warn!("validation failed");
-            let body = serde_json::json!({
-                "error": "validation_failed",
-                "fields": errors.into_fields(),
-            });
-            return (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(body)).into_response();
+            return validation_response(errors);
         }
 
         let (status, message, detail) = match &self {
@@ -180,13 +176,36 @@ impl IntoResponse for AppError {
             Self::ValidationFailed(_) => unreachable!(),
         };
 
+        // A refusal carries its reason so form friction can count it.
+        let refusal = (status == StatusCode::BAD_REQUEST).then(|| Refusal(detail.clone()));
         let body = serde_json::json!({
             "error": message,
             "detail": detail,
         });
 
-        (status, axum::Json(body)).into_response()
+        let mut response = (status, axum::Json(body)).into_response();
+        if let Some(refusal) = refusal {
+            response.extensions_mut().insert(refusal);
+        }
+        response
     }
+}
+
+/// The 422 for field-level errors, carrying the failed field names (never
+/// their values) as the refusal form friction counts.
+fn validation_response(errors: ValidationErrors) -> Response {
+    tracing::warn!("validation failed");
+    let fields = errors.into_fields();
+    let mut names: Vec<&str> = fields.keys().map(String::as_str).collect();
+    names.sort_unstable();
+    let refusal = Refusal(format!("validation failed: {}", names.join(", ")));
+    let body = serde_json::json!({
+        "error": "validation_failed",
+        "fields": fields,
+    });
+    let mut response = (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(body)).into_response();
+    response.extensions_mut().insert(refusal);
+    response
 }
 
 /// What a reader sees when a report ran past its statement timeout.
@@ -431,6 +450,31 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR
         );
         assert_eq!(db_error_status(None).0, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    /// A 400 and a 422 carry their reason for form friction; nothing else does.
+    #[test]
+    fn only_refusals_carry_a_reason_to_count() {
+        use crate::form_friction::Refusal;
+        let reason = |err: AppError| {
+            err.into_response()
+                .extensions()
+                .get::<Refusal>()
+                .map(|r| r.0.clone())
+        };
+        assert_eq!(
+            reason(AppError::BadRequest("axis without a cylinder".to_owned())).as_deref(),
+            Some("axis without a cylinder")
+        );
+        let mut errors = crate::validation::ValidationErrors::new();
+        errors.add("name", "required");
+        errors.add("age", "too low");
+        assert_eq!(
+            reason(AppError::ValidationFailed(errors)).as_deref(),
+            Some("validation failed: age, name")
+        );
+        assert_eq!(reason(AppError::Conflict("taken".to_owned())), None);
+        assert_eq!(reason(AppError::Internal("boom".to_owned())), None);
     }
 
     #[test]

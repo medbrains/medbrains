@@ -61,6 +61,7 @@ use axum::{
     middleware::{from_fn, from_fn_with_state},
     routing::{delete, get, post, put},
 };
+use medbrains_server_core::form_friction::record_refusals;
 
 use crate::{
     middleware::{
@@ -487,23 +488,7 @@ pub fn build_router(state: AppState) -> Router {
             get(abdm::hip::records::sharing_summary),
         )
         .route("/api/abdm/dashboard", get(abdm::dashboard::dashboard))
-        .route(
-            "/api/abdm/scan-share/counters",
-            get(abdm::scan_share::counters),
-        )
-        .route("/api/abdm/scan-share/queue", get(abdm::scan_share::queue))
-        .route(
-            "/api/abdm/scan-share/{id}/verification",
-            post(abdm::scan_share::verification),
-        )
-        .route(
-            "/api/abdm/scan-share/{id}/complete",
-            post(abdm::scan_share::complete),
-        )
-        .route(
-            "/api/abdm/scan-share/{id}/dismiss",
-            post(abdm::scan_share::dismiss),
-        )
+        .merge(abdm::scan_share_routes::staff_router())
         .route(
             "/api/abdm/patients/{patient_id}/consent-requests",
             post(abdm::hiu::requests::raise),
@@ -862,6 +847,9 @@ pub fn build_router(state: AppState) -> Router {
         // device exchanges for JWT + cert fingerprint
         // S3 presigned upload / download URL endpoints
         .merge(medbrains_upload::router())
+        // Counts every 400/422 against its route template, hospital and role
+        // for the form friction report — in memory, never per person.
+        .layer(from_fn(record_refusals))
         // Innermost: tags the request's error scope with the user hash,
         // tenant and role, which the auth layer outside it has resolved.
         .layer(from_fn(medbrains_error_tracking::tag_scope))
@@ -1097,6 +1085,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/appointments/reminder-config",
             get(appointments::get_reminder_config).put(appointments::update_reminder_config),
         )
+        .layer(from_fn(record_refusals))
         .layer(from_fn_with_state(state.clone(), audit_layer))
         .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))

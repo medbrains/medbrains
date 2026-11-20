@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO form_friction_daily (tenant_id, day, method, route, status, role, message, count) SELECT $1, r.day, r.method, r.route, r.status, r.role, r.message, r.count FROM UNNEST($2::date[], $3::text[], $4::text[], $5::int2[], $6::text[], $7::text[], $8::int8[]) AS r(day, method, route, status, role, message, count) ON CONFLICT (tenant_id, day, method, route, status, role, message) DO UPDATE SET count = form_friction_daily.count + EXCLUDED.count",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "DateArray",
+        "TextArray",
+        "TextArray",
+        "Int2Array",
+        "TextArray",
+        "TextArray",
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1f5b0c579af74c84741e79d40690c3d28e08567b4094159d4eaa7172956b310c"
+}

@@ -19,7 +19,7 @@ import { FacadeTable } from "./kernel/facade-table";
 import { HealthCard } from "./kernel/health-card";
 import { auditChainStatus, authzStatus, configStatus, rlsStatus } from "./kernel/status";
 
-export function KernelPage() {
+export default function KernelPage() {
   useRequirePermission(P.ADMIN.KERNEL.VIEW);
   const canView = useHasPermission(P.ADMIN.KERNEL.VIEW);
   const health = useQuery({

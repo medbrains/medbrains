@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1257 permissions, one per constant in the Rust source. */
+/** 1258 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5792,6 +5792,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.form_friction.view",
+    label: "See which forms the server refuses most",
+    description: "How many saves the server refused (400 and 422) on each screen per day, with the reason stripped of every value that was typed. Shows no patient and no staff member: the screen is counted, never the person.",
+    module: "admin",
+  },
+  {
     code: "admin.kernel.view",
     label: "See whether the kernel is doing its job",
     description: "When the audit chain was last verified and whether it held, whether the database enforces hospital separation, which authorisation engine is answering, how settings are resolved, and which modules already go only through the kernel. Shows no patient data.",
@@ -8841,6 +8847,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Quality Officer",
     permissions: [
       P.ABDM.DASHBOARD.VIEW,
+      P.ADMIN.FORM_FRICTION.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.ANALYTICS.MANAGEMENT.VIEW,
       P.ANALYTICS.PAPERLESS.REFRESH,
@@ -9454,6 +9461,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   medical_superintendent: {
     label: "Medical Superintendent",
     permissions: [
+      P.ADMIN.FORM_FRICTION.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.ANALYTICS.PAPERLESS.REFRESH,
       P.ANALYTICS.PAPERLESS.VIEW,

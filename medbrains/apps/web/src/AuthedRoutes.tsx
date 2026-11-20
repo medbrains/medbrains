@@ -488,9 +488,8 @@ const HospitalBindingPage = lazy(() =>
 const OnboardingWorkbookPage = lazy(() =>
   import("./pages/admin/workbook").then((m) => ({ default: m.OnboardingWorkbookPage })),
 );
-const KernelPage = lazy(() =>
-  import("./pages/admin/kernel").then((m) => ({ default: m.KernelPage })),
-);
+const KernelPage = lazy(() => import("./pages/admin/kernel"));
+const FormFrictionPage = lazy(() => import("./pages/admin/form-friction"));
 const HistoryImportPage = lazy(() =>
   import("./pages/admin/history-import").then((m) => ({ default: m.HistoryImportPage })),
 );
@@ -717,6 +716,7 @@ function routeTable() {
           <Route path="workbook" element={<OnboardingWorkbookPage />} />
           <Route path="history-import" element={<HistoryImportPage />} />
           <Route path="kernel" element={<KernelPage />} />
+          <Route path="form-friction" element={<FormFrictionPage />} />
           <Route path="research-exports" element={<ResearchExportsPage />} />
           <Route path="knowledge-changes" element={<KnowledgeChangesPage />} />
           <Route path="flows" element={<FlowsPage />} />

@@ -1160,6 +1160,7 @@ import type {
   FmsWaterTest,
   FmsWorkOrder,
   FollowupComplianceRow,
+  FormFrictionReport,
   FormTemplate,
   FormTemplateDetail,
   FormTemplateListItem,
@@ -3423,6 +3424,9 @@ export const api = {
     request<ErrorTrackingClientConfig>("/public/error-tracking/config"),
   getErrorTrackingSummary: () => request<ErrorTrackingSummary>("/admin/error-tracking/summary"),
   getKernelHealth: () => request<KernelHealth>("/admin/kernel"),
+  /** Refused saves ranked by route over the last `days` (7, 30 or 90). */
+  getFormFriction: (days: number) =>
+    request<FormFrictionReport>(`/admin/form-friction?days=${days}`),
   getHealthIntel: () => request<HealthIntel>("/health-intel"),
   /** The paperless meter for a range of days (default: the last 30). */
   getPaperless: (params?: PaperlessQuery) => {
