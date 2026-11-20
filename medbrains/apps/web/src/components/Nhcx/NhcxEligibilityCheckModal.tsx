@@ -5,6 +5,7 @@ import type { NhcxParticipant } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { QueryError } from "@/components/QueryError";
 import { Button, Modal, toast } from "@/components/ui";
 import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 import { NhcxPayerSelect } from "./NhcxPayerSelect";
@@ -44,7 +45,9 @@ export function NhcxEligibilityCheckModal({
     queryFn: () => api.listNhcxPatientPolicies(patientId),
     enabled: opened && canLookup,
   });
-  const sentTo = recipientCode ? routedTo(policies.data?.policies ?? [], recipientCode) : null;
+  // A failed lookup must not read as "goes to the payer itself".
+  const sentTo =
+    recipientCode && !policies.isError ? routedTo(policies.data?.policies, recipientCode) : null;
 
   const check = useMutation({
     mutationFn: () =>
@@ -81,6 +84,13 @@ export function NhcxEligibilityCheckModal({
             setPayer(chosen);
           }}
         />
+        {policies.isError && (
+          <QueryError
+            error={policies.error}
+            onRetry={() => void policies.refetch()}
+            title="This patient's NHCX policies didn't load"
+          />
+        )}
         {sentTo && (
           <Text size="sm">
             Goes to{" "}

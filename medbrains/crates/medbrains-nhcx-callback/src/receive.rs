@@ -278,9 +278,6 @@ async fn land(
         response: &o.response,
     };
     let matched = apply::apply(tx, &path.resource, &path.action, &inbound).await?;
-    if crate::key_retry::is_key_refusal(&status, &o.response) {
-        crate::key_retry::resend(tx, &inbound).await?;
-    }
     let detail = match (matched, path.resource.as_str()) {
         (Some(_), _) => None,
         (None, "insuranceplan") => Some("insurance plan answers are kept but not read yet"),

@@ -89,8 +89,7 @@ pub async fn list_patient_policies(
 ) -> Result<Json<NhcxPolicyLookup>, AppError> {
     require_permission(&claims, permissions::insurance::nhcx::LOOKUP_POLICIES)?;
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, q.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = nhcx_common::tenant_tx(&state, claims.tenant_id).await?;
     let policies = kept(&mut tx, claims.tenant_id, q.patient_id).await?;
     tx.commit().await?;
     Ok(Json(NhcxPolicyLookup {
@@ -144,8 +143,7 @@ pub async fn lookup_patient_policies(
     require_permission(&claims, permissions::insurance::nhcx::LOOKUP_POLICIES)?;
     // Asking the registry about a named person discloses that person.
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = nhcx_common::tenant_tx(&state, claims.tenant_id).await?;
     nhcx_common::require_nhcx_onboarded(&mut tx, claims.tenant_id).await?;
     let ids = identifiers(&mut tx, claims.tenant_id, body.patient_id).await?;
     tx.commit().await?;
@@ -159,8 +157,7 @@ pub async fn lookup_patient_policies(
     let http = nhcx_common::registry_http()?;
     let registry = nhcx_common::registry(&state, &http, claims.tenant_id).await?;
     let (found, refused) = cascade(&ids, |kind, value| registry.policies(kind, value)).await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = nhcx_common::tenant_tx(&state, claims.tenant_id).await?;
     if let Some((kind, policies)) = &found {
         keep(&mut tx, &claims, body.patient_id, (kind, policies)).await?;
     }

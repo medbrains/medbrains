@@ -121,9 +121,9 @@ pub async fn submit_claim_to_nhcx(
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, claim.patient_id).await?;
     // The envelope goes to the policy's processor; the bundle names the insurer.
     let recipient =
-        nhcx_common::processor_for(&mut tx, claims.tenant_id, claim.patient_id, payer).await?;
+        nhcx_common::reachable_processor(&mut tx, claims.tenant_id, claim.patient_id, payer)
+            .await?;
     let recipient = recipient.as_str();
-    nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
 
     let sender = Sender {
         state: &state,

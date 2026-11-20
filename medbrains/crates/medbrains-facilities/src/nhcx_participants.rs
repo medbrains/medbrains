@@ -65,8 +65,7 @@ pub async fn list_nhcx_participants(
     Query(q): Query<NhcxParticipantQuery>,
 ) -> Result<Json<Vec<NhcxParticipant>>, AppError> {
     require_permission(&claims, permissions::insurance::nhcx::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = nhcx_common::tenant_tx(&state, claims.tenant_id).await?;
     let sql = format!(
         "SELECT {PARTICIPANT_COLUMNS} FROM nhcx_participants \
          WHERE tenant_id = $1 AND ($2::text IS NULL OR role = $2) AND is_active = true \
@@ -125,8 +124,7 @@ pub async fn upsert_nhcx_participant(
         check_encryption_cert(pem)?;
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = nhcx_common::tenant_tx(&state, claims.tenant_id).await?;
     let sql = format!(
         "INSERT INTO nhcx_participants \
            (tenant_id, participant_code, participant_name, role, encryption_cert) \
@@ -221,8 +219,7 @@ pub async fn refresh_nhcx_participants(
         )));
     }
     let listed = codes.len();
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let mut tx = nhcx_common::tenant_tx(&state, claims.tenant_id).await?;
     sqlx::query!(
         "INSERT INTO nhcx_participants \
              (tenant_id, participant_code, participant_name, role, entity_type, source, synced_at) \

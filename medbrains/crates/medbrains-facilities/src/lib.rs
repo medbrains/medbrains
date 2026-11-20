@@ -29,6 +29,7 @@ pub mod nhcx_submit;
 mod nhcx_task_bundle;
 pub mod nhcx_tasks;
 
+/// Every facilities, ICU, insurance and NHCX route this crate serves.
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -193,6 +194,13 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/insurance/rules/{id}", put(insurance::update_rule))
         .route("/api/insurance/dashboard", get(insurance::dashboard))
+        .merge(nhcx_routes())
+}
+
+/// The NHCX claim, pre-auth, eligibility, directory and policy routes, kept
+/// apart so the router stays within the function-size limit.
+fn nhcx_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/api/billing/insurance-claims/{id}/submit-to-nhcx",
             post(nhcx_submit::submit_claim_to_nhcx),

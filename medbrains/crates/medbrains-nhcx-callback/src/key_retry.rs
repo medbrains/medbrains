@@ -31,13 +31,17 @@ pub(crate) fn is_key_refusal(status: &str, response: &Value) -> bool {
             .is_some_and(|c| KEY_REFUSALS.contains(&c.trim()))
 }
 
-/// Re-arm the refused message's outbox event, once: the event goes back to
-/// pending with `key_retry` set, which makes the handler fetch the
-/// certificate again. An event already re-armed is left alone.
+/// When the callback is a key refusal ([`is_key_refusal`]), re-arm the
+/// refused message's outbox event, once: the event goes back to pending with
+/// `key_retry` set, which makes the handler fetch the certificate again. An
+/// event already re-armed, or any other callback, is left alone.
 ///
 /// # Errors
 /// Database errors only.
 pub(crate) async fn resend(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<bool, AppError> {
+    if !is_key_refusal(m.status, m.response) {
+        return Ok(false);
+    }
     let armed = sqlx::query!(
         "UPDATE outbox_events SET status = 'pending', attempts = 1, next_retry_at = now(), \
                 claimed_at = NULL, claimed_by = NULL, last_error = $4, \
@@ -107,40 +111,61 @@ async fn mark_queued(
             )
             .execute(&mut **tx)
             .await,
-            NhcxRecord::PayerQuery => {
-                sqlx::query!(
-                    "UPDATE nhcx_payer_queries SET nhcx_status = 'queued', nhcx_disposition = $1 \
-              WHERE id = $2 AND tenant_id = $3",
-                    RESENDING,
-                    id,
-                    tenant_id
-                )
-                .execute(&mut **tx)
-                .await
-            }
-            NhcxRecord::Task => {
-                sqlx::query!(
-                    "UPDATE nhcx_tasks SET nhcx_status = 'queued', nhcx_disposition = $1 \
-              WHERE id = $2 AND tenant_id = $3",
-                    RESENDING,
-                    id,
-                    tenant_id
-                )
-                .execute(&mut **tx)
-                .await
-            }
-            NhcxRecord::PaymentNotice => {
-                sqlx::query!(
-                    "UPDATE nhcx_payment_notices SET nhcx_status = 'queued', nhcx_disposition = $1 \
-              WHERE id = $2 AND tenant_id = $3",
-                    RESENDING,
-                    id,
-                    tenant_id
-                )
-                .execute(&mut **tx)
-                .await
+            NhcxRecord::PayerQuery | NhcxRecord::Task | NhcxRecord::PaymentNotice => {
+                return mark_exchange_queued(tx, record, id, tenant_id).await;
             }
         };
+    done?;
+    Ok(())
+}
+
+/// [`mark_queued`] for the records of an exchange already under way: a payer
+/// query, a task and a payment notice.
+async fn mark_exchange_queued(
+    tx: &mut Tx<'_>,
+    record: NhcxRecord,
+    id: Uuid,
+    tenant_id: Uuid,
+) -> Result<(), AppError> {
+    let done = match record {
+        NhcxRecord::PayerQuery => {
+            sqlx::query!(
+                "UPDATE nhcx_payer_queries SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                RESENDING,
+                id,
+                tenant_id
+            )
+            .execute(&mut **tx)
+            .await
+        }
+        NhcxRecord::Task => {
+            sqlx::query!(
+                "UPDATE nhcx_tasks SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                RESENDING,
+                id,
+                tenant_id
+            )
+            .execute(&mut **tx)
+            .await
+        }
+        NhcxRecord::PaymentNotice => {
+            sqlx::query!(
+                "UPDATE nhcx_payment_notices SET nhcx_status = 'queued', nhcx_disposition = $1 \
+              WHERE id = $2 AND tenant_id = $3",
+                RESENDING,
+                id,
+                tenant_id
+            )
+            .execute(&mut **tx)
+            .await
+        }
+        // The request records are marked by `mark_queued` itself.
+        NhcxRecord::InsuranceClaim | NhcxRecord::PriorAuth | NhcxRecord::Verification => {
+            return Ok(());
+        }
+    };
     done?;
     Ok(())
 }

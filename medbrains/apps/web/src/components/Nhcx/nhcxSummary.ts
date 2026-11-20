@@ -118,8 +118,9 @@ export function canSendTo(p: NhcxParticipant | undefined): boolean {
 
 /** Where a message to `payerCode` about this patient goes: the processor of
  * their policy with that insurer (a TPA, when one processes for it), as the
- * server routes it; the payer itself when no looked-up policy names it. */
-export function routedTo(policies: NhcxPatientPolicy[], payerCode: string): string {
+ * server routes it; the payer itself when no looked-up policy names it, or
+ * no lookup has been made. */
+export function routedTo(policies: NhcxPatientPolicy[] = [], payerCode: string): string {
   const policy = policies.find((p) => p.payer_id === payerCode || p.processing_id === payerCode);
   return policy?.processing_id ?? payerCode;
 }

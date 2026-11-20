@@ -80,6 +80,31 @@ pub(crate) async fn require_payer_certificate(
     )))
 }
 
+/// A transaction under the tenant's row-level security, the way every NHCX
+/// desk handler opens one, so the scoping lives in one place.
+pub(crate) async fn tenant_tx(
+    state: &medbrains_server_core::state::AppState,
+    tenant_id: Uuid,
+) -> Result<Tx<'static>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    Ok(tx)
+}
+
+/// The code a message about this patient is addressed to ([`processor_for`]),
+/// refused unless that recipient can be encrypted to
+/// ([`require_payer_certificate`]).
+pub(crate) async fn reachable_processor(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    payer: &str,
+) -> Result<String, AppError> {
+    let recipient = processor_for(tx, tenant_id, patient_id, payer).await?;
+    require_payer_certificate(tx, tenant_id, &recipient).await?;
+    Ok(recipient)
+}
+
 /// Where a message about this patient goes: the processor (`processingid`)
 /// of the patient's policy with the chosen payer, from the last registry
 /// lookup — a TPA, when one processes for the insurer. The chosen code itself

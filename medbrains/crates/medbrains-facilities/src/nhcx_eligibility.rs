@@ -21,7 +21,7 @@ use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 use crate::nhcx_bundle::{self, Parties};
-use crate::nhcx_common::{self, Outbound};
+use crate::nhcx_common::{self, Outbound, Tx};
 
 #[derive(Debug, Deserialize)]
 pub struct CheckNhcxEligibilityRequest {
@@ -111,9 +111,8 @@ pub async fn check_nhcx_eligibility(
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
     // The envelope goes to the policy's processor; the bundle names the insurer.
     let recipient =
-        nhcx_common::processor_for(&mut tx, claims.tenant_id, body.patient_id, payer).await?;
+        nhcx_common::reachable_processor(&mut tx, claims.tenant_id, body.patient_id, payer).await?;
     let recipient = recipient.as_str();
-    nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
     let patient = nhcx_common::load_patient(&mut tx, claims.tenant_id, body.patient_id).await?;
     let (policy_id, policy) = nhcx_common::load_policy(
         &mut tx,
@@ -174,16 +173,25 @@ pub async fn check_nhcx_eligibility(
         payload: &bundle,
     };
     nhcx_common::queue(&mut tx, &claims, &msg).await?;
+    let row = load_check(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// One eligibility check as the desk reads it back.
+async fn load_check(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    id: Uuid,
+) -> Result<NhcxEligibilityCheck, AppError> {
     let sql = format!(
         "SELECT {CHECK_COLUMNS} FROM insurance_verifications WHERE id = $1 AND tenant_id = $2"
     );
-    let row = sqlx::query_as::<_, NhcxEligibilityCheck>(&sql)
+    Ok(sqlx::query_as::<_, NhcxEligibilityCheck>(&sql)
         .bind(id)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(Json(row))
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?)
 }
 
 #[derive(Debug, Deserialize)]
