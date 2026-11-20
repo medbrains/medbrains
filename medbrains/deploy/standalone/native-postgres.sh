@@ -78,6 +78,9 @@ pg_native_install() { # port
     pg_native_repo
     # Our cluster is created explicitly below, with our locale and port; the
     # package's automatic one would take the host's locale and 5432.
+    # ponytail: left off afterwards too, so on an attach host a major its
+    # owner installs later gets no automatic cluster either; restore the
+    # line there if that matters.
     sed -i -E 's/^#?[[:space:]]*create_main_cluster.*/create_main_cluster = false/' \
         /etc/postgresql-common/createcluster.conf
     apt-get update -qq
@@ -175,6 +178,8 @@ pg_native_wait() { # port
 # POSTGRES_USER was in the container: migrations 0981/0984 create a BYPASSRLS
 # role, which only a superuser may do. The password travels on stdin.
 pg_native_owner() { # port password
+    # An empty password would leave the owner unable to log in over TCP.
+    [[ -n "$2" ]] || { echo "ERROR: no owner password in /etc/medbrains/env" >&2; return 1; }
     pg_native_psql "$1" -d postgres >/dev/null <<SQL
 DO \$\$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'medbrains') THEN
