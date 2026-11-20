@@ -7,6 +7,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use medbrains_health_services::patient as gate;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -52,13 +53,7 @@ pub async fn get_crossmatch_report_print_data(
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<CrossmatchReportPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::CROSSMATCH_REQUEST,
-        request_id,
-    )
-    .await?;
+    gate::require_access_via(&state, &claims, gate::links::CROSSMATCH_REQUEST, request_id).await?;
 
     let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(&claims)).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
