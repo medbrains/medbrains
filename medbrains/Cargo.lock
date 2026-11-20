@@ -5580,7 +5580,6 @@ version = "3.35.2"
 dependencies = [
  "anyhow",
  "async-trait",
- "chrono",
  "getrandom 0.4.3",
  "hex",
  "iroh",
@@ -5593,6 +5592,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "tempfile",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
