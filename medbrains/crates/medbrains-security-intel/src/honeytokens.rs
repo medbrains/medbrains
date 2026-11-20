@@ -128,27 +128,62 @@ fn random_hex(bytes: usize) -> Result<String, medbrains_server_core::error::AppE
         }))
 }
 
-/// A UHID from the hospital's own sequence, so a decoy looks like its
-/// neighbours; a random one when the hospital has no sequence yet (never
-/// creating the sequence, which real registration owns).
-async fn decoy_uhid(
+/// How far above the real series a decoy's number is drawn: the real series
+/// must issue at least this many more UHIDs before it could reach a decoy.
+// ponytail: fixed headroom, not a guarantee; a hospital that jumps its counter
+// by a billion could meet a decoy. Raise it or alarm on it if that ever happens.
+pub const DECOY_HEADROOM: i64 = 1_000_000_000;
+/// Draws tried before planting gives up for this run (the next run tries again).
+const PLANT_ATTEMPTS: usize = 3;
+
+/// `prefix` then `n` zero-padded to `pad` digits: the real series' format.
+fn format_uhid(prefix: &str, pad: i32, n: i64) -> String {
+    let pad = usize::try_from(pad).unwrap_or(0);
+    format!("{prefix}{n:0>pad$}")
+}
+
+/// A random offset below 2^30, so decoy numbers form no run of their own.
+fn jitter() -> Result<i64, medbrains_server_core::error::AppError> {
+    let mut buf = [0_u8; 8];
+    getrandom::fill(&mut buf)
+        .map_err(|e| medbrains_server_core::error::AppError::Internal(e.to_string()))?;
+    Ok(i64::try_from(u64::from_le_bytes(buf) >> 34).unwrap_or(0))
+}
+
+/// The real UHID series as (prefix, padding, last number issued), read only:
+/// taking its next value would leave a gap in the numbers staff see and waste
+/// a real UHID. Never created here either; real registration owns it.
+async fn real_series(
     tx: &mut medbrains_kernel::Tx,
     tenant: Uuid,
-) -> Result<String, medbrains_server_core::error::AppError> {
-    let next = sqlx::query_scalar::<_, String>(
-        "UPDATE sequences SET current_val = current_val + 1 \
-          WHERE tenant_id = $1 AND seq_type = 'UHID' \
-          RETURNING prefix || lpad(current_val::text, GREATEST(pad_width, length(current_val::text)), '0')",
+) -> Result<Option<(String, i32, i64)>, medbrains_server_core::error::AppError> {
+    Ok(sqlx::query_as(
+        "SELECT prefix, pad_width, current_val FROM sequences \
+          WHERE tenant_id = $1 AND seq_type = 'UHID'",
     )
     .bind(tenant)
     .fetch_optional(&mut **tx)
-    .await?;
-    match next {
+    .await?)
+}
+
+/// A decoy UHID in the hospital's own format, so it looks like its
+/// neighbours, drawn well above where the real series stands so registration
+/// does not reach it. Random when the hospital has no UHID series yet.
+fn draw_uhid(
+    real: Option<&(String, i32, i64)>,
+) -> Result<String, medbrains_server_core::error::AppError> {
+    let jitter = jitter()?;
+    let drawn = real.and_then(|(prefix, pad, current)| {
+        let n = current.checked_add(DECOY_HEADROOM)?.checked_add(jitter)?;
+        Some(format_uhid(prefix, *pad, n))
+    });
+    match drawn {
         Some(uhid) => Ok(uhid),
         None => Ok(format!("ZZ{}", random_hex(5)?)),
     }
 }
 
+/// Plants decoy patients until the hospital has [`DECOY_PATIENTS`] of them.
 async fn top_up_patients(
     tx: &mut medbrains_kernel::Tx,
     tenant: Uuid,
@@ -161,32 +196,48 @@ async fn top_up_patients(
     .fetch_one(&mut **tx)
     .await?;
     for slot in have..DECOY_PATIENTS {
-        let pick = random_hex(1)?;
-        let index = usize::from_str_radix(&pick, 16).unwrap_or(0) % NAMES.len();
-        let (first, last, gender) = NAMES[index];
-        let uhid = decoy_uhid(tx, tenant).await?;
-        let id: Uuid = sqlx::query_scalar(
-            "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth) \
-             VALUES ($1, $2, $3, $4, $5::gender, '0000000000', DATE '1970-01-01' + ($6 * 3217)) RETURNING id",
+        plant_patient(tx, tenant, slot).await?;
+    }
+    Ok(have.max(DECOY_PATIENTS))
+}
+
+/// One decoy patient and its registry row, in one statement. A drawn UHID
+/// already taken, by a real patient or another decoy, visible or not, is
+/// skipped by the unique index and a fresh one drawn, so a decoy never
+/// displaces anyone.
+// ponytail: a retry, not a per-item query; the first draw almost always lands.
+async fn plant_patient(
+    tx: &mut medbrains_kernel::Tx,
+    tenant: Uuid,
+    slot: i64,
+) -> Result<(), medbrains_server_core::error::AppError> {
+    let pick = random_hex(1)?;
+    let index = usize::from_str_radix(&pick, 16).unwrap_or(0) % NAMES.len();
+    let (first, last, gender) = NAMES[index];
+    let real = real_series(tx, tenant).await?;
+    for _ in 0..PLANT_ATTEMPTS {
+        let planted: Option<Uuid> = sqlx::query_scalar(
+            "WITH p AS (INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth) \
+                        VALUES ($1, $2, $3, $4, $5::gender, '0000000000', DATE '1970-01-01' + ($6 * 3217)) \
+                        ON CONFLICT (tenant_id, uhid) DO NOTHING RETURNING id) \
+             INSERT INTO security_honeytokens (tenant_id, kind, patient_id, label) \
+             SELECT $1, 'patient', p.id, $2 FROM p RETURNING patient_id",
         )
         .bind(tenant)
-        .bind(&uhid)
+        .bind(draw_uhid(real.as_ref())?)
         .bind(first)
         .bind(last)
         .bind(gender)
         .bind(i32::try_from(slot).unwrap_or(0))
-        .fetch_one(&mut **tx)
+        .fetch_optional(&mut **tx)
         .await?;
-        sqlx::query(
-            "INSERT INTO security_honeytokens (tenant_id, kind, patient_id, label) VALUES ($1, 'patient', $2, $3)",
-        )
-        .bind(tenant)
-        .bind(id)
-        .bind(&uhid)
-        .execute(&mut **tx)
-        .await?;
+        if planted.is_some() {
+            return Ok(());
+        }
     }
-    Ok(have.max(DECOY_PATIENTS))
+    Err(medbrains_server_core::error::AppError::Internal(
+        "no free UHID for a decoy patient after several draws".to_owned(),
+    ))
 }
 
 /// The decoy key and its bait stay paired: if the bait is gone the key is
@@ -281,5 +332,18 @@ fn integrity_finding(key: &str, title: &str, fix: &str) -> Found {
         evidence: json!({}),
         how_to_fix: fix.to_owned(),
         cve_id: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_uhid;
+
+    #[test]
+    fn decoy_uhids_take_the_real_series_format() {
+        assert_eq!(format_uhid("MB-", 5, 1_000_000_042), "MB-1000000042");
+        assert_eq!(format_uhid("UHID-", 12, 1_000_000_042), "UHID-001000000042");
+        assert_eq!(format_uhid("", 0, 1_000_000_007), "1000000007");
+        assert_eq!(format_uhid("", 3, 7), "007");
     }
 }

@@ -304,6 +304,124 @@ async fn decoy_patients_never_show_in_lists_search_or_counts() {
     );
 }
 
+/// The decoys' UHIDs, oldest first.
+async fn decoy_uhids(owner: &PgPool, t: Uuid) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT p.uhid FROM security_honeytokens h JOIN patients p ON p.id = h.patient_id \
+          WHERE h.tenant_id = $1 AND h.deleted_at IS NULL ORDER BY h.created_at, p.uhid",
+    )
+    .bind(t)
+    .fetch_all(owner)
+    .await
+    .unwrap()
+}
+
+/// Sets the hospital's real UHID series and returns a context to run checks in.
+async fn real_series(owner: &PgPool, app: &PgPool, t: Uuid, prefix: &str, at: i64) -> Ctx {
+    sqlx::query(
+        "UPDATE sequences SET prefix = $2, current_val = $3, pad_width = 3 \
+          WHERE tenant_id = $1 AND seq_type = 'UHID'",
+    )
+    .bind(t)
+    .bind(prefix)
+    .bind(at)
+    .execute(owner)
+    .await
+    .unwrap();
+    Ctx {
+        request: app.clone(),
+        worker: owner.clone(),
+    }
+}
+
+async fn real_current(owner: &PgPool, t: Uuid) -> i64 {
+    sqlx::query_scalar(
+        "SELECT current_val FROM sequences WHERE tenant_id = $1 AND seq_type = 'UHID'",
+    )
+    .bind(t)
+    .fetch_one(owner)
+    .await
+    .unwrap()
+}
+
+/// Registers real patients with the next `n` numbers of the real series.
+async fn register_real(owner: &PgPool, t: Uuid, prefix: &str, n: i64) {
+    sqlx::query(
+        "WITH s AS (UPDATE sequences SET current_val = current_val + $3 \
+                     WHERE tenant_id = $1 AND seq_type = 'UHID' RETURNING current_val) \
+         INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+         SELECT $1, $2 || lpad(v::text, GREATEST(3, length(v::text)), '0'), 'Real', 'Patient', \
+                'female', '9000000000' FROM s, generate_series(s.current_val - $3 + 1, s.current_val) v",
+    )
+    .bind(t)
+    .bind(prefix)
+    .bind(n)
+    .execute(owner)
+    .await
+    .expect("the real series registers without hitting a decoy");
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn decoys_never_take_or_collide_with_real_uhids() {
+    let (owner, app) = pools().await;
+    let (t, _) = tenant(&owner).await;
+    let ctx = real_series(&owner, &app, t, "MB-", 41).await;
+    Honeytokens.run(&ctx, Some(t)).await.expect("seeded");
+    assert_eq!(
+        real_current(&owner, t).await,
+        41,
+        "the real series is untouched"
+    );
+    let first = decoy_uhids(&owner, t).await;
+    assert_eq!(first.len(), 3);
+    assert!(first.iter().all(|u| u.starts_with("MB-")), "{first:?}");
+
+    // The real series grows past where it stood; registration never meets a decoy.
+    register_real(&owner, t, "MB-", 5_000).await;
+    let grown = real_current(&owner, t).await;
+
+    // A removed decoy is replaced; the survivors keep their numbers.
+    let gone: Uuid = sqlx::query_scalar(
+        "SELECT patient_id FROM security_honeytokens WHERE tenant_id = $1 AND label = $2",
+    )
+    .bind(t)
+    .bind(&first[0])
+    .fetch_one(&owner)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE patients SET deleted_at = now() WHERE id = $1")
+        .bind(gone)
+        .execute(&owner)
+        .await
+        .unwrap();
+    Honeytokens.run(&ctx, Some(t)).await.expect("replanted");
+    assert_eq!(real_current(&owner, t).await, grown);
+    let now = decoy_uhids(&owner, t).await;
+    assert_eq!(now.len(), 3);
+    assert_eq!(now[..2], first[1..], "surviving decoys keep their numbers");
+    register_real(&owner, t, "MB-", 5_000).await;
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn decoys_follow_a_plain_number_series() {
+    let (owner, app) = pools().await;
+    let (t, _) = tenant(&owner).await;
+    let ctx = real_series(&owner, &app, t, "", 7).await;
+    Honeytokens.run(&ctx, Some(t)).await.expect("seeded");
+    assert_eq!(real_current(&owner, t).await, 7);
+    let uhids = decoy_uhids(&owner, t).await;
+    assert_eq!(uhids.len(), 3);
+    assert!(
+        uhids
+            .iter()
+            .all(|u| u.bytes().all(|b| b.is_ascii_digit()) && !u.starts_with('0')),
+        "{uhids:?}"
+    );
+    register_real(&owner, t, "", 2_000).await;
+}
+
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
 async fn reading_a_decoy_or_using_the_decoy_key_is_critical_at_once() {
