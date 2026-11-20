@@ -64,6 +64,17 @@ fn token_body(p: &PatientAbdm) -> Value {
     })
 }
 
+/// A tenant transaction for the linking pass. No one is signed in: a
+/// finalised record or a verified gateway callback started it, so the permit
+/// is a named unattended one.
+pub(super) async fn link_tx(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+) -> Result<medbrains_kernel::tenancy::TenantTx, AppError> {
+    let permit = medbrains_kernel::tenancy::Permit::unattended(tenant_id, "ABDM HIP linking pass");
+    Ok(medbrains_kernel::tenancy::tenant_tx(db, &permit).await?)
+}
+
 /// Ask ABDM for a link token for `p`, unless a request for them is already
 /// in flight (then join it) or a token has been stored meanwhile. Every
 /// pending care context of the patient is marked as waiting on the request
@@ -80,8 +91,7 @@ pub(super) async fn request_token(
     let Some(link_id) = p.link_id else {
         return Err(AppError::NotFound);
     };
-    let mut tx = db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &hip.tenant_id).await?;
+    let mut tx = link_tx(db, hip.tenant_id).await?;
     // The lock makes "is a request in flight?" and "record ours" one step.
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
     let held = sqlx::query!(
@@ -141,20 +151,32 @@ pub(super) async fn request_token(
         .send_with_id(GENERATE_LINK_TOKEN_PATH, request_id, &token_body(p))
         .await;
     if let Err(e) = sent {
-        let waiting = waiting_ids(db, hip.tenant_id, request_id).await?;
-        clear_token_request(db, hip.tenant_id, p.patient_id).await?;
-        mark(
-            db,
-            hip.tenant_id,
-            &waiting,
-            "failed",
-            Some(message(&e).as_str()),
-            None,
-        )
-        .await?;
+        token_request_failed(db, hip, (request_id, p.patient_id), &e).await?;
         return Err(e);
     }
     Ok(ask)
+}
+
+/// A token request the gateway would not take: free the patient for the next
+/// try and mark the care contexts waiting on it failed, in ABDM's words.
+async fn token_request_failed(
+    db: &sqlx::PgPool,
+    hip: &Hip,
+    (request_id, patient_id): (Uuid, Uuid),
+    e: &AppError,
+) -> Result<(), AppError> {
+    let waiting = waiting_ids(db, hip.tenant_id, request_id).await?;
+    clear_token_request(db, hip.tenant_id, patient_id).await?;
+    let why = message(e);
+    mark(
+        db,
+        hip.tenant_id,
+        &waiting,
+        "failed",
+        Some(why.as_str()),
+        None,
+    )
+    .await
 }
 
 /// The care contexts waiting on `request_id`.
@@ -163,8 +185,7 @@ async fn waiting_ids(
     tenant_id: Uuid,
     request_id: Uuid,
 ) -> Result<Vec<Uuid>, AppError> {
-    let mut tx = db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = link_tx(db, tenant_id).await?;
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
     let ids = sqlx::query_scalar!(
         "SELECT id FROM abdm_care_contexts \
@@ -189,8 +210,7 @@ pub(super) async fn clear_token_request(
     tenant_id: Uuid,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    let mut tx = db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = link_tx(db, tenant_id).await?;
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
     sqlx::query!(
         "UPDATE patient_abha_links SET token_request_id = NULL, token_requested_at = NULL \
@@ -215,8 +235,7 @@ pub(super) async fn forget_token(
     tenant_id: Uuid,
     patient_id: Uuid,
 ) -> Result<bool, AppError> {
-    let mut tx = db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = link_tx(db, tenant_id).await?;
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
     let may_retry = sqlx::query_scalar!(
         r#"WITH old AS (
@@ -247,8 +266,7 @@ async fn requeue_link(db: &sqlx::PgPool, tenant_id: Uuid, ids: &[Uuid]) -> Resul
     let Some(first) = ids.first() else {
         return Ok(false);
     };
-    let mut tx = db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = link_tx(db, tenant_id).await?;
     // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
     let queued = sqlx::query!(
         "INSERT INTO outbox_events (tenant_id, aggregate_type, aggregate_id, event_type, payload, \
@@ -308,8 +326,7 @@ pub(super) async fn recover(
         if !forget_token(db, hip.tenant_id, patient_id).await? {
             return Ok(Some(TOKEN_REJECTED_AGAIN.to_owned()));
         }
-        let mut tx = db.begin().await?;
-        medbrains_db::pool::set_tenant_context(&mut tx, &hip.tenant_id).await?;
+        let mut tx = link_tx(db, hip.tenant_id).await?;
         let patient = load_patient(&mut tx, hip.tenant_id, patient_id).await?;
         tx.commit().await?;
         return request_token(db, hip, &patient).await.map(|_| None);

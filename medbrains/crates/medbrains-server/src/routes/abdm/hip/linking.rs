@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::gateway::Hip;
-use super::link_token::{TokenAsk, link_with, request_token};
+use super::link_token::{TokenAsk, link_tx, link_with, request_token};
 use crate::{error::AppError, routes::abdm::abha::secret_key};
 
 /// Why a mental-health care context is not linked.
@@ -253,8 +253,7 @@ pub async fn request_link(
         return Ok(());
     }
     // A token arrived while we were deciding: link with it.
-    let mut tx = db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = link_tx(db, tenant_id).await?;
     let patient = load_patient(&mut tx, tenant_id, patient_id).await?;
     tx.commit().await?;
     match live_token(secrets, &patient).await {

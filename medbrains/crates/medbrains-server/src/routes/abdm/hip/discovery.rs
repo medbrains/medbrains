@@ -25,7 +25,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use super::discovery_match::{Candidate, pick_by_demographics};
+use super::discovery_match::match_patient;
 use super::gateway::{Caller, Hip, authenticate};
 use super::linking::{mark_linked, patient_entries};
 use super::replay;
@@ -34,94 +34,8 @@ use crate::{error::AppError, state::AppState};
 const OTP_MINUTES: i64 = 10;
 const OTP_MAX_ATTEMPTS: i32 = 5;
 const CONTEXT_LIMIT: i64 = 100;
-/// Patients on one mobile looked at: a family shares a phone, rarely more.
-const MOBILE_CANDIDATES: i64 = 20;
 const NOT_FOUND: (&str, &str) = ("ABDM-1010", "Patient not found");
 const WRONG_OTP: (&str, &str) = ("ABDM-1035", "Incorrect OTP");
-
-fn identifier(patient: &Value, kind: &str) -> Option<String> {
-    patient["verifiedIdentifiers"]
-        .as_array()?
-        .iter()
-        .find(|i| i["type"] == kind)
-        .and_then(|i| i["value"].as_str())
-        .map(str::to_owned)
-}
-
-fn digits(s: &str) -> String {
-    s.chars().filter(char::is_ascii_digit).collect()
-}
-
-/// The one patient the discovery request names, and how it was matched.
-async fn match_patient(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    patient: &Value,
-) -> Result<Option<(Uuid, &'static str)>, AppError> {
-    let address = patient["id"]
-        .as_str()
-        .unwrap_or_default()
-        .trim()
-        .to_lowercase();
-    let number = identifier(patient, "ABHA_NUMBER").map(|n| digits(&n));
-    let by_abha = sqlx::query_scalar::<_, Uuid>(
-        "SELECT DISTINCT patient_id FROM patient_abha_links \
-          WHERE tenant_id = $1 AND verified_at IS NOT NULL AND deleted_at IS NULL \
-            AND unlinked_at IS NULL \
-            AND ((abha_address IS NOT NULL AND lower(abha_address) = $2) \
-              OR ($3::text IS NOT NULL AND regexp_replace(abha_number, '\\D', '', 'g') = $3)) \
-          LIMIT 2",
-    )
-    .bind(tenant_id)
-    .bind(&address)
-    .bind(number.as_deref())
-    .fetch_all(&mut **tx)
-    .await?;
-    if let [one] = by_abha.as_slice() {
-        return Ok(Some((*one, "ABHA_ADDRESS")));
-    }
-    let Some(mobile) = identifier(patient, "MOBILE").map(|m| digits(&m)) else {
-        return Ok(None);
-    };
-    let gender = match patient["gender"].as_str() {
-        Some("M") => "male",
-        Some("F") => "female",
-        Some("O") => "other",
-        _ => return Ok(None),
-    };
-    let year = patient["yearOfBirth"]
-        .as_i64()
-        .or_else(|| patient["yearOfBirth"].as_str()?.trim().parse().ok());
-    let Some(year) = year.and_then(|y| i32::try_from(y).ok()) else {
-        return Ok(None);
-    };
-    // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
-    let on_mobile = sqlx::query!(
-        r#"SELECT id, concat_ws(' ', first_name, last_name) AS "name!",
-                  date_part('year', date_of_birth)::int AS year
-             FROM patients
-            WHERE tenant_id = $1 AND deleted_at IS NULL AND length($2) >= 10
-              AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right($2, 10)
-              AND gender::text = $3
-            ORDER BY created_at LIMIT $4"#,
-        tenant_id,
-        mobile,
-        gender,
-        MOBILE_CANDIDATES,
-    )
-    .fetch_all(&mut **tx)
-    .await?;
-    let candidates: Vec<Candidate> = on_mobile
-        .into_iter()
-        .map(|r| Candidate {
-            id: r.id,
-            name: r.name,
-            year: r.year,
-        })
-        .collect();
-    let name = patient["name"].as_str().unwrap_or_default();
-    Ok(pick_by_demographics(name, year, &candidates).map(|id| (id, "MOBILE")))
-}
 
 /// The patient's UHID, name and unlinked care contexts (reference, display, HI type).
 async fn unlinked_contexts(
@@ -216,6 +130,28 @@ fn otp_hash(link_ref: Uuid, otp: &str) -> String {
     hex::encode(Sha256::digest(format!("{link_ref}:{otp}").as_bytes()))
 }
 
+/// What a link-init asks for: the patient's UHID, the care-context
+/// references (at most `CONTEXT_LIMIT`) and the ABHA address, lower-cased.
+fn link_init_request(body: &Value) -> (String, Vec<String>, String) {
+    let entries = body["patient"].as_array().cloned().unwrap_or_default();
+    let uhid = entries
+        .first()
+        .and_then(|p| p["referenceNumber"].as_str())
+        .unwrap_or_default()
+        .to_owned();
+    let refs: Vec<String> = entries
+        .iter()
+        .flat_map(|p| p["careContexts"].as_array().cloned().unwrap_or_default())
+        .filter_map(|c| c["referenceNumber"].as_str().map(str::to_owned))
+        .take(usize::try_from(CONTEXT_LIMIT).unwrap_or(100))
+        .collect();
+    let abha_address = body["abhaAddress"]
+        .as_str()
+        .unwrap_or_default()
+        .to_lowercase();
+    (uhid, refs, abha_address)
+}
+
 /// `POST /api/v3/hip/link/care-context/init` — send the OTP. A repeat of
 /// one already handled re-sends the same answer and sends no new OTP.
 ///
@@ -229,21 +165,7 @@ pub async fn link_init(
 ) -> Result<StatusCode, AppError> {
     let caller = authenticate(&state, &headers).await?;
     tracing::Span::current().record("tenant_id", tracing::field::display(caller.tenant_id));
-    let entries = body["patient"].as_array().cloned().unwrap_or_default();
-    let uhid = entries
-        .first()
-        .and_then(|p| p["referenceNumber"].as_str())
-        .unwrap_or_default();
-    let refs: Vec<String> = entries
-        .iter()
-        .flat_map(|p| p["careContexts"].as_array().cloned().unwrap_or_default())
-        .filter_map(|c| c["referenceNumber"].as_str().map(str::to_owned))
-        .take(usize::try_from(CONTEXT_LIMIT).unwrap_or(100))
-        .collect();
-    let abha_address = body["abhaAddress"]
-        .as_str()
-        .unwrap_or_default()
-        .to_lowercase();
+    let (uhid, refs, abha_address) = link_init_request(&body);
     let mut answer = json!({
         "transactionId": body["transactionId"],
         "response": { "requestId": caller.request_id },
@@ -266,7 +188,7 @@ pub async fn link_init(
                    AND l.abha_address IS NOT NULL AND lower(l.abha_address) <> $3)",
     )
     .bind(caller.tenant_id)
-    .bind(uhid)
+    .bind(&uhid)
     .bind(&abha_address)
     .fetch_optional(&mut *tx)
     .await?;

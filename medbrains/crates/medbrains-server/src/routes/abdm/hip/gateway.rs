@@ -39,6 +39,8 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use super::super::abha::{Session, dev_override, map_abdm_error, session};
+pub use super::addressee::Addressee;
+use super::addressee::header;
 use crate::{error::AppError, state::AppState};
 
 /// Secret-store key holding a PEM the callback JWT is checked against
@@ -230,37 +232,6 @@ pub struct Caller {
     pub hip_id: String,
     /// The callback's `REQUEST-ID`, echoed back as `response.requestId`.
     pub request_id: String,
-}
-
-fn header(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-        .map(str::to_owned)
-}
-
-/// Which side of the hospital a callback is addressed to, by its header.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Addressee {
-    /// `X-HIP-ID` only: M2 callbacks.
-    Hip,
-    /// `X-HIU-ID` only: M3 callbacks.
-    Hiu,
-    /// Either: the cloud relay, which stores any callback for the on-prem server.
-    Either,
-}
-
-impl Addressee {
-    /// The facility id the callback names, from the header this side reads.
-    fn facility_id(self, headers: &HeaderMap) -> Option<String> {
-        match self {
-            Self::Hip => header(headers, "x-hip-id"),
-            Self::Hiu => header(headers, "x-hiu-id"),
-            Self::Either => header(headers, "x-hip-id").or_else(|| header(headers, "x-hiu-id")),
-        }
-    }
 }
 
 /// Authenticate an HIP (M2) gateway callback, named by `X-HIP-ID`.
@@ -510,32 +481,7 @@ fn refused(why: &'static str) -> AppError {
 mod tests {
     use serde_json::json;
 
-    use axum::http::{HeaderMap, HeaderValue};
-
-    use super::{Addressee, Trust};
-
-    /// An HIP callback reads only `X-HIP-ID`, an HIU callback only
-    /// `X-HIU-ID`: the two headers are not interchangeable (#5711).
-    #[test]
-    fn each_side_reads_only_its_own_header() {
-        let mut hip_only = HeaderMap::new();
-        hip_only.insert("x-hip-id", HeaderValue::from_static("IN1410000232"));
-        let mut hiu_only = HeaderMap::new();
-        hiu_only.insert("x-hiu-id", HeaderValue::from_static("IN1410000232"));
-        assert_eq!(
-            Addressee::Hip.facility_id(&hip_only).as_deref(),
-            Some("IN1410000232")
-        );
-        assert_eq!(Addressee::Hip.facility_id(&hiu_only), None);
-        assert_eq!(
-            Addressee::Hiu.facility_id(&hiu_only).as_deref(),
-            Some("IN1410000232")
-        );
-        assert_eq!(Addressee::Hiu.facility_id(&hip_only), None);
-        assert!(Addressee::Either.facility_id(&hip_only).is_some());
-        assert!(Addressee::Either.facility_id(&hiu_only).is_some());
-        assert_eq!(Addressee::Hip.facility_id(&HeaderMap::new()), None);
-    }
+    use super::Trust;
 
     fn trust() -> Trust {
         Trust {

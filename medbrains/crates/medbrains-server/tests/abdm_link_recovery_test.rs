@@ -136,7 +136,7 @@ async fn a_rejected_token_is_cleared_and_asked_for_once() {
 
     deliver_token(&w).await;
     refuse_link(&w, "ABDM-1038").await;
-    assert_eq!(token_state(&w).await.0, false);
+    assert!(!token_state(&w).await.0);
     assert_eq!(w.count(GENERATE_LINK_TOKEN_PATH), asked + 1, "no loop");
     let (_, status, _) = w.context(&reference).await;
     assert_eq!(status, "failed");

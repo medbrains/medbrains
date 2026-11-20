@@ -20,6 +20,7 @@
 //! Care contexts are captured by a database trigger when a record is
 //! finalised (migration 1110), so no save path can forget to.
 
+pub mod addressee;
 pub mod bundle_bills;
 pub mod bundle_check;
 pub mod bundle_files;
