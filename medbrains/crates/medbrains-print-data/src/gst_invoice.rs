@@ -12,10 +12,10 @@ use medbrains_core::{
     permissions,
     print_data::{GstInvoiceItemLine, GstInvoicePrintData},
 };
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
+use medbrains_kernel::authz::require_permission;
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
@@ -174,18 +174,10 @@ pub async fn get_gst_invoice_print_data(
     Extension(claims): Extension<Claims>,
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<GstInvoicePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    let permit = kernel::authz::permit(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INVOICE,
-        invoice_id,
-    )
-    .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    gate::require_access_via(&state, &claims, gate::links::INVOICE, invoice_id).await?;
+    let tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     gst_invoice_print_data_in_tx(tx, &claims, invoice_id).await
 }
 
@@ -197,10 +189,8 @@ pub async fn get_pharmacy_bill_print_data(
     Extension(claims): Extension<Claims>,
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<GstInvoicePrintData>, AppError> {
-    require_permission(&claims, permissions::pharmacy::bills::PRINT)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let permit = kernel::authz::permit(&claims, permissions::pharmacy::bills::PRINT)?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let is_counter_bill: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM invoice_items ii \
                          WHERE ii.tenant_id = $1 AND ii.invoice_id = $2 \
