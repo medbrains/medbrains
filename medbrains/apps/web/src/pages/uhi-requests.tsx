@@ -65,6 +65,7 @@ function useUhiRowGates() {
     blood_bank: () => canIssueBlood,
     lab_tests: (r) => canOrderLab && (!r.home_collection || canBookCollection),
   };
+  /** Offer accept/decline only on a pending request the user may answer for its service. */
   const mayAnswer = (r: UhiRequest) =>
     canRespond && r.state === "pending" && (serviceGate[r.service]?.(r) ?? false);
   /** Offer the PIN check only on a confirmed booking with a PIN and tries left. */
