@@ -21,7 +21,7 @@ import { FrictionTable } from "./form-friction/friction-table";
 import { PERIOD_OPTIONS } from "./form-friction/labels";
 
 /** The form friction report, for `admin.form_friction.view`. */
-export function FormFrictionPage() {
+export default function FormFrictionPage() {
   useRequirePermission(P.ADMIN.FORM_FRICTION.VIEW);
   const canView = useHasPermission(P.ADMIN.FORM_FRICTION.VIEW);
   const [days, setDays] = useState("30");

@@ -1,7 +1,7 @@
 import type { FormFrictionReport } from "@medbrains/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor } from "@/test/test-utils";
-import { FormFrictionPage } from "./form-friction";
+import FormFrictionPage from "./form-friction";
 
 const api = vi.hoisted(() => ({ getFormFriction: vi.fn() }));
 vi.mock("@medbrains/api", async (importOriginal) => ({

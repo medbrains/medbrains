@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 
 use axum::extract::{Query, State};
-use axum::{Extension, Json};
+use axum::{Extension, Json, Router, routing::get};
 use chrono::{Days, NaiveDate};
 use medbrains_core::permissions;
 use medbrains_kernel::{Actor, Claims, require_permission};
@@ -166,6 +166,11 @@ fn rank(days: u64, since: NaiveDate, rows: Vec<Row>) -> FormFrictionReport {
         previous_total,
         routes: ranked,
     }
+}
+
+/// The report's one route, merged into the admin router.
+pub fn router() -> Router<AppState> {
+    Router::new().route("/api/admin/form-friction", get(get_form_friction))
 }
 
 #[cfg(test)]

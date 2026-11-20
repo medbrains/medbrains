@@ -45,6 +45,7 @@ pub const PLATFORM_JOBS: &[&str] = &[
     "medbrains_dictation::purge",
     "retention",
     "queue_rollover",
+    "medbrains_server_core::form_friction",
 ];
 
 /// What the jobs are started with.

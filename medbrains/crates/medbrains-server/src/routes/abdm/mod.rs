@@ -36,4 +36,5 @@ pub mod hpr;
 pub mod mental_health_sharing;
 mod registry_access;
 pub mod scan_share;
+pub mod scan_share_routes;
 pub mod settings;

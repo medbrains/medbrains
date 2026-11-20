@@ -168,15 +168,8 @@ pub fn router() -> Router<AppState> {
                 .delete(multi_hospital::delete_group_template),
         )
         .route("/api/admin/kernel", get(admin_kernel::get_kernel_health))
-        .route(
-            "/api/admin/form-friction",
-            get(admin_form_friction::get_form_friction),
-        )
-        .route(
-            "/api/admin/system_state",
-            get(admin_system_state::get_system_state)
-                .post(admin_system_state::update_system_state),
-        )
+        .merge(admin_form_friction::router())
+        .merge(admin_system_state::router())
         .route("/api/blog", get(blog::list_blog).post(blog::create_blog))
         .route(
             "/api/blog/{id}",

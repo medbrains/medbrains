@@ -488,12 +488,8 @@ const HospitalBindingPage = lazy(() =>
 const OnboardingWorkbookPage = lazy(() =>
   import("./pages/admin/workbook").then((m) => ({ default: m.OnboardingWorkbookPage })),
 );
-const KernelPage = lazy(() =>
-  import("./pages/admin/kernel").then((m) => ({ default: m.KernelPage })),
-);
-const FormFrictionPage = lazy(() =>
-  import("./pages/admin/form-friction").then((m) => ({ default: m.FormFrictionPage })),
-);
+const KernelPage = lazy(() => import("./pages/admin/kernel"));
+const FormFrictionPage = lazy(() => import("./pages/admin/form-friction"));
 const HistoryImportPage = lazy(() =>
   import("./pages/admin/history-import").then((m) => ({ default: m.HistoryImportPage })),
 );
