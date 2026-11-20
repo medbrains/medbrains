@@ -4,6 +4,7 @@ pub mod abha_link;
 pub mod acquisition;
 pub mod actions;
 pub mod contact_consent;
+mod context_parts;
 pub mod dpdp_consent;
 pub mod group_identity;
 mod group_identity_store;
@@ -4459,47 +4460,9 @@ pub struct UpdatePhotoRequest {
 //  Cached 30s on frontend (TanStack Query).
 // ══════════════════════════════════════════════════════════
 
-#[derive(Debug, Serialize)]
-pub struct LastVitalsContext {
-    pub recorded_at: DateTime<Utc>,
-    pub temperature: Option<Decimal>,
-    pub pulse: Option<i32>,
-    pub systolic_bp: Option<i32>,
-    pub diastolic_bp: Option<i32>,
-    pub respiratory_rate: Option<i32>,
-    pub spo2: Option<i32>,
-    pub weight_kg: Option<Decimal>,
-    pub height_cm: Option<Decimal>,
-    pub bmi: Option<Decimal>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AllergyContext {
-    pub substance: String,
-    pub allergy_type: String,
-    pub severity: String,
-    pub reaction: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct NextOfKinContext {
-    pub name: String,
-    pub phone: Option<String>,
-    pub relation: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct InsuranceContext {
-    pub provider_name: String,
-    pub policy_number: Option<String>,
-    pub valid_till: Option<NaiveDate>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PendingConsentContext {
-    pub consent_type: String,
-    pub status: String,
-}
+pub use context_parts::{
+    AllergyContext, InsuranceContext, LastVitalsContext, NextOfKinContext, PendingConsentContext,
+};
 
 #[derive(Debug, Serialize)]
 pub struct PatientContext {
@@ -4520,6 +4483,9 @@ pub struct PatientContext {
     pub is_vip: bool,
     pub is_unknown_patient: bool,
     pub is_deceased: bool,
+    /// The hospital OPD number and its register date, when it keeps one per patient.
+    pub opd_number: Option<String>,
+    pub opd_date: Option<NaiveDate>,
     // Pending consents
     pub pending_consents: Vec<PendingConsentContext>,
     // Financial
@@ -4582,13 +4548,16 @@ pub async fn get_patient_context(
         is_deceased: bool,
         preferred_language: Option<String>,
         attributes: serde_json::Value,
+        opd_number: Option<String>,
+        opd_date: Option<NaiveDate>,
     }
 
     let core = sqlx::query_as::<_, PatientCoreRow>(
         r"SELECT id, uhid, first_name, middle_name, last_name, date_of_birth,
                  gender::text AS gender, COALESCE(no_known_allergies, false) AS no_known_allergies,
                  is_medico_legal, mlc_number,
-                 is_vip, is_unknown_patient, is_deceased, preferred_language, attributes
+                 is_vip, is_unknown_patient, is_deceased, preferred_language, attributes,
+                 opd_number, opd_date
             FROM patients
            WHERE id = $1 AND tenant_id = $2",
     )
@@ -4878,6 +4847,11 @@ pub async fn get_patient_context(
         is_vip: core.is_vip,
         is_unknown_patient: core.is_unknown_patient,
         is_deceased: core.is_deceased,
+        // An identifier like the UHID: hidden wherever the UHID is.
+        opd_number: core
+            .opd_number
+            .filter(|_| !patient_field_is_hidden(&restricted, PATIENT_UHID_FIELD)),
+        opd_date: core.opd_date,
         pending_consents,
         outstanding_balance,
         preferred_language: core.preferred_language,
