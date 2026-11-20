@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO patient_insurance (tenant_id, patient_id, insurance_provider, policy_number, group_number, member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *",
+  "query": "SELECT id, tenant_id, patient_id, insurance_provider, policy_number, group_number, member_id, plan_name, policy_holder_name, policy_holder_relation, valid_from, valid_until, sum_insured, tpa_name, tpa_id, coverage_type, priority, is_active, company_id, created_at, updated_at, deleted_at, deleted_by, delete_reason FROM patient_insurance WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY priority ASC, created_at",
   "describe": {
     "columns": [
       {
@@ -95,18 +95,18 @@
       },
       {
         "ordinal": 18,
+        "name": "company_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 19,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "updated_at",
         "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 20,
-        "name": "company_id",
-        "type_info": "Uuid"
       },
       {
         "ordinal": 21,
@@ -127,22 +127,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Date",
-        "Date",
-        "Numeric",
-        "Text",
-        "Text",
-        "Text",
-        "Int4",
-        "Bool"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -164,13 +149,13 @@
       true,
       false,
       false,
-      false,
-      false,
       true,
+      false,
+      false,
       true,
       true,
       true
     ]
   },
-  "hash": "9b2492c8fac4af6f8aa1573fd99fc43e2b15f53d97382a66a3a7064d041576a4"
+  "hash": "2cf660c2dc9190aa11bbf10e171cf5447ecf77123272323eb432e756f0515bb2"
 }

@@ -408,7 +408,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/abdm/abha/enrolments/{id}/address",
-            post(abdm::abha_enrol::choose_address),
+            post(abdm::abha_enrol_address::choose_address),
         )
         .route(
             "/api/abdm/abha/verifications/{id}/qr",

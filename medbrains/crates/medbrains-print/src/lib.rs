@@ -8,6 +8,7 @@
 //! pixel-faithful Chrome output, and `@page` rules give exact mm sizes
 //! for labels, wristbands and thermal rolls.
 
+pub mod abdm_record;
 mod case_sheet;
 pub mod codes;
 pub mod engine;
