@@ -15,6 +15,7 @@ medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-pharmacy-delivery = { path = "../medbrains-pharmacy-delivery" }
+medbrains-pharmacy-finance = { path = "../medbrains-pharmacy-finance" }
 medbrains-tokens = { path = "../medbrains-tokens" }
 medbrains-telehealth = { path = "../medbrains-telehealth" }
 medbrains-core = { path = "../medbrains-core" }
