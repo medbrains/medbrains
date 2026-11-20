@@ -112,7 +112,7 @@ test.describe("UI journeys and action surfaces", () => {
     await navigateTo(page, "/patients");
     await expect(page.locator('[data-testid="app-sidebar"]')).toBeVisible();
     await expect(page.getByRole("heading", { name: "Patients" })).toBeVisible();
-    await expect(page.getByPlaceholder("Search by UHID, name, or phone...")).toBeVisible();
+    await expect(page.getByPlaceholder("Search by name, phone, UHID or Aadhaar")).toBeVisible();
 
     const registerButton = page.getByRole("button", { name: "Register Patient" }).first();
     await expectKeyboardFocusable(registerButton, "Register Patient");
@@ -259,7 +259,7 @@ test.describe("UI journeys and action surfaces", () => {
 
       await loginAndNavigate(page, c.role, "/patients");
       await expect(page.getByRole("heading", { name: "Patients", exact: true })).toBeVisible();
-      await expect(page.getByPlaceholder("Search by UHID, name, or phone...")).toBeVisible();
+      await expect(page.getByPlaceholder("Search by name, phone, UHID or Aadhaar")).toBeVisible();
 
       const registerButton = page.getByRole("button", { name: "Register Patient" }).first();
       if (c.canRegister) {

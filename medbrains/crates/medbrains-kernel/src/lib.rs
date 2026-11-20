@@ -30,6 +30,7 @@
 //! HTTP. `medbrains-server-core` sits above the kernel and maps [`KernelError`]
 //! to a response.
 
+pub mod action;
 pub mod audit;
 pub mod authz;
 pub mod bounds;
@@ -40,6 +41,7 @@ pub mod events;
 pub mod health;
 pub mod seq;
 pub mod store;
+pub mod tenancy;
 
 use std::ops::{Deref, DerefMut};
 
@@ -50,6 +52,9 @@ pub use audit::audit;
 pub use authz::{Outcome, authorize, require_any_permission, require_permission};
 pub use claims::{ActingAgent, ActorKind, Claims};
 pub use error::KernelError;
+pub use tenancy::{
+    Permit, TenantTx, actor_tx, enter_scope, enter_tenant, scoped_tx, tenant_session, tenant_tx,
+};
 
 /// Who is acting, and for which tenant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

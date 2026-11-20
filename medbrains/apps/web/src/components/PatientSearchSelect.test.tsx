@@ -35,7 +35,7 @@ function setup(codes: string[]) {
   findPatients.mockClear();
   listPatients.mockClear();
   render(<PatientSearchSelect value="" onChange={() => {}} />);
-  return screen.getByPlaceholderText(/search by name, uhid, or phone/i);
+  return screen.getByPlaceholderText(/search by name, phone, uhid or aadhaar/i);
 }
 
 describe("PatientSearchSelect", () => {

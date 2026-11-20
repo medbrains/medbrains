@@ -170,7 +170,67 @@ db_roles_configure() { # env_file
     echo "    database roles: requests=$DB_APP_ROLE, workers=$DB_WORKER_ROLE, migrations=$(db_url_user "$owner_url")"
 }
 
+# The daily report's role (medbrains-daily-report). Read-only, row level
+# security applies (NOBYPASSRLS), and it can SELECT only the columns the
+# report counts: no name, phone, UHID, address or note column is granted, so
+# the role cannot read a patient identifier even if the report's SQL were
+# changed. Grants live here, not in a migration: the reports run on the live
+# version with no app change, and a later migration grants this role nothing.
+DB_REPORT_ROLE=medbrains_report
+
+# The role, its password and its column grants, as SQL for the owner to run.
+db_report_role_sql() { # password
+    cat <<SQL
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$DB_REPORT_ROLE') THEN
+        CREATE ROLE $DB_REPORT_ROLE LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+            NOINHERIT NOREPLICATION NOBYPASSRLS;
+    END IF;
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO $DB_REPORT_ROLE', current_database());
+END \$\$;
+ALTER ROLE $DB_REPORT_ROLE LOGIN PASSWORD '$1';
+ALTER ROLE $DB_REPORT_ROLE SET default_transaction_read_only = on;
+GRANT USAGE ON SCHEMA public TO $DB_REPORT_ROLE;
+-- group_id and hospital_groups: read by app_visible_tenants(), the function
+-- every tenant RLS policy calls, so the role sees rows the way the app does.
+GRANT SELECT (id, name, timezone, is_active, deleted_at, group_id) ON public.tenants TO $DB_REPORT_ROLE;
+GRANT SELECT (id, deleted_at, share_clinical_records) ON public.hospital_groups TO $DB_REPORT_ROLE;
+GRANT SELECT (id, tenant_id, patient_id, encounter_type, status, department_id, doctor_id,
+              encounter_date, created_at, deleted_at, is_dummy) ON public.encounters TO $DB_REPORT_ROLE;
+GRANT SELECT (id, tenant_id, created_at, deleted_at, is_merged) ON public.patients TO $DB_REPORT_ROLE;
+GRANT SELECT (id, tenant_id, name) ON public.departments TO $DB_REPORT_ROLE;
+GRANT SELECT (id, tenant_id, full_name) ON public.users TO $DB_REPORT_ROLE;
+SQL
+}
+
+# Creates or refreshes medbrains_report and writes REPORT_DATABASE_URL. Run
+# by install.sh only when DAILY_REPORT_TO is set; a kept password is reused.
+db_report_role_configure() { # env_file
+    local file="$1" owner_url pw url
+    owner_url="$(db_env_get "$(db_roles_owner_key "$file")" "$file")"
+    [[ -n "$owner_url" ]] || { echo "ERROR: no owner database URL in $file" >&2; return 1; }
+    pw="$(db_kept_password "$file" REPORT_DATABASE_URL "$DB_REPORT_ROLE")"
+    [[ -n "$pw" ]] || pw="$(db_new_password)"
+    url="$(db_url_as "$owner_url" "$DB_REPORT_ROLE" "$pw")"
+    if ! db_report_role_sql "$pw" | db_admin_psql "$owner_url" >/dev/null; then
+        echo "ERROR: could not create or grant $DB_REPORT_ROLE" >&2
+        return 1
+    fi
+    if ! db_login_psql "$url" <<<'SELECT 1' >/dev/null 2>&1; then
+        echo "ERROR: $DB_REPORT_ROLE cannot log in (check pg_hba.conf); $file unchanged" >&2
+        return 1
+    fi
+    db_env_set REPORT_DATABASE_URL "$url" "$file"
+    echo "    database roles: daily report=$DB_REPORT_ROLE (read-only, count columns only)"
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     set -euo pipefail
-    db_roles_configure "${1:-/etc/medbrains/env}"
+    # `db-roles.sh --report [env]` sets up only the daily report's role.
+    if [[ "${1:-}" == "--report" ]]; then
+        db_report_role_configure "${2:-/etc/medbrains/env}"
+    else
+        db_roles_configure "${1:-/etc/medbrains/env}"
+    fi
 fi

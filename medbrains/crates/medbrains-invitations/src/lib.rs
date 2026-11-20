@@ -317,7 +317,7 @@ pub async fn accept(
     let token_hash = hash_token(token.trim());
     let mut errors = ValidationErrors::new();
     validation::validate_username(&mut errors, "username", &body.username);
-    validation::validate_password(&mut errors, "password", &body.password);
+    validation::validate_password(&mut errors, "password", (&body.password, &body.username));
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }

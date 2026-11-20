@@ -4,6 +4,7 @@
 //! infra modules (error type, config, request validation, JWT signing, S3 presign,
 //! OAuth). AppState, middleware and the auth layer follow in subsequent slices.
 
+pub mod brick_jobs;
 pub mod clinical_credential;
 pub mod codes;
 pub mod config;

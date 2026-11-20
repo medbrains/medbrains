@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"total!\",\n                  floor(extract(epoch FROM now() - min(s.created_at)) / 60)::bigint AS longest,\n                  count(*) FILTER (WHERE s.created_at < now() - make_interval(mins => $4))\n                      AS \"long_waits!\"\n             FROM (SELECT q.created_at FROM opd_queues q\n                     JOIN encounters e ON e.id = q.encounter_id AND e.tenant_id = q.tenant_id\n                    WHERE q.tenant_id = $1 AND q.doctor_id = $2 AND q.status = 'waiting'\n                      AND q.deleted_at IS NULL AND e.deleted_at IS NULL\n                      AND q.queue_date = (timezone(COALESCE(\n                            (SELECT timezone FROM tenants WHERE id = $1), 'UTC'), now()))::date\n                    ORDER BY q.created_at LIMIT $3) s",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "longest",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "long_waits!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "7d0f0d1b4d00219dda5ef0732f593f5a4c971f85da09004e799a381d2ef4ae6a"
+}

@@ -2,6 +2,7 @@
 //! statement check is skipped. Runs when `AI_QUERY_TEST_DATABASE_URL` names a
 //! migrated scratch database (it plants and removes two hospitals); does
 //! nothing otherwise.
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use serde_json::json;
 use uuid::Uuid;

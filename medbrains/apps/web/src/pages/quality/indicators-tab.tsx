@@ -5,11 +5,9 @@ import {
   Card,
   Group,
   NumberInput,
-  Progress,
   SegmentedControl,
   Select,
   Stack,
-  Switch,
   Text,
   Textarea,
   TextInput,
@@ -19,24 +17,37 @@ import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateQualityIndicatorRequest,
+  IndicatorDirection,
   IndicatorFrequencyType,
   QualityIndicator,
   QualityIndicatorValue,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import {
-  IconCalculator,
-  IconChartBar,
-  IconPlus,
-  IconSearch,
-  IconTrendingUp,
-} from "@tabler/icons-react";
+import { IconChartBar, IconPlus, IconSearch, IconTrendingUp } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
+import {
+  CurrentValueCell,
+  DIRECTION_OPTIONS,
+  DirectionCell,
+  ProgressCell,
+  VarianceCell,
+} from "./indicator-direction";
+
+type IndicatorForm = Omit<CreateQualityIndicatorRequest, "direction"> & {
+  direction: IndicatorDirection | null;
+};
+const EMPTY_FORM: IndicatorForm = {
+  code: "",
+  name: "",
+  category: "",
+  frequency: "monthly",
+  direction: null,
+};
 
 const INDICATOR_CATEGORIES = [
   { value: "patient_safety", label: "Patient Safety" },
@@ -106,6 +117,8 @@ export function IndicatorsTab() {
     });
     return valueMap;
   }, [allIndicatorValues]);
+  /** The most recent calculated value for an indicator, if one has been recorded. */
+  const latestValue = (i: QualityIndicator) => indicatorLatestValues.get(i.id)?.calculated_value;
 
   const { data: trendValues = [] } = useQuery({
     queryKey: ["quality-indicator-values", trendIndicator?.id],
@@ -135,12 +148,7 @@ export function IndicatorsTab() {
     return lines;
   }, [trendIndicator]);
 
-  const [form, setForm] = useState<CreateQualityIndicatorRequest>({
-    code: "",
-    name: "",
-    category: "",
-    frequency: "monthly",
-  });
+  const [form, setForm] = useState<IndicatorForm>(EMPTY_FORM);
 
   const createMut = useMutation({
     mutationFn: (data: CreateQualityIndicatorRequest) =>
@@ -149,19 +157,7 @@ export function IndicatorsTab() {
       void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
       toast.success("", { title: "Indicator created" });
       close();
-      setForm({ code: "", name: "", category: "", frequency: "monthly" });
-    },
-  });
-
-  const calculateMut = useMutation({
-    mutationFn: (id: string) => qualityService.calculateIndicator(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
-      void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
-      toast.success("Value auto-computed", { title: "Indicator calculated" });
-    },
-    onError: () => {
-      toast.error("Could not auto-calculate indicator", { title: "Calculation failed" });
+      setForm(EMPTY_FORM);
     },
   });
 
@@ -213,6 +209,11 @@ export function IndicatorsTab() {
         i.target_value != null ? `${i.target_value}${i.unit ? ` ${i.unit}` : ""}` : "---",
     },
     {
+      key: "direction" as const,
+      label: "Better when",
+      render: (i: QualityIndicator) => <DirectionCell indicator={i} canManage={canManage} />,
+    },
+    {
       key: "status" as const,
       label: "Status",
       render: (i: QualityIndicator) =>
@@ -232,18 +233,6 @@ export function IndicatorsTab() {
               <IconTrendingUp size={16} />
             </IconButton>
           </Tooltip>
-          {canManage && i.auto_calculated && (
-            <Tooltip label="Auto-Calculate">
-              <IconButton
-                tone="default"
-                loading={calculateMut.isPending}
-                onClick={() => calculateMut.mutate(i.id)}
-                aria-label="Auto-Calculate"
-              >
-                <IconCalculator size={16} />
-              </IconButton>
-            </Tooltip>
-          )}
           {canManage && (
             <Tooltip label="Record Value">
               <IconButton
@@ -338,16 +327,9 @@ export function IndicatorsTab() {
                 {
                   key: "current",
                   label: "Current Value",
-                  render: (i: QualityIndicator) => {
-                    const current = indicatorLatestValues.get(i.id)?.calculated_value ?? 0;
-                    const meetsTarget = current >= (i.target_value ?? 0);
-                    return (
-                      <Badge tone={meetsTarget ? "success" : "danger"}>
-                        {current.toFixed(2)}
-                        {i.unit ? ` ${i.unit}` : ""}
-                      </Badge>
-                    );
-                  },
+                  render: (i: QualityIndicator) => (
+                    <CurrentValueCell indicator={i} value={latestValue(i)} />
+                  ),
                 },
                 {
                   key: "target",
@@ -360,34 +342,16 @@ export function IndicatorsTab() {
                 {
                   key: "variance",
                   label: "Variance",
-                  render: (i: QualityIndicator) => {
-                    const current = indicatorLatestValues.get(i.id)?.calculated_value ?? 0;
-                    const target = i.target_value ?? 0;
-                    const variance = target !== 0 ? ((current - target) / target) * 100 : 0;
-                    return (
-                      <Text c={variance >= 0 ? "success" : "danger"} fw={500}>
-                        {variance > 0 ? "+" : ""}
-                        {variance.toFixed(1)}%
-                      </Text>
-                    );
-                  },
+                  render: (i: QualityIndicator) => (
+                    <VarianceCell indicator={i} value={latestValue(i)} />
+                  ),
                 },
                 {
                   key: "progress",
                   label: "Progress",
-                  render: (i: QualityIndicator) => {
-                    const current = indicatorLatestValues.get(i.id)?.calculated_value ?? 0;
-                    const target = i.target_value ?? 0;
-                    const progress = target !== 0 ? Math.min(100, (current / target) * 100) : 0;
-                    const meetsTarget = current >= target;
-                    return (
-                      <Progress
-                        value={progress}
-                        color={meetsTarget ? "success" : "danger"}
-                        size="lg"
-                      />
-                    );
-                  },
+                  render: (i: QualityIndicator) => (
+                    <ProgressCell indicator={i} value={latestValue(i)} />
+                  ),
                 },
               ]}
               data={indicators.filter((i) => i.target_value != null)}
@@ -541,15 +505,20 @@ export function IndicatorsTab() {
               setForm({ ...form, threshold_critical: v === "" ? undefined : Number(v) })
             }
           />
-          <Switch
-            label="Auto-calculated"
-            checked={form.auto_calculated ?? false}
-            onChange={(e) => setForm({ ...form, auto_calculated: e.currentTarget.checked })}
+          <Select
+            label="Which way meets the target"
+            required
+            data={DIRECTION_OPTIONS}
+            value={form.direction}
+            onChange={(v) => setForm({ ...form, direction: v as IndicatorDirection | null })}
           />
           <Button
             tone="primary"
             loading={createMut.isPending}
-            onClick={() => createMut.mutate(form)}
+            disabled={!form.direction}
+            onClick={() =>
+              form.direction && createMut.mutate({ ...form, direction: form.direction })
+            }
           >
             Save
           </Button>

@@ -22,6 +22,7 @@ use uuid::Uuid;
 pub mod board;
 pub mod call_sms;
 pub mod counters;
+pub mod patient_tokens;
 pub mod queue_admin;
 pub mod queue_categories;
 pub mod queues;
@@ -1180,63 +1181,6 @@ pub async fn service_times(
     Ok(Json(stats))
 }
 
-/// One token as the patient sees it: the queue row plus how many are ahead.
-///
-/// `serde(flatten)` as well as `sqlx(flatten)`: the JSON must stay the shape the
-/// clients already read, gaining `ahead` beside the token's own fields rather
-/// than nesting the whole token one level down and breaking every caller.
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct MyToken {
-    #[serde(flatten)]
-    #[sqlx(flatten)]
-    pub token: Token,
-    /// People this department will call before them — priority first, then
-    /// `seq`, the same order `call_next` uses.
-    ///
-    /// Without this a shared visit number is unreadable on a board: "now
-    /// serving V-087" tells someone holding V-087 nothing about their turn,
-    /// where a per-department number at least implied a distance.
-    pub ahead: i64,
-}
-
-/// GET /api/tokens/mine — every live token for a patient today, with position.
-pub async fn my_tokens(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(query): Query<MyTokensQuery>,
-) -> Result<Json<Vec<MyToken>>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::LIST)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let tokens = sqlx::query_as::<_, MyToken>(&format!(
-        "SELECT {SELECT}, ( \
-           SELECT COUNT(*) FROM tokens ahead \
-            WHERE ahead.module = t.module \
-              AND ahead.scope = t.scope \
-              AND ahead.scope_id IS NOT DISTINCT FROM t.scope_id \
-              AND ahead.token_date = t.token_date \
-              AND ahead.status = 'waiting' \
-              AND (token_queue_weight(ahead.queue_id, ahead.priority, ahead.created_at), \
-                   ahead.seq) \
-                < (token_queue_weight(t.queue_id, t.priority, t.created_at), t.seq) \
-         ) AS ahead \
-         FROM tokens t \
-         WHERE t.patient_id = $1 AND t.token_date = CURRENT_DATE \
-           AND t.status IN ('waiting', 'on_hold', 'called', 'serving') \
-         ORDER BY t.created_at"
-    ))
-    .bind(query.patient_id)
-    .fetch_all(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(Json(tokens))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct MyTokensQuery {
-    pub patient_id: Uuid,
-}
-
 // ── Advance (call / serve / complete / no-show) ──────────────────
 #[derive(Debug, Deserialize)]
 pub struct CallTokenInput {
@@ -2287,7 +2231,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/service-times", get(service_times))
         .route("/api/tokens/worklist", get(list_worklist))
         .route("/api/tokens/camp-board", get(camp_board))
-        .route("/api/tokens/mine", get(my_tokens))
+        .route(
+            "/api/tokens/by-patient",
+            get(patient_tokens::patient_tokens),
+        )
         .route(
             "/api/tokens/call-sms/status",
             get(call_sms::call_sms_status),

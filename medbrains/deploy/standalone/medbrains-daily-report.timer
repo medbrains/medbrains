@@ -1,0 +1,14 @@
+[Unit]
+Description=MedBrains OPD daily report email, 21:00 hospital time
+
+[Timer]
+# The hospital's evening, in its own zone. install.sh replaces this with
+# DAILY_REPORT_ONCALENDAR from /etc/medbrains/env when it is set
+# (systemd calendar syntax, e.g. "*-*-* 20:30:00 Asia/Dubai").
+OnCalendar=*-*-* 21:00:00 Asia/Kolkata
+# No Persistent=: a report for "today" sent the next morning would count
+# the wrong day.
+Unit=medbrains-daily-report.service
+
+[Install]
+WantedBy=timers.target

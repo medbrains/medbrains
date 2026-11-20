@@ -57,14 +57,16 @@ pub mod patients {
     pub const DELETE: &str = "patients.delete";
 
     pub mod card {
-        /// Reprint any patient's card at the desk.
+        /// Reprint any patient's cards at the desk.
         ///
         /// A returning patient who lost the card is usually served by a
         /// receptionist who did not register them, and `patients.view` reaches
         /// only patients the caller has a relationship with. This reprints the
-        /// identity card for any patient in the hospital: name, UHID, age, sex,
-        /// phone and registration date, the same identity the desk lookup
-        /// already shows. Never the address, the email or the chart.
+        /// identity card and the OPD card for any patient in the hospital:
+        /// name, UHID, age, sex, phone and registration date, the same identity
+        /// the desk lookup already shows, and on a visit's OPD card its date,
+        /// department, doctor and token. Never the address, the email or the
+        /// chart.
         pub const REPRINT: &str = "patients.card.reprint";
     }
 
@@ -288,6 +290,12 @@ pub mod opd {
     }
 
     pub const TOKEN_MANAGE: &str = "opd.token.manage";
+
+    /// View OPD reports.
+    ///
+    /// Counts of visits, registrations and new and repeat patients by day
+    /// and by doctor, inside the OPD app. Counts only, no patient details.
+    pub const REPORTS_VIEW: &str = "opd.reports.view";
 
     pub mod appointment {
         pub const LIST: &str = "opd.appointment.list";
