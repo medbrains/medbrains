@@ -132,9 +132,12 @@ async fn two_resends_then_refused(
     wait_out_the_pause(app, id).await;
     let (s, refused) = post_json(app, csrf, path, body.clone()).await;
     assert_eq!(
-        s,
-        StatusCode::TOO_MANY_REQUESTS,
-        "a third resend: {refused}"
+        (s, refused["detail"].as_str()),
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            Some("Maximum OTP resend attempts reached. Please try again after 30 mins")
+        ),
+        "a third resend gets NHA's 30-minute words (CRT_ABHA_106): {refused}"
     );
 }
 
@@ -150,7 +153,7 @@ async fn creating_an_abha_resends_twice_at_most_and_reaches_by_aadhaar() {
         &app,
         &csrf,
         "/api/abdm/abha/enrolments",
-        json!({ "aadhaar": "2345 6789 0123", "consent": true }),
+        json!({ "aadhaar": "2345 6789 0127", "consent": true }),
     )
     .await;
     assert_eq!(s, StatusCode::OK, "{step}");
@@ -158,7 +161,7 @@ async fn creating_an_abha_resends_twice_at_most_and_reaches_by_aadhaar() {
     let id = step["id"].as_str().expect("id").to_owned();
     let resend = format!("/api/abdm/abha/enrolments/{id}/resend");
 
-    let (s, _) = post_json(&app, &csrf, &resend, json!({ "aadhaar": "234567890123" })).await;
+    let (s, _) = post_json(&app, &csrf, &resend, json!({ "aadhaar": "234567890127" })).await;
     assert_eq!(
         s,
         StatusCode::TOO_MANY_REQUESTS,
@@ -176,7 +179,7 @@ async fn creating_an_abha_resends_twice_at_most_and_reaches_by_aadhaar() {
         &csrf,
         &id,
         &resend,
-        &json!({ "aadhaar": "234567890123" }),
+        &json!({ "aadhaar": "234567890127" }),
     )
     .await;
 

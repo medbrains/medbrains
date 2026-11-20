@@ -40,6 +40,14 @@ patient**: the name is skipped and the patient is known by their UHID.
   visits needs no agreement.
 - **ABHA** and **Aadhaar** are optional. Only a masked Aadhaar number is
   stored, never the full number.
+- **Create ABHA** with the patient's Aadhaar: the screen refuses a number
+  that is the wrong length or fails its check digit ("Aadhaar Number is not
+  valid") before any OTP is sent, and shows the masked mobile the OTP went
+  to. **Resend OTP** unlocks after 60 seconds, at most twice; after the
+  second, ABDM's rule is a 30-minute wait. For the ABHA address, pick one of
+  the suggestions or type one: the rules beside the field say "met" or "not
+  met" as you type. If ABDM says "ABHA address already exists.", choose
+  **Proceed with the existing ABHA address** or **Create a new ABHA address**.
 - **Referred by:** who sent the patient — a doctor, an ASHA worker, a camp.
 
 ## 3. Family · address · safety
