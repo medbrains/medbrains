@@ -72,6 +72,7 @@ function lookupError(method: AbhaVerifyMethod, value: string): string | undefine
  */
 function useTriedLookup(method: AbhaVerifyMethod, value: string) {
   const [tried, setTried] = useState(false);
+  /** Mark the lookup as tried so field errors show, and send it only when the input is valid. */
   const attempt = (send: () => void) => {
     setTried(true);
     if (!lookupError(method, value)) send();

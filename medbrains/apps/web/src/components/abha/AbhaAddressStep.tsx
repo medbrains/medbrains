@@ -34,6 +34,7 @@ export function AbhaAddressStep({ step, onDone }: AbhaAddressStepProps) {
   const taken = choose.error?.message === ABHA_MESSAGES.addressTaken;
   const failure = keep.error ?? (taken ? null : choose.error);
   const domain = step.address_domain ?? "abdm";
+  /** Take a suggested or typed ABHA address as the one to create. */
   const pick = (value: string) => {
     setAddress(value);
     choose.reset();
