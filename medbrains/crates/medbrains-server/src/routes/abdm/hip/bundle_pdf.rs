@@ -49,6 +49,7 @@ pub struct Print<'a> {
 ///
 /// # Errors
 /// As [`super::bundles::build`] and [`attach`].
+#[tracing::instrument(skip_all, fields(tenant_id = %tenant_id))]
 pub async fn printed_bundles(
     state: &AppState,
     tx: Tx<'_, '_>,
