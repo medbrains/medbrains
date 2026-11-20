@@ -11,6 +11,7 @@ import {
   cookieHeaderFromResponse,
   getE2EIdentity,
 } from "./helpers/e2e-identities";
+import { ownClientHeaders } from "./helpers/worker-tenant";
 
 export const BACKEND_URL =
   process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
@@ -48,6 +49,7 @@ export async function ensureAuthenticated(page: Page) {
 
   const admin = getE2EIdentity("super_admin");
   const resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: { username: admin.username, password: admin.password },
   });
   if (!resp.ok()) return;
@@ -131,11 +133,13 @@ export async function loginAsRole(
   // The server allows five sign-ins a minute from one address; a journey with
   // several staff on one machine meets that limit. Wait it out, a few times.
   let resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: { username, password },
   });
   for (let attempt = 0; resp.status() === 429 && attempt < 4; attempt += 1) {
     await page.waitForTimeout(LOGIN_LIMIT_WAIT_MS);
     resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
+      headers: ownClientHeaders(),
       data: { username, password },
     });
   }
@@ -208,6 +212,7 @@ export async function getAuthToken(
   cookies: string;
 }> {
   const resp = await request.post(`${BACKEND_URL}/api/auth/login`, {
+    headers: ownClientHeaders(),
     data: {
       username: getE2EIdentity("super_admin").username,
       password: getE2EIdentity("super_admin").password,

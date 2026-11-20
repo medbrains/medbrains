@@ -23,7 +23,7 @@ use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use medbrains_core::print_data::{OpdCardPrintData, OpdCardVisit};
 use medbrains_health_services::patient::require_patient_access;
-use medbrains_kernel::{Actor, require_permission};
+use medbrains_kernel::{self as kernel, require_permission};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
@@ -36,9 +36,6 @@ pub async fn get_opd_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<OpdCardPrintData>, AppError> {
-    if !crate::general::holds_card_reprint(&claims) {
-        require_permission(&claims, permissions::patients::VIEW)?;
-    }
     print_card(&state, &claims, CardFor::Patient(patient_id))
         .await
         .map(Json)
@@ -54,9 +51,6 @@ pub async fn get_opd_visit_card_print_data(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdCardPrintData>, AppError> {
-    if !crate::general::holds_card_reprint(&claims) {
-        require_permission(&claims, permissions::patients::VIEW)?;
-    }
     print_card(&state, &claims, CardFor::Visit(encounter_id))
         .await
         .map(Json)
@@ -119,7 +113,15 @@ async fn print_card(
     claims: &Claims,
     card_for: CardFor,
 ) -> Result<OpdCardPrintData, AppError> {
-    let mut tx = medbrains_kernel::begin(&state.db, Actor::from_claims(claims)).await?;
+    // The desk enters on its reprint grant, everyone else on `patients.view`;
+    // which card it gets, and the relationship check, are `Via::decide`'s.
+    let entry = if crate::general::holds_card_reprint(claims) {
+        permissions::patients::card::REPRINT
+    } else {
+        permissions::patients::VIEW
+    };
+    let permit = kernel::authz::permit(claims, entry)?;
+    let mut tx = kernel::actor_tx(&state.db, &permit, None).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let (patient_id, visit) = match card_for {

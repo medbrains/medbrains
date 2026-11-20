@@ -3,6 +3,9 @@
 //! - `gateway`   — the signed-in gateway client for one hospital, and the
 //!   authentication every gateway callback goes through.
 //! - `linking`   — HIP-initiated linking: link token, then link.
+//! - `link_token` — one token request per patient, recovery from a rejected
+//!   token (ABDM-1026/1038) and from out-of-order refusals (ABDM-2406).
+//! - `replay`    — a repeated callback (same `REQUEST-ID`) changes nothing.
 //! - `link_callbacks` — the gateway's `on_*` answers to that linking.
 //! - `discovery` — user-initiated discovery and linking (PHR app → us).
 //! - `consent`   — consent notifications and health-information requests.
@@ -17,6 +20,7 @@
 //! Care contexts are captured by a database trigger when a record is
 //! finalised (migration 1110), so no save path can forget to.
 
+pub mod addressee;
 pub mod bundle_bills;
 pub mod bundle_check;
 pub mod bundle_files;
@@ -26,12 +30,15 @@ pub mod bundles;
 pub mod consent;
 pub mod context_notify;
 pub mod discovery;
+pub mod discovery_match;
 pub mod gateway;
 pub mod link_callbacks;
+pub mod link_token;
 pub mod linking;
 pub mod outbox;
 pub mod profile_share;
 pub mod records;
+pub mod replay;
 pub mod sms_link;
 
 use axum::{Router, routing::post};

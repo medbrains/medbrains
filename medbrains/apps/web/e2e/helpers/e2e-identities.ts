@@ -1,13 +1,22 @@
 import type { APIRequestContext } from "@playwright/test";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { loadWorkerTenant, ownClientHeaders, slotAuthDir, workerSlot } from "./worker-tenant";
 
-const e2eRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const authDir = path.join(e2eRoot, ".auth");
-const manifestPath = path.join(authDir, "e2e-users.json");
-export const authStatePath = path.join(authDir, "user.json");
+/** Where `slot`'s temp-user manifest lives. */
+function manifestPathFor(slot: number): string {
+  return path.join(slotAuthDir(slot), "e2e-users.json");
+}
+
+/** The browser session global setup saved for `slot`'s super admin. */
+export function authStatePathFor(slot: number): string {
+  return path.join(slotAuthDir(slot), "user.json");
+}
+
+/** This worker's browser session; projects load it as `storageState`. */
+export const authStatePath = authStatePathFor(workerSlot());
 
 export const E2E_BACKEND_URL = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 export const BOOTSTRAP_ADMIN_USERNAME = process.env.E2E_BOOTSTRAP_ADMIN_USER ?? "admin";
@@ -74,7 +83,7 @@ export async function loginForSession(
   password: string,
 ): Promise<AuthSession> {
   const signIn = () =>
-    request.post(`${E2E_BACKEND_URL}/api/auth/login`, { data: { username, password } });
+    request.post(`${E2E_BACKEND_URL}/api/auth/login`, { headers: ownClientHeaders(), data: { username, password } });
   let resp = await signIn();
   // Five sign-ins a minute per address: the teardown after a journey with
   // several staff meets it. Wait it out, a few times.
@@ -93,19 +102,25 @@ export async function loginForSession(
   };
 }
 
+/**
+ * One user per built-in role in `slot`'s hospital, created by that hospital's administrator.
+ * Reuses the manifest a previous setup in this run wrote.
+ */
 export async function ensureE2EIdentities(
   request: APIRequestContext,
+  slot: number,
 ): Promise<E2EIdentityManifest> {
-  await mkdir(authDir, { recursive: true });
-  const existing = await readManifest();
+  await mkdir(slotAuthDir(slot), { recursive: true });
+  const existing = await readManifest(slot);
   if (existing && existing.users.length >= E2E_ROLE_DEFINITIONS.length) {
     return existing;
   }
 
   const runId = process.env.E2E_RUN_ID ?? Date.now().toString(36);
-  const usernameRunId = compactRunId(runId);
+  const usernameRunId = `${compactRunId(runId)}w${slot}`;
   const password = process.env.E2E_TEMP_PASSWORD ?? `E2eTemp#${runId}Aa9`;
-  const admin = await loginForSession(request, BOOTSTRAP_ADMIN_USERNAME, BOOTSTRAP_ADMIN_PASSWORD);
+  const tenant = loadWorkerTenant(slot);
+  const admin = await loginForSession(request, tenant.adminUsername, tenant.adminPassword);
   const created: E2EIdentity[] = [];
 
   // Clinical staff belong to a department, and in this system that is not
@@ -139,7 +154,7 @@ export async function ensureE2EIdentities(
       }
       if (roleDef.role === "doctor") {
         payload.specialization = "General Medicine";
-        payload.medical_registration_number = `E2E-${runId}`;
+        payload.medical_registration_number = `E2E-${runId}-w${slot}`;
         payload.qualification = "MBBS";
       }
 
@@ -162,16 +177,22 @@ export async function ensureE2EIdentities(
       });
     }
   } catch (error) {
-    await cleanupIdentities(request, { runId, createdAt: new Date().toISOString(), users: created });
+    await cleanupIdentities(
+      request,
+      { runId, createdAt: new Date().toISOString(), users: created },
+      slot,
+    );
     throw error;
   }
 
   const manifest = { runId, createdAt: new Date().toISOString(), users: created };
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  await writeFile(manifestPathFor(slot), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return manifest;
 }
 
-export function loadE2EIdentities(): E2EIdentityManifest {
+/** This worker's temp users, as global setup recorded them. */
+export function loadE2EIdentities(slot = workerSlot()): E2EIdentityManifest {
+  const manifestPath = manifestPathFor(slot);
   if (!existsSync(manifestPath)) {
     throw new Error(
       `Missing E2E temp credentials at ${manifestPath}. Run Playwright with project dependencies enabled so global-setup can create them.`,
@@ -180,8 +201,9 @@ export function loadE2EIdentities(): E2EIdentityManifest {
   return JSON.parse(readFileSync(manifestPath, "utf8")) as E2EIdentityManifest;
 }
 
-export function getE2EIdentity(role: string): E2EIdentity {
-  const identity = loadE2EIdentities().users.find((user) => user.role === role);
+/** The temp user in `role`, in this worker's hospital unless `slot` names another. */
+export function getE2EIdentity(role: string, slot = workerSlot()): E2EIdentity {
+  const identity = loadE2EIdentities(slot).users.find((user) => user.role === role);
   if (!identity) {
     throw new Error(`No E2E temp credential found for role ${role}`);
   }
@@ -194,20 +216,31 @@ export function getE2ERoleUsers(roles?: string[]): E2EIdentity[] {
   return roles.map(getE2EIdentity);
 }
 
+/** Deactivate every slot's temp users and forget their manifests and sessions. */
 export async function cleanupStoredE2EIdentities(request: APIRequestContext): Promise<void> {
-  const manifest = await readManifest();
-  if (!manifest) return;
-  await cleanupIdentities(request, manifest);
-  await unlink(manifestPath).catch(() => {});
-  await unlink(authStatePath).catch(() => {});
+  const root = path.dirname(slotAuthDir(0));
+  const slots = (await readdir(root).catch(() => [] as string[]))
+    .map((name) => /^w(\d+)$/.exec(name)?.[1])
+    .filter((slot): slot is string => slot !== undefined)
+    .map(Number);
+  for (const slot of slots) {
+    const manifest = await readManifest(slot);
+    if (!manifest) continue;
+    await cleanupIdentities(request, manifest, slot);
+    await unlink(manifestPathFor(slot)).catch(() => {});
+    await unlink(authStatePathFor(slot)).catch(() => {});
+  }
 }
 
+/** Deactivate `manifest`'s users, signed in as `slot`'s hospital administrator. */
 export async function cleanupIdentities(
   request: APIRequestContext,
   manifest: E2EIdentityManifest,
+  slot: number,
 ): Promise<void> {
   if (manifest.users.length === 0) return;
-  const admin = await loginForSession(request, BOOTSTRAP_ADMIN_USERNAME, BOOTSTRAP_ADMIN_PASSWORD);
+  const tenant = loadWorkerTenant(slot);
+  const admin = await loginForSession(request, tenant.adminUsername, tenant.adminPassword);
   for (const user of [...manifest.users].reverse()) {
     await request.put(`${E2E_BACKEND_URL}/api/setup/users/${user.id}`, {
       headers: authHeaders(admin),
@@ -290,9 +323,9 @@ export function cookieHeaderFromResponse(resp: {
     .join("; ");
 }
 
-async function readManifest(): Promise<E2EIdentityManifest | null> {
+async function readManifest(slot: number): Promise<E2EIdentityManifest | null> {
   try {
-    return JSON.parse(await readFile(manifestPath, "utf8")) as E2EIdentityManifest;
+    return JSON.parse(await readFile(manifestPathFor(slot), "utf8")) as E2EIdentityManifest;
   } catch {
     return null;
   }

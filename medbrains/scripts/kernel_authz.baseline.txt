@@ -1,0 +1,23 @@
+# Functions in kernel crates that reached the database with no authorisation decision
+# when check_kernel_authz.py was written (2026-11-19). Shrinks only: --tighten.
+medbrains-app-manifest/src/lib.rs::get_app_manifest
+medbrains-connected-apps/src/token.rs::issue
+medbrains-connected-apps/src/token.rs::mint
+medbrains-dictation/src/process.rs::begin
+medbrains-dictation/src/purge.rs::purge_expired
+medbrains-dictation/src/purge.rs::purge_tenant
+medbrains-dictation/src/purge.rs::spawn
+medbrains-health-intel/src/job.rs::per_tenant
+medbrains-health-intel/src/job.rs::recompute_conditions
+medbrains-health-intel/src/job.rs::record
+medbrains-health-intel/src/job.rs::refresh_environment
+medbrains-health-intel/src/job.rs::run_pass
+medbrains-health-intel/src/job.rs::spawn
+medbrains-health-intel/src/job.rs::store_environment
+medbrains-health-intel/src/job.rs::tag_articles
+medbrains-opd/src/auto_close.rs::run_pass
+medbrains-patients/src/immunization_schedule.rs::send_due_reminders
+medbrains-research/src/lib.rs::tx_for
+medbrains-security-intel/src/runner.rs::active_tenants
+medbrains-security-intel/src/runner.rs::last_runs
+medbrains-security-intel/src/runner.rs::record
