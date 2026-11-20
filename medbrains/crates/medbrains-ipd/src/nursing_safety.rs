@@ -118,11 +118,12 @@ async fn uncertified_chemo_dose(
 pub(crate) async fn administer_mar_dose(
     state: &AppState,
     claims: &Claims,
+    permit: &kernel::Permit,
     mar_id: Uuid,
     admission_id: Option<Uuid>,
     body: &UpdateMarRequest,
 ) -> Result<IpdMedicationAdministration, AppError> {
-    let mut tx = kernel::scoped_tx(&state.db, &claims.tenant_id, &claims.department_ids).await?;
+    let mut tx = kernel::scoped_tx(&state.db, permit, &claims.department_ids).await?;
 
     if records_administration(&body.status) {
         let blocked =

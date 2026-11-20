@@ -84,7 +84,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use axum::routing::{delete, get, post, put};
-use medbrains_kernel::authz::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_kernel::authz::{is_bypass_role, require_permission};
 use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -3069,8 +3069,8 @@ async fn administer_mar_dose_in_tx(
 /// only binds a custom role granted `administer` without `hold`.
 fn require_mar_status_permission(claims: &Claims, status: &str) -> Result<(), AppError> {
     match status.trim().to_ascii_lowercase().as_str() {
-        "held" => require_permission(claims, permissions::nurse::mar::HOLD),
-        "refused" => require_permission(claims, permissions::nurse::mar::REFUSE),
+        "held" => Ok(require_permission(claims, permissions::nurse::mar::HOLD)?),
+        "refused" => Ok(require_permission(claims, permissions::nurse::mar::REFUSE)?),
         _ => Ok(()),
     }
 }
@@ -3081,11 +3081,13 @@ pub async fn update_mar(
     Path((id, mar_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateMarRequest>,
 ) -> Result<Json<IpdMedicationAdministration>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::UPDATE)?;
+    let permit = kernel::authz::permit(&claims, permissions::ipd::mar::UPDATE)?;
     gate::require_admission_access(&state, &claims, id).await?;
     require_mar_status_permission(&claims, &body.status)?;
 
-    let row = nursing_safety::administer_mar_dose(&state, &claims, mar_id, Some(id), &body).await?;
+    let row =
+        nursing_safety::administer_mar_dose(&state, &claims, &permit, mar_id, Some(id), &body)
+            .await?;
     Ok(Json(row))
 }
 
@@ -3220,7 +3222,7 @@ pub async fn update_mar_round(
     Path(mar_id): Path<Uuid>,
     Json(body): Json<UpdateMarRequest>,
 ) -> Result<Json<IpdMedicationAdministration>, AppError> {
-    require_any_permission(
+    let permit = kernel::authz::permit_any(
         &claims,
         &[
             permissions::ipd::mar::UPDATE,
@@ -3233,7 +3235,8 @@ pub async fn update_mar_round(
     // its parent. Resolve then authorize — see gate::links.
     gate::require_access_via(&state, &claims, gate::links::MAR_ENTRY, mar_id).await?;
 
-    let row = nursing_safety::administer_mar_dose(&state, &claims, mar_id, None, &body).await?;
+    let row =
+        nursing_safety::administer_mar_dose(&state, &claims, &permit, mar_id, None, &body).await?;
     Ok(Json(row))
 }
 
@@ -6731,8 +6734,13 @@ pub async fn complete_bed_turnaround(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    medbrains_db::beds::release_cleaned_bed(&mut tx, claims.tenant_id, row.bed_id, claims.sub)
-        .await?;
+    medbrains_health_services::beds::release_cleaned_bed(
+        &mut tx,
+        claims.tenant_id,
+        row.bed_id,
+        claims.sub,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -7583,10 +7591,14 @@ pub async fn update_discharge_tat(
     // edit away from being so.
     gate::require_admission_access(&state, &claims, admission_id).await?;
 
-    let required_permissions = required_discharge_tat_update_permissions(&body)?;
-    for permission in required_permissions {
-        let permit = kernel::authz::permit(&claims, permission)?;
+    // Every milestone's permission must allow; the helper refuses an empty list,
+    // so the last permit always exists.
+    let mut permit = None;
+    for permission in required_discharge_tat_update_permissions(&body)? {
+        permit = Some(kernel::authz::permit(&claims, permission)?);
     }
+    let permit =
+        permit.ok_or_else(|| AppError::BadRequest("No discharge TAT change".to_owned()))?;
 
     let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 

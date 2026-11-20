@@ -8,5 +8,6 @@
 //! cannot read as a refusal or a grant.
 
 pub mod actions;
+pub mod beds;
 pub mod consent;
 pub mod patient;
