@@ -1,7 +1,6 @@
 //! Paying a statement: record the attempt, finish it with the TDS row, and
 //! the s.40A(3) cash check. Shared by the payout run and day settlement.
 
-use chrono::Utc;
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
 use uuid::Uuid;
@@ -124,7 +123,9 @@ pub async fn finish_paid(
     .ok_or_else(|| AppError::Conflict("This payout is not waiting to be paid".to_owned()))?;
     let s = statement_ops::lock(tx, statement_id).await?;
     let tds_row = if s.tds_amount > Decimal::ZERO {
-        let today = Utc::now().date_naive();
+        // Deducted on the hospital's date: it decides the TDS quarter and year.
+        let today =
+            medbrains_server_core::hospital_time::tenant_local_today(&mut **tx, tenant_id).await?;
         Some(
             sqlx::query_scalar::<_, Uuid>(
                 "INSERT INTO tds_deductions (tenant_id, deductee_name, deductee_pan, tds_section, tds_rate, \
