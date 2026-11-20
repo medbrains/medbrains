@@ -287,6 +287,9 @@ export interface PatientContextPendingConsent {
 export interface PatientContext {
   patient_id: string;
   uhid: string;
+  /** The hospital OPD number and its register date (YYYY-MM-DD), when it keeps one per patient. */
+  opd_number?: string | null;
+  opd_date?: string | null;
   full_name: string;
   age_years: number | null;
   gender: string | null;

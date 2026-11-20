@@ -37,6 +37,7 @@ import { AbdmOtherHospitalsSection } from "@/components/Patient/abdm/AbdmOtherHo
 import { AbdmRecordsSection } from "@/components/Patient/abdm/AbdmRecordsSection";
 import { ClinicalTimelineTab } from "@/components/Patient/ClinicalTimelineTab";
 import { GroupIdentitySection } from "@/components/Patient/groupIdentity/GroupIdentitySection";
+import { OpdNumberBadge } from "@/components/Patient/OpdNumberBadge";
 import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
@@ -467,6 +468,7 @@ export function PatientDetailPageInner() {
                   <Badge tone="primary" variant="light">
                     UHID {displayUhid}
                   </Badge>
+                  <OpdNumberBadge opd={patientContext} />
                   {patient.gender && <Badge tone="neutral">{snakeToTitle(patient.gender)}</Badge>}
                   {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
                   {displayPhone && displayPhone !== "-" && (
