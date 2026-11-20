@@ -40,6 +40,19 @@ function readPrefill(params: URLSearchParams): EditorPrefill | null {
   return { area, op, target: params.get("target") };
 }
 
+/**
+ * The areas this editor drafts for someone with these manage rights. Flow
+ * switches are proposed from the switchboard and the locale profile from
+ * Settings, not here.
+ */
+function draftableAreas(manageInteractions: boolean, manageCriticals: boolean): KnowledgeArea[] {
+  return AREAS.filter((a) => {
+    if (a === "drug_interactions") return manageInteractions;
+    if (a === "critical_value_rules") return manageCriticals;
+    return false;
+  });
+}
+
 export function KnowledgeChangesPage() {
   useRequirePermission(P.KNOWLEDGE.CHANGE_SETS.LIST);
   const userId = useAuthStore((s) => s.user?.id);
@@ -61,15 +74,7 @@ export function KnowledgeChangesPage() {
     canApplyLocaleProfile: useHasPermission(P.ADMIN.LOCALE_PROFILE.UPDATE),
     canDraft: canCreate && (manageInteractions || manageCriticals || canSwitch),
   };
-  // Flow switches are proposed from the switchboard and the locale profile
-  // from Settings, not this editor.
-  const draftAreas = AREAS.filter((a) =>
-    a === "flow_switches" || a === "locale_profile"
-      ? false
-      : a === "drug_interactions"
-        ? manageInteractions
-        : manageCriticals,
-  );
+  const draftAreas = draftableAreas(manageInteractions, manageCriticals);
   const [params, setParams] = useSearchParams();
   const [prefill] = useState(() => readPrefill(params));
   const [editorOpen, editor] = useDisclosure(prefill !== null && canCreate);

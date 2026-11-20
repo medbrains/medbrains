@@ -25,7 +25,7 @@ import { createElement, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfigTransferButtons, PageHeader } from "@/components";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
-import { SETTINGS_TAB_ICON_MAP } from "@/config/settings-tabs";
+import { SETTINGS_TAB_ICON_MAP } from "@/config/settings-tab-icons";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { settingsTabPermissions, useVisibleSettingsTabs } from "./settings/settings-visibility";

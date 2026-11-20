@@ -111,13 +111,12 @@ function FieldControl({
   }
 }
 
-/** The modal: the scope's settable fields, a title and a reason. */
-export function RequestChangeModal({ target, onClose, onCreated }: RequestChangeModalProps) {
-  const queryClient = useQueryClient();
+/** Country choices for the hospital's country field; a failed list says so on the field. */
+function useCountryOptions(enabled: boolean) {
   const countries = useQuery({
     queryKey: ["geo-countries"],
     queryFn: () => tenantSettingsService.geoCountries(),
-    enabled: target?.scope === "hospital",
+    enabled,
   });
   const countryOptions = useMemo(
     () => countries.data?.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` })),
@@ -127,6 +126,39 @@ export function RequestChangeModal({ target, onClose, onCreated }: RequestChange
   const countriesError = countries.isError
     ? "The country list could not load; close and try again"
     : undefined;
+  return { countryOptions, countriesError };
+}
+
+/**
+ * Draft the change set for `target` and preview it at once. A failed preview
+ * leaves the draft and says so, never reads as "no impact".
+ */
+async function sendChange(
+  target: ScopeRow | null,
+  form: ProfileForm,
+  { title, reason }: z.infer<typeof metaSchema>,
+): Promise<string> {
+  if (!target) throw new Error("No scope chosen");
+  const missing = HOSPITAL_REQUIRED.filter((k) => target.scope === "hospital" && !form[k]?.trim());
+  if (missing.length > 0) throw new Error(`The hospital needs: ${missing.join(", ")}`);
+  const created = await svc.create({
+    area: "locale_profile",
+    title,
+    reason,
+    items: [{ op: "update", target_id: target.id, after: toRow(target, form) }],
+  });
+  try {
+    await svc.preview(created.id);
+  } catch (e) {
+    toast.warning(`Saved as a draft; its impact could not be measured (${(e as Error).message}).`);
+  }
+  return created.id;
+}
+
+/** The modal: the scope's settable fields, a title and a reason. */
+export function RequestChangeModal({ target, onClose, onCreated }: RequestChangeModalProps) {
+  const queryClient = useQueryClient();
+  const { countryOptions, countriesError } = useCountryOptions(target?.scope === "hospital");
   const fields = PROFILE_FIELDS.filter((f) => target && f.scopes.includes(target.scope));
   const values = useForm<ProfileForm>({ values: target?.form });
   const meta = useForm({
@@ -135,34 +167,7 @@ export function RequestChangeModal({ target, onClose, onCreated }: RequestChange
   });
 
   const save = useMutation({
-    mutationFn: async ({ title, reason }: z.infer<typeof metaSchema>) => {
-      if (!target) throw new Error("No scope chosen");
-      const missing = HOSPITAL_REQUIRED.filter(
-        (k) => target.scope === "hospital" && !values.getValues(k)?.trim(),
-      );
-      if (missing.length > 0) throw new Error(`The hospital needs: ${missing.join(", ")}`);
-      const created = await svc.create({
-        area: "locale_profile",
-        title,
-        reason,
-        items: [
-          {
-            op: "update",
-            target_id: target.id,
-            after: toRow(target, values.getValues()),
-          },
-        ],
-      });
-      // Preview at once; a failed measure is said, never read as "no impact".
-      try {
-        await svc.preview(created.id);
-      } catch (e) {
-        toast.warning(
-          `Saved as a draft; its impact could not be measured (${(e as Error).message}).`,
-        );
-      }
-      return created.id;
-    },
+    mutationFn: (m: z.infer<typeof metaSchema>) => sendChange(target, values.getValues(), m),
     onSuccess: (id) => {
       void queryClient.invalidateQueries({ queryKey: ["knowledge-changes"] });
       toast.success("Sent for approval. A second person approves it on Knowledge changes.");

@@ -17,12 +17,13 @@ use uuid::Uuid;
 
 use crate::adapter::{Adapter, Tx};
 use crate::critical_values::CriticalValues;
+use crate::engine_checks::{check_new_set, parse_statuses, require_apply_area};
 use crate::flow_switches::FlowSwitches;
 use crate::flows::{self, Applied};
 use crate::interactions::DrugInteractions;
 use crate::locale_profile::LocaleProfile;
 use crate::model::{
-    Area, KnowledgeChangeSet, KnowledgeChangeSetDetail, KnowledgeLiveRow, NewKnowledgeChangeSet, Op,
+    Area, KnowledgeChangeSet, KnowledgeChangeSetDetail, KnowledgeLiveRow, NewKnowledgeChangeSet,
 };
 use crate::offices::{approve_as_office, offices};
 use crate::store::{self, NewSet};
@@ -91,10 +92,7 @@ pub async fn list(
     status: Option<&str>,
 ) -> Result<Vec<KnowledgeChangeSet>, AppError> {
     require_permission(claims, permissions::knowledge::change_sets::LIST)?;
-    // `status` may name several, comma-separated ("previewed,approved"), so a
-    // screen counts what waits in one call instead of filtering a capped list.
-    let statuses: Option<Vec<String>> =
-        status.map(|s| s.split(',').map(|p| p.trim().to_owned()).filter(|p| !p.is_empty()).collect());
+    let statuses = status.map(parse_statuses);
     let mut tx = begin(pool, claims).await?;
     let sets = store::list_sets(&mut tx, claims.tenant_id, area, statuses.as_deref()).await?;
     tx.commit().await?;
@@ -154,21 +152,7 @@ pub async fn create(
     body: &NewKnowledgeChangeSet,
 ) -> Result<KnowledgeChangeSetDetail, AppError> {
     require_drafting(claims, body.area, false)?;
-    if body.area == Area::FlowSwitches && body.items.iter().any(|i| i.op != Op::Update) {
-        return Err(AppError::BadRequest(
-            "Switch settings are changed, never added or removed".to_owned(),
-        ));
-    }
-    if body.area == Area::LocaleProfile && body.items.iter().any(|i| i.op != Op::Update) {
-        return Err(AppError::BadRequest(
-            "A locale profile is changed, never added or removed".to_owned(),
-        ));
-    }
-    if body.title.trim().is_empty() || body.reason.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "A title and a reason are required".to_owned(),
-        ));
-    }
+    check_new_set(body)?;
     let mut tx = begin(pool, claims).await?;
     let items = by_area!(
         body.area,
@@ -335,15 +319,7 @@ pub async fn apply(
     require_permission(claims, permissions::knowledge::change_sets::APPLY)?;
     let mut tx = begin(pool, claims).await?;
     let set = store::load_set(&mut tx, claims.tenant_id, id, true).await?;
-    match area_of(&set)? {
-        Area::FlowSwitches => require_permission(claims, permissions::flows::PUBLISH)?,
-        // Switching a hospital's country switches its regulatory rules: only
-        // the hospital administrator applies it, after a second person approved.
-        Area::LocaleProfile => {
-            require_permission(claims, permissions::admin::locale_profile::UPDATE)?;
-        }
-        Area::DrugInteractions | Area::CriticalValueRules => {}
-    }
+    require_apply_area(claims, area_of(&set)?)?;
     if set.status != "approved" {
         return Err(AppError::Conflict(format!(
             "Only an approved change can be applied; this one is {}",

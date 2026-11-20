@@ -5,6 +5,65 @@ use medbrains_country::Field;
 use crate::locale_profile::LocaleProfileRow;
 use crate::model::{KnowledgeImpactEntry, Severity};
 
+/// Whether `f` differs between the two rows; an explicit null is "inherited".
+fn changed(before: &LocaleProfileRow, after: &LocaleProfileRow, f: Field) -> bool {
+    before.values.get(f.key()).filter(|v| !v.is_null())
+        != after.values.get(f.key()).filter(|v| !v.is_null())
+}
+
+/// The value of `f` as an approver reads it, or "inherited" when unset.
+fn show(r: &LocaleProfileRow, f: Field) -> String {
+    r.values
+        .get(f.key())
+        .filter(|v| !v.is_null())
+        .map_or_else(|| "inherited".to_owned(), ToString::to_string)
+}
+
+/// The name of the country pack a row selects, or "?" when none matches.
+fn pack_name(r: &LocaleProfileRow) -> String {
+    medbrains_country::pack::for_country(r.text(Field::Country))
+        .map_or_else(|_| "?".to_owned(), |p| p.pack.name.clone())
+}
+
+/// One impact line with no examples.
+fn entry(severity: Severity, relation: &str, summary: String, count: i64) -> KnowledgeImpactEntry {
+    KnowledgeImpactEntry {
+        severity,
+        relation: relation.to_owned(),
+        summary,
+        count,
+        examples: Vec::new(),
+        truncated: false,
+    }
+}
+
+/// The display-only fields that changed, as one line, if any did.
+fn display_entry(
+    before: &LocaleProfileRow,
+    after: &LocaleProfileRow,
+    name: &str,
+) -> Option<KnowledgeImpactEntry> {
+    let display: Vec<&str> = Field::ALL
+        .iter()
+        .filter(|f| {
+            !matches!(f, Field::Country | Field::Currency | Field::Timezone)
+                && changed(before, after, **f)
+        })
+        .map(|f| f.key())
+        .collect();
+    (!display.is_empty()).then(|| {
+        entry(
+            Severity::Info,
+            "display",
+            format!(
+                "{name}: {} change on every screen and print",
+                display.join(", ")
+            ),
+            i64::try_from(display.len()).unwrap_or(i64::MAX),
+        )
+    })
+}
+
 /// One impact line per changed field that matters beyond display.
 pub(crate) fn impact_of(
     before: &LocaleProfileRow,
@@ -16,35 +75,14 @@ pub(crate) fn impact_of(
         .as_deref()
         .or(before.scope_name.as_deref())
         .unwrap_or("This scope");
-    let changed = |f: Field| {
-        before.values.get(f.key()).filter(|v| !v.is_null())
-            != after.values.get(f.key()).filter(|v| !v.is_null())
-    };
-    let show = |r: &LocaleProfileRow, f: Field| {
-        r.values
-            .get(f.key())
-            .filter(|v| !v.is_null())
-            .map_or_else(|| "inherited".to_owned(), ToString::to_string)
-    };
-    let entry = |severity, relation: &str, summary: String, count| KnowledgeImpactEntry {
-        severity,
-        relation: relation.to_owned(),
-        summary,
-        count,
-        examples: Vec::new(),
-        truncated: false,
-    };
     let mut out = Vec::new();
-    if changed(Field::Country) {
-        let pack = |r: &LocaleProfileRow| {
-            medbrains_country::pack::for_country(r.text(Field::Country))
-                .map_or_else(|_| "?".to_owned(), |p| p.pack.name.clone())
-        };
+    if changed(before, after, Field::Country) {
         out.push(entry(Severity::Safety, "country", format!(
             "{name}: country {} → {}. The {} pack's rules switch off and the {} pack's switch on",
-            show(before, Field::Country), show(after, Field::Country), pack(before), pack(after)), 1));
+            show(before, Field::Country), show(after, Field::Country),
+            pack_name(before), pack_name(after)), 1));
     }
-    if changed(Field::Currency) {
+    if changed(before, after, Field::Currency) {
         out.push(entry(
             Severity::Money,
             "currency",
@@ -56,29 +94,12 @@ pub(crate) fn impact_of(
             1,
         ));
     }
-    if changed(Field::Timezone) {
+    if changed(before, after, Field::Timezone) {
         out.push(entry(Severity::Info, "doctor_schedules", format!(
             "{name}: clinical times show in {} instead of {}. Doctor schedules are wall-clock times: review them",
             show(after, Field::Timezone), show(before, Field::Timezone)), schedules));
     }
-    let display: Vec<&str> = Field::ALL
-        .iter()
-        .filter(|f| {
-            !matches!(f, Field::Country | Field::Currency | Field::Timezone) && changed(**f)
-        })
-        .map(|f| f.key())
-        .collect();
-    if !display.is_empty() {
-        out.push(entry(
-            Severity::Info,
-            "display",
-            format!(
-                "{name}: {} change on every screen and print",
-                display.join(", ")
-            ),
-            i64::try_from(display.len()).unwrap_or(i64::MAX),
-        ));
-    }
+    out.extend(display_entry(before, after, name));
     out
 }
 

@@ -28,6 +28,7 @@ mod adapter;
 mod critical_impact;
 mod critical_values;
 pub mod engine;
+mod engine_checks;
 mod flow_switches;
 mod flows;
 mod interaction_impact;

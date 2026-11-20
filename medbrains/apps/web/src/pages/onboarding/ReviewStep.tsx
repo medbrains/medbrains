@@ -17,6 +17,7 @@ import { useNavigate } from "react-router";
 import { Alert, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
+import { localeSummary, setupWarnings } from "./review-summary";
 
 interface Props {
   onBack: () => void;
@@ -81,26 +82,14 @@ export function ReviewStep({ onBack }: Props) {
     ([, status]) => status === "enabled",
   );
 
-  // Completeness warnings
-  const warnings: string[] = [];
-  if (facilities.length === 0) {
-    warnings.push("No additional facilities — only the main hospital will exist.");
-  }
-  if (departments.length === 0) {
-    warnings.push("No departments have been added. You can add them later from settings.");
-  }
-  if (users.length === 0) {
-    warnings.push("Only the super admin exists — consider adding staff accounts.");
-  }
-  if (enabledModules.length === 0) {
-    warnings.push("No modules have been enabled. You can enable them later from settings.");
-  }
-  if (bedTypes.length === 0) {
-    warnings.push("No bed types configured — IPD billing will need bed rates added later.");
-  }
-  if (taxCategories.length === 0) {
-    warnings.push("No tax categories — billing will default to no tax until configured.");
-  }
+  const warnings = setupWarnings({
+    facilities,
+    departments,
+    users,
+    enabledModules,
+    bedTypes,
+    taxCategories,
+  });
 
   return (
     <Stack gap="lg">
@@ -137,8 +126,7 @@ export function ReviewStep({ onBack }: Props) {
             {hospitalDetails.pincode ? `, ${hospitalDetails.pincode}` : ""}
           </div>
           <Text size="sm" c="dimmed">
-            {hospitalDetails.timezone ?? "Country's time zone"} &middot;{" "}
-            {hospitalDetails.currency ?? "country's currency"}
+            {localeSummary(hospitalDetails)}
           </Text>
         </div>
       )}

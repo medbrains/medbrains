@@ -151,6 +151,21 @@ function Scopes({
   );
 }
 
+/** A quiet link button to another screen, for inside an alert. */
+function OpenLink({ to, label }: { to: string; label: string }) {
+  const navigate = useNavigate();
+  return (
+    <Button
+      onClick={() => void navigate(to)}
+      tone="ghost"
+      size="compact-sm"
+      rightSection={<IconExternalLink size={14} />}
+    >
+      {label}
+    </Button>
+  );
+}
+
 /** The Locale profile settings tab: what is in force, each scope, and a request to change one. */
 export function LocaleProfileSettings() {
   useRequirePermission(P.ADMIN.LOCALE_PROFILE.UPDATE);
@@ -163,7 +178,6 @@ export function LocaleProfileSettings() {
   const status = useLocaleProfileStatus();
   const [target, setTarget] = useState<ScopeRow | null>(null);
   const [sentId, setSentId] = useState<string | null>(null);
-  const navigate = useNavigate();
 
   const live = useQuery({
     queryKey: ["knowledge-changes", "rows", "locale_profile"],
@@ -205,38 +219,17 @@ export function LocaleProfileSettings() {
       )}
       {(toApply ?? 0) > 0 && (
         <Alert tone="info" title="An approved change is waiting for the administrator to apply it">
-          <Button
-            onClick={() => void navigate("/admin/knowledge-changes")}
-            tone="ghost"
-            size="compact-sm"
-            rightSection={<IconExternalLink size={14} />}
-          >
-            Open Knowledge changes
-          </Button>
+          <OpenLink to="/admin/knowledge-changes" label="Open Knowledge changes" />
         </Alert>
       )}
       {(waiting ?? 0) > 0 && (
         <Alert tone="warning" title="A change is waiting for a second person's approval">
-          <Button
-            onClick={() => void navigate("/admin/knowledge-changes")}
-            tone="ghost"
-            size="compact-sm"
-            rightSection={<IconExternalLink size={14} />}
-          >
-            Open Knowledge changes
-          </Button>
+          <OpenLink to="/admin/knowledge-changes" label="Open Knowledge changes" />
         </Alert>
       )}
       {sentId && (
         <Alert tone="success" title="Sent for approval">
-          <Button
-            onClick={() => void navigate(`/admin/knowledge-changes?open=${sentId}`)}
-            tone="ghost"
-            size="compact-sm"
-            rightSection={<IconExternalLink size={14} />}
-          >
-            Open the change
-          </Button>
+          <OpenLink to={`/admin/knowledge-changes?open=${sentId}`} label="Open the change" />
         </Alert>
       )}
       {live.error ? (

@@ -24,6 +24,7 @@ use medbrains_server_core::{
 };
 
 mod hospital;
+mod me_tenant;
 mod sign_in_options;
 
 // ── Login ───────────────────────────────────────────────────
@@ -1025,23 +1026,6 @@ pub struct MeResponse {
     pub locale_profile: Option<medbrains_country::LocaleProfile>,
 }
 
-/// The user's resolved locale profile, or `None` when the pack registry
-/// failed to load (a fault the client shows, not a value). A database error
-/// still fails the request like every other read here.
-async fn locale_profile_for(
-    tx: &mut sqlx::PgConnection,
-    claims: &Claims,
-) -> Result<Option<medbrains_country::LocaleProfile>, AppError> {
-    match medbrains_country::for_user(tx, claims.tenant_id, claims.sub).await {
-        Ok(profile) => Ok(Some(profile)),
-        Err(medbrains_country::CountryError::Db(e)) => Err(e.into()),
-        Err(medbrains_country::CountryError::Pack(e)) => {
-            tracing::error!(error = %e, "country packs did not load; locale profile unavailable");
-            Ok(None)
-        }
-    }
-}
-
 /// `GET /api/auth/me`: who the session is, what they may do, and how their
 /// screens format, in one round trip.
 pub async fn me(
@@ -1061,23 +1045,14 @@ pub async fn me(
     .await?;
 
     // Edition entitlement: the modules this tenant has switched off (drives nav/route hiding).
-    let mut disabled_modules: Vec<String> = sqlx::query_scalar(
+    let disabled_modules: Vec<String> = sqlx::query_scalar(
         "SELECT code FROM module_config \
          WHERE tenant_id = $1 AND status::text IN ('disabled', 'coming_soon')",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
-    // A brick that needs a switched-off brick is off too, as the server's module check has it.
-    let implied: Vec<&str> = disabled_modules
-        .iter()
-        .flat_map(|code| medbrains_core::bricks::dependents(code))
-        .collect();
-    for code in implied {
-        if !disabled_modules.iter().any(|c| c == code) {
-            disabled_modules.push(code.to_owned());
-        }
-    }
+    let disabled_modules = me_tenant::with_dependents(disabled_modules);
     let restrict_copy: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1 \
          AND category = 'security' AND key = 'restrict_copy' \
@@ -1086,7 +1061,7 @@ pub async fn me(
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
-    let locale_profile = locale_profile_for(&mut tx, &claims).await?;
+    let locale_profile = me_tenant::locale_profile_for(&mut tx, &claims).await?;
 
     tx.commit().await?;
 

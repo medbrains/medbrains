@@ -40,19 +40,46 @@ interface SetActionsProps {
   onAction: (action: SetAction) => void;
 }
 
-export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps) {
-  const [note, setNote] = useState("");
+/** Which actions this user may take on `set` now, from its status and their rights. */
+function setAbilities(
+  set: KnowledgeChangeSetDetail,
+  userId: string | undefined,
+  can: SetPermissions,
+) {
   const isAuthor = set.author_id === userId;
   const isOpen = ["draft", "previewed", "stale"].includes(set.status);
-  const canPreview = isOpen && (can.canDraft || (can.canRollback && !!set.rollback_of_set_id));
   const canDecide =
     set.status === "previewed" && can.canApprove && !isAuthor && set.approver_id !== userId;
   const canWithdraw = isAuthor && (isOpen || set.status === "approved");
   const canRollBack = set.status === "applied" && can.canRollback && !set.rolled_back_by_set_id;
-  const hasProof = set.status === "applied" || set.status === "rolled_back";
-  // The server also asks for the area's own code at apply (engine::apply).
-  const canApply = can.canApply && (set.area !== "locale_profile" || can.canApplyLocaleProfile);
-  const needsNote = canDecide || canWithdraw || canRollBack;
+  return {
+    isAuthor,
+    canPreview: isOpen && (can.canDraft || (can.canRollback && !!set.rollback_of_set_id)),
+    canDecide,
+    canWithdraw,
+    canRollBack,
+    hasProof: set.status === "applied" || set.status === "rolled_back",
+    // The server also asks for the area's own code at apply (engine::apply).
+    canApply:
+      set.status === "approved" &&
+      can.canApply &&
+      (set.area !== "locale_profile" || can.canApplyLocaleProfile),
+    needsNote: canDecide || canWithdraw || canRollBack,
+  };
+}
+
+export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps) {
+  const [note, setNote] = useState("");
+  const {
+    isAuthor,
+    canPreview,
+    canDecide,
+    canWithdraw,
+    canRollBack,
+    hasProof,
+    canApply,
+    needsNote,
+  } = setAbilities(set, userId, can);
 
   return (
     <Stack gap="sm">
@@ -109,7 +136,7 @@ export function SetActions({ set, userId, can, busy, onAction }: SetActionsProps
             {canDecide ? "Reject" : "Withdraw"}
           </Button>
         )}
-        {set.status === "approved" && canApply && (
+        {canApply && (
           <Button
             tone="primary"
             leftSection={<IconPlayerPlay size={16} />}

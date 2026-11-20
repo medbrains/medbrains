@@ -24,6 +24,23 @@ fn upper_code(s: &str, len: usize) -> bool {
     s.len() == len && s.bytes().all(|b| b.is_ascii_uppercase())
 }
 
+/// An ISO 3166-2 subdivision: a country code, a dash, then one to three
+/// capitals or digits (`AE-DU`, `IN-KA`).
+fn check_region(text: &str) -> Result<(), String> {
+    match text.split_once('-') {
+        Some((cc, sub))
+            if upper_code(cc, 2)
+                && (1..=3).contains(&sub.len())
+                && sub
+                    .bytes()
+                    .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit()) =>
+        {
+            Ok(())
+        }
+        _ => Err("Region is an ISO 3166-2 code such as AE-DU".to_owned()),
+    }
+}
+
 /// The value a person typed for `field` is one the platforms can format
 /// with. Shape first ([`Field::accepts`]), then the field's own format.
 ///
@@ -52,18 +69,7 @@ pub fn check_value(field: Field, value: &Value) -> Result<(), String> {
         Field::Currency if !upper_code(text, 3) => {
             Err("Currency is an ISO 4217 code such as INR or AED".to_owned())
         }
-        Field::Region => match text.split_once('-') {
-            Some((cc, sub))
-                if upper_code(cc, 2)
-                    && (1..=3).contains(&sub.len())
-                    && sub
-                        .bytes()
-                        .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit()) =>
-            {
-                Ok(())
-            }
-            _ => Err("Region is an ISO 3166-2 code such as AE-DU".to_owned()),
-        },
+        Field::Region => check_region(text),
         Field::Locale => check_locale(text),
         Field::Timezone => check_zone_name(text),
         Field::Languages => value
