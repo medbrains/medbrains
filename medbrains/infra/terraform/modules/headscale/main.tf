@@ -75,6 +75,12 @@ variable "litestream_s3_bucket_arn" {
   description = "S3 bucket ARN for Litestream sqlite replication"
 }
 
+variable "allowed_ingress_cidrs" {
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+  description = "Where hospital nodes reach the control plane from (443 on the ALB, DERP UDP on the instance). Open by default because a node can sign on from any WAN; narrow it to the hospitals' egress IPs once they are known."
+}
+
 variable "allowed_egress_cidrs" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
@@ -170,7 +176,7 @@ resource "aws_security_group" "alb" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_ingress_cidrs
   }
   # The ALB only opens connections to its target.
   egress {
@@ -199,7 +205,7 @@ resource "aws_security_group" "ec2" {
     from_port   = local.derp_port
     to_port     = local.derp_port
     protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_ingress_cidrs
   }
   # Litestream to S3, SSM, release downloads and the Tailscale DERP map
   # are all HTTPS; STUN probes are UDP 3478. Nothing else leaves the box.

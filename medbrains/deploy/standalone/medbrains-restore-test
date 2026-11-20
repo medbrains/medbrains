@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-restore-test — monthly proof, on the server, that
+# the point-in-time archive restores: the newest base backup and every WAL
+# segment since go into a SCRATCH directory, a throwaway Postgres replays
+# them as a read-only standby, and checks compare it with the live database.
+# The result is emailed to BACKUP_REPORT_TO and recorded as RESTORE_TEST_LAST
+# in /etc/medbrains/env. medbrains-restore-test.timer, the 1st of each month.
+#
+#   medbrains-restore-test [--print]     --print: show the email, send nothing
+#
+# Why the PITR archive and not the dumps: the dumps are sealed to an offline
+# key that must never be on the server, so only the operator can test them
+# (medbrains-restore-drill, by hand). The WAL-G archive is sealed with
+# /etc/medbrains/walg.key, which the server already holds to take backups.
+#
+# Never touches the live cluster beyond read-only queries: the scratch runs
+# in its own directory, as a standby (it never promotes, so it never starts a
+# timeline), with archive_mode=off, no TCP listener (socket only on the host,
+# --network none in the container). It refuses to start without the space
+# for a copy of the cluster plus RESTORE_TEST_RESERVE_GB left over, and says
+# so by email instead. Everything is removed on exit.
+
+set -euo pipefail
+
+PRINT=0
+[[ "${1:-}" == "--print" ]] && PRINT=1
+SCRATCH="${RESTORE_TEST_DIR:-/var/lib/medbrains-restore-test}"
+PORT="${RESTORE_TEST_PORT:-55439}"
+RESERVE_GB="${RESTORE_TEST_RESERVE_GB:-5}"
+MAX_LAG_MIN="${RESTORE_TEST_MAX_LAG_MIN:-30}"
+TIMEOUT_S="$(( ${RESTORE_TEST_TIMEOUT_MIN:-60} * 60 ))"
+CONTAINER=medbrains-postgres
+SCRATCH_CT=medbrains-restore-test
+DB="${POSTGRES_DB:-medbrains}"
+SEND="${MEDBRAINS_SEND_MAIL:-/usr/local/bin/medbrains-send-mail}"
+BODY="$(mktemp)"
+STATUS="FAILED" NOTES=""
+TIER=host
+command -v docker >/dev/null 2>&1 && docker container inspect "$CONTAINER" >/dev/null 2>&1 && TIER=container
+
+note() { NOTES+="$*"$'\n'; echo "$*"; }
+
+# Read-only SQL on the live cluster, as its superuser.
+live_sql() {
+    if [[ "$TIER" == "container" ]]; then
+        docker exec -i "$CONTAINER" psql -XAtq -F '|' -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-medbrains}" -d "$DB" -c "$1"
+    else
+        runuser -u postgres -- psql -XAtq -F '|' -v ON_ERROR_STOP=1 -p "${WAL_PGPORT:-5432}" -d "$DB" -c "$1"
+    fi
+}
+
+# SQL on the scratch standby (socket in the scratch directory, or the scratch container).
+scratch_sql() {
+    if [[ "$TIER" == "container" ]]; then
+        docker exec -i "$SCRATCH_CT" psql -XAtq -F '|' -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-medbrains}" -d "$DB" -c "$1"
+    else
+        runuser -u postgres -- psql -XAtq -F '|' -v ON_ERROR_STOP=1 -h "$SCRATCH/sock" -p "$PORT" -d "$DB" -c "$1"
+    fi
+}
+
+# Stops the scratch server and deletes the scratch directory; only ever a
+# directory this script marked as its own.
+cleanup() {
+    if [[ "$TIER" == "container" ]]; then
+        docker rm -f "$SCRATCH_CT" >/dev/null 2>&1 || true
+    elif [[ -f "$SCRATCH/data/PG_VERSION" ]]; then
+        runuser -u postgres -- "/usr/lib/postgresql/$(cut -d. -f1 "$SCRATCH/data/PG_VERSION")/bin/pg_ctl" \
+            -D "$SCRATCH/data" -m immediate stop >/dev/null 2>&1 || true
+    fi
+    [[ -f "$SCRATCH/.medbrains-restore-test" ]] && rm -rf "$SCRATCH"
+    rm -f "$BODY"
+}
+
+# Emails the outcome (or prints it), records RESTORE_TEST_LAST, and exits
+# non-zero on failure so OnFailure= pages as well.
+finish() {
+    local subject host
+    host="$(hostname)"
+    subject="[$host] Restore test $STATUS $(date +%F)"
+    {
+        echo "Monthly restore test of the point-in-time archive on $host: $STATUS"
+        echo
+        printf '%s' "$NOTES"
+        echo
+        echo "The nightly dumps are sealed to an offline key and are tested by hand"
+        echo "(medbrains-restore-drill). Last manual drill: ${RESTORE_DRILL_LAST:-never recorded}"
+        echo "Runbook: docs/ops/BACKUP-RESTORE.md, 'Monthly restore test'."
+    } > "$BODY"
+    if [[ "$PRINT" == "0" && -w /etc/medbrains/env ]]; then
+        sed -i '/^RESTORE_TEST_LAST=/d' /etc/medbrains/env
+        echo "RESTORE_TEST_LAST=\"$(date +%F) $STATUS\"" >> /etc/medbrains/env
+    fi
+    if [[ "$PRINT" == "1" || -z "${BACKUP_REPORT_TO:-}" ]]; then
+        MAIL_PRINT=1 "$SEND" "${BACKUP_REPORT_TO:-print-only}" "$subject" "$BODY"
+    else
+        "$SEND" "$BACKUP_REPORT_TO" "$subject" "$BODY"
+    fi
+    [[ "$STATUS" != "FAILED" ]]
+}
+trap 'cleanup' EXIT
+fail() { note "FAILED: $*"; STATUS=FAILED; finish || exit 1; }
+
+if [[ "${WAL_ARCHIVING:-0}" != "1" ]]; then
+    STATUS=SKIPPED
+    note "Point-in-time recovery is not enabled here (PITR_ENABLED), so there is nothing to test automatically."
+    finish; exit 0
+fi
+[[ "$SCRATCH" == */medbrains-restore-test* ]] || fail "RESTORE_TEST_DIR must be named …/medbrains-restore-test…, not $SCRATCH"
+LIVE_DATA="$(/usr/local/bin/medbrains-wal-g spool)"; LIVE_DATA="${LIVE_DATA%/medbrains-wal-spool}"
+case "$SCRATCH/" in "$LIVE_DATA"/*) fail "the scratch directory is inside the live data directory" ;; esac
+if [[ -e "$SCRATCH" && ! -f "$SCRATCH/.medbrains-restore-test" ]]; then
+    fail "$SCRATCH exists and is not a scratch directory this script made — not touching it"
+fi
+cleanup; BODY="$(mktemp)"
+if [[ "$TIER" == "container" ]] && docker container inspect "$SCRATCH_CT" >/dev/null 2>&1; then
+    fail "a container named $SCRATCH_CT exists and could not be removed"
+fi
+
+# Space: a copy of the cluster, plus the WAL to replay, must leave the reserve free.
+need_kb="$(( $(live_sql "SELECT sum(pg_database_size(oid)) FROM pg_database") * 13 / 10 / 1024 ))"
+parent="$(dirname "$SCRATCH")"
+free_kb="$(df -Pk "$parent" | awk 'NR == 2 {print $4}')"
+if (( free_kb - need_kb < RESERVE_GB * 1048576 )); then
+    STATUS=SKIPPED
+    note "SKIPPED: not enough space. Needs about $((need_kb / 1048576 + 1)) GB on $parent and $RESERVE_GB GB to spare; $((free_kb / 1048576)) GB free."
+    note "Nothing was restored. Free space or set RESTORE_TEST_DIR to a larger disk."
+    finish; exit 0
+fi
+
+# What the live cluster says now, to compare against.
+KEY_TABLES="tenants users patients encounters invoices audit_log"
+live_version="$(live_sql "SELECT max(version) FROM _sqlx_migrations WHERE success")"
+live_newest="$(live_sql "SELECT coalesce(max(created_at)::text, '') FROM audit_log")"
+counts_sql="SELECT t.code$(for k in $KEY_TABLES; do
+    [[ "$k" == tenants ]] && continue
+    printf ", (SELECT count(*) FROM %s x WHERE x.tenant_id = t.id)" "$k"; done) FROM tenants t ORDER BY t.code"
+live_counts="$(live_sql "$counts_sql")"
+read -r -a stand_opts <<<"$(live_sql "SELECT string_agg('-c ' || name || '=' || setting, ' ') FROM pg_settings
+     WHERE name IN ('max_connections', 'max_worker_processes', 'max_wal_senders', 'max_prepared_transactions', 'max_locks_per_transaction')")"
+
+install -d -m 0700 "$SCRATCH"; touch "$SCRATCH/.medbrains-restore-test"
+owner="$(stat -c %u:%g "$LIVE_DATA")"
+install -d -o "${owner%:*}" -g "${owner#*:}" -m 0700 "$SCRATCH/data"
+[[ "$TIER" == "host" ]] && chown postgres "$SCRATCH" && install -d -o postgres -m 0700 "$SCRATCH/sock"
+
+t0=$SECONDS
+/usr/local/bin/medbrains-wal-g fetch-base "$SCRATCH/data" >/dev/null || fail "could not fetch the newest base backup"
+t1=$SECONDS
+rm -rf "$SCRATCH/data/medbrains-wal-spool"
+install -d -o "${owner%:*}" -g "${owner#*:}" -m 0700 "$SCRATCH/data/medbrains-wal-restore"
+segments="$(/usr/local/bin/medbrains-wal-g fetch-wals "$SCRATCH/data/medbrains-wal-restore")" || fail "could not fetch WAL"
+t2=$SECONDS
+chown -R "$owner" "$SCRATCH/data"
+note "Base backup fetched in $((t1 - t0)) s; $segments WAL segments in $((t2 - t1)) s; $(du -sh "$SCRATCH/data" | cut -f1) on disk."
+
+# A standby: replays everything fetched, answers read-only queries, never
+# promotes. archive_mode=off so it can never push into the archive.
+touch "$SCRATCH/data/standby.signal"
+[[ -f "$SCRATCH/data/postgresql.conf" ]] || : > "$SCRATCH/data/postgresql.conf"
+[[ -f "$SCRATCH/data/pg_hba.conf" ]] || echo "local all all peer" > "$SCRATCH/data/pg_hba.conf"
+# The scratch copy's own auto.conf: read last, so this line wins there.
+echo "restore_command = 'cp medbrains-wal-restore/%f %p'" >> "$SCRATCH/data/postgresql.auto.conf"
+chown "$owner" "$SCRATCH/data"/{standby.signal,postgresql.conf,pg_hba.conf,postgresql.auto.conf}
+opts=(-c archive_mode=off -c hot_standby=on -c shared_buffers=32MB -c listen_addresses= "${stand_opts[@]}")
+if [[ "$TIER" == "container" ]]; then
+    docker run -d --name "$SCRATCH_CT" --label medbrains.restore-test=1 --network none --memory 512m \
+        --user "$owner" -v "$SCRATCH/data:/var/lib/postgresql/data" --entrypoint postgres \
+        "$(docker inspect -f '{{.Config.Image}}' "$CONTAINER")" -D /var/lib/postgresql/data "${opts[@]}" >/dev/null \
+        || fail "the scratch container did not start"
+else
+    PG_BIN="/usr/lib/postgresql/$(cut -d. -f1 "$SCRATCH/data/PG_VERSION")/bin"
+    runuser -u postgres -- "$PG_BIN/pg_ctl" -D "$SCRATCH/data" -l "$SCRATCH/postgres.log" \
+        -o "-p $PORT -c unix_socket_directories=$SCRATCH/sock ${opts[*]}" start >/dev/null \
+        || fail "the scratch Postgres did not start (log: $SCRATCH/postgres.log)"
+fi
+
+# Replay is done when the replay position stops moving (after it first answers).
+last="" same=0 started=$SECONDS
+while (( SECONDS - started < TIMEOUT_S )); do
+    lsn="$(scratch_sql "SELECT pg_last_wal_replay_lsn()" 2>/dev/null || true)"
+    if [[ -n "$lsn" && "$lsn" == "$last" ]]; then same=$((same + 1)); else same=0; fi
+    (( same >= 3 )) && break
+    last="$lsn"; sleep 10
+done
+(( same >= 3 )) || fail "the scratch standby did not finish replaying within $((TIMEOUT_S / 60)) min"
+note "Replayed to $last in $((SECONDS - started)) s."
+
+# The checks. Each failure is named; all of them run.
+bad=0
+[[ "$(scratch_sql "SELECT pg_is_in_recovery()")" == "t" ]] || { note "FAIL scratch left recovery"; bad=1; }
+v="$(scratch_sql "SELECT max(version) || '|' || count(*) FILTER (WHERE NOT success) FROM _sqlx_migrations")"
+if [[ "${v%|*}" == "$live_version" && "${v#*|}" == "0" ]]; then
+    note "ok   schema version $live_version, no failed migration"
+else
+    note "FAIL schema: restored ${v%|*} (failed ${v#*|}), live $live_version"; bad=1
+fi
+newest="$(scratch_sql "SELECT coalesce(max(created_at)::text, '') FROM audit_log")"
+lag="$(live_sql "SELECT coalesce(extract(epoch FROM '${live_newest:-epoch}'::timestamptz - '${newest:-epoch}'::timestamptz)::int / 60, 0)")"
+if (( lag <= MAX_LAG_MIN )); then
+    note "ok   newest audit entry $newest (live had $live_newest when the test began; $lag min behind)"
+else
+    note "FAIL newest audit entry $newest is $lag min behind live ($live_newest); limit $MAX_LAG_MIN min"; bad=1
+fi
+note ""
+note "Rows per hospital, restored / live ($KEY_TABLES minus tenants):"
+restored_counts="$(scratch_sql "$counts_sql")"
+while IFS='|' read -r -a lv; do
+    rv=() line="  ${lv[0]}:"
+    IFS='|' read -r -a rv <<<"$(grep "^${lv[0]}|" <<<"$restored_counts" || true)"
+    for i in $(seq 1 $(( ${#lv[@]} - 1 ))); do
+        line+=" ${rv[$i]:-missing}/${lv[$i]}"
+        [[ "${lv[$i]}" -gt 0 && "${rv[$i]:-0}" -eq 0 ]] && bad=1 && line+=" (FAIL: none restored)"
+    done
+    note "$line"
+done <<<"$live_counts"
+
+STATUS=PASSED
+(( bad == 0 )) || STATUS=FAILED
+finish

@@ -44,6 +44,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import { useCollect } from "@/components/payments/collect/collect-store";
+import { useIsActionHidden } from "./journey-action-brick";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 import {
@@ -93,6 +94,7 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
       return <IconRadioactive size={14} />;
     case "billing.prepare_discharge_bill":
     case "billing.collect_payment":
+    case "billing.open_ledger":
       return <IconFileInvoice size={14} />;
     case "pharmacy.dispense_order":
       return <IconPill size={14} />;
@@ -100,13 +102,10 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
     case "ipd.admit":
       return <IconBed size={14} />;
     case "emergency.open_visit":
-      return <IconAlertTriangle size={14} />;
     case "emergency.open_mlc":
       return <IconAlertTriangle size={14} />;
     case "camp.open_context":
       return <IconBuildingStore size={14} />;
-    case "billing.open_ledger":
-      return <IconFileInvoice size={14} />;
     case "patient.share":
       return <IconShare size={14} />;
     case "patient.print_card":
@@ -243,13 +242,13 @@ export function PatientJourneyActions({
     ...context,
     completedEvents: mergeJourneyEventNames(context, recentEvents),
   };
-  const hiddenActions = new Set(hiddenActionIds);
+  const isHidden = useIsActionHidden(hiddenActionIds);
   const includePermissionDenied = showUnavailable ?? layout === "rail";
   const actions = resolveClinicalJourneyActions(journeyContext, hasPermission, "web", {
     includePermissionDenied,
   }).filter(
     (action) =>
-      !hiddenActions.has(action.id) &&
+      !isHidden(action.id) &&
       supportsAction(action.id, journeyContext, {
         onOpenOrderBasket,
         onPrintPatientCard,

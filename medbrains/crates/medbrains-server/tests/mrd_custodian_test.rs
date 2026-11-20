@@ -38,7 +38,7 @@ async fn staff(
     dept: Uuid,
 ) -> (Uuid, Client, String) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("mrd_{tag}"), format!("Mrd#{tag}Aa9"));
+    let (username, password) = (format!("mrd_{tag}"), format!("Mrd#Key{tag}Aa9"));
     let (status, user) = send(
         admin_csrf,
         app.client.post(app.url("/api/setup/users")).json(&json!({

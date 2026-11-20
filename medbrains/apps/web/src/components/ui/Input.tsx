@@ -8,6 +8,7 @@ import {
   type TextareaProps,
   type TextInputProps,
 } from "@mantine/core";
+import { PASSWORD_RULE } from "@medbrains/schemas";
 import { forwardRef } from "react";
 
 /**
@@ -29,6 +30,19 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordInputProps>(
   },
 );
 PasswordField.displayName = "PasswordField";
+
+/**
+ * A field that sets a new password: shows the password rule under it and asks the browser
+ * for a new-password suggestion. The server stays the authority on the rule.
+ */
+export const NewPasswordField = forwardRef<HTMLInputElement, PasswordInputProps>(
+  function NewPasswordField(props, ref) {
+    return (
+      <PasswordField ref={ref} description={PASSWORD_RULE} autoComplete="new-password" {...props} />
+    );
+  },
+);
+NewPasswordField.displayName = "NewPasswordField";
 
 export const NumberField = forwardRef<HTMLInputElement, NumberInputProps>(function NumberField(
   { size = "sm", ...rest },

@@ -62,6 +62,12 @@ variable "ghcr_pull_token" {
   default     = ""
 }
 
+variable "public_ingress_cidrs" {
+  description = "CIDRs that may reach the host on 80 (ACME HTTP-01 and the HTTPS redirect) and 443. Narrow it to the hospital's WAN when no one outside needs the app; HTTP-01 then needs a DNS-01 issuer instead."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "ssh_allowed_cidrs" {
   description = "CIDRs allowed to reach SSH. Empty = auto-detect the operator's current egress IP at plan time (never 0.0.0.0/0), as aws-ec2 does."
   type        = list(string)
@@ -143,14 +149,14 @@ resource "aws_security_group" "node" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.public_ingress_cidrs
   }
   ingress {
     description = "HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.public_ingress_cidrs
   }
   ingress {
     description = "k3s API - VPC internal only"

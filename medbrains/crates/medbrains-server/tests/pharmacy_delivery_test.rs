@@ -164,7 +164,7 @@ async fn deliveries_follow_the_rules_to_the_door() {
 
     // A runner, who sees only their own.
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("run_{tag}"), format!("Run#{tag}Aa9"));
+    let (username, password) = (format!("run_{tag}"), format!("Run#Key{tag}Aa9"));
     let (status, runner) = send(
         &app.client,
         &app,

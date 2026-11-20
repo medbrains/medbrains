@@ -1,5 +1,9 @@
 # Platform Accessibility Rules — the Power of Ten
 
+> The `@medbrains/ui-mobile` helpers named below were deleted with the React Native apps on
+> 2026-11-17. The rules still bind the native SwiftUI and Compose apps; the helper names are
+> historical (see git history).
+
 **LAW for every native surface**: iOS and Android handhelds and tablets, Android
 TV, webOS TV, tvOS, and kiosk builds. The web's rules live in
 [WCAG-2.2-RULES.md](./WCAG-2.2-RULES.md); these are what the *platforms*

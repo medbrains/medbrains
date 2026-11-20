@@ -11,6 +11,13 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // CI sets VITEST_REPORT_DIR for a JUnit file the PR's per-test summary reads.
+    ...(process.env.VITEST_REPORT_DIR
+      ? {
+          reporters: ["default", "junit"],
+          outputFile: { junit: `${process.env.VITEST_REPORT_DIR}/vitest.xml` },
+        }
+      : {}),
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],

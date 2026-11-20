@@ -10,7 +10,7 @@ use crate::config::BridgeConfig;
 use crate::ingest;
 
 /// Listen for HL7 v2 messages over MLLP (TCP with start/end framing).
-pub async fn listen(
+pub(crate) async fn listen(
     addr: &str,
     buffer: MessageBuffer,
     client: &reqwest::Client,
@@ -151,18 +151,15 @@ async fn process_hl7_message(
     let device_id = cfg.device_instance_id.as_deref().unwrap_or("unknown");
     for d in items {
         // Try direct delivery, fall back to the local buffer.
-        if let Err(e) = ingest::deliver(
-            client,
-            cfg,
-            device_id,
-            d.module,
-            "hl7_v2",
-            &d.parsed,
-            &d.mapped,
-            duration_ms,
-        )
-        .await
-        {
+        let delivery = ingest::Delivery {
+            device_instance_id: device_id,
+            module: d.module,
+            protocol: "hl7_v2",
+            parsed_payload: &d.parsed,
+            mapped_data: &d.mapped,
+            processing_duration_ms: duration_ms,
+        };
+        if let Err(e) = ingest::deliver(client, cfg, &delivery).await {
             warn!(error = %e, "API delivery failed — buffering locally");
             buffer.enqueue(
                 device_id,

@@ -28,6 +28,9 @@ tonic = "0.14.5"
 tracing = { workspace = true }
 uuid = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
 [[bin]]
 name = "spicedb-schema-write"
 path = "src/bin/schema_write.rs"
