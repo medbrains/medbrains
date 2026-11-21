@@ -8,16 +8,8 @@ import { IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Select } from "@/components/ui";
 import { patientsService } from "@/services/patients.service";
-
-const SEARCH_BY: { value: PatientSearchBy; label: string; placeholder: string }[] = [
-  { value: "all", label: "All", placeholder: "Search by name, phone, UHID or Aadhaar" },
-  { value: "phone", label: "Phone", placeholder: "Phone number" },
-  { value: "uhid", label: "UHID", placeholder: "UHID" },
-  { value: "name", label: "Name", placeholder: "Name" },
-  { value: "opd_number", label: "OPD number", placeholder: "OPD number" },
-];
+import { PatientSearchBySelect, SEARCH_BY } from "./PatientSearchBySelect";
 
 /** The browser key that remembers this user's last choice. */
 function storageKey(userId: string | undefined): string {
@@ -76,6 +68,24 @@ export function usePatientSearchBy(onChange?: () => void) {
   };
 }
 
+/**
+ * Characters a patient search needs before it is sent, per field. UHIDs and
+ * OPD numbers can be plain numbers ("1"), so they go from one character and
+ * the server matches them exactly; one or two bare digits under All are that
+ * same exact lookup. A phone needs three digits; names and other All terms
+ * keep `nameFloor` (the caller's anti-browse minimum).
+ */
+export function patientSearchMinChars(
+  by: PatientSearchBy,
+  query: string,
+  nameFloor: number,
+): number {
+  if (by === "uhid" || by === "opd_number") return 1;
+  if (by === "phone") return 3;
+  if (by === "all" && /^\d{1,2}$/.test(query)) return 1;
+  return nameFloor;
+}
+
 interface PatientSearchBoxProps {
   value: string;
   onChange: (value: string) => void;
@@ -97,23 +107,10 @@ export function PatientSearchBox({
   className,
 }: PatientSearchBoxProps) {
   const { t } = useTranslation("patients");
-  const options = SEARCH_BY.filter((o) => o.value !== "opd_number" || opdOn);
   const current = SEARCH_BY.find((o) => o.value === by) ?? SEARCH_BY[0];
   return (
     <Group gap={4} wrap="nowrap" className={className}>
-      <Select
-        aria-label={t("directory.searchBy", "Search by")}
-        data={options.map(({ value: v, label }) => ({ value: v, label }))}
-        value={by}
-        onChange={(v) => onByChange((v as PatientSearchBy | null) ?? "all")}
-        allowDeselect={false}
-        error={
-          settingsFailed ? t("directory.searchSettingsFailed", "Settings did not load") : undefined
-        }
-        size="sm"
-        w={140}
-        data-testid="patient-search-by"
-      />
+      <PatientSearchBySelect {...{ by, onByChange, opdOn, settingsFailed }} />
       <TextInput
         placeholder={current?.placeholder}
         leftSection={<IconSearch size={16} />}
