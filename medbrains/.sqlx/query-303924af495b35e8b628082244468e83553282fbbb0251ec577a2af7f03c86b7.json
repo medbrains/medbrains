@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT key, value FROM tenant_settings WHERE tenant_id = $1 AND category = 'registration' AND key IN ('search_default_by', 'patient_list_columns') AND deleted_at IS NULL",
+  "query": "SELECT key, value FROM tenant_settings WHERE tenant_id = $1 AND category = 'registration' AND key IN ('search_default_by', 'patient_list_columns', 'card_printer') AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "a3e3db6b512f40a8ff34d924078ccc3041436af672346119a96eda58f444258b"
+  "hash": "303924af495b35e8b628082244468e83553282fbbb0251ec577a2af7f03c86b7"
 }

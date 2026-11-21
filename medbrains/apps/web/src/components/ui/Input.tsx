@@ -36,6 +36,7 @@ PasswordField.displayName = "PasswordField";
  * for a new-password suggestion. The server stays the authority on the rule.
  */
 export const NewPasswordField = forwardRef<HTMLInputElement, PasswordInputProps>(
+  /** The password field with the rule shown and the browser asked to suggest one. */
   function NewPasswordField(props, ref) {
     return (
       <PasswordField ref={ref} description={PASSWORD_RULE} autoComplete="new-password" {...props} />
