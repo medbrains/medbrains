@@ -2,7 +2,6 @@ import { cdsApi } from "@medbrains/api/modules/cds";
 import { opdApi } from "@medbrains/api/modules/opd";
 import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
 import { radiologyApi } from "@medbrains/api/modules/radiology";
-import { setupApi } from "@medbrains/api/modules/setup";
 import { terminologyApi } from "@medbrains/api/modules/terminology";
 
 export const clinicalSupportService = {
@@ -12,8 +11,7 @@ export const clinicalSupportService = {
     radiologyApi.listRadiologyExams(...args),
   listRadiologyModalities: (...args: Parameters<typeof radiologyApi.listRadiologyModalities>) =>
     radiologyApi.listRadiologyModalities(...args),
-  getTenantSettings: (...args: Parameters<typeof setupApi.getTenantSettings>) =>
-    setupApi.getTenantSettings(...args),
+  listClinicalDisplaySettings: opdApi.listClinicalDisplaySettings,
   listPharmacyCatalog: (...args: Parameters<typeof pharmacyApi.listPharmacyCatalog>) =>
     pharmacyApi.listPharmacyCatalog(...args),
   listPrescriptionTemplates: (...args: Parameters<typeof opdApi.listPrescriptionTemplates>) =>

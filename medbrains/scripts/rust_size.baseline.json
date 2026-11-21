@@ -309,7 +309,7 @@
  },
  "crates/medbrains-core/src/access/roles.rs": {
   "function_lines": 0,
-  "file_lines": 2044
+  "file_lines": 2046
  },
  "crates/medbrains-core/src/ai_redact/mod.rs": {
   "function_lines": 0,
@@ -405,7 +405,7 @@
  },
  "crates/medbrains-core/src/permissions.rs": {
   "function_lines": 0,
-  "file_lines": 2464
+  "file_lines": 2467
  },
  "crates/medbrains-core/src/print_data.rs": {
   "function_lines": 0,
@@ -1009,7 +1009,7 @@
  },
  "crates/medbrains-patients/src/lib.rs": {
   "function_lines": 873,
-  "file_lines": 3739
+  "file_lines": 3718
  },
  "crates/medbrains-payment-gateway/src/balance_link/issue.rs": {
   "function_lines": 0,

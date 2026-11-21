@@ -9,10 +9,10 @@ import { render, waitFor } from "@/test/test-utils";
 import { useClinicalSetting } from "./Clinical/useClinicalSetting";
 import { EmergencyCodeActivity } from "./LiveActivityIsland/EmergencyCodeActivity";
 
-const getTenantSettings = vi.fn().mockResolvedValue([]);
+const listClinicalDisplaySettings = vi.fn().mockResolvedValue([]);
 const listCodeActivations = vi.fn().mockResolvedValue([]);
 vi.mock("@/services/clinicalSupport.service", () => ({
-  clinicalSupportService: { getTenantSettings: () => getTenantSettings() },
+  clinicalSupportService: { listClinicalDisplaySettings: () => listClinicalDisplaySettings() },
 }));
 vi.mock("@medbrains/api/modules/emergency", () => ({
   emergencyApi: { listCodeActivations: () => listCodeActivations() },
@@ -30,18 +30,20 @@ afterEach(() => {
 });
 
 describe("hospital clinical settings (vitals, review of systems)", () => {
-  it("are not read by a clinician without admin.settings.read", async () => {
-    usePermissionStore.getState().setPermissions("doctor", ["opd.vitals.create"]);
+  it("are not read by a role without clinical_notes.display_settings.read", async () => {
+    usePermissionStore.getState().setPermissions("custom", ["admin.settings.read"]);
     const { result } = renderHook(() => useClinicalSetting("vital_parameters"), { wrapper });
     await new Promise((r) => setTimeout(r, 20));
-    expect(getTenantSettings).not.toHaveBeenCalled();
+    expect(listClinicalDisplaySettings).not.toHaveBeenCalled();
     expect(result.current).toBeUndefined();
   });
 
-  it("are read by a role that holds admin.settings.read", async () => {
-    usePermissionStore.getState().setPermissions("custom", ["admin.settings.read"]);
+  it("are read by a clinician who holds it", async () => {
+    usePermissionStore
+      .getState()
+      .setPermissions("doctor", ["clinical_notes.display_settings.read"]);
     renderHook(() => useClinicalSetting("ros_systems"), { wrapper });
-    await waitFor(() => expect(getTenantSettings).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(listClinicalDisplaySettings).toHaveBeenCalledTimes(1));
   });
 });
 
