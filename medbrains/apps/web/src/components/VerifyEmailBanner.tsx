@@ -6,7 +6,8 @@ import { toast } from "@/components/ui/toast";
 
 /**
  * Advisory banner shown to a signed-in user whose email isn't verified yet.
- * Login is not blocked — this just nudges + offers a resend.
+ * Login is not blocked — this just nudges + offers a resend. Hidden where the
+ * hospital cannot send email: the link it asks for would never arrive.
  */
 export function VerifyEmailBanner() {
   const { data: me } = useQuery({
@@ -21,7 +22,7 @@ export function VerifyEmailBanner() {
     onError: (err: Error) => toast.error(err.message, { title: "Could not resend" }),
   });
 
-  if (!me || me.email_verified) return null;
+  if (!me || me.email_verified || me.email_can_send === false) return null;
 
   return (
     <Alert tone="warning" title="Verify your email">

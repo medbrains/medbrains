@@ -130,6 +130,7 @@ import { qaApi } from "./modules/qa.js";
 import { qualityApi } from "./modules/quality.js";
 import { queuesApi } from "./modules/queues.js";
 import { radiologyApi } from "./modules/radiology.js";
+import { registrationApi } from "./modules/registration.js";
 import { regulatoryApi } from "./modules/regulatory.js";
 import { reportsApi } from "./modules/reports.js";
 import { researchApi } from "./modules/research.js";
@@ -276,6 +277,7 @@ export const api = {
   ...occHealthApi,
   ...onboardingApi,
   ...opdApi,
+  ...registrationApi,
   ...openapiApi,
   ...orchestrationApi,
   ...orderSetsApi,
