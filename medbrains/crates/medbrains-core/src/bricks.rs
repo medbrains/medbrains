@@ -258,6 +258,9 @@ pub const BASE_PLATE: &[&str] = &[
     // The care view is the ward worklist: IPD and nursing work from it, so it stays when the
     // EMR is switched off (an IPD-only hospital still needs its ward list).
     "care_view",
+    // The hospital's emblem and name in the header and on printed cards: every screen and
+    // print shows them, whatever apps are on.
+    "branding",
 ];
 
 /// Groups that are apps in their own right but have no module switch yet. Each one is a brick
