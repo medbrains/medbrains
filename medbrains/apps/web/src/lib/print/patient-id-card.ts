@@ -38,8 +38,21 @@ function logo(data: OpdCardPrintData): string {
   );
 }
 
-/** The slim header: logo, hospital name, and what the card is. */
+/**
+ * The slim header: logo, hospital name, and what the card is. With a name
+ * banner, the emblem stays on the left and the banner takes the rest of the
+ * row in place of the typed name, scaled down to fit.
+ */
 function header(data: OpdCardPrintData): string {
+  if (data.hospital_name_banner_url) {
+    const emblem = data.hospital_logo_url
+      ? `<img class="logo" src="${esc(data.hospital_logo_url)}" alt="">`
+      : "";
+    return (
+      `<header class="head">${emblem}<img class="banner" src="${esc(data.hospital_name_banner_url)}" ` +
+      `alt="${esc(data.hospital_name)}"></header>`
+    );
+  }
   return (
     `<header class="head">${logo(data)}<div class="hospital">${esc(data.hospital_name)}</div>` +
     `<div class="kind">Patient ID card</div></header>`
@@ -80,6 +93,7 @@ const ID_CARD_CSS = `${PRINT_FONT_FACES}
   .card { width: 85.6mm; height: 54mm; padding: 3mm; display: grid; grid-template-rows: 9mm minmax(0, 1fr); border: 0.3mm solid ${COLOUR.edge}; border-radius: 3mm; overflow: hidden; }
   .head { display: flex; align-items: center; gap: 2mm; min-width: 0; border-bottom: 0.4mm solid ${COLOUR.brand}; }
   .logo { width: 6mm; height: 6mm; flex: none; object-fit: contain; border-radius: 1mm; }
+  .banner { flex: 1 1 auto; min-width: 0; height: 6mm; object-fit: contain; object-position: right center; }
   .initial { display: grid; place-items: center; background: ${COLOUR.brand}; color: ${COLOUR.paper}; font-weight: 700; font-size: 4mm; }
   .initial[hidden] { display: none; }
   .hospital { font-size: 3.6mm; font-weight: 700; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -309,7 +309,7 @@
  },
  "crates/medbrains-core/src/access/roles.rs": {
   "function_lines": 0,
-  "file_lines": 2007
+  "file_lines": 2044
  },
  "crates/medbrains-core/src/ai_redact/mod.rs": {
   "function_lines": 0,
@@ -405,11 +405,11 @@
  },
  "crates/medbrains-core/src/permissions.rs": {
   "function_lines": 0,
-  "file_lines": 2461
+  "file_lines": 2464
  },
  "crates/medbrains-core/src/print_data.rs": {
   "function_lines": 0,
-  "file_lines": 4625
+  "file_lines": 4628
  },
  "crates/medbrains-core/src/quality.rs": {
   "function_lines": 0,
@@ -837,7 +837,7 @@
  },
  "crates/medbrains-mrd/src/lib.rs": {
   "function_lines": 581,
-  "file_lines": 2200
+  "file_lines": 2197
  },
  "crates/medbrains-nhcx-callback/src/golden_tests.rs": {
   "function_lines": 18,
@@ -1008,8 +1008,8 @@
   "file_lines": 351
  },
  "crates/medbrains-patients/src/lib.rs": {
-  "function_lines": 880,
-  "file_lines": 3780
+  "function_lines": 873,
+  "file_lines": 3739
  },
  "crates/medbrains-payment-gateway/src/balance_link/issue.rs": {
   "function_lines": 0,
@@ -1197,7 +1197,7 @@
  },
  "crates/medbrains-print-data/src/general.rs": {
   "function_lines": 0,
-  "file_lines": 528
+  "file_lines": 524
  },
  "crates/medbrains-print-data/src/gst_invoice.rs": {
   "function_lines": 29,
@@ -1596,8 +1596,8 @@
   "file_lines": 310
  },
  "crates/medbrains-setup/src/lib.rs": {
-  "function_lines": 554,
-  "file_lines": 5162
+  "function_lines": 551,
+  "file_lines": 5104
  },
  "crates/medbrains-setup/src/workbook/beds.rs": {
   "function_lines": 25,

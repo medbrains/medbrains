@@ -20,7 +20,6 @@ use medbrains_core::print_data::{
     PatientCardPrintData, PrescriptionHeaderRow, PrescriptionPrintData, RadiologyReportPrintData,
 };
 
-use medbrains_kernel::authz::is_bypass_role;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
@@ -334,6 +333,8 @@ struct PatientCardRow {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// The thermal patient card: identity, a QR of the UHID, and the hospital's
+/// emblem and name banner for the header.
 pub async fn get_patient_card_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -341,7 +342,7 @@ pub async fn get_patient_card_print_data(
 ) -> Result<Json<PatientCardPrintData>, AppError> {
     // The desk reprints a lost card for any patient, identity only. Everyone
     // else prints through their relationship with the patient.
-    let desk_reprint = holds_card_reprint(&claims);
+    let desk_reprint = crate::opd_card::holds_card_reprint(&claims);
     let permit = if desk_reprint {
         kernel::authz::permit(&claims, permissions::patients::card::REPRINT)?
     } else {
@@ -373,9 +374,14 @@ pub async fn get_patient_card_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    // The card's header: emblem, name banner or name, the CR80 card's source.
+    let hospital = crate::opd_card::hospital_row(&mut tx, claims.tenant_id).await?;
     tx.commit().await?;
 
     Ok(Json(PatientCardPrintData {
+        hospital_name: hospital.name,
+        hospital_logo_url: hospital.logo_url,
+        hospital_name_banner_url: hospital.name_banner_url,
         patient_name: row.patient_name,
         uhid: row.uhid,
         date_of_birth: row.date_of_birth.map(|d| d.format("%d-%b-%Y").to_string()),
@@ -392,17 +398,6 @@ pub async fn get_patient_card_print_data(
             .format("%d-%b-%Y")
             .to_string(),
     }))
-}
-
-/// Whether these claims reprint cards as the desk: holding
-/// `patients.card.reprint` outright, not through a bypass role, which already
-/// reaches every patient through the ordinary path.
-pub(crate) fn holds_card_reprint(claims: &Claims) -> bool {
-    !is_bypass_role(claims)
-        && claims
-            .permissions
-            .iter()
-            .any(|code| code == permissions::patients::card::REPRINT)
 }
 
 // ── Helper: fetch hospital name from tenants table ───────

@@ -6,6 +6,7 @@ import { renderTokenTicket, tokenSizeMm } from "./token-ticket";
 const TICKET: OpdCardPrintData = {
   hospital_name: "Rishi Hospital",
   hospital_logo_url: null,
+  hospital_name_banner_url: null,
   hospital_address: "12 Temple Road, Madurai",
   hospital_phone: "0452 400 1234",
   hospital_registration_no: "TN/CE/2026/0451",

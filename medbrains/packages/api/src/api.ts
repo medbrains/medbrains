@@ -26,6 +26,7 @@ import { billingApi } from "./modules/billing.js";
 import { blogApi } from "./modules/blog.js";
 import { bloodBankApi } from "./modules/blood-bank.js";
 import { bmeApi } from "./modules/bme.js";
+import { brandingApi } from "./modules/branding.js";
 import { breakGlassApi } from "./modules/break-glass.js";
 import { bridgeApi } from "./modules/bridge.js";
 import { campApi } from "./modules/camp.js";
@@ -277,6 +278,7 @@ export const api = {
   ...occHealthApi,
   ...onboardingApi,
   ...opdApi,
+  ...brandingApi,
   ...registrationApi,
   ...openapiApi,
   ...orchestrationApi,
