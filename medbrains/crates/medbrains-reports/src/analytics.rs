@@ -47,18 +47,7 @@ use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::report_runner::begin_report;
 use medbrains_server_core::state::AppState;
 
-fn default_range(params: &DateRangeQuery) -> (String, String) {
-    let to = params
-        .to
-        .clone()
-        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
-    let from = params.from.clone().unwrap_or_else(|| {
-        (chrono::Utc::now() - chrono::Duration::days(30))
-            .format("%Y-%m-%d")
-            .to_string()
-    });
-    (from, to)
-}
+use crate::report_dates::default_range;
 
 // ── 1. Department Revenue ──────────────────────────────────
 pub async fn dept_revenue(
@@ -68,7 +57,7 @@ pub async fn dept_revenue(
 ) -> Result<Json<Vec<DeptRevenueRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "dept_revenue").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, DeptRevenueRow>(
         "SELECT COALESCE(d.name, 'Unassigned') AS department_name, \
          SUM(ii.total_price)::float8 AS revenue, \
@@ -96,7 +85,7 @@ pub async fn doctor_revenue(
 ) -> Result<Json<Vec<DoctorRevenueRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "doctor_revenue").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, DoctorRevenueRow>(
         "SELECT COALESCE(u.full_name, 'Unknown') AS doctor_name, \
          COALESCE(d.name, 'Unassigned') AS department_name, \
@@ -126,7 +115,7 @@ pub async fn ipd_census(
 ) -> Result<Json<Vec<IpdCensusRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "ipd_census").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, IpdCensusRow>(
         "WITH dates AS ( \
            SELECT d::date AS date FROM generate_series($1::date, $2::date, '1 day') d \
@@ -153,7 +142,7 @@ pub async fn lab_tat(
 ) -> Result<Json<Vec<LabTatRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "lab_tat").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, LabTatRow>(
         "SELECT tc.name AS test_name, COUNT(lo.id)::bigint AS order_count, \
          AVG(EXTRACT(EPOCH FROM (lo.completed_at - lo.created_at)) / 60)::float8 AS avg_tat_mins, \
@@ -177,7 +166,7 @@ pub async fn pharmacy_sales(
 ) -> Result<Json<Vec<PharmacySalesRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "pharmacy_sales").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, PharmacySalesRow>(
         "SELECT poi.drug_name, pc.category, \
          SUM(poi.quantity)::bigint AS quantity_sold, SUM(poi.total_price)::float8 AS total_revenue \
@@ -200,7 +189,7 @@ pub async fn ot_utilization(
 ) -> Result<Json<Vec<OtUtilizationRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "ot_utilization").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, OtUtilizationRow>(
         "SELECT r.name AS room_name, COUNT(b.id)::bigint AS total_bookings, \
          COUNT(b.id) FILTER (WHERE b.status = 'completed')::bigint AS completed, \
@@ -227,7 +216,7 @@ pub async fn er_volume(
 ) -> Result<Json<Vec<ErVolumeRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "er_volume").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, ErVolumeRow>(
         "SELECT arrival_time::date AS date, COUNT(*)::bigint AS total_visits, \
          COUNT(*) FILTER (WHERE triage_level = 'immediate')::bigint AS immediate, \
@@ -256,7 +245,7 @@ pub async fn clinical_indicators(
 ) -> Result<Json<Vec<ClinicalIndicatorRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "clinical_indicators").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, ClinicalIndicatorRow>(
         "WITH monthly AS ( \
            SELECT to_char(a.admitted_at, 'YYYY-MM') AS period, \
@@ -293,7 +282,7 @@ pub async fn opd_footfall(
 ) -> Result<Json<Vec<OpdFootfallRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "opd_footfall").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, OpdFootfallRow>(
         "SELECT e.encounter_date AS date, COALESCE(d.name, 'Unassigned') AS department_name, \
          COUNT(*)::bigint AS visit_count, \
@@ -332,7 +321,7 @@ pub async fn opd_queue_wait(
 ) -> Result<Json<Vec<OpdQueueWaitRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "opd_queue_wait").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, OpdQueueWaitRow>(
         "SELECT q.queue_date, \
                 EXTRACT(HOUR FROM q.created_at)::int AS hour_of_day, \
@@ -381,7 +370,7 @@ pub async fn lab_critical_value_compliance(
 ) -> Result<Json<Vec<LabCriticalValueComplianceRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "lab_critical_value_compliance").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, LabCriticalValueComplianceRow>(
         "SELECT a.created_at::date AS alert_date, \
                 COUNT(*)::bigint AS critical_values, \
@@ -537,7 +526,7 @@ pub async fn discharge_summary_completion(
 ) -> Result<Json<Vec<DischargeSummaryCompletionRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "discharge_summary_completion").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, DischargeSummaryCompletionRow>(
         "SELECT a.discharged_at::date AS discharge_date, \
                 COUNT(*)::bigint AS discharges, \
@@ -590,7 +579,7 @@ pub async fn hai_rate(
 ) -> Result<Json<Vec<HaiRateRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "hai_rate").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, HaiRateRow>(
         "WITH events AS ( \
              SELECT date_trunc('month', e.infection_date)::date AS month, \
@@ -676,7 +665,7 @@ pub async fn hand_hygiene_compliance(
 ) -> Result<Json<Vec<HandHygieneComplianceRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "hand_hygiene_compliance").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, HandHygieneComplianceRow>(
         "SELECT date_trunc('month', a.audit_date)::date AS month, \
                 COALESCE(a.staff_category, 'unspecified') AS staff_category, \
@@ -727,7 +716,7 @@ pub async fn readmission_watch(
 ) -> Result<Json<Vec<ReadmissionRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "readmission_watch").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, ReadmissionRow>(
         "SELECT date_trunc('month', a.discharged_at)::date AS month, \
                 COUNT(*) FILTER (WHERE NOT died)::bigint AS eligible_discharges, \
@@ -799,7 +788,7 @@ pub async fn ot_cancellations(
 ) -> Result<Json<Vec<OtCancellationRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "ot_cancellations").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, OtCancellationRow>(
         "WITH scheduled AS ( \
              SELECT COUNT(*)::bigint AS total \
@@ -862,7 +851,7 @@ pub async fn sample_rejections(
 ) -> Result<Json<Vec<SampleRejectionRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "sample_rejections").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, SampleRejectionRow>(
         "WITH ordered AS ( \
              SELECT COUNT(*)::bigint AS total \
@@ -924,7 +913,7 @@ pub async fn radiology_tat(
 ) -> Result<Json<Vec<RadiologyTatRow>>, AppError> {
     require_permission(&claims, permissions::analytics::VIEW)?;
     let (mut tx, run) = begin_report(&state, &claims, "radiology_tat").await?;
-    let (from, to) = default_range(&params);
+    let (from, to) = default_range(&mut tx, claims.tenant_id, &params).await?;
     let rows = sqlx::query_as::<_, RadiologyTatRow>(
         "SELECT date_trunc('month', o.created_at)::date AS month, \
                 o.priority::text AS priority, \

@@ -62,11 +62,10 @@ import { EncounterNav } from "./encounter-nav";
 import { FollowUpTab } from "./follow-up";
 import { GroupAppointmentModal } from "./group-appointment-modal";
 import { InvestigationsTab } from "./investigations";
+import { ChartsTab, VitalsTab } from "./lazy-parts";
 import { PrescriptionsWorkspace } from "./prescriptions-workspace";
 import { SpecialtyTab } from "./specialty-tab";
 import { CertificatesTab } from "./tabs/certificates-tab";
-import { ChartsTab } from "./tabs/charts-tab";
-import { VitalsTab } from "./vitals";
 import {
   ConsentsTab,
   DocketTab,
