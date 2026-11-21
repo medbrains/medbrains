@@ -595,6 +595,8 @@ export interface CreatePatientRequest {
   opd_number?: string;
   /** The day that number was issued in the paper register (YYYY-MM-DD); today if absent. */
   opd_date?: string;
+  /** The register number typed as the UHID, in the hospital's one-number mode. */
+  uhid?: string;
   abha_number?: string;
   abha_address?: string;
   /** The desk's "Verify ABHA" record; with it the ABHA is saved as verified. */
@@ -910,8 +912,11 @@ export interface HealthAppReadingsResult {
   refused: { external_id: string; reason: string }[];
 }
 
-/** Whether a hospital keeps its own OPD number, who picks it, and what it belongs to. */
-export type OpdNumberMode = "off" | "manual" | "auto";
+/**
+ * Whether a hospital keeps its own OPD number, who picks it, and what it belongs to.
+ * `uhid`: one number, no OPD number; the desk types the register number as the UHID.
+ */
+export type OpdNumberMode = "off" | "manual" | "auto" | "uhid";
 export type OpdNumberScope = "visit" | "patient";
 
 /** The hospital's OPD number policy (`PUT /registration/opd-number/policy`). */

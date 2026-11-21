@@ -21,10 +21,10 @@ export interface VisitOpdEntry {
 /**
  * Whether this visit asks for an OPD number: per visit, always; per patient,
  * only for a patient who has none yet (registered before the hospital turned
- * it on). Off: never.
+ * it on). Off, or one number (the UHID is the register number): never.
  */
 export function visitAsksForNumber(view: OpdNumberView | undefined, patientHas: boolean): boolean {
-  if (!view || view.mode === "off") return false;
+  if (!view || view.mode === "off" || view.mode === "uhid") return false;
   return view.scope === "visit" || !patientHas;
 }
 

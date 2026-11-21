@@ -141,10 +141,13 @@ function OpdNumberPolicyForm({ view }: { view: OpdNumberView }) {
     mutationFn: () => patientsService.updateOpdNumberPolicy(policy),
     onSuccess: (saved) => {
       queryClient.setQueryData(OPD_NUMBER_QUERY_KEY, saved);
+      // Whether the list and search offer the OPD number follows the mode.
+      void queryClient.invalidateQueries({ queryKey: ["registration-search-settings"] });
       toast.success("OPD number setting saved");
     },
   });
-  const isOn = policy.mode !== "off";
+  const isOneNumber = policy.mode === "uhid";
+  const isOn = policy.mode !== "off" && !isOneNumber;
   return (
     <Stack gap="md" maw={560}>
       <Text fw={600} size="lg">
@@ -154,14 +157,23 @@ function OpdNumberPolicyForm({ view }: { view: OpdNumberView }) {
         The hospital's own OPD number, kept beside the UHID: the number on the paper card and
         register. Off keeps registration as it is.
       </Text>
-      <Input.Wrapper label="OPD number">
-        <SegmentedControl
-          data={MODES}
-          value={policy.mode}
-          onChange={(mode) => set({ mode: mode as OpdNumberMode })}
-          fullWidth
-        />
-      </Input.Wrapper>
+      <Switch
+        label="One number: the register number is the UHID"
+        description="The desk types the paper register's number as the UHID, with the next one filled in. No separate OPD number. Needs UHIDs without a prefix."
+        checked={isOneNumber}
+        onChange={(e) => set({ mode: e.currentTarget.checked ? "uhid" : "off" })}
+      />
+      {isOneNumber && <OneNumberFields policy={policy} view={view} onChange={set} />}
+      {!isOneNumber && (
+        <Input.Wrapper label="OPD number">
+          <SegmentedControl
+            data={MODES}
+            value={policy.mode}
+            onChange={(mode) => set({ mode: mode as OpdNumberMode })}
+            fullWidth
+          />
+        </Input.Wrapper>
+      )}
       {isOn && (
         <>
           <Input.Wrapper label="Belongs to" description="Per patient: typed once at registration.">
@@ -208,5 +220,34 @@ function OpdNumberPolicyForm({ view }: { view: OpdNumberView }) {
         </Button>
       </Group>
     </Stack>
+  );
+}
+
+interface OneNumberFieldsProps {
+  policy: OpdNumberPolicy;
+  view: OpdNumberView;
+  onChange: (patch: Partial<OpdNumberPolicy>) => void;
+}
+
+/**
+ * One-number mode's settings: whether the desk may give an earlier register
+ * date, and the UHID series' next number once the mode is saved.
+ */
+function OneNumberFields({ policy, view, onChange }: OneNumberFieldsProps) {
+  return (
+    <>
+      <Switch
+        label="Allow an earlier register date"
+        description="For entering old paper records. Needs the backdate permission."
+        checked={policy.allow_backdate}
+        onChange={(e) => onChange({ allow_backdate: e.currentTarget.checked })}
+      />
+      {view.mode === "uhid" && (
+        <Text size="sm">
+          Next UHID: <strong>{view.next}</strong>
+          {view.previous ? ` · last used ${view.previous}` : ""}
+        </Text>
+      )}
+    </>
   );
 }

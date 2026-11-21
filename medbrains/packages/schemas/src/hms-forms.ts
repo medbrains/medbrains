@@ -1573,6 +1573,7 @@ export const patientRegistrationFormSchema = z
     campaign_id: z.string().optional(),
     opd_number: z.string().optional(),
     opd_date: z.string().optional(),
+    uhid: z.string().optional(),
     camp_name: z.string().optional(),
     initial_diagnosis_text: z.string().optional(),
     icd10_code: z.string().optional(),
