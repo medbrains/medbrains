@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1259 permissions, one per constant in the Rust source. */
+/** 1260 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -240,6 +240,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "clinical_notes.export",
     label: "Export a visit's notes as FHIR",
     description: "The signed notes as FHIR R4 Compositions, for another hospital, ABDM or an integration; drafts are never exported.",
+    module: "clinical_notes",
+  },
+  {
+    code: "clinical_notes.display_settings.read",
+    label: "Read the hospital's vitals and ROS lists",
+    description: "Which vitals the recorder offers and which systems the review of systems lists, as the hospital set them; nothing else from settings.",
     module: "clinical_notes",
   },
   // home_health
@@ -7702,6 +7708,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CLINICAL.ORDER_BASKET_DRAFT,
       P.CLINICAL.ORDER_BASKET_SIGN,
       P.CLINICAL_NOTES.COSIGN,
+      P.CLINICAL_NOTES.DISPLAY_SETTINGS.READ,
       P.CLINICAL_NOTES.EXPORT,
       P.CLINICAL_NOTES.MARK_IN_ERROR,
       P.CLINICAL_NOTES.PRINT,
@@ -8047,6 +8054,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CHRONIC.ENROLLMENTS.LIST,
       P.CHRONIC.OUTCOMES.VIEW,
       P.CHRONIC.TIMELINE.VIEW,
+      P.CLINICAL_NOTES.DISPLAY_SETTINGS.READ,
       P.CLINICAL_NOTES.MARK_IN_ERROR,
       P.CLINICAL_NOTES.SIGN,
       P.CLINICAL_NOTES.VIEW,

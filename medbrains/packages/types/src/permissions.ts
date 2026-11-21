@@ -905,6 +905,10 @@ export const P = {
   },
   CLINICAL_NOTES: {
     COSIGN: "clinical_notes.cosign",
+    DISPLAY_SETTINGS: {
+      READ: "clinical_notes.display_settings.read",
+    },
+    DISPLAY_SETTINGS_READ: "clinical_notes.display_settings.read",
     EXPORT: "clinical_notes.export",
     MARK_IN_ERROR: "clinical_notes.mark_in_error",
     PRINT: "clinical_notes.print",

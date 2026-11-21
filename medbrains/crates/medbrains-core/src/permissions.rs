@@ -212,6 +212,13 @@ pub mod clinical_notes {
     /// The signed notes as FHIR R4 Compositions, for another hospital, ABDM
     /// or an integration; drafts are never exported.
     pub const EXPORT: &str = "clinical_notes.export";
+    /// Settings a clinician's charting screens read.
+    pub mod display_settings {
+        /// Read the hospital's vitals and ROS lists.
+        /// Which vitals the recorder offers and which systems the review of
+        /// systems lists, as the hospital set them; nothing else from settings.
+        pub const READ: &str = "clinical_notes.display_settings.read";
+    }
 }
 
 pub mod home_health {
