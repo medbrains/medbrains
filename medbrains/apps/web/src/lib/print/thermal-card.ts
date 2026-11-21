@@ -1,5 +1,5 @@
 import type { PatientCardPrintData } from "@medbrains/types";
-import { esc, type PrintPage } from "./print-html";
+import { esc, genderLabel, type PrintPage } from "./print-html";
 import { qrSvgMarkup } from "./qr-svg";
 
 /**
@@ -69,7 +69,7 @@ function marks(data: PatientCardPrintData): string {
  * card. The age line only appears when there is one; "— yrs" reads as a fault.
  */
 export function renderThermalCard(data: PatientCardPrintData): PrintPage {
-  const ageLine = [data.age, data.gender].filter(Boolean).join(" · ");
+  const ageLine = [data.age, genderLabel(data.gender)].filter(Boolean).join(" · ");
   const dob = data.date_of_birth ? `<br/>DOB ${esc(data.date_of_birth)}` : "";
   return {
     css: CSS,

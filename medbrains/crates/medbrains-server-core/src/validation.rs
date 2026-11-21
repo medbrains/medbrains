@@ -410,13 +410,13 @@ mod password_tests {
 
     #[test]
     fn password_holding_hospital_name_or_code_refused() {
-        let base = PasswordCheck::from("Rishi-Care#2049x");
+        let base = PasswordCheck::from("Sample-Care#2049x");
         assert!(refused(PasswordCheck {
-            hospital_code: "RISHI",
+            hospital_code: "SAMPLE",
             ..base
         }));
         assert!(refused(PasswordCheck {
-            hospital_name: "Rishi Care",
+            hospital_name: "Sample Care",
             ..base
         }));
         assert!(!refused(base));

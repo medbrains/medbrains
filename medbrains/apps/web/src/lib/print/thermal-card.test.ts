@@ -44,4 +44,14 @@ describe("renderThermalCard", () => {
     expect(body).toContain('<span class="typed">Example Care Centre</span>');
     expect(body).not.toContain('class="banner"');
   });
+
+  it("prints the sex as the CR80 card does, capitalised", () => {
+    expect(renderThermalCard(CARD).body).toContain("34 yrs · Female");
+  });
+
+  it("prints the registration date the patient card carries", () => {
+    const { body } = renderThermalCard(CARD);
+    expect(body).toContain("Registered 17-Nov-2026");
+    expect(body).not.toContain("Registered —");
+  });
 });
