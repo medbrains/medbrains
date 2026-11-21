@@ -1,5 +1,5 @@
 import { Grid, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { formsApi } from "@medbrains/api/modules/forms";
 import { useHasPermission } from "@medbrains/stores";
 import { type FormDefinition, type FormTemplateDetail, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +23,7 @@ interface FormEditorDrawerProps {
 export function FormEditorDrawer({ templateId, onClose }: FormEditorDrawerProps) {
   const detail = useQuery({
     queryKey: ["form-template", templateId],
-    queryFn: () => api.getFormTemplate(templateId ?? ""),
+    queryFn: () => formsApi.getFormTemplate(templateId ?? ""),
     enabled: templateId !== null,
   });
   return (
@@ -53,12 +53,12 @@ function FormEditor({ detail }: { detail: FormTemplateDetail }) {
     void queryClient.invalidateQueries({ queryKey: ["form-templates"] });
   };
   const save = useMutation({
-    mutationFn: (values: DraftForm) => api.updateFormTemplate(template.id, values),
+    mutationFn: (values: DraftForm) => formsApi.updateFormTemplate(template.id, values),
   });
   const publish = useMutation({
     mutationFn: async (values: DraftForm) => {
-      await api.updateFormTemplate(template.id, values);
-      return api.publishFormTemplate(template.id);
+      await formsApi.updateFormTemplate(template.id, values);
+      return formsApi.publishFormTemplate(template.id);
     },
     onSuccess: (version) => {
       refresh();
@@ -66,7 +66,7 @@ function FormEditor({ detail }: { detail: FormTemplateDetail }) {
     },
   });
   const retire = useMutation({
-    mutationFn: () => api.retireFormTemplate(template.id),
+    mutationFn: () => formsApi.retireFormTemplate(template.id),
     onSuccess: () => {
       refresh();
       toast.success("Staff go back to the built-in form, if there is one.", { title: "Retired" });

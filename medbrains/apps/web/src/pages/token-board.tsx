@@ -1,5 +1,5 @@
 import { Card, Group, Stack } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { useHasAnyPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -34,7 +34,7 @@ export function TokenBoardPage() {
 
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => setupApi.listDepartments(),
     staleTime: 600_000,
     enabled: canListDepartments,
   });

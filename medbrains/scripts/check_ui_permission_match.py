@@ -46,7 +46,7 @@ import re
 import sys
 from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from api_client_source import api_client_source  # noqa: E402
+from api_client_source import api_client_source, api_object_pattern  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CRATES = os.path.join(ROOT, "crates")
@@ -115,7 +115,7 @@ RE_CALL_GATE = re.compile(
     r'permission:\s*"([a-z0-9_.]+)"[^}]{0,400}?'
     r"(?:run|queryFn|mutationFn):[^\n]*?\.(\w+)\("
 )
-RE_CALL = re.compile(r"\b(\w+Service|apiClient|api)\.(\w+)\s*\(")
+RE_CALL = re.compile(r"\b(\w+Service|apiClient|" + api_object_pattern() + r")\.(\w+)\s*\(")
 
 # Files that enumerate codes rather than enforce them.
 ENUMERATORS = ("medbrains-loadtest/src/generated.rs", "medbrains-seed/src")
@@ -158,7 +158,7 @@ def catalogue() -> dict[str, str]:
 
 
 SERVICES = os.path.join(WEB_SRC, "services")
-RE_ALIAS = re.compile(r"^\s*(\w+):\s*api\.(\w+)\s*,", re.M)
+RE_ALIAS = re.compile(r"^\s*(\w+):\s*" + api_object_pattern() + r"\.(\w+)\s*,", re.M)
 
 
 def service_aliases() -> dict[tuple[str, str], str]:

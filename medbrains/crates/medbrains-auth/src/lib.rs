@@ -24,6 +24,7 @@ use medbrains_server_core::{
 };
 
 mod hospital;
+mod me_flags;
 mod sign_in_options;
 
 // ── Login ───────────────────────────────────────────────────
@@ -1018,6 +1019,8 @@ pub struct MeResponse {
     /// A rule every user is subject to, so every user reads it here; the
     /// security settings themselves stay admin-only.
     pub restrict_copy: bool,
+    /// The hospital can send email, so asking the user to verify theirs makes sense.
+    pub email_can_send: bool,
 }
 
 pub async fn me(
@@ -1054,16 +1057,10 @@ pub async fn me(
             disabled_modules.push(code.to_owned());
         }
     }
-    let restrict_copy: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1 \
-         AND category = 'security' AND key = 'restrict_copy' \
-         AND value IN ('true'::jsonb, '\"true\"'::jsonb))",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
+    let (restrict_copy, email_configured) = me_flags::read(&mut tx, claims.tenant_id).await?;
     tx.commit().await?;
+    let email_can_send =
+        me_flags::email_can_send(email_configured, state.secret_resolver.as_ref()).await;
 
     let Some(row) = row else {
         return Err(AppError::NotFound);
@@ -1117,6 +1114,7 @@ pub async fn me(
         mfa_enrollment_required,
         disabled_modules,
         restrict_copy,
+        email_can_send,
     }))
 }
 

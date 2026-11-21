@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { setupApi } from "@medbrains/api/modules/setup";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Switch, toast } from "@/components/ui";
 import { TokenCallSmsCard } from "./TokenCallSmsCard";
@@ -19,12 +19,12 @@ export function TokensSettings() {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ["tenant-settings", "tokens"],
-    queryFn: () => api.getTenantSettings("tokens"),
+    queryFn: () => setupApi.getTenantSettings("tokens"),
   });
 
   const update = useMutation({
     mutationFn: (input: { module: string; enabled: boolean }) =>
-      api.updateTenantSetting({
+      setupApi.updateTenantSetting({
         category: "tokens",
         key: `${input.module}_enabled`,
         value: { enabled: input.enabled },

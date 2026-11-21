@@ -10,6 +10,7 @@ pub mod billing_lanes;
 pub mod charge_queue;
 pub mod llm;
 pub mod mrd_lock;
+pub mod opd_number;
 pub mod patient_identity;
 pub mod patient_match;
 pub mod pharmacy_customer;

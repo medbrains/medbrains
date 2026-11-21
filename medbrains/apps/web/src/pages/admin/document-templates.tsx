@@ -1,6 +1,7 @@
 import { Flex, Group, Paper, ScrollArea, Stack, Text, Textarea, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { apiApi } from "@medbrains/api/modules/api";
+import { documentsApi } from "@medbrains/api/modules/documents";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconCheck, IconRefresh, IconRestore } from "@tabler/icons-react";
@@ -29,14 +30,14 @@ export function DocumentTemplatesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["render-templates"],
-    queryFn: () => api.listRenderTemplates(),
+    queryFn: () => documentsApi.listRenderTemplates(),
   });
   const templates = data?.templates ?? [];
   const current = templates.find((t) => t.code === selected) ?? null;
 
   const saveMutation = useMutation({
     mutationFn: (payload: { code: string; html: string | null }) =>
-      api.saveRenderTemplate(payload.code, { html: payload.html }),
+      documentsApi.saveRenderTemplate(payload.code, { html: payload.html }),
     onSuccess: () => {
       notifications.show({
         title: "Template saved",
@@ -159,7 +160,7 @@ export function DocumentTemplatesPage() {
               <iframe
                 key={previewNonce}
                 title="Template preview"
-                src={api.previewRenderTemplateUrl(current.code)}
+                src={apiApi.previewRenderTemplateUrl(current.code)}
                 style={{ width: "100%", height: "76vh", border: "1px solid #e7ebe8" }}
               />
             </ScrollArea>

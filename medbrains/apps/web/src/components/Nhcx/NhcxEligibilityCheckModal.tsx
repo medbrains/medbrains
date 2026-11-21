@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import type { NhcxParticipant } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -37,7 +37,7 @@ export function NhcxEligibilityCheckModal({
 
   const check = useMutation({
     mutationFn: () =>
-      api.checkNhcxEligibility({
+      insuranceApi.checkNhcxEligibility({
         patient_id: patientId,
         recipient_code: recipientCode ?? "",
         trigger_point: triggerPoint,

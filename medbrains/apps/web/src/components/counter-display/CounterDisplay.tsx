@@ -1,5 +1,5 @@
 import { Box, Group, Text, useMantineColorScheme } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { tokensApi } from "@medbrains/api/modules/tokens";
 import type { CounterDisplayState } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -58,7 +58,7 @@ export function CounterDisplay({ token }: CounterDisplayProps) {
   const voice = useQuery({
     queryKey: ["counter-display-voice", view?.station_id],
     queryFn: async () => {
-      const config = await api.getBoardConfig({
+      const config = await tokensApi.getBoardConfig({
         module: view?.station_type === "pharmacy_counter" ? "pharmacy" : "billing",
         scope: "station",
         scope_id: view?.station_id,

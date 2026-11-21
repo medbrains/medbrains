@@ -1,21 +1,30 @@
-import { api } from "@medbrains/api";
+import { clinicalNotesApi } from "@medbrains/api/modules/clinical-notes";
+import { encountersApi } from "@medbrains/api/modules/encounters";
+import { fhirApi } from "@medbrains/api/modules/fhir";
+import { patientsApi } from "@medbrains/api/modules/patients";
 
 export const clinicalNotesService = {
-  listNoteTypes: (...args: Parameters<typeof api.listNoteTypes>) => api.listNoteTypes(...args),
-  listMyUnsignedNotes: () => api.listMyUnsignedNotes(),
-  exportVisitFhir: (encounterId: string) => api.searchFhirCompositions(encounterId),
-  listPatientNotes: (...args: Parameters<typeof api.listPatientNotes>) =>
-    api.listPatientNotes(...args),
-  listEncounterNotes: (...args: Parameters<typeof api.listEncounterNotes>) =>
-    api.listEncounterNotes(...args),
-  createNote: (...args: Parameters<typeof api.createNote>) => api.createNote(...args),
-  saveNoteDraft: (...args: Parameters<typeof api.saveNoteDraft>) => api.saveNoteDraft(...args),
-  signNote: (...args: Parameters<typeof api.signNote>) => api.signNote(...args),
-  reviseNote: (...args: Parameters<typeof api.reviseNote>) => api.reviseNote(...args),
-  discardNote: (...args: Parameters<typeof api.discardNote>) => api.discardNote(...args),
-  countersignNote: (noteId: string) => api.countersignNote(noteId),
-  returnNote: (noteId: string, comment: string) => api.returnNote(noteId, comment),
-  listPendingCountersign: () => api.listPendingCountersign(),
-  markNoteInError: (...args: Parameters<typeof api.markNoteInError>) =>
-    api.markNoteInError(...args),
+  listNoteTypes: (...args: Parameters<typeof clinicalNotesApi.listNoteTypes>) =>
+    clinicalNotesApi.listNoteTypes(...args),
+  listMyUnsignedNotes: () => clinicalNotesApi.listMyUnsignedNotes(),
+  exportVisitFhir: (encounterId: string) => fhirApi.searchFhirCompositions(encounterId),
+  listPatientNotes: (...args: Parameters<typeof patientsApi.listPatientNotes>) =>
+    patientsApi.listPatientNotes(...args),
+  listEncounterNotes: (...args: Parameters<typeof encountersApi.listEncounterNotes>) =>
+    encountersApi.listEncounterNotes(...args),
+  createNote: (...args: Parameters<typeof encountersApi.createNote>) =>
+    encountersApi.createNote(...args),
+  saveNoteDraft: (...args: Parameters<typeof clinicalNotesApi.saveNoteDraft>) =>
+    clinicalNotesApi.saveNoteDraft(...args),
+  signNote: (...args: Parameters<typeof clinicalNotesApi.signNote>) =>
+    clinicalNotesApi.signNote(...args),
+  reviseNote: (...args: Parameters<typeof clinicalNotesApi.reviseNote>) =>
+    clinicalNotesApi.reviseNote(...args),
+  discardNote: (...args: Parameters<typeof clinicalNotesApi.discardNote>) =>
+    clinicalNotesApi.discardNote(...args),
+  countersignNote: (noteId: string) => clinicalNotesApi.countersignNote(noteId),
+  returnNote: (noteId: string, comment: string) => clinicalNotesApi.returnNote(noteId, comment),
+  listPendingCountersign: () => clinicalNotesApi.listPendingCountersign(),
+  markNoteInError: (...args: Parameters<typeof clinicalNotesApi.markNoteInError>) =>
+    clinicalNotesApi.markNoteInError(...args),
 };

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, SimpleGrid, Stack } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -44,7 +44,7 @@ export function NhcxSearchForm() {
   });
   const search = useMutation({
     mutationFn: (v: SearchForm) =>
-      api.searchNhcxClaims({
+      insuranceApi.searchNhcxClaims({
         recipient_code: v.recipient_code,
         from_date: v.from_date,
         to_date: v.to_date,

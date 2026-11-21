@@ -1,5 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { ApiError, api } from "@medbrains/api";
+import { ApiError } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { P, type SimulatorInboxQuery } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -28,7 +29,7 @@ export function MessageSimulatorPage() {
   // An empty query is the probe: 200 when the simulator is on, 404 when off.
   const inbox = useQuery({
     queryKey: ["message-simulator", query],
-    queryFn: () => api.listSimulatedMessages(query ?? {}),
+    queryFn: () => adminApi.listSimulatedMessages(query ?? {}),
     refetchInterval: 3000,
     retry: false,
   });

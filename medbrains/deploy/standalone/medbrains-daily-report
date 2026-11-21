@@ -44,18 +44,11 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 # psql as medbrains_report. The password goes in PGPASSWORD, never argv.
-# The host's psql when installed; otherwise the dedicated tier's Postgres
-# container, whose loopback is where the URL's 127.0.0.1 points.
 report_psql() {
     local pw no_pw
     pw="$(sed -nE 's|^[a-z]+://[^:@/]*:([^@]*)@.*$|\1|p' <<<"$REPORT_DATABASE_URL")"
     no_pw="$(sed -E 's|^([a-z]+://[^:@/]*):[^@]*@|\1@|' <<<"$REPORT_DATABASE_URL")"
-    if command -v psql >/dev/null 2>&1; then
-        PGPASSWORD="$pw" psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 "$no_pw" "$@"
-    else
-        PGPASSWORD="$pw" docker exec -i -e PGPASSWORD medbrains-postgres \
-            psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 "$no_pw" "$@"
-    fi
+    PGPASSWORD="$pw" psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 "$no_pw" "$@"
 }
 
 # The class of a failure, for the email. The full message stays in the
@@ -65,7 +58,7 @@ error_class() { # stderr-file
     e="$(cat "$1")"
     case "$e" in
         *"password authentication failed"*|*"no pg_hba.conf entry"*) echo "database login refused" ;;
-        *"could not connect"*|*"Connection refused"*|*"No such container"*|*"server closed"*) echo "database unreachable" ;;
+        *"could not connect"*|*"Connection refused"*|*"server closed"*) echo "database unreachable" ;;
         *"permission denied"*) echo "permission denied (grants for medbrains_report)" ;;
         *"does not exist"*) echo "schema mismatch (a table or column is missing)" ;;
         *"statement timeout"*|*"canceling statement"*) echo "query timed out" ;;

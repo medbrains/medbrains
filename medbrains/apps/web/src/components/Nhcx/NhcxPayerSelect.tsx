@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { nhcxApi } from "@medbrains/api/modules/nhcx";
 import type { NhcxParticipant } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Select } from "@/components/ui";
@@ -16,7 +16,7 @@ interface NhcxPayerSelectProps {
 export function NhcxPayerSelect({ value, onChange, enabled = true, error }: NhcxPayerSelectProps) {
   const payers = useQuery({
     queryKey: ["nhcx-participants"],
-    queryFn: () => api.listNhcxParticipants(),
+    queryFn: () => nhcxApi.listNhcxParticipants(),
     enabled,
   });
   const list = payers.data ?? [];

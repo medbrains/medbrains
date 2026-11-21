@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT GREATEST(\n             (SELECT max((substring(opd_number FROM '([0-9]+)$'))::bigint) FROM patients\n               WHERE tenant_id = $1 AND opd_number IS NOT NULL AND deleted_at IS NULL),\n             (SELECT max((substring(encounter_number FROM '([0-9]+)$'))::bigint) FROM encounters\n               WHERE tenant_id = $1 AND encounter_number IS NOT NULL AND deleted_at IS NULL)\n           ) AS \"previous\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "previous",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "942816c71af91f6d96ce960aa6b4d3a50b0dccd4a6dcd4fc3c557b99228f6c2f"
+}

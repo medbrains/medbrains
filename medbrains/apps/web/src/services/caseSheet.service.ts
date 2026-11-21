@@ -1,11 +1,12 @@
-import { api } from "@medbrains/api";
+import { caseSheetsApi } from "@medbrains/api/modules/case-sheets";
+import { uploadApi } from "@medbrains/api/modules/upload";
 
 export const caseSheetService = {
-  listScans: api.listCaseSheetScans,
-  getScan: api.getCaseSheetScan,
-  createScan: api.createCaseSheetScan,
-  submitScan: api.submitCaseSheetScan,
-  saveReview: api.saveCaseSheetReview,
-  commitScan: api.commitCaseSheetScan,
-  presignDownload: api.presignDownload,
+  listScans: caseSheetsApi.listCaseSheetScans,
+  getScan: caseSheetsApi.getCaseSheetScan,
+  createScan: caseSheetsApi.createCaseSheetScan,
+  submitScan: caseSheetsApi.submitCaseSheetScan,
+  saveReview: caseSheetsApi.saveCaseSheetReview,
+  commitScan: caseSheetsApi.commitCaseSheetScan,
+  presignDownload: uploadApi.presignDownload,
 };

@@ -1,11 +1,14 @@
-import { api } from "@medbrains/api";
+import { labApi } from "@medbrains/api/modules/lab";
+import { nabhApi } from "@medbrains/api/modules/nabh";
+import { reportsApi } from "@medbrains/api/modules/reports";
 
 export const reportsService = {
-  getNabhIndicators: (...args: Parameters<typeof api.getNabhIndicators>) =>
-    api.getNabhIndicators(...args),
-  listReportTemplates: (...args: Parameters<typeof api.listReportTemplates>) =>
-    api.listReportTemplates(...args),
-  getReportCatalog: (...args: Parameters<typeof api.getReportCatalog>) =>
-    api.getReportCatalog(...args),
-  getReportData: (...args: Parameters<typeof api.getReportData>) => api.getReportData(...args),
+  getNabhIndicators: (...args: Parameters<typeof nabhApi.getNabhIndicators>) =>
+    nabhApi.getNabhIndicators(...args),
+  listReportTemplates: (...args: Parameters<typeof labApi.listReportTemplates>) =>
+    labApi.listReportTemplates(...args),
+  getReportCatalog: (...args: Parameters<typeof reportsApi.getReportCatalog>) =>
+    reportsApi.getReportCatalog(...args),
+  getReportData: (...args: Parameters<typeof reportsApi.getReportData>) =>
+    reportsApi.getReportData(...args),
 };

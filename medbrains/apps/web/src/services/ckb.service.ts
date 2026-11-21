@@ -1,35 +1,36 @@
-import { api } from "@medbrains/api";
+import { ckbApi } from "@medbrains/api/modules/ckb";
 
 export const ckbService = {
-  listCkbDiagnoses: (...args: Parameters<typeof api.listCkbDiagnoses>) =>
-    api.listCkbDiagnoses(...args),
-  listCkbFormulary: (...args: Parameters<typeof api.listCkbFormulary>) =>
-    api.listCkbFormulary(...args),
-  listCkbLabReference: (...args: Parameters<typeof api.listCkbLabReference>) =>
-    api.listCkbLabReference(...args),
-  listNlemGenerics: (...args: Parameters<typeof api.listNlemGenerics>) =>
-    api.listNlemGenerics(...args),
-  listCkbStateSchemes: (...args: Parameters<typeof api.listCkbStateSchemes>) =>
-    api.listCkbStateSchemes(...args),
-  listCkbStateFormulary: (...args: Parameters<typeof api.listCkbStateFormulary>) =>
-    api.listCkbStateFormulary(...args),
-  listNotifiableReports: (...args: Parameters<typeof api.listNotifiableReports>) =>
-    api.listNotifiableReports(...args),
-  updateNotifiableReport: (...args: Parameters<typeof api.updateNotifiableReport>) =>
-    api.updateNotifiableReport(...args),
-  getNotifiableList: () => api.getNotifiableList(),
-  listNotifiableOverrides: () => api.listNotifiableOverrides(),
-  upsertNotifiableOverride: (...args: Parameters<typeof api.upsertNotifiableOverride>) =>
-    api.upsertNotifiableOverride(...args),
-  deleteNotifiableOverride: (id: string) => api.deleteNotifiableOverride(id),
-  listTbCases: (status?: string) => api.listTbCases(status),
-  saveTbDetails: (...args: Parameters<typeof api.saveTbDetails>) => api.saveTbDetails(...args),
-  getNikshaySheet: () => api.getNikshaySheet(),
-  getPublicHealthFacility: () => api.getPublicHealthFacility(),
-  getIhipLineList: (...args: Parameters<typeof api.getIhipLineList>) =>
-    api.getIhipLineList(...args),
-  submitIhipLineList: (...args: Parameters<typeof api.submitIhipLineList>) =>
-    api.submitIhipLineList(...args),
-  setPublicHealthFacilityCodes: (...args: Parameters<typeof api.setPublicHealthFacilityCodes>) =>
-    api.setPublicHealthFacilityCodes(...args),
+  listCkbDiagnoses: (...args: Parameters<typeof ckbApi.listCkbDiagnoses>) =>
+    ckbApi.listCkbDiagnoses(...args),
+  listCkbFormulary: (...args: Parameters<typeof ckbApi.listCkbFormulary>) =>
+    ckbApi.listCkbFormulary(...args),
+  listCkbLabReference: (...args: Parameters<typeof ckbApi.listCkbLabReference>) =>
+    ckbApi.listCkbLabReference(...args),
+  listNlemGenerics: (...args: Parameters<typeof ckbApi.listNlemGenerics>) =>
+    ckbApi.listNlemGenerics(...args),
+  listCkbStateSchemes: (...args: Parameters<typeof ckbApi.listCkbStateSchemes>) =>
+    ckbApi.listCkbStateSchemes(...args),
+  listCkbStateFormulary: (...args: Parameters<typeof ckbApi.listCkbStateFormulary>) =>
+    ckbApi.listCkbStateFormulary(...args),
+  listNotifiableReports: (...args: Parameters<typeof ckbApi.listNotifiableReports>) =>
+    ckbApi.listNotifiableReports(...args),
+  updateNotifiableReport: (...args: Parameters<typeof ckbApi.updateNotifiableReport>) =>
+    ckbApi.updateNotifiableReport(...args),
+  getNotifiableList: () => ckbApi.getNotifiableList(),
+  listNotifiableOverrides: () => ckbApi.listNotifiableOverrides(),
+  upsertNotifiableOverride: (...args: Parameters<typeof ckbApi.upsertNotifiableOverride>) =>
+    ckbApi.upsertNotifiableOverride(...args),
+  deleteNotifiableOverride: (id: string) => ckbApi.deleteNotifiableOverride(id),
+  listTbCases: (status?: string) => ckbApi.listTbCases(status),
+  saveTbDetails: (...args: Parameters<typeof ckbApi.saveTbDetails>) =>
+    ckbApi.saveTbDetails(...args),
+  getNikshaySheet: () => ckbApi.getNikshaySheet(),
+  getPublicHealthFacility: () => ckbApi.getPublicHealthFacility(),
+  getIhipLineList: (...args: Parameters<typeof ckbApi.getIhipLineList>) =>
+    ckbApi.getIhipLineList(...args),
+  submitIhipLineList: (...args: Parameters<typeof ckbApi.submitIhipLineList>) =>
+    ckbApi.submitIhipLineList(...args),
+  setPublicHealthFacilityCodes: (...args: Parameters<typeof ckbApi.setPublicHealthFacilityCodes>) =>
+    ckbApi.setPublicHealthFacilityCodes(...args),
 };

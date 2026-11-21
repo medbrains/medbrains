@@ -1,16 +1,16 @@
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 
-export type StoragePolicy = Awaited<ReturnType<typeof api.listStoragePolicies>>[number];
-export type StorageTransition = Awaited<ReturnType<typeof api.listStorageTransitions>>[number];
-export type UpdateStoragePolicyInput = Parameters<typeof api.updateStoragePolicy>[1];
-export type ListStorageTransitionsInput = Parameters<typeof api.listStorageTransitions>[0];
+export type StoragePolicy = Awaited<ReturnType<typeof adminApi.listStoragePolicies>>[number];
+export type StorageTransition = Awaited<ReturnType<typeof adminApi.listStorageTransitions>>[number];
+export type UpdateStoragePolicyInput = Parameters<typeof adminApi.updateStoragePolicy>[1];
+export type ListStorageTransitionsInput = Parameters<typeof adminApi.listStorageTransitions>[0];
 
 export const storageService = {
-  triggerStorageSweep: () => api.triggerStorageSweep(),
-  listStoragePolicies: () => api.listStoragePolicies(),
+  triggerStorageSweep: () => adminApi.triggerStorageSweep(),
+  listStoragePolicies: () => adminApi.listStoragePolicies(),
   updateStoragePolicy: (category: string, data: UpdateStoragePolicyInput) =>
-    api.updateStoragePolicy(category, data),
-  getStorageUsage: () => api.getStorageUsage(),
+    adminApi.updateStoragePolicy(category, data),
+  getStorageUsage: () => adminApi.getStorageUsage(),
   listStorageTransitions: (params?: ListStorageTransitionsInput) =>
-    api.listStorageTransitions(params),
+    adminApi.listStorageTransitions(params),
 };

@@ -1,5 +1,5 @@
 import { Anchor, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import type { ConnectedApp, ConnectedAppDelivery } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@/components";
@@ -37,7 +37,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export function AppReviewModal({ app, onClose }: AppReviewModalProps) {
   const deliveries = useQuery({
     queryKey: ["connected-app-deliveries", app?.id],
-    queryFn: () => api.listConnectedAppDeliveries(app?.id ?? ""),
+    queryFn: () => adminApi.listConnectedAppDeliveries(app?.id ?? ""),
     enabled: app?.has_webhook === true,
   });
   const m = app?.manifest;

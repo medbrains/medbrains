@@ -1,6 +1,8 @@
 import { Anchor, Box, Center, Divider, Loader, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api, nullOn404 } from "@medbrains/api";
+import { nullOn404 } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
+import { onboardingApi } from "@medbrains/api/modules/onboarding";
 import { useAuthStore } from "@medbrains/stores";
 import type { SignInOptions } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -53,14 +55,14 @@ export function LoginPage() {
   const ssoError = SSO_ERRORS[params.get(SSO_ERROR_PARAM) ?? ""];
   const options = useQuery({
     queryKey: ["sign-in-options", code ?? "@domain"],
-    queryFn: () => api.getSignInOptions(code ?? undefined).catch(nullOn404),
+    queryFn: () => authApi.getSignInOptions(code ?? undefined).catch(nullOn404),
     staleTime: 300_000,
     retry: false,
   });
   // Only an empty server takes a registration (see onboarding/init).
   const { data: onboarding } = useQuery({
     queryKey: ["onboarding-status"],
-    queryFn: () => api.onboardingStatus(),
+    queryFn: () => onboardingApi.onboardingStatus(),
     staleTime: 300_000,
     retry: false,
   });

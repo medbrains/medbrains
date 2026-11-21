@@ -1,43 +1,51 @@
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
+import { devicePairingApi } from "@medbrains/api/modules/device-pairing";
+import { devicesApi } from "@medbrains/api/modules/devices";
+import { stationsApi } from "@medbrains/api/modules/stations";
 
-export type MintDevicePairingTokenInput = Parameters<typeof api.mintDevicePairingToken>[0];
-export type ListAdapterCatalogInput = Parameters<typeof api.listAdapterCatalog>[0];
-export type PreviewAdapterConfigResult = Awaited<ReturnType<typeof api.previewAdapterConfig>>;
-export type CreateDeviceInstanceInput = Parameters<typeof api.createDeviceInstance>[0];
-export type CreateRoutingRuleInput = Parameters<typeof api.createRoutingRule>[0];
-export type PairingToken = Awaited<ReturnType<typeof api.mintDevicePairingToken>>;
-export type PairedDeviceRow = Awaited<ReturnType<typeof api.listPairedDevices>>[number];
+export type MintDevicePairingTokenInput = Parameters<typeof adminApi.mintDevicePairingToken>[0];
+export type ListAdapterCatalogInput = Parameters<typeof devicesApi.listAdapterCatalog>[0];
+export type PreviewAdapterConfigResult = Awaited<
+  ReturnType<typeof devicesApi.previewAdapterConfig>
+>;
+export type CreateDeviceInstanceInput = Parameters<typeof devicesApi.createDeviceInstance>[0];
+export type CreateRoutingRuleInput = Parameters<typeof devicesApi.createRoutingRule>[0];
+export type PairingToken = Awaited<ReturnType<typeof adminApi.mintDevicePairingToken>>;
+export type PairedDeviceRow = Awaited<ReturnType<typeof adminApi.listPairedDevices>>[number];
 
 export const adminDevicesService = {
-  listDeviceInstances: () => api.listDeviceInstances(),
+  listDeviceInstances: () => devicesApi.listDeviceInstances(),
   assignDeviceBed: (id: string, bedLocationId: string | null) =>
-    api.assignDeviceBed(id, bedLocationId),
-  listDeviceMessages: (deviceId: string) => api.listDeviceMessages(deviceId),
-  createDeviceInstance: (data: CreateDeviceInstanceInput) => api.createDeviceInstance(data),
-  listAdapterCatalog: (params?: ListAdapterCatalogInput) => api.listAdapterCatalog(params),
+    devicesApi.assignDeviceBed(id, bedLocationId),
+  listDeviceMessages: (deviceId: string) => devicesApi.listDeviceMessages(deviceId),
+  createDeviceInstance: (data: CreateDeviceInstanceInput) => devicesApi.createDeviceInstance(data),
+  listAdapterCatalog: (params?: ListAdapterCatalogInput) => devicesApi.listAdapterCatalog(params),
   previewAdapterConfig: (adapterCode: string, departmentCode?: string) =>
-    api.previewAdapterConfig(adapterCode, departmentCode),
-  listManufacturers: () => api.listManufacturers(),
-  listBridgeAgents: () => api.listBridgeAgents(),
-  listRoutingRules: () => api.listRoutingRules(),
-  createRoutingRule: (data: CreateRoutingRuleInput) => api.createRoutingRule(data),
-  deleteRoutingRule: (id: string) => api.deleteRoutingRule(id),
-  listPairedDevices: () => api.listPairedDevices(),
-  mintDevicePairingToken: (data: MintDevicePairingTokenInput) => api.mintDevicePairingToken(data),
-  revokePairedDevice: (id: string, reason?: string) => api.revokePairedDevice(id, reason),
+    devicesApi.previewAdapterConfig(adapterCode, departmentCode),
+  listManufacturers: () => devicesApi.listManufacturers(),
+  listBridgeAgents: () => devicesApi.listBridgeAgents(),
+  listRoutingRules: () => devicesApi.listRoutingRules(),
+  createRoutingRule: (data: CreateRoutingRuleInput) => devicesApi.createRoutingRule(data),
+  deleteRoutingRule: (id: string) => devicesApi.deleteRoutingRule(id),
+  listPairedDevices: () => adminApi.listPairedDevices(),
+  mintDevicePairingToken: (data: MintDevicePairingTokenInput) =>
+    adminApi.mintDevicePairingToken(data),
+  revokePairedDevice: (id: string, reason?: string) => adminApi.revokePairedDevice(id, reason),
   // One call for the whole fleet. The per-device endpoint exists, but asking it
   // once per row is an N+1 against a table that can hold a hospital's devices.
-  getPeerRoster: () => api.getPeerRoster(),
+  getPeerRoster: () => devicePairingApi.getPeerRoster(),
   registerDeviceNodeKey: (deviceId: string, nodeId: string) =>
-    api.registerDeviceNodeKey(deviceId, { node_id: nodeId }),
-  revokeDeviceNodeKey: (deviceId: string) => api.revokeDeviceNodeKey(deviceId),
-  listStations: () => api.listStations(),
-  createStation: (data: Parameters<typeof api.createStation>[0]) => api.createStation(data),
-  updateStation: (id: string, data: Parameters<typeof api.updateStation>[1]) =>
-    api.updateStation(id, data),
-  deleteStation: (id: string) => api.deleteStation(id),
-  listDeviceBindingCodes: () => api.listDeviceBindingCodes(),
-  issueDeviceBindingCode: (data: Parameters<typeof api.issueDeviceBindingCode>[0]) =>
-    api.issueDeviceBindingCode(data),
-  revokeDeviceBindingCode: (id: string, reason?: string) => api.revokeDeviceBindingCode(id, reason),
+    devicePairingApi.registerDeviceNodeKey(deviceId, { node_id: nodeId }),
+  revokeDeviceNodeKey: (deviceId: string) => devicePairingApi.revokeDeviceNodeKey(deviceId),
+  listStations: () => stationsApi.listStations(),
+  createStation: (data: Parameters<typeof stationsApi.createStation>[0]) =>
+    stationsApi.createStation(data),
+  updateStation: (id: string, data: Parameters<typeof stationsApi.updateStation>[1]) =>
+    stationsApi.updateStation(id, data),
+  deleteStation: (id: string) => stationsApi.deleteStation(id),
+  listDeviceBindingCodes: () => adminApi.listDeviceBindingCodes(),
+  issueDeviceBindingCode: (data: Parameters<typeof adminApi.issueDeviceBindingCode>[0]) =>
+    adminApi.issueDeviceBindingCode(data),
+  revokeDeviceBindingCode: (id: string, reason?: string) =>
+    adminApi.revokeDeviceBindingCode(id, reason),
 };
