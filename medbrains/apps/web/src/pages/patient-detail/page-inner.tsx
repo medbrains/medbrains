@@ -38,6 +38,7 @@ import { AbdmOtherHospitalsSection } from "@/components/Patient/abdm/AbdmOtherHo
 import { AbdmRecordsSection } from "@/components/Patient/abdm/AbdmRecordsSection";
 import { ClinicalTimelineTab } from "@/components/Patient/ClinicalTimelineTab";
 import { GroupIdentitySection } from "@/components/Patient/groupIdentity/GroupIdentitySection";
+import { OpdNumberBadge } from "@/components/Patient/OpdNumberBadge";
 import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
@@ -46,6 +47,8 @@ import { PatientUnavailable } from "@/components/Patient/PatientUnavailable";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
 import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
 import { OpdCardPrintMenu } from "@/components/Print/OpdCardPrintMenu";
+import { PANEL_COMPONENTS } from "@/components/panels/registry";
+import { usePanels } from "@/components/panels/use-panels";
 import { QueryError } from "@/components/QueryError";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
 import { Badge, Button } from "@/components/ui";
@@ -67,16 +70,13 @@ import {
 } from "../patient-detail-workspace";
 import { AllergiesTab } from "./allergies-tab";
 import { AppointmentsTab } from "./appointments-tab";
-import { BillingTab } from "./billing-tab";
 import { CampsTab } from "./camps-tab";
 import { ChronicCareTab } from "./chronic-care-tab";
 import { usePatientDetailGates } from "./detail-gates";
 import { isChild, visibleDetailTabs } from "./detail-tabs";
 import { DetailDocumentsTab } from "./documents-tab";
 import { DetailFamilyLinksTab } from "./family-links-tab";
-import { ImagingTab } from "./imaging-tab";
 import { ImmunizationsTab } from "./immunizations-tab";
-import { LabOrdersTab } from "./lab-orders-tab";
 import { MergeTab } from "./merge-tab";
 import { OverviewTab } from "./overview-tab";
 import { PrescriptionsTab } from "./prescriptions-tab";
@@ -112,6 +112,7 @@ export function PatientDetailPageInner() {
     canViewGrowth,
     reads,
   } = usePatientDetailGates(patientId);
+  const tabPanels = usePanels("patient.tabs");
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
@@ -356,6 +357,7 @@ export function PatientDetailPageInner() {
   };
   const detailTabs = visibleDetailTabs({
     isBrickOn,
+    panels: new Set(tabPanels.map((panel) => panel.id)),
     showGrowth: canViewGrowth && isChild(patient.date_of_birth),
     showNotes: canViewNotes,
   });
@@ -470,6 +472,7 @@ export function PatientDetailPageInner() {
                   <Badge tone="primary" variant="light">
                     UHID {displayUhid}
                   </Badge>
+                  <OpdNumberBadge opd={patientContext} />
                   {patient.gender && <Badge tone="neutral">{snakeToTitle(patient.gender)}</Badge>}
                   {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
                   {displayPhone && displayPhone !== "-" && (
@@ -528,15 +531,18 @@ export function PatientDetailPageInner() {
               <Tabs.Panel value="prescriptions" pt="md">
                 <PrescriptionsTab patient={patient} />
               </Tabs.Panel>
-              <Tabs.Panel value="lab" pt="md">
-                <LabOrdersTab patientId={patient.id} />
-              </Tabs.Panel>
-              <Tabs.Panel value="imaging" pt="md">
-                <ImagingTab patientId={patient.id} />
-              </Tabs.Panel>
-              <Tabs.Panel value="billing" pt="md">
-                <BillingTab patientId={patient.id} />
-              </Tabs.Panel>
+              {detailTabs.map((tab) => {
+                const Panel = tab.panel && PANEL_COMPONENTS["patient.tabs"][tab.panel];
+                return (
+                  Panel && (
+                    <Tabs.Panel key={tab.value} value={tab.value} pt="md">
+                      <Suspense fallback={<Loader size="sm" />}>
+                        <Panel patientId={patient.id} />
+                      </Suspense>
+                    </Tabs.Panel>
+                  )
+                );
+              })}
               <Tabs.Panel value="camps" pt="md">
                 <CampsTab patientId={patient.id} />
               </Tabs.Panel>

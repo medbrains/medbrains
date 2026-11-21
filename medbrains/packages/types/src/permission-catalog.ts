@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1258 permissions, one per constant in the Rust source. */
+/** 1259 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -107,6 +107,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.card.reprint",
     label: "Reprint any patient's cards at the desk",
     description: "A returning patient who lost the card is usually served by a receptionist who did not register them, and `patients.view` reaches only patients the caller has a relationship with. This reprints the identity card and the OPD card for any patient in the hospital: name, UHID, age, sex, phone and registration date, the same identity the desk lookup already shows, and on a visit's OPD card its date, department, doctor and token. Never the address, the email or the chart.",
+    module: "patients",
+  },
+  {
+    code: "patients.opd_number.backdate",
+    label: "Give an OPD date before today",
+    description: "For entering old paper records: the day the OPD number was issued in the register, before today, never in the future. Only where the hospital allows backdating. Audited with the old and new date; the record's own entry time is never changed, and no visit, bill or token is created for the earlier date.",
     module: "patients",
   },
   {
@@ -8337,6 +8343,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.FIND,
       P.PATIENTS.GROUP_IDENTITY.VIEW,
       P.PATIENTS.LIST,
+      P.PATIENTS.OPD_NUMBER.BACKDATE,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
       P.PATIENTS.PRIVACY_REQUESTS.LIST,
       P.PATIENTS.UPDATE,

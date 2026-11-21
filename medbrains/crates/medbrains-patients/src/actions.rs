@@ -26,12 +26,24 @@ pub async fn find(
     claims: &Claims,
     query: &str,
 ) -> Result<Vec<MatchResult>, AppError> {
+    find_by(conn, (state, claims), query, search::SearchBy::All).await
+}
+
+/// [`find`], searching only the field `by` names. All fields need three
+/// characters, so two do not list half the register; one field takes what
+/// was typed for it.
+pub async fn find_by(
+    conn: &mut PgConnection,
+    (state, claims): (&AppState, &Claims),
+    query: &str,
+    by: search::SearchBy,
+) -> Result<Vec<MatchResult>, AppError> {
     let query = query.trim();
-    if query.chars().count() < 3 {
+    if query.is_empty() || (by == search::SearchBy::All && query.chars().count() < 3) {
         return Ok(Vec::new());
     }
     let Some(matcher) =
-        search::PatientSearch::for_request(state, claims.tenant_id, Some(query)).await?
+        search::PatientSearch::for_query(state, claims.tenant_id, Some(query), by).await?
     else {
         return Ok(Vec::new());
     };

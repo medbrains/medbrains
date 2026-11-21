@@ -28,6 +28,8 @@ export interface DetailTab {
   icon: ReactNode;
   /** The brick that owns the tab: switched off, the tab is not shown. */
   brick?: string;
+  /** The brick panel that fills it (`components/panels`): shown only when `usePanels` lets it. */
+  panel?: string;
 }
 
 const DETAIL_TABS: DetailTab[] = [
@@ -59,21 +61,21 @@ const DETAIL_TABS: DetailTab[] = [
     label: "Lab Orders",
     section: "Clinical",
     icon: <IconFlask size={14} />,
-    brick: "lab",
+    panel: "lab.patient_orders",
   },
   {
     value: "imaging",
     label: "Imaging",
     section: "Clinical",
     icon: <IconEye size={14} />,
-    brick: "radiology",
+    panel: "radiology.patient_imaging",
   },
   {
     value: "billing",
     label: "Billing",
     section: "Finance",
     icon: <IconReceipt size={14} />,
-    brick: "billing",
+    panel: "billing.patient_bills",
   },
   {
     value: "appointments",
@@ -119,18 +121,27 @@ export function isChild(dateOfBirth: string | null): boolean {
 interface VisibleTabsOptions {
   /** Whether the hospital runs this brick. */
   isBrickOn: (brick?: string) => boolean;
+  /** The `patient.tabs` panels this user may see. */
+  panels: ReadonlySet<string>;
   showGrowth: boolean;
   showNotes: boolean;
 }
 
 /**
- * The tabs shown, in order: a tab whose brick is switched off is hidden, not
- * greyed, and Growth and Notes appear only where they apply.
+ * The tabs shown, in order: a tab whose brick is switched off, or whose panel
+ * this user may not see, is hidden, not greyed, and Growth and Notes appear
+ * only where they apply.
  */
-export function visibleDetailTabs({ isBrickOn, showGrowth, showNotes }: VisibleTabsOptions) {
+export function visibleDetailTabs({
+  isBrickOn,
+  panels,
+  showGrowth,
+  showNotes,
+}: VisibleTabsOptions) {
   return DETAIL_TABS.filter(
     (tab) =>
       isBrickOn(tab.brick) &&
+      (!tab.panel || panels.has(tab.panel)) &&
       (tab.value !== "growth" || showGrowth) &&
       (tab.value !== "notes" || showNotes),
   );

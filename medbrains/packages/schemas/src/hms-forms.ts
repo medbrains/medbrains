@@ -1571,6 +1571,8 @@ export const patientRegistrationFormSchema = z
     clinical_unit: z.string().optional(),
     camp_id: z.string().optional(),
     campaign_id: z.string().optional(),
+    opd_number: z.string().optional(),
+    opd_date: z.string().optional(),
     camp_name: z.string().optional(),
     initial_diagnosis_text: z.string().optional(),
     icd10_code: z.string().optional(),
@@ -4215,9 +4217,11 @@ export const sequenceSettingsFormSchema = z.object({
     "Use lowercase letters, digits, and underscores; start with a letter",
   ),
   prefix: z.string().max(20, "Prefix must be at most 20 characters"),
-  pad_width: positiveInteger("Pad width must be a positive whole number")
-    .refine((value) => Number(value) >= 3, "Pad width must be at least 3")
-    .refine((value) => Number(value) <= 10, "Pad width cannot exceed 10"),
+  // 0 = no padding: plain 1, 2, 3.
+  pad_width: nonNegativeInteger("Pad width must be a whole number from 0 to 10").refine(
+    (value) => String(value).trim() !== "" && Number(value) <= 10,
+    "Pad width must be a whole number from 0 to 10",
+  ),
 });
 
 export const generalSettingsFormSchema = z.object({

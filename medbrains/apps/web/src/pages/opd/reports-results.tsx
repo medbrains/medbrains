@@ -21,6 +21,7 @@ interface OpdReportResultsProps {
 /** The loaded report: four tiles, visits by day as a chart and a table, and visits by doctor. */
 export function OpdReportResults({ summary, range }: OpdReportResultsProps) {
   const { totals, by_day: days, by_doctor: doctors } = summary;
+  /** Save the visits-by-day table as a CSV named for the range. */
   const downloadByDay = () => {
     const { headers, rows } = byDayCsvRows(days);
     downloadCsv(`opd-report-${range.from}-to-${range.to}`, buildCsv(headers, rows));

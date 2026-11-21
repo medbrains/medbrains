@@ -399,6 +399,7 @@ export function administrationPages(
   const pages = screens.filter(
     (s) => isAdministration(s) && (showDevScreens || s.group !== "dev_only"),
   );
+  /** Core settings first, then a brick's own settings, then advanced ones. */
   const rank = (s: AppScreen) => (s.group === "advanced" ? 2 : s.brick ? 1 : 0);
   return pages.sort((a, b) => rank(a) - rank(b)).map(toNavItem);
 }

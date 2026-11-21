@@ -151,6 +151,7 @@ async fn print_card(
     tx.commit().await?;
 
     let today = Utc::now().with_timezone(&tz).date_naive();
+    let (opd_number, opd_date) = opd_of(&patient, visit.as_ref());
     Ok(OpdCardPrintData {
         hospital_name: hospital.name,
         hospital_logo_url: hospital.logo_url,
@@ -169,6 +170,8 @@ async fn print_card(
             .with_timezone(&tz)
             .format("%d-%b-%Y")
             .to_string(),
+        opd_number,
+        opd_date,
         visit: visit.map(|row| visit_of(row, tz)),
     })
 }
@@ -216,6 +219,8 @@ struct PatientRow {
     phone: String,
     address: Option<String>,
     created_at: DateTime<Utc>,
+    opd_number: Option<String>,
+    opd_date: Option<NaiveDate>,
 }
 
 /// One patient, or `NotFound` when the patient is not this tenant's or is deleted.
@@ -231,7 +236,7 @@ async fn patient_row(
            p.uhid, p.date_of_birth, p.gender::text AS \"gender!\", p.phone, \
            NULLIF(concat_ws(', ', NULLIF(btrim(p.address->>'line1'), ''), \
              NULLIF(btrim(p.address->>'city'), '')), '') AS address, \
-           p.created_at \
+           p.created_at, p.opd_number, p.opd_date \
          FROM patients p \
          WHERE p.id = $1 AND p.tenant_id = $2 AND p.deleted_at IS NULL",
         patient_id,
@@ -250,6 +255,7 @@ struct VisitRow {
     doctor: Option<String>,
     token_number: Option<String>,
     is_repeat: bool,
+    encounter_number: Option<String>,
 }
 
 /// The visit, its department and doctor, and the token the board calls.
@@ -270,7 +276,8 @@ async fn visit_row(
            EXISTS (SELECT 1 FROM encounters prev \
              WHERE prev.tenant_id = e.tenant_id AND prev.patient_id = e.patient_id \
                AND prev.encounter_type = 'opd' AND prev.deleted_at IS NULL \
-               AND prev.id <> e.id AND prev.created_at < e.created_at) AS \"is_repeat!\" \
+               AND prev.id <> e.id AND prev.created_at < e.created_at) AS \"is_repeat!\", \
+           e.encounter_number \
          FROM encounters e \
          LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          LEFT JOIN users doc ON doc.id = e.doctor_id AND doc.tenant_id = e.tenant_id \
@@ -290,6 +297,16 @@ async fn visit_row(
     .fetch_optional(conn)
     .await?
     .ok_or(AppError::NotFound)
+}
+
+/// The OPD number the card carries: the visit's when it numbers visits, else
+/// the patient's, with the patient's register date.
+fn opd_of(patient: &PatientRow, visit: Option<&VisitRow>) -> (Option<String>, Option<String>) {
+    let date = patient.opd_date.filter(|_| patient.opd_number.is_some());
+    let number = visit
+        .and_then(|v| v.encounter_number.clone())
+        .or_else(|| patient.opd_number.clone());
+    (number, date.map(|d| d.format("%d-%b-%Y").to_string()))
 }
 
 /// The visit block, its times in the hospital's zone.

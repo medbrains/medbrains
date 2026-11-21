@@ -26,18 +26,18 @@ import {
   IconPrinter,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useClinicalEmit, VisitSummaryPrint } from "@/components";
-import { PatientBillingModal } from "@/components/Billing/PatientBillingModal";
 import { CampRegistrationModal } from "@/components/Camp/CampRegistrationModal";
-import { EmergencyVisitModal } from "@/components/Emergency/EmergencyVisitModal";
 import { OrderBasketChip } from "@/components/OrderBasket/OrderBasketChip";
 import type { OrderBasketTab } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientContextSummary } from "@/components/Patient/PatientContextSummary";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { EncounterPanels } from "@/components/panels/EncounterPanels";
+import { usePanels } from "@/components/panels/use-panels";
 import { Badge, Button, PermissionGate, toast } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { mrdService } from "@/services/mrd.service";
@@ -151,8 +151,9 @@ export function EncounterDetail({
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
   // Controlled so the Patient Flow "IPD" chip can open the same Admit modal.
   const admitControl = useDisclosure(false);
-  const billingControl = useDisclosure(false);
-  const emergencyControl = useDisclosure(false);
+  // Brick panels (Billing, Emergency) open from the flow chip of the same brick.
+  const encounterPanels = usePanels("opd.encounter");
+  const [openPanel, setOpenPanel] = useState<string | null>(null);
   const campControl = useDisclosure(false);
   const [patientPeekOpened, patientPeek] = useDisclosure(false);
   const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
@@ -340,16 +341,13 @@ export function EncounterDetail({
             admitControl[1].open();
             return true;
           }
-          if (stage === "billing") {
-            billingControl[1].open();
-            return true;
-          }
           if (stage === "patient") {
             patientPeek.open();
             return true;
           }
-          if (stage === "emergency") {
-            emergencyControl[1].open();
+          const panel = encounterPanels.find((p) => p.brick === stage);
+          if (panel) {
+            setOpenPanel(panel.id);
             return true;
           }
           if (stage === "camp") {
@@ -427,12 +425,13 @@ export function EncounterDetail({
           </>
         }
       />
-      <PatientBillingModal
+      <EncounterPanels
+        panels={encounterPanels}
+        openPanel={openPanel}
         patientId={patientId}
         encounterId={encounterId}
-        control={billingControl}
+        onClose={() => setOpenPanel(null)}
       />
-      <EmergencyVisitModal patientId={patientId} control={emergencyControl} />
       <CampRegistrationModal
         patientId={patientId}
         patientName={patientName}

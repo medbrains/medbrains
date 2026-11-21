@@ -82,4 +82,9 @@ describe("renderPatientIdCard", () => {
     expect(withLogo).toContain('<img class="logo" src="/logo.png"');
     expect(withLogo).toContain('<div class="logo initial" hidden>R</div>');
   });
+  it("carries the hospital's OPD number and its register date, only when there is one", () => {
+    const numbered = renderPatientIdCard({ ...CARD, opd_number: "1042", opd_date: "15-Aug-2026" });
+    expect(numbered.body).toContain("OPD 1042 · 15-Aug-2026");
+    expect(renderPatientIdCard(CARD).body).not.toContain("OPD ");
+  });
 });

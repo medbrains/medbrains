@@ -20,6 +20,10 @@
 //! own column: `created_at` stays the real entry time, and nothing else (no
 //! visit, bill, token or queue row) is created for a backdated record.
 
+mod assign;
+
+pub use assign::{Assigned, Entry, Target, assign, check_date, patient_number};
+
 use medbrains_server_core::error::AppError;
 use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;

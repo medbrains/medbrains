@@ -45,6 +45,7 @@ import type {
   PatientLabOrderRow,
   PatientListResponse,
   PatientMergeHistory,
+  PatientSearchBy,
   PatientTimelineEvent,
   PatientVisitRow,
   RecordPatientImmunization,
@@ -81,6 +82,8 @@ export const patientsApi = {
     page?: number;
     per_page?: number;
     search?: string;
+    /** Search only this field; absent searches them all. */
+    by?: PatientSearchBy;
     sort?: string;
     order?: "asc" | "desc";
   }) => {
@@ -88,6 +91,7 @@ export const patientsApi = {
     if (params?.page) qs.set("page", String(params.page));
     if (params?.per_page) qs.set("per_page", String(params.per_page));
     if (params?.search) qs.set("search", params.search);
+    if (params?.by && params.by !== "all") qs.set("by", params.by);
     if (params?.sort) qs.set("sort", params.sort);
     if (params?.order) qs.set("order", params.order);
     const query = qs.toString();
@@ -232,8 +236,10 @@ export const patientsApi = {
   // The front desk's lookup. Unlike listPatients this is not scoped to the
   // caller's own patients: a returning patient gives a UHID or a phone number
   // and the desk has to find them whoever registered them. Identity only.
-  findPatients: (q: string) =>
-    request<MpiMatchResult[]>(`/patients/find?q=${encodeURIComponent(q)}`),
+  findPatients: (q: string, by: PatientSearchBy = "all") =>
+    request<MpiMatchResult[]>(
+      `/patients/find?q=${encodeURIComponent(q)}${by === "all" ? "" : `&by=${by}`}`,
+    ),
   transliterateName: (text: string, to: string) =>
     request<{ suggestions: string[] }>(
       `/patients/transliterate?text=${encodeURIComponent(text)}&to=${encodeURIComponent(to)}`,
