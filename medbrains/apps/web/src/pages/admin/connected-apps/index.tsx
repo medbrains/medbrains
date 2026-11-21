@@ -29,14 +29,46 @@ const STATUS: Record<ConnectedApp["status"], { label: string; tone: BadgeTone }>
 
 const APPS_KEY = ["connected-apps"];
 
-export function ConnectedAppsPage() {
-  useRequirePermission(P.ADMIN.CONNECTED_APPS.VIEW);
-  const canManage = useHasPermission(P.ADMIN.CONNECTED_APPS.MANAGE);
+interface AppRowActionsProps {
+  app: ConnectedApp;
+  canManage: boolean;
+  approving: boolean;
+  onReview: (app: ConnectedApp) => void;
+  onApprove: (app: ConnectedApp) => void;
+  onRotate: (app: ConnectedApp) => void;
+  onRevoke: (app: ConnectedApp) => void;
+}
+
+/** One row's buttons; Approve shows only for a pending app the server refused no codes for. */
+function AppRowActions({ app, canManage, approving, ...on }: AppRowActionsProps) {
+  const canApprove = canManage && app.status === "pending" && app.refused_permissions.length === 0;
+  return (
+    <Group gap={4} wrap="nowrap">
+      <Button size="xs" tone="ghost" onClick={() => on.onReview(app)}>
+        Privacy label
+      </Button>
+      {canApprove && (
+        <Button size="xs" tone="primary" onClick={() => on.onApprove(app)} loading={approving}>
+          Approve
+        </Button>
+      )}
+      {canManage && app.status !== "revoked" && (
+        <>
+          <Button size="xs" tone="ghost" onClick={() => on.onRotate(app)}>
+            Rotate secret
+          </Button>
+          <Button size="xs" tone="danger" onClick={() => on.onRevoke(app)}>
+            Revoke
+          </Button>
+        </>
+      )}
+    </Group>
+  );
+}
+
+/** Approve, revoke and rotate for one app, each refreshing the list; rotate hands back the new secret. */
+function useAppActions(setIssued: (issued: ConnectedAppCredentials) => void) {
   const queryClient = useQueryClient();
-  const [registering, setRegistering] = useState(false);
-  const [reviewing, setReviewing] = useState<ConnectedApp | null>(null);
-  const [issued, setIssued] = useState<ConnectedAppCredentials | null>(null);
-  const list = useQuery({ queryKey: APPS_KEY, queryFn: () => adminApi.listConnectedApps() });
   /** Reload the list after any change to an app. */
   const refresh = () => void queryClient.invalidateQueries({ queryKey: APPS_KEY });
   const onError = (error: Error) => toast.error(error.message, { title: "Not done" });
@@ -87,6 +119,21 @@ export function ConnectedAppsPage() {
       onConfirm: () => rotate.mutate(app.id),
     });
 
+  return { approve, onRevoke, onRotate };
+}
+
+/** Admin → Connected apps: register, review and approve vendor apps, and
+ *  revoke or rotate their credentials. Apps asking for codes they may never
+ *  hold are shown as refused, never approvable. */
+export function ConnectedAppsPage() {
+  useRequirePermission(P.ADMIN.CONNECTED_APPS.VIEW);
+  const canManage = useHasPermission(P.ADMIN.CONNECTED_APPS.MANAGE);
+  const [registering, setRegistering] = useState(false);
+  const [reviewing, setReviewing] = useState<ConnectedApp | null>(null);
+  const [issued, setIssued] = useState<ConnectedAppCredentials | null>(null);
+  const list = useQuery({ queryKey: APPS_KEY, queryFn: () => adminApi.listConnectedApps() });
+  const { approve, onRevoke, onRotate } = useAppActions(setIssued);
+
   return (
     <Stack gap="md" p="md">
       <PageHeader
@@ -121,9 +168,12 @@ export function ConnectedAppsPage() {
           {
             key: "status",
             label: "Status",
-            render: (a: ConnectedApp) => (
-              <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
-            ),
+            render: (a: ConnectedApp) =>
+              a.refused_permissions.length > 0 && a.status !== "revoked" ? (
+                <Badge tone="danger">Needs a new manifest</Badge>
+              ) : (
+                <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
+              ),
           },
           {
             key: "permissions",
@@ -145,31 +195,15 @@ export function ConnectedAppsPage() {
             key: "actions",
             label: "",
             render: (a: ConnectedApp) => (
-              <Group gap={4} wrap="nowrap">
-                <Button size="xs" tone="ghost" onClick={() => setReviewing(a)}>
-                  Privacy label
-                </Button>
-                {canManage && a.status === "pending" && (
-                  <Button
-                    size="xs"
-                    tone="primary"
-                    onClick={() => approve.mutate(a.id)}
-                    loading={approve.isPending && approve.variables === a.id}
-                  >
-                    Approve
-                  </Button>
-                )}
-                {canManage && a.status !== "revoked" && (
-                  <>
-                    <Button size="xs" tone="ghost" onClick={() => onRotate(a)}>
-                      Rotate secret
-                    </Button>
-                    <Button size="xs" tone="danger" onClick={() => onRevoke(a)}>
-                      Revoke
-                    </Button>
-                  </>
-                )}
-              </Group>
+              <AppRowActions
+                app={a}
+                canManage={canManage}
+                approving={approve.isPending && approve.variables === a.id}
+                onReview={setReviewing}
+                onApprove={(app) => approve.mutate(app.id)}
+                onRotate={onRotate}
+                onRevoke={onRevoke}
+              />
             ),
           },
         ]}

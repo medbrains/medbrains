@@ -25,7 +25,7 @@ vi.mock("@/components/LiveActivityIsland/EmergencyCodeActivity", () => ({
 }));
 vi.mock("./OnDemandOverlays", () => ({ OnDemandOverlays: () => null }));
 
-/** Every brick but `on`, as the first standalone hospital runs: Registration and OPD only. */
+/** Every brick but `on`, as a Registration + OPD only hospital runs. */
 const offExcept = (...on: string[]) => Object.keys(BRICK_MANIFESTS).filter((b) => !on.includes(b));
 
 /** Administration's paths an all-permission viewer sees with `off` bricks, usual and Advanced. */

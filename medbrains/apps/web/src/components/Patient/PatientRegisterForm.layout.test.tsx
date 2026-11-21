@@ -30,7 +30,7 @@ const follows = (a: Element, b: Element) =>
 const isMarkedRequired = (key: string) =>
   screen.getByText(L(key)).querySelector(".mantine-InputWrapper-required") !== null;
 
-describe("PatientRegisterForm — step 1 layout (owner, first standalone hospital, 2026-11-17)", () => {
+describe("PatientRegisterForm — step 1 layout (owner, 2026-11-17)", () => {
   beforeEach(() => {
     departments.mockResolvedValue([
       { id: "d-1", name: "General", code: "GEN", department_type: "clinical", is_active: true },

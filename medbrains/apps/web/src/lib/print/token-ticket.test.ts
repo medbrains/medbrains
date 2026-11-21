@@ -4,18 +4,18 @@ import { renderTokenTicket, tokenSizeMm } from "./token-ticket";
 
 /** A fictional hospital and visit: nothing here is a real record. */
 const TICKET: OpdCardPrintData = {
-  hospital_name: "Rishi Hospital",
+  hospital_name: "Sample Hospital",
   hospital_logo_url: null,
   hospital_name_banner_url: null,
-  hospital_address: "12 Temple Road, Madurai",
-  hospital_phone: "0452 400 1234",
-  hospital_registration_no: "TN/CE/2026/0451",
+  hospital_address: "1 Example Street, Sample Town",
+  hospital_phone: "0000 000 0000",
+  hospital_registration_no: "XX/CE/0000/0000",
   patient_name: "Asha Sample",
-  uhid: "RH-000123",
+  uhid: "SH-000123",
   age: "34 Y",
   gender: "female",
   phone: "9000012345",
-  address: "4 North Street, Madurai",
+  address: "4 North Street, Sample Town",
   registered_on: "17-Nov-2026",
   visit: {
     visit_date: "17-Nov-2026",
@@ -43,7 +43,7 @@ describe("renderTokenTicket", () => {
   it("prints the token, the hospital and when it was issued", () => {
     const { body } = page(TICKET);
     expect(body).toContain(">OP-014<");
-    expect(body).toContain("Rishi Hospital · OPD");
+    expect(body).toContain("Sample Hospital · OPD");
     expect(body).toContain("YOUR TOKEN");
     expect(body).toContain("17 Nov 2026 · 10:42");
     expect(body).toContain("Please wait for your number to be called");
@@ -54,7 +54,7 @@ describe("renderTokenTicket", () => {
     for (const absent of [
       "Asha",
       "UHID",
-      "RH-000123",
+      "SH-000123",
       "9000012345",
       "North Street",
       "Dr Arun",
