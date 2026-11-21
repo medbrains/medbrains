@@ -33,6 +33,37 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** Names the codes the server refused; an app asking for any can never be approved. */
+function RefusedAlert({ codes }: { codes: string[] }) {
+  if (codes.length === 0) return null;
+  return (
+    <Alert tone="danger" title="This app cannot be approved or sign in">
+      It asks for codes MedBrains never gives an app, because they do not exist or they change who
+      may do what: {codes.join(", ")}. Ask the vendor for a manifest without them, revoke this app
+      and register the new one.
+    </Alert>
+  );
+}
+
+/** The permissions the app would get: refused codes are named in the warning, never listed as granted. */
+function PermissionsSection({ app }: { app: ConnectedApp }) {
+  const grantable = app.permissions.filter((p) => !app.refused_permissions.includes(p));
+  return (
+    <Section title="Permissions it gets">
+      <Group gap={6}>
+        {grantable.map((p) => (
+          <Badge key={p} tone="neutral">
+            {p}
+          </Badge>
+        ))}
+      </Group>
+      <Text size="xs" c="dimmed">
+        Nothing else: no role, and per-patient access checks still apply.
+      </Text>
+    </Section>
+  );
+}
+
 /** The privacy label: exactly what the manifest asks for, before anyone approves it. */
 export function AppReviewModal({ app, onClose }: AppReviewModalProps) {
   const deliveries = useQuery({
@@ -41,8 +72,6 @@ export function AppReviewModal({ app, onClose }: AppReviewModalProps) {
     enabled: app?.has_webhook === true,
   });
   const m = app?.manifest;
-  // Refused codes are named in the warning, never listed as if they were granted.
-  const grantable = (app?.permissions ?? []).filter((p) => !app?.refused_permissions.includes(p));
 
   return (
     <Modal opened={app !== null} onClose={onClose} fullScreen title={app?.name ?? ""}>
@@ -62,26 +91,9 @@ export function AppReviewModal({ app, onClose }: AppReviewModalProps) {
               )}
             </Text>
           </Stack>
-          {app.refused_permissions.length > 0 && (
-            <Alert tone="danger" title="This app cannot be approved or sign in">
-              It asks for codes MedBrains never gives an app, because they do not exist or they
-              change who may do what: {app.refused_permissions.join(", ")}. Ask the vendor for a
-              manifest without them, revoke this app and register the new one.
-            </Alert>
-          )}
+          <RefusedAlert codes={app.refused_permissions} />
           <SimpleGrid cols={{ base: 1, md: 2 }}>
-            <Section title="Permissions it gets">
-              <Group gap={6}>
-                {grantable.map((p) => (
-                  <Badge key={p} tone="neutral">
-                    {p}
-                  </Badge>
-                ))}
-              </Group>
-              <Text size="xs" c="dimmed">
-                Nothing else: no role, and per-patient access checks still apply.
-              </Text>
-            </Section>
+            <PermissionsSection app={app} />
             <Section title="Kinds of data it touches">
               <Group gap={6}>
                 {m.dataClasses.map((c) => (
