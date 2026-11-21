@@ -1,7 +1,7 @@
 import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { isBloodPressureValid, isHypertensiveCrisis } from "@medbrains/schemas";
 import { useLocaleConfig } from "@medbrains/stores";
-import type { CreateVitalRequest, TenantSettingsRow } from "@medbrains/types";
+import type { CreateVitalRequest } from "@medbrains/types";
 import {
   IconDroplet,
   IconHeartRateMonitor,
@@ -11,7 +11,6 @@ import {
   IconScale,
   IconTemperature,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -31,8 +30,8 @@ import {
   weightToKg,
 } from "@/lib/vital-units";
 import { bloodPressureSeverity } from "@/pages/opd/vitals-thresholds";
-import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { BloodPressureInput } from "./BloodPressureInput";
+import { useClinicalSetting } from "./useClinicalSetting";
 import styles from "./vitals-recorder.module.scss";
 
 type RangeLevel = "normal" | "borderline" | "critical";
@@ -134,16 +133,11 @@ export function VitalsRecorder({
   const idBase = useId();
 
   // Load hospital-configurable vital fields (if customized in settings)
-  const { data: clinicalSettings = [] } = useQuery<TenantSettingsRow[]>({
-    queryKey: ["tenant-settings", "clinical"],
-    queryFn: () => clinicalSupportService.getTenantSettings("clinical"),
-    staleTime: 600_000,
-  });
+  const vitalParameters = useClinicalSetting("vital_parameters");
   const enabledVitals = useMemo(() => {
-    const cfg = clinicalSettings.find((s) => s.key === "vital_parameters");
-    if (cfg?.value && Array.isArray(cfg.value)) return new Set(cfg.value as string[]);
+    if (Array.isArray(vitalParameters)) return new Set(vitalParameters as string[]);
     return null; // null = show all defaults
-  }, [clinicalSettings]);
+  }, [vitalParameters]);
 
   // Build vital configs dynamically based on locale
   const vitalConfigs = useMemo((): VitalConfig[] => {
