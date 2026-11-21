@@ -202,7 +202,7 @@ describe("the generated registry", () => {
 
   it("prints the token ticket and the ID card as two documents, each with its own page", async () => {
     const card = {
-      hospital_name: "Rishi Hospital",
+      hospital_name: "Sample Hospital",
       hospital_logo_url: null,
       patient_name: "Asha Sample",
       uhid: "RH-000123",
@@ -227,7 +227,7 @@ describe("the generated registry", () => {
 
   it("opens no window for a visit with no token, and says why", async () => {
     fetchImpl = async () => ({
-      hospital_name: "Rishi Hospital",
+      hospital_name: "Sample Hospital",
       visit: { visit_date: "17-Nov-2026", visit_time: "10:42", token_number: null },
     });
     const open = vi.fn();

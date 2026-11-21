@@ -4,7 +4,7 @@ import { renderPatientIdCard } from "./patient-id-card";
 
 /** A fictional hospital and patient: nothing here is a real record. */
 const CARD: OpdCardPrintData = {
-  hospital_name: "Rishi Hospital",
+  hospital_name: "Sample Hospital",
   hospital_logo_url: null,
   hospital_name_banner_url: null,
   hospital_address: "12 Temple Road, Madurai",
@@ -30,7 +30,7 @@ const CARD: OpdCardPrintData = {
 describe("renderPatientIdCard", () => {
   it("heads the card with the hospital's own name, never a product name", () => {
     const { body } = renderPatientIdCard(CARD);
-    expect(body).toContain("Rishi Hospital");
+    expect(body).toContain("Sample Hospital");
     expect(body).not.toMatch(/MedBrains/i);
   });
 
