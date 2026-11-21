@@ -62,6 +62,7 @@ import { EncounterNav } from "./encounter-nav";
 import { FollowUpTab } from "./follow-up";
 import { GroupAppointmentModal } from "./group-appointment-modal";
 import { InvestigationsTab } from "./investigations";
+import { useLabReadGates } from "./lab-read-gates";
 import { ChartsTab, VitalsTab } from "./lazy-parts";
 import { PrescriptionsWorkspace } from "./prescriptions-workspace";
 import { SpecialtyTab } from "./specialty-tab";
@@ -136,12 +137,7 @@ export function EncounterDetail({
     P.OPD.DIAGNOSES_UPDATE,
   ]);
   const canListPatientDiagnoses = useHasPermission(P.OPD.DIAGNOSES_LIST);
-  const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
-  const canReadLabCatalog = useHasAnyPermission([
-    P.LAB.ORDERS_LIST,
-    P.LAB.ORDERS_CREATE,
-    P.CAMP.LAB_MANAGE,
-  ]);
+  const { canListLabOrders, canReadLabCatalog } = useLabReadGates();
   const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
