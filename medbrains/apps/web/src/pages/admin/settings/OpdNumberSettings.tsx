@@ -102,7 +102,7 @@ function SearchDefaultSelect() {
     <Stack gap="md" maw={560}>
       <Select
         label="Patient list shows"
-        description="Basic: UHID, name, age and sex, phone and OPD number."
+        description="Basic: UHID, name, age and sex, blood group, phone and OPD number."
         data={LIST_COLUMNS}
         value={data?.patient_list_columns ?? null}
         onChange={(v) => v && save.mutate({ patient_list_columns: v as "full" | "basic" })}
