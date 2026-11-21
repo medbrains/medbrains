@@ -1,5 +1,7 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { queuesApi } from "@medbrains/api/modules/queues";
+import { setupApi } from "@medbrains/api/modules/setup";
+import { stationsApi } from "@medbrains/api/modules/stations";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type QueueRow } from "@medbrains/types";
 import { IconTrash } from "@tabler/icons-react";
@@ -57,17 +59,17 @@ export function QueueCountersDrawer({ queue, onClose }: QueueCountersDrawerProps
 
   const counters = useQuery({
     queryKey: ["queue-counters", queue?.id],
-    queryFn: () => api.listQueueCounters(queue?.id ?? ""),
+    queryFn: () => queuesApi.listQueueCounters(queue?.id ?? ""),
     enabled: open,
   });
   const stations = useQuery({
     queryKey: ["stations"],
-    queryFn: () => api.listStations(),
+    queryFn: () => stationsApi.listStations(),
     enabled: open && canListStations,
   });
   const users = useQuery({
     queryKey: ["setup-users"],
-    queryFn: () => api.listSetupUsers(),
+    queryFn: () => setupApi.listSetupUsers(),
     enabled: open && canListUsers,
   });
 
@@ -90,7 +92,7 @@ export function QueueCountersDrawer({ queue, onClose }: QueueCountersDrawerProps
 
   const create = useMutation({
     mutationFn: () =>
-      api.createStation({
+      stationsApi.createStation({
         code: stationCode(newName),
         name: newName.trim(),
         station_type: STATION_TYPE[queue?.module ?? ""] ?? "other",
@@ -105,7 +107,7 @@ export function QueueCountersDrawer({ queue, onClose }: QueueCountersDrawerProps
 
   const save = useMutation({
     mutationFn: (values: CountersForm) =>
-      api.replaceQueueCounters(queue?.id ?? "", values.counters),
+      queuesApi.replaceQueueCounters(queue?.id ?? "", values.counters),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-counters", queue?.id] });
       toast.success("Counters saved");

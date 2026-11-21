@@ -6,8 +6,9 @@ import { qrSvgMarkup } from "./qr-svg";
 /**
  * The patient ID card: a CR80 card (85.6 x 54 mm, the size of a bank card)
  * the patient keeps for good. A slim header with the hospital's logo (or its
- * initial in a brand-blue square) and name; the patient's name, UHID, and age,
- * sex and phone on the left; a QR of the UHID on the right for the next
+ * initial in a brand-blue square) and name; the patient's name, UHID, the
+ * hospital's OPD number and date where it keeps one, and age, sex and phone
+ * on the left; a QR of the UHID on the right for the next
  * counter's scanner.
  *
  * Permanent, so nothing that changes per visit: no token, date, doctor or
@@ -45,13 +46,21 @@ function header(data: OpdCardPrintData): string {
   );
 }
 
-/** Name, UHID, and age, sex and phone, beside the QR of the UHID. */
+/** "OPD 1043 · 15-Aug-2026", the hospital's own number, when it keeps one. */
+function opdLine(data: OpdCardPrintData): string {
+  if (!data.opd_number) return "";
+  const text = ["OPD " + data.opd_number, data.opd_date].filter(Boolean).join(" · ");
+  return `<div class="meta opd">${esc(text)}</div>`;
+}
+
+/** Name, UHID, the OPD number, and age, sex and phone, beside the QR of the UHID. */
 function identity(data: OpdCardPrintData): string {
   const meta = [data.age, genderLabel(data.gender), data.phone].filter(Boolean).join(" · ");
   return (
     `<section class="body"><div class="who">` +
     `<div class="name">${esc(data.patient_name)}</div>` +
     `<div class="label">UHID</div><div class="uhid">${esc(data.uhid)}</div>` +
+    opdLine(data) +
     `<div class="meta">${esc(meta || null)}</div>` +
     `</div><div class="qr" role="img" aria-label="QR code of UHID ${esc(data.uhid)}">` +
     `${qrSvgMarkup(data.uhid, 160)}</div></section>`
@@ -81,6 +90,7 @@ const ID_CARD_CSS = `${PRINT_FONT_FACES}
   .label { margin-top: 1.6mm; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 1.9mm; letter-spacing: 0.3mm; color: ${COLOUR.muted}; }
   .uhid { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 4.6mm; font-weight: 600; line-height: 1.2; }
   .meta { margin-top: 1mm; font-size: 2.6mm; }
+  .opd { font-weight: 600; }
   .uhid, .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .qr { width: 19mm; height: 19mm; align-self: center; }
   .qr svg { display: block; width: 100%; height: 100%; }

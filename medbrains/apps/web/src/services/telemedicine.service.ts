@@ -1,28 +1,32 @@
-import { api } from "@medbrains/api";
+import { telemedicineApi } from "@medbrains/api/modules/telemedicine";
 
 export const telemedicineService = {
-  listTeleConsultations: (...args: Parameters<typeof api.listTeleConsultations>) =>
-    api.listTeleConsultations(...args),
-  createTeleConsultation: (data: Parameters<typeof api.createTeleConsultation>[0]) =>
-    api.createTeleConsultation(data),
-  getTeleConsultation: (id: string) => api.getTeleConsultation(id),
-  getTeleJoinInfo: (id: string) => api.getTeleJoinInfo(id),
-  getTeleWaitingRoom: (doctorId?: string) => api.getTeleWaitingRoom(doctorId),
-  updateTeleRecording: (id: string, data: Parameters<typeof api.updateTeleRecording>[1]) =>
-    api.updateTeleRecording(id, data),
-  scheduleTeleFollowUp: (id: string, data: Parameters<typeof api.scheduleTeleFollowUp>[1]) =>
-    api.scheduleTeleFollowUp(id, data),
-  listTeleChat: (id: string) => api.listTeleChat(id),
-  postTeleChat: (id: string, data: Parameters<typeof api.postTeleChat>[1]) =>
-    api.postTeleChat(id, data),
-  getTeleConfig: () => api.getTeleConfig(),
-  updateTeleConfig: (data: Parameters<typeof api.updateTeleConfig>[0]) =>
-    api.updateTeleConfig(data),
-  getTriage: (id: string) => api.getTriage(id),
-  submitTriage: (id: string, data: Parameters<typeof api.submitTriage>[1]) =>
-    api.submitTriage(id, data),
-  getTriageResearchSummary: () => api.getTriageResearchSummary(),
-  getTriageResearchDataset: () => api.getTriageResearchDataset(),
-  updateTeleStatus: (id: string, data: Parameters<typeof api.updateTeleStatus>[1]) =>
-    api.updateTeleStatus(id, data),
+  listTeleConsultations: (...args: Parameters<typeof telemedicineApi.listTeleConsultations>) =>
+    telemedicineApi.listTeleConsultations(...args),
+  createTeleConsultation: (data: Parameters<typeof telemedicineApi.createTeleConsultation>[0]) =>
+    telemedicineApi.createTeleConsultation(data),
+  getTeleConsultation: (id: string) => telemedicineApi.getTeleConsultation(id),
+  getTeleJoinInfo: (id: string) => telemedicineApi.getTeleJoinInfo(id),
+  getTeleWaitingRoom: (doctorId?: string) => telemedicineApi.getTeleWaitingRoom(doctorId),
+  updateTeleRecording: (
+    id: string,
+    data: Parameters<typeof telemedicineApi.updateTeleRecording>[1],
+  ) => telemedicineApi.updateTeleRecording(id, data),
+  scheduleTeleFollowUp: (
+    id: string,
+    data: Parameters<typeof telemedicineApi.scheduleTeleFollowUp>[1],
+  ) => telemedicineApi.scheduleTeleFollowUp(id, data),
+  listTeleChat: (id: string) => telemedicineApi.listTeleChat(id),
+  postTeleChat: (id: string, data: Parameters<typeof telemedicineApi.postTeleChat>[1]) =>
+    telemedicineApi.postTeleChat(id, data),
+  getTeleConfig: () => telemedicineApi.getTeleConfig(),
+  updateTeleConfig: (data: Parameters<typeof telemedicineApi.updateTeleConfig>[0]) =>
+    telemedicineApi.updateTeleConfig(data),
+  getTriage: (id: string) => telemedicineApi.getTriage(id),
+  submitTriage: (id: string, data: Parameters<typeof telemedicineApi.submitTriage>[1]) =>
+    telemedicineApi.submitTriage(id, data),
+  getTriageResearchSummary: () => telemedicineApi.getTriageResearchSummary(),
+  getTriageResearchDataset: () => telemedicineApi.getTriageResearchDataset(),
+  updateTeleStatus: (id: string, data: Parameters<typeof telemedicineApi.updateTeleStatus>[1]) =>
+    telemedicineApi.updateTeleStatus(id, data),
 };

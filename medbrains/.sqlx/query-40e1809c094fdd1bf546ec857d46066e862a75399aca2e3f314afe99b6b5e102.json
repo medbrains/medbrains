@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT concat_ws(' ', p.first_name, NULLIF(btrim(p.middle_name), ''), p.last_name) AS \"patient_name!\", p.uhid, p.date_of_birth, p.gender::text AS \"gender!\", p.phone, NULLIF(concat_ws(', ', NULLIF(btrim(p.address->>'line1'), ''), NULLIF(btrim(p.address->>'city'), '')), '') AS address, p.created_at FROM patients p WHERE p.id = $1 AND p.tenant_id = $2 AND p.deleted_at IS NULL",
+  "query": "SELECT concat_ws(' ', p.first_name, NULLIF(btrim(p.middle_name), ''), p.last_name) AS \"patient_name!\", p.uhid, p.date_of_birth, p.gender::text AS \"gender!\", p.phone, NULLIF(concat_ws(', ', NULLIF(btrim(p.address->>'line1'), ''), NULLIF(btrim(p.address->>'city'), '')), '') AS address, p.created_at, p.opd_number, p.opd_date FROM patients p WHERE p.id = $1 AND p.tenant_id = $2 AND p.deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -37,6 +37,16 @@
         "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "opd_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "opd_date",
+        "type_info": "Date"
       }
     ],
     "parameters": {
@@ -52,8 +62,10 @@
       null,
       false,
       null,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "f3eeebe6af3853d3b53e580feaebb8ce108828462a3da46399ef5d4c1cfa4c68"
+  "hash": "40e1809c094fdd1bf546ec857d46066e862a75399aca2e3f314afe99b6b5e102"
 }

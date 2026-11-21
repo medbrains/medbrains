@@ -117,6 +117,10 @@ export interface Patient {
   id: string;
   tenant_id: string;
   uhid: string;
+  /** The hospital OPD number, when it keeps one per patient; set by registration. */
+  opd_number?: string | null;
+  /** The day that number was issued in the paper register (YYYY-MM-DD). */
+  opd_date?: string | null;
   abha_id: string | null;
   prefix: string | null;
   first_name: string;
@@ -283,6 +287,9 @@ export interface PatientContextPendingConsent {
 export interface PatientContext {
   patient_id: string;
   uhid: string;
+  /** The hospital OPD number and its register date (YYYY-MM-DD), when it keeps one per patient. */
+  opd_number?: string | null;
+  opd_date?: string | null;
   full_name: string;
   age_years: number | null;
   gender: string | null;
@@ -584,6 +591,10 @@ export interface CreatePatientRequest {
   financial_class?: FinancialClass;
   /** The campaign the patient came through, picked at the desk. */
   campaign_id?: string;
+  /** The hospital OPD number the desk typed, when it keeps one per patient. */
+  opd_number?: string;
+  /** The day that number was issued in the paper register (YYYY-MM-DD); today if absent. */
+  opd_date?: string;
   abha_number?: string;
   abha_address?: string;
   /** The desk's "Verify ABHA" record; with it the ABHA is saved as verified. */
@@ -858,6 +869,9 @@ export interface MpiMatchResult {
   score: number;
   /** A light record from the online pharmacy: complete it, don't register again. */
   pharmacy_customer: boolean;
+  /** The hospital OPD number and its register date, on desk lookups. */
+  opd_number?: string | null;
+  opd_date?: string | null;
   /** Present on duplicate-check results; absent from plain lookups. */
   band?: MpiMatchBand;
   /** Why, field by field ("Name matches in another spelling", …). */
@@ -894,4 +908,36 @@ export interface HealthAppReadingsResult {
   accepted: number;
   duplicates: number;
   refused: { external_id: string; reason: string }[];
+}
+
+/** Whether a hospital keeps its own OPD number, who picks it, and what it belongs to. */
+export type OpdNumberMode = "off" | "manual" | "auto";
+export type OpdNumberScope = "visit" | "patient";
+
+/** The hospital's OPD number policy (`PUT /registration/opd-number/policy`). */
+export interface OpdNumberPolicy {
+  mode: OpdNumberMode;
+  scope: OpdNumberScope;
+  /** Shown before the number; empty for plain numbers. */
+  prefix: string;
+  start: number;
+  /** Whether the desk may give a per-patient OPD date before today. */
+  allow_backdate: boolean;
+}
+
+/** The policy and the numbers the registration form shows beside the field. */
+export interface OpdNumberView extends OpdNumberPolicy {
+  previous: string | null;
+  next: string;
+}
+
+/** Which field the patient search box searches. */
+export type PatientSearchBy = "all" | "phone" | "uhid" | "name" | "opd_number";
+
+/** What the search box offers at this hospital. */
+export interface PatientSearchSettings {
+  default_by: PatientSearchBy;
+  opd_number_enabled: boolean;
+  /** `basic`: UHID, name, age and sex, phone, OPD number; `full` (default): every column. */
+  patient_list_columns: "full" | "basic";
 }

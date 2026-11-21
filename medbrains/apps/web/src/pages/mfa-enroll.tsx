@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Code, CopyButton, Group, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { authApi } from "@medbrains/api/modules/auth";
 import { useAuthStore } from "@medbrains/stores";
 import { IconKey, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ export function MfaEnrollPage() {
 
   const enrollment = useQuery({
     queryKey: ["mfa-enroll"],
-    queryFn: () => api.enrollMfa(),
+    queryFn: () => authApi.enrollMfa(),
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });
@@ -38,7 +38,7 @@ export function MfaEnrollPage() {
   });
 
   const activateMutation = useMutation({
-    mutationFn: (values: ActivateInput) => api.activateMfa(values),
+    mutationFn: (values: ActivateInput) => authApi.activateMfa(values),
     onSuccess: (data) => setRecoveryCodes(data.recovery_codes),
   });
 

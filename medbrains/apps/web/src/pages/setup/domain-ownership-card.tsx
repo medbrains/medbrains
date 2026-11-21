@@ -5,7 +5,7 @@
  * hospital's records.
  */
 import { Code, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@/components/ui";
@@ -14,11 +14,11 @@ export function DomainOwnershipCard() {
   const qc = useQueryClient();
   const ownership = useQuery({
     queryKey: ["domain-ownership"],
-    queryFn: api.getDomainOwnership,
+    queryFn: adminApi.getDomainOwnership,
     retry: false,
   });
   const verify = useMutation({
-    mutationFn: api.verifyDomainOwnership,
+    mutationFn: adminApi.verifyDomainOwnership,
     onSuccess: (data) => qc.setQueryData(["domain-ownership"], data),
   });
   // No domain set yet: the Domain & DNS card below says what to do.

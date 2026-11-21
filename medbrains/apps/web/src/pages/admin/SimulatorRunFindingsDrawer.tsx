@@ -1,5 +1,5 @@
 import { Card, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import type { SimulatorRunFinding, SimulatorRunSummary } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, type BadgeTone, Modal, Panel, Table } from "@/components/ui";
@@ -121,7 +121,7 @@ export function SimulatorRunFindingsDrawer({
 }) {
   const { data } = useQuery({
     queryKey: ["simulator-run", runId],
-    queryFn: () => api.getSimulatorRun(runId as string),
+    queryFn: () => adminApi.getSimulatorRun(runId as string),
     enabled: runId !== null,
     // Stream in steps/findings/score while the agent run is still executing.
     refetchInterval: (query) => (query.state.data?.run.status === "running" ? 2000 : false),

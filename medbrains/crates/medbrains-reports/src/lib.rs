@@ -4,5 +4,6 @@
 pub mod acquisition;
 pub mod analytics;
 pub mod nabh_indicators;
+mod report_dates;
 pub mod report_widget;
 pub mod reports;

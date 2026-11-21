@@ -42,7 +42,7 @@ import os
 import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from api_client_source import api_client_source  # noqa: E402
+from api_client_source import api_client_source, api_object_pattern  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "docs", "authz-manifest.json")
@@ -87,7 +87,7 @@ def pages_using_methods(methods: set[str]) -> dict[str, list[str]]:
             except OSError:
                 continue
             relative = os.path.relpath(full, ROOT)
-            for method in re.findall(r"\bapi\.(\w+)\s*\(", text):
+            for method in re.findall(r"\b" + api_object_pattern() + r"\.(\w+)\s*\(", text):
                 if method in methods:
                     out[method].append(relative)
             # Services indirect one hop: `xService.foo` wrapping `api.foo`.

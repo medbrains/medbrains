@@ -7,7 +7,7 @@
  * retry, never "nothing unusual".
  */
 import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { healthIntelApi } from "@medbrains/api/modules/health-intel";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconRefresh } from "@tabler/icons-react";
@@ -25,7 +25,7 @@ export function HealthIntelPage() {
   const canView = useHasPermission(P.HEALTH.INTEL.VIEW);
   const intel = useQuery({
     queryKey: ["health-intel"],
-    queryFn: () => api.getHealthIntel(),
+    queryFn: () => healthIntelApi.getHealthIntel(),
     enabled: canView,
   });
   const refresh = (

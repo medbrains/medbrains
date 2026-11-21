@@ -1,5 +1,5 @@
 import { Code, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { vpnApi } from "@medbrains/api/modules/vpn";
 import { P } from "@medbrains/types";
 import { IconCopy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,8 +10,8 @@ import { Alert, Badge, Button, Card, IconButton, Input, Modal, toast } from "@/c
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
 
-type Device = Awaited<ReturnType<typeof api.getVpnStatus>>[number];
-type EnrollResult = Awaited<ReturnType<typeof api.enrollVpn>>;
+type Device = Awaited<ReturnType<typeof vpnApi.getVpnStatus>>[number];
+type EnrollResult = Awaited<ReturnType<typeof vpnApi.enrollVpn>>;
 
 /** Self-service VPN device enrollment (RFC-VPN-PLATFORM, P2). */
 export function RemoteAccessPage() {
@@ -22,11 +22,11 @@ export function RemoteAccessPage() {
 
   const { data: devices = [], isLoading } = useQuery({
     queryKey: ["vpn-devices"],
-    queryFn: () => api.getVpnStatus(),
+    queryFn: () => vpnApi.getVpnStatus(),
   });
 
   const enrollMut = useMutation({
-    mutationFn: () => api.enrollVpn(deviceName.trim()),
+    mutationFn: () => vpnApi.enrollVpn(deviceName.trim()),
     onSuccess: (res) => {
       setEnrolled(res);
       setDeviceName("");
@@ -36,7 +36,7 @@ export function RemoteAccessPage() {
   });
 
   const revokeMut = useMutation({
-    mutationFn: (id: string) => api.revokeVpnDevice(id),
+    mutationFn: (id: string) => vpnApi.revokeVpnDevice(id),
     onSuccess: () => {
       toast.success("Device revoked");
       void qc.invalidateQueries({ queryKey: ["vpn-devices"] });

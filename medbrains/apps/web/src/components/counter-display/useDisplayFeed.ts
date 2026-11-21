@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { deviceApi } from "@medbrains/api/modules/device";
 import type { CounterDisplayState, CounterDisplayView } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -56,7 +56,7 @@ export function useDisplayFeed(
   const poll = useQuery({
     queryKey: ["counter-display", token],
     queryFn: async () => {
-      const view = await api.getCounterDisplay();
+      const view = await deviceApi.getCounterDisplay();
       stepRef.current(view.state);
       return view;
     },

@@ -1,37 +1,42 @@
-import { api } from "@medbrains/api";
+import { cdsApi } from "@medbrains/api/modules/cds";
+import { opdApi } from "@medbrains/api/modules/opd";
+import { pharmacyApi } from "@medbrains/api/modules/pharmacy";
+import { radiologyApi } from "@medbrains/api/modules/radiology";
+import { setupApi } from "@medbrains/api/modules/setup";
+import { terminologyApi } from "@medbrains/api/modules/terminology";
 
 export const clinicalSupportService = {
-  listLiveStewardshipRequests: (...args: Parameters<typeof api.listLiveStewardshipRequests>) =>
-    api.listLiveStewardshipRequests(...args),
-  listRadiologyExams: (...args: Parameters<typeof api.listRadiologyExams>) =>
-    api.listRadiologyExams(...args),
-  listRadiologyModalities: (...args: Parameters<typeof api.listRadiologyModalities>) =>
-    api.listRadiologyModalities(...args),
-  getTenantSettings: (...args: Parameters<typeof api.getTenantSettings>) =>
-    api.getTenantSettings(...args),
-  listPharmacyCatalog: (...args: Parameters<typeof api.listPharmacyCatalog>) =>
-    api.listPharmacyCatalog(...args),
-  listPrescriptionTemplates: (...args: Parameters<typeof api.listPrescriptionTemplates>) =>
-    api.listPrescriptionTemplates(...args),
-  createPrescriptionTemplate: (...args: Parameters<typeof api.createPrescriptionTemplate>) =>
-    api.createPrescriptionTemplate(...args),
-  deletePrescriptionTemplate: (...args: Parameters<typeof api.deletePrescriptionTemplate>) =>
-    api.deletePrescriptionTemplate(...args),
-  checkDrugSafety: (...args: Parameters<typeof api.checkDrugSafety>) =>
-    api.checkDrugSafety(...args),
-  searchIcd11: (...args: Parameters<typeof api.searchIcd11>) => api.searchIcd11(...args),
-  searchClinicalCorpus: (...args: Parameters<typeof api.searchClinicalCorpus>) =>
-    api.searchClinicalCorpus(...args),
-  createClinicalCorpusEntry: (...args: Parameters<typeof api.createClinicalCorpusEntry>) =>
-    api.createClinicalCorpusEntry(...args),
-  updateClinicalCorpusEntry: (...args: Parameters<typeof api.updateClinicalCorpusEntry>) =>
-    api.updateClinicalCorpusEntry(...args),
-  searchTerminology: (...args: Parameters<typeof api.searchTerminology>) =>
-    api.searchTerminology(...args),
+  listLiveStewardshipRequests: (...args: Parameters<typeof opdApi.listLiveStewardshipRequests>) =>
+    opdApi.listLiveStewardshipRequests(...args),
+  listRadiologyExams: (...args: Parameters<typeof radiologyApi.listRadiologyExams>) =>
+    radiologyApi.listRadiologyExams(...args),
+  listRadiologyModalities: (...args: Parameters<typeof radiologyApi.listRadiologyModalities>) =>
+    radiologyApi.listRadiologyModalities(...args),
+  getTenantSettings: (...args: Parameters<typeof setupApi.getTenantSettings>) =>
+    setupApi.getTenantSettings(...args),
+  listPharmacyCatalog: (...args: Parameters<typeof pharmacyApi.listPharmacyCatalog>) =>
+    pharmacyApi.listPharmacyCatalog(...args),
+  listPrescriptionTemplates: (...args: Parameters<typeof opdApi.listPrescriptionTemplates>) =>
+    opdApi.listPrescriptionTemplates(...args),
+  createPrescriptionTemplate: (...args: Parameters<typeof opdApi.createPrescriptionTemplate>) =>
+    opdApi.createPrescriptionTemplate(...args),
+  deletePrescriptionTemplate: (...args: Parameters<typeof opdApi.deletePrescriptionTemplate>) =>
+    opdApi.deletePrescriptionTemplate(...args),
+  checkDrugSafety: (...args: Parameters<typeof cdsApi.checkDrugSafety>) =>
+    cdsApi.checkDrugSafety(...args),
+  searchIcd11: (...args: Parameters<typeof opdApi.searchIcd11>) => opdApi.searchIcd11(...args),
+  searchClinicalCorpus: (...args: Parameters<typeof opdApi.searchClinicalCorpus>) =>
+    opdApi.searchClinicalCorpus(...args),
+  createClinicalCorpusEntry: (...args: Parameters<typeof opdApi.createClinicalCorpusEntry>) =>
+    opdApi.createClinicalCorpusEntry(...args),
+  updateClinicalCorpusEntry: (...args: Parameters<typeof opdApi.updateClinicalCorpusEntry>) =>
+    opdApi.updateClinicalCorpusEntry(...args),
+  searchTerminology: (...args: Parameters<typeof terminologyApi.searchTerminology>) =>
+    terminologyApi.searchTerminology(...args),
   searchTerminologyWithSuggestions: (
-    ...args: Parameters<typeof api.searchTerminologyWithSuggestions>
-  ) => api.searchTerminologyWithSuggestions(...args),
-  lookupTerminology: (...args: Parameters<typeof api.lookupTerminology>) =>
-    api.lookupTerminology(...args),
-  searchSnomed: (...args: Parameters<typeof api.searchSnomed>) => api.searchSnomed(...args),
+    ...args: Parameters<typeof terminologyApi.searchTerminologyWithSuggestions>
+  ) => terminologyApi.searchTerminologyWithSuggestions(...args),
+  lookupTerminology: (...args: Parameters<typeof terminologyApi.lookupTerminology>) =>
+    terminologyApi.lookupTerminology(...args),
+  searchSnomed: (...args: Parameters<typeof opdApi.searchSnomed>) => opdApi.searchSnomed(...args),
 };

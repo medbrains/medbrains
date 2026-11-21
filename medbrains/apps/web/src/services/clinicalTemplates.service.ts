@@ -1,10 +1,12 @@
-import { api } from "@medbrains/api";
+import { opdApi } from "@medbrains/api/modules/opd";
 
-export type CreateConsultationTemplateInput = Parameters<typeof api.createConsultationTemplate>[0];
+export type CreateConsultationTemplateInput = Parameters<
+  typeof opdApi.createConsultationTemplate
+>[0];
 
 export const clinicalTemplatesService = {
-  listConsultationTemplates: () => api.listConsultationTemplates(),
+  listConsultationTemplates: () => opdApi.listConsultationTemplates(),
   createConsultationTemplate: (data: CreateConsultationTemplateInput) =>
-    api.createConsultationTemplate(data),
-  deleteConsultationTemplate: (id: string) => api.deleteConsultationTemplate(id),
+    opdApi.createConsultationTemplate(data),
+  deleteConsultationTemplate: (id: string) => opdApi.deleteConsultationTemplate(id),
 };

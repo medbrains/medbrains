@@ -6,7 +6,7 @@
  */
 
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { useHasPermission } from "@medbrains/stores";
 import { type ConnectedApp, type ConnectedAppCredentials, P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
@@ -27,6 +27,8 @@ const STATUS: Record<ConnectedApp["status"], { label: string; tone: BadgeTone }>
   revoked: { label: "Revoked", tone: "danger" },
 };
 
+const APPS_KEY = ["connected-apps"];
+
 export function ConnectedAppsPage() {
   useRequirePermission(P.ADMIN.CONNECTED_APPS.VIEW);
   const canManage = useHasPermission(P.ADMIN.CONNECTED_APPS.MANAGE);
@@ -34,12 +36,13 @@ export function ConnectedAppsPage() {
   const [registering, setRegistering] = useState(false);
   const [reviewing, setReviewing] = useState<ConnectedApp | null>(null);
   const [issued, setIssued] = useState<ConnectedAppCredentials | null>(null);
-  const list = useQuery({ queryKey: ["connected-apps"], queryFn: () => api.listConnectedApps() });
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: ["connected-apps"] });
+  const list = useQuery({ queryKey: APPS_KEY, queryFn: () => adminApi.listConnectedApps() });
+  /** Reload the list after any change to an app. */
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: APPS_KEY });
   const onError = (error: Error) => toast.error(error.message, { title: "Not done" });
 
   const approve = useMutation({
-    mutationFn: (id: string) => api.approveConnectedApp(id),
+    mutationFn: (id: string) => adminApi.approveConnectedApp(id),
     onSuccess: () => {
       toast.success("It can sign in now, with exactly the permissions shown.", {
         title: "App approved",
@@ -49,7 +52,7 @@ export function ConnectedAppsPage() {
     onError,
   });
   const revoke = useMutation({
-    mutationFn: (id: string) => api.revokeConnectedApp(id, "Revoked from Connected apps"),
+    mutationFn: (id: string) => adminApi.revokeConnectedApp(id, "Revoked from Connected apps"),
     onSuccess: (r) => {
       toast.success(`Cut off at once. ${r.tokens_revoked} live token(s) revoked.`, {
         title: "App revoked",
@@ -59,7 +62,7 @@ export function ConnectedAppsPage() {
     onError,
   });
   const rotate = useMutation({
-    mutationFn: (id: string) => api.rotateConnectedAppSecret(id),
+    mutationFn: (id: string) => adminApi.rotateConnectedAppSecret(id),
     onSuccess: (r) => {
       setIssued(r);
       refresh();

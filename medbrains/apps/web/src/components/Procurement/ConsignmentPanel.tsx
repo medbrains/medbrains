@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { indentApi } from "@medbrains/api/modules/indent";
 import { useHasPermission } from "@medbrains/stores";
 import { type BatchStock, P, type StoreCatalog } from "@medbrains/types";
 import { IconReceipt } from "@tabler/icons-react";
@@ -34,11 +34,11 @@ export function ConsignmentPanel() {
 
   const { data: stock = [], isLoading } = useQuery({
     queryKey: ["consignment-stock"],
-    queryFn: () => api.listConsignmentStock(),
+    queryFn: () => indentApi.listConsignmentStock(),
   });
   const { data: catalog = [] } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog(),
+    queryFn: () => indentApi.listStoreCatalog(),
   });
   const catalogById = new Map<string, StoreCatalog>(catalog.map((c) => [c.id, c]));
 
@@ -49,7 +49,7 @@ export function ConsignmentPanel() {
 
   const useMutationFn = useMutation({
     mutationFn: (values: FormValues) =>
-      api.recordConsignmentUsage({
+      indentApi.recordConsignmentUsage({
         batch_stock_id: active?.id ?? "",
         quantity: values.quantity,
         patient_id: values.patient_id,
