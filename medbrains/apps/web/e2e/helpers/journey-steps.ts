@@ -426,6 +426,25 @@ export async function createLabOrder(
   return resp.id;
 }
 
+/**
+ * A fresh patient's lab order for a spec that opens the order screen, drawn when `collected`.
+ * The worker's hospital is new each run, so a spec cannot name an order id from a dev database.
+ */
+export async function createLabOrderToOpen(
+  ctx: AuthContext,
+  opts: { collected?: boolean } = {},
+): Promise<string> {
+  const patient = await createPatientApi(ctx);
+  const encounterId = await createEncounter(ctx, patient.id);
+  const orderId = await createLabOrder(ctx, { patientId: patient.id, encounterId });
+  if (opts.collected) {
+    await api(ctx, "PUT", `/api/lab/orders/${orderId}/collect`, {
+      patient_identifier: patient.uhid,
+    });
+  }
+  return orderId;
+}
+
 export async function cancelLabOrder(
   ctx: AuthContext,
   labOrderId: string,
@@ -558,6 +577,18 @@ export async function admitToIpd(
     },
   );
   return resp.admission.id;
+}
+
+/**
+ * Admit a fresh patient for a spec that opens the admission or the patient's chart.
+ * The worker's hospital is new each run, so a spec cannot name an admission from a dev database.
+ */
+export async function admitPatientToOpen(
+  ctx: AuthContext,
+): Promise<{ admissionId: string; patientId: string }> {
+  const patient = await createPatientApi(ctx);
+  const admissionId = await admitToIpd(ctx, { patientId: patient.id });
+  return { admissionId, patientId: patient.id };
 }
 
 export async function transferAdmissionBedIfAvailable(
