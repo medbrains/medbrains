@@ -70,7 +70,7 @@ async fn calling_in_opd_advances_the_token_the_boards_read() {
 
     let before: String = sqlx::query_scalar(
         "SELECT status FROM tokens WHERE tenant_id = $1 AND patient_id = $2 \
-           AND module = 'opd' AND token_date = CURRENT_DATE",
+           AND module = 'opd' AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date",
     )
     .bind(tenant_id)
     .bind(patient_id)
@@ -94,7 +94,7 @@ async fn calling_in_opd_advances_the_token_the_boards_read() {
 
     let after: String = sqlx::query_scalar(
         "SELECT status FROM tokens WHERE tenant_id = $1 AND patient_id = $2 \
-           AND module = 'opd' AND token_date = CURRENT_DATE",
+           AND module = 'opd' AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date",
     )
     .bind(tenant_id)
     .bind(patient_id)
@@ -109,7 +109,7 @@ async fn calling_in_opd_advances_the_token_the_boards_read() {
 
     let called_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
         "SELECT called_at FROM tokens WHERE tenant_id = $1 AND patient_id = $2 \
-           AND module = 'opd' AND token_date = CURRENT_DATE",
+           AND module = 'opd' AND token_date = (timezone(COALESCE((SELECT t.timezone FROM tenants t WHERE t.id = tokens.tenant_id), 'UTC'), now()))::date",
     )
     .bind(tenant_id)
     .bind(patient_id)
