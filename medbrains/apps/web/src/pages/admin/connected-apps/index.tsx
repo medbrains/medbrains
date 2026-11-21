@@ -122,6 +122,9 @@ function useAppActions(setIssued: (issued: ConnectedAppCredentials) => void) {
   return { approve, onRevoke, onRotate };
 }
 
+/** Admin → Connected apps: register, review and approve vendor apps, and
+ *  revoke or rotate their credentials. Apps asking for codes they may never
+ *  hold are shown as refused, never approvable. */
 export function ConnectedAppsPage() {
   useRequirePermission(P.ADMIN.CONNECTED_APPS.VIEW);
   const canManage = useHasPermission(P.ADMIN.CONNECTED_APPS.MANAGE);
