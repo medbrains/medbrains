@@ -2622,6 +2622,10 @@ export const P = {
     },
     NOTES_EDIT: "patients.notes.edit",
     NOTES_VIEW: "patients.notes.view",
+    OPD_NUMBER: {
+      BACKDATE: "patients.opd_number.backdate",
+    },
+    OPD_NUMBER_BACKDATE: "patients.opd_number.backdate",
     PRIVACY_REQUESTS: {
       CREATE: "patients.privacy_requests.create",
       DECIDE: "patients.privacy_requests.decide",

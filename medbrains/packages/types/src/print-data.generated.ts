@@ -4996,6 +4996,13 @@ export interface OpdCardPrintData {
   /** Street and city, nothing more. */
   address: string | null;
   registered_on: string;
+  /**
+   * The hospital's own OPD number: the visit's when it numbers visits,
+   * else the patient's. Absent where the hospital keeps none.
+   */
+  opd_number: string | null;
+  /** The patient's OPD (register) date, "15-Aug-2026", with a patient's number. */
+  opd_date: string | null;
   /** Present when the card is printed for an OPD visit. */
   visit: OpdCardVisit | null;
 }

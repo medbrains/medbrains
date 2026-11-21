@@ -8485,6 +8485,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "strsim",
+ "tokio",
  "tracing",
  "uuid",
 ]

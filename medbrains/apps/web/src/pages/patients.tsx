@@ -1,4 +1,4 @@
-import { Card, Group, Stack, Text, TextInput, ThemeIcon, Tooltip } from "@mantine/core";
+import { Card, Group, Stack, Text, ThemeIcon, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { ClinicalJourneyActionId, ClinicalJourneyContext, Patient } from "@medbrains/types";
 import {
@@ -15,7 +15,6 @@ import {
   IconDroplet,
   IconGenderFemale,
   IconGenderMale,
-  IconSearch,
   IconStarFilled,
   IconUserCheck,
   IconUserPlus,
@@ -36,11 +35,13 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientSearchBox, usePatientSearchBy } from "@/components/Patient/PatientSearchBox";
 import { Badge, Button, IconButton } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { patientsService } from "@/services/patients.service";
+import { patientListColumns } from "./patients/list-columns";
 import { RegisterMatches } from "./patients/register-matches";
 import { PatientRegisterPageInner } from "./patients/register-page-inner";
 import classes from "./patients.module.scss";
@@ -125,6 +126,7 @@ function PatientsPageInner() {
   const [search, setSearch] = useState("");
   const debouncedSearch = usePacedQueryValue(search, 300);
   const [page, setPage] = useState(1);
+  const { by, setBy, opdOn, basic, settingsFailed } = usePatientSearchBy(() => setPage(1));
   const [sort, setSort] = useState<SortState | null>(null);
 
   const handleSearchChange = (val: string) => {
@@ -134,12 +136,13 @@ function PatientsPageInner() {
 
   // Queries
   const { data, isLoading } = useQuery({
-    queryKey: ["patients", page, debouncedSearch, sort],
+    queryKey: ["patients", page, debouncedSearch, by, sort],
     queryFn: async () => {
       const response = await patientsService.listPatients({
         page,
         per_page: PER_PAGE,
         search: debouncedSearch || undefined,
+        by,
         sort: sort?.key,
         order: sort?.dir,
       });
@@ -379,13 +382,9 @@ function PatientsPageInner() {
             </Group>
           </Stack>
           <Group gap="xs" className={classes.directoryControls}>
-            <TextInput
-              placeholder={t("placeholder.searchPatients")}
-              leftSection={<IconSearch size={16} />}
-              aria-label={t("directory.searchLabel")}
-              value={search}
-              onChange={(e) => handleSearchChange(e.currentTarget.value)}
-              size="sm"
+            <PatientSearchBox
+              {...{ value: search, onChange: handleSearchChange, by, opdOn, settingsFailed }}
+              onByChange={setBy}
               className={classes.directorySearch}
             />
             {canCreate && (
@@ -402,7 +401,7 @@ function PatientsPageInner() {
       </Card>
 
       <DataTable<Patient>
-        columns={columns}
+        columns={patientListColumns(columns, { opdOn, basic })}
         data={data?.patients ?? []}
         loading={isLoading}
         total={data?.total}
@@ -433,7 +432,7 @@ function PatientsPageInner() {
         virtualRowHeight={72}
         tableMaxHeight="calc(100vh - 360px)"
       />
-      <RegisterMatches search={debouncedSearch} shown={data?.patients} />
+      <RegisterMatches search={debouncedSearch} by={by} shown={data?.patients} />
     </Stack>
   );
 }

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button, IconButton, Table } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
+import { OpdNumberSettings } from "./OpdNumberSettings";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -217,8 +218,6 @@ export function SequencesSettings() {
   const previewPrefix = watch("prefix");
   const previewPadWidth = Number(watch("pad_width"));
 
-  // ── Render ──
-
   return (
     <Stack gap="lg">
       <Group justify="space-between">
@@ -234,6 +233,7 @@ export function SequencesSettings() {
           Add Sequence
         </Button>
       </Group>
+      <OpdNumberSettings />
 
       {rows.length === 0 ? (
         <Text c="dimmed" ta="center" py="xl">

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT opd_number, opd_date FROM patients WHERE tenant_id = $1 AND id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "opd_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "opd_date",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "95b70df5be19a2fcc138248cf23b3929d38d365264652995ebf1304f16ac4409"
+}

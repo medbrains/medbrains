@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patients SET opd_number = $3, opd_date = COALESCE($4, opd_date), updated_at = now() WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fb0fb4fe9e4be064972c4ab5d351135c0573b57237686f05ecaf1046031075cb"
+}
