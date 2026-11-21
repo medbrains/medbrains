@@ -4,7 +4,7 @@ import { renderTokenTicket, tokenSizeMm } from "./token-ticket";
 
 /** A fictional hospital and visit: nothing here is a real record. */
 const TICKET: OpdCardPrintData = {
-  hospital_name: "Sample Hospital",
+  hospital_name: "Rishi Hospital",
   hospital_logo_url: null,
   hospital_name_banner_url: null,
   hospital_address: "12 Temple Road, Madurai",
@@ -43,7 +43,7 @@ describe("renderTokenTicket", () => {
   it("prints the token, the hospital and when it was issued", () => {
     const { body } = page(TICKET);
     expect(body).toContain(">OP-014<");
-    expect(body).toContain("Sample Hospital · OPD");
+    expect(body).toContain("Rishi Hospital · OPD");
     expect(body).toContain("YOUR TOKEN");
     expect(body).toContain("17 Nov 2026 · 10:42");
     expect(body).toContain("Please wait for your number to be called");
