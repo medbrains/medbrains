@@ -39,11 +39,13 @@ function rememberedBy(key: string): PatientSearchBy | null {
  * hospital's default, else all. Also says whether OPD numbers are offered and
  * whether the hospital's patient list shows only the basic columns.
  * `onChange` runs after the desk picks another field (to go back to page one).
+ * `settingsFailed` says the hospital's search settings did not load: search
+ * still works across all fields, and the box says so rather than hiding it.
  */
 export function usePatientSearchBy(onChange?: () => void) {
   const userId = useAuthStore((s) => s.user?.id);
   const canSearch = useHasAnyPermission([P.PATIENTS.LIST, P.PATIENTS.FIND]);
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ["registration-search-settings"],
     queryFn: () => patientsService.getSearchSettings(),
     enabled: canSearch,
@@ -51,7 +53,7 @@ export function usePatientSearchBy(onChange?: () => void) {
   });
   const key = storageKey(userId);
   const [chosen, setChosen] = useState<PatientSearchBy | null>(() => rememberedBy(key));
-  const opdOn = data?.opd_number_enabled ?? false;
+  const opdOn = data?.opd_number_enabled === true;
   const fallback = data?.default_by ?? "all";
   const wanted = chosen ?? fallback;
   const by: PatientSearchBy = wanted === "opd_number" && !opdOn ? "all" : wanted;
@@ -65,7 +67,13 @@ export function usePatientSearchBy(onChange?: () => void) {
       // Not remembered this time; the choice still applies.
     }
   };
-  return { by, setBy, opdOn, basic: data?.patient_list_columns === "basic" };
+  return {
+    by,
+    setBy,
+    opdOn,
+    basic: data?.patient_list_columns === "basic",
+    settingsFailed: isError,
+  };
 }
 
 interface PatientSearchBoxProps {
@@ -74,6 +82,7 @@ interface PatientSearchBoxProps {
   by: PatientSearchBy;
   onByChange: (by: PatientSearchBy) => void;
   opdOn: boolean;
+  settingsFailed?: boolean;
   className?: string;
 }
 
@@ -84,6 +93,7 @@ export function PatientSearchBox({
   by,
   onByChange,
   opdOn,
+  settingsFailed,
   className,
 }: PatientSearchBoxProps) {
   const { t } = useTranslation("patients");
@@ -97,6 +107,9 @@ export function PatientSearchBox({
         value={by}
         onChange={(v) => onByChange((v as PatientSearchBy | null) ?? "all")}
         allowDeselect={false}
+        error={
+          settingsFailed ? t("directory.searchSettingsFailed", "Settings did not load") : undefined
+        }
         size="sm"
         w={140}
         data-testid="patient-search-by"

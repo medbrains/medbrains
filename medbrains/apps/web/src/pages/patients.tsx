@@ -126,7 +126,7 @@ function PatientsPageInner() {
   const [search, setSearch] = useState("");
   const debouncedSearch = usePacedQueryValue(search, 300);
   const [page, setPage] = useState(1);
-  const { by, setBy, opdOn, basic } = usePatientSearchBy(() => setPage(1));
+  const { by, setBy, opdOn, basic, settingsFailed } = usePatientSearchBy(() => setPage(1));
   const [sort, setSort] = useState<SortState | null>(null);
 
   const handleSearchChange = (val: string) => {
@@ -383,7 +383,7 @@ function PatientsPageInner() {
           </Stack>
           <Group gap="xs" className={classes.directoryControls}>
             <PatientSearchBox
-              {...{ value: search, onChange: handleSearchChange, by, opdOn }}
+              {...{ value: search, onChange: handleSearchChange, by, opdOn, settingsFailed }}
               onByChange={setBy}
               className={classes.directorySearch}
             />

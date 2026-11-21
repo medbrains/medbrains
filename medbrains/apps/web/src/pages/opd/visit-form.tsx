@@ -113,7 +113,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
     return handleSubmit((values) => createMutation.mutate(values))(event);
   };
 
-  const activeCampOptions = useActiveCampOptions();
+  const camps = useActiveCampOptions();
 
   const createMutation = useMutation({
     mutationFn: (values: OpdQueueVisitFormInput) =>
@@ -193,10 +193,13 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
             <Select
               label="Camp"
               placeholder="Select active camp"
-              data={activeCampOptions}
+              data={camps.options}
               value={field.value ?? null}
               onChange={(value) => field.onChange(value ?? null)}
-              error={errors.camp_id?.message}
+              error={
+                errors.camp_id?.message ??
+                (camps.failed ? "The camp list did not load. Try again." : undefined)
+              }
               searchable
               required
             />
