@@ -404,6 +404,8 @@ async fn moving_an_appointment_to_opd_takes_over_its_delivered_pull_list_file() 
             camp_id: None,
             chief_complaint: None,
             is_dummy: None,
+            opd_number: None,
+            opd_date: None,
         }),
     )
     .await

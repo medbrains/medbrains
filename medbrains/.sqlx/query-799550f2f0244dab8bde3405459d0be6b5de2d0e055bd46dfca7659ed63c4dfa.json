@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.patient_id, e.created_at, d.name AS \"department?\", doc.full_name AS \"doctor?\", COALESCE(tok.number, q.token_number::text) AS token_number, EXISTS (SELECT 1 FROM encounters prev WHERE prev.tenant_id = e.tenant_id AND prev.patient_id = e.patient_id AND prev.encounter_type = 'opd' AND prev.deleted_at IS NULL AND prev.id <> e.id AND prev.created_at < e.created_at) AS \"is_repeat!\", e.encounter_number FROM encounters e LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id LEFT JOIN users doc ON doc.id = e.doctor_id AND doc.tenant_id = e.tenant_id LEFT JOIN LATERAL (SELECT t.number FROM tokens t WHERE t.tenant_id = e.tenant_id AND t.module = 'opd' AND t.entity_type = 'encounter' AND t.entity_id = e.id ORDER BY t.created_at LIMIT 1) tok ON true LEFT JOIN LATERAL (SELECT oq.token_number FROM opd_queues oq WHERE oq.tenant_id = e.tenant_id AND oq.encounter_id = e.id AND oq.deleted_at IS NULL ORDER BY oq.created_at LIMIT 1) q ON true WHERE e.id = $1 AND e.tenant_id = $2 AND e.encounter_type = 'opd' AND e.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "department?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "doctor?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "token_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_repeat!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "encounter_number",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      true
+    ]
+  },
+  "hash": "799550f2f0244dab8bde3405459d0be6b5de2d0e055bd46dfca7659ed63c4dfa"
+}

@@ -42,6 +42,11 @@ pub struct MatchResult {
     /// A light record from the online pharmacy: the desk completes it into a
     /// full registration rather than making a second one.
     pub pharmacy_customer: bool,
+    /// The hospital OPD number and its register date; set only by the desk lookup.
+    #[sqlx(default)]
+    pub opd_number: Option<String>,
+    #[sqlx(default)]
+    pub opd_date: Option<NaiveDate>,
     /// `certain` / `likely` / `review`; absent from plain lookups.
     #[sqlx(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -208,6 +213,8 @@ mod tests {
             gender,
             score: 1.0,
             pharmacy_customer: false,
+            opd_number: None,
+            opd_date: None,
             band: None,
             reasons: Vec::new(),
         }

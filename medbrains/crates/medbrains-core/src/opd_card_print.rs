@@ -27,6 +27,13 @@ pub struct OpdCardPrintData {
     /// Street and city, nothing more.
     pub address: Option<String>,
     pub registered_on: String,
+    /// The hospital's own OPD number: the visit's when it numbers visits,
+    /// else the patient's. Absent where the hospital keeps none.
+    #[serde(default)]
+    pub opd_number: Option<String>,
+    /// The patient's OPD (register) date, "15-Aug-2026", with a patient's number.
+    #[serde(default)]
+    pub opd_date: Option<String>,
     /// Present when the card is printed for an OPD visit.
     pub visit: Option<OpdCardVisit>,
 }
