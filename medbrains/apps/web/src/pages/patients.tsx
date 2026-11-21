@@ -1,18 +1,12 @@
 import { Card, Group, Stack, Text, ThemeIcon, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { ClinicalJourneyActionId, ClinicalJourneyContext, Patient } from "@medbrains/types";
-import {
-  bloodGroupLabel,
-  P,
-  PATIENT_NAME_FIELD_ACCESS_KEYS,
-  PATIENT_UHID_FIELD_ACCESS_KEY,
-} from "@medbrains/types";
+import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCash,
   IconCircleCheck,
   IconClock,
-  IconDroplet,
   IconGenderFemale,
   IconGenderMale,
   IconStarFilled,
@@ -34,6 +28,7 @@ import {
   StatusDot,
   useClinicalEmit,
 } from "@/components";
+import { BloodGroupCell } from "@/components/Patient/BloodGroupCell";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientSearchBox, usePatientSearchBy } from "@/components/Patient/PatientSearchBox";
 import { Badge, Button, IconButton } from "@/components/ui";
@@ -246,21 +241,7 @@ function PatientsPageInner() {
       key: "blood_group",
       label: t("label.bloodGroup"),
       sortable: true,
-      render: (row: Patient) =>
-        row.blood_group && row.blood_group !== "unknown" ? (
-          <StatusDot
-            color="danger"
-            icon={IconDroplet}
-            label={t(`options.bloodGroup.${row.blood_group}`, {
-              defaultValue: bloodGroupLabel(row.blood_group),
-            })}
-            size="sm"
-          />
-        ) : (
-          <Text size="sm" c="dimmed">
-            -
-          </Text>
-        ),
+      render: (row: Patient) => <BloodGroupCell value={row.blood_group} />,
     },
     {
       key: "category",

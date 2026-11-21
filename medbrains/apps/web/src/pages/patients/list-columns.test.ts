@@ -33,11 +33,16 @@ describe("the patient list's columns", () => {
       "uhid",
       "name",
       "age_gender",
+      "blood_group",
       "phone",
       "opd_number",
       "actions",
     ]);
     expect(keys(false, true)).not.toContain("opd_number");
+  });
+
+  it("keep the blood group in the full list", () => {
+    expect(keys(true, false)).toContain("blood_group");
   });
 
   it("show age and sex together", () => {

@@ -4,8 +4,8 @@ import type { Patient } from "@medbrains/types";
 import type { Column } from "@/components/data-table-types";
 import { OpdNumberBadge } from "@/components/Patient/OpdNumberBadge";
 
-/** The basic set: who the patient is and how to reach them, nothing more. */
-const BASIC_KEYS = ["uhid", "name", "age_gender", "phone", "opd_number", "actions"];
+/** The basic set, in its order: who the patient is and how to reach them. */
+const BASIC_KEYS = ["uhid", "name", "age_gender", "blood_group", "phone", "opd_number", "actions"];
 
 /** Whole years since a date of birth, or nothing when it is not known. */
 function ageYears(dob: string | null | undefined, today = new Date()): number | null {
@@ -40,8 +40,9 @@ const AGE_GENDER_COLUMN: Column<Patient> = {
 
 /**
  * The columns to show. The OPD number goes after the phone when the hospital
- * keeps one. `basic` keeps UHID, name, age and sex, phone, OPD number and
- * actions; `full` (every other hospital's default) is unchanged.
+ * keeps one. `basic` keeps UHID, name, age and sex, blood group, phone, OPD
+ * number and actions, in that order; `full` (every other hospital's default)
+ * is unchanged.
  */
 export function patientListColumns(
   columns: Column<Patient>[],
@@ -54,5 +55,7 @@ export function patientListColumns(
   };
   const withAge = after(columns, "name", basic ? [AGE_GENDER_COLUMN] : []);
   const all = after(withAge, "phone", opdOn ? [OPD_COLUMN] : []);
-  return basic ? all.filter((c) => BASIC_KEYS.includes(c.key)) : all;
+  if (!basic) return all;
+  const rank = (c: Column<Patient>) => BASIC_KEYS.indexOf(c.key);
+  return all.filter((c) => rank(c) >= 0).sort((a, b) => rank(a) - rank(b));
 }
