@@ -20,6 +20,13 @@ describe("the OPD number when a visit is started", () => {
     expect(visitAsksForNumber({ ...VIEW, scope: "visit" }, true)).toBe(true);
   });
 
+  it("never asks at visit start when the register number is the UHID", () => {
+    for (const scope of ["patient", "visit"] as const) {
+      expect(visitAsksForNumber({ ...VIEW, mode: "uhid", scope }, false)).toBe(false);
+      expect(visitOpdFields({ ...VIEW, mode: "uhid", scope }, false, { number: "9" })).toEqual({});
+    }
+  });
+
   it("sends the number shown (typed or the next) with its date, nothing when not asked", () => {
     expect(visitOpdFields(VIEW, false, {})).toEqual({ opd_number: "1043", opd_date: undefined });
     expect(visitOpdFields(VIEW, false, { number: " 17 ", date: "2019-03-04" })).toEqual({

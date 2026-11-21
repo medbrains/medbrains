@@ -39,6 +39,14 @@ describe("what registration sends for the OPD number", () => {
     expect(opdNumberFields(clientWith(null), { opd_number: "9" })).toEqual({});
   });
 
+  it("sends the register number as the UHID (typed, else Next) and no OPD number in one-number mode", () => {
+    const one = clientWith({ mode: "uhid" });
+    expect(opdNumberFields(one, {})).toEqual({ uhid: "1043", opd_date: undefined });
+    expect(opdNumberFields(one, { uhid: " 17 ", opd_number: "9", opd_date: "2019-03-04" })).toEqual(
+      { uhid: "17", opd_date: "2019-03-04" },
+    );
+  });
+
   it("never sends a date for a per-visit number", () => {
     const sent = opdNumberFields(clientWith({ scope: "visit" }), { opd_date: "2019-03-04" });
     expect(sent).toEqual({ opd_number: "1043", opd_date: undefined });
