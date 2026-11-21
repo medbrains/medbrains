@@ -14,7 +14,7 @@ use medbrains_kernel::authz::Outcome;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
-use medbrains_server_services::opd_number::{self, Assigned, Entry, Policy, Target};
+use medbrains_server_services::opd_number::{self, Assigned, Entry, Mode, Policy, Target};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -37,16 +37,22 @@ pub fn router() -> axum::Router<AppState> {
         .merge(crate::search_settings::router())
 }
 
-/// Read the policy and the previous and next number in the caller's transaction.
+/// Read the policy and the previous and next number in the caller's
+/// transaction: the UHID series' in one-number mode, else the OPD number's.
 async fn view(state: &AppState, permit: &kernel::Permit) -> Result<OpdNumberView, AppError> {
     let mut tx = kernel::actor_tx(&state.db, permit, None).await?;
     let policy = opd_number::read_policy(&mut tx, permit.tenant_id()).await?;
-    let suggestion = opd_number::suggest(&mut tx, permit.tenant_id(), &policy).await?;
+    let (previous, next) = if policy.mode == Mode::Uhid {
+        opd_number::suggest_uhid(&mut tx, permit.tenant_id()).await?
+    } else {
+        let s = opd_number::suggest(&mut tx, permit.tenant_id(), &policy).await?;
+        (s.previous.map(|n| policy.format(n)), policy.format(s.next))
+    };
     tx.commit().await?;
     Ok(OpdNumberView {
-        previous: suggestion.previous.map(|n| policy.format(n)),
-        next: policy.format(suggestion.next),
         policy,
+        previous,
+        next,
     })
 }
 
@@ -130,9 +136,100 @@ pub struct CreatedPatient {
     pub opd_date: Option<NaiveDate>,
 }
 
+/// The new patient's UHID: in one-number mode the register number the desk
+/// typed (none typed: the series' next, as everywhere else), otherwise the
+/// series' next. A typed UHID where the hospital gives them automatically is
+/// refused, never silently replaced.
+pub(crate) async fn uhid_at_registration(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    body: &crate::CreatePatientRequest,
+) -> Result<String, AppError> {
+    let typed = body
+        .uhid
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty());
+    let Some(typed) = typed else {
+        return generate_uhid(tx, &tenant_id).await;
+    };
+    if opd_number::read_policy(tx, tenant_id).await?.mode != Mode::Uhid {
+        return Err(AppError::BadRequest(
+            "This hospital gives UHIDs automatically. Reload the form".into(),
+        ));
+    }
+    opd_number::take_typed_uhid(tx, tenant_id, typed).await
+}
+
+/// The UHID series' next value, as automatic registration gives it: the
+/// series row's `UPDATE … RETURNING` is atomic and holds the row lock to the
+/// end of the transaction, the same lock a typed UHID takes.
+///
+/// # Errors
+/// No UHID series for the hospital, or a database failure.
+pub async fn generate_uhid(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<String, AppError> {
+    let seq = sqlx::query!(
+        "UPDATE sequences SET current_val = current_val + 1 \
+         WHERE tenant_id = $1 AND seq_type = 'UHID' \
+         RETURNING current_val, prefix, pad_width",
+        tenant_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::Internal("UHID sequence not configured for this tenant".into()))?;
+    let pad = usize::try_from(seq.pad_width).unwrap_or(5);
+    Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
+}
+
+/// In one-number mode: the register date on the new patient, today unless
+/// the hospital allows an earlier one and the desk may backdate. A chosen
+/// date is audited with the UHID it belongs to.
+async fn date_register(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    (patient_id, policy): (Uuid, &Policy),
+    entry: &Entry<'_>,
+) -> Result<(), AppError> {
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut **tx, claims.tenant_id)
+            .await?;
+    let date = opd_number::check_date(policy, entry, today)?;
+    let uhid = sqlx::query_scalar!(
+        "UPDATE patients SET opd_date = $3 WHERE tenant_id = $1 AND id = $2 RETURNING uhid",
+        claims.tenant_id,
+        patient_id,
+        date
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if entry.opd_date.is_none() {
+        return Ok(());
+    }
+    let new_values = serde_json::json!({ "uhid": uhid, "opd_date": date });
+    kernel::audit::append(
+        tx,
+        &AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "patients.uhid.dated",
+            entity_type: "patient",
+            entity_id: Some(patient_id),
+            old_values: None,
+            new_values: Some(&new_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+    Ok(())
+}
+
 /// Give a newly registered patient their OPD number and date when the hospital
-/// keeps one per patient. A date the desk chose (an old paper record) is
-/// audited; `created_at` is untouched and nothing else is created.
+/// keeps one per patient, or in one-number mode the register date. A date the
+/// desk chose (an old paper record) is audited; `created_at` is untouched and
+/// nothing else is created.
 pub(crate) async fn assign_at_registration(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
@@ -144,6 +241,11 @@ pub(crate) async fn assign_at_registration(
         opd_date: body.opd_date,
         may_backdate: may_backdate(claims)?,
     };
+    let policy = opd_number::read_policy(tx, claims.tenant_id).await?;
+    if policy.mode == Mode::Uhid {
+        date_register(tx, claims, (patient_id, &policy), &entry).await?;
+        return Ok(None);
+    }
     let ids = (patient_id, None);
     let assigned = opd_number::assign(tx, claims.tenant_id, ids, entry).await?;
     if let Some(new) = assigned.as_ref().filter(|_| body.opd_date.is_some()) {
