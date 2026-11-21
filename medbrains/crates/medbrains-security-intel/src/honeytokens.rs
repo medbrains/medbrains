@@ -128,59 +128,65 @@ fn random_hex(bytes: usize) -> Result<String, medbrains_server_core::error::AppE
         }))
 }
 
-/// How far above the real series a decoy's number is drawn: the real series
-/// must issue at least this many more UHIDs before it could reach a decoy.
-// ponytail: fixed headroom, not a guarantee; a hospital that jumps its counter
-// by a billion could meet a decoy. Raise it or alarm on it if that ever happens.
-pub const DECOY_HEADROOM: i64 = 1_000_000_000;
 /// Draws tried before planting gives up for this run (the next run tries again).
 const PLANT_ATTEMPTS: usize = 3;
+/// The decoy series' own prefix, so decoys never touch the real numbering
+/// (hospitals check real UHIDs against paper records, 1, 2, 3 with no gap).
+const DECOY_PREFIX: &str = "MB-";
+/// Used when the hospital's real UHIDs could themselves read `MB-…`.
+const DECOY_PREFIX_FALLBACK: &str = "MBD-";
+/// Digits in a decoy's number, so every decoy has the same width.
+const DECOY_DIGITS: u32 = 6;
 
-/// `prefix` then `n` zero-padded to `pad` digits: the real series' format.
-fn format_uhid(prefix: &str, pad: i32, n: i64) -> String {
-    let pad = usize::try_from(pad).unwrap_or(0);
-    format!("{prefix}{n:0>pad$}")
+/// True when a UHID in one prefix could also be a UHID in the other: one
+/// prefix is the other plus only digits (or equal, ignoring case).
+fn prefixes_clash(a: &str, b: &str) -> bool {
+    let (a, b) = (a.to_ascii_lowercase(), b.to_ascii_lowercase());
+    let digits_after = |long: &str, short: &str| {
+        long.strip_prefix(short)
+            .is_some_and(|rest| rest.bytes().all(|c| c.is_ascii_digit()))
+    };
+    digits_after(&a, &b) || digits_after(&b, &a)
 }
 
-/// A random offset below 2^30, so decoy numbers form no run of their own.
-fn jitter() -> Result<i64, medbrains_server_core::error::AppError> {
-    let mut buf = [0_u8; 8];
-    getrandom::fill(&mut buf)
-        .map_err(|e| medbrains_server_core::error::AppError::Internal(e.to_string()))?;
-    Ok(i64::try_from(u64::from_le_bytes(buf) >> 34).unwrap_or(0))
+/// The decoy prefix for a hospital whose real UHIDs start with `real`:
+/// [`DECOY_PREFIX`] unless real UHIDs could read like it (the demo seed's
+/// real series is `MB-`), then [`DECOY_PREFIX_FALLBACK`].
+fn decoy_prefix(real: &str) -> &'static str {
+    if prefixes_clash(DECOY_PREFIX, real) {
+        DECOY_PREFIX_FALLBACK
+    } else {
+        DECOY_PREFIX
+    }
 }
 
-/// The real UHID series as (prefix, padding, last number issued), read only:
-/// taking its next value would leave a gap in the numbers staff see and waste
-/// a real UHID. Never created here either; real registration owns it.
-async fn real_series(
+/// The real UHID series' prefix, read only: the decoys never take, advance
+/// or create the real `sequences` row, which registration owns. `""` when
+/// the hospital has no series yet.
+async fn real_prefix(
     tx: &mut medbrains_kernel::Tx,
     tenant: Uuid,
-) -> Result<Option<(String, i32, i64)>, medbrains_server_core::error::AppError> {
-    Ok(sqlx::query_as(
-        "SELECT prefix, pad_width, current_val FROM sequences \
-          WHERE tenant_id = $1 AND seq_type = 'UHID'",
+) -> Result<String, medbrains_server_core::error::AppError> {
+    let prefix: Option<String> = sqlx::query_scalar(
+        "SELECT prefix FROM sequences WHERE tenant_id = $1 AND seq_type = 'UHID'",
     )
     .bind(tenant)
     .fetch_optional(&mut **tx)
-    .await?)
+    .await?;
+    Ok(prefix.unwrap_or_default())
 }
 
-/// A decoy UHID in the hospital's own format, so it looks like its
-/// neighbours, drawn well above where the real series stands so registration
-/// does not reach it. Random when the hospital has no UHID series yet.
-fn draw_uhid(
-    real: Option<&(String, i32, i64)>,
-) -> Result<String, medbrains_server_core::error::AppError> {
-    let jitter = jitter()?;
-    let drawn = real.and_then(|(prefix, pad, current)| {
-        let n = current.checked_add(DECOY_HEADROOM)?.checked_add(jitter)?;
-        Some(format_uhid(prefix, *pad, n))
-    });
-    match drawn {
-        Some(uhid) => Ok(uhid),
-        None => Ok(format!("ZZ{}", random_hex(5)?)),
-    }
+/// `prefix` plus a random [`DECOY_DIGITS`]-digit number: random, not a
+/// counter, so the decoys' numbers say nothing about how many exist.
+fn draw_uhid(prefix: &str) -> Result<String, medbrains_server_core::error::AppError> {
+    let mut buf = [0_u8; 4];
+    getrandom::fill(&mut buf)
+        .map_err(|e| medbrains_server_core::error::AppError::Internal(e.to_string()))?;
+    let n = u32::from_le_bytes(buf) % 10_u32.pow(DECOY_DIGITS);
+    Ok(format!(
+        "{prefix}{n:0>width$}",
+        width = DECOY_DIGITS as usize
+    ))
 }
 
 /// Plants decoy patients until the hospital has [`DECOY_PATIENTS`] of them.
@@ -214,7 +220,7 @@ async fn plant_patient(
     let pick = random_hex(1)?;
     let index = usize::from_str_radix(&pick, 16).unwrap_or(0) % NAMES.len();
     let (first, last, gender) = NAMES[index];
-    let real = real_series(tx, tenant).await?;
+    let prefix = decoy_prefix(&real_prefix(tx, tenant).await?);
     for _ in 0..PLANT_ATTEMPTS {
         let planted: Option<Uuid> = sqlx::query_scalar(
             "WITH p AS (INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth) \
@@ -224,7 +230,7 @@ async fn plant_patient(
              SELECT $1, 'patient', p.id, $2 FROM p RETURNING patient_id",
         )
         .bind(tenant)
-        .bind(draw_uhid(real.as_ref())?)
+        .bind(draw_uhid(prefix)?)
         .bind(first)
         .bind(last)
         .bind(gender)
@@ -337,13 +343,24 @@ fn integrity_finding(key: &str, title: &str, fix: &str) -> Found {
 
 #[cfg(test)]
 mod tests {
-    use super::format_uhid;
+    use super::{DECOY_DIGITS, decoy_prefix, draw_uhid};
 
     #[test]
-    fn decoy_uhids_take_the_real_series_format() {
-        assert_eq!(format_uhid("MB-", 5, 1_000_000_042), "MB-1000000042");
-        assert_eq!(format_uhid("UHID-", 12, 1_000_000_042), "UHID-001000000042");
-        assert_eq!(format_uhid("", 0, 1_000_000_007), "1000000007");
-        assert_eq!(format_uhid("", 3, 7), "007");
+    fn decoy_prefix_never_reads_like_the_real_series() {
+        assert_eq!(decoy_prefix(""), "MB-");
+        assert_eq!(decoy_prefix("UHID-"), "MB-");
+        assert_eq!(decoy_prefix("RH-"), "MB-");
+        assert_eq!(decoy_prefix("MB-"), "MBD-");
+        assert_eq!(decoy_prefix("mb-"), "MBD-");
+        assert_eq!(decoy_prefix("MB-2026"), "MBD-");
+        assert_eq!(decoy_prefix("MBD-"), "MB-");
+    }
+
+    #[test]
+    fn decoy_uhids_are_the_prefix_and_a_fixed_width_number() {
+        let uhid = draw_uhid("MB-").unwrap_or_default();
+        let digits = uhid.strip_prefix("MB-").unwrap_or_default();
+        assert_eq!(digits.len(), DECOY_DIGITS as usize, "{uhid}");
+        assert!(digits.bytes().all(|b| b.is_ascii_digit()), "{uhid}");
     }
 }

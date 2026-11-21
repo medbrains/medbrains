@@ -361,23 +361,50 @@ async fn register_real(owner: &PgPool, t: Uuid, prefix: &str, n: i64) {
     .expect("the real series registers without hitting a decoy");
 }
 
-#[tokio::test]
-#[ignore = "needs DATABASE_URL"]
-async fn decoys_never_take_or_collide_with_real_uhids() {
+/// Plants the decoys over a real series at `prefix`/`at` and proves the real
+/// numbering is untouched: same `current_val`, and the next registration is
+/// the very next number. Returns the decoys' UHIDs.
+async fn plant_beside_real_series(prefix: &str, at: i64) -> (PgPool, Ctx, Uuid, Vec<String>) {
     let (owner, app) = pools().await;
     let (t, _) = tenant(&owner).await;
-    let ctx = real_series(&owner, &app, t, "MB-", 41).await;
+    let ctx = real_series(&owner, &app, t, prefix, at).await;
     Honeytokens.run(&ctx, Some(t)).await.expect("seeded");
     assert_eq!(
         real_current(&owner, t).await,
-        41,
+        at,
         "the real series is untouched"
     );
-    let first = decoy_uhids(&owner, t).await;
-    assert_eq!(first.len(), 3);
-    assert!(first.iter().all(|u| u.starts_with("MB-")), "{first:?}");
+    register_real(&owner, t, prefix, 1).await;
+    let next: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM patients WHERE tenant_id = $1 AND uhid = $2")
+            .bind(t)
+            .bind(format!("{prefix}{:03}", at + 1))
+            .fetch_one(&owner)
+            .await
+            .unwrap();
+    assert_eq!(
+        next, 1,
+        "the next real registration takes the next number, no gap"
+    );
+    let decoys = decoy_uhids(&owner, t).await;
+    assert_eq!(decoys.len(), 3);
+    (owner, ctx, t, decoys)
+}
 
-    // The real series grows past where it stood; registration never meets a decoy.
+/// True when `uhid` is `prefix` and exactly six digits.
+fn is_decoy_shape(uhid: &str, prefix: &str) -> bool {
+    uhid.strip_prefix(prefix)
+        .is_some_and(|n| n.len() == 6 && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
+#[tokio::test]
+#[ignore = "needs DATABASE_URL"]
+async fn decoys_never_take_or_collide_with_real_uhids() {
+    // The demo seed's real series is MB-, so the decoys move to MBD-.
+    let (owner, ctx, t, first) = plant_beside_real_series("MB-", 41).await;
+    assert!(first.iter().all(|u| is_decoy_shape(u, "MBD-")), "{first:?}");
+
+    // The real series grows; registration never meets a decoy.
     register_real(&owner, t, "MB-", 5_000).await;
     let grown = real_current(&owner, t).await;
 
@@ -405,21 +432,15 @@ async fn decoys_never_take_or_collide_with_real_uhids() {
 
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
-async fn decoys_follow_a_plain_number_series() {
-    let (owner, app) = pools().await;
-    let (t, _) = tenant(&owner).await;
-    let ctx = real_series(&owner, &app, t, "", 7).await;
-    Honeytokens.run(&ctx, Some(t)).await.expect("seeded");
-    assert_eq!(real_current(&owner, t).await, 7);
-    let uhids = decoy_uhids(&owner, t).await;
-    assert_eq!(uhids.len(), 3);
-    assert!(
-        uhids
-            .iter()
-            .all(|u| u.bytes().all(|b| b.is_ascii_digit()) && !u.starts_with('0')),
-        "{uhids:?}"
-    );
-    register_real(&owner, t, "", 2_000).await;
+async fn decoys_take_their_own_prefix_beside_a_plain_or_other_series() {
+    for prefix in ["", "RH-"] {
+        let (owner, _, t, decoys) = plant_beside_real_series(prefix, 7).await;
+        assert!(
+            decoys.iter().all(|u| is_decoy_shape(u, "MB-")),
+            "{decoys:?}"
+        );
+        register_real(&owner, t, prefix, 2_000).await;
+    }
 }
 
 #[tokio::test]
