@@ -690,6 +690,8 @@ export interface MeResponse {
   disabled_modules: string[];
   /** The tenant restricts copying data out of the app (enforced by the DLP guard). */
   restrict_copy: boolean;
+  /** The hospital can send email; without it there is no verification link to ask for. */
+  email_can_send?: boolean;
 }
 
 export interface RefreshResponse {
