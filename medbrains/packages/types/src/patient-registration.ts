@@ -940,4 +940,9 @@ export interface PatientSearchSettings {
   opd_number_enabled: boolean;
   /** `basic`: UHID, name, age and sex, phone, OPD number; `full` (default): every column. */
   patient_list_columns: "full" | "basic";
+  /** The ID card the print menus print: `thermal` (58 mm roll, default) or `cr80` (bank-card size). */
+  card_printer: CardPrinter;
 }
+
+/** The hospital's ID card printer. */
+export type CardPrinter = "thermal" | "cr80";

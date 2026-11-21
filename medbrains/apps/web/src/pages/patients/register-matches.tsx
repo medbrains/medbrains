@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { type Column, DataTable } from "@/components";
 import { OpdNumberBadge } from "@/components/Patient/OpdNumberBadge";
-import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
+import { PrintIdCardButton } from "@/components/Print/PrintIdCardButton";
 import { lookupsService } from "@/services/lookups.service";
 
 interface RegisterMatchesProps {
@@ -81,7 +81,7 @@ export function RegisterMatches({ search, by = "all", shown }: RegisterMatchesPr
       key: "card",
       label: t("directory.register.card"),
       render: (row: MpiMatchResult) => (
-        <PrintPatientCardButton
+        <PrintIdCardButton
           patientId={row.id}
           ariaLabel={t("directory.register.printCardFor", { uhid: row.uhid })}
         />

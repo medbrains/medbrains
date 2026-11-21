@@ -60,8 +60,7 @@ vi.mock("@/services/billing.service", () => ({
 }));
 vi.mock("./overview-tab", () => ({ OverviewTab: () => null }));
 vi.mock("@/components/ai/AskAiButton", () => ({ AskAiButton: () => null }));
-vi.mock("@/components/Print/OpdCardPrintMenu", () => ({ OpdCardPrintMenu: () => null }));
-vi.mock("@/components/Patients/PatientCard", () => ({ PrintPatientCardButton: () => null }));
+vi.mock("@/components/Print/PatientPrintMenu", () => ({ PatientPrintMenu: () => null }));
 vi.mock("@/components/Sharing/ShareDrawer", () => ({ ShareDrawer: () => null }));
 vi.mock("@/hooks/usePatientAssistantContext", () => ({ usePatientAssistantContext: () => {} }));
 
