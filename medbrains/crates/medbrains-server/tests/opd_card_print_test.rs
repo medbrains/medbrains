@@ -20,7 +20,7 @@ async fn register(app: &common::TestApp, client: &reqwest::Client, csrf: &str) -
             "gender": "female",
             "date_of_birth": "1992-03-04",
             "phone": phone,
-            "address": { "line1": "4 North Street", "city": "Madurai" },
+            "address": { "line1": "4 North Street", "city": "Sample Town" },
         }))
         .send()
         .await
@@ -93,7 +93,7 @@ async fn the_opd_card_carries_the_hospital_patient_and_visit_and_nobody_else_get
     );
     assert_eq!(card["uhid"], patient["uhid"]);
     assert_eq!(card["patient_name"], "Kavya Raman");
-    assert_eq!(card["address"], "4 North Street, Madurai");
+    assert_eq!(card["address"], "4 North Street, Sample Town");
     assert!(
         card["visit"]["token_number"].is_string(),
         "the visit's token is printed: {card}"
@@ -222,5 +222,5 @@ async fn the_desk_reprints_any_patients_opd_card_and_only_this_hospitals() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["address"], "4 North Street, Madurai");
+    assert_eq!(body["address"], "4 North Street, Sample Town");
 }
