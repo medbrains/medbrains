@@ -61,6 +61,7 @@ import classes from "./AppLayout.module.scss";
 import { AppNavbar, hasSidePanel } from "./AppNavbar";
 import { panelFor } from "./appPanel";
 import { FavouriteStar } from "./FavouriteStar";
+import { HospitalMarks } from "./HospitalMarks";
 import { OnDemandOverlays } from "./OnDemandOverlays";
 import { PanelHeader } from "./PanelHeader";
 import { PanelPages } from "./PanelPages";
@@ -95,6 +96,7 @@ function routeObjectLabel(previousSegment: string | undefined, nextSegment: stri
   return "Record";
 }
 
+/** The signed-in shell: header (with the hospital's marks), side panel and page. */
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -450,6 +452,7 @@ export function AppLayout() {
       <DlpGuard />
       {/* ── Header ── */}
       <AppShell.Header>
+        <HospitalMarks />
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
             {hasPanel && (

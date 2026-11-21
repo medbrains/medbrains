@@ -35,7 +35,28 @@ const CSS = `
   .qr svg { width: 26mm; height: 26mm; }
   .rule { border-top: 1px dashed #000; margin: 2mm 0; }
   .hospital { font-size: 7pt; text-align: center; margin: 0; }
+  /* The hospital's marks, small and in high-contrast grey: a thermal head
+     prints only black, so colour and soft shading are flattened before it does. */
+  .marks { display: flex; align-items: center; gap: 1.5mm; margin: 0 0 1.5mm; }
+  .marks img { height: 7mm; filter: grayscale(1) contrast(1.6); }
+  .marks .banner { flex: 1 1 auto; min-width: 0; object-fit: contain; object-position: left center; }
+  .marks .typed { font-size: 8pt; font-weight: 700; }
 `;
+
+/**
+ * The header row: the emblem, then the name banner (or the hospital's name as
+ * text without one). Nothing when neither mark is set, so a hospital without
+ * marks prints exactly the card it printed before.
+ */
+function marks(data: PatientCardPrintData): string {
+  const { hospital_logo_url: emblem, hospital_name_banner_url: banner } = data;
+  if (!emblem && !banner) return "";
+  const emblemImg = emblem ? `<img src="${esc(emblem)}" alt="">` : "";
+  const name = banner
+    ? `<img class="banner" src="${esc(banner)}" alt="${esc(data.hospital_name)}">`
+    : `<span class="typed">${esc(data.hospital_name)}</span>`;
+  return `<div class="marks">${emblemImg}${name}</div>`;
+}
 
 /**
  * The thermal patient card: a 58 mm roll slip the patient carries between
@@ -53,6 +74,7 @@ export function renderThermalCard(data: PatientCardPrintData): PrintPage {
   return {
     css: CSS,
     body:
+      marks(data) +
       `<p class="uhid">${esc(data.uhid)}</p><p class="name">${esc(data.patient_name)}</p>` +
       `<p class="meta">${esc(ageLine)}${dob}<br/>${esc(data.phone)}</p>` +
       `<div class="qr">${qrSvgMarkup(data.uhid, 96)}</div><div class="rule"></div>` +
