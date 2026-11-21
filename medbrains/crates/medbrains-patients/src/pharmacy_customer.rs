@@ -8,10 +8,8 @@ use axum::{
     extract::{Path, State},
 };
 use medbrains_core::permissions;
-use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_kernel as kernel;
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -29,10 +27,8 @@ pub async fn complete_registration(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Completed>, AppError> {
-    require_permission(&claims, permissions::patients::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let permit = kernel::authz::permit(&claims, permissions::patients::CREATE)?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let light: Option<bool> = sqlx::query_scalar(
         "SELECT pharmacy_customer FROM patients \
           WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
@@ -60,15 +56,15 @@ pub async fn complete_registration(
     tx.commit().await?;
     // Registration is the act that makes the desk the record's owner, as
     // when a patient is registered from scratch.
-    let ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    let ctx = kernel::authz::authz_context(&claims);
     state
         .authz
         .write_tuple(
             &ctx,
             "patient",
             id,
-            medbrains_authz::Relation::Owner,
-            medbrains_authz::Subject::User(claims.sub),
+            kernel::authz::Relation::Owner,
+            kernel::authz::Subject::User(claims.sub),
             None,
             Some("patient_registered".to_owned()),
         )

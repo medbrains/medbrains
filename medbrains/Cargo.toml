@@ -185,7 +185,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "3.33.2"
+version = "3.35.5"
 edition = "2024"
 rust-version = "1.97.1"
 license-file = "../LICENSE"
@@ -220,6 +220,7 @@ argon2 = "0.6"
 # Utilities
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+time = "0.3"
 cron = "0.15"
 thiserror = "2"
 anyhow = "1"

@@ -8,7 +8,7 @@
  */
 
 import { Group, PinInput, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { useHasPermission } from "@medbrains/stores";
 import { type DroppedRequest, type JoinedMachine, P, type WaitingMachine } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -63,7 +63,7 @@ function ApproveDialog({ machine, onClose }: ApproveDialogProps) {
   const queryClient = useQueryClient();
   const [code, setCode] = useState("");
   const approve = useMutation({
-    mutationFn: () => api.approveMachine(machine.id, code),
+    mutationFn: () => adminApi.approveMachine(machine.id, code),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: MACHINES_KEY }),
     onError: () => void queryClient.invalidateQueries({ queryKey: MACHINES_KEY }),
   });
@@ -116,7 +116,7 @@ function WaitingCard({ waiting, canApprove }: WaitingCardProps) {
   const queryClient = useQueryClient();
   const [approving, setApproving] = useState<WaitingMachine | null>(null);
   const reject = useMutation({
-    mutationFn: (id: string) => api.rejectMachine(id),
+    mutationFn: (id: string) => adminApi.rejectMachine(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
       toast.success("Machine refused");
@@ -178,7 +178,7 @@ interface JoinedTableProps {
 
 /** Shows the second code again, for a machine still waiting for a person to type it. */
 function ShowCodeButton({ machine }: { machine: JoinedMachine }) {
-  const code = useMutation({ mutationFn: () => api.getMachineConfirmCode(machine.id) });
+  const code = useMutation({ mutationFn: () => adminApi.getMachineConfirmCode(machine.id) });
   return (
     <>
       <Button
@@ -206,7 +206,7 @@ function JoinedTable({ machines, canRemove, canApprove }: JoinedTableProps) {
   const queryClient = useQueryClient();
   const [removing, setRemoving] = useState<JoinedMachine | null>(null);
   const remove = useMutation({
-    mutationFn: (id: string) => api.removeMachine(id),
+    mutationFn: (id: string) => adminApi.removeMachine(id),
     onSuccess: () => {
       setRemoving(null);
       void queryClient.invalidateQueries({ queryKey: MACHINES_KEY });
@@ -363,7 +363,7 @@ export function MachinesPage() {
   const canRemove = useHasPermission(P.DEVICES.MACHINES.REMOVE);
   const list = useQuery({
     queryKey: MACHINES_KEY,
-    queryFn: () => api.listMachines(),
+    queryFn: () => adminApi.listMachines(),
     refetchInterval: REFRESH_MS,
   });
   return (

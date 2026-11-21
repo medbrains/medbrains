@@ -1,4 +1,4 @@
-import { api } from "@medbrains/api";
+import { caseMgmtApi } from "@medbrains/api/modules/case-mgmt";
 import type {
   AutoAssignRequest,
   CreateCaseAssignmentRequest,
@@ -10,21 +10,23 @@ import type {
 } from "@medbrains/types";
 
 export const caseManagementService = {
-  listCaseAssignments: api.listCaseAssignments,
-  caseloadSummary: api.caseloadSummary,
-  createCaseAssignment: (data: CreateCaseAssignmentRequest) => api.createCaseAssignment(data),
+  listCaseAssignments: caseMgmtApi.listCaseAssignments,
+  caseloadSummary: caseMgmtApi.caseloadSummary,
+  createCaseAssignment: (data: CreateCaseAssignmentRequest) =>
+    caseMgmtApi.createCaseAssignment(data),
   updateCaseAssignment: (id: string, data: UpdateCaseAssignmentRequest) =>
-    api.updateCaseAssignment(id, data),
-  autoAssignCase: (data: AutoAssignRequest) => api.autoAssignCase(data),
-  listDischargeBarriers: api.listDischargeBarriers,
-  createDischargeBarrier: (data: CreateDischargeBarrierRequest) => api.createDischargeBarrier(data),
+    caseMgmtApi.updateCaseAssignment(id, data),
+  autoAssignCase: (data: AutoAssignRequest) => caseMgmtApi.autoAssignCase(data),
+  listDischargeBarriers: caseMgmtApi.listDischargeBarriers,
+  createDischargeBarrier: (data: CreateDischargeBarrierRequest) =>
+    caseMgmtApi.createDischargeBarrier(data),
   updateDischargeBarrier: (id: string, data: UpdateDischargeBarrierRequest) =>
-    api.updateDischargeBarrier(id, data),
-  listCaseReferrals: api.listCaseReferrals,
-  createCaseReferral: (data: CreateCaseReferralRequest) => api.createCaseReferral(data),
+    caseMgmtApi.updateDischargeBarrier(id, data),
+  listCaseReferrals: caseMgmtApi.listCaseReferrals,
+  createCaseReferral: (data: CreateCaseReferralRequest) => caseMgmtApi.createCaseReferral(data),
   updateCaseReferral: (id: string, data: UpdateCaseReferralRequest) =>
-    api.updateCaseReferral(id, data),
-  dispositionAnalytics: api.dispositionAnalytics,
-  barrierAnalytics: api.barrierAnalytics,
-  outcomeAnalytics: api.outcomeAnalytics,
+    caseMgmtApi.updateCaseReferral(id, data),
+  dispositionAnalytics: caseMgmtApi.dispositionAnalytics,
+  barrierAnalytics: caseMgmtApi.barrierAnalytics,
+  outcomeAnalytics: caseMgmtApi.outcomeAnalytics,
 };

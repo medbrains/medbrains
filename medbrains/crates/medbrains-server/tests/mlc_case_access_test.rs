@@ -20,7 +20,7 @@ async fn send(csrf: &str, req: reqwest::RequestBuilder) -> (StatusCode, Value) {
 /// A doctor in a department this case has nothing to do with.
 async fn unrelated_doctor(app: &common::TestApp, admin_csrf: &str) -> Client {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
-    let (username, password) = (format!("mlcdoc_{tag}"), format!("MlcDoc#{tag}Aa9"));
+    let (username, password) = (format!("mlcdoc_{tag}"), format!("MlcDoc#Key{tag}Aa9"));
     let department: Uuid = sqlx::query_scalar(
         "INSERT INTO departments (tenant_id, code, name, department_type) \
          SELECT tenant_id, $1, $2, 'clinical' FROM users WHERE username = 'admin' RETURNING id",

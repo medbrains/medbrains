@@ -1,7 +1,8 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { accessGroupsApi } from "@medbrains/api/modules/access-groups";
+import { adminApi } from "@medbrains/api/modules/admin";
 import { BYPASS_ROLES, useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type { CreateSsoProviderRequest, SsoProvider } from "@medbrains/types";
 import { P, ROLE_TEMPLATES } from "@medbrains/types";
@@ -53,13 +54,12 @@ export function SsoSettingsPage() {
 
   const { data: providers = [], isLoading } = useQuery({
     queryKey: ["sso-providers"],
-    queryFn: () => api.listSsoProviders(),
+    queryFn: () => adminApi.listSsoProviders(),
   });
-
   const invalidate = () => qc.invalidateQueries({ queryKey: ["sso-providers"] });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateSsoProviderRequest) => api.createSsoProvider(d),
+    mutationFn: (d: CreateSsoProviderRequest) => adminApi.createSsoProvider(d),
     onSuccess: () => {
       void invalidate();
       form.close();
@@ -74,13 +74,13 @@ export function SsoSettingsPage() {
   });
   const toggleMut = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
-      api.updateSsoProvider(id, { is_active }),
+      adminApi.updateSsoProvider(id, { is_active }),
     onSuccess: invalidate,
     onError: (err: Error) =>
       notifications.show({ title: "Provider not changed", message: err.message, color: "danger" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteSsoProvider(id),
+    mutationFn: (id: string) => adminApi.deleteSsoProvider(id),
     onSuccess: invalidate,
     onError: (err: Error) =>
       notifications.show({ title: "Provider not deleted", message: err.message, color: "danger" }),
@@ -296,17 +296,17 @@ function GroupMappings({ provider, canManage }: { provider: SsoProvider; canMana
 
   const { data: mappings = [] } = useQuery({
     queryKey: ["sso-mappings", provider.id],
-    queryFn: () => api.listSsoGroupMappings(provider.id),
+    queryFn: () => adminApi.listSsoGroupMappings(provider.id),
   });
   const { data: groups = [] } = useQuery({
     queryKey: ["access-groups"],
-    queryFn: () => api.listAccessGroups(),
+    queryFn: () => accessGroupsApi.listAccessGroups(),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["sso-mappings", provider.id] });
   const addMut = useMutation({
     mutationFn: () =>
-      api.createSsoGroupMapping(provider.id, {
+      adminApi.createSsoGroupMapping(provider.id, {
         idp_group: idpGroup,
         role_code: roleCode.trim() || undefined,
         access_group_id: accessGroupId ?? undefined,
@@ -321,7 +321,7 @@ function GroupMappings({ provider, canManage }: { provider: SsoProvider; canMana
       notifications.show({ title: "Mapping not added", message: err.message, color: "danger" }),
   });
   const delMut = useMutation({
-    mutationFn: (id: string) => api.deleteSsoGroupMapping(id),
+    mutationFn: (id: string) => adminApi.deleteSsoGroupMapping(id),
     onSuccess: invalidate,
     onError: (err: Error) =>
       notifications.show({ title: "Mapping not removed", message: err.message, color: "danger" }),

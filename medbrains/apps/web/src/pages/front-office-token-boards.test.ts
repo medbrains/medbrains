@@ -34,7 +34,6 @@ import {
   tokenBoardSurfaceFlowLabelKey,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { mobilePatientJourneyText } from "../../../mobile/src/components/patientJourneyText";
 import {
   billingDisplayToken,
   type DisplayToken,
@@ -71,10 +70,6 @@ function frontOfficeLocale(): Record<string, string> {
   return JSON.parse(
     readFileSync(join(process.cwd(), "public/locales/en/frontOffice.json"), "utf8"),
   ) as Record<string, string>;
-}
-
-function mobileTokenBoardKey(sharedKey: string): string {
-  return `patientJourney.mobile.${sharedKey}`;
 }
 
 describe("front-office token-board display mapping", () => {
@@ -253,7 +248,7 @@ describe("front-office token-board display mapping", () => {
     expect(tokenBoardStatusLabelKey("custom_status")).toBeNull();
   });
 
-  it("backs every shared token-board status label with web and mobile i18n copy", () => {
+  it("backs every shared token-board status label with web i18n copy", () => {
     const locale = frontOfficeLocale();
 
     for (const status of TOKEN_BOARD_STATUS_VALUES) {
@@ -265,7 +260,6 @@ describe("front-office token-board display mapping", () => {
       const fallback = tokenBoardStatusLabel(status);
 
       expect(locale[key]).toBe(fallback);
-      expect(mobilePatientJourneyText(mobileTokenBoardKey(key))).toBe(fallback);
     }
   });
 

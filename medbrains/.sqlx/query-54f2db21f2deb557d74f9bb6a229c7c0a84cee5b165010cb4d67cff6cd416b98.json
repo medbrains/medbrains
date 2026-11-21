@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(btrim(value ->> 'from_address'), '') <> '' AS \"set!\" FROM tenant_settings\n         WHERE tenant_id = $1 AND category = 'email' AND key = 'config' AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "set!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "54f2db21f2deb557d74f9bb6a229c7c0a84cee5b165010cb4d67cff6cd416b98"
+}

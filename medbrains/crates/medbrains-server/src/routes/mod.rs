@@ -199,10 +199,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
         .merge(medbrains_fhir_api::router())
         .route("/api/debug/authz-probe", get(health::authz_probe))
-        .route(
-            "/api/debug/e2e/canonical-fixtures",
-            post(debug::seed_canonical_fixtures),
-        )
+        .merge(debug::e2e_router())
         // ── Sharing API (manual per-resource grants) ─────────
         .merge(medbrains_sharing::router())
         .merge(medbrains_identity::router())
@@ -294,7 +291,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/queue-tokens/{id}/status-link",
             get(appointments::queue_token_status_link),
         )
-        .merge(gated("opd", appointments::router(), &state))
+        .merge(gated("opd", appointments::router().merge(medbrains_opd::opd_only_router()), &state))
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────
@@ -411,7 +408,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/abdm/abha/enrolments/{id}/address",
-            post(abdm::abha_enrol::choose_address),
+            post(abdm::abha_enrol_address::choose_address),
         )
         .route(
             "/api/abdm/abha/verifications/{id}/qr",
@@ -520,14 +517,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/received-records/{id}",
             get(abdm::hiu::view::received_record),
         )
-        .route(
-            "/api/uhi/settings",
-            get(uhi::settings::get_settings).put(uhi::settings::save_settings),
-        )
-        .route("/api/uhi/settings/keys", post(uhi::keys::generate_keys))
-        .route("/api/uhi/requests", get(uhi::queue::list))
-        .route("/api/uhi/requests/{id}/accept", post(uhi::queue::accept))
-        .route("/api/uhi/requests/{id}/decline", post(uhi::queue::decline))
+        .merge(uhi::staff_router())
         .route(
             "/api/abdm/gateway/callbacks/pending",
             get(abdm::hip_relay::list_pending_callbacks),

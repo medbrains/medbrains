@@ -23,7 +23,7 @@ test("a doctor finds their department's patients in the directory", async ({
 
   const page = await hospital.as("doctor");
   await page.goto("/patients");
-  const search = page.getByPlaceholder("Search by UHID, name, or phone...");
+  const search = page.getByPlaceholder("Search by name, phone, UHID or Aadhaar");
 
   await search.fill(seenHere.uhid);
   await expect(page.getByRole("row", { name: new RegExp(seenHere.uhid) })).toBeVisible({

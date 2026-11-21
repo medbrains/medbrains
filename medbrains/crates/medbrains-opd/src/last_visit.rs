@@ -13,9 +13,9 @@ use axum::{
 };
 use chrono::NaiveDate;
 use medbrains_core::permissions;
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::Serialize;
 use uuid::Uuid;
@@ -36,9 +36,8 @@ pub async fn get_last_visit(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Option<LastVisit>>, AppError> {
-    require_permission(&claims, permissions::opd::visit::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let permit = kernel::authz::permit(&claims, permissions::opd::visit::CREATE)?;
+    let mut tx = kernel::tenant_tx(&state.db, &permit).await?;
     let last = sqlx::query_as::<_, LastVisit>(
         "SELECT e.encounter_date, \
                 CASE WHEN u.is_active AND u.deleted_at IS NULL THEN u.id END AS doctor_id, \

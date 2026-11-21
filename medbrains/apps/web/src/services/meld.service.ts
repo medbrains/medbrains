@@ -1,5 +1,6 @@
-import { api } from "@medbrains/api";
+import { clinicalApi } from "@medbrains/api/modules/clinical";
 
 export const meldService = {
-  computeMeld: (data: Parameters<typeof api.computeMeld>[0]) => api.computeMeld(data),
+  computeMeld: (data: Parameters<typeof clinicalApi.computeMeld>[0]) =>
+    clinicalApi.computeMeld(data),
 };

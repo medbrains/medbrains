@@ -1,7 +1,8 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, clearNativeAuthTokens, configureNativeAuth, setNativeAuthSession } from "./client.js";
+import { api } from "./api.js";
+import { clearNativeAuthTokens, configureNativeAuth, setNativeAuthSession } from "./client.js";
 
 /**
  * A 401 must only end the session it was actually answering.

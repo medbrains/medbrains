@@ -6,6 +6,10 @@ is deleted only when every row for it is ✅ on **both** platforms and its journ
 natively. Status columns: `iOS` / `Android`, values ⬜ not started · 🟨 shell/placeholder ·
 ✅ converted and verified on the screen.
 
+**2026-11-17: the React Native apps were deleted before parity (owner decision).** The rows
+below stay as the list of screens the native apps still owe; the RN source they cite is in
+git history only.
+
 **Totals:** 35 modules + 4 role stacks, **118 screens/boards** (108 module or routed
 screens + 10 gates/overlays). Shells (login, gating, module home), the Nurse module (phase 2), the Doctor module (phase 3, both 2026-09-14) and the Patient
 app (phase 4, 2026-09-15; consent and family-share as tiles, bands as the empty state, as the RN app had them) are ✅
@@ -179,8 +183,9 @@ notifications WebSocket later. Device-code pairing (`pollDeviceToken`) is the lo
 
 ## 7. Journeys (packages/e2e-mobile/src/journeys.ts)
 
-14 journeys: MJ-NUR-001/002 (automated), MJ-NUR-003/004, MJ-DOC-001 (automated),
-MJ-REC-001/002/003 (automated), MJ-REC-004/005/006, MJ-TV-001/002, MJ-SEC-001. Each
+14 journeys: MJ-NUR-001/002, MJ-NUR-003/004, MJ-DOC-001,
+MJ-REC-001/002/003 (these six were automated by Detox specs deleted with the RN apps on
+2026-11-17; now `candidate`), MJ-REC-004/005/006, MJ-TV-001/002, MJ-SEC-001. Each
 converted module re-implements its journeys as XCUITest + Compose tests; `automationStatus`
 stays honest. No journey exists yet for patient, camp, vendor — they are written when those
 apps convert.

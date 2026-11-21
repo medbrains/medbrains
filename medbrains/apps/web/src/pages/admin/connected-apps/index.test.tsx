@@ -34,6 +34,7 @@ const app: ConnectedApp = {
     webhookUrl: "https://beds.example.dev/hook",
   },
   permissions: ["patients.view"],
+  refused_permissions: [],
   status: "pending",
   has_webhook: false,
   approved_at: null,
@@ -45,6 +46,7 @@ const app: ConnectedApp = {
   created_at: "2026-11-01T10:00:00Z",
 };
 
+const apps = vi.hoisted(() => ({ list: [] as ConnectedApp[] }));
 const approve = vi.fn(async (_id: string) => ({ approved: true }));
 const held = vi.hoisted(() => new Set<string>());
 
@@ -54,7 +56,7 @@ vi.mock("@medbrains/api", async (importOriginal) => {
     ...actual,
     api: {
       ...actual.api,
-      listConnectedApps: async () => [app],
+      listConnectedApps: async () => apps.list,
       approveConnectedApp: (id: string) => approve(id),
     },
   };
@@ -71,6 +73,7 @@ describe("Connected apps", () => {
   beforeEach(() => {
     approve.mockClear();
     held.clear();
+    apps.list = [app];
   });
 
   it("shows the privacy label: permissions, data classes and where data goes", async () => {
@@ -94,5 +97,23 @@ describe("Connected apps", () => {
     render(<ConnectedAppsPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
     await waitFor(() => expect(approve).toHaveBeenCalledWith("a1"));
+  });
+
+  it("never offers Approve for codes no app may hold, and names them as refused", async () => {
+    held.add("admin.connected_apps.manage");
+    apps.list = [
+      {
+        ...app,
+        permissions: ["patients.view", "admin.users.create"],
+        refused_permissions: ["admin.users.create"],
+      },
+    ];
+    render(<ConnectedAppsPage />);
+    expect(await screen.findByText("Needs a new manifest")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Privacy label" }));
+    expect(await screen.findByText("This app cannot be approved or sign in")).toBeInTheDocument();
+    expect(screen.getByText("patients.view")).toBeInTheDocument();
+    expect(screen.queryByText("admin.users.create")).not.toBeInTheDocument();
   });
 });

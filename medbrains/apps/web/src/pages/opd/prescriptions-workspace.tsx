@@ -5,7 +5,7 @@ import { SegmentedControl, Stack } from "@mantine/core";
 import { useState } from "react";
 import { PharmacyDispatchTab } from "./pharmacy-dispatch";
 import { PrescriptionsTab } from "./prescriptions";
-import { RxHistoryTab } from "./workflow-tabs";
+import { RxHistoryTab } from "./tabs/rx-history-tab";
 
 type RxView = "visit" | "past" | "pharmacy";
 

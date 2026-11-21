@@ -45,7 +45,7 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Language | Rust (edition 2024, MSRV 1.95; toolchain pinned 1.99.1) |
+| Language | Rust (edition 2024, MSRV 1.97.1; toolchain pinned 1.100.0) |
 | Web framework | Axum 0.8 + Tower 0.5 |
 | Async runtime | Tokio 1.54.1+ (full features; 1.54.0 is yanked and denied) |
 | Serialization | serde + serde_json |
@@ -92,16 +92,16 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; React Native CLI + Paper is the outgoing stack, no new RN screens |
+| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; the React Native apps were deleted on 2026-11-17 (git history keeps them) |
 | UI library | Apple HIG system components (incl. iPhone Duo adaptivity) / Material 3 Expressive (`MaterialExpressiveTheme`) |
-| Navigation | React Navigation v7 |
+| Navigation | SwiftUI `NavigationStack` / Navigation Compose |
 | Offline storage | SwiftData / Room, keys in Keychain / Keystore; offline authz + CRDT via the Rust core (`crates/medbrains-edge-rn`, UniFFI Swift + Kotlin) |
 
 ### TV Displays
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; React Native outgoing |
+| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; the React Native TV app was deleted on 2026-11-17 |
 | Real-time | WebSocket-driven updates |
 
 ### Monorepo
@@ -190,7 +190,6 @@ medbrains/
 │   ├── web/                      # React 19 + Mantine 9 + SCSS
 │   ├── ios/                      # SwiftUI apps: MedBrainsStaff / Patient / Camp / Vendor + Core/Kit/UI packages
 │   ├── android/                  # Compose apps: app-staff / patient / camp / vendor / tv + core/kit/ui modules
-│   ├── mobile-*/, tv/            # React Native (outgoing — deleted per app at parity)
 └── packages/
     ├── types/                    # Shared TypeScript interfaces
     ├── api/                      # HTTP client (auth methods only currently)
@@ -205,7 +204,7 @@ medbrains/
 
 ### Rust
 
-- **Edition 2024**, minimum Rust version **1.95** (workspace `rust-version`; toolchain pinned to 1.99.1)
+- **Edition 2024**, minimum Rust version **1.97.1** (workspace `rust-version`; toolchain pinned to 1.100.0)
 - `unsafe` code is **forbidden**
 - **Strict clippy** — `clippy::all` denied, `clippy::pedantic` + `clippy::nursery` warned
 - The following are **denied** (will not compile):
@@ -294,8 +293,8 @@ on the way out, and a `-9` leaves a lock that blocks the next run with a
 
 ### API Contract Rule
 
-- **Every API method** added to `packages/api/src/client.ts` MUST have a corresponding route handler in the backend `routes/mod.rs`.
-- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in the frontend `client.ts`.
+- **Every API method** goes in its API area's module, `packages/api/src/modules/<area>.ts` (the area is the request path's first segment: `/pharmacy/...` → `pharmacy.ts`, `pharmacyApi`), and MUST have a corresponding route handler in the backend `routes/mod.rs`. `client.ts` holds only the transport (request, session, errors).
+- **Every route** added to `routes/mod.rs` MUST have a corresponding API method in its area module.
 - Run `make check-api` to verify. This is a blocking check — no module is complete until the contract passes.
 - The script (`scripts/check_api_contract.py`) statically parses both files — no running server required.
 
@@ -339,6 +338,28 @@ failure tables, fault injection, physics limits, proven algorithms). Apps reach 
 (`make check-kernel-boundary`), and the kernel holds nothing about hospitals
 (`make check-kernel-no-domain`). A design that breaks a principle needs a written reason in its RFC;
 "it was quicker" is not a reason.
+
+## Change Policy: Small, Reviewed, Understood (MANDATORY, adopted 2026-11-15)
+
+**The owner must be able to understand everything that ships.** Most code here is written with AI,
+and AI output adds and never simplifies. Measured on 2026-11-15: 45% of 11,249 Rust functions are
+over 20 lines, 593 are over 80, the longest is 1,615 lines, and 204 files are over 450 lines. One
+4,600-line feature took three review rounds to clear 30 real bugs, one of them a patient-safety bug.
+
+1. **Small PRs.** About 400 changed lines at most, generated files excluded. A big feature lands as
+   a series of PRs, each readable in one sitting.
+2. **Review before the PR opens.** An independent review and its fixes come first. A PR is never
+   opened as work in progress.
+3. **A plain summary the owner can check:** what changes, why, and what could break. If the owner
+   cannot follow it, the PR is not ready.
+4. **Every fixed bug gets a test that failed on the old code.** "Confirmed by reading" is not proof.
+5. **Safety-class changes wait for the owner's read** even when CI is green: medication, patient
+   identity, money, authorization and migrations.
+6. **AI-written PRs carry the `ai-authored` label.**
+7. **One job per function.** Aim for 20 lines; 40 is the cap for new or changed functions. Name the
+   steps so the top-level function reads like the hospital's procedure. Types, not strings, for
+   rules (an `OrderMode` enum, not `"verbal"`). Delete before adding, reuse before writing, and add
+   no dependency a few lines can replace.
 
 ## Code Quality Bar
 
@@ -691,9 +712,9 @@ Every module follows this. No skipping.
 4. **Mark In Progress** in Excel via openpyxl script.
 5. **DB layer** — migration `crates/medbrains-db/src/migrations/NNN_<module>.sql`, masters first, RLS, indexes.
 6. **Backend** — types in `medbrains-core/src/<module>.rs`, handlers in `medbrains-server/src/routes/<module>.rs`, register in `routes/mod.rs`. `cargo clippy` clean.
-7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/client.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
+7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/modules/<area>.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
    - **7b Mobile (if Mobile=Y)**: native, both platforms in lockstep — `apps/ios/…/Features/<Module>/` (SwiftUI) and `apps/android/app-*/…/<module>/` (Compose), per `RFCs/RFC-NATIVE-MOBILE.md`.
-   - **7c TV (if TV=Y)**: `apps/tv/src/screens/<Module>/`, D-pad focus nav, WebSocket realtime, large fonts.
+   - **7c TV (if TV=Y)**: Compose for TV under `apps/android/` (per `RFCs/RFC-NATIVE-MOBILE.md`), D-pad focus nav, WebSocket realtime, large fonts.
 8. **Static checks** — `make check-all` (check-api, check-ui-api, check-types). `make generate-smoke`.
 9. **Smoke tests** — `make dev-backend && make smoke-test`.
 10. **Mark Done/Partial** in Excel.

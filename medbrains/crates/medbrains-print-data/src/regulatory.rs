@@ -9,7 +9,9 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::Datelike;
+use medbrains_kernel as kernel;
 
+use crate::nabh_quality_report::get_nabh_quality_report_print_data;
 use crate::pcpndt_form_f::get_pcpndt_form_f_print_data;
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
@@ -18,139 +20,21 @@ use medbrains_core::print_data::{
     DeathRegisterPrintData, DepartmentAttendance, DisposalRecord, DrugLicenseReportPrintData,
     DrugStockCategory, ExpiryAlert, FormFCompliance, GasIncident, MedicalGasSystem,
     MlcCaseTypeCount, MlcRegisterSummaryEntry, MlcRegisterSummaryPrintData, MlcStatusCount,
-    NabhQualityReportPrintData, NablQualityReportPrintData, NmcComplianceReportPrintData,
-    PcpndtPersonnel, PcpndtProcedure, PcpndtReportPrintData, PesoComplianceReportPrintData,
-    PtResult, QcMetric, QualityIndicator, QualitySummary, SafetyInspection,
+    NablQualityReportPrintData, NmcComplianceReportPrintData, PcpndtPersonnel, PcpndtProcedure,
+    PcpndtReportPrintData, PesoComplianceReportPrintData, PtResult, QcMetric, SafetyInspection,
     SpcbBmwReturnsPrintData, TatMetric,
 };
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
-
-// ── NABH Quality Indicators Report ────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct QualityIndicatorRow {
-    indicator_code: String,
-    indicator_name: String,
-    category: String,
-    numerator: Option<i32>,
-    denominator: Option<i32>,
-    rate: f64,
-    benchmark: Option<f64>,
-    status: String,
-}
-
-/// Latest `quality_indicator_values` row per indicator inside the period. "Met"
-/// follows the quality dashboard's rule: calculated value at or above target.
-pub async fn get_nabh_quality_report_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(period): Path<String>,
-) -> Result<Json<NabhQualityReportPrintData>, AppError> {
-    require_permission(&claims, permissions::quality::indicators::LIST)?;
-    let (start, end) = period_bounds(&period)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
-
-    let indicators = sqlx::query_as::<_, QualityIndicatorRow>(
-        "SELECT indicator_code, indicator_name, category, numerator, denominator, rate, \
-                benchmark, status \
-         FROM ( \
-           SELECT DISTINCT ON (qi.id) \
-             COALESCE(qi.indicator_code, qi.code) AS indicator_code, \
-             COALESCE(qi.indicator_name, qi.name) AS indicator_name, \
-             qi.category, qi.display_order, \
-             ROUND(v.numerator_value)::int AS numerator, \
-             ROUND(v.denominator_value)::int AS denominator, \
-             v.calculated_value::float8 AS rate, \
-             COALESCE(qi.benchmark, qi.benchmark_national::float8) AS benchmark, \
-             CASE WHEN qi.target_value IS NULL THEN 'not_applicable' \
-                  WHEN v.calculated_value >= qi.target_value THEN 'met' \
-                  ELSE 'below' END AS status \
-           FROM quality_indicator_values v \
-           JOIN quality_indicators qi ON qi.id = v.indicator_id \
-             AND qi.tenant_id = v.tenant_id AND qi.deleted_at IS NULL \
-           WHERE v.deleted_at IS NULL AND v.calculated_value IS NOT NULL \
-             AND v.period_start >= $1 AND v.period_end < $2 AND v.tenant_id = $3 \
-           ORDER BY qi.id, v.period_end DESC \
-         ) latest \
-         ORDER BY category, display_order, indicator_code LIMIT 1000",
-    )
-    .bind(start)
-    .bind(end)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>(
-        "SELECT name, logo_url, nabh_certificate_number, nabh_valid_until::text \
-         FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let action_items: Vec<String> = sqlx::query_scalar(
-        "SELECT description FROM quality_action_items \
-         WHERE tenant_id = $1 AND deleted_at IS NULL AND status <> 'closed' \
-           AND completed_at IS NULL AND NULLIF(description, '') IS NOT NULL \
-         ORDER BY due_date NULLS LAST, created_at LIMIT 100",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    let count = |s: &str| indicators.iter().filter(|i| i.status == s).count() as i32;
-    let summary = QualitySummary {
-        total_indicators: indicators.len() as i32,
-        met_benchmark: count("met"),
-        below_benchmark: count("below"),
-        not_applicable: count("not_applicable"),
-    };
-
-    Ok(Json(NabhQualityReportPrintData {
-        report_period: period,
-        report_date: chrono::Utc::now()
-            .with_timezone(&tz)
-            .format("%d-%b-%Y")
-            .to_string(),
-        hospital_name: tenant.0,
-        nabh_certificate_number: tenant.2,
-        accreditation_valid_until: tenant.3,
-        indicators: indicators
-            .into_iter()
-            .map(|i| QualityIndicator {
-                indicator_code: i.indicator_code,
-                indicator_name: i.indicator_name,
-                category: i.category,
-                numerator: i.numerator,
-                denominator: i.denominator,
-                rate: i.rate,
-                benchmark: i.benchmark,
-                status: i.status,
-                trend: None,
-            })
-            .collect(),
-        summary,
-        action_items,
-        prepared_by: None,
-        reviewed_by: None,
-        hospital_logo_url: tenant.1,
-    }))
-}
 
 // ── NMC Compliance Report ────────────────────────────────
 
 /// Resolves a report period — `YYYY`, `YYYY-MM` or `YYYY-Qn` — to `[start, end)`.
-fn period_bounds(period: &str) -> Result<(chrono::NaiveDate, chrono::NaiveDate), AppError> {
+pub(crate) fn period_bounds(
+    period: &str,
+) -> Result<(chrono::NaiveDate, chrono::NaiveDate), AppError> {
     let bad = || AppError::BadRequest(format!("expected YYYY, YYYY-MM or YYYY-Qn: {period}"));
     let (year, rest) = period
         .split_once('-')
@@ -188,12 +72,10 @@ pub async fn get_nmc_compliance_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<NmcComplianceReportPrintData>, AppError> {
-    require_permission(&claims, permissions::regulatory::checklists::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::regulatory::checklists::LIST)?;
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let sections = sqlx::query_as::<_, ComplianceSectionRow>(
@@ -325,12 +207,10 @@ pub async fn get_nabl_quality_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<NablQualityReportPrintData>, AppError> {
-    require_permission(&claims, permissions::lab::qc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::lab::qc::LIST)?;
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let (total_orders, rejected): (i32, i32) = sqlx::query_as(
@@ -509,12 +389,10 @@ pub async fn get_spcb_bmw_returns_print_data(
     Extension(claims): Extension<Claims>,
     Path(quarter): Path<String>,
 ) -> Result<Json<SpcbBmwReturnsPrintData>, AppError> {
-    require_permission(&claims, permissions::infection_control::biowaste::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::infection_control::biowaste::LIST)?;
     let (start, end) = period_bounds(&quarter)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let categories = sqlx::query_as::<_, BmwCategoryRow>(
@@ -669,11 +547,9 @@ pub async fn get_peso_compliance_print_data(
     Extension(claims): Extension<Claims>,
     Path(year): Path<i32>,
 ) -> Result<Json<PesoComplianceReportPrintData>, AppError> {
-    require_permission(&claims, permissions::facilities::gas::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::facilities::gas::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let gas_systems = sqlx::query_as::<_, MedicalGasSystemRow>(
@@ -874,11 +750,9 @@ pub async fn get_drug_license_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(license_id): Path<uuid::Uuid>,
 ) -> Result<Json<DrugLicenseReportPrintData>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::pharmacy::stock::MANAGE)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let licence = sqlx::query_as::<_, DrugLicenceRow>(
@@ -998,12 +872,10 @@ pub async fn get_pcpndt_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<PcpndtReportPrintData>, AppError> {
-    require_permission(&claims, permissions::regulatory::pcpndt::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::regulatory::pcpndt::LIST)?;
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // The doctors who performed the period's procedures are its qualified personnel.
@@ -1141,14 +1013,12 @@ pub async fn get_birth_register_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<BirthRegisterPrintData>, AppError> {
-    require_permission(&claims, permissions::mrd::births::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::mrd::births::LIST)?;
     // Deliberately unfiltered: a statutory birth register lists every birth in
     // the period, like the death register below, so it stays permission-gated.
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let entries = sqlx::query_as::<_, BirthRegisterEntryRow>(
@@ -1268,15 +1138,13 @@ pub async fn get_death_register_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<DeathRegisterPrintData>, AppError> {
-    require_permission(&claims, permissions::mrd::deaths::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::mrd::deaths::LIST)?;
     // Deliberately unfiltered: a statutory death register lists every death in
     // the period. Narrowing it to the caller's own patients would make the
     // document wrong as a register, so it stays permission-gated.
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let entries = sqlx::query_as::<_, DeathRegisterEntryRow>(
@@ -1397,14 +1265,12 @@ pub async fn get_mlc_register_summary_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<MlcRegisterSummaryPrintData>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::emergency::mlc::LIST)?;
     // Deliberately unfiltered, as the death register above: a medico-legal
     // register is a statutory summary of the period, not a per-patient read.
     let (start, end) = period_bounds(&period)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     // Before the queries: `registered_at::date` must be the hospital's date.
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
@@ -1528,11 +1394,9 @@ pub async fn get_aebas_attendance_print_data(
     Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<Json<AebasAttendanceReportPrintData>, AppError> {
-    require_permission(&claims, permissions::hr::attendance::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::hr::attendance::LIST)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let (total_employees, average_attendance, total_working_days, holidays) =

@@ -110,8 +110,8 @@ impl rig::tool::Tool for ShowTool {
         "Show data you fetched this turn as a widget on the user's screen, built from the \
         fetched data itself: kind 'kpis' (headline numbers), 'table' (rows), 'chart' (numbers \
         over a label column, e.g. a trend), 'list' (items with a status). source = the exact \
-        path you passed to call_api, or 'patient_overview'. After showing, write at most one \
-        sentence and do not repeat the widget's numbers."
+        path you passed to call_api, the action tool's name, or 'patient_overview'. After \
+        showing, write at most one sentence and do not repeat the widget's numbers."
             .to_owned()
     }
 
@@ -120,7 +120,7 @@ impl rig::tool::Tool for ShowTool {
             "type": "object",
             "properties": {
                 "kind": { "type": "string", "enum": ["kpis", "table", "chart", "list"] },
-                "source": { "type": "string", "description": "The call_api path, or patient_overview" },
+                "source": { "type": "string", "description": "The call_api path, an action tool's name, or patient_overview" },
                 "title": { "type": "string", "description": "A short title, e.g. Today's billing" }
             },
             "required": ["kind", "source"]

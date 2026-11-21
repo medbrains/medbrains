@@ -22,7 +22,7 @@ public struct AbhaApi: Sendable {
     private struct Otp: Encodable { let otp: String }
     private struct EnrolmentOtp: Encodable { let otp: String; let mobile: String }
     private struct Account: Encodable { let abhaNumber: String }
-    private struct Address: Encodable { let abhaAddress: String }
+    private struct Address: Encodable { let abhaAddress: String; var keepExisting = false }
     private struct Enrol: Encodable { let aadhaar: String; let consent: Bool }
     private struct ResendEnrol: Encodable { let aadhaar: String? }
     private struct Resend: Encodable { let value: String? }
@@ -77,6 +77,12 @@ public struct AbhaApi: Sendable {
 
     public func chooseAddress(_ id: String, address: String) async throws -> AbhaVerificationStep {
         try await client.request(.post, AbdmEndpoint.enrolment(id, "address"), body: Address(abhaAddress: address))
+    }
+
+    /// After "ABHA address already exists.": finish on the address the new
+    /// ABHA already has (CRT_ABHA_112).
+    public func keepExistingAddress(_ id: String) async throws -> AbhaVerificationStep {
+        try await client.request(.post, AbdmEndpoint.enrolment(id, "address"), body: Address(abhaAddress: "", keepExisting: true))
     }
 
     /// The ABHA card as ABDM renders it, to show, print or share.

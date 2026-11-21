@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT doctor_id, slot_date, slot_start FROM uhi_slot_ids WHERE tenant_id = $1 AND id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "doctor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "slot_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "slot_start",
+        "type_info": "Time"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a5c7d6e21629205e19cf3ae38906987a57664a50fcbb3afa26481f2fad9116e4"
+}

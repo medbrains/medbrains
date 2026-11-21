@@ -490,3 +490,14 @@
 :global(html) {
   scroll-padding-bottom: calc(var(--mantine-spacing-xl) * 4);
 }
+
+/* The hospital's emblem and name banner: centred over the header, out of the
+   flex flow, so they never push the controls either side. */
+.hospitalMarks {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  pointer-events: none;
+}

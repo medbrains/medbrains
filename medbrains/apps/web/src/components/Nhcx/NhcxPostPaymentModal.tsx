@@ -1,5 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { billingApi } from "@medbrains/api/modules/billing";
+import { insuranceApi } from "@medbrains/api/modules/insurance";
 import { useHasPermission } from "@medbrains/stores";
 import type { NhcxPayment } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -23,7 +24,7 @@ export function NhcxPostPaymentModal({ payment, onClose }: NhcxPostPaymentModalP
   const canListClaims = useHasPermission(P.BILLING.CORPORATE.LIST);
   const claims = useQuery({
     queryKey: ["insurance-claims"],
-    queryFn: () => api.listInsuranceClaims(),
+    queryFn: () => billingApi.listInsuranceClaims(),
     enabled: !!payment && canListClaims,
   });
   const options = useMemo(
@@ -37,7 +38,8 @@ export function NhcxPostPaymentModal({ payment, onClose }: NhcxPostPaymentModalP
     [claims.data, payment?.sender_code],
   );
   const post = useMutation({
-    mutationFn: () => api.postNhcxPayment(payment?.id ?? "", { insurance_claim_id: claimId ?? "" }),
+    mutationFn: () =>
+      insuranceApi.postNhcxPayment(payment?.id ?? "", { insurance_claim_id: claimId ?? "" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["nhcx-payments"] });
       void queryClient.invalidateQueries({ queryKey: ["insurance-claims"] });

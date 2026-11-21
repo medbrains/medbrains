@@ -16,4 +16,5 @@ pub mod notice_pipelines;
 pub mod registry;
 pub mod scheduler;
 pub mod token_call_sms;
+mod transfusion_reaction;
 pub mod webhook_fanout;

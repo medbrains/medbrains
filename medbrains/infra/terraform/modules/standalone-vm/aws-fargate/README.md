@@ -7,8 +7,11 @@ Phase 1 scaffold for the Growth tier of `modules/hospital-package`.
 - **Compute** — ECS Fargate task pulling `var.image_uri` (defaults to
   the GHCR image published by `release.yml`). 0.5 vCPU / 1 GB by
   default; bumped via `fargate_task_cpu` / `fargate_task_memory`.
-- **Load balancer** — ALB on 80/443 in front of the service. HTTPS
-  listener + ACM cert land in Phase 2.
+- **Load balancer** — ALB in front of the service. Pass
+  `acm_certificate_arn`: 443 serves the app (TLS 1.2+/1.3 policy) and 80
+  only redirects to HTTPS. Without a certificate the plan fails, unless
+  `allow_plain_http = true` is set knowingly. `public_ingress_cidrs`
+  narrows who can reach it (default: anyone).
 - **Database** — RDS db.t4g.micro PostgreSQL 17 Multi-AZ.
 - **Object storage** — S3 bucket with lifecycle that transitions
   objects to STANDARD_IA after `var.hot_to_cold_days` (default 90).
@@ -27,7 +30,7 @@ which the env doesn't currently auto-provision (Phase 2 PR).
 
 - ECR push from CI (today only GHCR; private ECR pull from Fargate
   needs the task execution role to have ECR perms).
-- ACM cert + HTTPS listener.
+- Issuing the ACM certificate (bring one; the module only attaches it).
 - VPC dedicated to the hospital. Today reuses the default VPC.
 - VPC endpoints for RDS / S3 / ECR.
 - DB password stored in Secrets Manager (currently plain in state).

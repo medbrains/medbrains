@@ -9,33 +9,29 @@ import {
   Kbd,
   Menu,
   NavLink,
-  ScrollArea,
   Text,
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
-import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
 import {
-  IconLanguage,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-  IconLogout,
-  IconSearch,
-  IconSettings,
-  IconStar,
-  IconUser,
-} from "@tabler/icons-react";
+  endClientSession,
+  useAuthStore,
+  useModuleStore,
+  usePermissionStore,
+} from "@medbrains/stores";
+import { BRICK_MANIFESTS } from "@medbrains/types";
+import { IconLanguage, IconLogout, IconSearch, IconSettings, IconUser } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
+import { AppRoute } from "@/components/AppRoute";
 import { AiAssistantMount } from "@/components/ai/AiAssistantMount";
 import { Brand } from "@/components/Brand";
-import { BuildVersion } from "@/components/BuildVersion";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { HelpButton } from "@/components/HelpButton";
@@ -58,16 +54,25 @@ import {
   type NavItemConfig,
   resolveIcon,
 } from "@/config/navigation";
+import { usePanelFavourites } from "@/features/launcher/usePanelFavourites";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
+import { AppNavbar, hasSidePanel } from "./AppNavbar";
+import { panelFor } from "./appPanel";
+import { FavouriteStar } from "./FavouriteStar";
+import { HospitalMarks } from "./HospitalMarks";
 import { OnDemandOverlays } from "./OnDemandOverlays";
+import { PanelHeader } from "./PanelHeader";
+import { PanelPages } from "./PanelPages";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
 
 interface ResolvedNavItem {
   label: string;
   path: string;
+  /** The Tabler icon name, for the panel header (the first entry's, as on the launcher tile). */
+  iconName: string;
   icon: ReactNode;
   /** Module badge colour — drives the per-item hover/active tint. */
   color?: string;
@@ -75,6 +80,7 @@ interface ResolvedNavItem {
   requiredPermissions?: readonly string[];
   children?: ResolvedNavItem[];
   moduleCode?: string;
+  isAdvanced?: boolean;
 }
 
 // Carbon UI Shell side-nav widths: 48px icon rail, 256px expanded.
@@ -82,20 +88,6 @@ const RAIL_WIDTH = 48;
 const EXPANDED_WIDTH = 256;
 const UUID_SEGMENT_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const GROUP_LABEL_KEYS = {
-  main: "groupMain",
-  clinical: "groupClinical",
-  diagnostics: "groupDiagnostics",
-  inpatient: "groupInpatient",
-  finance: "groupFinance",
-  operations: "groupOperations",
-  network: "groupNetwork",
-  marketing: "groupMarketing",
-  compliance: "groupCompliance",
-  specialty: "groupSpecialty",
-  admin: "groupAdmin",
-} satisfies Record<string, string>;
-
 function routeObjectLabel(previousSegment: string | undefined, nextSegment: string | undefined) {
   if (previousSegment === "patients") return "Patient";
   if (previousSegment === "encounters") return "OPD Visit";
@@ -104,44 +96,22 @@ function routeObjectLabel(previousSegment: string | undefined, nextSegment: stri
   return "Record";
 }
 
-function groupLabelKey(key: string) {
-  const entry = Object.entries(GROUP_LABEL_KEYS).find(([groupKey]) => groupKey === key);
-  return entry?.[1] ?? key;
-}
-
-const FAVORITES_STORAGE_KEY = "medbrains.favnav";
-
-function storedFavorites(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(FAVORITES_STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
+/** The signed-in shell: header (with the hospital's marks), side panel and page. */
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [favorites, setFavorites] = useState<string[]>(storedFavorites);
-
-  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
-  const toggleFavorite = useCallback((path: string) => {
-    setFavorites((prev) => {
-      const next = prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path];
-      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  // The same starred list as the launcher, kept on the server for the person: each panel entry
+  // can be starred, and the stars show on the launcher.
+  const favourites = usePanelFavourites();
 
   const location = useLocation();
   const isWorkspace = location.pathname === "/assistant";
+  const hasPanel = hasSidePanel(location.pathname);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const clearAuth = useAuthStore((s) => s.clearAuth);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
+  const permissions = usePermissionStore((s) => s.userPermissions);
   // Select the set, not the stable `isModuleEnabled` function, so the menu re-renders when a
   // brick is switched on or off.
   const disabledModules = useModuleStore((s) => s.disabledModules);
@@ -167,18 +137,17 @@ export function AppLayout() {
     wasFocusRoute.current = isFocusRoute;
   }, [isFocusRoute]);
 
+  /**
+   * Tear the client down before the server answers: the logout call marks the
+   * session ended at once (no refresh), then queries stop, the signed-in
+   * screens unmount with their polls and socket, and the cache — this
+   * session's patient data — is wiped for the next person at this desk.
+   */
   const handleLogout = async () => {
-    try {
-      await sessionService.logout();
-    } catch {
-      // ignore
-    }
-    clearAuth();
-    // Wipe the in-memory query cache — it holds PHI/clinical data from this
-    // session. Without this, the next user on a shared workstation could be
-    // served the previous user's cached records before a refetch.
-    queryClient.clear();
+    const loggedOut = sessionService.logout().catch(() => undefined);
+    endClientSession(queryClient);
     void navigate("/login");
+    await loggedOut;
   };
 
   const handleNavigate = useCallback(
@@ -221,6 +190,7 @@ export function AppLayout() {
       return {
         label: t(cfg.i18nKey),
         path: cfg.path,
+        iconName: cfg.icon,
         color: badge?.color,
         icon: badge ? (
           <ModuleBadge abbr={badge.abbr} color={badge.color} size={size} title={t(cfg.i18nKey)} />
@@ -230,24 +200,29 @@ export function AppLayout() {
         requiredPermission: cfg.requiredPermission,
         requiredPermissions: cfg.requiredPermissions,
         moduleCode: cfg.moduleCode,
+        isAdvanced: cfg.isAdvanced,
         children: cfg.children?.map((c) => resolveItem(c, true)),
       };
     },
     [t],
   );
 
-  // Build nav groups from static config
+  // Only the current app's screens, or the core ones: never the whole menu (search has that).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: permissions drives hasPermission's answer
+  const panel = useMemo(
+    () => panelFor(location.pathname, { hasPermission, disabledModules }),
+    [location.pathname, hasPermission, disabledModules, permissions],
+  );
   const navGroups = useMemo(
     () =>
-      NAV_GROUPS.map((group) => ({
+      panel.groups.map((group) => ({
         key: group.key,
         items: group.items.map((item) => resolveItem(item)),
       })),
-    [resolveItem],
+    [panel, resolveItem],
   );
 
-  // Flattened leaf modules (children replace their parent) — used to
-  // resolve pinned favorites back to renderable items.
+  // Flattened leaf modules (children replace their parent), for the active-leaf rule.
   const allLeafItems = useMemo(() => {
     const out: ResolvedNavItem[] = [];
     for (const group of navGroups) {
@@ -361,31 +336,35 @@ export function AppLayout() {
             onFocus={() => handleNavigationIntent(item.path)}
             onPointerEnter={() => handleNavigationIntent(item.path)}
           >
-            {visibleChildren.map((child) => (
-              <NavLink
-                key={child.path}
-                component={Link}
-                to={child.path}
-                label={child.label}
-                style={{ "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties}
-                leftSection={<span className={classes.navIcon}>{child.icon}</span>}
-                active={isActive(child.path)}
-                aria-current={isActive(child.path) ? "page" : undefined}
-                onFocus={() => handleNavigationIntent(child.path)}
-                onClick={() => handleLinkClick(child.path)}
-                onPointerEnter={() => handleNavigationIntent(child.path)}
-                className={
-                  isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
-                }
-              />
-            ))}
+            <PanelPages
+              pages={visibleChildren}
+              renderPage={(child) => (
+                <NavLink
+                  key={child.path}
+                  component={Link}
+                  to={child.path}
+                  label={child.label}
+                  style={
+                    { "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties
+                  }
+                  leftSection={<span className={classes.navIcon}>{child.icon}</span>}
+                  active={isActive(child.path)}
+                  aria-current={isActive(child.path) ? "page" : undefined}
+                  onFocus={() => handleNavigationIntent(child.path)}
+                  onClick={() => handleLinkClick(child.path)}
+                  onPointerEnter={() => handleNavigationIntent(child.path)}
+                  className={
+                    isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
+                  }
+                />
+              )}
+            />
           </NavLink>
         </div>
       );
     }
 
     const active = isLeafActive(item.path);
-    const pinned = favoriteSet.has(item.path);
     return (
       <NavLink
         key={item.path}
@@ -394,27 +373,7 @@ export function AppLayout() {
         label={item.label}
         style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         leftSection={<span className={classes.navIcon}>{item.icon}</span>}
-        rightSection={
-          <Tooltip label={pinned ? "Unpin" : "Pin to favorites"} withArrow openDelay={400}>
-            <ActionIcon
-              component="div"
-              role="button"
-              tabIndex={-1}
-              size="sm"
-              variant="subtle"
-              color={pinned ? "warning" : "gray"}
-              className={pinned ? classes.favStarOn : classes.favStar}
-              aria-label={pinned ? "Unpin from favorites" : "Pin to favorites"}
-              onClick={(event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                toggleFavorite(item.path);
-              }}
-            >
-              <IconStar size={13} fill={pinned ? "currentColor" : "none"} />
-            </ActionIcon>
-          </Tooltip>
-        }
+        rightSection={<FavouriteStar path={item.path} favourites={favourites} />}
         active={active}
         aria-current={active ? "page" : undefined}
         onFocus={() => handleNavigationIntent(item.path)}
@@ -425,7 +384,7 @@ export function AppLayout() {
     );
   };
 
-  // ── Render sidebar content ──
+  // ── Render sidebar content: the app's name and the way back, then its screens ──
   const renderSidebar = () => {
     const groups = navGroups
       .map((group) => ({
@@ -433,25 +392,23 @@ export function AppLayout() {
         items: group.items.filter(filterItem),
       }))
       .filter((g) => g.items.length > 0);
-
-    const favoriteItems = allLeafItems.filter(
-      (item) => favoriteSet.has(item.path) && filterItem(item),
+    const first = groups[0]?.items[0];
+    const header = (
+      <PanelHeader
+        title={panel.app ? (BRICK_MANIFESTS[panel.app]?.name ?? panel.app) : t("groupCore")}
+        icon={resolveIcon(panel.app && first ? first.iconName : "IconDashboard", 20, 1.5)}
+        isExpanded={isExpanded}
+        onNavigate={closeMobile}
+      />
     );
 
     if (isExpanded) {
       return (
         <>
-          {favoriteItems.length > 0 && (
-            <div>
-              <Text className={classes.navGroupLabel}>{t("groupFavorites")}</Text>
-              {favoriteItems.map(renderExpandedItem)}
-              <Divider my={4} className={classes.railDivider} />
-            </div>
-          )}
+          {header}
           {groups.map((group, gi) => (
             <div key={group.key}>
               {gi > 0 && <Divider my={4} className={classes.railDivider} />}
-              <Text className={classes.navGroupLabel}>{t(groupLabelKey(group.key))}</Text>
               {group.items.map(renderExpandedItem)}
             </div>
           ))}
@@ -460,29 +417,34 @@ export function AppLayout() {
     }
 
     // Rail mode
-    return groups.map((group, gi) => (
-      <div key={group.key} className={classes.railGroup}>
-        {gi > 0 && <Divider my={4} className={classes.railDivider} />}
-        {group.items.map((item) => {
-          const visibleChildren = item.children?.filter(filterItem);
-          const targetPath = visibleChildren?.[0]?.path ?? item.path;
-          const active = visibleChildren
-            ? visibleChildren.some((child) => isActive(child.path))
-            : isLeafActive(item.path);
-          return renderRailItem({ ...item, path: targetPath }, active);
-        })}
-      </div>
-    ));
+    return (
+      <>
+        {header}
+        {groups.map((group, gi) => (
+          <div key={group.key} className={classes.railGroup}>
+            {gi > 0 && <Divider my={4} className={classes.railDivider} />}
+            {group.items.map((item) => {
+              const visibleChildren = item.children?.filter(filterItem);
+              const targetPath = visibleChildren?.[0]?.path ?? item.path;
+              const active = visibleChildren
+                ? visibleChildren.some((child) => isActive(child.path))
+                : isLeafActive(item.path);
+              return renderRailItem({ ...item, path: targetPath }, active);
+            })}
+          </div>
+        ))}
+      </>
+    );
   };
 
   return (
     <AppShell
       header={{ height: 48 }}
-      navbar={{
-        width: navbarWidth,
-        breakpoint: "sm",
-        collapsed: { mobile: !mobileOpened, desktop: false },
-      }}
+      navbar={
+        hasPanel
+          ? { width: navbarWidth, breakpoint: "sm", collapsed: { mobile: !mobileOpened } }
+          : undefined
+      }
       padding="md"
       transitionDuration={260}
       transitionTimingFunction="cubic-bezier(0.22, 1, 0.36, 1)"
@@ -490,15 +452,18 @@ export function AppLayout() {
       <DlpGuard />
       {/* ── Header ── */}
       <AppShell.Header>
+        <HospitalMarks />
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
-            <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
+            {hasPanel && (
+              <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
+            )}
             <Group
               gap={8}
               wrap="nowrap"
               miw={0}
               className={classes.logoArea}
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/home")}
             >
               <Brand surface="header" />
             </Group>
@@ -622,72 +587,12 @@ export function AppLayout() {
         </Group>
       </AppShell.Header>
 
-      {/* ── Sidebar ── */}
-      <AppShell.Navbar
-        data-testid="app-sidebar"
-        data-mode={isExpanded ? "expanded" : "rail"}
-        p={isExpanded ? 8 : 0}
-        className={isExpanded ? classes.navbarExpanded : classes.navbarRail}
-      >
-        <AppShell.Section grow component={ScrollArea} className={classes.navContent}>
+      {/* ── Sidebar: none on the launcher, which replaces navigation ── */}
+      {hasPanel && (
+        <AppNavbar isExpanded={isExpanded} onToggle={toggleSidebar}>
           {renderSidebar()}
-        </AppShell.Section>
-
-        <AppShell.Section className={classes.navFooter}>
-          <Divider my={4} className={classes.railDivider} />
-
-          {/* Collapse / Expand toggle */}
-          <Box visibleFrom="sm" className={classes.footerAction}>
-            {isExpanded ? (
-              <UnstyledButton
-                className={classes.sidebarToggleExpanded}
-                onClick={toggleSidebar}
-                aria-label={t("collapse")}
-              >
-                <AnimatedIcon icon={IconLayoutSidebarLeftCollapse} size={18} motion="float" />
-                <Text size="xs" c="var(--mb-text-muted)">
-                  {t("collapse")}
-                </Text>
-              </UnstyledButton>
-            ) : (
-              <Tooltip label={t("expand")} position="right" withArrow>
-                <UnstyledButton
-                  className={classes.railItem}
-                  onClick={toggleSidebar}
-                  aria-label={t("expand")}
-                >
-                  <AnimatedIcon icon={IconLayoutSidebarLeftExpand} size={20} motion="float" />
-                </UnstyledButton>
-              </Tooltip>
-            )}
-          </Box>
-
-          {/* Which build is this?
-              The badge here read a hardcoded "v0.1" — the same string on
-              every deploy since it was written, which is worse than none:
-              it answers the support question confidently and wrongly. It now
-              carries the real version, the commit the deploy fingerprints,
-              and the build date, so a stale cached bundle is visible rather
-              than indistinguishable from a current one. Collapsed to the
-              rail there is no room for the commit, so only the version
-              shows and the tooltip carries the rest. */}
-          <Box className={classes.versionBadge}>
-            {isExpanded ? (
-              <BuildVersion />
-            ) : (
-              <Tooltip
-                label={`v${__APP_VERSION__} · ${__APP_COMMIT__} · built ${new Date(__APP_BUILT__).toLocaleString()}`}
-                position="right"
-                withArrow
-              >
-                <Text size="xs" c="var(--mb-text-muted)" fw={400} ta="center">
-                  v{__APP_VERSION__}
-                </Text>
-              </Tooltip>
-            )}
-          </Box>
-        </AppShell.Section>
-      </AppShell.Navbar>
+        </AppNavbar>
+      )}
 
       {/* ── Main content ── */}
       {/* Room below the last row: the assistant launcher and the activity
@@ -699,7 +604,7 @@ export function AppLayout() {
       <AppShell.Main pb={isWorkspace ? 0 : "calc(var(--mantine-spacing-xl) * 4)"}>
         <VerifyEmailBanner />
         <PageQueryErrorBanner />
-        {breadcrumbItems.length > 0 && !isWorkspace && (
+        {breadcrumbItems.length > 0 && !isWorkspace && hasPanel && (
           <div className={classes.breadcrumbs}>
             <Breadcrumb
               items={breadcrumbItems.map((item) => ({
@@ -713,7 +618,8 @@ export function AppLayout() {
 
         <Suspense fallback={<PageSkeleton />}>
           <PageTransition>
-            <Outlet />
+            {/* A switched-off app's screens do not open, whichever route reaches them. */}
+            <AppRoute />
           </PageTransition>
         </Suspense>
       </AppShell.Main>

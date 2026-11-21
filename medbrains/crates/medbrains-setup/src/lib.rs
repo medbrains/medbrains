@@ -1,4 +1,5 @@
 use argon2::{Argon2, PasswordHasher};
+mod branding;
 mod grants;
 pub mod workbook;
 use axum::routing::{delete, get, post, put};
@@ -29,7 +30,7 @@ use medbrains_server_core::settings_guard::{
     refuse_admin_only_category, refuse_own_endpoint_category,
 };
 use medbrains_server_core::state::AppState;
-use medbrains_server_core::validation::{self, ValidationErrors};
+use medbrains_server_core::validation::{self, ValidationErrors, validate_password};
 
 // ── PUT /api/setup/tenant ───────────────────────────────────
 
@@ -1322,7 +1323,7 @@ pub async fn create_user(
     let mut errors = ValidationErrors::new();
     validation::validate_username(&mut errors, "username", &body.username);
     validation::validate_email(&mut errors, "email", &body.email);
-    validation::validate_password(&mut errors, "password", &body.password);
+    validate_password(&mut errors, "password", (&body.password, &body.username));
     validation::validate_name(&mut errors, "full_name", &body.full_name);
     if body.role.is_empty() {
         errors.add("role", "Role is required");
@@ -1667,7 +1668,7 @@ pub async fn reset_user_password(
     let (password, generated) = match body.new_password {
         Some(provided) => {
             let mut errors = ValidationErrors::new();
-            validation::validate_password(&mut errors, "new_password", &provided);
+            validate_password(&mut errors, "new_password", &provided);
             if errors.has_errors() {
                 return Err(AppError::ValidationFailed(errors));
             }
@@ -2212,7 +2213,8 @@ pub async fn update_role_widget_access(
 // ── Modules CRUD ────────────────────────────────────────────
 
 /// `GET /api/setup/modules` — the tenant's app bricks. `depends_on` comes from the brick table
-/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it.
+/// (`medbrains_core::bricks`), not the stored column, so rows created before it agree with it;
+/// `background_jobs` says which of the brick's jobs this server runs.
 pub async fn list_modules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2231,11 +2233,8 @@ pub async fn list_modules(
 
     tx.commit().await?;
 
-    for row in &mut rows {
-        if let Some(brick) = medbrains_core::bricks::find(&row.code) {
-            row.depends_on = brick.depends_on.iter().map(|d| (*d).to_owned()).collect();
-        }
-    }
+    rows.iter_mut()
+        .for_each(medbrains_server_core::brick_jobs::fill_from_bricks);
     Ok(Json(rows))
 }
 
@@ -2370,80 +2369,6 @@ pub async fn update_sequence(
     tx.commit().await?;
 
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
-}
-
-// ── Branding ────────────────────────────────────────────────
-
-pub async fn get_branding(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<TenantSettings>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let rows = sqlx::query_as::<_, TenantSettings>(
-        "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = 'branding' \
-         ORDER BY key LIMIT 5000",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(rows))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateBrandingRequest {
-    pub key: String,
-    pub value: Value,
-}
-
-pub async fn update_branding(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateBrandingRequest>,
-) -> Result<Json<TenantSettings>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
-    let mut errors = ValidationErrors::new();
-    if (body.key == "primary_color" || body.key == "secondary_color")
-        && let Some(color_str) = body.value.as_str()
-    {
-        validation::validate_hex_color(&mut errors, &body.key, color_str);
-    }
-    if body.key == "logo_url"
-        && let Some(url_str) = body.value.as_str()
-    {
-        validation::validate_optional_url(&mut errors, "logo_url", url_str);
-    }
-    if errors.has_errors() {
-        return Err(AppError::ValidationFailed(errors));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, TenantSettings>(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, 'branding', $2, $3) \
-         ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, \
-                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(&body.key)
-    .bind(&body.value)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(row))
 }
 
 // ── Sequence create/delete ───────────────────────────────────
@@ -4898,7 +4823,7 @@ pub async fn import_users(
         let (password, generated) = match row.password {
             Some(given) => {
                 let mut check = ValidationErrors::new();
-                validation::validate_password(&mut check, "password", given);
+                validate_password(&mut check, "password", (given, row.username));
                 if check.has_errors() {
                     errors.push(format!("Row {row_num}: password does not meet the rules"));
                     skipped += 1;
@@ -5301,15 +5226,15 @@ pub async fn bulk_create_users(
     let mut errors: Vec<String> = Vec::new();
 
     for (idx, user) in body.users.iter().enumerate() {
-        let mut user_errors = ValidationErrors::new();
-        validation::validate_username(&mut user_errors, "username", &user.username);
-        validation::validate_email(&mut user_errors, "email", &user.email);
-        validation::validate_password(&mut user_errors, "password", &user.password);
-        validation::validate_name(&mut user_errors, "full_name", &user.full_name);
+        let mut problems = ValidationErrors::new();
+        validation::validate_username(&mut problems, "username", &user.username);
+        validation::validate_email(&mut problems, "email", &user.email);
+        validate_password(&mut problems, "password", (&user.password, &user.username));
+        validation::validate_name(&mut problems, "full_name", &user.full_name);
         if user.role.is_empty() {
-            user_errors.add("role", "Role is required");
+            problems.add("role", "Role is required");
         }
-        if user_errors.has_errors() {
+        if problems.has_errors() {
             errors.push(format!("User {idx}: validation failed"));
             continue;
         }
@@ -6312,6 +6237,7 @@ pub async fn remove_access_group_member(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(workbook::router())
+        .merge(branding::router())
         .route(
             "/api/access-groups",
             get(list_access_groups).post(create_access_group),
@@ -6457,10 +6383,6 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/setup/payment-methods/{id}",
             put(update_payment_method).delete(delete_payment_method),
-        )
-        .route(
-            "/api/setup/branding",
-            get(get_branding).put(update_branding),
         )
         .route("/api/setup/module-masters", post(seed_module_masters))
         .route("/api/setup/locations/import", post(import_locations))

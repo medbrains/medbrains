@@ -10,11 +10,9 @@ use medbrains_core::permissions;
 use medbrains_core::print_data::{
     FormFClinic, FormFDeclarations, FormFProcedure, FormFReferral, FormFWoman, PcpndtFormFPrintData,
 };
-use medbrains_server_core::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_health_services::patient as gate;
+use medbrains_kernel as kernel;
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 use uuid::Uuid;
 
 const WOMAN_DECLARATION: &str = "I declare that I do not want to know the sex of my foetus, \
@@ -28,22 +26,20 @@ pub async fn get_pcpndt_form_f_print_data(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PcpndtFormFPrintData>, AppError> {
-    require_permission(&claims, permissions::regulatory::pcpndt::LIST)?;
+    let permit = kernel::authz::permit(&claims, permissions::regulatory::pcpndt::LIST)?;
     let patient: Uuid = sqlx::query_scalar(
         "SELECT patient_id FROM pcpndt_forms WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
+    .fetch_optional(&mut *kernel::tenant_session(&state.db, &permit).await?)
     .await?
     .ok_or(AppError::NotFound)?;
     // Her name and her pregnancy, on paper: the register's permission is not
     // permission to this woman's record.
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient).await?;
+    gate::require_patient_access(&state, &claims, patient).await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let (form_number, woman_at, doctor_at): (String, Option<String>, Option<String>) =

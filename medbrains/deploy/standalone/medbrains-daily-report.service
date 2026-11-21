@@ -1,0 +1,18 @@
+[Unit]
+Description=MedBrains OPD daily report email (counts only)
+Documentation=https://github.com/DomnicAmalan/MedBrains
+After=network-online.target
+# A report that failed to build or send pages, like the backup does.
+OnFailure=medbrains-alert@%n.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/medbrains/env
+EnvironmentFile=-/etc/medbrains/postgres.env
+ExecStart=/usr/local/bin/medbrains-daily-report
+StandardOutput=journal
+StandardError=journal
+Restart=no
+# Read-only by nature: it only reads the database and talks SMTP.
+NoNewPrivileges=yes
+PrivateTmp=yes

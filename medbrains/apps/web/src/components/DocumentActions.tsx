@@ -1,6 +1,7 @@
 import { Button, Menu } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { apiApi } from "@medbrains/api/modules/api";
+import { documentsApi } from "@medbrains/api/modules/documents";
 import { IconDownload, IconFileTypePdf, IconPrinter } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 
@@ -28,7 +29,8 @@ export function DocumentActions({
   label = "PDF",
 }: DocumentActionsProps) {
   const renderMutation = useMutation({
-    mutationFn: () => api.renderDocument({ template_code: templateCode, source_id: sourceId }),
+    mutationFn: () =>
+      documentsApi.renderDocument({ template_code: templateCode, source_id: sourceId }),
     // A document that could not be made must say so, not do nothing.
     onError: (error: Error) =>
       notifications.show({
@@ -40,14 +42,14 @@ export function DocumentActions({
 
   const generateAndOpen = async () => {
     const result = await renderMutation.mutateAsync();
-    window.open(api.downloadDocumentUrl(result.document_output_id), "_blank");
+    window.open(apiApi.downloadDocumentUrl(result.document_output_id), "_blank");
     return result;
   };
 
   const queuePrint = async () => {
     const result = await renderMutation.mutateAsync();
     try {
-      const job = await api.queueDocumentPrint(result.document_output_id, { copies: 1 });
+      const job = await documentsApi.queueDocumentPrint(result.document_output_id, { copies: 1 });
       notifications.show({
         title: "Sent to the printer",
         message: `Queued on ${job.printer_name}.`,

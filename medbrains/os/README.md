@@ -83,7 +83,8 @@ on a small SD card or the EEPROM, with the image on NVMe:
 
 ```sh
 # from a Linux machine, with the NVMe in a USB enclosure; check the device name first
-sudo dd if=medbrains-os_<commit>.raw of=/dev/sdX bs=4M conv=fsync status=progress
+zstd -d medbrains-os-<ver>-arm64.raw.zst   # a release file; a local build is medbrains-os_<commit>.raw
+sudo dd if=medbrains-os-<ver>-arm64.raw of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 **NVMe only.** SD cards are unsupported for data (§8a, §8o): a database wears them out, and a worn
@@ -349,7 +350,7 @@ it can restrict sign-in to approved key models; see `docs/DECISIONS.md`.
 
 | What | How |
 |---|---|
-| Build | `build-kanidm.sh` compiles one release with zigbuild, pinned by commit, by the source's SHA-256 and by the SHA-256 of `Cargo.lock`, from a vendored copy with `--frozen`. A changed upstream stops the build (`tests/kanidm-pin-test.sh`). Debian's OpenSSL debs are pinned too. No Docker, no upstream image. Its UI is server-rendered, so there is no JavaScript build |
+| Build | `build-kanidm.sh` compiles one release with zigbuild, pinned by commit, by the source's SHA-256 and by the SHA-256 of `Cargo.lock`, from a vendored copy with `--frozen`, with the Rust toolchain pinned for that release (upstream's `#![deny(warnings)]` fails on newer lints). A changed upstream stops the build (`tests/kanidm-pin-test.sh`). Debian's OpenSSL debs are pinned too. No Docker, no upstream image. Its UI is server-rendered, so there is no JavaScript build |
 | Runs as | `kanidmd.service`, its own user, hardened, on `127.0.0.1:8444`. `IPAddressDeny=any` except localhost, so it cannot call out. It speaks only TLS, so the front reaches it over TLS and trusts that one certificate. It makes its own certificate on first start (`kanidm-tls`), because setup starts it before first boot |
 | Reached at | `https://idm.medbrains.local:9443`, through `medbrains-front` (the `identity` site in `front.toml`; its certificates come from `front-certs`, under `/var/lib/medbrains-front/idp/`). **A name of its own:** its session cookies go to its whole domain and browsers send cookies to every port of a name, so `medbrains.local` would hand them to the app. A hospital's LAN has to resolve this name; `medbrains.local` is the only one announced today |
 | Data | Its own SQLite store, its keys and its backups, all in `/var/lib/kanidm`. No PostgreSQL connection |

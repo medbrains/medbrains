@@ -10,6 +10,7 @@ medbrains-nabh = { path = "../medbrains-nabh" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-health-services = { path = "../medbrains-health-services" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 axum = { workspace = true }

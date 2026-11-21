@@ -1,5 +1,6 @@
 import { Stack, Text } from "@mantine/core";
 import { Button } from "@/components/ui";
+import { ABHA_MESSAGES } from "./abhaRules";
 
 interface ResendOtpButtonProps {
   /** Seconds before ABDM will send another OTP. */
@@ -11,14 +12,15 @@ interface ResendOtpButtonProps {
 }
 
 /**
- * "Resend OTP" as ABDM's M1 rules allow it: after 60 seconds, at most twice
- * (CRT_ABHA_106, VRFY_ABHA_405). The server enforces the same cap.
+ * "Resend OTP" as ABDM's M1 rules allow it: after 60 seconds, at most twice,
+ * with the count shown (CRT_ABHA_106, VRFY_ABHA_405). After the second, NHA's
+ * 30-minute message; the server refuses resends for those 30 minutes too.
  */
 export function ResendOtpButton({ wait, resendsLeft, loading, onResend }: ResendOtpButtonProps) {
   if (resendsLeft === 0) {
     return (
-      <Text size="sm" c="dimmed">
-        The OTP cannot be sent again. If it has not arrived, close this and start again.
+      <Text size="sm" c="danger" role="status">
+        {ABHA_MESSAGES.resendLocked}
       </Text>
     );
   }

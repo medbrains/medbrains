@@ -109,9 +109,13 @@ impl World {
         common::provision_staff(&self.app, &self.csrf, role, &[]).await
     }
 
+    /// The hospital's today: earnings are dated by its clock, not the database's.
     pub async fn today(&self) -> String {
-        sqlx::query_scalar::<_, String>("SELECT CURRENT_DATE::text")
-            .fetch_one(&self.app.db)
+        sqlx::query_scalar::<_, String>(
+            "SELECT (timezone(COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), now()))::date::text",
+        )
+        .bind(self.tenant)
+        .fetch_one(&self.app.db)
             .await
             .expect("today")
     }

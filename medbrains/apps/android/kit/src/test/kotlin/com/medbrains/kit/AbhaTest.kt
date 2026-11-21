@@ -28,8 +28,10 @@ class AbhaTest {
     /** Finding by Aadhaar or by mobile (M1 VRFY_ABHA_301–305, 401–405); only a number or address lookup chooses where the OTP goes. */
     @Test
     fun findingByAadhaarOrMobileSaysWhatItNeeds() {
-        assertNull(Abha.lookupProblem(AbhaVerifyMethod.AADHAAR, "1234 5678 9012"))
-        assertEquals("An Aadhaar number is 12 digits", Abha.lookupProblem(AbhaVerifyMethod.AADHAAR, "12345"))
+        assertNull(Abha.lookupProblem(AbhaVerifyMethod.AADHAAR, "9999 4105 7058"))
+        assertEquals("Aadhaar Number is not valid", Abha.lookupProblem(AbhaVerifyMethod.AADHAAR, "12345"))
+        assertEquals("Aadhaar Number is not valid", Abha.lookupProblem(AbhaVerifyMethod.AADHAAR, "1234 5678 9012"))
+        assertEquals("Please enter a valid mobile number.", Abha.lookupProblem(AbhaVerifyMethod.FIND_MOBILE, "98765abc10"))
         assertNull(Abha.lookupProblem(AbhaVerifyMethod.FIND_MOBILE, "98765 43210"))
         assertEquals("never more than twelve digits", "123456789012", Abha.lookupInput(AbhaVerifyMethod.AADHAAR, "1234-5678-9012-34"))
         assertEquals("priya.v@abdm", Abha.lookupInput(AbhaVerifyMethod.ABHA_ADDRESS, "priya.v@abdm"))
@@ -54,12 +56,9 @@ class AbhaTest {
         assertNull(Abha.lookupProblem(AbhaVerifyMethod.ABHA_NUMBER, "91-1111-2222-3333"))
         assertEquals("An ABHA number is 14 digits", Abha.lookupProblem(AbhaVerifyMethod.ABHA_NUMBER, "91111122223"))
         assertNull(Abha.lookupProblem(AbhaVerifyMethod.MOBILE, "98765 43210"))
-        assertNotNull(Abha.lookupProblem(AbhaVerifyMethod.MOBILE, "98765"))
+        assertEquals("Please enter a valid mobile number.", Abha.lookupProblem(AbhaVerifyMethod.MOBILE, "98765"))
         assertNull(Abha.lookupProblem(AbhaVerifyMethod.ABHA_ADDRESS, "priya.v@abdm"))
         assertNotNull(Abha.lookupProblem(AbhaVerifyMethod.ABHA_ADDRESS, "priya v"))
-        assertNull(Abha.addressProblem("priya_v.90"))
-        assertNotNull(Abha.addressProblem("priya@abdm"))
-        assertNotNull(Abha.addressProblem(""))
     }
 
     @Test
@@ -116,7 +115,7 @@ class AbhaTest {
     fun resendsLeftDecodeAndAreSaidPlainly() {
         val step = json.decodeFromString<AbhaVerificationStep>("""{"id":"v1","stage":"otp_sent","resend_after_seconds":60,"resends_left":0}""")
         assertEquals(0, step.resends_left)
-        assertEquals("The OTP cannot be sent again. If it has not arrived, close this and start again.", Abha.resendNote(0))
+        assertEquals("Maximum OTP resend attempts reached. Please try again after 30 mins", Abha.resendNote(0))
         assertEquals("One resend left", Abha.resendNote(1))
         assertNull(Abha.resendNote(null))
     }

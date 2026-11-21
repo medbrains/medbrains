@@ -1,5 +1,10 @@
+import type { OpdCardPrintData, PatientCardPrintData } from "@medbrains/types";
+import { renderPatientIdCard } from "./patient-id-card";
+import { esc, type PrintPage } from "./print-html";
 import { printDocumentDef } from "./print-registry";
 import { qrSvgMarkup } from "./qr-svg";
+import { renderThermalCard } from "./thermal-card";
+import { renderTokenTicket } from "./token-ticket";
 
 /**
  * Print any document, from anywhere, in one call.
@@ -18,16 +23,6 @@ export interface PrintDocumentResult {
   ok: boolean;
   /** Present when the document could not be printed, phrased for a user. */
   problem?: string;
-}
-
-/** Escape for interpolation into the print window's HTML. */
-function esc(value: unknown): string {
-  if (value == null) return "—";
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function humanise(key: string): string {
@@ -68,8 +63,11 @@ function renderFields(data: Record<string, unknown>): string {
 
   const sections = nested
     .map(([key, value]) => {
+      // An empty list prints as such: a bare heading reads as a missing page.
       const body = Array.isArray(value)
-        ? value.map((item) => renderItem(item)).join("")
+        ? value.length === 0
+          ? "<p>None recorded</p>"
+          : value.map((item) => renderItem(item)).join("")
         : renderItem(value);
       return `<section><h2>${esc(humanise(key))}</h2>${body}</section>`;
     })
@@ -121,6 +119,24 @@ const PRINT_CSS = `
   @media print { body { padding: 0; } }
 `;
 
+/**
+ * A layout per key that has one drawn, each its own document with its own
+ * `@page`; every other key prints as the generic sheet. A layout may refuse
+ * with a reason (a token ticket for a visit with no token) rather than print
+ * an empty page.
+ */
+const CURATED: Record<string, (data: unknown) => PrintPage | { problem: string }> = {
+  "opd-card": (data) => renderPatientIdCard(data as OpdCardPrintData),
+  "opd-visit-card": (data) => renderTokenTicket(data as OpdCardPrintData),
+  "patient-card": (data) => renderThermalCard(data as PatientCardPrintData),
+};
+
+/** The page for a document: its drawn layout if it has one, else the generic sheet. */
+function pageFor(key: string, label: string, data: Record<string, unknown>) {
+  return CURATED[key]?.(data) ?? { css: PRINT_CSS, body: renderSheet(label, data) };
+}
+
+/** Fetches the document's fields and opens them in a print window. */
 export async function printDocument(
   documentKey: string,
   recordId: string,
@@ -145,6 +161,9 @@ export async function printDocument(
     };
   }
 
+  const page = pageFor(documentKey, def.label, data);
+  if ("problem" in page) return { ok: false, problem: page.problem };
+
   // Opened before the await would be lost to the popup blocker; opened after,
   // it is a direct consequence of the click that started this.
   const win = window.open("", "_blank", "width=900,height=700");
@@ -155,11 +174,13 @@ export async function printDocument(
     };
   }
 
+  // Printed once the fonts have arrived, or the dialog previews the fallback.
   win.document.write(
-    `<!DOCTYPE html><html><head><title>${esc(def.label)}</title>` +
-      `<style>${PRINT_CSS}</style></head><body>` +
-      renderSheet(def.label, data) +
-      `<script>window.onload=function(){window.print();window.close();}</script>` +
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(def.label)}</title>` +
+      `<style>${page.css}</style></head><body>` +
+      page.body +
+      `<script>window.onload=function(){document.fonts.ready.then(function(){` +
+      `window.print();window.close();});};</script>` +
       `</body></html>`,
   );
   win.document.close();

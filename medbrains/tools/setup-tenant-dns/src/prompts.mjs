@@ -1,6 +1,5 @@
 /**
- * Tiny readline-based prompt helpers (zero deps). Mirrors the
- * pattern used by tools/create-mobile-app, but with a single shared
+ * Tiny readline-based prompt helpers (zero deps), with a single shared
  * readline instance so piped stdin works correctly.
  *
  * Call `closePrompts()` at the end of `main()` to release the
