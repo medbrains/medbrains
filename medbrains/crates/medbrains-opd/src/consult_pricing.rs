@@ -100,8 +100,12 @@ pub async fn consult_price(
     if policy.days > 0 {
         // The latest paid, unreversed consultation for this patient — with
         // this doctor, or in this department.
-        let paid_on: Option<NaiveDate> = sqlx::query_scalar(
-            "SELECT max(ii.created_at)::date FROM invoice_items ii \
+        // Today from the same query, so both dates come from one clock: the
+        // transaction's (the hospital's) zone. A UTC today against a local
+        // paid-on date put a same-day revisit on "day -1" and charged it in
+        // full from 00:00 to 05:30 in India.
+        let (paid_on, today): (Option<NaiveDate>, NaiveDate) = sqlx::query_as(
+            "SELECT max(ii.created_at)::date, CURRENT_DATE FROM invoice_items ii \
                JOIN opd_queues q ON q.id = ii.source_id AND q.tenant_id = ii.tenant_id \
                JOIN encounters e ON e.id = q.encounter_id AND e.tenant_id = q.tenant_id \
               WHERE ii.tenant_id = $1 AND ii.source::text = 'opd' AND ii.total_price > 0 \
@@ -120,7 +124,6 @@ pub async fn consult_price(
         .bind(department_id)
         .fetch_one(&mut **tx)
         .await?;
-        let today = chrono::Utc::now().date_naive();
         revisit = paid_on
             .and_then(|d| revisit_day(d, today, policy))
             .map(|day| (day, policy.days));
