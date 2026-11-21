@@ -445,6 +445,40 @@ export async function createLabOrderToOpen(
   return orderId;
 }
 
+/**
+ * An active store to receive or sell from, made when the hospital has none.
+ * No tenant seed creates a store, and each worker's hospital is new per run.
+ */
+export async function ensureActiveStore(ctx: AuthContext): Promise<{ id: string; name: string }> {
+  const stores = await api<{ id: string; name: string; is_active: boolean }[]>(
+    ctx,
+    "GET",
+    "/api/procurement/store-locations",
+  );
+  const active = stores.find((s) => s.is_active);
+  if (active) return active;
+  const code = `E2E-ST-${Date.now() % 100000}`;
+  return api(ctx, "POST", "/api/procurement/store-locations", {
+    code,
+    name: `E2E pharmacy store ${code}`,
+    location_type: "pharmacy",
+  });
+}
+
+/**
+ * Open the signed-in user's cash drawer at a store, unless one is open already: a counter sale
+ * paid in cash is refused without one.
+ */
+export async function ensureOpenCashDrawer(ctx: AuthContext): Promise<void> {
+  const active = await api<unknown>(ctx, "GET", "/api/pharmacy/cash-drawers/me/active");
+  if (active) return;
+  const store = await ensureActiveStore(ctx);
+  await api(ctx, "POST", "/api/pharmacy/cash-drawers", {
+    pharmacy_location_id: store.id,
+    opening_float: 0,
+  });
+}
+
 export async function cancelLabOrder(
   ctx: AuthContext,
   labOrderId: string,
