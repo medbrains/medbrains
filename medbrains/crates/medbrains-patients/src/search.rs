@@ -23,8 +23,23 @@
 //! partial UHID / phone / OPD number matches.
 //!
 //! **Search by** one field (`by`): only that field is matched, and the
-//! anti-guessing floors are dropped because the desk said what it typed: a
-//! phone from three digits, a UHID or OPD number from one character.
+//! anti-guessing floors are dropped because the desk said what it typed.
+//!
+//! **Minimums and exactness, per field** (UHIDs can be plain numbers: 1, 2, 3):
+//!
+//! | field | minimum | match |
+//! |---|---|---|
+//! | UHID | 1 character | exact (case-insensitive), never contains |
+//! | OPD number | 1 digit | exact on the integer, never contains |
+//! | Phone | 3 digits | contains, as before |
+//! | Name | unchanged (see [`too_short`]) | every word contained |
+//! | All, 1–2 bare digits | 1 | exact UHID or OPD number only |
+//! | All, otherwise | 3 characters | today's tiers, partials included |
+//!
+//! An exact match on an identifier the desk was given lists one patient, not
+//! the register, so it needs no floor; a contains scan on "1" would list
+//! 1, 10, 11, 100 … and is what the floors were for. Results stay bounded by
+//! the callers' `LIMIT`, and the permission checks are the callers', unchanged.
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
@@ -34,7 +49,7 @@ use crate::identifier_key;
 use crate::local_name;
 
 /// How many bind parameters [`where_sql`] and [`rank_sql`] use, from the first one.
-pub(crate) const BINDS: usize = 7;
+pub(crate) const BINDS: usize = 8;
 
 /// Longest OPD number searched, so the integer always fits a `bigint`.
 const MAX_OPD_DIGITS: usize = 12;
@@ -93,6 +108,9 @@ pub(crate) struct PatientSearch {
     uhid: String,
     /// The OPD number's digits; empty when OPD numbers are not searched.
     opd: String,
+    /// Non-empty when a UHID or OPD number may also match as contained;
+    /// empty keeps them exact (one field, or a short number under All).
+    partial: String,
 }
 
 impl PatientSearch {
@@ -127,8 +145,10 @@ impl PatientSearch {
         Ok(Self::parse(query, key.as_deref(), tenant_id).map(|s| s.only(by, query)))
     }
 
-    /// Keep only what `by` searches; `All` is unchanged. A single field takes
-    /// what was typed for it without the floors meant to stop guessing.
+    /// Keep only what `by` searches. A single field takes what was typed for
+    /// it without the floors meant to stop guessing; a UHID or OPD number is
+    /// then exact. One or two bare digits under All are an exact UHID or OPD
+    /// number and nothing else; any other All query is unchanged.
     fn only(self, by: SearchBy, query: &str) -> Self {
         let none = Self {
             exact: String::new(),
@@ -138,8 +158,15 @@ impl PatientSearch {
             aadhaar: String::new(),
             uhid: String::new(),
             opd: String::new(),
+            partial: String::new(),
         };
         match by {
+            SearchBy::All if short_number(query) => Self {
+                uhid: like_escape(&self.exact),
+                opd: self.opd,
+                exact: self.exact,
+                ..none
+            },
             SearchBy::All => self,
             SearchBy::Phone => Self {
                 digits: phone_by_digits(query).unwrap_or_default(),
@@ -187,6 +214,7 @@ impl PatientSearch {
                 aadhaar,
                 uhid: String::new(),
                 opd: String::new(),
+                partial: String::new(),
             });
         }
         Some(Self {
@@ -196,6 +224,7 @@ impl PatientSearch {
             aadhaar: String::new(),
             uhid: like_escape(&exact),
             opd: opd_digits(query).unwrap_or_default(),
+            partial: "y".to_owned(),
             exact,
         })
     }
@@ -210,6 +239,7 @@ impl PatientSearch {
             self.aadhaar.clone(),
             self.uhid.clone(),
             self.opd.clone(),
+            self.partial.clone(),
         ]
     }
 
@@ -221,6 +251,22 @@ impl PatientSearch {
             &self.exact
         }
     }
+}
+
+/// One or two bare digits: a plain-number UHID or OPD number, looked up exactly.
+fn short_number(query: &str) -> bool {
+    let query = query.trim();
+    (1..=2).contains(&query.len()) && query.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Whether `query` is below the floor for `by`, so the lookup answers nothing.
+/// All needs three characters (so two letters do not list half the register)
+/// unless it is a short number ([`short_number`], exact); one field takes what
+/// was typed for it, its own parsing refusing what cannot be one (a phone
+/// under three digits). Blank is always too short.
+pub(crate) fn too_short(query: &str, by: SearchBy) -> bool {
+    let query = query.trim();
+    query.is_empty() || (by == SearchBy::All && query.chars().count() < 3 && !short_number(query))
 }
 
 /// Twelve digits, spaces or hyphens allowed between them, is an Aadhaar number.
@@ -298,10 +344,11 @@ struct Tiers {
     partial: String,
 }
 
-/// Build the tiers. Placeholders: exact, words, local, digits, aadhaar, uhid, opd.
+/// Build the tiers. Placeholders: exact, words, local, digits, aadhaar, uhid,
+/// opd, partial (the contained UHID / OPD number tier is off when it is empty).
 fn tiers(first: usize) -> Tiers {
     let (e, w, l, d, a) = (first, first + 1, first + 2, first + 3, first + 4);
-    let (u, o) = (first + 5, first + 6);
+    let (u, o, p) = (first + 5, first + 6, first + 7);
     let opd = |c: &str| format!("(substring({c} FROM '([0-9]+)$'))::bigint");
     let (phone, phone2) = (phone_digits("phone"), phone_digits("phone_secondary"));
     let strong = format!(
@@ -329,8 +376,8 @@ fn tiers(first: usize) -> Tiers {
     );
     let raw = |c: &str| format!(r"regexp_replace(COALESCE({c}, ''), '\D', '', 'g')");
     let partial = format!(
-        "((${u} <> '' AND uhid ILIKE '%' || ${u} || '%') \
-          OR (${o} <> '' AND opd_number LIKE '%' || ${o} || '%') \
+        "((${u} <> '' AND ${p} <> '' AND uhid ILIKE '%' || ${u} || '%') \
+          OR (${o} <> '' AND ${p} <> '' AND opd_number LIKE '%' || ${o} || '%') \
           OR (${d} <> '' AND ({} LIKE '%' || ${d} || '%' OR {} LIKE '%' || ${d} || '%')))",
         raw("phone"),
         raw("phone_secondary"),
@@ -362,7 +409,8 @@ pub(crate) fn rank_sql(first: usize) -> String {
 mod tests {
     #![allow(clippy::panic)]
     use super::{
-        PatientSearch, SearchBy, aadhaar_digits, opd_digits, phone_query_digits, where_sql,
+        PatientSearch, SearchBy, aadhaar_digits, opd_digits, phone_query_digits, too_short,
+        where_sql,
     };
     use uuid::Uuid;
 
@@ -429,15 +477,15 @@ mod tests {
         assert_eq!(s.words, "Asha 50\\%\\_");
     }
 
-    /// The predicate uses exactly its seven placeholders, so a caller's bind
+    /// The predicate uses exactly its eight placeholders, so a caller's bind
     /// count cannot drift from the SQL.
     #[test]
     fn placeholders_are_contiguous() {
         let sql = where_sql(7);
-        for n in 7..14 {
+        for n in 7..15 {
             assert!(sql.contains(&format!("${n}")), "${n}");
         }
-        assert!(!sql.contains("$6") && !sql.contains("$14"));
+        assert!(!sql.contains("$6") && !sql.contains("$15"));
     }
 
     /// An OPD number is its trailing digits after an optional prefix.
@@ -483,6 +531,38 @@ mod tests {
         );
         assert!(SearchBy::from_param(Some("email")).is_err());
         assert_eq!(SearchBy::from_param(None).ok(), Some(SearchBy::All));
+    }
+
+    /// Plain-number UHIDs: a UHID or OPD number is matched exactly from one
+    /// character, and one or two bare digits under All are that exact lookup.
+    #[test]
+    fn short_numbers_are_exact() {
+        let only = |q: &str, by| {
+            PatientSearch::parse(q, None, Uuid::nil())
+                .map(|s| s.only(by, q).binds())
+                .unwrap_or_default()
+        };
+        let uhid = only("1", SearchBy::Uhid);
+        assert_eq!(
+            (uhid[5].as_str(), uhid[7].as_str()),
+            ("1", ""),
+            "exact only"
+        );
+        let opd = only("12", SearchBy::OpdNumber);
+        assert_eq!((opd[6].as_str(), opd[7].as_str()), ("12", ""), "exact only");
+        let all = only("12", SearchBy::All);
+        assert_eq!(
+            (all[1].as_str(), all[3].as_str(), all[5].as_str()),
+            ("", "", "12"),
+            "no name or phone scan"
+        );
+        assert_eq!((all[6].as_str(), all[7].as_str()), ("12", ""));
+        assert_eq!(only("1043", SearchBy::All)[7], "y", "longer: today's rules");
+        // The floors: names keep three under All; short digits and one field do not.
+        assert!(too_short("as", SearchBy::All) && too_short("a1", SearchBy::All));
+        assert!(!too_short("1", SearchBy::All) && !too_short("12", SearchBy::All));
+        assert!(!too_short("1", SearchBy::Uhid) && !too_short("1", SearchBy::OpdNumber));
+        assert!(too_short("   ", SearchBy::Uhid));
     }
 }
 
@@ -699,9 +779,10 @@ mod db_tests {
                 rows.first().and_then(|r| r.opd_number.clone()).as_deref(),
                 Some("1043")
             );
-            assert!(
+            assert_eq!(
                 rows.iter().any(|r| r.id == ravi),
-                "{q:?}: 21043 contains it, ranked after"
+                by == SearchBy::All,
+                "{q:?} {by:?}: 21043 contains it, ranked after under All only"
             );
         }
         assert!(
@@ -858,5 +939,54 @@ mod db_tests {
         // One shared word is not a name match: at most a fuzzy one, ranked below names.
         let mixed = find(&db, a.tenant, "asha kumar").await;
         assert!(mixed.iter().all(|r| r.score < 0.9), "every word must match");
+    }
+
+    #[tokio::test]
+    async fn search_db_plain_numbers_match_exactly() {
+        let db = fresh_db().await.expect("test database");
+        let a = plant(&db, "SPN").await;
+        let owner = db.owner().await.expect("owner");
+        let mut ids = Vec::new();
+        for (uhid, first) in [
+            ("1", "One"),
+            ("10", "Ten"),
+            ("11", "Eleven"),
+            ("112", "Many"),
+        ] {
+            ids.push(
+                add(
+                    &owner,
+                    a.tenant,
+                    (uhid, first, "Plain", "9811100000"),
+                    false,
+                )
+                .await,
+            );
+        }
+        let (one, ten, many) = (ids[0], ids[1], ids[3]);
+        set_opd(&db, ten, "12").await;
+        set_opd(&db, many, "112").await;
+        let hits = |rows: Vec<MatchResult>| rows.iter().map(|r| r.id).collect::<Vec<_>>();
+        for by in [SearchBy::Uhid, SearchBy::All] {
+            assert_eq!(
+                hits(find_by(&db, a.tenant, "1", by).await),
+                [one],
+                "{by:?}: UHID 1 only"
+            );
+        }
+        for by in [SearchBy::OpdNumber, SearchBy::All] {
+            assert_eq!(
+                hits(find_by(&db, a.tenant, "12", by).await),
+                [ten],
+                "{by:?}: OPD 12 only"
+            );
+        }
+        assert!(
+            find_by(&db, a.tenant, "111", SearchBy::Phone)
+                .await
+                .iter()
+                .any(|r| r.id == one),
+            "phone from three digits, contained"
+        );
     }
 }
