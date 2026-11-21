@@ -12,8 +12,10 @@ import { P } from "@medbrains/types";
  */
 export function usePatientDetailGates(patientId: string) {
   const disabledModules = useModuleStore((s) => s.disabledModules);
+  /** A tab with no brick is always on; otherwise its brick must be switched on. */
   const isBrickOn = (brick?: string) => !brick || !disabledModules.has(brick);
   const hasId = patientId.length > 0;
+  /** Fetch a section only for a real patient, a permitted caller and a live brick. */
   const read = (allowed: boolean, brick?: string) => hasId && allowed && isBrickOn(brick);
   // Admissions and radiology reports are read only by those who may list
   // them; the front desk opening a record sent both and was refused.
