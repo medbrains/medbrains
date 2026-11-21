@@ -376,13 +376,13 @@ psql script. It exists for two cases: a hospital asks for its data, or it moves 
 nightly dump cannot do either, because it carries every tenant.
 
 ```sh
-sudo sh -c 'set -a; . /etc/medbrains/env; . /etc/medbrains/.compose-env 2>/dev/null; medbrains-tenant-export RISHI'
-# weekly instead: TENANT_EXPORT="RISHI" (space-separated codes) in /etc/medbrains/env, then re-run install.sh,
+sudo sh -c 'set -a; . /etc/medbrains/env; . /etc/medbrains/.compose-env 2>/dev/null; medbrains-tenant-export SAMPLE'
+# weekly instead: TENANT_EXPORT="SAMPLE" (space-separated codes) in /etc/medbrains/env, then re-run install.sh,
 # which enables medbrains-tenant-export.timer (Sunday 04:00 local). Unset = off, the default.
 ```
 
 Where it goes: `s3://$BACKUP_BUCKET/$TENANT_EXPORT_PREFIX/<code>/<host>-<code>-<UTC>.sql.age` (default prefix
-`tenants`; on a per-hospital bucket it must sit under the slug, for example `rishi/tenants`), plus a sealed
+`tenants`; on a per-hospital bucket it must sit under the slug, for example `sample/tenants`), plus a sealed
 `.counts.age` with the row count of every table. Without a bucket it goes to `BACKUP_DIR`, or `--to DIR`. It is sealed
 to `backup-recipients.txt` unless `TENANT_EXPORT_RECIPIENTS` names the receiving hospital's public key. The prod
 writer policy (`ops.tf`) accepts `tenants/*.age` only, kept 35 days.
@@ -439,17 +439,17 @@ failure rolls the whole import back.
 ### Test — 2026-11-17 (throwaway Homebrew PostgreSQL 17.5)
 
 The cluster ran on 127.0.0.1:55417 from a scratch directory, was migrated with all 350 migrations (schema 1470) and
-was deleted afterwards. It held two tenants, `RISHI` (2 patients) and `OTHER` (3 patients), in one branch group with
+was deleted afterwards. It held two tenants, `SAMPLE` (2 patients) and `OTHER` (3 patients), in one branch group with
 `share_clinical_records = true`. The tenant trigger seeded 161 rows for each.
 
 | Check | Result |
 |---|---|
-| RLS alone, as `medbrains_app` with `app.tenant_id` = RISHI: `SELECT count(*) FROM patients` | **5**: the group leak the explicit filter exists for |
-| `medbrains-tenant-export RISHI --to …` | 965 tables, 164 rows (1 tenant, 161 seeded, 2 patients) |
+| RLS alone, as `medbrains_app` with `app.tenant_id` = SAMPLE: `SELECT count(*) FROM patients` | **5**: the group leak the explicit filter exists for |
+| `medbrains-tenant-export SAMPLE --to …` | 965 tables, 164 rows (1 tenant, 161 seeded, 2 patients) |
 | Decrypted script: occurrences of OTHER's tenant id, or of `Other` | **0**, and 0 |
 | Run as the superuser URL / with an unknown code | refused, exit 1 / refused, exit 1 |
 | Import into a freshly migrated database without the group row | refused: `tenants.tenants_group_id_fkey -> hospital_groups: 1 rows`; 0 tenants afterwards |
-| Same, after creating the group row | loaded; `tenants` = RISHI only; patients = RishiA, RishiB |
+| Same, after creating the group row | loaded; `tenants` = SAMPLE only; patients = SampleA, SampleB |
 | One data row removed from the script, then imported | refused: `public.patients: expected 2 rows` |
 | Imported into a database still migrating (schema 1463) | refused: `this server is not at schema 1470` |
 

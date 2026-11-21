@@ -240,7 +240,7 @@ fn is_common_password(value: &str) -> bool {
 }
 
 /// True when `needle` appears inside the password, both lowercased with everything but letters
-/// and digits removed, so `Rishi-Care#1` holds "Rishi Care". Needles shorter than three
+/// and digits removed, so `Sample-Care#1` holds "Sample Care". Needles shorter than three
 /// characters are ignored.
 fn contains_context(password: &str, needle: &str) -> bool {
     let squash = |s: &str| -> String {
