@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT current_val, prefix, pad_width FROM sequences WHERE tenant_id = $1 AND seq_type = 'UHID'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "current_val",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "pad_width",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "534b1eb449cb81c8adc5459ab7b40449bdf57664e54eb36aebd45a1421ccd853"
+}

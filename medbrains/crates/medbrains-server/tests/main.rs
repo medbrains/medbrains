@@ -15,6 +15,7 @@
 
 mod abdm_abha_world;
 mod abdm_hip_world;
+mod branding_marks_test;
 mod collect_world;
 mod common;
 mod delivery_choice_world;

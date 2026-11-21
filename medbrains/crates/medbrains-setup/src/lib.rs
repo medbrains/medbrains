@@ -1,4 +1,5 @@
 use argon2::{Argon2, PasswordHasher};
+mod branding;
 mod grants;
 pub mod workbook;
 use axum::routing::{delete, get, post, put};
@@ -2368,80 +2369,6 @@ pub async fn update_sequence(
     tx.commit().await?;
 
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
-}
-
-// ── Branding ────────────────────────────────────────────────
-
-pub async fn get_branding(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<TenantSettings>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let rows = sqlx::query_as::<_, TenantSettings>(
-        "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = 'branding' \
-         ORDER BY key LIMIT 5000",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(rows))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateBrandingRequest {
-    pub key: String,
-    pub value: Value,
-}
-
-pub async fn update_branding(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateBrandingRequest>,
-) -> Result<Json<TenantSettings>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
-    let mut errors = ValidationErrors::new();
-    if (body.key == "primary_color" || body.key == "secondary_color")
-        && let Some(color_str) = body.value.as_str()
-    {
-        validation::validate_hex_color(&mut errors, &body.key, color_str);
-    }
-    if body.key == "logo_url"
-        && let Some(url_str) = body.value.as_str()
-    {
-        validation::validate_optional_url(&mut errors, "logo_url", url_str);
-    }
-    if errors.has_errors() {
-        return Err(AppError::ValidationFailed(errors));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, TenantSettings>(
-        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
-         VALUES ($1, 'branding', $2, $3) \
-         ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, \
-                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(&body.key)
-    .bind(&body.value)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(row))
 }
 
 // ── Sequence create/delete ───────────────────────────────────
@@ -6310,6 +6237,7 @@ pub async fn remove_access_group_member(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .merge(workbook::router())
+        .merge(branding::router())
         .route(
             "/api/access-groups",
             get(list_access_groups).post(create_access_group),
@@ -6455,10 +6383,6 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/setup/payment-methods/{id}",
             put(update_payment_method).delete(delete_payment_method),
-        )
-        .route(
-            "/api/setup/branding",
-            get(get_branding).put(update_branding),
         )
         .route("/api/setup/module-masters", post(seed_module_masters))
         .route("/api/setup/locations/import", post(import_locations))

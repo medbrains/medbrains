@@ -7,6 +7,7 @@ import {
   createPharmacyOrder,
   dispensePharmacyOrder,
   createPharmacyReturn,
+  ensureOpenCashDrawer,
   processPharmacyReturn,
 } from "../helpers/journey-steps";
 import { getFirstDrug } from "../helpers/seed-resolvers";
@@ -163,6 +164,8 @@ test.describe("Pharmacy CRUD", () => {
     const unitPrice = Number(drug.base_price ?? 5) || 5;
     const quantity = 2;
     const total = unitPrice * quantity;
+    // A cash sale is rung on the seller's open drawer.
+    await ensureOpenCashDrawer(ctx);
 
     const sale = await api<PharmacyPosSaleResponse>(
       ctx,

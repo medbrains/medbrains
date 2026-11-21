@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { navigateTo } from "../helpers";
+import { getAuthContextFromCookies } from "../helpers/api";
+import { createLabOrderToOpen } from "../helpers/journey-steps";
 
 /**
  * The laboratory prints more than any other department.
@@ -17,30 +19,42 @@ import { navigateTo } from "../helpers";
  * technician has already walked to the printer.
  */
 test.describe("lab order print menu", () => {
-  test("a lab order offers the documents it can print", async ({ page }) => {
-    await navigateTo(page, "/lab/orders/a70beb55-1ac9-4d7b-8f89-b897601aaadc");
+  test("a lab order offers the documents it can print", async ({ page, request }) => {
+    const order = await createLabOrderToOpen(await getAuthContextFromCookies(request), {
+      collected: true,
+    });
+    await navigateTo(page, `/lab/orders/${order}`);
     await expect(page.getByText("Print", { exact: true })).toBeVisible({ timeout: 15000 });
     await expect(
       page.getByRole("button", { name: /investigation requisition/i }),
     ).toBeVisible();
   });
 
-  test("it does not offer a document whose tables were never created", async ({ page }) => {
-    await navigateTo(page, "/lab/orders/a70beb55-1ac9-4d7b-8f89-b897601aaadc");
+  test("it does not offer a document whose tables were never created", async ({ page, request }) => {
+    const order = await createLabOrderToOpen(await getAuthContextFromCookies(request), {
+      collected: true,
+    });
+    await navigateTo(page, `/lab/orders/${order}`);
     await expect(page.getByText("Print", { exact: true })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole("button", { name: /culture sensitivity/i })).toHaveCount(0);
   });
 
-  test("it does not offer radiology documents on a lab order", async ({ page }) => {
+  test("it does not offer radiology documents on a lab order", async ({ page, request }) => {
     // Both key on an "order" id and neither endpoint accepts the other's, so
     // a radiology button here would fetch the wrong record entirely.
-    await navigateTo(page, "/lab/orders/a70beb55-1ac9-4d7b-8f89-b897601aaadc");
+    const order = await createLabOrderToOpen(await getAuthContextFromCookies(request), {
+      collected: true,
+    });
+    await navigateTo(page, `/lab/orders/${order}`);
     await expect(page.getByText("Print", { exact: true })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole("button", { name: /radiology report/i })).toHaveCount(0);
   });
 
-  test("it does not duplicate the report this page already prints", async ({ page }) => {
-    await navigateTo(page, "/lab/orders/a70beb55-1ac9-4d7b-8f89-b897601aaadc");
+  test("it does not duplicate the report this page already prints", async ({ page, request }) => {
+    const order = await createLabOrderToOpen(await getAuthContextFromCookies(request), {
+      collected: true,
+    });
+    await navigateTo(page, `/lab/orders/${order}`);
     await expect(page.getByText("Print", { exact: true })).toBeVisible({ timeout: 15000 });
     // lab-report / lab-report-full are excluded: this page prints those its own way.
     await expect(page.getByRole("button", { name: /^Lab Report$/i })).toHaveCount(0);

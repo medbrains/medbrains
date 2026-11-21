@@ -73,7 +73,7 @@ nat_sql() { local port="$1"; shift; pg_native_psql "$port" -At "$@"; }
 # The commands that put the container back, for the services this host has.
 rollback_text() {
     local svc
-    svc="$(for u in medbrains-server.service medbrains-edge.service; do
+    svc="$(for u in medbrains-server.service medbrains-edge.service medbrains-proxy.service; do
         if systemctl cat "$u" >/dev/null 2>&1; then printf '%s ' "$u"; fi; done)"
     cat <<EOF
 ROLLBACK (writes made on the native cluster after the switch are lost):
@@ -228,7 +228,11 @@ if [[ "$STAGE" != switched ]]; then
     # ── 4. stop the writers ───────────────────────────────────────────
     [[ -f "$WORK/units.active" ]] || {
         systemctl list-units --state=active --no-legend --plain 'medbrains-*.timer' | awk '{print $1}'
-        for u in medbrains-server.service medbrains-edge.service; do systemctl is-active --quiet "$u" && echo "$u"; done
+        # The proxy has Requires=medbrains-server.service, so stopping the server
+        # stops it too; it is listed so start_writers brings the site back.
+        for u in medbrains-server.service medbrains-edge.service medbrains-proxy.service; do
+            systemctl is-active --quiet "$u" && echo "$u"
+        done
     } > "$WORK/units.active"
     say "stopping writers: $(tr '\n' ' ' < "$WORK/units.active")"
     STAGE=stopped

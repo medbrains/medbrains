@@ -189,6 +189,8 @@ fn mask_json_text(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// Blank or mask the patient fields this caller's role may not see, so the
+/// response never carries a value the screen would have to hide.
 pub(crate) fn filter_patient_response(
     mut row: Patient,
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -357,6 +359,8 @@ pub struct CreatePatientRequest {
     pub opd_number: Option<String>,
     /// The day that number was issued in the paper register; today if absent.
     pub opd_date: Option<NaiveDate>,
+    /// The register number typed as the UHID, in the hospital's one-number mode.
+    pub uhid: Option<String>,
 
     // ── Digital identity / clinical intake context ──
     pub abha_number: Option<String>,
@@ -681,38 +685,8 @@ pub struct MatchRequest {
 /// storefront's sign-up (`medbrains_server_services::patient_match`).
 pub use medbrains_server_services::patient_match::MatchResult;
 
-// ══════════════════════════════════════════════════════════
-//  UHID generation
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, sqlx::FromRow)]
-struct SequenceResult {
-    current_val: i64,
-    prefix: String,
-    pad_width: i32,
-}
-
-pub async fn generate_uhid(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<String, AppError> {
-    let seq = sqlx::query_as!(
-        SequenceResult,
-        "UPDATE sequences SET current_val = current_val + 1 \
-         WHERE tenant_id = $1 AND seq_type = 'UHID' \
-         RETURNING current_val, prefix, pad_width",
-        tenant_id,
-    )
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    let seq = seq.ok_or_else(|| {
-        AppError::Internal("UHID sequence not configured for this tenant".to_owned())
-    })?;
-
-    let pad = usize::try_from(seq.pad_width).unwrap_or(5);
-    Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
-}
+/// The series' next UHID (lives beside the typed one, in one-number mode).
+pub use opd_number::generate_uhid;
 
 // ══════════════════════════════════════════════════════════
 //  Helper: convert optional enum to its serde string form
@@ -1418,7 +1392,7 @@ pub async fn create_patient(
 
     validate_patient_registration_links(&mut tx, &claims.tenant_id, &body).await?;
 
-    let uhid = generate_uhid(&mut tx, &claims.tenant_id).await?;
+    let uhid = opd_number::uhid_at_registration(&mut tx, claims.tenant_id, &body).await?;
 
     let mut patient = sqlx::query_as_unchecked!(
         Patient,

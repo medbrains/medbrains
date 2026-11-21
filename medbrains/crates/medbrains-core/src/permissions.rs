@@ -10,6 +10,17 @@ pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
 }
 
+/// The hospital's own marks: its emblem, name banner and display name.
+///
+/// Held by every staff role, because the app header and the patient card show
+/// them to everyone. It reads only those three branding keys, never the rest
+/// of the branding settings, which stay with `admin.settings.branding.manage`.
+pub mod branding {
+    /// See the hospital's emblem and name.
+    /// See the hospital's emblem, name banner and display name in the app header.
+    pub const VIEW: &str = "branding.view";
+}
+
 /// Sticky notes: a person's own notes, shared to department boards or colleagues.
 ///
 /// Notes are for the ward's logistics — rotas, reminders, a broken monitor —

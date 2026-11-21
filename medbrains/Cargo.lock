@@ -5537,7 +5537,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-abdm"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "chrono",
  "reqwest",
@@ -5549,7 +5549,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-adapter-sdk"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "chrono",
  "serde",
@@ -5576,7 +5576,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-agent"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5989,7 +5989,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-bridge"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6110,7 +6110,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-clinical-core"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -6279,7 +6279,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-core"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6376,7 +6376,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-db"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "chrono",
  "hex",
@@ -6420,7 +6420,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-desktop"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "base64 0.22.1",
  "reqwest",
@@ -6609,7 +6609,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6634,7 +6634,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-app"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -6658,7 +6658,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-edge-rn"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "getrandom 0.4.3",
  "hex",
@@ -6762,7 +6762,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-fhir-api"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "axum",
  "chrono",
@@ -6833,7 +6833,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-health-services"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "medbrains-authz-gate",
  "medbrains-core",
@@ -6903,7 +6903,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-hrms-gateway"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "axum",
  "chrono",
@@ -7019,7 +7019,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-integration-hub"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -7112,7 +7112,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-kernel"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "chrono",
  "medbrains-authz",
@@ -7197,7 +7197,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-loadtest"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "chrono",
  "goose",
@@ -7459,7 +7459,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-offline-core"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "chrono",
  "ed25519-dalek",
@@ -7569,7 +7569,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-setup"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "argon2",
  "data-encoding",
@@ -7584,14 +7584,14 @@ dependencies = [
 
 [[package]]
 name = "medbrains-os-test"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "medbrains-os-update"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -8017,7 +8017,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-printing"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "printers",
  "serde",
@@ -8027,7 +8027,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-proxy"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8194,7 +8194,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-security-intel"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "argon2",
  "async-trait",
@@ -8233,7 +8233,7 @@ dependencies = [
 
 [[package]]
 name = "medbrains-server"
-version = "3.35.3"
+version = "3.35.4"
 dependencies = [
  "anyhow",
  "argon2",
@@ -8475,6 +8475,7 @@ dependencies = [
  "medbrains-anthropic-auth",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "rig-agent",
  "rig-core",
@@ -8501,6 +8502,7 @@ dependencies = [
  "medbrains-authz",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-vpn",

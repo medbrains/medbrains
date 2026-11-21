@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(opd_date, created_at::date) AS \"used_on!\" FROM patients\n            WHERE tenant_id = $1 AND uhid = $2 LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "used_on!",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b68ff8d015202b88152f75480d59084a187ddfbc7450c5abd71edf9204ba3da4"
+}

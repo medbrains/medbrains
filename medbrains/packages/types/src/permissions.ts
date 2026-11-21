@@ -751,6 +751,9 @@ export const P = {
     PM_LIST: "bme.pm.list",
     PM_MANAGE: "bme.pm.manage",
   },
+  BRANDING: {
+    VIEW: "branding.view",
+  },
   CAMP: {
     ASSETS: {
       MANAGE: "camp.assets.manage",

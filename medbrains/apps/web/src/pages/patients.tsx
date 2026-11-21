@@ -36,7 +36,7 @@ import {
 } from "@/components";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientSearchBox, usePatientSearchBy } from "@/components/Patient/PatientSearchBox";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -44,6 +44,7 @@ import { patientsService } from "@/services/patients.service";
 import { patientListColumns } from "./patients/list-columns";
 import { RegisterMatches } from "./patients/register-matches";
 import { PatientRegisterPageInner } from "./patients/register-page-inner";
+import { PatientRowActions } from "./patients/row-actions";
 import classes from "./patients.module.scss";
 
 const PER_PAGE = 20;
@@ -341,18 +342,7 @@ function PatientsPageInner() {
       key: "actions",
       label: "",
       requiredPermissions: [P.PATIENTS.VIEW],
-      render: (row: Patient) => (
-        <Tooltip label={t("label.fullProfile")}>
-          <IconButton
-            tone="success"
-            size={44}
-            aria-label={t("label.fullProfile")}
-            onClick={() => navigate(`/patients/${row.id}`)}
-          >
-            <IconUsers size={16} />
-          </IconButton>
-        </Tooltip>
-      ),
+      render: (row: Patient) => <PatientRowActions row={row} />,
     },
   ] satisfies Column<Patient>[];
 

@@ -12,6 +12,7 @@ import { P } from "@medbrains/types";
  */
 export function useMasterDataReadGates() {
   const disabled = useModuleStore((s) => s.disabledModules);
+  /** A row may be read only when its module is switched on and the caller holds its read. */
   const on = (brick: string, allowed: boolean) => allowed && !disabled.has(brick);
   const canOpenOtRooms = useHasAnyPermission([P.OT.ROOMS_LIST, P.OT.ROOMS_MANAGE]);
   const otRoomReaders = [P.OT.BOOKINGS_LIST, P.OT.BOOKINGS_CREATE, P.OT.BOOKINGS_UPDATE];
