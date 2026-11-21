@@ -25,9 +25,9 @@ import {
 import { fieldAccessText, snakeToTitle } from "@medbrains/utils";
 import { IconReceipt } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { AskAiButton } from "@/components/ai";
+import { AskAiButton } from "@/components/ai/AskAiButton";
 import { ChartReview } from "@/components/Clinical/case-sheet/ChartReview";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
 import type { OrderBasketTab } from "@/components/OrderBasket/OrderBasketWorkspace";
@@ -75,7 +75,6 @@ import { usePatientDetailGates } from "./detail-gates";
 import { isChild, visibleDetailTabs } from "./detail-tabs";
 import { DetailDocumentsTab } from "./documents-tab";
 import { DetailFamilyLinksTab } from "./family-links-tab";
-import { GrowthTab } from "./growth-tab";
 import { ImmunizationsTab } from "./immunizations-tab";
 import { MergeTab } from "./merge-tab";
 import { OverviewTab } from "./overview-tab";
@@ -83,6 +82,9 @@ import { PrescriptionsTab } from "./prescriptions-tab";
 import { handlePrintPatientCard, PATIENT_CARD_PRINT_COPIES } from "./print-card";
 import { age } from "./shared";
 import { VisitsTab } from "./visits-tab";
+
+// Growth charts pull recharts; fetched when the tab opens, for children only.
+const GrowthTab = lazy(() => import("./growth-tab").then((m) => ({ default: m.GrowthTab })));
 
 const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
   "registered",
@@ -513,7 +515,9 @@ export function PatientDetailPageInner() {
               </Tabs.Panel>
               {canViewGrowth && (
                 <Tabs.Panel value="growth" pt="md">
-                  <GrowthTab patient={patient} />
+                  <Suspense fallback={<Loader size="sm" />}>
+                    <GrowthTab patient={patient} />
+                  </Suspense>
                 </Tabs.Panel>
               )}
               <Tabs.Panel value="timeline" pt="md">

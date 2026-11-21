@@ -62,10 +62,9 @@ also run it on its own:
    the migrations give them. Then it sets `LOGIN PASSWORD` on both. If the env
    file already names a role, that role keeps its existing password, so a re-run
    changes nothing. Grants stay with migrations 0981/0984.
-3. It runs that SQL as the owner. On the dedicated host this goes through
-   `docker exec` into `medbrains-postgres`. On a reused host Postgres it goes
-   over the owner URL, and falls back to `sudo -u postgres` if the owner cannot
-   create a BYPASSRLS role.
+3. It runs that SQL as the owner, over the owner URL (127.0.0.1, SCRAM), on the
+   kit's native cluster and a reused host Postgres alike. It falls back to
+   `sudo -u postgres` if the owner cannot create a BYPASSRLS role.
 4. It logs in as each role over TCP with the new password. Only if both logins
    work does it write all three URLs. All three share the owner's host, port,
    database and options. If anything fails, the env file is left unchanged.
@@ -90,10 +89,10 @@ With attach and `ATTACH_REUSE_POSTGRES=1`, `ATTACH_DATABASE_URL` is the owner.
 
 ## Switching an existing install (one time)
 
-You need the host, root, `psql`, and migrations at 0984 or later. These steps
-were written for the attach host (host Postgres, `sudo -u postgres` works). On
-the dedicated docker host they are the same, because the script uses the
-container automatically.
+You need the host, root, `psql`, and migrations at 0984 or later. The steps are
+the same on the kit's native cluster and on a reused host Postgres
+(`sudo -u postgres` works on both). A host still on the old kit's Postgres
+container moves first: `BACKUP-RESTORE.md`, "Moving a host off Docker".
 
 ```bash
 # 0. Ship the two changed kit files to the host (from the repo).

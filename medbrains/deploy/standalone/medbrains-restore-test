@@ -15,8 +15,7 @@
 #
 # Never touches the live cluster beyond read-only queries: the scratch runs
 # in its own directory, as a standby (it never promotes, so it never starts a
-# timeline), with archive_mode=off, no TCP listener (socket only on the host,
-# --network none in the container). It refuses to start without the space
+# timeline), with archive_mode=off, no TCP listener (socket only). It refuses to start without the space
 # for a copy of the cluster plus RESTORE_TEST_RESERVE_GB left over, and says
 # so by email instead. Everything is removed on exit.
 
@@ -29,41 +28,27 @@ PORT="${RESTORE_TEST_PORT:-55439}"
 RESERVE_GB="${RESTORE_TEST_RESERVE_GB:-5}"
 MAX_LAG_MIN="${RESTORE_TEST_MAX_LAG_MIN:-30}"
 TIMEOUT_S="$(( ${RESTORE_TEST_TIMEOUT_MIN:-60} * 60 ))"
-CONTAINER=medbrains-postgres
-SCRATCH_CT=medbrains-restore-test
 DB="${POSTGRES_DB:-medbrains}"
 SEND="${MEDBRAINS_SEND_MAIL:-/usr/local/bin/medbrains-send-mail}"
 BODY="$(mktemp)"
 STATUS="FAILED" NOTES=""
-TIER=host
-command -v docker >/dev/null 2>&1 && docker container inspect "$CONTAINER" >/dev/null 2>&1 && TIER=container
 
 note() { NOTES+="$*"$'\n'; echo "$*"; }
 
 # Read-only SQL on the live cluster, as its superuser.
 live_sql() {
-    if [[ "$TIER" == "container" ]]; then
-        docker exec -i "$CONTAINER" psql -XAtq -F '|' -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-medbrains}" -d "$DB" -c "$1"
-    else
-        runuser -u postgres -- psql -XAtq -F '|' -v ON_ERROR_STOP=1 -p "${WAL_PGPORT:-5432}" -d "$DB" -c "$1"
-    fi
+    runuser -u postgres -- psql -XAtq -F '|' -v ON_ERROR_STOP=1 -p "${WAL_PGPORT:-5432}" -d "$DB" -c "$1"
 }
 
-# SQL on the scratch standby (socket in the scratch directory, or the scratch container).
+# SQL on the scratch standby, over its socket in the scratch directory.
 scratch_sql() {
-    if [[ "$TIER" == "container" ]]; then
-        docker exec -i "$SCRATCH_CT" psql -XAtq -F '|' -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-medbrains}" -d "$DB" -c "$1"
-    else
-        runuser -u postgres -- psql -XAtq -F '|' -v ON_ERROR_STOP=1 -h "$SCRATCH/sock" -p "$PORT" -d "$DB" -c "$1"
-    fi
+    runuser -u postgres -- psql -XAtq -F '|' -v ON_ERROR_STOP=1 -h "$SCRATCH/sock" -p "$PORT" -d "$DB" -c "$1"
 }
 
 # Stops the scratch server and deletes the scratch directory; only ever a
 # directory this script marked as its own.
 cleanup() {
-    if [[ "$TIER" == "container" ]]; then
-        docker rm -f "$SCRATCH_CT" >/dev/null 2>&1 || true
-    elif [[ -f "$SCRATCH/data/PG_VERSION" ]]; then
+    if [[ -f "$SCRATCH/data/PG_VERSION" ]]; then
         runuser -u postgres -- "/usr/lib/postgresql/$(cut -d. -f1 "$SCRATCH/data/PG_VERSION")/bin/pg_ctl" \
             -D "$SCRATCH/data" -m immediate stop >/dev/null 2>&1 || true
     fi
@@ -112,9 +97,6 @@ if [[ -e "$SCRATCH" && ! -f "$SCRATCH/.medbrains-restore-test" ]]; then
     fail "$SCRATCH exists and is not a scratch directory this script made — not touching it"
 fi
 cleanup; BODY="$(mktemp)"
-if [[ "$TIER" == "container" ]] && docker container inspect "$SCRATCH_CT" >/dev/null 2>&1; then
-    fail "a container named $SCRATCH_CT exists and could not be removed"
-fi
 
 # Space: a copy of the cluster, plus the WAL to replay, must leave the reserve free.
 need_kb="$(( $(live_sql "SELECT sum(pg_database_size(oid)) FROM pg_database") * 13 / 10 / 1024 ))"
@@ -141,7 +123,7 @@ read -r -a stand_opts <<<"$(live_sql "SELECT string_agg('-c ' || name || '=' || 
 install -d -m 0700 "$SCRATCH"; touch "$SCRATCH/.medbrains-restore-test"
 owner="$(stat -c %u:%g "$LIVE_DATA")"
 install -d -o "${owner%:*}" -g "${owner#*:}" -m 0700 "$SCRATCH/data"
-[[ "$TIER" == "host" ]] && chown postgres "$SCRATCH" && install -d -o postgres -m 0700 "$SCRATCH/sock"
+chown postgres "$SCRATCH" && install -d -o postgres -m 0700 "$SCRATCH/sock"
 
 t0=$SECONDS
 /usr/local/bin/medbrains-wal-g fetch-base "$SCRATCH/data" >/dev/null || fail "could not fetch the newest base backup"
@@ -162,17 +144,10 @@ touch "$SCRATCH/data/standby.signal"
 echo "restore_command = 'cp medbrains-wal-restore/%f %p'" >> "$SCRATCH/data/postgresql.auto.conf"
 chown "$owner" "$SCRATCH/data"/{standby.signal,postgresql.conf,pg_hba.conf,postgresql.auto.conf}
 opts=(-c archive_mode=off -c hot_standby=on -c shared_buffers=32MB -c listen_addresses= "${stand_opts[@]}")
-if [[ "$TIER" == "container" ]]; then
-    docker run -d --name "$SCRATCH_CT" --label medbrains.restore-test=1 --network none --memory 512m \
-        --user "$owner" -v "$SCRATCH/data:/var/lib/postgresql/data" --entrypoint postgres \
-        "$(docker inspect -f '{{.Config.Image}}' "$CONTAINER")" -D /var/lib/postgresql/data "${opts[@]}" >/dev/null \
-        || fail "the scratch container did not start"
-else
-    PG_BIN="/usr/lib/postgresql/$(cut -d. -f1 "$SCRATCH/data/PG_VERSION")/bin"
-    runuser -u postgres -- "$PG_BIN/pg_ctl" -D "$SCRATCH/data" -l "$SCRATCH/postgres.log" \
-        -o "-p $PORT -c unix_socket_directories=$SCRATCH/sock ${opts[*]}" start >/dev/null \
-        || fail "the scratch Postgres did not start (log: $SCRATCH/postgres.log)"
-fi
+PG_BIN="/usr/lib/postgresql/$(cut -d. -f1 "$SCRATCH/data/PG_VERSION")/bin"
+runuser -u postgres -- "$PG_BIN/pg_ctl" -D "$SCRATCH/data" -l "$SCRATCH/postgres.log" \
+    -o "-p $PORT -c unix_socket_directories=$SCRATCH/sock ${opts[*]}" start >/dev/null \
+    || fail "the scratch Postgres did not start (log: $SCRATCH/postgres.log)"
 
 # Replay is done when the replay position stops moving (after it first answers).
 last="" same=0 started=$SECONDS

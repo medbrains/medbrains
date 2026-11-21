@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # medbrains-wal-g-setup — OPT-IN point-in-time recovery: continuous WAL
-# archiving and daily base backups to S3 with WAL-G, on either tier (the
-# host's own Postgres, or the dedicated tier's medbrains-postgres container).
+# archiving and daily base backups to S3 with WAL-G, for the kit's native
+# cluster or a reused host Postgres.
 # docs/ops/BACKUP-RESTORE.md, "Point-in-time recovery".
 #
 #   sudo bash medbrains-wal-g-setup                          # dry run: checks, prints the plan
@@ -16,15 +16,16 @@
 #   WALG_S3_SSE_KMS_ID  optional; unset = the bucket's own default (SSE-S3)
 #   AWS_REGION          default ap-south-1
 #   PITR_DELTA_MAX_STEPS  deltas between fulls, default 6 (a full every 7 days)
-# Credentials: the instance role, or root's ~/.aws/credentials beside the
-# container (Lightsail has no instance role). Retention is the bucket's
+# Credentials: the instance role, or root's ~/.aws/credentials (Lightsail
+# has no instance role). Retention is the bucket's
 # lifecycle, never this host: it has no delete right.
 #
 # Refuses, before touching anything, when the cluster holds databases that
 # are not MedBrains' (archiving copies the WHOLE cluster, so another
 # client's data would land in this bucket), or when something else already
-# archives it. --restart-if-needed restarts only the container; the host's
-# own Postgres (often shared) is left to the operator.
+# archives it. --restart-if-needed restarts only the cluster this kit made
+# (/etc/medbrains/postgres-cluster); a reused host Postgres (often shared)
+# is left to the operator.
 
 set -euo pipefail
 
@@ -40,8 +41,6 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 set -a
 # shellcheck disable=SC1091
 [[ -f /etc/medbrains/env ]] && . /etc/medbrains/env
-# shellcheck disable=SC1091
-[[ -f /etc/medbrains/.compose-env ]] && . /etc/medbrains/.compose-env
 set +a
 
 # Pinned v3.0.9, digests from the GitHub release API (2026-10-12, rechecked
@@ -57,7 +56,6 @@ declare -A WALG_SHA256=(
 CONF=/etc/medbrains/walg.yaml
 KEY=/etc/medbrains/walg.key
 BIN=/usr/local/bin/wal-g
-CONTAINER=medbrains-postgres
 SPOOL=medbrains-wal-spool    # relative: archive_command runs in the data directory
 ARCHIVE_TIMEOUT=300          # seconds; a segment goes out at least every 5 busy minutes
 # cp, then fsync, then rename, then fsync: a crash never leaves a half
@@ -84,14 +82,14 @@ case "$(uname -m)" in
 esac
 SHA="${WALG_SHA256[$BUILD-$ARCH]}"
 
-# SQL as the cluster's superuser, on whichever tier this is.
-if command -v docker >/dev/null 2>&1 && docker container inspect "$CONTAINER" >/dev/null 2>&1; then
-    TIER=container
-    sql() { docker exec -i "$CONTAINER" psql -XAtq -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-medbrains}" -d postgres -c "$1"; }
-else
-    TIER=host
-    id postgres >/dev/null 2>&1 || die "no medbrains-postgres container and no postgres user: where is Postgres?"
-    sql() { runuser -u postgres -- psql -XAtq -v ON_ERROR_STOP=1 -p "${WAL_PGPORT:-5432}" -c "$1"; }
+# SQL as the cluster's superuser, over the socket. OWN_UNIT is set when the
+# cluster is the one this kit made, which is the only one it may restart.
+id postgres >/dev/null 2>&1 || die "no postgres user: where is Postgres?"
+sql() { runuser -u postgres -- psql -XAtq -v ON_ERROR_STOP=1 -p "${WAL_PGPORT:-5432}" -c "$1"; }
+OWN_UNIT=""
+if [[ -s /etc/medbrains/postgres-cluster ]]; then
+    read -r own_major own_cluster < /etc/medbrains/postgres-cluster
+    OWN_UNIT="postgresql@${own_major}-${own_cluster}.service"
 fi
 [[ "$(sql 'SHOW server_version_num' | cut -c1-2)" -ge 13 ]] || die "Postgres too old for this setup"
 
@@ -116,7 +114,7 @@ if [[ "$(sql 'SHOW archive_mode')" != "off" && -n "$cur_cmd" && "$cur_cmd" != "(
 fi
 
 PREFIX="${WALG_S3_PREFIX%/}/$(hostname)"
-echo "plan ($TIER tier, databases:$(sql "SELECT string_agg(datname, ' ') FROM pg_database WHERE NOT datistemplate")):"
+echo "plan (${OWN_UNIT:-host Postgres}, databases:$(sql "SELECT string_agg(datname, ' ') FROM pg_database WHERE NOT datistemplate")):"
 echo "  install wal-g $WALG_VERSION ($BUILD-$ARCH, sha256 ${SHA:0:12}…) → $BIN, /usr/local/bin/medbrains-wal-g"
 echo "  $KEY: 32-byte libsodium key, made once and never replaced (also in the sealed secrets backup)"
 echo "  $CONF → $PREFIX, ${WALG_S3_SSE_KMS_ID:+SSE-KMS, }delta chain ≤ ${PITR_DELTA_MAX_STEPS:-6}"
@@ -136,10 +134,8 @@ if [[ ! -x "$BIN" ]] || ! echo "$SHA  $BIN" | sha256sum -c - >/dev/null 2>&1; th
 fi
 install -m 0755 "$HERE/medbrains-wal-g" /usr/local/bin/medbrains-wal-g
 
-# Readable by root only beside the container; by postgres too on the host,
-# where WAL-G runs as postgres.
-group=root mode=0600
-[[ "$TIER" == "host" ]] && group=postgres mode=0640
+# Readable by root and by postgres, which WAL-G runs as.
+group=postgres mode=0640
 install -d -m 0755 /etc/medbrains
 if [[ ! -s "$KEY" ]]; then
     (umask 077; head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$KEY")
@@ -183,13 +179,13 @@ else
 fi
 
 if [[ "$(sql "SELECT pending_restart FROM pg_settings WHERE name = 'archive_mode'")" == "t" ]]; then
-    if [[ "$RESTART" == "1" && "$TIER" == "container" ]]; then
-        echo "==> restarting $CONTAINER for archive_mode"
-        docker restart "$CONTAINER" >/dev/null
+    if [[ "$RESTART" == "1" && -n "$OWN_UNIT" ]]; then
+        echo "==> restarting $OWN_UNIT for archive_mode"
+        systemctl restart "$OWN_UNIT"
         for _ in $(seq 1 60); do sql 'SELECT 1' >/dev/null 2>&1 && break; sleep 1; done
     else
         echo "==> archive_mode needs a Postgres restart. WAL is NOT archived until then. At a quiet moment:"
-        echo "      sudo systemctl restart postgresql   # or: docker restart $CONTAINER"
+        echo "      sudo systemctl restart ${OWN_UNIT:-postgresql}"
         echo "      sudo systemctl start medbrains-wal-g-backup.service"
         exit 0
     fi
