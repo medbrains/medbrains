@@ -14,6 +14,8 @@ pub struct OpdCardPrintData {
     pub hospital_name: String,
     /// The branding setting the admin screen and onboarding write.
     pub hospital_logo_url: Option<String>,
+    /// The branding `name_banner_url`: the hospital's name as an image.
+    pub hospital_name_banner_url: Option<String>,
     pub hospital_address: Option<String>,
     pub hospital_phone: Option<String>,
     /// The hospital's registration (Clinical Establishments) number.

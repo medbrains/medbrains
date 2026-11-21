@@ -15,6 +15,7 @@ const held = new Set<string>();
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
   useHasPermission: (code: string) => held.has(code),
+  useHasAnyPermission: (codes: string[]) => codes.some((c) => held.has(c)),
   useFieldAccess: () => "edit",
 }));
 
@@ -27,14 +28,32 @@ vi.mock("@/services/lookups.service", () => ({
   },
 }));
 
+vi.mock("@/services/patients.service", () => ({
+  patientsService: {
+    getSearchSettings: async () => ({
+      default_by: "all",
+      opd_number_enabled: true,
+      patient_list_columns: "full",
+    }),
+  },
+}));
+
 const { PatientSearchSelect } = await import("./PatientSearchSelect");
 
-function setup(codes: string[]) {
+/** Render the picker for a caller holding `codes`, with a remembered field. */
+function renderPicker(codes: string[], withSearchBy: boolean, remembered?: string) {
   held.clear();
   for (const c of codes) held.add(c);
   findPatients.mockClear();
   listPatients.mockClear();
-  render(<PatientSearchSelect value="" onChange={() => {}} />);
+  localStorage.clear();
+  if (remembered) localStorage.setItem("patient-search-by:anon", remembered);
+  render(<PatientSearchSelect value="" onChange={() => {}} withSearchBy={withSearchBy} />);
+}
+
+/** Render the plain picker for a caller holding `codes`; returns the search box. */
+function setup(codes: string[]) {
+  renderPicker(codes, false);
   return screen.getByPlaceholderText(/search by name, phone, uhid or aadhaar/i);
 }
 
@@ -42,7 +61,7 @@ describe("PatientSearchSelect", () => {
   it("asks the hospital when the caller holds patients.find", async () => {
     const input = setup(["patients.find"]);
     await userEvent.type(input, "ACM");
-    await waitFor(() => expect(findPatients).toHaveBeenCalledWith("ACM"));
+    await waitFor(() => expect(findPatients).toHaveBeenCalledWith("ACM", "all"));
     expect(listPatients).not.toHaveBeenCalled();
   });
 
@@ -57,6 +76,32 @@ describe("PatientSearchSelect", () => {
     const input = setup(["patients.find"]);
     await userEvent.type(input, "AC");
     await waitFor(() => expect(findPatients).not.toHaveBeenCalled());
+  });
+
+  it("looks up one or two bare digits under All as an exact UHID or OPD number", async () => {
+    const input = setup(["patients.find"]);
+    await userEvent.type(input, "1");
+    await waitFor(() => expect(findPatients).toHaveBeenCalledWith("1", "all"));
+  });
+
+  it("offers Search by and searches a UHID from one character", async () => {
+    renderPicker(["patients.find"], true, "uhid");
+    expect(screen.getByTestId("patient-search-by")).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText("UHID"), "A");
+    await waitFor(() => expect(findPatients).toHaveBeenCalledWith("A", "uhid"));
+  });
+
+  it("searches an OPD number from one character once the hospital keeps one", async () => {
+    renderPicker(["patients.find"], true, "opd_number");
+    await userEvent.type(await screen.findByPlaceholderText("OPD number"), "7");
+    await waitFor(() => expect(findPatients).toHaveBeenCalledWith("7", "opd_number"));
+  });
+
+  it("ignores a remembered field when the picker has no selector", async () => {
+    renderPicker(["patients.find"], false, "uhid");
+    await userEvent.type(screen.getByPlaceholderText(/search by name/i), "A");
+    await waitFor(() => expect(screen.getByDisplayValue("A")).toBeInTheDocument());
+    expect(findPatients).not.toHaveBeenCalled();
   });
 
   it("asks nothing at all when the caller may not search patients", async () => {

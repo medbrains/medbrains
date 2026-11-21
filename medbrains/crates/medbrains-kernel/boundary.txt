@@ -137,7 +137,7 @@ medbrains-security-intel on_facade 0 -
 medbrains-seed not_yet 54 medbrains-db
 medbrains-server partial 559 medbrains-db,medbrains-authz-gate
 medbrains-server-services not_yet 3 medbrains-db
-medbrains-setup not_yet 221 medbrains-db,medbrains-authz
+medbrains-setup partial 217 medbrains-db,medbrains-authz
 medbrains-sharing not_yet 16 medbrains-db,medbrains-authz
 medbrains-shell not_yet 0 -
 medbrains-signing not_yet 0 -

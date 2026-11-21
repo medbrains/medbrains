@@ -4256,11 +4256,33 @@ const hexColorField = requiredTrimmed("Color is required", 7).refine(
   "Use a valid hex color",
 );
 
+/** The longest stored mark: 200 KB of image as base64, plus its prefix (the server's cap). */
+export const MAX_BRAND_MARK_CHARS = 280_000;
+
+const BRAND_MARK_IMAGE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
+
+/**
+ * An emblem or name banner: empty, an https address, or a PNG, JPEG or WebP
+ * data URL within the size cap. SVG and any other data URL are refused, since
+ * an SVG can carry script into every print and the header.
+ */
+const brandMarkField = z
+  .string()
+  .refine((value) => {
+    const mark = value.trim();
+    if (mark === "") return true;
+    if (mark.startsWith("data:")) {
+      return mark.length <= MAX_BRAND_MARK_CHARS && BRAND_MARK_IMAGE.test(mark);
+    }
+    return /^https:\/\/[^\s/]+\.[^\s]+$/.test(mark);
+  }, "Use an https address, or choose a PNG, JPEG or WebP image under 200 KB");
+
 export const brandingSettingsFormSchema = z.object({
   display_name: z.string().max(120),
   primary_color: hexColorField,
   secondary_color: hexColorField,
-  logo_url: z.string(),
+  logo_url: brandMarkField,
+  name_banner_url: brandMarkField,
 });
 
 export const offlineModeSettingsFormSchema = z

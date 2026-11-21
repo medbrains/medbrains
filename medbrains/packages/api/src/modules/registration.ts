@@ -11,7 +11,9 @@ export const registrationApi = {
     }),
   getSearchSettings: () => request<PatientSearchSettings>("/registration/search-settings"),
   updateSearchSettings: (
-    data: Partial<Pick<PatientSearchSettings, "default_by" | "patient_list_columns">>,
+    data: Partial<
+      Pick<PatientSearchSettings, "default_by" | "patient_list_columns" | "card_printer">
+    >,
   ) =>
     request<PatientSearchSettings>("/registration/search-settings", {
       method: "PUT",
