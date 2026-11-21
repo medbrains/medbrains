@@ -3,7 +3,7 @@ import { adminApi } from "@medbrains/api/modules/admin";
 import type { ConnectedApp, ConnectedAppDelivery } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Card, Modal } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Card, Modal } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
 
 const DELIVERY_TONE: Record<ConnectedAppDelivery["status"], BadgeTone> = {
@@ -41,6 +41,8 @@ export function AppReviewModal({ app, onClose }: AppReviewModalProps) {
     enabled: app?.has_webhook === true,
   });
   const m = app?.manifest;
+  // Refused codes are named in the warning, never listed as if they were granted.
+  const grantable = (app?.permissions ?? []).filter((p) => !app?.refused_permissions.includes(p));
 
   return (
     <Modal opened={app !== null} onClose={onClose} fullScreen title={app?.name ?? ""}>
@@ -60,10 +62,17 @@ export function AppReviewModal({ app, onClose }: AppReviewModalProps) {
               )}
             </Text>
           </Stack>
+          {app.refused_permissions.length > 0 && (
+            <Alert tone="danger" title="This app cannot be approved or sign in">
+              It asks for codes MedBrains never gives an app, because they do not exist or they
+              change who may do what: {app.refused_permissions.join(", ")}. Ask the vendor for a
+              manifest without them, revoke this app and register the new one.
+            </Alert>
+          )}
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Section title="Permissions it gets">
               <Group gap={6}>
-                {app.permissions.map((p) => (
+                {grantable.map((p) => (
                   <Badge key={p} tone="neutral">
                     {p}
                   </Badge>

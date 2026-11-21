@@ -121,9 +121,12 @@ export function ConnectedAppsPage() {
           {
             key: "status",
             label: "Status",
-            render: (a: ConnectedApp) => (
-              <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
-            ),
+            render: (a: ConnectedApp) =>
+              a.refused_permissions.length > 0 && a.status !== "revoked" ? (
+                <Badge tone="danger">Needs a new manifest</Badge>
+              ) : (
+                <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
+              ),
           },
           {
             key: "permissions",
@@ -149,7 +152,7 @@ export function ConnectedAppsPage() {
                 <Button size="xs" tone="ghost" onClick={() => setReviewing(a)}>
                   Privacy label
                 </Button>
-                {canManage && a.status === "pending" && (
+                {canManage && a.status === "pending" && a.refused_permissions.length === 0 && (
                   <Button
                     size="xs"
                     tone="primary"

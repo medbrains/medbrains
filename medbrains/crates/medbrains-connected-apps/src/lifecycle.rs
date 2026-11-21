@@ -13,7 +13,8 @@ use uuid::Uuid;
 
 use crate::{IssuedCredentials, RevokeRequest, record};
 
-/// Approve a pending connected app, which lets it act with its codes. The
+/// Approve a pending connected app, which lets it act with its codes. Every
+/// code must be grantable to an app (`grantable`, for every approver), and the
 /// approver must hold every one of them now.
 pub(crate) async fn approve(
     State(state): State<AppState>,
@@ -37,6 +38,15 @@ pub(crate) async fn approve(
         }
         let granted: Vec<String> = serde_json::from_value(row.permissions.clone())
             .map_err(|e| AppError::Internal(format!("app permissions: {e}")))?;
+        // Before the escalation check, which bypass roles skip: no one may let
+        // in an unknown code or one that changes access.
+        let refused = crate::grantable::refusals(&granted);
+        if !refused.is_empty() {
+            return Err(AppError::Conflict(format!(
+                "This app cannot be approved: {}. Register it again with a manifest without them.",
+                refused.join("; ")
+            )));
+        }
         // A person may not let in an app wider than they are now; otherwise
         // `connected_apps.manage` is a route to every permission in the system.
         medbrains_server_core::permissions::refuse_escalation_now(
@@ -71,6 +81,8 @@ pub(crate) async fn approve(
     .await
 }
 
+/// Revoke an app: its tokens, service account and webhook stop in one
+/// transaction, so nothing it holds outlives the decision.
 pub(crate) async fn revoke(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

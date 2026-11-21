@@ -119,6 +119,26 @@ fn narrow(granted: &[String], scope: Option<&str>) -> Result<Vec<String>, String
     Ok(out)
 }
 
+/// Refuse a token to an app approved before the grantable rule, whose grant
+/// still holds a code no app may hold. Refused, never trimmed: the app would
+/// otherwise run with less than the label the hospital read, and nobody would
+/// learn the grant needs a new manifest.
+fn refuse_ungrantable(granted: &[String]) -> Option<Response> {
+    let refused = crate::grantable::refusals(granted);
+    (!refused.is_empty()).then(|| {
+        oauth_error(
+            StatusCode::BAD_REQUEST,
+            "unauthorized_client",
+            &format!(
+                "This app's grant holds codes no app may hold ({}). The hospital must register it again without them.",
+                refused.join("; ")
+            ),
+        )
+    })
+}
+
+/// The token endpoint: authenticate the client, check its grant, narrow it to
+/// `scope`, and mint a short-lived token.
 async fn issue(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -156,25 +176,15 @@ async fn issue(
         }
         Err(error) => return fault(&error),
     };
+    if let Some(refused) = refuse_ungrantable(&app.permissions) {
+        return refused;
+    }
     let permissions = match narrow(&app.permissions, form.scope.as_deref()) {
         Ok(p) => p,
         Err(why) => return oauth_error(StatusCode::BAD_REQUEST, "invalid_scope", &why),
     };
     match mint(&state, &app, &permissions).await {
-        Ok(Some(token)) => {
-            let scope = permissions.join(" ");
-            (
-                StatusCode::OK,
-                [(header::CACHE_CONTROL, "no-store")],
-                Json(json!({
-                    "access_token": token,
-                    "token_type": "Bearer",
-                    "expires_in": TOKEN_MINUTES * 60,
-                    "scope": scope,
-                })),
-            )
-                .into_response()
-        }
+        Ok(Some(token)) => token_response(&token, &permissions),
         Ok(None) => oauth_error(
             StatusCode::TOO_MANY_REQUESTS,
             "slow_down",
@@ -182,6 +192,22 @@ async fn issue(
         ),
         Err(error) => fault(&error),
     }
+}
+
+/// The RFC 6749 §5.1 success answer for a minted token.
+fn token_response(token: &str, permissions: &[String]) -> Response {
+    let body = json!({
+        "access_token": token,
+        "token_type": "Bearer",
+        "expires_in": TOKEN_MINUTES * 60,
+        "scope": permissions.join(" "),
+    });
+    (
+        StatusCode::OK,
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(body),
+    )
+        .into_response()
 }
 
 /// Mint a token row as the app itself. `None` when the app is at its cap.
@@ -249,7 +275,7 @@ async fn mint(
 mod tests {
     use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 
-    use super::{TokenRequest, client_credentials, fault, narrow};
+    use super::{TokenRequest, client_credentials, fault, narrow, refuse_ungrantable};
     use medbrains_server_core::error::AppError;
 
     fn form(id: Option<&str>, secret: Option<&str>) -> TokenRequest {
@@ -296,6 +322,17 @@ mod tests {
             narrow(&granted, Some("system/Patient.read")).unwrap(),
             granted
         );
+    }
+
+    /// An app approved before the rule, holding an admin code, gets no token:
+    /// a refusal (400 `unauthorized_client`), not a fault and not bad
+    /// credentials. A clinical grant passes.
+    #[test]
+    fn an_ungrantable_stored_grant_gets_no_token() {
+        let stale = vec!["patients.view".to_owned(), "admin.users.create".to_owned()];
+        let response = refuse_ungrantable(&stale).unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(refuse_ungrantable(&["patients.view".to_owned()]).is_none());
     }
 
     #[test]
