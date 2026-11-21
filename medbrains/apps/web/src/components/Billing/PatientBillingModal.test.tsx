@@ -29,14 +29,9 @@ describe("PatientBillingModal cache", () => {
     const recordRows = [invoice("x")];
     queryClient.setQueryData(["patient-invoices", PATIENT_ID], recordRows);
 
-    render(
-      <PatientBillingModal
-        patientId={PATIENT_ID}
-        opened
-        onClose={vi.fn()}
-      />,
-      { queryClient },
-    );
+    render(<PatientBillingModal patientId={PATIENT_ID} opened onClose={vi.fn()} />, {
+      queryClient,
+    });
 
     expect(await screen.findByText("2 invoices for this patient")).toBeInTheDocument();
     // The record's rows are still the record's: the modal wrote its own entry.
