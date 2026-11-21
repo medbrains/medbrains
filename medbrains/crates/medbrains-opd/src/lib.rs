@@ -25,8 +25,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use chrono::DateTime;
-use chrono::{NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::consultation::{
     ChiefComplaintMaster, Consultation, ConsultationTemplate, Diagnosis, DoctorDocket,
