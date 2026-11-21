@@ -21,17 +21,14 @@ import {
   VitalsRecorder,
 } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { QueryError } from "@/components/QueryError";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { safeReturnPath } from "@/lib/return-path";
 import { opdService } from "@/services/opd.service";
-import { EncounterDetail } from "./opd/encounter-detail";
+import { EncounterDetail } from "./opd/lazy-parts";
 import { OpdPageInner } from "./opd/page-inner";
-
-export { EncounterDetail } from "./opd/encounter-detail";
-
-import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import {
   protectedOpdQueueIdentity,
   queueStatusIcon,
