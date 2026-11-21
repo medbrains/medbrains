@@ -6,6 +6,7 @@ import { renderPatientIdCard } from "./patient-id-card";
 const CARD: OpdCardPrintData = {
   hospital_name: "Rishi Hospital",
   hospital_logo_url: null,
+  hospital_name_banner_url: null,
   hospital_address: "12 Temple Road, Madurai",
   hospital_phone: "0452 400 1234",
   hospital_registration_no: "TN/CE/2026/0451",
@@ -86,5 +87,27 @@ describe("renderPatientIdCard", () => {
     const numbered = renderPatientIdCard({ ...CARD, opd_number: "1042", opd_date: "15-Aug-2026" });
     expect(numbered.body).toContain("OPD 1042 · 15-Aug-2026");
     expect(renderPatientIdCard(CARD).body).not.toContain("OPD ");
+  });
+
+  it("puts the emblem left and the name banner in place of the typed name", () => {
+    const emblem = "data:image/png;base64,AAAA";
+    const banner = "data:image/webp;base64,BBBB";
+    const { body } = renderPatientIdCard({
+      ...CARD,
+      hospital_logo_url: emblem,
+      hospital_name_banner_url: banner,
+    });
+    expect(body).toContain(`<img class="logo" src="${emblem}"`);
+    expect(body).toMatch(/<img class="banner" src="data:image\/webp;base64,BBBB" alt="[^"]+">/);
+    expect(body).not.toContain('class="hospital"');
+  });
+
+  it("keeps the typed name beside the emblem when there is no banner", () => {
+    const { body } = renderPatientIdCard({
+      ...CARD,
+      hospital_logo_url: "data:image/png;base64,AAAA",
+    });
+    expect(body).toContain('class="hospital"');
+    expect(body).not.toContain('class="banner"');
   });
 });

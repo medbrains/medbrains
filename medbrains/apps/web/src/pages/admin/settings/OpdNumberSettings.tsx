@@ -3,6 +3,7 @@
 import { Group, Input, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  CardPrinter,
   OpdNumberMode,
   OpdNumberPolicy,
   OpdNumberScope,
@@ -62,6 +63,11 @@ const LIST_COLUMNS = [
   { value: "basic", label: "Basic columns" },
 ];
 
+const CARD_PRINTERS: { value: CardPrinter; label: string }[] = [
+  { value: "thermal", label: "Thermal roll (58 mm card)" },
+  { value: "cr80", label: "Card printer (CR80, bank-card size)" },
+];
+
 const SEARCH_DEFAULTS: { value: PatientSearchBy; label: string }[] = [
   { value: "all", label: "All fields" },
   { value: "phone", label: "Phone" },
@@ -71,8 +77,8 @@ const SEARCH_DEFAULTS: { value: PatientSearchBy; label: string }[] = [
 ];
 
 /**
- * The patient list's columns and the field its search box starts on at this
- * hospital; a desk's own search choice wins.
+ * The patient list's columns, the field its search box starts on (a desk's
+ * own search choice wins), and the printer the ID card is laid out for.
  */
 function SearchDefaultSelect() {
   const queryClient = useQueryClient();
@@ -82,7 +88,9 @@ function SearchDefaultSelect() {
   });
   const save = useMutation({
     mutationFn: (
-      change: Partial<Pick<PatientSearchSettings, "default_by" | "patient_list_columns">>,
+      change: Partial<
+        Pick<PatientSearchSettings, "default_by" | "patient_list_columns" | "card_printer">
+      >,
     ) => patientsService.updateSearchSettings(change),
     onSuccess: (saved) => {
       queryClient.setQueryData(["registration-search-settings"], saved);
@@ -98,6 +106,15 @@ function SearchDefaultSelect() {
         data={LIST_COLUMNS}
         value={data?.patient_list_columns ?? null}
         onChange={(v) => v && save.mutate({ patient_list_columns: v as "full" | "basic" })}
+        disabled={!data || save.isPending}
+        allowDeselect={false}
+      />
+      <Select
+        label="Card printer"
+        description="The ID card every Print menu prints. Thermal unless chosen."
+        data={CARD_PRINTERS}
+        value={data?.card_printer ?? null}
+        onChange={(v) => v && save.mutate({ card_printer: v as CardPrinter })}
         disabled={!data || save.isPending}
         allowDeselect={false}
       />

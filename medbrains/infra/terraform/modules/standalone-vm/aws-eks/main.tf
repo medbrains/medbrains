@@ -129,12 +129,29 @@ resource "aws_iam_role_policy_attachment" "node_ecr" {
 
 # Kubernetes secrets are always envelope-encrypted: with the hospital's
 # `secrets` key when it brings one, otherwise with a key made here.
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
 resource "aws_kms_key" "eks_secrets" {
   count                   = local.secrets_kms_key_arn == null ? 1 : 0
   description             = "${var.hostname}-eks Kubernetes secrets"
   enable_key_rotation     = true
   deletion_window_in_days = 30
   tags                    = local.tags
+
+  # Written out rather than left to AWS's default, so the key's access is
+  # read from this file. Same as the default key policy: IAM in this account
+  # decides, and the cluster role reaches the key through its IAM policy.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AccountAdmin"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
 }
 
 # Control-plane logs: without `audit` nobody can say who read which secret.

@@ -84,9 +84,7 @@ impl Via {
         };
         match ordinary {
             Ok(()) => Ok(Self::Relationship),
-            Err(AppError::NotFound | AppError::Forbidden)
-                if crate::general::holds_card_reprint(claims) =>
-            {
+            Err(AppError::NotFound | AppError::Forbidden) if holds_card_reprint(claims) => {
                 Ok(Self::DeskReprint)
             }
             Err(outcome) => Err(outcome),
@@ -115,7 +113,7 @@ async fn print_card(
 ) -> Result<OpdCardPrintData, AppError> {
     // The desk enters on its reprint grant, everyone else on `patients.view`;
     // which card it gets, and the relationship check, are `Via::decide`'s.
-    let entry = if crate::general::holds_card_reprint(claims) {
+    let entry = if holds_card_reprint(claims) {
         permissions::patients::card::REPRINT
     } else {
         permissions::patients::VIEW
@@ -155,6 +153,7 @@ async fn print_card(
     Ok(OpdCardPrintData {
         hospital_name: hospital.name,
         hospital_logo_url: hospital.logo_url,
+        hospital_name_banner_url: hospital.name_banner_url,
         hospital_address: hospital.address,
         hospital_phone: hospital.phone,
         hospital_registration_no: hospital.registration_no,
@@ -177,9 +176,10 @@ async fn print_card(
 }
 
 /// The hospital's letterhead, from its own profile.
-struct HospitalRow {
-    name: String,
-    logo_url: Option<String>,
+pub(crate) struct HospitalRow {
+    pub(crate) name: String,
+    pub(crate) logo_url: Option<String>,
+    pub(crate) name_banner_url: Option<String>,
     address: Option<String>,
     phone: Option<String>,
     registration_no: Option<String>,
@@ -188,11 +188,19 @@ struct HospitalRow {
 /// Name, address and registration from `tenants`; the logo from the branding
 /// setting, which is where onboarding and the admin screen save it.
 /// `tenants.logo_url` is read only as a fallback: nothing in the app writes it.
-async fn hospital_row(conn: &mut PgConnection, tenant_id: Uuid) -> Result<HospitalRow, AppError> {
+/// The emblem and name banner are dropped past 280 000 characters, the cap the
+/// admin screen saves within, so a hand-edited row cannot swell every card.
+pub(crate) async fn hospital_row(
+    conn: &mut PgConnection,
+    tenant_id: Uuid,
+) -> Result<HospitalRow, AppError> {
     sqlx::query_as!(
         HospitalRow,
         "SELECT t.name, \
-           COALESCE(NULLIF(btrim(s.value #>> '{}'), ''), t.logo_url) AS logo_url, \
+           (SELECT v FROM (SELECT COALESCE(NULLIF(btrim(s.value #>> '{}'), ''), t.logo_url) AS v) l \
+             WHERE length(v) <= 280000) AS logo_url, \
+           (SELECT v FROM (SELECT NULLIF(btrim(b.value #>> '{}'), '') AS v) n \
+             WHERE length(v) <= 280000) AS name_banner_url, \
            NULLIF(concat_ws(', ', NULLIF(btrim(t.address_line1), ''), \
              NULLIF(btrim(t.address_line2), ''), NULLIF(btrim(t.city), ''), gs.name, \
              NULLIF(btrim(t.pincode), '')), '') AS address, \
@@ -202,6 +210,8 @@ async fn hospital_row(conn: &mut PgConnection, tenant_id: Uuid) -> Result<Hospit
          LEFT JOIN geo_states gs ON gs.id = t.state_id \
          LEFT JOIN tenant_settings s ON s.tenant_id = t.id AND s.category = 'branding' \
            AND s.key = 'logo_url' AND s.deleted_at IS NULL \
+         LEFT JOIN tenant_settings b ON b.tenant_id = t.id AND b.category = 'branding' \
+           AND b.key = 'name_banner_url' AND b.deleted_at IS NULL \
          WHERE t.id = $1 AND t.deleted_at IS NULL",
         tenant_id,
     )
@@ -394,6 +404,17 @@ pub fn router() -> axum::Router<AppState> {
             "/api/print-data/opd-visit-card/{encounter_id}",
             get(get_opd_visit_card_print_data),
         )
+}
+
+/// Whether these claims reprint cards as the desk: holding
+/// `patients.card.reprint` outright, not through a bypass role, which already
+/// reaches every patient through the ordinary path.
+pub(crate) fn holds_card_reprint(claims: &Claims) -> bool {
+    !medbrains_kernel::authz::is_bypass_role(claims)
+        && claims
+            .permissions
+            .iter()
+            .any(|code| code == permissions::patients::card::REPRINT)
 }
 
 #[cfg(test)]

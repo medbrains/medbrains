@@ -25,6 +25,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            permissions::branding::VIEW,
             // The second check on a high-alert dose at the bedside.
             permissions::nurse::mar::WITNESS,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
@@ -431,6 +432,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            permissions::branding::VIEW,
             // Sees where a patient is in discharge and who holds it up.
             permissions::flows::VIEW,
             permissions::abdm::records::VIEW,
@@ -719,6 +721,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Receptionist",
         description: "Front desk — registration, OPD visits, billing",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::front_office::passes::VERIFY,
             permissions::marketing::campaigns::LOOKUP,
             permissions::patients::acquisition::UPDATE,
@@ -840,6 +843,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Lab Technician",
         description: "Lab staff — orders, results, QC, phlebotomy, outsourced",
         permissions: &[
+            permissions::branding::VIEW,
             // The laboratory drafts changes to its critical-value rules as
             // knowledge change sets; a quality officer or the hospital
             // administrator approves them (author != approver).
@@ -914,6 +918,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            permissions::branding::VIEW,
             // The second check on a high-alert dose at the bedside.
             permissions::nurse::mar::WITNESS,
             // Sees where a patient is in discharge and who holds it up.
@@ -1044,6 +1049,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Billing Clerk",
         description: "Billing staff — invoices, payments, advances, corporate, reports",
         permissions: &[
+            permissions::branding::VIEW,
             // Sees where a patient is in discharge and who holds it up.
             permissions::flows::VIEW,
             permissions::admin::settings::READ,
@@ -1176,6 +1182,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Housekeeping Staff",
         description: "Housekeeping — cleaning tasks, room turnaround, linen management",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1199,6 +1206,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Facilities Manager",
         description: "Facilities management — dashboard, bed management, indent approval, integrations",
         permissions: &[
+            permissions::branding::VIEW,
             // MedBrains Flow: the building's crowd map. Facilities owns the
             // zone limits (owner decision, #4901) and acts on the crowd.
             permissions::flow::VIEW,
@@ -1332,6 +1340,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Audit Officer",
         description: "Audit & compliance — read-only access across modules",
         permissions: &[
+            permissions::branding::VIEW,
             // Read-only: security intelligence findings and check health.
             permissions::security::intel::VIEW,
             // Read-only: what MedBrains staff were allowed and what they did.
@@ -1430,6 +1439,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            permissions::branding::VIEW,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
             // The resuscitation committee keeps the code-blue team roster.
             permissions::nurse::code_blue::MANAGE_TEAM,
@@ -1530,6 +1540,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Occupational Health Officer",
         description: "Employee health screenings, drug testing, vaccinations, injury reports",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1550,6 +1561,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Utilization Reviewer",
         description: "Admission reviews, LOS monitoring, payer communications",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1567,6 +1579,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Case Manager",
         description: "Discharge planning, barrier tracking, referrals, analytics",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1585,6 +1598,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Scheduling Admin",
         description: "No-show predictions, waitlist management, overbooking rules",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1607,6 +1621,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "MRD Officer",
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
+            permissions::branding::VIEW,
             // Medical records runs the scanning and the file room the meter
             // counts.
             permissions::analytics::paperless::VIEW,
@@ -1679,6 +1694,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Canteen Staff",
         description: "Patient meal orders, kitchen output, tray dispatch",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1694,6 +1710,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Dietitian",
         description: "Diet templates, nutrition plans, kitchen inventory",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::terminology::snomed::VIEW,
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::WRITE,
@@ -1720,6 +1737,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Security Guard",
         description: "Visitor passes, incident reports, CCTV, access logs",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::front_office::passes::VERIFY,
             permissions::front_office::visitor_logs::RECORD,
             permissions::admin::settings::READ,
@@ -1749,6 +1767,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Biomedical Engineer",
         description: "Medical equipment, preventive maintenance, calibration, AMC contracts",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1797,6 +1816,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Ambulance Driver",
         description: "Trip dispatch, fleet status, driver roster",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1822,6 +1842,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Radiology Technician",
         description: "Modality acquisition, study upload, technologist worklist",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::billing::collect::RADIOLOGY,
             permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
@@ -1860,6 +1881,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "CSSD Technician",
         description: "Sterilization cycles, instrument sets, issuance to OT",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1885,6 +1907,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Blood Bank Technician",
         description: "Donor screening, inventory, crossmatch, transfusion records",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
@@ -1914,6 +1937,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Marketing Executive",
         description: "Campaigns, enquiry sources and funnel reporting — no clinical access",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::marketing::campaigns::LOOKUP,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -1948,6 +1972,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Front Office Staff",
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
+            permissions::branding::VIEW,
             // MedBrains Flow: the desk supervisor opens counters and redirects
             // the crowd; setting zone limits stays with facilities.
             permissions::flow::VIEW,
@@ -2027,6 +2052,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Infection Control Officer",
         description: "HAI surveillance, antibiotic stewardship, biowaste, hand hygiene",
         permissions: &[
+            permissions::branding::VIEW,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
             permissions::health::intel::VIEW,
             permissions::terminology::snomed::VIEW,
@@ -2066,6 +2092,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Procurement Officer",
         description: "Vendor onboarding, purchase orders, GRN, supplier payments",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -2094,6 +2121,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Store Keeper",
         description: "Indents, stock movements, dead stock, consumables",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -2131,6 +2159,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "HR Officer",
         description: "Employee master, attendance, leave, credentials, payroll inputs",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -2162,6 +2191,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Camp Coordinator",
         description: "Outreach camp planning, registrations, screenings, lab linkage",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::pharmacy::catalog::LOOKUP,
             permissions::terminology::SEARCH,
             permissions::patients::CREATE,
@@ -2195,6 +2225,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Medical Superintendent",
         description: "Clinical head of the hospital — second approver of clinical flow changes",
         permissions: &[
+            permissions::branding::VIEW,
             // Management is told when the hospital's UPI ID or link terms change.
             permissions::billing::payment_settings::NOTIFIED,
             // This week vs usual, public notices, heat and air (RFC-OSINT §4).
@@ -2231,6 +2262,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "IT Security Officer",
         description: "Watches security intelligence, owns findings, opens security incidents",
         permissions: &[
+            permissions::branding::VIEW,
             // Security → Intelligence (RFC-OSINT §6).
             permissions::security::intel::VIEW,
             permissions::security::intel::MANAGE,
@@ -2260,6 +2292,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Insurance Officer",
         description: "Eligibility, prior auth, claim submission, appeals",
         permissions: &[
+            permissions::branding::VIEW,
             // Sees where a patient is in discharge and who holds it up.
             permissions::flows::VIEW,
             permissions::admin::settings::READ,
@@ -2301,6 +2334,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Wall Display",
         description: "A screen, not a person — reads queue and status boards and nothing else",
         permissions: &[
+            permissions::branding::VIEW,
             // Deliberately the whole list. A display has no dashboard, no
             // settings read, no patient list: it shows a board and is bolted to
             // a wall where anyone walking past can see it. Every code added
@@ -2313,6 +2347,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "OT Staff",
         description: "Operation theatre booking, room status, pre-op checks, safety checklist",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -2343,6 +2378,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Delivery runner",
         description: "Takes medicines to patients' homes and hands them over against the patient's code",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
@@ -2355,6 +2391,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Staff (awaiting role)",
         description: "A new sign-in whose role an administrator has not yet assigned: dashboard only",
         permissions: &[
+            permissions::branding::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
         ],

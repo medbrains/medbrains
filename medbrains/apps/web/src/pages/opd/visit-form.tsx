@@ -219,6 +219,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
             }}
             error={errors.patient_id?.message}
             required
+            withSearchBy
           />
         )}
       />

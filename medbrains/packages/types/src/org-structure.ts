@@ -90,6 +90,15 @@ export interface TenantSettingsRow {
   updated_at: string;
 }
 
+/** The hospital's marks for the app header: `GET /branding/marks`. */
+export interface BrandingMarks {
+  display_name: string | null;
+  /** The emblem: a data URL or web address, from branding `logo_url`. */
+  emblem: string | null;
+  /** The hospital's name as an image, from branding `name_banner_url`. */
+  name_banner: string | null;
+}
+
 export type SecureDeviceSettingsKey =
   | "pacs_dicom"
   | "lab_interface"

@@ -82,6 +82,12 @@ export interface RadiologyReportPrintData {
 }
 
 export interface PatientCardPrintData {
+  /** `tenants.name`, printed when there is no name banner. */
+  hospital_name: string;
+  /** The branding emblem (`logo_url`), when the hospital set one. */
+  hospital_logo_url: string | null;
+  /** The branding `name_banner_url`, when the hospital set one. */
+  hospital_name_banner_url: string | null;
   patient_name: string;
   uhid: string;
   date_of_birth: string | null;
@@ -4983,6 +4989,8 @@ export interface OpdCardPrintData {
   hospital_name: string;
   /** The branding setting the admin screen and onboarding write. */
   hospital_logo_url: string | null;
+  /** The branding `name_banner_url`: the hospital's name as an image. */
+  hospital_name_banner_url: string | null;
   hospital_address: string | null;
   hospital_phone: string | null;
   /** The hospital's registration (Clinical Establishments) number. */
