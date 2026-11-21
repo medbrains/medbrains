@@ -8475,6 +8475,7 @@ dependencies = [
  "medbrains-anthropic-auth",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-db-migrations",
  "medbrains-server-core",
  "rig-agent",
  "rig-core",

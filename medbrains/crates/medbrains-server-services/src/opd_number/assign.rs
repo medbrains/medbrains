@@ -81,7 +81,7 @@ pub async fn assign(
 ) -> Result<Option<Assigned>, AppError> {
     let policy = read_policy(conn, tenant_id).await?;
     let target = match (policy.mode, policy.scope, encounter_id) {
-        (Mode::Off, _, _) | (_, Scope::Visit, None) => return Ok(None),
+        (Mode::Off | Mode::Uhid, _, _) | (_, Scope::Visit, None) => return Ok(None),
         (_, Scope::Visit, Some(id)) => Target::Visit(id),
         (_, Scope::Patient, _) => {
             lock(conn, tenant_id).await?;

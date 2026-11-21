@@ -20,7 +20,7 @@ use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
-use medbrains_server_services::opd_number::{self, Mode};
+use medbrains_server_services::opd_number;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -84,7 +84,7 @@ async fn read(state: &AppState, permit: &kernel::Permit) -> Result<SearchSetting
         .unwrap_or_else(|| "thermal".to_owned());
     Ok(SearchSettings {
         default_by,
-        opd_number_enabled: policy.mode != Mode::Off,
+        opd_number_enabled: policy.mode.keeps_opd_number(),
         patient_list_columns,
         card_printer,
     })
