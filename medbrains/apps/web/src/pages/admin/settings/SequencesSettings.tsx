@@ -326,17 +326,17 @@ export function SequencesSettings() {
             render={({ field }) => (
               <NumberInput
                 label="Pad Width"
-                description="Minimum number of digits (zero-padded)."
+                description="Minimum number of digits (zero-padded). 0 = no padding: 1, 2, 3"
                 value={field.value}
                 onChange={field.onChange}
                 error={errors.pad_width?.message}
-                min={3}
+                min={0}
                 max={10}
               />
             )}
           />
 
-          {previewPrefix && Number.isFinite(previewPadWidth) && (
+          {Number.isFinite(previewPadWidth) && (
             <Text size="sm" c="dimmed">
               Preview:{" "}
               <Text span ff="monospace" c="primary">

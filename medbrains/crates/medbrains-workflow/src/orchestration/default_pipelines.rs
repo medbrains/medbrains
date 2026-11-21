@@ -720,7 +720,7 @@ async fn on_pharmacy_ndps_movement_created(
            (tenant_id, incident_number, title, description, incident_type, \
             severity, patient_id, is_reportable, regulatory_body, incident_date) \
          SELECT $1, \
-                COALESCE((SELECT prefix || lpad(current_val::text, pad_width, '0') \
+                COALESCE((SELECT prefix || lpad(current_val::text, GREATEST(pad_width, length(current_val::text)), '0') \
                             FROM seq), \
                          'INC-' || to_char(now(), 'YYYYMMDDHH24MISS') || '-' || substr(md5(random()::text), 1, 4)), \
                 $3::text, \

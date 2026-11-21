@@ -294,9 +294,11 @@ pub fn validate_prefix(errors: &mut ValidationErrors, field: &str, value: &str) 
     }
 }
 
+/// A sequence's minimum digit count: 0 (no padding, plain 1, 2, 3) to 10,
+/// matching the `chk_sequences_pad_width` check.
 pub fn validate_pad_width(errors: &mut ValidationErrors, field: &str, value: i32) {
-    if !(3..=10).contains(&value) {
-        errors.add(field, "Pad width must be between 3 and 10");
+    if !(0..=10).contains(&value) {
+        errors.add(field, "Pad width must be between 0 and 10");
     }
 }
 
@@ -350,14 +352,27 @@ pub fn validate_api_endpoint(errors: &mut ValidationErrors, field: &str, value: 
 mod password_tests {
     use super::{PasswordCheck, ValidationErrors, validate_password};
 
+    /// Whether `validate_password` rejects `check`.
     fn refused<'a>(check: impl Into<PasswordCheck<'a>>) -> bool {
         let mut errors = ValidationErrors::new();
         validate_password(&mut errors, "password", check);
         errors.has_errors()
     }
 
+    /// Whether a password is rejected with no username or hospital to compare.
     fn refused_alone(password: &str) -> bool {
         refused(password)
+    }
+
+    #[test]
+    fn pad_width_zero_to_ten_accepted() {
+        let refused = |v| {
+            let mut errors = ValidationErrors::new();
+            super::validate_pad_width(&mut errors, "pad_width", v);
+            errors.has_errors()
+        };
+        assert!(!refused(0) && !refused(10));
+        assert!(refused(-1) && refused(11));
     }
 
     #[test]
