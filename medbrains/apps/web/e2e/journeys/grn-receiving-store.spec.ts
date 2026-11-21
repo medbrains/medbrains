@@ -9,6 +9,7 @@ import {
   approvePurchaseOrder,
   createProcurementVendor,
   createPurchaseOrder,
+  ensureActiveStore,
   sendPurchaseOrderToVendor,
 } from "../helpers/journey-steps";
 import { expect, test } from "./support/world";
@@ -23,13 +24,7 @@ test("a store keeper receives a purchase order into a store", async ({ hospital,
   const po = { ...created.purchase_order, items: created.items };
   await approvePurchaseOrder(admin, po.id);
   await sendPurchaseOrderToVendor(officer, po.id);
-  const stores = await api<{ id: string; name: string; is_active: boolean }[]>(
-    admin,
-    "GET",
-    "/api/procurement/store-locations",
-  );
-  const store = stores.find((s) => s.is_active);
-  if (!store) throw new Error("the seed has a store to receive into");
+  const store = await ensureActiveStore(admin);
 
   // Refused without a store, whoever calls.
   await expect(
@@ -57,7 +52,8 @@ test("a store keeper receives a purchase order into a store", async ({ hospital,
   await drawer.getByRole("combobox", { name: "Purchase Order" }).click();
   await page.getByRole("option", { name: new RegExp(po.po_number) }).click();
   const storePicker = drawer.getByRole("combobox", { name: "Receive into store" });
-  if (stores.filter((s) => s.is_active).length > 1) {
+  // One store is picked for the keeper; with several, they choose.
+  if ((await storePicker.inputValue()) !== store.name) {
     await storePicker.click();
     await page.getByRole("option", { name: store.name, exact: true }).click();
   }

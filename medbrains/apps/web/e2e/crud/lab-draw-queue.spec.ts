@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { navigateTo } from "../helpers";
+import { getAuthContextFromCookies } from "../helpers/api";
+import { createLabOrderToOpen } from "../helpers/journey-steps";
 
 /**
  * The draw queue that could never contain a row.
@@ -13,21 +15,23 @@ import { navigateTo } from "../helpers";
 // Deliberately an UNCOLLECTED order: the control is offered only while the
 // sample is still to be drawn, so a collected order is the wrong fixture and
 // silently proves nothing.
-const UNCOLLECTED_ORDER = "dd7db39b-5eae-4f9f-8acd-f433b65fb283";
-const COLLECTED_ORDER = "a70beb55-1ac9-4d7b-8f89-b897601aaadc";
 
 test.describe("lab draw queue", () => {
-  test("an uncollected order can be sent to the draw queue", async ({ page }) => {
-    await navigateTo(page, `/lab/orders/${UNCOLLECTED_ORDER}`);
+  test("an uncollected order can be sent to the draw queue", async ({ page, request }) => {
+    const order = await createLabOrderToOpen(await getAuthContextFromCookies(request));
+    await navigateTo(page, `/lab/orders/${order}`);
     await expect(page.getByRole("button", { name: /send to draw queue/i })).toBeVisible({
       timeout: 15000,
     });
   });
 
-  test("an already-collected order does not offer to queue a draw", async ({ page }) => {
+  test("an already-collected order does not offer to queue a draw", async ({ page, request }) => {
     // The sample is in the lab; queueing a draw for it would send a
     // phlebotomist to a patient who has already been bled.
-    await navigateTo(page, `/lab/orders/${COLLECTED_ORDER}`);
+    const order = await createLabOrderToOpen(await getAuthContextFromCookies(request), {
+      collected: true,
+    });
+    await navigateTo(page, `/lab/orders/${order}`);
     await expect(page.getByText(/Order:/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole("button", { name: /send to draw queue/i })).toHaveCount(0);
   });
