@@ -189,6 +189,8 @@ fn mask_json_text(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// Blank or mask the patient fields this caller's role may not see, so the
+/// response never carries a value the screen would have to hide.
 pub(crate) fn filter_patient_response(
     mut row: Patient,
     restricted: &HashMap<String, FieldAccessLevel>,
