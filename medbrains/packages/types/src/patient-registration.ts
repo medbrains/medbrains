@@ -895,3 +895,24 @@ export interface HealthAppReadingsResult {
   duplicates: number;
   refused: { external_id: string; reason: string }[];
 }
+
+/** Whether a hospital keeps its own OPD number, who picks it, and what it belongs to. */
+export type OpdNumberMode = "off" | "manual" | "auto";
+export type OpdNumberScope = "visit" | "patient";
+
+/** The hospital's OPD number policy (`PUT /registration/opd-number/policy`). */
+export interface OpdNumberPolicy {
+  mode: OpdNumberMode;
+  scope: OpdNumberScope;
+  /** Shown before the number; empty for plain numbers. */
+  prefix: string;
+  start: number;
+  /** Whether the desk may give a per-patient OPD date before today. */
+  allow_backdate: boolean;
+}
+
+/** The policy and the numbers the registration form shows beside the field. */
+export interface OpdNumberView extends OpdNumberPolicy {
+  previous: string | null;
+  next: string;
+}

@@ -26,6 +26,8 @@ use crate::middleware::authorization::is_bypass_role;
 ///   the billing screen's UPI ID and link terms (`/api/billing/payment-settings`).
 /// - `preauth_alerts`: the share of a pre-auth's approval that warns the
 ///   insurance desk (`/api/billing/preauth-alert-settings`, 1 to 100 only).
+/// - `opd_number`: the hospital's OPD number policy
+///   (`/api/registration/opd-number/policy`, validated mode, scope and prefix).
 pub const OWN_ENDPOINT_CATEGORIES: &[&str] = &[
     "abdm",
     "ai",
@@ -36,6 +38,7 @@ pub const OWN_ENDPOINT_CATEGORIES: &[&str] = &[
     "device_integrations",
     "payments",
     "preauth_alerts",
+    "opd_number",
 ];
 
 /// Whether `category` may only be written through its own endpoint.
