@@ -138,6 +138,7 @@ export function RegistrationAgeFields({
   const ageShown =
     typeof ageYears === "number" ? ageYears : derived ? calculateAgeYears(derived) : "";
 
+  /** A typed age replaces the date of birth, which it can only estimate. */
   const onAgeChange = (value: number | string) => {
     const age = typeof value === "number" ? value : undefined;
     setValue("age_years", age, VALIDATE);
@@ -149,6 +150,7 @@ export function RegistrationAgeFields({
       setValue("date_of_birth", null, VALIDATE);
     }
   };
+  /** A picked date of birth is exact, so it clears the estimated flag. */
   const onDateChange = (value: DateLike) => {
     const date = parseDatePickerValue(value);
     setDobEstimated(false);
