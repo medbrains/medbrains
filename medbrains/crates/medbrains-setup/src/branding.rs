@@ -18,9 +18,9 @@ use axum::routing::get;
 use axum::{Extension, Json};
 use medbrains_core::onboarding::TenantSettings;
 use medbrains_core::permissions;
+use medbrains_kernel as kernel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 use serde::{Deserialize, Serialize};
@@ -78,10 +78,8 @@ async fn get_marks(
     Extension(claims): Extension<Claims>,
     headers: HeaderMap,
 ) -> Result<Response, AppError> {
-    require_permission(&claims, permissions::branding::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let permit = kernel::authz::permit(&claims, permissions::branding::VIEW)?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
     let rows = sqlx::query!(
         "SELECT key, value #>> '{}' AS text FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'branding' \
@@ -145,10 +143,8 @@ pub(crate) async fn get_branding(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let permit = kernel::authz::permit(&claims, permissions::admin::settings::branding::MANAGE)?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = 'branding' \
@@ -177,7 +173,7 @@ pub(crate) async fn update_branding(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateBrandingRequest>,
 ) -> Result<Json<TenantSettings>, AppError> {
-    require_permission(&claims, permissions::admin::settings::branding::MANAGE)?;
+    let permit = kernel::authz::permit(&claims, permissions::admin::settings::branding::MANAGE)?;
     let mut errors = ValidationErrors::new();
     if (body.key == "primary_color" || body.key == "secondary_color")
         && let Some(color_str) = body.value.as_str()
@@ -193,9 +189,7 @@ pub(crate) async fn update_branding(
         return Err(AppError::ValidationFailed(errors));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
+    let mut tx = kernel::scoped_tx(&state.db, &permit, &claims.department_ids).await?;
 
     let row = sqlx::query_as::<_, TenantSettings>(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
