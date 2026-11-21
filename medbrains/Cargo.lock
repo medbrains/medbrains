@@ -8501,6 +8501,7 @@ dependencies = [
  "medbrains-authz",
  "medbrains-core",
  "medbrains-db",
+ "medbrains-kernel",
  "medbrains-outbox",
  "medbrains-server-core",
  "medbrains-vpn",
