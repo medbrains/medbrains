@@ -94,7 +94,7 @@ export function triageInfo(level: string | null): TriageInfo {
     case "expectant":
       return { color: "dark", label: "BLACK - Expectant", level: 6 };
     default:
-      return { color: "slate", label: "Unassigned", level: 0 };
+      return { color: "slate", label: "Not triaged", level: 0 };
   }
 }
 
