@@ -5473,22 +5473,15 @@ pub async fn system_health(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let (user_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE tenant_id = $1")
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-
-    let (dept_count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM departments WHERE tenant_id = $1")
-            .bind(claims.tenant_id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-    let (module_count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM module_config WHERE tenant_id = $1")
-            .bind(claims.tenant_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    // One round trip for the three tenant counts.
+    let (user_count, dept_count, module_count): (i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT COUNT(*) FROM users WHERE tenant_id = $1), \
+                (SELECT COUNT(*) FROM departments WHERE tenant_id = $1), \
+                (SELECT COUNT(*) FROM module_config WHERE tenant_id = $1)",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     // Migration count from _sqlx_migrations (global table, no tenant scope)
     let (migration_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM _sqlx_migrations")
