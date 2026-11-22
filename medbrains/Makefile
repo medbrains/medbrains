@@ -295,8 +295,8 @@ doctor: ## Find dev traps (root-owned caches, disk, stale master, busy cargo, .e
 release: ## Check a release is ready (VERSION=3.33.0) and print the tag commands; never tags or pushes
 	@bash scripts/release.sh "$(VERSION)"
 
-gate: ## Strict pre-merge gate: biome, packages+typecheck, check-all, targeted clippy+tests (CRATES=, TESTS=)
-	CRATES="$(CRATES)" TESTS="$(TESTS)" bash scripts/gate.sh
+gate: ## The gate CI runs, from the same script: every blocking job (STAGE="rust web" for some; scripts/gate.sh lists them)
+	bash scripts/gate.sh $(or $(STAGE),all)
 
 check-sqlx: guard-sqlx-nonprod ## Verify SQLx offline metadata matches local/CI schema DB only
 	SQLX_OFFLINE=false DATABASE_URL="$(SQLX_DATABASE_URL)" cargo sqlx prepare --check --workspace -- $(SQLX_PREPARE_CARGO_ARGS)
