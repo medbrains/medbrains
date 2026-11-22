@@ -8,13 +8,17 @@
 //! WebKit starts its helpers as the same user.
 
 use std::os::unix::net::UnixStream;
+// Linux and the tests only: elsewhere `is_screen` refuses everyone, and these would be dead code.
+#[cfg(any(target_os = "linux", test))]
 use std::path::Path;
 
 /// The only program, besides root's, allowed to talk to this service.
+#[cfg(any(target_os = "linux", test))]
 const SCREEN_PROGRAM: &str = "/usr/bin/medbrains-shell";
 
 /// Decides from what the kernel reports. A program replaced since it started reads `… (deleted)`,
 /// and is refused until it restarts.
+#[cfg(any(target_os = "linux", test))]
 fn is_allowed(is_root: bool, program: Option<&Path>) -> bool {
     is_root || program == Some(Path::new(SCREEN_PROGRAM))
 }

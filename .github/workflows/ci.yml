@@ -80,7 +80,8 @@ jobs:
             printf 'rust=true\nweb=true\ndocker=true\n' >> "$GITHUB_OUTPUT"; exit 0
           fi
           printf '%s\n' "$files"
-          ci='^\.github/workflows/ci\.yml$'
+          # The gate script is every job's commands, so a change to it runs them all.
+          ci='^(\.github/workflows/ci\.yml|medbrains/scripts/gate\.sh)$'
           rust='^medbrains/(crates/|Cargo\.(toml|lock)|\.sqlx/|rust-toolchain|rustfmt|deny\.toml|clippy\.toml|\.cargo/)'
           web='^medbrains/(apps/web/|packages/|package\.json|pnpm-(lock|workspace)\.yaml|turbo\.json|biome\.json|\.nvmrc|tsconfig)'
           docker='^medbrains/(Dockerfile|\.dockerignore|rust-toolchain\.toml|Cargo\.lock)$'
@@ -105,16 +106,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      # These four pass today. They stay blocking so they cannot regress
-      # while the others are being fixed.
-      - run: python3 scripts/check_sharing.py
-      - run: python3 scripts/check_audit_coverage.py
-      - run: python3 scripts/check_region_pinning.py
-      - run: python3 scripts/check_no_card_logging.py
-      - run: python3 scripts/check_egress_allowlist.py
-      - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
-      # The server tarball carries every binary install.sh installs.
-      - run: python3 medbrains/scripts/check_release_bins.py --self-test && python3 medbrains/scripts/check_release_bins.py
+      # The commands live in gate.sh, so `make gate` runs the same ones.
+      - run: bash medbrains/scripts/gate.sh audit
 
   readiness:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -129,8 +122,7 @@ jobs:
           persist-credentials: false
           # Evidence PRs are found in the history, so it must be all there.
           fetch-depth: 0
-      - run: python3 scripts/readiness.py --self-test
-      - run: python3 scripts/readiness.py --check
+      - run: bash medbrains/scripts/gate.sh readiness
 
   docs:
     name: Every new function is documented
@@ -141,10 +133,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - run: python3 medbrains/scripts/check_docs_on_new_functions.py --self-test
-      - run: python3 medbrains/scripts/check_docs_on_new_functions.py "origin/$BASE_REF"
-        env:
-          BASE_REF: ${{ github.base_ref }}
+      # The base is the pull request's (GITHUB_BASE_REF).
+      - run: bash medbrains/scripts/gate.sh docs
 
   docs-prose:
     # Banned words and Title Case headings in the docs site (medbrains/apps/docs/STYLE.md).
@@ -169,10 +159,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - run: python3 scripts/check_support_dates.py --self-test
-      - run: python3 scripts/check_support_dates.py "origin/$BASE_REF"
-        env:
-          BASE_REF: ${{ github.base_ref }}
+      - run: bash medbrains/scripts/gate.sh support-dates
 
   contracts:
     # Runs on drafts too, and fails there: the other jobs skip on a draft, and a skipped
@@ -193,93 +180,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Frontend calls resolve to real routes
-        run: python3 scripts/check_api_contract.py
-      - name: Page API references resolve
-        run: python3 scripts/check_ui_api_coverage.py
-      - name: Decorative effects only ever go down
-        run: python3 medbrains/scripts/check_ui_slop.py
-      # `data ?? []` draws an outage as an empty ward; per-file ratchet (#5474).
-      - name: Query data defaulted to empty only ever goes down
-        run: |
-          python3 medbrains/scripts/check_query_fallbacks.py --self-test
-          python3 medbrains/scripts/check_query_fallbacks.py
-      - name: Pages build from the @/components/ui seam
-        run: python3 medbrains/scripts/check_ui_seam.py
-      - name: No raw interactive HTML in shipped JSX
-        run: python3 medbrains/scripts/check_raw_html.py
-      # A field marked redactable but never classified falls back to Routine and
-      # renders to everyone who can see the record. Nothing at runtime notices.
-      - name: Every redactable field declares its data class
-        run: python3 medbrains/scripts/check_field_classes.py
-      # An authz check whose error becomes `false` answers a fault with the
-      # same 404 / empty list it answers a real refusal with.
-      - name: No authorization check collapses its error
-        run: python3 medbrains/scripts/check_authz_collapse.py
-      # A database read whose error becomes an empty result shows an outage as
-      # "nothing there": no medications due, nothing to sign (#6009).
-      - name: No database read collapses its error
-        run: |
-          python3 medbrains/scripts/check_query_collapse.py --self-test
-          python3 medbrains/scripts/check_query_collapse.py
-      # A query inside a loop is one round trip per row; existing sites are
-      # baselined per function, never grown (#5462).
-      - name: No new database query inside a loop
-        run: |
-          python3 medbrains/scripts/check_query_in_loop.py --self-test
-          python3 medbrains/scripts/check_query_in_loop.py --check
-      # Class A size rules (docs/SOFTWARE-CLASSES.md): Rust functions and files only shrink.
-      - name: Rust functions and files only shrink
-        run: |
-          python3 medbrains/scripts/check_rust_size.py --self-test
-          python3 medbrains/scripts/check_rust_size.py
-      # Apps reach tenancy, authz, audit, sequences, storage and config only
-      # through medbrains-kernel; existing direct access is baselined, never grown.
-      - name: Kernel boundary only gets better
-        run: |
-          python3 medbrains/scripts/check_kernel_boundary.py --self-test
-          python3 medbrains/scripts/check_kernel_boundary.py
-      # The kernel is technical only (RFC-HOSPITAL-OS §3a): patients, consent and
-      # billing live above it, in its dependencies and its words alike.
-      - name: Kernel has no domain crates or words
-        run: |
-          python3 medbrains/scripts/check_kernel_no_domain.py --self-test
-          python3 medbrains/scripts/check_kernel_no_domain.py
-      # A crate without `[lints] workspace = true` escapes every denied lint
-      # (unwrap, panic, print); eleven did, authz-gate and signing among them (#5976).
-      - name: Every crate inherits the workspace lints
-        run: |
-          python3 medbrains/scripts/check_lints_inheritance.py --self-test
-          python3 medbrains/scripts/check_lints_inheritance.py
-      # Kernel lines and dependencies, package and crate counts. Reads files only.
-      # This job has no web build, so the web job re-runs it for first-load JS.
-      - name: Size budgets hold
-        run: |
-          python3 medbrains/scripts/check_size_budgets.py --self-test
-          python3 medbrains/scripts/check_size_budgets.py
-      # The converted apps' menu entries come from the one screen registry; a stale copy would
-      # show the web screens screens.rs no longer lists, and a nav entry whose permission differs
-      # from its screen's shows a menu item the screen then refuses.
-      - name: App screens copy is current and the menu matches the screen registry
-        run: |
-          python3 medbrains/scripts/generate_app_screens.py --self-test
-          python3 medbrains/scripts/generate_app_screens.py --check
-          python3 medbrains/scripts/check_nav_drift.py
-      # The committed MedBrains Sans files must be exactly what the pinned build makes, so nobody
-      # edits a font by hand and the IBM Plex source stays recorded.
-      - name: Committed fonts match their build
-        run: |
-          python3 -m pip install --quiet -r medbrains/tools/fonts/requirements.txt
-          python3 -I medbrains/tools/fonts/build_medbrains_sans.py --check
-          python3 -I medbrains/tools/fonts/check_glyph_collisions.py
-      # The TypeScript SDK and its conformance suite run under `pnpm run test`
-      # (web job); the Python SDK has no other runner.
-      # The test report's labelling, JUnit conversion and theme contrast (e2e.yml uses it).
-      - name: Test report script
-        run: python3 medbrains/scripts/test_report.py --self-test
-      - name: Python SDK speaks the extension protocol
-        working-directory: medbrains/sdks/python
-        run: python3 -m unittest discover -s tests
+      # The committed-fonts check needs its pinned build tools.
+      - name: Font build tools
+        run: python3 -m pip install --quiet -r medbrains/tools/fonts/requirements.txt
+      # Every contract check, in the order gate.sh lists them.
+      - run: bash medbrains/scripts/gate.sh contracts
 
   # The image is built only when a release is published, so a stale base image
   # surfaced there first (v3.33.0: rust:1.85 against a 1.95 MSRV). This keeps the
@@ -291,15 +196,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - working-directory: medbrains
-        run: |
-          want=$(sed -nE 's/^channel *= *"([^"]+)".*/\1/p' rust-toolchain.toml)
-          have=$(sed -nE 's/^FROM rust:([0-9.]+)-.*/\1/p' Dockerfile)
-          echo "rust-toolchain.toml: $want  Dockerfile: $have"
-          if [ -z "$want" ] || [ "$want" != "$have" ]; then
-            echo "::error file=medbrains/Dockerfile::FROM rust:$have must match rust-toolchain.toml ($want)"
-            exit 1
-          fi
+      - run: bash medbrains/scripts/gate.sh toolchain
 
   # Builds the release image without pushing, only when what it depends on changed.
   docker-build:
@@ -331,7 +228,7 @@ jobs:
       # with the same rustfmt as a local `cargo fmt`; `stable` could disagree.
       - name: Rust toolchain
         run: rustup toolchain install
-      - run: cargo fmt --all -- --check
+      - run: bash scripts/gate.sh rust-fmt
 
   web:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -377,17 +274,8 @@ jobs:
       # not worth paying on every PR; the full build is measured separately.
       # MedBrains web and the packages it uses. The outgoing React Native apps
       # are reference only, and desktop, docs and storybook are not this gate.
-      - run: pnpm turbo run build typecheck test --filter=@medbrains/web...
-        env:
-          # vitest.config.ts adds a JUnit reporter when this is set.
-          VITEST_REPORT_DIR: test-results
-      - name: Web first-load JS stays under its ceiling
-        run: python3 scripts/check_size_budgets.py
-      # Class A size rules (docs/SOFTWARE-CLASSES.md): web functions and files only shrink.
-      - name: Web functions and files only shrink
-        run: |
-          python3 scripts/check_web_size.py --self-test
-          python3 scripts/check_web_size.py
+      # Build, typecheck, test, then the size ceilings (gate.sh says why in that order).
+      - run: bash scripts/gate.sh web
       - name: Publish the per-test summary
         if: ${{ !cancelled() }}
         uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
@@ -459,19 +347,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/rust-toolchain.toml') }}-${{ hashFiles('medbrains/Cargo.lock', 'medbrains/**/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/rust-toolchain.toml') }}-
 
-      # Library code is clean and is the bar worth holding first.
-      # Every crate except the desktop GUI tree, which needs GTK on the runner.
-      # Denied lints fail on their own; pedantic and nursery are warnings by
-      # project policy (ENGINEERING.md), so -D warnings would overrule it.
-      - run: cargo clippy --locked --workspace --exclude medbrains-desktop
-      # Test targets: no new denied lint, and the baseline only falls (#5978).
-      # cargo exits non-zero on the baseline's own errors; the script decides.
-      - name: Clippy on test targets (ratchet)
-        run: |
-          python3 scripts/check_clippy_tests.py --self-test
-          { cargo clippy --locked --workspace --exclude medbrains-desktop --all-targets \
-              --keep-going --message-format=json || true; } |
-            python3 scripts/check_clippy_tests.py
+      # The whole workspace, then the test-target ratchet.
+      - run: bash scripts/gate.sh rust-clippy
 
   schema-and-tenancy:
     # A draft PR spends no build; marking it ready for review runs everything.
@@ -562,12 +439,10 @@ jobs:
           echo "$NEXTEST_SHA256  $tgz" | sha256sum -c -
           tar -xzf "$tgz" -C "$HOME/.cargo/bin" cargo-nextest
           rm "$tgz"
-      # Report every failing test, not just the first binary's (profile in .config/nextest.toml).
-      - run: cargo nextest run --locked --workspace --exclude medbrains-desktop --profile ci
+      # nextest (profile in .config/nextest.toml), then the doc tests even if a test failed.
+      - run: bash scripts/gate.sh rust-test
         env:
           DATABASE_URL: postgres://medbrains:ci_only@localhost:5432/medbrains
-      - if: ${{ !cancelled() }}
-        run: cargo test --locked --workspace --exclude medbrains-desktop --doc --no-fail-fast
       - name: Publish the per-test summary
         if: ${{ !cancelled() }}
         uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
