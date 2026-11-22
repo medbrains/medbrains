@@ -8,15 +8,8 @@
 import { api, getAuthContextFromCookies, loginAsRoleApi, withStepUp } from "../helpers/api";
 import { getE2EIdentity } from "../helpers/e2e-identities";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
+import { receiveStock } from "./support/pos-counter";
 import { expect, test } from "./support/world";
-
-interface CatalogRow {
-  name: string;
-  is_active: boolean;
-  is_controlled: boolean;
-  drug_schedule: string | null;
-  current_stock: number;
-}
 
 const DAY_MS = 86_400_000;
 const isoDay = (offsetDays: number) =>
@@ -31,15 +24,8 @@ test("a doctor authorises refills and the pharmacy holds them to the dates", asy
   const doctorCtx = await withStepUp(await loginAsRoleApi(request, "doctor"));
   const patient = await createPatientApi(admin);
   const visit = await createEncounter(doctorCtx, patient.id);
-  const catalog = await api<CatalogRow[]>(admin, "GET", "/api/pharmacy/catalog");
-  const drug = catalog.find(
-    (c) =>
-      c.is_active &&
-      !c.is_controlled &&
-      !["X", "H1", "NDPS"].includes(c.drug_schedule ?? "") &&
-      c.current_stock >= 60,
-  );
-  if (!drug) throw new Error("a stocked, uncontrolled drug");
+  // Uncontrolled and on the shelf for three fills; a new hospital stocks nothing.
+  const drug = await receiveStock(admin, { generic: "Cetirizine", schedule: "H", price: 15, quantity: 100 });
 
   // The doctor writes it with two refills a month apart.
   const doctor = await hospital.as("doctor");
