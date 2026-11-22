@@ -103,8 +103,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             medbrains/target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
-          restore-keys: ${{ runner.os }}-cargo-test-
+          # The same key as ci.yml's Rust tests job, so a hit is the cache that job saved.
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/rust-toolchain.toml') }}-${{ hashFiles('medbrains/Cargo.lock', 'medbrains/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/rust-toolchain.toml') }}-
       # medbrains-printing links against CUPS.
       - run: sudo apt-get update && sudo apt-get install -y libcups2-dev
       - run: cargo build --locked -p medbrains-server --bin medbrains-server
