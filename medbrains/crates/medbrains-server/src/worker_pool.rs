@@ -2,7 +2,7 @@
 //!
 //! Every job's first tick takes a connection at boot, and the pool then keeps
 //! what it opened: PostgreSQL holds a process of 4 to 6 MB for each. Sized like
-//! the request pool, idle background work held 18 of them (about 110 MB) on a
+//! the request pool, idle background work held 20 of them (about 105 MB) on a
 //! server nobody was using. The request pool is untouched by this.
 
 use std::time::Duration;
