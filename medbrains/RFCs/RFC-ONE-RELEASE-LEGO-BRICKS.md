@@ -87,6 +87,64 @@ seeds and dependencies. Core mounts and starts only the enabled ones.
 5. Smaller downloads come from the dependency diet and delta updates (`zstd --patch-from`, verified
    against the signed full-file hash), never from per-brick binaries.
 
+## Generations: a release is a folder, live is a pointer
+
+Borrowed from NixOS, kept on Debian. Today an install copies binaries, web
+files and unit files over the live ones and keeps one `.prev` beside each. Three
+things went wrong with that in one day: rollback was broken on every install, a
+binaries-only install paired the previous server with a web build two releases
+old, and a one-file web fix needed a full release. The cause is one design:
+many files changed in place, with the pairing between them remembered separately.
+
+### The shape
+
+```
+/var/lib/medbrains-releases/
+  3.35.6/            one complete generation: bin/ web/ units/ manifest.json
+  3.35.6+web.1/      a web patch is a generation too; bin/ is a link to 3.35.6/bin
+  3.35.7/
+  current  -> 3.35.7       the only thing an update changes
+  previous -> 3.35.6+web.1 the only thing a rollback reads
+```
+
+- **A generation is complete and read-only.** Root-owned, mode 0755/0644, never
+  edited after it is staged and verified. `/usr/local/bin/medbrains-*`, the web
+  root and the unit files are links into `current/`.
+- **Update = stage, verify, switch one pointer.** The switch is a rename of a
+  symlink, which either happened or did not. A power cut leaves the old system.
+- **Rollback = point `current` at `previous`.** Server and web always return
+  together because they are one folder. There is no pairing to remember.
+- **Pieces are named by content.** `manifest.json` lists every piece with its
+  SHA-256. A piece a new generation shares with an old one is hard-linked, not
+  downloaded or stored again, so a web patch costs only the files that changed.
+
+### The five behaviours
+
+| # | Behaviour | Rule |
+|---|---|---|
+| G1 | One-pointer switch | Nothing under a live path is ever written in place. |
+| G2 | Preview before switching | `medbrains-release plan <gen>` prints which bricks change, which services restart, which migrations run and whether the database change can be rolled back; the admin screen shows the same before "Install". |
+| G3 | Restart only what changed | A unit restarts only when a piece it runs from has a different hash. A web-only generation restarts nothing. |
+| G4 | Dependencies in the manifest | Every brick lists the bricks it needs; a plan that would switch off a brick another enabled brick needs is refused, with the names. |
+| G5 | Keep three | The live, the previous and one more generation are kept; older ones are removed, never one a pointer names. |
+
+### What does not roll back
+
+The database. A generation whose migrations cannot be undone says so in its
+manifest; `plan` shows it, a backup is taken before the switch, and rollback
+past it is refused with the restore command instead of pretending.
+
+### Order
+
+1. G1 + G5 for binaries, web and units together (builds on the web-swap and
+   rollback work in #6168 and #6171, which become its first two cases).
+2. G3, then G2 on the command line, then G2 on the admin screen.
+3. G4 with the brick registry in Lane C.
+
+Each step changes the update path, so each passes the staging update-and-rollback
+run (`scripts/staging_update_e2e.sh`) before it reaches a hospital, and an
+install made the old way must upgrade into the new layout in that same run.
+
 ## What we avoid, and why
 
 | Option | Why not |
