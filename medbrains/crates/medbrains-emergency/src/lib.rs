@@ -3,6 +3,7 @@
 pub mod alerts;
 pub mod mlc_injuries;
 pub mod mlc_record;
+pub mod visit_board;
 
 use axum::{
     Extension, Json,
@@ -627,17 +628,7 @@ pub async fn list_visits(
     Extension(claims): Extension<Claims>,
     Query(query): Query<ListVisitsQuery>,
 ) -> Result<Json<Vec<ErVisit>>, AppError> {
-    require_any_permission(
-        &claims,
-        &[
-            permissions::emergency::visits::LIST,
-            permissions::emergency::visits::UPDATE,
-            permissions::emergency::triage::LIST,
-            permissions::emergency::triage::CREATE,
-            permissions::emergency::resuscitation::LIST,
-            permissions::emergency::resuscitation::CREATE,
-        ],
-    )?;
+    require_any_permission(&claims, &visit_board::BOARD_READ)?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -650,7 +641,20 @@ pub async fn list_visits(
         "SELECT * FROM er_visits
          WHERE deleted_at IS NULL AND tenant_id = $1
            AND ($2::uuid IS NULL OR patient_id = $2)
-         ORDER BY arrival_time DESC
+         -- Patients still in the department first, the most urgent on top, then
+         -- the longest wait. Not triaged sits above the two least urgent levels:
+         -- nobody has looked yet. Closed visits follow, newest first.
+         ORDER BY CASE WHEN status NOT IN ('registered', 'triaged', 'in_treatment', 'observation')
+                       THEN 8
+                       ELSE CASE COALESCE(triage_level, 'unassigned')
+                              WHEN 'immediate' THEN 1 WHEN 'emergent' THEN 2
+                              WHEN 'urgent' THEN 3 WHEN 'unassigned' THEN 4
+                              WHEN 'less_urgent' THEN 5 WHEN 'non_urgent' THEN 6
+                              ELSE 7 END
+                  END,
+                  CASE WHEN status IN ('registered', 'triaged', 'in_treatment', 'observation')
+                       THEN arrival_time END,
+                  arrival_time DESC
          LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -3220,7 +3224,7 @@ pub async fn update_bay(
 /// Emergency department (triage, ER register, MLC, disaster) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route("/api/emergency/visits", get(list_visits).post(create_visit))
+        .merge(visit_board::router())
         .route(
             "/api/emergency/visits/{id}",
             get(get_visit).put(update_visit),

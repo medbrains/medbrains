@@ -1721,11 +1721,11 @@ fn er_display_triage_level(level: &str) -> Option<TriageLevel> {
 
 fn er_target_wait_minutes(level: TriageLevel) -> i32 {
     match level {
-        TriageLevel::Red => 0,
-        TriageLevel::Orange => 10,
-        TriageLevel::Yellow => 60,
-        TriageLevel::Green => 120,
-        TriageLevel::Blue => 240,
+        TriageLevel::Red => medbrains_core::er_wait_targets::ER_WAIT_TARGETS.immediate,
+        TriageLevel::Orange => medbrains_core::er_wait_targets::ER_WAIT_TARGETS.emergent,
+        TriageLevel::Yellow => medbrains_core::er_wait_targets::ER_WAIT_TARGETS.urgent,
+        TriageLevel::Green => medbrains_core::er_wait_targets::ER_WAIT_TARGETS.less_urgent,
+        TriageLevel::Blue => medbrains_core::er_wait_targets::ER_WAIT_TARGETS.non_urgent,
     }
 }
 

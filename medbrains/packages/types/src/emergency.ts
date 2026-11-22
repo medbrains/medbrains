@@ -150,6 +150,15 @@ export interface ErVisit {
   updated_at: string;
 }
 
+/** Target door-to-doctor wait, in minutes, of each triage level that has one. */
+export interface ErWaitTargets {
+  immediate: number;
+  emergent: number;
+  urgent: number;
+  less_urgent: number;
+  non_urgent: number;
+}
+
 export interface ErTriageAssessment {
   id: string;
   tenant_id: string;
