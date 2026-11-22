@@ -7,15 +7,12 @@ import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBuildingHospital,
-  IconCheck,
-  IconClock,
   IconEye,
   IconGavel,
   IconHeartbeat,
   IconPlus,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { DataTable, OperationalSignal, TableValueBadge } from "@/components";
@@ -34,97 +31,7 @@ import {
   visitStatusShape,
   visitStatusTone,
 } from "./shared";
-
-function useTimer(startTime: string | null, endIndicator: number | null): string {
-  const [elapsed, setElapsed] = useState("");
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const formatDuration = useCallback((ms: number): string => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) {
-      return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
-    }
-    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }, []);
-
-  useEffect(() => {
-    if (!startTime) {
-      setElapsed("");
-      return;
-    }
-
-    const start = new Date(startTime).getTime();
-
-    // Doctor already seen — show static duration
-    if (endIndicator !== null && endIndicator !== undefined) {
-      setElapsed(`${endIndicator} min`);
-      return;
-    }
-
-    // Live ticking timer
-    const update = () => {
-      const now = Date.now();
-      const diff = now - start;
-      setElapsed(formatDuration(diff > 0 ? diff : 0));
-    };
-    update();
-    intervalRef.current = setInterval(update, 1000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [startTime, endIndicator, formatDuration]);
-
-  return elapsed;
-}
-
-// ── Inline Timer Component ────────────────────────────
-
-function WaitTimeBadge({
-  arrivalTime,
-  doorToDoctorMins,
-}: {
-  arrivalTime: string;
-  doorToDoctorMins: number | null;
-}) {
-  const { t } = useTranslation("emergency");
-  const display = useTimer(arrivalTime, doorToDoctorMins);
-
-  if (!display)
-    return (
-      <Text size="sm" c="dimmed">
-        {t("common.notAvailable")}
-      </Text>
-    );
-
-  if (doorToDoctorMins !== null && doorToDoctorMins !== undefined) {
-    return (
-      <OperationalSignal
-        icon={IconCheck}
-        label={t("waitTime.seen")}
-        shape="pill"
-        tone="ready"
-        value={display}
-      />
-    );
-  }
-
-  return (
-    <OperationalSignal
-      icon={IconClock}
-      label={t("waitTime.waiting")}
-      shape="diamond"
-      tone="blocked"
-      value={display}
-    />
-  );
-}
+import { WaitTimeCell } from "./wait-time";
 
 export function VisitsTab({
   canView,
@@ -246,9 +153,7 @@ export function VisitsTab({
     {
       key: "wait_time",
       label: t("queueColumns.waitTime"),
-      render: (r: ErVisit) => (
-        <WaitTimeBadge arrivalTime={r.arrival_time} doorToDoctorMins={r.door_to_doctor_mins} />
-      ),
+      render: (r: ErVisit) => <WaitTimeCell visit={r} />,
     },
     {
       key: "actions",
