@@ -4,37 +4,21 @@ import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  AdrReport,
-  CreateAdrRequest,
-  CreateMvRequest,
-  MateriovigilanceReport,
-} from "@medbrains/types";
+import type { AdrReport, CreateAdrRequest, CreateMvRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconSend } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
+import { eventStatusColors, MvReportsSection, severityColors } from "./mv-reports-section";
 
-const severityColors: Record<string, BadgeTone> = {
-  mild: "primary",
-  moderate: "warning",
-  severe: "warning",
-  fatal: "danger",
-};
-
-const eventStatusColors: Record<string, BadgeTone> = {
-  draft: "neutral",
-  submitted: "primary",
-  under_review: "warning",
-  closed: "success",
-  withdrawn: "neutral",
-};
-
+/** ADR and device reports; each list shows, and is fetched, only for its readers. */
 export function AdrTab() {
+  const canListAdr = useHasPermission(P.REGULATORY.ADR_LIST);
+  const canListMv = useHasPermission(P.REGULATORY.MATERIOVIGILANCE_LIST);
   const canCreateAdr = useHasPermission(P.REGULATORY.ADR_CREATE);
   const canCreateMv = useHasPermission(P.REGULATORY.MATERIOVIGILANCE_CREATE);
   // Filing the report with the national programme is an update, not a
@@ -49,12 +33,7 @@ export function AdrTab() {
     queryKey: ["regulatory-adr", statusFilter],
     queryFn: () =>
       regulatoryService.listAdrReports(statusFilter ? { status: statusFilter } : undefined),
-  });
-
-  const { data: mvReports = [], isLoading: mvLoading } = useQuery<MateriovigilanceReport[]>({
-    queryKey: ["regulatory-mv", statusFilter],
-    queryFn: () =>
-      regulatoryService.listMvReports(statusFilter ? { status: statusFilter } : undefined),
+    enabled: canListAdr,
   });
 
   const [adrForm, setAdrForm] = useState<CreateAdrRequest>({
@@ -97,14 +76,6 @@ export function AdrTab() {
     },
   });
 
-  const submitMvMut = useMutation({
-    mutationFn: (id: string) => regulatoryService.submitMvToCdsco(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
-      toast.info("", { title: "Submitted to CDSCO" });
-    },
-  });
-
   return (
     <Stack gap="md">
       <PageHeader
@@ -141,142 +112,84 @@ export function AdrTab() {
         />
       </Group>
 
-      <Text fw={600}>ADR Reports (Adverse Drug Reactions)</Text>
-      <DataTable
-        data={adrReports}
-        rowKey={(r) => r.id}
-        loading={adrLoading}
-        columns={[
-          {
-            key: "report_number",
-            label: "Report #",
-            render: (r) => (
-              <Text size="sm" fw={500}>
-                {r.report_number}
-              </Text>
-            ),
-          },
-          { key: "drug_name", label: "Drug", render: (r) => <Text size="sm">{r.drug_name}</Text> },
-          {
-            key: "reaction_description",
-            label: "Reaction",
-            render: (r) => (
-              <Text size="sm" lineClamp={1}>
-                {r.reaction_description}
-              </Text>
-            ),
-          },
-          {
-            key: "severity",
-            label: "Severity",
-            render: (r) => <Badge tone={severityColors[r.severity]}>{r.severity}</Badge>,
-          },
-          {
-            key: "status",
-            label: "Status",
-            render: (r) => (
-              <Badge tone={eventStatusColors[r.status]}>{r.status.replace(/_/g, " ")}</Badge>
-            ),
-          },
-          {
-            key: "pvpi",
-            label: "PvPI",
-            render: (r) =>
-              r.submitted_to_pvpi ? (
-                <Badge tone="success" size="sm">
-                  Submitted
-                </Badge>
-              ) : r.status === "draft" && canCreateAdr ? (
-                <IconButton
-                  tone="primary"
-                  disabled={!canSubmitAdr}
-                  onClick={() => submitAdrMut.mutate(r.id)}
-                  aria-label="Send"
-                >
-                  <IconSend size={14} />
-                </IconButton>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  -
-                </Text>
-              ),
-          },
-          { key: "date", label: "Date", render: (r) => <Text size="sm">{r.reaction_date}</Text> },
-          printColumn<AdrReport>("adr_report", { label: (r) => r.report_number }),
-        ]}
-      />
+      {canListAdr && (
+        <>
+          <Text fw={600}>ADR Reports (Adverse Drug Reactions)</Text>
+          <DataTable
+            data={adrReports}
+            rowKey={(r) => r.id}
+            loading={adrLoading}
+            columns={[
+              {
+                key: "report_number",
+                label: "Report #",
+                render: (r) => (
+                  <Text size="sm" fw={500}>
+                    {r.report_number}
+                  </Text>
+                ),
+              },
+              {
+                key: "drug_name",
+                label: "Drug",
+                render: (r) => <Text size="sm">{r.drug_name}</Text>,
+              },
+              {
+                key: "reaction_description",
+                label: "Reaction",
+                render: (r) => (
+                  <Text size="sm" lineClamp={1}>
+                    {r.reaction_description}
+                  </Text>
+                ),
+              },
+              {
+                key: "severity",
+                label: "Severity",
+                render: (r) => <Badge tone={severityColors[r.severity]}>{r.severity}</Badge>,
+              },
+              {
+                key: "status",
+                label: "Status",
+                render: (r) => (
+                  <Badge tone={eventStatusColors[r.status]}>{r.status.replace(/_/g, " ")}</Badge>
+                ),
+              },
+              {
+                key: "pvpi",
+                label: "PvPI",
+                render: (r) =>
+                  r.submitted_to_pvpi ? (
+                    <Badge tone="success" size="sm">
+                      Submitted
+                    </Badge>
+                  ) : r.status === "draft" && canCreateAdr ? (
+                    <IconButton
+                      tone="primary"
+                      disabled={!canSubmitAdr}
+                      onClick={() => submitAdrMut.mutate(r.id)}
+                      aria-label="Send"
+                    >
+                      <IconSend size={14} />
+                    </IconButton>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      -
+                    </Text>
+                  ),
+              },
+              {
+                key: "date",
+                label: "Date",
+                render: (r) => <Text size="sm">{r.reaction_date}</Text>,
+              },
+              printColumn<AdrReport>("adr_report", { label: (r) => r.report_number }),
+            ]}
+          />
+        </>
+      )}
 
-      <Text fw={600} mt="md">
-        Materiovigilance Reports (Medical Devices)
-      </Text>
-      <DataTable
-        data={mvReports}
-        rowKey={(r) => r.id}
-        loading={mvLoading}
-        columns={[
-          {
-            key: "report_number",
-            label: "Report #",
-            render: (r) => (
-              <Text size="sm" fw={500}>
-                {r.report_number}
-              </Text>
-            ),
-          },
-          {
-            key: "device_name",
-            label: "Device",
-            render: (r) => <Text size="sm">{r.device_name}</Text>,
-          },
-          {
-            key: "event_description",
-            label: "Event",
-            render: (r) => (
-              <Text size="sm" lineClamp={1}>
-                {r.event_description}
-              </Text>
-            ),
-          },
-          {
-            key: "severity",
-            label: "Severity",
-            render: (r) => <Badge tone={severityColors[r.severity]}>{r.severity}</Badge>,
-          },
-          {
-            key: "status",
-            label: "Status",
-            render: (r) => (
-              <Badge tone={eventStatusColors[r.status]}>{r.status.replace(/_/g, " ")}</Badge>
-            ),
-          },
-          {
-            key: "cdsco",
-            label: "CDSCO",
-            render: (r) =>
-              r.submitted_to_cdsco ? (
-                <Badge tone="success" size="sm">
-                  Submitted
-                </Badge>
-              ) : r.status === "draft" && canCreateMv ? (
-                <IconButton
-                  tone="primary"
-                  onClick={() => submitMvMut.mutate(r.id)}
-                  aria-label="Send"
-                >
-                  <IconSend size={14} />
-                </IconButton>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  -
-                </Text>
-              ),
-          },
-          { key: "date", label: "Date", render: (r) => <Text size="sm">{r.event_date}</Text> },
-          printColumn<MateriovigilanceReport>("materiovigilance", {
-            label: (r) => r.report_number,
-          }),
-        ]}
-      />
+      {canListMv && <MvReportsSection statusFilter={statusFilter} canCreateMv={canCreateMv} />}
 
       {/* ADR Create Drawer */}
       <Modal opened={adrOpened} onClose={closeAdr} title="New ADR Report" fullScreen>
