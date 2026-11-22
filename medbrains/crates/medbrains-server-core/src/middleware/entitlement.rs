@@ -348,49 +348,49 @@ mod tests {
         );
     }
 
-    /// The Registration + OPD hospital: Maternity and Cath Lab were never set up, so they have
-    /// no row (or the seed's `available`) and must not hold IPD on.
+    /// The Registration + OPD hospital: Maternity was never set up (no row) and Operation Theatre
+    /// has the seed's `available`. Both answer their API, so both are named, marked apart from a
+    /// brick the hospital switched on, and `together` takes them along so the switch is possible.
     #[test]
-    fn a_brick_nobody_switched_on_does_not_block_switching_off_what_it_needs() {
+    fn a_brick_that_is_on_because_nobody_set_it_up_is_named_and_can_go_off_together() {
         let small = statuses(&[
             ("registration", "enabled"),
             ("opd", "enabled"),
             ("ipd", "enabled"),
-            ("ot", "available"),
-        ]);
-        assert_eq!(
-            switch_plan("ipd", false, false, &small),
-            Ok(vec!["ipd".to_owned()])
-        );
-    }
-
-    #[test]
-    fn switching_off_names_only_the_enabled_bricks_and_can_take_them_along() {
-        let ward = statuses(&[
-            ("registration", "enabled"),
-            ("ipd", "enabled"),
             ("nursing", "enabled"),
-            ("ot", "enabled"),
+            ("ot", "available"),
             ("diet", "disabled"),
         ]);
-        let refused = switch_plan("ipd", false, false, &ward)
+        let refused = switch_plan("ipd", false, false, &small)
             .err()
             .unwrap_or_default();
-        assert!(
-            refused.contains("Operation Theatre, Nursing Station"),
-            "{refused}"
-        );
-        for absent in ["Maternity", "Cath Lab", "Diet"] {
-            assert!(!refused.contains(absent), "{absent} is not on: {refused}");
+        for named in [
+            "Nursing Station (switched on)",
+            "Operation Theatre (on, never set up)",
+            "Maternity (on, never set up)",
+        ] {
+            assert!(refused.contains(named), "{named} missing: {refused}");
         }
-        assert_eq!(
-            switch_plan("ipd", false, true, &ward),
-            Ok(vec![
-                "ot".to_owned(),
-                "nursing".to_owned(),
-                "ipd".to_owned()
-            ])
-        );
+        assert!(!refused.contains("Diet"), "Diet is off: {refused}");
+        let plan = switch_plan("ipd", false, true, &small).unwrap_or_default();
+        for code in ["nursing", "ot", "maternity"] {
+            assert!(plan.iter().any(|c| c == code), "{code} missing: {plan:?}");
+        }
+        assert_eq!(plan.last().map(String::as_str), Some("ipd"));
+        assert!(!plan.iter().any(|c| c == "diet"), "{plan:?}");
+    }
+
+    /// A licensed add-on with no row is off, so it neither blocks nor is switched.
+    #[test]
+    fn an_add_on_nobody_bought_is_not_named() {
+        let on = statuses(&[("registration", "enabled")]);
+        let refused = switch_plan("registration", false, false, &on)
+            .err()
+            .unwrap_or_default();
+        assert!(refused.contains("OPD / Outpatient (on, never set up)"), "{refused}");
+        assert!(!refused.contains("Patient Companion"), "{refused}");
+        let plan = switch_plan("registration", false, true, &on).unwrap_or_default();
+        assert!(!plan.iter().any(|c| c == "companion"), "{plan:?}");
     }
 
     #[test]

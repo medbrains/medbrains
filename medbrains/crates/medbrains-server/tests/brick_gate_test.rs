@@ -324,10 +324,25 @@ async fn switch_as(
     (resp.status(), resp.text().await.unwrap_or_default())
 }
 
-/// The Registration + OPD hospital: Maternity, Cath Lab and the other bricks that need IPD were
-/// never set up (no row), so nothing this hospital switched on needs IPD and it goes off.
+/// The codes of a hospital's live `module_config` rows in `status`, in order.
+async fn codes_in(app: &common::TestApp, tenant: Uuid, status: &str) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT code FROM module_config WHERE tenant_id = $1 AND status = $2::module_status \
+         AND deleted_at IS NULL ORDER BY code",
+    )
+    .bind(tenant)
+    .bind(status)
+    .fetch_all(&app.db)
+    .await
+    .expect("module rows")
+}
+
+/// The Registration + OPD hospital: Maternity and the other bricks that need IPD were never set
+/// up (no row), yet a missing row counts as on and they answer their API. The refusal names
+/// them as such, and `together` writes them an explicit `disabled` row, so IPD can go off and
+/// nothing goes dark unannounced.
 #[tokio::test]
-async fn ipd_goes_off_when_the_bricks_that_need_it_were_never_set_up() {
+async fn ipd_off_names_the_never_set_up_bricks_and_together_switches_them_off_too() {
     let app = common::spawn_app().await;
     let rows = [
         ("registration", "enabled"),
@@ -338,46 +353,53 @@ async fn ipd_goes_off_when_the_bricks_that_need_it_were_never_set_up() {
 
     let off = json!({ "status": "disabled" });
     let (status, body) = switch_as(&app, &client, &csrf, "ipd", off).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body.contains("Maternity (on, never set up)"), "{body}");
+    assert!(!body.contains("(switched on)"), "{body}");
+    assert_eq!(codes_in(&app, tenant, "disabled").await, [] as [&str; 0]);
 
+    let both = json!({ "status": "disabled", "together": true });
+    let (status, body) = switch_as(&app, &client, &csrf, "ipd", both).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let on: Vec<String> = sqlx::query_scalar(
-        "SELECT code FROM module_config WHERE tenant_id = $1 AND status = 'enabled' ORDER BY code",
-    )
-    .bind(tenant)
-    .fetch_all(&app.db)
-    .await
-    .expect("enabled bricks");
-    assert_eq!(on, ["opd", "registration"]);
+    assert_eq!(codes_in(&app, tenant, "enabled").await, ["opd", "registration"]);
+    let off = codes_in(&app, tenant, "disabled").await;
+    for code in ["ipd", "maternity", "nursing", "ot"] {
+        assert!(off.iter().any(|c| c == code), "{code} has no disabled row: {off:?}");
+    }
 }
 
-/// A refusal names exactly the bricks this hospital switched on, and `together` takes them along.
+/// A refusal tells a brick this hospital switched on from one that is on because nobody set it
+/// up, names both, and `together` takes both along.
 #[tokio::test]
-async fn ipd_off_is_refused_naming_the_enabled_bricks_and_together_switches_them_too() {
+async fn ipd_off_marks_switched_on_and_never_set_up_bricks_apart() {
     let app = common::spawn_app().await;
     let rows = [
         ("registration", "enabled"),
         ("ipd", "enabled"),
         ("nursing", "enabled"),
+        ("ot", "available"),
+        ("diet", "disabled"),
     ];
     let (client, csrf, tenant) = hospital_with(&app, &rows).await;
 
     let off = json!({ "status": "disabled" });
     let (status, body) = switch_as(&app, &client, &csrf, "ipd", off).await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
-    assert!(body.contains("Nursing Station"), "{body}");
-    for never_set_up in ["Maternity", "Cath Lab", "Operation Theatre", "Diet"] {
-        assert!(!body.contains(never_set_up), "{never_set_up}: {body}");
+    for named in [
+        "Nursing Station (switched on)",
+        "Operation Theatre (on, never set up)",
+        "Maternity (on, never set up)",
+    ] {
+        assert!(body.contains(named), "{named} missing: {body}");
     }
+    assert!(!body.contains("Diet"), "Diet is off: {body}");
 
     let both = json!({ "status": "disabled", "together": true });
     let (status, body) = switch_as(&app, &client, &csrf, "ipd", both).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let off: Vec<String> = sqlx::query_scalar(
-        "SELECT code FROM module_config WHERE tenant_id = $1 AND status = 'disabled' ORDER BY code",
-    )
-    .bind(tenant)
-    .fetch_all(&app.db)
-    .await
-    .expect("disabled bricks");
-    assert_eq!(off, ["ipd", "nursing"]);
+    let off = codes_in(&app, tenant, "disabled").await;
+    for code in ["diet", "ipd", "maternity", "nursing", "ot"] {
+        assert!(off.iter().any(|c| c == code), "{code} has no disabled row: {off:?}");
+    }
+    assert_eq!(codes_in(&app, tenant, "enabled").await, ["registration"]);
 }

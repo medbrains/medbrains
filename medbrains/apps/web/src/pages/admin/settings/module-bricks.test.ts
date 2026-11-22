@@ -4,7 +4,7 @@ import { useModuleStore } from "@medbrains/stores";
 import type { ModuleConfig } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import { NAV_GROUPS, type NavItemConfig } from "@/config/navigation";
-import { offDependencies, onDependents } from "./module-bricks";
+import { offDependencies } from "./module-bricks";
 
 function mod(code: string, status: "enabled" | "disabled", depends_on: string[] = []) {
   return { code, name: code, status, depends_on } as unknown as ModuleConfig;
@@ -22,11 +22,6 @@ function leaves(items: NavItemConfig[]): NavItemConfig[] {
 }
 
 describe("module bricks", () => {
-  it("names the bricks that are on and need the one being switched off", () => {
-    expect(onDependents("registration", MODULES).map((m) => m.code)).toEqual(["pharmacy"]);
-    expect(onDependents("pharmacy", MODULES)).toEqual([]);
-  });
-
   it("offers what a brick needs, what they need first", () => {
     const all = MODULES.map((m) =>
       m.code === "registration" ? mod("registration", "disabled") : m,

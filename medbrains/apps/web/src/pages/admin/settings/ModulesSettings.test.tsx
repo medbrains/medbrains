@@ -1,3 +1,4 @@
+import { ApiError } from "@medbrains/api";
 import type { ModuleConfig } from "@medbrains/types";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,7 +44,7 @@ describe("ModulesSettings: switching a brick off", () => {
     service.getEdition.mockResolvedValue({ hospital_type: "standalone_clinic" });
   });
 
-  it("switches IPD off at once when no listed app that needs it is on", async () => {
+  it("switches IPD off at once when the server finds nothing that needs it", async () => {
     service.listModules.mockResolvedValue(SMALL);
     render(<ModulesSettings />);
     await userEvent.click(await screen.findByRole("switch", { name: "IPD / Inpatient: on" }));
@@ -53,27 +54,43 @@ describe("ModulesSettings: switching a brick off", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("asks once, naming the apps that need it, and switches them off together", async () => {
+  it("shows every app the server says is on and needs it, and switches them off together", async () => {
+    // Maternity has no row, so it is not in the list the screen holds; only the server knows it
+    // is answering. The screen must show the server's own words, not its own guess.
+    const refusal =
+      "IPD / Inpatient cannot be switched off while apps that need it are on: " +
+      "Nursing Station (switched on), Maternity (on, never set up). " +
+      "Switch them off first, or together with it.";
     service.listModules.mockResolvedValue([
       ...SMALL,
       brick("nursing", "Nursing Station", ["registration", "ipd"]),
-      { ...brick("ot", "Operation Theatre", ["registration", "ipd"]), status: "available" },
     ]);
+    service.updateModule.mockRejectedValueOnce(new ApiError(refusal, 409, { error: "conflict" }));
     render(<ModulesSettings />);
     await userEvent.click(await screen.findByRole("switch", { name: "IPD / Inpatient: on" }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/Nursing Station/)).toBeInTheDocument();
-    expect(within(dialog).queryByText(/Operation Theatre/)).not.toBeInTheDocument();
-    expect(service.updateModule).not.toHaveBeenCalled();
+    expect(within(dialog).getByText(/Nursing Station \(switched on\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Maternity \(on, never set up\)/)).toBeInTheDocument();
+    expect(service.updateModule).toHaveBeenCalledTimes(1);
+    expect(service.updateModule).toHaveBeenCalledWith("ipd", { status: "disabled" });
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Switch them off together" }));
     await waitFor(() =>
-      expect(service.updateModule).toHaveBeenCalledWith("ipd", {
+      expect(service.updateModule).toHaveBeenLastCalledWith("ipd", {
         status: "disabled",
         together: true,
       }),
     );
-    expect(service.updateModule).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("says so, and asks nothing, when the switch fails for another reason", async () => {
+    service.listModules.mockResolvedValue(SMALL);
+    service.updateModule.mockRejectedValueOnce(new ApiError("Service unavailable", 503));
+    render(<ModulesSettings />);
+    await userEvent.click(await screen.findByRole("switch", { name: "IPD / Inpatient: on" }));
+    expect(await screen.findByText("Could not switch it")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
