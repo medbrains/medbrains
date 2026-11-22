@@ -50,10 +50,11 @@ def sections(body: str) -> tuple[str, list[tuple[str, str]]]:
     return parts[0].strip(), pairs
 
 
-def risk_classes(text: str) -> list[str]:
-    """The classes named on the first "Risk class:" line, up to a `·` separator."""
-    match = re.search(r"risk class\s*:([^\n·]*)", text, re.I)
-    return re.findall(r"\b(%s)\b" % "|".join(CLASSES), match.group(1).lower()) if match else []
+def names_risk_class(text: str) -> bool:
+    """True if some "Risk class:" line names exactly one class (read up to a `·` separator)."""
+    named = re.compile(r"\b(%s)\b" % "|".join(CLASSES))
+    lines = re.findall(r"risk class\s*:([^\n·]*)", text, re.I)
+    return any(len(named.findall(line.lower())) == 1 for line in lines)
 
 
 def problems(body: str, paths: list[str], labels: list[str]) -> list[str]:
@@ -65,7 +66,7 @@ def problems(body: str, paths: list[str], labels: list[str]) -> list[str]:
         found.append('the first section must be "## Not verified", before any other text')
     elif not parts[0][1]:
         found.append('"## Not verified" is empty: list what was not checked, or write "Nothing"')
-    if len(risk_classes(text)) != 1:
+    if not names_risk_class(text):
         found.append('no line "Risk class: <one of safety, standard, low>"')
     ui = [p for p in paths if UI_PATH.match(p) and not WEB_TEST.match(p)]
     screen = "\n".join(content for heading, content in parts if heading == "how verified on screen")
@@ -112,6 +113,7 @@ def self_test() -> None:
         ("not verified is last", GOOD.replace("## Not verified", "## Later") + "\n## Not verified\nNothing\n", WEB, [], 1),
         ("text before the first section", "Done, all good.\n\n" + GOOD, WEB, [], 1),
         ("every class named", GOOD.replace("standard", "safety | standard | low"), WEB, [], 1),
+        ("the words quoted before the real line", GOOD.replace("no phone at hand.", 'the "Risk class:" line is below.'), WEB, [], 0),
         ("class in the lifecycle's one-line form", GOOD.replace("- Risk class: standard", "Refs #3 · risk class: low · severity: S3"), WEB, [], 0),
         ("ui change, words only", no_shot, WEB, [], 1),
         ("ui change, android", no_shot, ["medbrains/apps/android/app-staff/Home.kt"], [], 1),
