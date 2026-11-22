@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# Put the previous release back, or (for install.sh) install a new one so that
+# the previous one can be put back.
+#
+#   medbrains-rollback                          # previous binaries + web back
+#   medbrains-rollback install <stage> <bin>... # install.sh steps 5 and 6
+#
+# Rollback stops the services, swaps every binary and the web tree with its
+# `.prev`, starts the services and waits for /api/health. If the previous
+# release does not come up healthy, the newer one is put back and the command
+# fails, saying so. Because it is a swap, a second rollback rolls forward.
+#
+# A binary is never written in place: the kernel refuses to write to a running
+# executable ("Text file busy"). Each one is replaced by a rename instead.
+# What is to be swapped is written to a plan file first, so a run interrupted
+# at any line is finished by running the command again.
+# Re-installing the release that is already installed keeps `.prev`: it still
+# holds the release before it, which is the one a rollback must return to.
+set -euo pipefail
+
+BIN="${MEDBRAINS_BIN_DIR:-/usr/local/bin}"
+WEB="${MEDBRAINS_WEB_ROOT:-/var/www/medbrains}"
+# Root's record of which release is live and which is in .prev.
+STATE="${MEDBRAINS_RELEASE_STATE:-/usr/local/share/medbrains/release}"
+PLAN="$STATE.rollback"
+ENV_FILE="${MEDBRAINS_ENV_FILE:-/etc/medbrains/env}"
+HEALTH_TRIES="${MEDBRAINS_HEALTH_TRIES:-15}"
+BINS=(medbrains-server medbrains-archive medbrains-proxy medbrains-edge)
+UNITS=(medbrains-server.service medbrains-proxy.service medbrains-edge.service)
+
+# Prints the error and stops.
+die() {
+    echo "medbrains-rollback: $*" >&2
+    exit 1
+}
+
+# Prints a short checksum of a binary, or of a web tree's index.html (which
+# names the build's hashed entry chunk); prints nothing for a missing path.
+sum_of() {
+    local f="$1"
+    [[ -d "$f" ]] && f="$f/index.html"
+    [[ -f "$f" ]] || return 0
+    openssl dgst -sha256 -r < "$f" | cut -c1-16
+}
+
+# Prints one checksum for a whole release: the binaries named in $3.. under
+# directory $1 plus the web tree $2.
+release_id() {
+    local dir="$1" web="$2" b
+    shift 2
+    { for b in "$@"; do sum_of "$dir/$b"; done; sum_of "$web"; } | openssl dgst -sha256 -r | cut -c1-16
+}
+
+# Prints the value recorded for $1 (current or previous) in the state file.
+state_get() {
+    [[ -f "$STATE" ]] || return 0
+    sed -n "s/^$1=//p" "$STATE"
+}
+
+# Records $1 as the live release and $2 as the one in .prev, by rename.
+state_set() {
+    install -d -m 0755 "$(dirname "$STATE")"
+    printf 'current=%s\nprevious=%s\n' "$1" "$2" > "$STATE.new"
+    chmod 0644 "$STATE.new"
+    mv -f "$STATE.new" "$STATE"
+}
+
+# Copies file $1 to $2 through a temporary name and a rename, so a running
+# executable at $2 is replaced and never written to.
+put_file() {
+    cp -p "$1" "$2.new"
+    chmod 0755 "$2.new"
+    mv -f "$2.new" "$2"
+}
+
+# Installs the binaries $2.. and the web build from stage $1. The live ones
+# move to .prev first, unless this exact release is already installed.
+install_release() {
+    local stage="${1:-}" label new cur same=0 b live_web="$WEB"
+    [[ -d "$stage" && $# -ge 2 ]] || die "usage: medbrains-rollback install <stage> <bin>..."
+    shift
+    # A stage with no web build is compared on its binaries alone.
+    [[ -d "$stage/medbrains-web" ]] || live_web=""
+    new="$(release_id "$stage" "$stage/medbrains-web" "$@")"
+    cur="$(release_id "$BIN" "$live_web" "$@")"
+    label="${MEDBRAINS_RELEASE:-$(basename "$stage")} $new"
+    if [[ "$new" == "$cur" ]]; then
+        same=1
+        echo "    this release is already installed; keeping .prev as it is"
+    fi
+    for b in "$@"; do
+        if [[ "$same" == 0 && -f "$BIN/$b" ]]; then put_file "$BIN/$b" "$BIN/$b.prev"; fi
+        put_file "$stage/$b" "$BIN/$b"
+    done
+    if [[ -d "$stage/medbrains-web" ]]; then
+        if [[ "$same" == 0 && -d "$WEB" ]]; then
+            rm -rf "$WEB.prev"
+            mv "$WEB" "$WEB.prev"
+        fi
+        mkdir -p "$WEB"
+        cp -R "$stage/medbrains-web/." "$WEB/"
+        if [[ "$(id -u)" == 0 ]]; then chown -R medbrains:medbrains "$WEB"; fi
+    else
+        echo "    $stage/medbrains-web/ not found — leaving SPA static dir as-is."
+    fi
+    rm -f "$PLAN"
+    if [[ "$same" == 0 ]]; then state_set "$label" "$(state_get current)"; fi
+}
+
+# Swaps $1 with $1.prev unless $1 already has checksum $2. Every line can be
+# repeated, so a run cut short anywhere is completed by the next one.
+swap_path() {
+    local p="$1"
+    if [[ ! -e "$p.swap" ]]; then
+        if [[ "$(sum_of "$p")" == "$2" ]]; then return 0; fi
+        if [[ -d "$p" ]]; then mv "$p" "$p.swap"; else ln -f "$p" "$p.swap"; fi
+    fi
+    if [[ ! -e "$p" || "$(sum_of "$p")" != "$2" ]]; then mv -f "$p.prev" "$p"; fi
+    mv -f "$p.swap" "$p.prev"
+}
+
+# Writes the plan: each path that has a .prev, with the checksum it must end
+# up with. An existing plan is an unfinished run and is kept.
+write_plan() {
+    local p want
+    [[ -s "$PLAN" ]] && return 0
+    install -d -m 0755 "$(dirname "$PLAN")"
+    for p in "${BINS[@]/#/$BIN/}" "$WEB"; do
+        # An empty web folder kept as .prev by a first install is not a release.
+        want="$(sum_of "$p.prev")"
+        if [[ -n "$want" ]]; then echo "$p $want"; fi
+    done > "$PLAN.new"
+    mv -f "$PLAN.new" "$PLAN"
+}
+
+# Stops the services, carries out the plan and starts them again. Only units
+# enabled on this host are touched; the server always is.
+swap_release() {
+    local u p want units=(medbrains-server.service)
+    for u in "${UNITS[@]:1}"; do
+        if systemctl is-enabled --quiet "$u" 2>/dev/null; then units+=("$u"); fi
+    done
+    for u in "${units[@]}"; do systemctl stop "$u" || true; done
+    while read -r p want; do swap_path "$p" "$want"; done < "$PLAN"
+    rm -f "$PLAN"
+    # A unit that fails to start is caught by the health check, not here.
+    for u in "${units[@]}"; do systemctl start "$u" || true; done
+}
+
+# True once the server unit is active and /api/health answers; gives up after
+# HEALTH_TRIES tries two seconds apart.
+healthy() {
+    local port url
+    port="$(sed -n 's/^PORT=//p' "$ENV_FILE" 2>/dev/null | tail -1)"
+    url="${MEDBRAINS_HEALTH_URL:-http://127.0.0.1:${port:-3000}/api/health}"
+    for _ in $(seq 1 "$HEALTH_TRIES"); do
+        if systemctl is-active --quiet medbrains-server.service \
+            && curl -fsS --max-time 3 "$url" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+
+# Puts the previous release back; restores the newer one if it is not healthy.
+rollback() {
+    local cur prev
+    write_plan
+    [[ -s "$PLAN" ]] || die "nothing to roll back — no .prev artifacts found"
+    cur="$(state_get current)"
+    prev="$(state_get previous)"
+    swap_release
+    if healthy; then
+        state_set "$prev" "$cur"
+        echo "rollback complete — /api/health is answering${prev:+ on $prev}"
+        return 0
+    fi
+    echo "medbrains-rollback: the previous release did not become healthy; putting the newer one back" >&2
+    write_plan
+    swap_release
+    if healthy; then
+        die "ROLLBACK FAILED — the newer release${cur:+ ($cur)} is back and healthy. See: journalctl -u medbrains-server"
+    fi
+    die "ROLLBACK FAILED — the newer release is back but is NOT healthy either. See: journalctl -u medbrains-server"
+}
+case "${1:-}" in
+    "") rollback ;;
+    install) shift; install_release "$@" ;;
+    *) die "usage: medbrains-rollback | medbrains-rollback install <stage> <bin>..." ;;
+esac
