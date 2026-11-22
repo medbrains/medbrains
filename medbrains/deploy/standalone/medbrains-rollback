@@ -16,6 +16,8 @@
 # at any line is finished by running the command again.
 # Re-installing the release that is already installed keeps `.prev`: it still
 # holds the release before it, which is the one a rollback must return to.
+# A release staged without a web build drops the web `.prev`: both it and the
+# release before it ran with the live web build, so a rollback keeps that.
 set -euo pipefail
 
 BIN="${MEDBRAINS_BIN_DIR:-/usr/local/bin}"
@@ -102,6 +104,11 @@ install_release() {
         if [[ "$(id -u)" == 0 ]]; then chown -R medbrains:medbrains "$WEB"; fi
     else
         echo "    $stage/medbrains-web/ not found — leaving SPA static dir as-is."
+        # The live web build is now the one both this release and the previous
+        # one ran with. An older tree in .prev would be swapped in by a rollback
+        # beside binaries it never ran with, so it goes; with no web .prev a
+        # rollback leaves the web alone.
+        if [[ "$same" == 0 ]]; then rm -rf "$WEB.prev"; fi
     fi
     rm -f "$PLAN"
     if [[ "$same" == 0 ]]; then state_set "$label" "$(state_get current | grep . || echo "unrecorded $cur")"; fi

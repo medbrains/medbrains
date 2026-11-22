@@ -9,7 +9,9 @@ umask 022
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"
-trap 'kill "${RUNNING:-}" 2>/dev/null; rm -rf "$TMP"' EXIT
+# `|| true`: under `set -e` a failing kill here (the process is already gone)
+# would become the script's exit status and skip the clean-up.
+trap 'kill "${RUNNING:-}" 2>/dev/null || true; rm -rf "$TMP"' EXIT
 export MEDBRAINS_BIN_DIR="$TMP/bin" MEDBRAINS_WEB_ROOT="$TMP/www/medbrains"
 export MEDBRAINS_RELEASE_STATE="$TMP/state/release" MEDBRAINS_ENV_FILE="$TMP/env"
 export MEDBRAINS_HEALTH_TRIES=1 PATH="$TMP/fake:$HERE:$PATH"
@@ -29,11 +31,12 @@ check() {
     if "$@"; then echo "PASS $name"; else echo "FAIL $name"; fail=1; fi
 }
 
-# Stages release $1: a real executable as the server (a copy of program $2,
-# so the kernel treats it as one), an archive binary and a web build.
+# Stages release $1: a real executable as the server (a copy of bash, which
+# runs under any name, with the release name appended so each differs), an
+# archive binary and a web build.
 make_release() {
     mkdir -p "$TMP/$1/medbrains-web"
-    cp "$(command -v "$2")" "$TMP/$1/medbrains-server"
+    { cat "$BASH"; echo "$1"; } > "$TMP/$1/medbrains-server"
     echo "archive $1" > "$TMP/$1/medbrains-archive"
     echo "<html>$1</html>" > "$TMP/$1/medbrains-web/index.html"
 }
@@ -65,8 +68,8 @@ roll_back() {
 
 if "$HERE/medbrains-rollback" > /dev/null 2>&1; then echo "FAIL rollback with no .prev succeeded"; fail=1; fi
 
-make_release r1 cat
-make_release r2 sleep
+make_release r1
+make_release r2
 install_release r1
 install_release r2
 check "r2 live, r1 kept as .prev" live_is r2
@@ -76,12 +79,17 @@ check "installing r2 again keeps r1 in .prev" prev_is r1
 check "state file names both releases" grep -q "^previous=r1 " "$TMP/state/release"
 
 # The live server binary is executing, as on a real host, while it is rolled back.
-"$TMP/bin/medbrains-server" 300 2> /dev/null &
+# It blocks opening a pipe nobody writes to, so it holds no child process.
+mkfifo "$TMP/hold"
+# shellcheck disable=SC2016 # expanded by the stand-in server, not here
+"$TMP/bin/medbrains-server" -c 'read -r _ < "$0"' "$TMP/hold" 2> /dev/null &
 RUNNING=$!
 sleep 1
-# macOS kills a copied system binary on exec; Linux (CI, every host) runs it.
+# macOS kills a modified copy of a signed binary on exec; Linux (CI, every
+# host) must run it, or the check below proves nothing.
 WAS_RUNNING=0
 if kill -0 "$RUNNING" 2> /dev/null; then WAS_RUNNING=1; fi
+if [[ "$(uname)" == Linux ]]; then check "the stand-in server is running" test "$WAS_RUNNING" = 1; fi
 check "rollback over a running binary succeeds" roll_back
 check "rollback puts r1 live" live_is r1
 check "rollback keeps r2 as .prev" prev_is r2
@@ -107,5 +115,19 @@ bash -c 'source <(sed "/^case /,\$d" "$0"); write_plan; swap_path "$1" "$(sum_of
     "$HERE/medbrains-rollback" "$TMP/bin/medbrains-server"
 roll_back
 check "an interrupted rollback is completed, not undone" live_is r1
+
+# r1 is live with r2 in .prev. r3 ships binaries only: the web build stays r1's,
+# so a rollback must return to r1's server with r1's web, not r2's.
+make_release r3
+rm -rf "$TMP/r3/medbrains-web"
+install_release r3
+check "binaries-only install puts r3's server live" cmp -s "$TMP/r3/medbrains-server" "$TMP/bin/medbrains-server"
+check "binaries-only install leaves r1's web live" grep -q "<html>r1</html>" "$MEDBRAINS_WEB_ROOT/index.html"
+roll_back
+check "rollback after a binaries-only install pairs r1's server with r1's web" live_is r1
+roll_back
+check "rolling forward again keeps r1's web under r3's server" \
+    grep -q "<html>r1</html>" "$MEDBRAINS_WEB_ROOT/index.html"
+check "rolling forward again puts r3's server live" cmp -s "$TMP/r3/medbrains-server" "$TMP/bin/medbrains-server"
 
 exit "$fail"
