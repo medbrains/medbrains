@@ -104,7 +104,7 @@ install_release() {
         echo "    $stage/medbrains-web/ not found — leaving SPA static dir as-is."
     fi
     rm -f "$PLAN"
-    if [[ "$same" == 0 ]]; then state_set "$label" "$(state_get current)"; fi
+    if [[ "$same" == 0 ]]; then state_set "$label" "$(state_get current | grep . || echo "unrecorded $cur")"; fi
 }
 
 # Swaps $1 with $1.prev unless $1 already has checksum $2. Every line can be
@@ -143,8 +143,9 @@ swap_release() {
     for u in "${units[@]}"; do systemctl stop "$u" || true; done
     while read -r p want; do swap_path "$p" "$want"; done < "$PLAN"
     rm -f "$PLAN"
-    # A unit that fails to start is caught by the health check, not here.
-    for u in "${units[@]}"; do systemctl start "$u" || true; done
+    # A crash-looping release has used up systemd's start limit; clear it, or the
+    # start is refused. A unit that still fails is caught by the health check.
+    for u in "${units[@]}"; do systemctl reset-failed "$u" 2>/dev/null || true; systemctl start "$u" || true; done
 }
 
 # True once the server unit is active and /api/health answers; gives up after

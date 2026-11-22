@@ -86,8 +86,8 @@ check "rollback over a running binary succeeds" roll_back
 check "rollback puts r1 live" live_is r1
 check "rollback keeps r2 as .prev" prev_is r2
 if [[ "$WAS_RUNNING" == 1 ]]; then check "the running process was left alone" kill -0 "$RUNNING"; fi
-check "services were stopped, then started" \
-    test "$(grep -c -e '^stop medbrains-server' -e '^start medbrains-server' "$TMP/systemctl.log")" = 2
+check "services were stopped, the start limit cleared, then started" \
+    test "$(grep -c -e '^stop medbrains-server' -e '^reset-failed medbrains-server' -e '^start medbrains-server' "$TMP/systemctl.log")" = 3
 check "a unit that is not enabled was left alone" test "$(grep -c -e 'stop medbrains-proxy' "$TMP/systemctl.log")" = 0
 check "state file follows the rollback" grep -q "^current=r1 " "$TMP/state/release"
 
@@ -101,7 +101,6 @@ check "health failure keeps r1 in .prev" prev_is r1
 check "health failure is said out loud" grep -q "ROLLBACK FAILED" "$TMP/out"
 check "state file still says r2 is live" grep -q "^current=r2 " "$TMP/state/release"
 echo none > "$TMP/sick"
-
 # A rollback killed half-way (binary swapped, web not yet) is finished by running it again.
 # shellcheck disable=SC2016 # expanded by the inner shell, which has the helper's functions
 bash -c 'source <(sed "/^case /,\$d" "$0"); write_plan; swap_path "$1" "$(sum_of "$1.prev")"' \
