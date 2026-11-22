@@ -60,6 +60,19 @@ for network in 80-wired 81-wireless 10-medbrains-fixed 50-medbrains-preferred; d
     grep -q "$network" "$OS/mkosi.extra/usr/lib/medbrains/role-network" ||
         { echo "FAIL: role-network leaves router advertisements on for $network"; exit 1; }
 done
+# One runaway service must not starve the database: each long-running service carries a soft and a
+# hard memory limit and comes back after a limit kill. PostgreSQL carries no hard limit, because a
+# killed database is worse than a slow one.
+KIT="$OS/../deploy/standalone"
+for unit in "$UNITS/medbrains-server.service" "$UNITS/medbrains-front.service" \
+    "$KIT/medbrains-server.service" "$KIT/medbrains-proxy.service" "$KIT/medbrains-edge.service"; do
+    for setting in MemoryHigh= MemoryMax= 'Restart=\(on-failure\|always\)$'; do
+        grep -q "^$setting" "$unit" || { echo "FAIL: ${unit#"$OS/../"} has no $setting"; exit 1; }
+    done
+done
+if grep -q '^MemoryMax=' "$UNITS/postgresql@.service.d/10-medbrains.conf"; then
+    echo "FAIL: PostgreSQL has a hard memory limit"; exit 1
+fi
 # Setup starts this for a new hospital only, so a node never holds its secrets or database.
 if grep -qw medbrains-firstboot <<<"$enabled"; then echo "FAIL: postinst enables first boot on a node"; exit 1; fi
 echo PASS

@@ -20,6 +20,10 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/medbrains-edge /var/log/medbrains
+# Memory: a share of this machine's RAM. At MemoryMax only the edge is killed,
+# and Restart=on-failure brings it back.
+MemoryHigh=5%
+MemoryMax=8%
 LimitNOFILE=65536
 
 [Install]

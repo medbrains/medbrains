@@ -96,6 +96,7 @@ curl -I https://hims.example-hospital.org                        # 200 once ACME
 | Backup now (sealed, shipped, recorded) | `sudo systemctl start medbrains-pg-backup.service && journalctl -u medbrains-pg-backup -n 20` |
 | Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
 | Update binary | Run `install.sh`. Replacing `/usr/local/bin/medbrains-server` alone now refuses to start on a host without the event token, signature and OAuth keys, which `install.sh` adds to `/etc/medbrains/env`. Values sealed under the old development keys then stop opening: doctors re-enrol signing keys and accounts reconnect |
+| Did a service hit its memory limit? | `systemctl show medbrains-server -p MemoryHigh -p MemoryMax -p MemoryCurrent -p NRestarts`; a limit kill shows as `oom-kill` in `journalctl -u medbrains-server`. The server, proxy and edge are limited to a share of RAM (server 30% soft, 40% hard) so one of them cannot starve PostgreSQL, which has no hard limit. Only the service that hit its limit restarts. A host gets these limits the next time `install.sh` runs |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
 
 ## Encrypted off-site backups

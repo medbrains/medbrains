@@ -32,6 +32,14 @@ ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/medbrains /var/log/medbrains
 
+# Memory: a share of this machine's RAM, so the same unit fits 2 GB and 64 GB.
+# The server idles at about 150 MB. Past MemoryHigh the kernel reclaims and
+# slows it; at MemoryMax only this service is killed, and Restart=on-failure
+# brings it back. PostgreSQL carries no limit: a slow database beats a killed
+# one, so the limits sit on its neighbours (docs/DECISIONS.md, 2026-11-22).
+MemoryHigh=30%
+MemoryMax=40%
+
 # File descriptor limit — uploads + streaming need headroom.
 LimitNOFILE=65536
 
