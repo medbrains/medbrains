@@ -105,6 +105,7 @@
   "visitStatus.lama": "LAMA",
   "visitStatus.deceased": "Deceased",
   "signals.mlc": "MLC",
+  "signals.mlcSuspected": "Possible MLC, doctor to confirm",
   "signals.broughtDead": "Brought dead",
   "signals.bay": "Bay",
   "signals.ipdAdmission": "IPD admission",

@@ -10,7 +10,6 @@ import {
   IconCheck,
   IconClock,
   IconEye,
-  IconGavel,
   IconHeartbeat,
   IconPlus,
 } from "@tabler/icons-react";
@@ -23,6 +22,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Button, IconButton } from "@/components/ui";
 import { emergencyService } from "@/services/emergency.service";
+import { MlcSignal } from "./mlc-signal";
 import {
   RestrictedValue,
   triageInfo,
@@ -218,15 +218,7 @@ export function VisitsTab({
     {
       key: "is_mlc",
       label: t("queueColumns.mlc"),
-      render: (r: ErVisit) =>
-        r.is_mlc ? (
-          <OperationalSignal
-            icon={IconGavel}
-            label={t("signals.mlc")}
-            shape="diamond"
-            tone="risk"
-          />
-        ) : null,
+      render: (r: ErVisit) => <MlcSignal visit={r} />,
     },
     {
       key: "bay_number",

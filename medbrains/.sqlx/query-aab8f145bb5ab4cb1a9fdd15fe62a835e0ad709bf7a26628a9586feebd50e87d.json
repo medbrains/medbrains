@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE er_visits\n            SET mlc_suspicion = 'suspected', mlc_suspected_type = $3, updated_at = now()\n          WHERE id = $1 AND tenant_id = $2 AND is_mlc = false AND mlc_suspicion IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aab8f145bb5ab4cb1a9fdd15fe62a835e0ad709bf7a26628a9586feebd50e87d"
+}

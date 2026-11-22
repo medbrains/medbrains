@@ -16,13 +16,13 @@ import {
   IconClock,
   IconFileText,
   IconFirstAidKit,
-  IconGavel,
   IconHeartbeat,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { OperationalSignalShape, OperationalSignalTone } from "@/components";
 import { OperationalSignal, useProtectedFieldAccess } from "@/components";
 import type { BadgeTone } from "@/components/ui";
+import { MlcSignal } from "./mlc-signal";
 
 export type EmergencyTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -312,15 +312,7 @@ export function EmergencyVisitSignals({
         tone={triageTone(visit.triage_level)}
         value={info.level > 0 ? String(info.level) : undefined}
       />
-      {visit.is_mlc && (
-        <OperationalSignal
-          icon={IconGavel}
-          label={t("signals.mlc")}
-          shape="diamond"
-          size={size}
-          tone="risk"
-        />
-      )}
+      <MlcSignal size={size} visit={visit} />
       {visit.is_brought_dead && (
         <OperationalSignal
           icon={IconAlertOctagon}
