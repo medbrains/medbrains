@@ -26,8 +26,9 @@ ProtectHome=true
 ReadWritePaths=/var/log/medbrains
 # Memory: a share of this machine's RAM; 25% of 2 GB is the 512 MB the OS
 # image's front runs under (flood peak measured there: 197 MB). At MemoryMax
-# only the proxy is killed, and Restart=on-failure brings it back.
-MemoryHigh=15%
+# only the proxy is killed, and Restart=on-failure brings it back. No
+# MemoryHigh, for the server's reason: with no swap a slowed proxy stalls
+# every request and never restarts.
 MemoryMax=25%
 LimitNOFILE=65536
 

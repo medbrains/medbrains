@@ -22,10 +22,10 @@ Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=15min
 LimitNOFILE=65536
-# A share of this machine's RAM (the image runs on 4 GB and on 64 GB): past MemoryHigh the kernel
-# reclaims and slows the server; at MemoryMax only it is killed, and Restart=on-failure brings it
-# back. PostgreSQL carries no limit: a slow database beats a killed one.
-MemoryHigh=30%
+# A share of this machine's RAM (the image runs on 4 GB and on 64 GB): at MemoryMax only the
+# server is killed, and Restart=on-failure brings it back. No MemoryHigh: past a soft limit the
+# kernel slows the server instead of killing it, so a leak would crawl for good and never restart.
+# PostgreSQL carries no limit: a slow database beats a killed one.
 MemoryMax=40%
 # Clinical work goes first when the screen or a report competes for the machine (D4).
 CPUWeight=200
