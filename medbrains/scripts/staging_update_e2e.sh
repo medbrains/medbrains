@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Proves an update on a staging box before it reaches a hospital: installs FROM
 # with the release's own install.sh, records a day's work, updates to TO the same
-# way with a tab left open, rolls back and forward, and checks the work each time.
+# way with a tab left open, rolls back (with a tab of the new build left open,
+# which must reload itself once) and forward, and checks the work each time.
 #   scripts/staging_update_e2e.sh v3.35.4 v3.35.5
 #   TO_SERVER=<arm64 server> TO_WEB=<web dist> TO_KIT=<deploy/standalone> TO_VERSION=x.y.z \
 #     scripts/staging_update_e2e.sh v3.35.5 local    # FROM's other binaries are reused
@@ -136,8 +137,16 @@ old_chunks_kept() {
 # Prints the host-side web dist directory of a release label.
 web_dir() { if [[ "$1" == local ]]; then echo "$TO_WEB"; else echo "$CACHE/$1/web"; fi; }
 
-# The real rollback: the host helper install.sh writes (.prev binaries and the previous web tree).
+# The real rollback: the host helper install.sh installs (.prev binaries and the previous web tree).
 rollback() { docker exec "$BOX" medbrains-rollback && check_running "$FROM"; }
+
+# Forces the reload path for the open TO tab: removes from the served web tree every
+# file only TO's build has, so the tab's next lazy screen cannot be fetched.
+drop_to_only_chunks() {
+    # shellcheck disable=SC2012 # hashed asset names: letters, digits, dots and dashes
+    comm -23 <(ls "$(web_dir "$TO_LABEL")/assets" | sort) <(ls "$(web_dir "$FROM")/assets" | sort) \
+        | docker exec -i "$BOX" sh -c 'cd /var/www/medbrains/assets && xargs -r rm -f'
+}
 
 # Runs one phase of the Playwright driver against the box.
 phase() {
@@ -147,7 +156,8 @@ phase() {
     (cd "$HERE" && STAGING_RUN="$RUN" STAGING_LABEL="$label" STAGING_EXPECT_VERSION="$version" STAGING_WEB_SHOWS_VERSION="$shows" \
         E2E_BASE_URL="http://127.0.0.1:$PORT" E2E_BACKEND_URL="http://127.0.0.1:$PORT" \
         STAGING_NAME="$NAME" STAGING_RUN_DIR="$RUN" STAGING_PORT="$PORT" STAGING_CACHE="$CACHE" \
-        TO_LABEL="$TO_LABEL" TO_WEB="$TO_WEB" STAGING_UPDATE_CMD="$HERE/scripts/staging_update_e2e.sh __update __update" \
+        TO_LABEL="$TO_LABEL" TO_WEB="$TO_WEB" STAGING_FROM="$FROM" STAGING_EXPECT_RELOADS="${EXPECT_RELOADS:-}" \
+        STAGING_UPDATE_CMD="$HERE/scripts/staging_update_e2e.sh ${TAB_CMD:-__update} __tab" \
         node_modules/.bin/playwright test -c apps/web/e2e/staging/playwright.staging.config.ts -g "(^| )$test\$")
 }
 
@@ -178,9 +188,14 @@ step_after() {
 # Stops the run when an earlier step failed that every later step needs.
 need_pass() { grep -q $'\tFAIL\t' "$RUN/results.tsv" && { report; exit 1; }; return 0; }
 
-# Re-entry from the old-tab phase: performs the update while that tab is open.
+# Re-entry from the open-tab phase: performs the update, or the rollback, while that tab is open.
 if [[ "$FROM" == __update ]]; then
     install_release "$TO_LABEL" > "$RUN/logs/update.log" 2>&1
+    exit
+elif [[ "$FROM" == __rollback ]]; then
+    FROM="$STAGING_FROM"
+    step "rollback-to-$FROM" rollback
+    drop_to_only_chunks
     exit
 fi
 
@@ -212,7 +227,8 @@ step "update-to-$TO_LABEL-with-open-tab" phase oldtab update "$EXPECT_TO"
 step "check-running-$TO_LABEL" check_running "$TO_LABEL"
 step "old-tab-files-kept" old_chunks_kept
 step "flows-after-update" phase verify after-update "$EXPECT_TO" "$TO_LABEL"
-step "rollback-to-$FROM" rollback
+# A tab on TO's build stays open across the rollback: its chunks are gone, so it reloads once onto FROM's.
+TAB_CMD=__rollback EXPECT_RELOADS=1 step "tab-reloads-once-after-rollback" phase oldtab rollback ""
 step_after "rollback-to-$FROM" "flows-after-rollback" phase verify after-rollback "${FROM#v}" "$FROM"
 step "rollforward-to-$TO_LABEL" install_release "$TO_LABEL"
 step "flows-after-rollforward" phase verify after-rollforward "$EXPECT_TO" "$TO_LABEL"
