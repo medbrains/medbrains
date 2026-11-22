@@ -54,7 +54,7 @@ fetch_release() {
     local tag="$1" dir="$CACHE/$1"
     [[ -f "$dir/.ok" ]] && return 0
     mkdir -p "$dir/bins" "$dir/web" "$dir/kit"
-    gh release download "$tag" -R DomnicAmalan/MedBrains -D "$dir" --clobber \
+    gh release download "$tag" -R medbrains/medbrains -D "$dir" --clobber \
         -p medbrains-server-bins-linux-arm64.tar.gz -p medbrains-web-dist.tar.gz -p SHA256SUMS
     (cd "$dir" && grep -E ' \*?medbrains-(server-bins-linux-arm64|web-dist)\.tar\.gz$' SHA256SUMS | shasum -a 256 -c -)
     tar -xzf "$dir/medbrains-server-bins-linux-arm64.tar.gz" -C "$dir/bins"
