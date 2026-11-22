@@ -39,6 +39,16 @@ switch in front of it (or NONE) and the permission groups its code names. It is 
 `scripts/brick_router_inventory.py --write`. `scripts/brick_ungated_merges.txt` is the ratchet of
 routers with no switch: `make check-bricks` fails on a new one, and adding a line needs the owner.
 
+## One manifest per brick (2026-11-22)
+
+`bricks/<id>/brick.toml` states what a brick is made of: the bricks it needs, its permission
+groups, the routers its switch covers and their path prefixes, its jobs, the tables only its code
+writes, its screens and its own crates' tests. The files are generated from the code by
+`scripts/brick_manifests.py --write`, so they are true by construction; `make check-bricks`
+refuses a manifest that does not parse, names an unknown brick, closes a cycle, shares a gated
+prefix with another brick, or differs from the code. `bricks.rs` is still the source. An empty
+field is a missing stud: `prefixes = []` means no router of that brick is gated at the merge.
+
 ## A brick's background jobs (2026-11-19)
 
 A job that serves only some bricks is a row in `BRICK_JOBS` (`medbrains-core/src/bricks.rs`): its

@@ -564,6 +564,8 @@ check-bricks: ## Every module name comes from bricks.rs; ratchets bricks with no
 	python3 ../scripts/check_bricks.py
 	python3 scripts/brick_router_inventory.py --self-test
 	python3 scripts/brick_router_inventory.py --check
+	python3 scripts/brick_manifests.py --self-test
+	python3 scripts/brick_manifests.py --check
 
 check-actions: ## Every typed action names a brick, a permission constant and its own id
 	python3 ../scripts/check_actions.py
