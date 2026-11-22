@@ -187,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // machine and wrong the moment the application stops being a superuser.
     let worker_pool = match std::env::var("WORKER_DATABASE_URL") {
         Ok(url) if !url.trim().is_empty() => {
-            let pool = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            let pool = medbrains_server::worker_pool::connect(&url, &pool_config).await?;
             tracing::info!("background workers have their own pool");
             pool
         }
