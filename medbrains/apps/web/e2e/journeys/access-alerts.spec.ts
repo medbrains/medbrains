@@ -5,14 +5,13 @@
  * the way the scan writes it. The audit officer reviews it from the screen;
  * their note is added to what happened, not written over it.
  */
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { createPatientApi } from "../helpers/journey-steps";
+import { dbExec } from "./support/db";
 import { expect, test } from "./support/world";
 
-const COMPOSE_DIR = fileURLToPath(new URL("../../../../", import.meta.url));
 const UUID = /^[0-9a-f-]{36}$/;
 
+/** Writes the alert the after-hours scan would raise for `userId` opening `patientId`. */
 function raiseAfterHoursAlert(userId: string, patientId: string): void {
   if (!UUID.test(userId) || !UUID.test(patientId)) throw new Error("not uuids");
   const sql =
@@ -20,11 +19,7 @@ function raiseAfterHoursAlert(userId: string, patientId: string): void {
     `SELECT tenant_id, '${patientId}', '${userId}', 'after_hours', 'patients', ` +
     "'Opened at 23:14 with no shift clocked in' FROM users WHERE id = " +
     `'${userId}'`;
-  execFileSync(
-    "docker",
-    ["compose", "exec", "-T", "postgres", "psql", "-U", "medbrains", "-d", "medbrains", "-c", sql],
-    { cwd: COMPOSE_DIR, encoding: "utf8" },
-  );
+  dbExec(sql);
 }
 
 test("the audit officer reviews an after-hours access alert", async ({ hospital }) => {
