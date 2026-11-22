@@ -9,7 +9,7 @@ use uuid::Uuid;
 /// Kept apart from the handler so a test can decode a real row: the card
 /// answered 500 from the first backup on, because `expires_at` was read as a
 /// date and the column is `timestamptz`.
-pub async fn recent(
+pub(crate) async fn recent(
     conn: &mut sqlx::PgConnection,
     tenant_id: Uuid,
 ) -> Result<Vec<BackupHistory>, sqlx::Error> {
