@@ -29,7 +29,15 @@ import {
   heightToCm,
   weightToKg,
 } from "@/lib/vital-units";
-import { bloodPressureSeverity } from "@/pages/opd/vitals-thresholds";
+import {
+  ADULT_VITAL_BANDS,
+  bloodPressureGrade,
+  gradeLabel,
+  gradeTone,
+  gradeVital,
+  type VitalBands,
+  type VitalGrade,
+} from "@/pages/opd/vitals-thresholds";
 import { BloodPressureInput } from "./BloodPressureInput";
 import { useClinicalSetting } from "./useClinicalSetting";
 import styles from "./vitals-recorder.module.scss";
@@ -45,15 +53,18 @@ interface VitalConfig {
   max: number;
   step: number;
   precision: number;
-  ranges: { normal: [number, number]; borderline: [number, number]; critical: [number, number] };
+  ranges: VitalBands & { critical: readonly [number, number] };
 }
 
+/** The card's colour level for a grade: borderline for low/high, critical beyond. */
+function gradeLevel(grade: VitalGrade): RangeLevel {
+  if (grade === "normal") return "normal";
+  return grade === "low" || grade === "high" ? "borderline" : "critical";
+}
+
+/** The card's colour level for a typed reading; none until something is typed. */
 function getRangeLevel(config: VitalConfig, value: number | undefined): RangeLevel | null {
-  if (value === undefined) return null;
-  const { normal, borderline } = config.ranges;
-  if (value >= normal[0] && value <= normal[1]) return "normal";
-  if (value >= borderline[0] && value <= borderline[1]) return "borderline";
-  return "critical";
+  return value === undefined ? null : gradeLevel(gradeVital(value, config.ranges));
 }
 
 function getRangeLabel(config: VitalConfig): string {
@@ -62,24 +73,14 @@ function getRangeLabel(config: VitalConfig): string {
   return `${normal[0]}–${normal[1]}`;
 }
 
+/** The reading's grade in words and its tone, by the rule the doctor's view uses. */
 function getRangeStatus(
   config: VitalConfig,
   value: number | undefined,
 ): { label: string; color: BadgeTone } | null {
   if (value === undefined) return null;
-  const [normalLow, normalHigh] = config.ranges.normal;
-  const [borderlineLow, borderlineHigh] = config.ranges.borderline;
-  if (value >= normalLow && value <= normalHigh) return { label: "Normal", color: "success" };
-  if (value < normalLow) {
-    return {
-      label: value >= borderlineLow ? "Low" : "Critical low",
-      color: value >= borderlineLow ? "warning" : "danger",
-    };
-  }
-  return {
-    label: value <= borderlineHigh ? "High" : "Critical high",
-    color: value <= borderlineHigh ? "warning" : "danger",
-  };
+  const grade = gradeVital(value, config.ranges);
+  return { label: gradeLabel(grade), color: grade === "normal" ? "success" : gradeTone(grade) };
 }
 
 function computeBmi(weightKg: number | undefined, heightCm: number | undefined): number | null {
@@ -95,10 +96,10 @@ function getBmiCategory(bmi: number): { labelKey: string; color: BadgeTone } {
   return { labelKey: "vitals.obese", color: "danger" };
 }
 
-function bloodPressureLevel(systolic?: number, diastolic?: number): RangeLevel | null {
+/** The BP grade once both numbers are in: half a reading is not yet a reading. */
+function completeBloodPressureGrade(systolic?: number, diastolic?: number): VitalGrade | null {
   if (systolic === undefined || diastolic === undefined) return null;
-  if (isHypertensiveCrisis(systolic, diastolic)) return "critical";
-  return bloodPressureSeverity(systolic, diastolic) === "normal" ? "normal" : "borderline";
+  return bloodPressureGrade(systolic, diastolic);
 }
 
 function computeMap(systolic: number | undefined, diastolic: number | undefined): number | null {
@@ -170,7 +171,7 @@ export function VitalsRecorder({
         max: 250,
         step: 1,
         precision: 0,
-        ranges: { normal: [60, 100], borderline: [50, 120], critical: [0, 300] },
+        ranges: { ...ADULT_VITAL_BANDS.pulse, critical: [0, 300] },
       },
       {
         key: "spo2",
@@ -181,7 +182,7 @@ export function VitalsRecorder({
         max: 100,
         step: 1,
         precision: 0,
-        ranges: { normal: [95, 100], borderline: [90, 100], critical: [0, 100] },
+        ranges: { ...ADULT_VITAL_BANDS.spo2, critical: [0, 100] },
       },
       {
         key: "respiratory_rate",
@@ -192,7 +193,7 @@ export function VitalsRecorder({
         max: 60,
         step: 1,
         precision: 0,
-        ranges: { normal: [12, 20], borderline: [10, 25], critical: [0, 60] },
+        ranges: { ...ADULT_VITAL_BANDS.respiratory_rate, critical: [0, 60] },
       },
       {
         key: "weight",
@@ -247,7 +248,8 @@ export function VitalsRecorder({
 
   const showBp =
     !enabledVitals || enabledVitals.has("systolic_bp") || enabledVitals.has("diastolic_bp");
-  const bpLevel = bloodPressureLevel(values.systolic_bp, values.diastolic_bp);
+  const bpGrade = completeBloodPressureGrade(values.systolic_bp, values.diastolic_bp);
+  const bpLevel = bpGrade && gradeLevel(bpGrade);
 
   // BMI calculation — convert display values to metric for computation
   const bmiValues = useMemo(() => {
@@ -341,9 +343,11 @@ export function VitalsRecorder({
               showErrors={showBpErrors}
             />
             <Box role="status" aria-live="polite">
-              {bpLevel === "critical" && (
-                <Badge size="xs" tone="danger" mt={4}>
-                  {t("vitals.hypertensiveCrisis", "Hypertensive crisis")}
+              {bpGrade && bpGrade !== "normal" && (
+                <Badge size="xs" tone={gradeTone(bpGrade)} mt={4}>
+                  {isHypertensiveCrisis(values.systolic_bp, values.diastolic_bp)
+                    ? t("vitals.hypertensiveCrisis", "Hypertensive crisis")
+                    : `${t("vitals.bloodPressure", "Blood pressure")}: ${gradeLabel(bpGrade)}`}
                 </Badge>
               )}
             </Box>
