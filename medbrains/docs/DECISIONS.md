@@ -1,5 +1,11 @@
 # MedBrains decisions and history
 
+> **This file is the history up to 2026-11-22 and takes no new rows.** A new decision is one
+> file in [`decisions/`](decisions/), named `YYYY-MM-DD-short-slug.md`
+> (why: [`decisions/2026-11-22-one-file-per-decision.md`](decisions/2026-11-22-one-file-per-decision.md)).
+> To move a row your branch already added here:
+> `python3 medbrains/scripts/decision_row_to_file.py origin/<base branch>`.
+
 The record of what was decided, why, and what was rejected, so nobody has to rediscover it later.
 This file is the source of truth; any wiki copy is a mirror of it. The repository is public: no
 secrets, patient data, server details, or private partner, client or banking information here.
