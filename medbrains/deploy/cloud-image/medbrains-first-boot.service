@@ -1,0 +1,14 @@
+[Unit]
+Description=MedBrains first boot: make this machine's own secrets and start the server
+After=network-online.target cloud-init.service
+Wants=network-online.target
+ConditionPathExists=!/var/lib/medbrains-first-boot.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/medbrains-cloud-setup --first-boot
+StandardOutput=journal+console
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target
