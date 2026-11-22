@@ -19,6 +19,9 @@
 # of <root> and nobody else can write to it, which on a server means root.
 # -E: the cleanup trap in install_web also fires for a failure in a helper.
 set -Eeuo pipefail
+# The web files are root's and read by the server: never let the caller's
+# umask (002 for an ordinary Ubuntu login) decide who else can write them.
+umask 022
 
 ROOT="${MEDBRAINS_WEB_ROOT:-/var/www/medbrains}"
 PARENT="$(dirname "$ROOT")"

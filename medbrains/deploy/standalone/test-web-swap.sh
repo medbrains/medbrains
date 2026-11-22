@@ -4,6 +4,9 @@
 # .prev. No framework and no root: it works in a temp directory it owns.
 #   bash deploy/standalone/test-web-swap.sh
 set -euo pipefail
+# The fake builds below must not be group-writable (the swap refuses those),
+# whatever umask the caller has.
+umask 022
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SWAP="$HERE/medbrains-web-swap"
@@ -56,6 +59,22 @@ check "only live and prev trees kept" test "$(find "$LIVE.d" -mindepth 1 -maxdep
 check "no tree writable by group or others" \
     test -z "$(find "$LIVE.d" \( -perm -002 -o -perm -020 \) -print -quit)"
 
+# shellcheck disable=SC2329 # called through check()
+# True when every kept directory is 0755 and every kept file 0644.
+modes_exact() {
+    test -z "$(find "$LIVE.d" \( -type d ! -perm 755 \) -o \( -type f ! -perm 644 \) | head -1)"
+}
+check "trees are 0755 dirs and 0644 files" modes_exact
+
+# The swap sets its own umask: a caller with a loose one gets the same modes.
+make_build r3 r3-eee.js
+(umask 000 && "$SWAP" install "$TMP/r3" >/dev/null)
+check "r3 live" live_is r3
+check "modes the same under a caller umask of 000" modes_exact
+(umask 000 && "$SWAP" rollback >/dev/null)
+check "rollback under umask 000 restores r2" live_is r2
+check "modes still exact after that rollback" modes_exact
+
 # A build that cannot be copied (an unreadable file) must not touch the live tree.
 make_build bad bad-ccc.js
 chmod 000 "$TMP/bad/assets/bad-ccc.js"
@@ -63,7 +82,7 @@ if "$SWAP" install "$TMP/bad" >/dev/null 2>&1; then echo "FAIL failed copy repor
 check "failed install leaves r2 live" live_is r2
 check "failed install leaves no half-built tree" \
     test "$(find "$LIVE.d" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = 2
-check "failed install leaves .prev as r1" grep -q "<html>r1</html>" "$LIVE.prev/index.html"
+check "failed install leaves .prev as r3" grep -q "<html>r3</html>" "$LIVE.prev/index.html"
 
 # A build others can write to is refused before anything is copied.
 make_build loose loose-ddd.js
@@ -72,7 +91,7 @@ if "$SWAP" install "$TMP/loose" >/dev/null 2>&1; then echo "FAIL writable build 
 check "writable build refused, r2 live" live_is r2
 
 "$SWAP" rollback >/dev/null
-check "rollback restores r1 from .prev" live_is r1
+check "rollback restores r3 from .prev" live_is r3
 check "rollback keeps r2 as .prev" grep -q "<html>r2</html>" "$LIVE.prev/index.html"
 "$SWAP" rollback >/dev/null
 check "second rollback rolls forward to r2" live_is r2
