@@ -11,7 +11,7 @@ TMP="$(mktemp -d)"
 trap 'kill "${RUNNING:-}" 2>/dev/null; rm -rf "$TMP"' EXIT
 export MEDBRAINS_BIN_DIR="$TMP/bin" MEDBRAINS_WEB_ROOT="$TMP/www/medbrains"
 export MEDBRAINS_RELEASE_STATE="$TMP/state/release" MEDBRAINS_ENV_FILE="$TMP/env"
-export MEDBRAINS_HEALTH_TRIES=1 PATH="$TMP/fake:$PATH"
+export MEDBRAINS_HEALTH_TRIES=1 PATH="$TMP/fake:$HERE:$PATH"
 mkdir -p "$TMP/bin" "$TMP/www" "$TMP/fake"
 fail=0
 # shellcheck disable=SC2016 # the stand-ins expand these themselves
