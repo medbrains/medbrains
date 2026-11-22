@@ -19,7 +19,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1260 permissions, one per constant in the Rust source. */
+/** 1262 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2933,6 +2933,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "emergency.mlc.amend",
     label: "Amend a certified or closed MLC",
     description: "Changes what a medico-legal case records after the opinion is given, while it is in court, or once it is closed. MLC records are legal evidence: every amendment needs a written reason and is written to the audit trail with the old and new values.",
+    module: "emergency",
+  },
+  {
+    code: "emergency.mlc.review_suspected",
+    label: "Confirm or dismiss a suspected MLC",
+    description: "Decides an ER visit the system flagged as a possible medico-legal case from the complaint text. Confirming registers the MLC case and also needs `emergency.mlc.create`; dismissing needs a written reason. Both are written to the audit trail.",
     module: "emergency",
   },
   {
@@ -7755,6 +7761,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.MLC.LIST,
       P.EMERGENCY.MLC.PRINT,
       P.EMERGENCY.MLC.REPRINT,
+      P.EMERGENCY.MLC.REVIEW_SUSPECTED,
       P.EMERGENCY.MLC.UPDATE,
       P.EMERGENCY.MLC_DOCUMENTS.AGE_ESTIMATION_CREATE,
       P.EMERGENCY.MLC_DOCUMENTS.COURT_SUMMONS_CREATE,

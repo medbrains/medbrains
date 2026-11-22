@@ -1274,6 +1274,7 @@ export const P = {
       LIST: "emergency.mlc.list",
       PRINT: "emergency.mlc.print",
       REPRINT: "emergency.mlc.reprint",
+      REVIEW_SUSPECTED: "emergency.mlc.review_suspected",
       UPDATE: "emergency.mlc.update",
     },
     MLC_AMEND: "emergency.mlc.amend",
@@ -1309,6 +1310,7 @@ export const P = {
     MLC_POLICE_INTIMATIONS_REPRINT: "emergency.mlc_police_intimations.reprint",
     MLC_PRINT: "emergency.mlc.print",
     MLC_REPRINT: "emergency.mlc.reprint",
+    MLC_REVIEW_SUSPECTED: "emergency.mlc.review_suspected",
     MLC_UPDATE: "emergency.mlc.update",
     RESUSCITATION: {
       CREATE: "emergency.resuscitation.create",

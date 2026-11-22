@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE er_visits\n            SET is_mlc = true, updated_at = now(),\n                mlc_suspicion_decided_by = CASE WHEN mlc_suspicion = 'suspected' THEN $3\n                                                ELSE mlc_suspicion_decided_by END,\n                mlc_suspicion_decided_at = CASE WHEN mlc_suspicion = 'suspected' THEN now()\n                                                ELSE mlc_suspicion_decided_at END,\n                mlc_suspicion = CASE WHEN mlc_suspicion = 'suspected' THEN 'confirmed'\n                                     ELSE mlc_suspicion END\n          WHERE id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "92155c393ddd9031eafd1db61dbd76a57c8da4f9c4bfa95bc2e95e7e18fb4f02"
+}

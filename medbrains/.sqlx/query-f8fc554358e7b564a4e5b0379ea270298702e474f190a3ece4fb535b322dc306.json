@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE er_visits\n            SET mlc_suspicion = $3, mlc_suspicion_reason = $4, mlc_suspicion_decided_by = $5,\n                mlc_suspicion_decided_at = now(), is_mlc = $6, updated_at = now()\n          WHERE id = $1 AND tenant_id = $2 AND mlc_suspicion = 'suspected'\n      RETURNING patient_id, mlc_suspected_type, chief_complaint, notes",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "mlc_suspected_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "chief_complaint",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "notes",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f8fc554358e7b564a4e5b0379ea270298702e474f190a3ece4fb535b322dc306"
+}

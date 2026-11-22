@@ -156,6 +156,14 @@ export interface ErVisit {
   updated_at: string;
 }
 
+/** The outcome of a doctor's decision on a possible MLC. */
+export interface SuspectedMlcDecision {
+  visit_id: string;
+  mlc_suspicion: "confirmed" | "dismissed";
+  is_mlc: boolean;
+  mlc_case_id: string | null;
+}
+
 export interface ErTriageAssessment {
   id: string;
   tenant_id: string;

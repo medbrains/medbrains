@@ -14,6 +14,12 @@ export interface CreateErVisitRequest {
   mass_casualty_event_id?: string;
 }
 
+/** A doctor's decision on a possible MLC; a dismissal carries its reason. */
+export interface DecideSuspectedMlcRequest {
+  decision: "confirm" | "dismiss";
+  reason?: string;
+}
+
 export interface UpdateErVisitRequest {
   status?: string;
   triage_level?: string;

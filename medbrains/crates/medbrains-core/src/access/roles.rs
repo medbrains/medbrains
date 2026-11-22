@@ -136,6 +136,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // The examining doctor corrects their own certified record —
             // reason required, audited.
             permissions::emergency::mlc::AMEND,
+            // Decides the visits the triage desk saved as possible MLCs.
+            permissions::emergency::mlc::REVIEW_SUSPECTED,
             permissions::emergency::mlc::PRINT,
             permissions::emergency::mlc::REPRINT,
             permissions::emergency::mlc_injuries::CREATE,

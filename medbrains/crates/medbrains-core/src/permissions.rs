@@ -1842,6 +1842,13 @@ pub mod emergency {
         /// legal evidence: every amendment needs a written reason and is
         /// written to the audit trail with the old and new values.
         pub const AMEND: &str = "emergency.mlc.amend";
+        /// Confirm or dismiss a suspected MLC.
+        ///
+        /// Decides an ER visit the system flagged as a possible medico-legal
+        /// case from the complaint text. Confirming registers the MLC case
+        /// and also needs `emergency.mlc.create`; dismissing needs a written
+        /// reason. Both are written to the audit trail.
+        pub const REVIEW_SUSPECTED: &str = "emergency.mlc.review_suspected";
     }
 
     pub mod mlc_injuries {

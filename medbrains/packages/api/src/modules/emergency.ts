@@ -14,6 +14,7 @@ import type {
   CreateResuscitationLogRequest,
   CreateTriageRequest,
   DeactivateCodeRequest,
+  DecideSuspectedMlcRequest,
   ErBay,
   ErBayRequest,
   ErCodeActivation,
@@ -28,6 +29,7 @@ import type {
   MlcDocument,
   MlcInjury,
   MlcPoliceIntimation,
+  SuspectedMlcDecision,
   UpdateErVisitRequest,
   UpdateMassCasualtyEventRequest,
   UpdateMlcCaseRequest,
@@ -59,6 +61,11 @@ export const emergencyApi = {
 
   updateErVisit: (id: string, data: UpdateErVisitRequest) =>
     request<ErVisit>(`/emergency/visits/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  decideSuspectedMlc: (visitId: string, data: DecideSuspectedMlcRequest) =>
+    request<SuspectedMlcDecision>(`/emergency/visits/${visitId}/mlc-suspicion`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
