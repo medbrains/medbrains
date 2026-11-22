@@ -170,11 +170,19 @@ async fn an_invalidation_shows_a_change_inside_the_cache_lifetime() {
 }
 
 /// A hospital of its own with the EMR (`opd`) switched off, and its admin signed in.
-///
-/// Its own tenant so no other test that runs at the same time on the shared admin tenant can see
-/// the OPD desk refuse. The row is written straight (the Modules screen would refuse while a
-/// specialty brick needs `opd`); a new tenant has no cached statuses to invalidate.
 async fn emr_off_hospital(app: &common::TestApp) -> (reqwest::Client, String, Uuid) {
+    hospital_with(app, &[("opd", "disabled")]).await
+}
+
+/// A hospital of its own holding exactly these `module_config` rows, and its admin signed in.
+///
+/// Its own tenant so no other test that runs at the same time on the shared admin tenant sees
+/// its switches. The rows are written straight; a new tenant has no cached statuses to
+/// invalidate. A brick left out has no row, as on a hospital that never set it up.
+async fn hospital_with(
+    app: &common::TestApp,
+    bricks: &[(&str, &str)],
+) -> (reqwest::Client, String, Uuid) {
     let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
     let code = format!("BG{suffix}");
     let tenant: Uuid = sqlx::query_scalar(
@@ -185,14 +193,18 @@ async fn emr_off_hospital(app: &common::TestApp) -> (reqwest::Client, String, Uu
     .fetch_one(&app.db)
     .await
     .expect("hospital");
-    sqlx::query(
-        "INSERT INTO module_config (tenant_id, code, name, status) \
-         VALUES ($1, 'opd', 'OPD / Outpatient', 'disabled')",
-    )
-    .bind(tenant)
-    .execute(&app.db)
-    .await
-    .expect("emr off");
+    for (brick, status) in bricks {
+        sqlx::query(
+            "INSERT INTO module_config (tenant_id, code, name, status) \
+             VALUES ($1, $2, $2, $3::module_status)",
+        )
+        .bind(tenant)
+        .bind(brick)
+        .bind(status)
+        .execute(&app.db)
+        .await
+        .expect("module row");
+    }
     let username = format!("bgadmin_{}", suffix.to_lowercase());
     sqlx::query(
         "INSERT INTO users (tenant_id, username, email, full_name, role, password_hash) \
@@ -292,4 +304,80 @@ async fn opd_off_closes_the_desk_but_an_ipd_encounter_still_charts() {
         StatusCode::OK,
         "IPD prescriptions must still read"
     );
+}
+
+/// Sets a brick's status as `client`, with any extra body fields; returns the status and body.
+async fn switch_as(
+    app: &common::TestApp,
+    client: &reqwest::Client,
+    csrf: &str,
+    code: &str,
+    body: serde_json::Value,
+) -> (StatusCode, String) {
+    let resp = client
+        .put(app.url(&format!("/api/setup/modules/{code}")))
+        .header("x-csrf-token", csrf)
+        .json(&body)
+        .send()
+        .await
+        .expect("module switch");
+    (resp.status(), resp.text().await.unwrap_or_default())
+}
+
+/// The Registration + OPD hospital: Maternity, Cath Lab and the other bricks that need IPD were
+/// never set up (no row), so nothing this hospital switched on needs IPD and it goes off.
+#[tokio::test]
+async fn ipd_goes_off_when_the_bricks_that_need_it_were_never_set_up() {
+    let app = common::spawn_app().await;
+    let rows = [
+        ("registration", "enabled"),
+        ("opd", "enabled"),
+        ("ipd", "enabled"),
+    ];
+    let (client, csrf, tenant) = hospital_with(&app, &rows).await;
+
+    let off = json!({ "status": "disabled" });
+    let (status, body) = switch_as(&app, &client, &csrf, "ipd", off).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let on: Vec<String> = sqlx::query_scalar(
+        "SELECT code FROM module_config WHERE tenant_id = $1 AND status = 'enabled' ORDER BY code",
+    )
+    .bind(tenant)
+    .fetch_all(&app.db)
+    .await
+    .expect("enabled bricks");
+    assert_eq!(on, ["opd", "registration"]);
+}
+
+/// A refusal names exactly the bricks this hospital switched on, and `together` takes them along.
+#[tokio::test]
+async fn ipd_off_is_refused_naming_the_enabled_bricks_and_together_switches_them_too() {
+    let app = common::spawn_app().await;
+    let rows = [
+        ("registration", "enabled"),
+        ("ipd", "enabled"),
+        ("nursing", "enabled"),
+    ];
+    let (client, csrf, tenant) = hospital_with(&app, &rows).await;
+
+    let off = json!({ "status": "disabled" });
+    let (status, body) = switch_as(&app, &client, &csrf, "ipd", off).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body.contains("Nursing Station"), "{body}");
+    for never_set_up in ["Maternity", "Cath Lab", "Operation Theatre", "Diet"] {
+        assert!(!body.contains(never_set_up), "{never_set_up}: {body}");
+    }
+
+    let both = json!({ "status": "disabled", "together": true });
+    let (status, body) = switch_as(&app, &client, &csrf, "ipd", both).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let off: Vec<String> = sqlx::query_scalar(
+        "SELECT code FROM module_config WHERE tenant_id = $1 AND status = 'disabled' ORDER BY code",
+    )
+    .bind(tenant)
+    .fetch_all(&app.db)
+    .await
+    .expect("disabled bricks");
+    assert_eq!(off, ["ipd", "nursing"]);
 }

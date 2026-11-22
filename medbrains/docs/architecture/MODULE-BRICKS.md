@@ -32,6 +32,16 @@ A brick touches the rest of the system only through these, so it can be added, r
 - **One brick, one owner of its data:** a brick reads another brick's data through that brick's API or events, never its tables.
 - **Each brick is measured alone:** size, memory, start time and test time, so each can be made faster on its own.
 
+## Switching a brick off (2026-11-22)
+
+A brick goes off unless a brick **this hospital switched on** (a stored `enabled`) needs it. Then
+the server refuses (409) and names exactly those bricks, and the Modules screen asks once:
+"Nursing Station is on and needs IPD / Inpatient. Switch it off too?". One confirm sends
+`together: true`, and the server switches them all off in one transaction. A brick the hospital
+never set up (no `module_config` row, or the seed's `available`) never blocks: it is off with the
+brick it needs, as the module check already had it (`effective_outcome`). Records are kept either
+way. The rule is `switch_plan` in `medbrains-server-core/src/middleware/entitlement.rs`.
+
 ## A brick's background jobs (2026-11-19)
 
 A job that serves only some bricks is a row in `BRICK_JOBS` (`medbrains-core/src/bricks.rs`): its

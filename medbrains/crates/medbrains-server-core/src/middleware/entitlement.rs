@@ -90,31 +90,67 @@ pub fn effective_outcome<S: BuildHasher>(
     }
 }
 
-/// What stops `code` being switched on (`turning_on`) or off.
+/// What stands in the way of switching `code` on (`turning_on`) or off, as brick ids in table
+/// order.
 ///
-/// Switching off, the bricks that are on and need it; switching on, the bricks it needs that are
-/// off. Empty means the switch may go ahead. Names come back as brick names, in table order.
-pub fn switch_blockers<S: BuildHasher>(
+/// Switching on, the bricks it needs that are off. Switching off, the bricks that need it and
+/// that this hospital switched on (a stored `enabled`). A brick nobody set up (no row, or
+/// `available`) never blocks: it goes off with the brick it needs, as [`effective_outcome`] has it.
+fn blocker_ids<S: BuildHasher>(
     code: &str,
     turning_on: bool,
     by_code: &HashMap<String, String, S>,
 ) -> Vec<&'static str> {
-    let ids: Vec<&'static str> = if turning_on {
+    let status = |id: &str| by_code.get(id).map(String::as_str);
+    if turning_on {
         bricks::with_dependencies(&[code])
             .into_iter()
-            .filter(|id| *id != code)
-            .filter(|id| module_outcome(id, by_code.get(*id).map(String::as_str)) == Outcome::Deny)
+            .filter(|id| *id != code && module_outcome(id, status(id)) == Outcome::Deny)
             .collect()
     } else {
         bricks::dependents(code)
             .into_iter()
-            .filter(|id| effective_outcome(id, by_code) == Outcome::Allow)
+            .filter(|id| status(id) == Some("enabled"))
             .collect()
-    };
-    ids.into_iter()
-        .filter_map(bricks::find)
-        .map(|b| b.name)
-        .collect()
+    }
+}
+
+/// The module codes one switch of `code` changes, `code` last.
+///
+/// `together` also switches what stands in the way (see [`blocker_ids`]), so the Modules screen
+/// can ask once and switch them in one transaction. Without it a blocked switch is refused.
+///
+/// # Errors
+/// The refusal, naming the bricks in the way, when the switch is blocked and `together` is unset.
+pub fn switch_plan<S: BuildHasher>(
+    code: &str,
+    turning_on: bool,
+    together: bool,
+    by_code: &HashMap<String, String, S>,
+) -> Result<Vec<String>, String> {
+    let blockers = blocker_ids(code, turning_on, by_code);
+    if !blockers.is_empty() && !together {
+        let names: Vec<&str> = blockers
+            .iter()
+            .filter_map(|id| bricks::find(id))
+            .map(|b| b.name)
+            .collect();
+        let name = bricks::find(code).map_or(code, |b| b.name);
+        let listed = names.join(", ");
+        return Err(if turning_on {
+            format!("{name} cannot be switched on: it needs {listed}, switched off.")
+        } else {
+            format!(
+                "{name} cannot be switched off while apps that need it are on: {listed}. \
+                 Switch them off first, or together with it."
+            )
+        });
+    }
+    Ok(blockers
+        .into_iter()
+        .chain([code])
+        .map(str::to_owned)
+        .collect())
 }
 
 /// Every live `module_config` status of a tenant. Bounded by the module table (one row per
@@ -275,7 +311,7 @@ mod tests {
 
     use std::collections::HashMap;
 
-    use super::{effective_outcome, module_outcome, switch_blockers};
+    use super::{effective_outcome, module_outcome, switch_plan};
 
     fn statuses(rows: &[(&str, &str)]) -> HashMap<String, String> {
         rows.iter()
@@ -297,13 +333,64 @@ mod tests {
     #[test]
     fn registration_cannot_go_off_while_pharmacy_is_on() {
         let on = statuses(&[("registration", "enabled"), ("pharmacy", "enabled")]);
-        assert!(switch_blockers("registration", false, &on).contains(&"Pharmacy"));
+        let refused = switch_plan("registration", false, false, &on)
+            .err()
+            .unwrap_or_default();
+        assert!(refused.contains("Pharmacy"), "{refused}");
         let alone = statuses(&[("pharmacy", "enabled"), ("registration", "disabled")]);
+        let refused = switch_plan("pharmacy", true, false, &alone)
+            .err()
+            .unwrap_or_default();
+        assert!(refused.contains("Patient Registration"), "{refused}");
         assert_eq!(
-            switch_blockers("pharmacy", true, &alone),
-            vec!["Patient Registration"]
+            switch_plan("pharmacy", false, false, &on),
+            Ok(vec!["pharmacy".to_owned()])
         );
-        assert!(switch_blockers("pharmacy", false, &on).is_empty());
+    }
+
+    /// The Registration + OPD hospital: Maternity and Cath Lab were never set up, so they have
+    /// no row (or the seed's `available`) and must not hold IPD on.
+    #[test]
+    fn a_brick_nobody_switched_on_does_not_block_switching_off_what_it_needs() {
+        let small = statuses(&[
+            ("registration", "enabled"),
+            ("opd", "enabled"),
+            ("ipd", "enabled"),
+            ("ot", "available"),
+        ]);
+        assert_eq!(
+            switch_plan("ipd", false, false, &small),
+            Ok(vec!["ipd".to_owned()])
+        );
+    }
+
+    #[test]
+    fn switching_off_names_only_the_enabled_bricks_and_can_take_them_along() {
+        let ward = statuses(&[
+            ("registration", "enabled"),
+            ("ipd", "enabled"),
+            ("nursing", "enabled"),
+            ("ot", "enabled"),
+            ("diet", "disabled"),
+        ]);
+        let refused = switch_plan("ipd", false, false, &ward)
+            .err()
+            .unwrap_or_default();
+        assert!(
+            refused.contains("Operation Theatre, Nursing Station"),
+            "{refused}"
+        );
+        for absent in ["Maternity", "Cath Lab", "Diet"] {
+            assert!(!refused.contains(absent), "{absent} is not on: {refused}");
+        }
+        assert_eq!(
+            switch_plan("ipd", false, true, &ward),
+            Ok(vec![
+                "ot".to_owned(),
+                "nursing".to_owned(),
+                "ipd".to_owned()
+            ])
+        );
     }
 
     #[test]

@@ -11,17 +11,19 @@ import { sessionService } from "@/services/session.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { ModuleBrickCard } from "./ModuleBrickCard";
 import { CORE_BRICKS, names, offDependencies, onDependents } from "./module-bricks";
+import { type PendingSwitch, PendingSwitchText } from "./PendingSwitchText";
 
-/** A switch waiting on the operator: turn `mod` on together with the bricks it needs. */
-interface PendingEnable {
-  mod: ModuleConfig;
-  needs: ModuleConfig[];
+/** What one confirmed switch sends. `together` lets the server switch the dependents with it. */
+interface SwitchRequest {
+  codes: string[];
+  status: "enabled" | "disabled";
+  together?: boolean;
 }
 
 /** Switches each brick in order, one at a time, so what a brick needs is on before it is. */
-async function switchInOrder(codes: string[], status: "enabled" | "disabled") {
+async function switchInOrder({ codes, status, together }: SwitchRequest) {
   for (const code of codes) {
-    await settingsSetupService.updateModule(code, { status });
+    await settingsSetupService.updateModule(code, together ? { status, together } : { status });
   }
 }
 
@@ -29,7 +31,7 @@ export function ModulesSettings() {
   const queryClient = useQueryClient();
   const setDisabledModules = useModuleStore((s) => s.setDisabledModules);
   const [selectedEdition, setSelectedEdition] = useState<string | null>(null);
-  const [pendingEnable, setPendingEnable] = useState<PendingEnable | null>(null);
+  const [pending, setPending] = useState<PendingSwitch | null>(null);
 
   const {
     data: modules,
@@ -75,10 +77,9 @@ export function ModulesSettings() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ codes, status }: { codes: string[]; status: "enabled" | "disabled" }) =>
-      switchInOrder(codes, status),
+    mutationFn: switchInOrder,
     onSuccess: async (_done, { status }) => {
-      setPendingEnable(null);
+      setPending(null);
       await refreshEntitlements();
       notifications.show({
         title: status === "enabled" ? "Switched on" : "Switched off",
@@ -93,28 +94,26 @@ export function ModulesSettings() {
     },
   });
 
-  /** Switches a brick, refusing an off that would break bricks that need it and offering its needs on an on. */
+  /** Switches a brick at once, or asks first when other bricks have to be switched with it. */
   const handleToggle = (mod: ModuleConfig, on: boolean) => {
     const all = modules ?? [];
-    if (!on) {
-      const blockers = onDependents(mod.code, all);
-      if (blockers.length > 0) {
-        notifications.show({
-          title: `${mod.name} cannot be switched off`,
-          message: `${names(blockers)} need it. Switch those off first.`,
-          color: "warning",
-        });
-        return;
-      }
-      toggleMutation.mutate({ codes: [mod.code], status: "disabled" });
+    const others = on ? offDependencies(mod.code, all) : onDependents(mod.code, all);
+    if (others.length > 0) {
+      setPending({ mod, others, on });
       return;
     }
-    const needs = offDependencies(mod.code, all);
-    if (needs.length > 0) {
-      setPendingEnable({ mod, needs });
-      return;
-    }
-    toggleMutation.mutate({ codes: [mod.code], status: "enabled" });
+    toggleMutation.mutate({ codes: [mod.code], status: on ? "enabled" : "disabled" });
+  };
+
+  /** Sends the confirmed switch: needs first when turning on, one request when turning off. */
+  const confirmPending = () => {
+    if (!pending) return;
+    const { mod, others, on } = pending;
+    toggleMutation.mutate(
+      on
+        ? { codes: [...others.map((m) => m.code), mod.code], status: "enabled" }
+        : { codes: [mod.code], status: "disabled", together: true },
+    );
   };
 
   if (isLoading) {
@@ -153,8 +152,8 @@ export function ModulesSettings() {
           Modules
         </Text>
         <Text size="sm" c="dimmed">
-          Switch apps on or off for your hospital. An app cannot go off while another app that needs
-          it is on.
+          Switch apps on or off for your hospital. Switching off an app that other apps need asks to
+          switch those off with it.
         </Text>
       </Stack>
 
@@ -208,29 +207,18 @@ export function ModulesSettings() {
       </SimpleGrid>
 
       <Modal
-        opened={pendingEnable !== null}
-        onClose={() => setPendingEnable(null)}
-        title={pendingEnable ? `Switch on ${pendingEnable.mod.name}` : "Switch on"}
+        opened={pending !== null}
+        onClose={() => setPending(null)}
+        title={pending ? `Switch ${pending.on ? "on" : "off"} ${pending.mod.name}` : "Switch"}
         size="md"
         primaryAction={{
-          label: "Switch them all on",
+          label: pending?.on ? "Switch them all on" : "Switch them off together",
           loading: toggleMutation.isPending,
-          onClick: () =>
-            pendingEnable &&
-            toggleMutation.mutate({
-              codes: [...pendingEnable.needs.map((m) => m.code), pendingEnable.mod.code],
-              status: "enabled",
-            }),
+          onClick: confirmPending,
         }}
-        secondaryAction={{ label: "Cancel", onClick: () => setPendingEnable(null) }}
+        secondaryAction={{ label: "Cancel", onClick: () => setPending(null) }}
       >
-        {pendingEnable && (
-          <Text size="sm">
-            {pendingEnable.mod.name} needs {names(pendingEnable.needs)}, which{" "}
-            {pendingEnable.needs.length > 1 ? "are" : "is"} off. Switch{" "}
-            {pendingEnable.needs.length > 1 ? "them" : "it"} on too?
-          </Text>
-        )}
+        {pending && <PendingSwitchText {...pending} />}
       </Modal>
     </Stack>
   );
