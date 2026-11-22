@@ -20,17 +20,16 @@ test("signing the consultation note keeps the history taken in the same visit", 
   const encounterId = await createEncounter(doctorCtx, patient.id, {
     departmentId: (await getOpdDept(doctorCtx)).id,
   });
-  // The History tab already took the history of present illness.
-  await api(doctorCtx, "POST", `/api/opd/encounters/${encounterId}/consultation`, {
-    chief_complaint: "Cough",
-    hpi: HPI,
+  // The History tab already took the history of present illness: it writes
+  // into the doctor's own Consultation draft, as the tab does.
+  await api(doctorCtx, "POST", `/api/encounters/${encounterId}/clinical-notes`, {
+    note_type_code: "consultation",
+    sections: [{ code: "history", data: { hpi: HPI } }],
   });
 
   const page = await hospital.as("doctor");
   await page.goto(`/opd/encounters/${encounterId}`);
   await page.getByRole("tab", { name: "Consultation" }).click();
-  await page.getByRole("button", { name: "New note" }).click();
-  await page.getByRole("menuitem", { name: "Consultation", exact: true }).click();
   await page.getByRole("textbox", { name: "Plan", exact: true }).click();
   await page.keyboard.type("Chest X-ray, review in one week");
   await page.getByRole("button", { name: "Sign", exact: true }).click();
