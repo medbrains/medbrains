@@ -33,7 +33,12 @@ interface MvReportsSectionProps {
 /** Device adverse-event reports, filtered like the ADR list, with Send to CDSCO for drafts. */
 export function MvReportsSection({ statusFilter, canCreateMv }: MvReportsSectionProps) {
   const qc = useQueryClient();
-  const { data: mvReports = [], isLoading: mvLoading } = useQuery<MateriovigilanceReport[]>({
+  const {
+    data: mvReports,
+    isLoading: mvLoading,
+    error: mvError,
+    refetch: refetchMv,
+  } = useQuery<MateriovigilanceReport[]>({
     queryKey: ["regulatory-mv", statusFilter],
     queryFn: () =>
       regulatoryService.listMvReports(statusFilter ? { status: statusFilter } : undefined),
@@ -53,9 +58,11 @@ export function MvReportsSection({ statusFilter, canCreateMv }: MvReportsSection
         Materiovigilance Reports (Medical Devices)
       </Text>
       <DataTable
-        data={mvReports}
+        data={mvReports ?? []}
         rowKey={(r) => r.id}
         loading={mvLoading}
+        error={mvError}
+        onRetry={() => void refetchMv()}
         columns={[
           {
             key: "report_number",
