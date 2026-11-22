@@ -491,13 +491,11 @@
   scroll-padding-bottom: calc(var(--mantine-spacing-xl) * 4);
 }
 
-/* The hospital's emblem and name banner: centred over the header, out of the
-   flex flow, so they never push the controls either side. */
+/* The hospital's emblem and name banner: the header's middle column, in the
+   flex flow, so the controls either side shrink rather than run under them. */
 .hospitalMarks {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 50%;
-  transform: translateX(-50%);
+  flex: none;
+  height: 100%;
   align-items: center;
   pointer-events: none;
 }

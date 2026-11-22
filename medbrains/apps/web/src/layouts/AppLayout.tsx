@@ -452,9 +452,10 @@ export function AppLayout() {
       <DlpGuard />
       {/* ── Header ── */}
       <AppShell.Header>
-        <HospitalMarks />
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
+          {/* Equal flex on both sides keeps the hospital's marks centred and in
+              the flow, so the clock and ticker shrink instead of sliding under them. */}
+          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 0" }}>
             {hasPanel && (
               <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             )}
@@ -469,7 +470,9 @@ export function AppLayout() {
             </Group>
           </Group>
 
-          <Group gap="sm" wrap="nowrap" miw={0}>
+          <HospitalMarks />
+
+          <Group gap="sm" wrap="nowrap" miw={0} justify="flex-end" style={{ flex: "1 1 0" }}>
             <HeaderWidgets />
             {/* The ticker gives way first when the bar is tight. */}
             <Box visibleFrom="xl" miw={0} style={{ height: "100%", flex: "0 1 260px" }}>

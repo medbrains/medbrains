@@ -18,8 +18,8 @@ const MARK_HEIGHT = 32;
  * The emblem, then the name banner, at one height in the header's centre;
  * either alone when only one is set, and nothing at all when neither is (or
  * when they cannot be read: the product brand on the left still shows, and
- * the read is not retried in a loop). Positioned over the header, so its
- * arrival never shifts the controls on either side.
+ * the read is not retried in a loop). The header's middle column: the
+ * controls either side shrink to make room, never slide underneath.
  */
 export function HospitalMarks() {
   const canView = useHasPermission(P.BRANDING.VIEW);
