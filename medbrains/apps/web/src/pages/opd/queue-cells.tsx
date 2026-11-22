@@ -22,9 +22,9 @@ import {
 } from "./shared";
 
 /**
- * The token a patient is called by and, when the desk moved them up, the
- * priority in words with an icon and the reason the desk gave. The doctor's
- * list showed neither, so a patient escalated to STAT looked like any other.
+ * The token a patient is called by and its lane in words. The "moved up"
+ * arrow and the desk's reason show only when the desk raised the token, not
+ * for a lane the patient arrived in (an appointment, a carried-over visit).
  */
 export function QueueTokenCell({ row }: { row: QueueEntry }) {
   const priority = row.token_priority ?? "normal";
@@ -36,12 +36,14 @@ export function QueueTokenCell({ row }: { row: QueueEntry }) {
       {priority !== "normal" && (
         <Badge
           tone={priority === "stat" ? "danger" : "warning"}
-          leftSection={<IconArrowBigUpLines aria-hidden size={12} />}
+          leftSection={
+            row.token_priority_escalated && <IconArrowBigUpLines aria-label="Moved up" size={12} />
+          }
         >
           {TOKEN_PRIORITY_LABEL[priority] ?? priority}
         </Badge>
       )}
-      {priority !== "normal" && row.token_priority_reason && (
+      {row.token_priority_escalated && row.token_priority_reason && (
         <Text size="xs" lineClamp={2}>
           {row.token_priority_reason}
         </Text>

@@ -7,7 +7,7 @@
 
 use chrono::NaiveDate;
 use medbrains_db_migrations::testing::{add_patient, add_tenant, fresh_db};
-use medbrains_opd::{ListQueueQuery, queue_rows};
+use medbrains_opd::queue::{ListQueueQuery, queue_rows};
 use medbrains_server_core::middleware::auth::Claims;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -118,7 +118,7 @@ async fn a_patient_moved_up_is_first_on_the_doctors_list_with_the_reason() {
 
     // What PUT /api/tokens/{id}/priority writes for the third arrival.
     sqlx::query(
-        "UPDATE tokens SET priority = 'stat', priority_reason = $2 \
+        "UPDATE tokens SET priority = 'stat', priority_reason = $2, priority_changed_at = now() \
           WHERE entity_id = $1 AND module = 'opd'",
     )
     .bind(visits[2])
@@ -140,7 +140,24 @@ async fn a_patient_moved_up_is_first_on_the_doctors_list_with_the_reason() {
     let rows = queue_rows(&mut conn, &claims, &params).await.unwrap();
     assert_eq!(rows[0].token_priority.as_deref(), Some("stat"));
     assert_eq!(rows[0].token_priority_reason.as_deref(), Some(REASON));
+    assert!(rows[0].token_priority_escalated, "the desk moved it up");
     assert_eq!(rows[1].token_priority_reason, None);
+    assert!(!rows[1].token_priority_escalated);
+
+    // The reason is free text about a patient: a caller who holds the queue
+    // code but may not see who the patient is gets the row without it.
+    let mut queue_only = admin(tenant);
+    queue_only.role = "nurse".to_owned();
+    queue_only.permissions = vec![medbrains_core::permissions::opd::queue::LIST.to_owned()];
+    let masked = queue_rows(&mut conn, &queue_only, &params).await.unwrap();
+    assert_eq!(masked[0].token_priority.as_deref(), Some("stat"));
+    assert_eq!(masked[0].token_priority_reason, None, "no reason");
+    assert_eq!(masked[0].patient_name, None);
+    queue_only
+        .permissions
+        .push(medbrains_core::permissions::patients::VIEW.to_owned());
+    let seen = queue_rows(&mut conn, &queue_only, &params).await.unwrap();
+    assert_eq!(seen[0].token_priority_reason.as_deref(), Some(REASON));
 
     // Seen: no longer waiting, so no longer ahead of anyone.
     sqlx::query("UPDATE opd_queues SET status = 'completed' WHERE encounter_id = $1")

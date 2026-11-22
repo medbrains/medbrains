@@ -12,6 +12,7 @@ describe("the OPD queue's token cell", () => {
       <QueueTokenCell
         row={row({
           token_priority: "stat",
+          token_priority_escalated: true,
           token_priority_reason: "Collapsed in the waiting area",
         })}
       />,
@@ -19,6 +20,15 @@ describe("the OPD queue's token cell", () => {
     expect(screen.getByText("R-003")).toBeInTheDocument();
     expect(screen.getByText("STAT")).toBeInTheDocument();
     expect(screen.getByText("Collapsed in the waiting area")).toBeInTheDocument();
+    expect(screen.getByLabelText("Moved up")).toBeInTheDocument();
+  });
+
+  it("names an arrival lane without the moved-up arrow, and prints no empty reason", () => {
+    render(
+      <QueueTokenCell row={row({ token_priority: "appointment", token_priority_reason: null })} />,
+    );
+    expect(screen.queryByLabelText("Moved up")).not.toBeInTheDocument();
+    expect(screen.queryByText("null")).not.toBeInTheDocument();
   });
 
   it("shows no badge for an ordinary token, or one from a server that sends no priority", () => {

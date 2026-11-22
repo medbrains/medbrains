@@ -83,12 +83,12 @@ pub async fn run_action(
         }
         "opd.queue.today" => {
             let QueueInput { department_id } = parse(input)?;
-            let params = medbrains_opd::ListQueueQuery {
+            let params = medbrains_opd::queue::ListQueueQuery {
                 department_id,
                 ..Default::default()
             };
             let rows = act(&gate, call, async |tx| {
-                medbrains_opd::queue_rows(tx, claims, &params).await
+                medbrains_opd::queue::queue_rows(tx, claims, &params).await
             });
             reply(rows.await?)
         }
