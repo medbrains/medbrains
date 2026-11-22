@@ -30,6 +30,7 @@ pub mod preflight_error_tracking;
 pub mod routes;
 pub mod secret_backend;
 pub mod services;
+pub mod shutdown;
 pub mod storage_archive;
 
 // Shared server foundation — moved to `medbrains-server-core` and re-exported here

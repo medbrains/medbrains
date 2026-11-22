@@ -802,18 +802,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Graceful shutdown: stop accepting new connections on SIGTERM/SIGINT
     // and let in-flight requests (and their transactions) finish instead
-    // of aborting mid-write on every deploy restart.
-    // Not `axum::serve(listener, app)`: that form copies the whole route table for every
-    // connection (DECISIONS, 2026-11-04), and gives handlers no connecting address, leaving them
-    // only headers that a client can write.
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
-
-    tracing::info!("shutdown complete — all in-flight requests drained");
+    // of aborting mid-write on every deploy restart; but only for
+    // `DRAIN_DEADLINE`, so a stream held open by a browser tab cannot keep
+    // the process up until the supervisor kills it.
+    let deadline = medbrains_server::shutdown::DRAIN_DEADLINE;
+    medbrains_server::shutdown::serve_until(listener, app, shutdown_signal(), deadline).await?;
     Ok(())
 }
 
@@ -846,6 +839,7 @@ async fn run_preflight(config: &AppConfig) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Resolves on SIGTERM or SIGINT: the moment the server stops accepting and starts draining.
 async fn shutdown_signal() {
     let ctrl_c = async {
         if let Err(error) = tokio::signal::ctrl_c().await {
