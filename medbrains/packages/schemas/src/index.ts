@@ -13,6 +13,7 @@ export * from "./queues.js";
 export { registrationCatalogue } from "./registration.generated.js";
 export * from "./registration-rules.js";
 export * from "./responses.js";
+export * from "./vital-range.js";
 
 // Note: Zod schemas below are kept for form validation (buildFormSchema).
 // For runtime type guards, use the native guards from ./guards.js

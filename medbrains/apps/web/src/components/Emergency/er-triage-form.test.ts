@@ -25,6 +25,22 @@ describe("erTriageSchema", () => {
     );
     expect(erTriageSchema.safeParse({ triage_level: "urgent", gcs_score: 2 }).success).toBe(false);
   });
+
+  it("refuses an impossible reading in words that name the field and its range", () => {
+    const result = erTriageSchema.safeParse({
+      triage_level: "urgent",
+      spo2: 150,
+      pulse_rate: 900,
+      gcs_score: 99,
+      respiratory_rate: -4,
+    });
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual([
+      "Pulse must be between 0 and 300",
+      "Respiratory rate must be between 0 and 80",
+      "SpO₂ must be between 0 and 100",
+      "GCS must be between 3 and 15",
+    ]);
+  });
 });
 
 describe("toCreateTriageRequest", () => {

@@ -58,7 +58,7 @@ fn encounter_routes() -> axum::Router<AppState> {
         )
         .route(
             "/api/opd/encounters/{id}/vitals",
-            get(list_vitals).post(create_vital),
+            get(list_vitals).post(medbrains_clinical_scores::checked_vitals(create_vital)),
         )
         .route(
             "/api/opd/encounters/{id}/consultation",

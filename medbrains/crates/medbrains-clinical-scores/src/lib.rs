@@ -34,8 +34,11 @@ pub mod pews;
 pub mod phq;
 pub mod sepsis;
 pub mod sofa;
+pub mod vital_ranges;
 pub mod wells_dvt;
 pub mod wells_pe;
+
+pub use vital_ranges::checked as checked_vitals;
 
 /// All `/api/clinical/*` scoring routes owned by this crate, mounted by `medbrains-server`.
 pub fn router() -> Router<AppState> {

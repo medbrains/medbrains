@@ -11,12 +11,8 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { CampScreeningFormInput } from "@medbrains/schemas";
-import { campScreeningFormSchema, isBloodPressureValid } from "@medbrains/schemas";
-import type {
-  CampRegistration,
-  CreateCampScreeningRequest,
-  CreateVitalRequest,
-} from "@medbrains/types";
+import { campScreeningFormSchema } from "@medbrains/schemas";
+import type { CampRegistration, CreateCampScreeningRequest } from "@medbrains/types";
 import {
   CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
@@ -24,7 +20,7 @@ import {
 } from "@medbrains/types";
 import { IconArrowLeft, IconStethoscope } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -35,6 +31,7 @@ import {
   useProtectedFieldAccess,
 } from "@/components";
 import { VitalsRecorder } from "@/components/Clinical/VitalsRecorder";
+import { useRecorderVitals } from "@/components/Clinical/vital-ranges";
 import { Alert, Button } from "@/components/ui";
 import {
   campHistoryAnswer,
@@ -82,7 +79,7 @@ function CampScreeningCreatePageInner() {
   const emit = useClinicalEmit();
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
   const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
-  const [screeningVitals, setScreeningVitals] = useState<CreateVitalRequest>({});
+  const [screeningVitals, vitalsValid, setScreeningVitals] = useRecorderVitals();
 
   const backToList = () => navigate(campWorkPath(campId ?? "", contextPatientId, "screenings"));
 
@@ -194,10 +191,10 @@ function CampScreeningCreatePageInner() {
   });
 
   const handleCreateScreening = (values: CampScreeningFormInput) => {
-    if (!isBloodPressureValid(screeningVitals.systolic_bp, screeningVitals.diastolic_bp)) {
+    if (!vitalsValid) {
       notifications.show({
         title: t("screenings.form.vitals"),
-        message: "Blood pressure needs both numbers, systolic (high) above diastolic (low).",
+        message: "Correct the vital sign marked on the form (range, or both BP numbers) to save.",
         color: "danger",
       });
       return;

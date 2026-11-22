@@ -4,6 +4,7 @@ use axum::{
     Router,
     routing::{get, post, put},
 };
+use medbrains_clinical_scores::checked_vitals;
 use medbrains_server_core::state::AppState;
 
 pub mod code_blue_alert;
@@ -30,7 +31,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route(
             "/api/nurse/vitals",
-            post(nurse_vitals::create_vitals_reading),
+            post(checked_vitals(nurse_vitals::create_vitals_reading)),
         )
         .route(
             "/api/nurse/encounters/{encounter_id}/monitor-readings",

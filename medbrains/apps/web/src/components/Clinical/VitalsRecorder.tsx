@@ -1,5 +1,5 @@
 import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { isBloodPressureValid, isHypertensiveCrisis } from "@medbrains/schemas";
+import { isHypertensiveCrisis } from "@medbrains/schemas";
 import { useLocaleConfig } from "@medbrains/stores";
 import type { CreateVitalRequest } from "@medbrains/types";
 import {
@@ -32,6 +32,7 @@ import {
 import { bloodPressureSeverity } from "@/pages/opd/vitals-thresholds";
 import { BloodPressureInput } from "./BloodPressureInput";
 import { useClinicalSetting } from "./useClinicalSetting";
+import { useVitalRanges } from "./vital-ranges";
 import styles from "./vitals-recorder.module.scss";
 
 type RangeLevel = "normal" | "borderline" | "critical";
@@ -108,7 +109,7 @@ function computeMap(systolic: number | undefined, diastolic: number | undefined)
 
 interface VitalsRecorderProps {
   onSubmit?: (data: CreateVitalRequest) => void;
-  onChange?: (data: CreateVitalRequest) => void;
+  onChange?: (data: CreateVitalRequest, valid: boolean) => void;
   isSubmitting?: boolean;
   onCancel?: () => void;
   showActions?: boolean;
@@ -245,6 +246,7 @@ export function VitalsRecorder({
     ? vitalConfigs.filter((v) => enabledVitals.has(v.key))
     : vitalConfigs;
 
+  const ranges = useVitalRanges(filteredVitalConfigs, showBpErrors);
   const showBp =
     !enabledVitals || enabledVitals.has("systolic_bp") || enabledVitals.has("diastolic_bp");
   const bpLevel = bloodPressureLevel(values.systolic_bp, values.diastolic_bp);
@@ -297,7 +299,7 @@ export function VitalsRecorder({
   const updateValues = (patch: VitalValues) => {
     setValues((prev) => {
       const next = { ...prev, ...patch };
-      onChange?.(toRequest(next, notes));
+      onChange?.(toRequest(next, notes), ranges.canSave(next));
       return next;
     });
   };
@@ -309,11 +311,11 @@ export function VitalsRecorder({
 
   const handleNotesChange = (value: string) => {
     setNotes(value);
-    onChange?.(toRequest(values, value));
+    onChange?.(toRequest(values, value), ranges.canSave(values));
   };
 
   const handleSubmit = () => {
-    if (!isBloodPressureValid(values.systolic_bp, values.diastolic_bp)) {
+    if (!ranges.canSave(values)) {
       setShowBpErrors(true);
       return;
     }
@@ -351,9 +353,9 @@ export function VitalsRecorder({
         )}
         {filteredVitalConfigs.map((config) => {
           const val = values[config.key];
-          const level = getRangeLevel(config, val);
+          const level = getRangeLevel(config, ranges.gradable(config, val));
           const rangeLabel = getRangeLabel(config);
-          const status = getRangeStatus(config, val);
+          const status = getRangeStatus(config, ranges.gradable(config, val));
 
           const labelId = `${idBase}-${config.key}-label`;
           const name = t(config.labelKey);
@@ -388,12 +390,10 @@ export function VitalsRecorder({
                     ? `${t("vitals.normalRange", "Normal")} ${rangeLabel} ${config.unit}`
                     : undefined
                 }
-                inputWrapperOrder={["input", "description"]}
+                inputWrapperOrder={["input", "description", "error"]}
                 value={val ?? ""}
                 onChange={(v) => handleChange(config.key, v)}
-                min={config.min}
-                max={config.max}
-                step={config.step}
+                {...ranges.fieldProps(config, val)}
                 decimalScale={config.precision}
                 hideControls
                 size="sm"

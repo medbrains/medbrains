@@ -33,4 +33,30 @@ describe("the vitals recorder is usable without sight of the screen", () => {
     });
     expect(result.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
+
+  it("keeps an impossible reading as typed, says why, and refuses to save it", async () => {
+    const onSubmit = vi.fn();
+    render(<VitalsRecorder onSubmit={onSubmit} />);
+    const spo2 = screen.getByTestId("vital-spo2");
+    await userEvent.type(spo2, "150");
+    await userEvent.type(screen.getByTestId("vital-pulse"), "-5");
+    await userEvent.tab();
+    expect(spo2).toHaveValue("150");
+    expect(screen.getByTestId("vital-pulse")).toHaveValue("-5");
+    expect(screen.getByText("vitals.spo2 must be between 50 and 100 %")).toBeInTheDocument();
+    expect(screen.getByText("vitals.pulse must be between 20 and 250 bpm")).toBeInTheDocument();
+    // Not graded: 150 must never read as a normal, or any, saturation.
+    expect(screen.queryByText(/vitals\.spo2: /)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "vitals.recordVitals" }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("tells an embedding form when a reading may not be saved", async () => {
+    const onChange = vi.fn();
+    render(<VitalsRecorder onChange={onChange} showActions={false} />);
+    await userEvent.type(screen.getByTestId("vital-respiratory_rate"), "18");
+    expect(onChange).toHaveBeenLastCalledWith({ respiratory_rate: 18 }, true);
+    await userEvent.type(screen.getByTestId("vital-respiratory_rate"), "0");
+    expect(onChange).toHaveBeenLastCalledWith({ respiratory_rate: 180 }, false);
+  });
 });
