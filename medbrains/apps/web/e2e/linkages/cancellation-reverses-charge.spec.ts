@@ -40,9 +40,10 @@ test.describe("Cancelling a lab order reverses its charge", () => {
     expect(reversals[0]?.description).toMatch(/^Reversal - /);
     expect(Number(after.invoice.total_amount)).toBeCloseTo(Number(before.invoice.total_amount) - lineTotal, 2);
 
-    // Negative: an order already cancelled cannot be cancelled again, and
-    // the bill is not reversed twice.
-    await cancelLabOrder(doctor, orderId, { expectStatus: 404 });
+    // Negative: an order already cancelled cannot be cancelled again (a
+    // conflict with its state, which the doctor can see), and the bill is not
+    // reversed twice.
+    await cancelLabOrder(doctor, orderId, { expectStatus: 409 });
     const again = await getInvoiceDetail(admin, invoiceId);
     expect(again.items.filter((i) => Number(i.total_price) < 0)).toHaveLength(1);
   });

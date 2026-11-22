@@ -1,0 +1,39 @@
+# Web-patch eligibility: may this PR's tree ship as a web-only patch on the
+# newest released server? Report-only: it never fails, and it is not a required
+# check (making it one is the owner's call). One-release RFC, lane A step 3.
+name: Web-patch scope
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    name: Web-patch eligible (report-only)
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The base server tag is found in the history, so it must be all there.
+          fetch-depth: 0
+      - run: python3 medbrains/scripts/check_web_patch_scope.py --self-test
+      - name: Compare with the newest released server
+        run: |
+          set -u
+          base=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' HEAD) || {
+            echo "web-patch eligible: no (no released server tag in this history)" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          python3 medbrains/scripts/check_web_patch_scope.py "$base" HEAD > scope.txt || true
+          cat scope.txt
+          { echo '```'; head -n 200 scope.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Web patch::$(head -n 1 scope.txt)"
