@@ -2,6 +2,8 @@
 
 Owner direction 2026-11-07: the native Slint apps, the web apps and the backend are built like Lego. Each app in the catalogue (`OS-NATIVE-GUI.md`: Pharmacy, Patient Registration, EMR and the rest) is one **brick**, and a brick has the same shape on every layer.
 
+How bricks are released, tested and updated (one signed release for every hospital, bricks picked in core): `medbrains/RFCs/RFC-ONE-RELEASE-LEGO-BRICKS.md`.
+
 ## What one brick is
 
 | Layer | Part of the brick | Today |
