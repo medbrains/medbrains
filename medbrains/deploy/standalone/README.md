@@ -64,7 +64,7 @@ secrets. Picks up where it left off if interrupted.
    starts the WHO ICD-API sidecar on `127.0.0.1:8382`.
 5. Installs `medbrains-server`, `medbrains-archive`, and `medbrains-proxy` binaries to
    `/usr/local/bin`.
-6. Copies SPA static files to `/var/www/medbrains`.
+6. Installs the SPA with `medbrains-web-swap`: a new tree under `/var/www/medbrains.d/`, swapped in by one rename.
 7. Installs + enables `medbrains-server.service` (long-running) and
    `medbrains-archive.timer` (daily 02:00 oneshot).
 8. Issues TLS with Certbot, copies certs to `/etc/medbrains/tls`,
@@ -96,7 +96,7 @@ curl -I https://hims.example-hospital.org                        # 200 once ACME
 | Backup now (sealed, shipped, recorded) | `sudo systemctl start medbrains-pg-backup.service && journalctl -u medbrains-pg-backup -n 20` |
 | Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
 | Update binary | Run `install.sh`. Replacing `/usr/local/bin/medbrains-server` alone now refuses to start on a host without the event token, signature and OAuth keys, which `install.sh` adds to `/etc/medbrains/env`. Values sealed under the old development keys then stop opening: doctors re-enrol signing keys and accounts reconnect |
-| Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
+| Update SPA | `sudo medbrains-web-swap install <dist dir>` (no restart; old chunks kept for open tabs, `rollback` restores `.prev`) |
 
 ## Encrypted off-site backups
 

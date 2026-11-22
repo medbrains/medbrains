@@ -166,9 +166,11 @@ install -d -o medbrains -g medbrains -m 0750 \
     /var/lib/medbrains-edge/docs \
     /var/lib/medbrains-edge/chain \
     /var/log/medbrains \
-    /etc/medbrains \
-    /var/www/medbrains
-chown -R medbrains:medbrains /var/lib/medbrains /var/lib/medbrains-edge /var/log/medbrains /var/www/medbrains
+    /etc/medbrains
+chown -R medbrains:medbrains /var/lib/medbrains /var/lib/medbrains-edge /var/log/medbrains
+# The web tree is root's and read-only to the server: medbrains-web-swap owns
+# /var/www/medbrains (a symlink into /var/www/medbrains.d) from step 6 on.
+install -d -m 0755 /var/www
 
 echo "==> [3/9] Writing /etc/medbrains/env (preserving existing if present)"
 # shellcheck source=./db-roles.sh
@@ -411,6 +413,8 @@ for bin in "${BINARIES[@]}"; do
     install -m 0755 "$STAGE/$bin" "/usr/local/bin/$bin"
 done
 
+install -m 0755 "$DEPLOY_DIR/medbrains-web-swap" /usr/local/bin/medbrains-web-swap
+
 # Host-side rollback helper — swaps every .prev binary and the previous
 # SPA back into place and restarts services. Invoked via `make rollback`.
 cat > /usr/local/bin/medbrains-rollback <<'ROLLBACK'
@@ -427,11 +431,8 @@ for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
         echo "rolled back $bin"
     fi
 done
-if [[ -d /var/www/medbrains.prev ]]; then
-    rm -rf /var/www/medbrains.rolledback
-    mv /var/www/medbrains /var/www/medbrains.rolledback || true
-    cp -r /var/www/medbrains.prev /var/www/medbrains
-    chown -R medbrains:medbrains /var/www/medbrains
+if [[ -e /var/www/medbrains.prev ]]; then
+    medbrains-web-swap rollback
     swapped=1
     echo "rolled back SPA"
 fi
@@ -463,13 +464,9 @@ fi
 
 if [[ -d "$STAGE/medbrains-web" ]]; then
     stage_trusted "$STAGE/medbrains-web"
-    if [[ -d /var/www/medbrains ]]; then
-        rm -rf /var/www/medbrains.prev
-        mv /var/www/medbrains /var/www/medbrains.prev
-    fi
-    mkdir -p /var/www/medbrains
-    cp -r "$STAGE/medbrains-web/." /var/www/medbrains/
-    chown -R medbrains:medbrains /var/www/medbrains
+    # Unpacks beside the live tree, carries the old chunks forward for open
+    # tabs, and swaps in one rename; the old tree stays as .prev.
+    medbrains-web-swap install "$STAGE/medbrains-web"
 else
     echo "    $STAGE/medbrains-web/ not found — leaving SPA static dir as-is."
 fi

@@ -115,6 +115,8 @@ jobs:
       - run: python3 scripts/check_windows_names.py --self-test && python3 scripts/check_windows_names.py
       # The server tarball carries every binary install.sh installs.
       - run: python3 medbrains/scripts/check_release_bins.py --self-test && python3 medbrains/scripts/check_release_bins.py
+      # A web install keeps open tabs' chunks, leaves the live tree alone on failure, rolls back.
+      - run: bash medbrains/deploy/standalone/test-web-swap.sh
 
   readiness:
     # A draft PR spends no build; marking it ready for review runs everything.

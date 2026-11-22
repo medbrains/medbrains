@@ -356,7 +356,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-authz check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-actions check-app-screens check-shell-theme check-raw-key-bytes check-web-size check-rust-size check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-ui-slop check-query-fallbacks check-docs check-kernel-boundary check-kernel-authz check-kernel-no-domain check-size-budgets check-llm-redaction check-permissions check-permission-codes check-field-classes check-authz-collapse check-ai-label check-query-collapse check-query-in-loop check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events check-bricks check-actions check-app-screens check-shell-theme check-raw-key-bytes check-web-swap check-web-size check-rust-size check-lints-inheritance ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -420,6 +420,9 @@ check-lints-inheritance: ## Fail if a crate does not inherit the workspace lints
 check-raw-key-bytes: ## Ban building keys from raw bytes, new in-repo dev keys and MEDBRAINS_ENV literals outside medbrains-crypto/src/keys*
 	python3 scripts/check_raw_key_bytes.py
 	bash deploy/standalone/test-jwt-keys.sh
+
+check-web-swap: ## A web install keeps open tabs' chunks, fails safe and rolls back
+	bash deploy/standalone/test-web-swap.sh
 
 FONTS_PY = uv run --no-project --python 3.12 --with-requirements tools/fonts/requirements.txt python -I
 
@@ -924,7 +927,7 @@ hotpush-ui: ## Build and deploy only the web SPA to the standalone host
 	pnpm --filter @medbrains/web build; \
 	echo "── hotpush-ui: upload SPA ──────────────"; \
 	rsync -az --delete -e "ssh -i $${TF_VAR_ssh_private_key_path} -o StrictHostKeyChecking=no" apps/web/dist/ "$$SSH_ENDPOINT:/tmp/medbrains-web-hotpush/"; \
-	ssh -i "$${TF_VAR_ssh_private_key_path}" -o StrictHostKeyChecking=no "$$SSH_ENDPOINT" "sudo rm -rf /var/www/medbrains && sudo mkdir -p /var/www/medbrains && sudo cp -r /tmp/medbrains-web-hotpush/. /var/www/medbrains/ && sudo chown -R medbrains:medbrains /var/www/medbrains && rm -rf /tmp/medbrains-web-hotpush"; \
+	ssh -i "$${TF_VAR_ssh_private_key_path}" -o StrictHostKeyChecking=no "$$SSH_ENDPOINT" "sudo chown -R root:root /tmp/medbrains-web-hotpush && sudo chmod -R go-w /tmp/medbrains-web-hotpush && sudo medbrains-web-swap install /tmp/medbrains-web-hotpush && sudo rm -rf /tmp/medbrains-web-hotpush"; \
 	echo "── hotpush-ui: post-deploy smoke ───────"; \
 	curl -sS --fail --max-time 10 "https://$$DOMAIN/api/health" > /dev/null; \
 	echo "✅ hotpush-ui complete: https://$$DOMAIN"
