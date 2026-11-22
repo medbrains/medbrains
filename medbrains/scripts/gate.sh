@@ -26,7 +26,8 @@
 # else the nearest origin release, hotfix or main branch. No guess at a name
 # that may not exist: with no base the stage fails.
 #
-# Away from CI, cargo waits for the machine first (scripts/build_guard.sh --wait).
+# Away from CI, cargo builds in this worktree's own target directory and waits
+# for the machine first (scripts/build_guard.sh --target-dir, --wait).
 set -euo pipefail
 MB="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT="$(cd "$MB/.." && pwd)"
@@ -41,8 +42,17 @@ step() { printf '\n== %s\n' "$1"; }
 # Stop the gate with a reason.
 die() { echo "gate: FAIL: $*" >&2; exit 1; }
 
-# Block until no other cargo build is running. CI runners build one job each.
-wait_for_machine() { [[ -n "${CI:-}" ]] || bash "$MB/scripts/build_guard.sh" --wait; }
+# Before each cargo build away from CI: build in this worktree's own target
+# directory (a shared one links another worktree's code into the tests; the
+# guard refuses a foreign one), then block until no other cargo build is running.
+wait_for_machine() {
+  [[ -z "${CI:-}" ]] || return 0
+  CARGO_TARGET_DIR=$(cd "$ROOT" && bash "$MB/scripts/build_guard.sh" --target-dir) \
+    || die "no cargo target directory for this worktree (see above)"
+  export CARGO_TARGET_DIR
+  echo "gate: cargo target dir: $CARGO_TARGET_DIR"
+  bash "$MB/scripts/build_guard.sh" --wait
+}
 
 # Print the ref this work merges into, or fail: never a branch that may not exist.
 find_base() {

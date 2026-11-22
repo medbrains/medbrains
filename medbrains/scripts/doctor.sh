@@ -5,7 +5,7 @@
 # never runs that command itself (no sudo, no rm, no reset). Exit 1 when
 # anything needs attention.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit
 
 MIN_FREE_GB=20
 problems=0
@@ -26,7 +26,7 @@ fi
 # 2. Disk: a build that fills the volume corrupts its own cache.
 free_gb=$(df -g . 2>/dev/null | awk 'NR==2 {print $4}')
 if [[ -n "${free_gb:-}" ]] && [[ "$free_gb" -lt "$MIN_FREE_GB" ]]; then
-  bad "only ${free_gb} GB free (want ${MIN_FREE_GB})" "rm -rf /tmp/mb-target target/debug/incremental"
+  bad "only ${free_gb} GB free (want ${MIN_FREE_GB})" "scripts/build_guard.sh --targets --delete; rm -rf target/debug/incremental"
 else
   ok "${free_gb:-?} GB free"
 fi

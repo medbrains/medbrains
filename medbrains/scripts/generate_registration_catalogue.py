@@ -34,7 +34,10 @@ import type { RegistrationCatalogue } from "./registration-rules.js";
 
 
 def rust_json(which: str) -> str:
-    env = dict(os.environ, CARGO_TARGET_DIR=os.environ.get("CARGO_TARGET_DIR", "/tmp/mb-target"))
+    # This worktree's own target directory: a shared one can run another worktree's rules.
+    guard = ["bash", os.path.join(ROOT, "scripts/build_guard.sh"), "--target-dir"]
+    target = subprocess.run(guard, cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
+    env = dict(os.environ, CARGO_TARGET_DIR=target)
     out = subprocess.run(
         ["cargo", "run", "-q", "-p", "medbrains-clinical-core", "--bin", "registration_catalogue", which],
         cwd=ROOT,

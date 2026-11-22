@@ -225,16 +225,33 @@ the machine to a load average of 4; a full build takes half an hour. Two at
 once do not take twice as long — they thrash, and on a laptop they can take the
 machine down and lose whatever else was running with it.
 
-Disk is the other way a build kills a machine: `/tmp/mb-target` and the
-in-repo `target/` hold ~61 GB between them, and a build that fills the volume
-corrupts its own cache. The guard warns below 20 GB free.
+**One cargo target directory per worktree — never a shared one.** Build with
+`export CARGO_TARGET_DIR="$(medbrains/scripts/build_guard.sh --target-dir)"`,
+which is `/tmp/mb-target/wt-<hash of the worktree's path>`; `scripts/gate.sh`
+does this itself. Never `CARGO_TARGET_DIR=/tmp/mb-target`: cargo names a
+workspace crate's artefacts by its path *inside* the workspace and calls them
+fresh when no source file is newer than the last build, so two worktrees in
+one directory silently run each other's code, and a test passes or fails
+against source that is not yours (reproduced 2026-11-22, `docs/DECISIONS.md`).
+The directory records its owner in `.mb-worktree`; the guard refuses an
+exported `CARGO_TARGET_DIR` that is the shared root or another worktree's
+(`MB_SHARED_TARGET_OK=1` overrides, for those who know why it is safe). It
+cannot see a `CARGO_TARGET_DIR=…` written inline on the cargo line, so export it.
+
+Disk is the other way a build kills a machine, and the price of the rule
+above: a full target directory is ~40 GB, per worktree. Build one small crate
+(`-p <crate>`) in a worktree where that proves the change, and clear up:
+`scripts/build_guard.sh --targets` lists every per-worktree directory with
+size, age and owner, and `--targets --delete` removes those whose worktree no
+longer exists (without `--delete` nothing is removed). A build that fills the
+volume corrupts its own cache. The guard warns below 20 GB free.
 
 **Never kill another job to unblock your own.** The guard classifies what it
 finds, and only `--reap` stops anything, and only jobs it can prove are stale:
 
 | class | meaning | may be stopped |
 |---|---|---|
-| `agent` | `CARGO_TARGET_DIR=/tmp/mb-target`, a check/test/clippy — a verification run that can simply be redone | yes, with `--reap` |
+| `agent` | `CARGO_TARGET_DIR` under `/tmp/mb-target`, a check/test/clippy — a verification run that can simply be redone | yes, with `--reap` |
 | `stale` | no CPU for over three minutes — probably wedged | yes, with `--reap` |
 | `operator` | a `--release` build or a `--target` cross-compile — somebody's deploy artefact | **never**, ask first |
 | `unknown` | cannot be attributed | **never**, ask first |
