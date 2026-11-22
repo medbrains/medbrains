@@ -453,9 +453,10 @@ export function AppLayout() {
       {/* ── Header ── */}
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          {/* Equal flex on both sides keeps the hospital's marks centred and in
-              the flow, so the clock and ticker shrink instead of sliding under them. */}
-          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 0" }}>
+          {/* Each side takes only the room it needs and the hospital's marks sit
+              centred in the gap between them, so a full right side is never
+              squeezed while the left stands empty. */}
+          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "0 1 auto" }}>
             {hasPanel && (
               <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             )}
@@ -472,10 +473,21 @@ export function AppLayout() {
 
           <HospitalMarks />
 
-          <Group gap="sm" wrap="nowrap" miw={0} justify="flex-end" style={{ flex: "1 1 0" }}>
+          <Group
+            gap="sm"
+            wrap="nowrap"
+            miw={0}
+            justify="flex-end"
+            className={classes.headerRight}
+            style={{ flex: "0 1 auto" }}
+          >
             <HeaderWidgets />
-            {/* The ticker gives way first when the bar is tight. */}
-            <Box visibleFrom="xl" miw={0} style={{ height: "100%", flex: "0 1 260px" }}>
+            {/* Only the ticker gives way when the bar is tight. */}
+            <Box
+              visibleFrom="xl"
+              miw={0}
+              style={{ height: "100%", flex: "0 1 260px", overflow: "hidden" }}
+            >
               <NewsMarquee />
             </Box>
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />
@@ -485,7 +497,7 @@ export function AppLayout() {
               className={classes.searchTrigger}
               visibleFrom="sm"
             >
-              <Group gap={6}>
+              <Group gap={6} wrap="nowrap">
                 <AnimatedIcon icon={IconSearch} size={14} motion="float" />
                 <Text size="xs" c="dimmed">
                   Search...
