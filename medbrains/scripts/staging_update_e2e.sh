@@ -170,6 +170,29 @@ phase() {
         node_modules/.bin/playwright test -c apps/web/e2e/staging/playwright.staging.config.ts -g "(^| )$test\$")
 }
 
+# Prints the summed PSS, in MB, of every process in a container (run as a user that may read them).
+pss_mb() { docker exec -u "$2" "$1" sh -c 'cat /proc/[0-9]*/smaps_rollup 2>/dev/null' | awk '/^Pss:/ { kb += $2 } END { printf "%d", kb / 1024 }'; }
+
+# After a quiet spell, records idle memory and database connections, and fails when one is over
+# the budget in staging_idle_memory.budget. PostgreSQL and the box are PSS, so the total adds up.
+idle_memory() {
+    local pid rss pg conns total line over=0
+    sleep "${STAGING_IDLE_SECONDS:-300}"
+    pid="$(docker exec "$BOX" systemctl show -p MainPID --value medbrains-server)"
+    rss="$(docker exec "$BOX" awk '/^Rss:/ { printf "%d", $2 / 1024 }' "/proc/$pid/smaps_rollup")"
+    pg="$(pss_mb "$PG" postgres)"
+    conns="$(docker exec "$PG" psql -X -tA -U medbrains -d medbrains -c \
+        "SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()")"
+    total=$(( $(pss_mb "$BOX" root) + pg ))
+    # shellcheck source-path=SCRIPTDIR source=staging_idle_memory.budget
+    . "$HERE/scripts/staging_idle_memory.budget"
+    line="server RSS $rss/$SERVER_RSS_MB MB, PostgreSQL $pg/$POSTGRES_MB MB, connections $conns/$DB_CONNECTIONS, total $total/$TOTAL_MB MB"
+    echo "$line" | tee "$RUN/idle-memory.txt"
+    [[ "$rss" -le "$SERVER_RSS_MB" && "$pg" -le "$POSTGRES_MB" ]] || over=1
+    [[ "$conns" -le "$DB_CONNECTIONS" && "$total" -le "$TOTAL_MB" ]] || over=1
+    return "$over"
+}
+
 # Saves the box's logs and removes its containers, network and volumes (the image is kept as a cache).
 cleanup() {
     [[ -d "$RUN/logs" ]] || return 0
@@ -242,4 +265,6 @@ step_after "rollback-to-$FROM" "flows-after-rollback" phase verify after-rollbac
 step "rollforward-to-$TO_LABEL" install_release "$TO_LABEL"
 step "flows-after-rollforward" phase verify after-rollforward "$EXPECT_TO" "$TO_LABEL"
 step "reinstall-keeps-$FROM-as-previous" reinstall_keeps_previous
+# Last, on the release about to ship, freshly restarted by the reinstall and then left alone.
+step_after "rollforward-to-$TO_LABEL" idle-memory idle_memory
 report

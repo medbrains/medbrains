@@ -97,7 +97,7 @@ curl -I https://hims.example-hospital.org                        # 200 once ACME
 | Is the last backup fresh? | Admin → Settings → System health, or `sudo systemctl start medbrains-host-check.service` |
 | Update binary | Run `install.sh`. Replacing `/usr/local/bin/medbrains-server` alone now refuses to start on a host without the event token, signature and OAuth keys, which `install.sh` adds to `/etc/medbrains/env`. Values sealed under the old development keys then stop opening: doctors re-enrol signing keys and accounts reconnect |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
-| Prove an update first (staging, before any hospital) | `scripts/staging_update_e2e.sh <from-tag> <to-tag>` on an arm64 Mac with Docker: installs FROM with this kit on a throwaway box, records a day's work, updates with a tab open, rolls back and forward; prints PASS/FAIL per step |
+| Prove an update first (staging, before any hospital) | `scripts/staging_update_e2e.sh <from-tag> <to-tag>` on an arm64 Mac with Docker: installs FROM with this kit on a throwaway box, records a day's work, updates with a tab open, rolls back and forward; prints PASS/FAIL per step. The last row leaves the box alone for five minutes (`STAGING_IDLE_SECONDS`) and fails if server memory, PostgreSQL memory, open connections or the total are over `scripts/staging_idle_memory.budget` |
 
 ## Encrypted off-site backups
 
