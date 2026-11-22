@@ -5,6 +5,7 @@
 # temp directory, with stand-ins for systemctl and curl on PATH.
 #   bash deploy/standalone/test-rollback.sh
 set -euo pipefail
+umask 022
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"
