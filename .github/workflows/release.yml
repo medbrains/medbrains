@@ -9,8 +9,9 @@
 #
 # Supply chain (RFC-HOSPITAL-OS §8j, SEC1): the image is signed with cosign
 # keyless (GitHub OIDC, no key to lose), every artefact gets a build-provenance
-# attestation, and the release carries CycloneDX SBOMs and SHA-256 checksums,
-# the checksum file itself signed. Verify with the commands in
+# attestation, and the release carries a CycloneDX source SBOM and SHA-256
+# checksums, the checksum file itself signed; the image carries its own SBOM
+# as a signed attestation. Verify with the commands in
 # medbrains/docs/SECURITY-RELEASE-PROCESS.md. The SDKs are never published
 # from here: see publish-sdks.yml.
 
@@ -527,7 +528,7 @@ jobs:
     # compiled the workspace itself, the arm64 half under QEMU (docs/DECISIONS.md).
     timeout-minutes: 30
     permissions:
-      contents: write       # the image SBOM goes onto the published release
+      contents: read        # reads the release's tarballs; a published release is never written to
       packages: write
       id-token: write       # keyless signing + provenance
       attestations: write
@@ -589,8 +590,10 @@ jobs:
           push-to-registry: true
       # The image is distroless, so this lists its few OS packages; the
       # crates and npm packages are in the source SBOM the release job makes.
-      # The release's SHA256SUMS was signed at tag time, before this image
-      # existed, so the SBOM carries its own signature bundle.
+      # A published release is immutable (the upload was refused with HTTP 422
+      # for v3.35.4), so the SBOM is not a release file: it is attached to the
+      # image in the registry as a signed attestation, under the same keyless
+      # identity as the image signature (medbrains/docs/SECURITY-RELEASE-PROCESS.md).
       - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
@@ -598,14 +601,10 @@ jobs:
           output-file: medbrains-image.cdx.json
           upload-artifact: false
           upload-release-assets: false
-      - name: Sign the image SBOM and add it to the release
+      - name: Attach the signed SBOM to the image
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          cosign sign-blob --yes --bundle medbrains-image.cdx.json.sigstore.json medbrains-image.cdx.json
-          gh release upload "$TAG" medbrains-image.cdx.json medbrains-image.cdx.json.sigstore.json \
-            --repo "$GITHUB_REPOSITORY" --clobber
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        run: cosign attest --yes --type cyclonedx --predicate medbrains-image.cdx.json "$IMAGE"
 
   release:
     name: GitHub release

@@ -86,6 +86,10 @@ ID='^https://github.com/medbrains/medbrains/.github/workflows/release.yml@refs/t
 ISSUER=https://token.actions.githubusercontent.com
 cosign verify ghcr.io/medbrains/medbrains:X.Y.Z \
   --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISSUER"
+# The image's own SBOM (CycloneDX) is a signed attestation on the image, not a release file:
+cosign verify-attestation --type cyclonedx ghcr.io/medbrains/medbrains:X.Y.Z \
+  --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISSUER" \
+  | jq -r '.payload | @base64d | fromjson | .predicate' > medbrains-image.cdx.json
 cosign verify-blob SHA256SUMS --bundle SHA256SUMS.sigstore.json \
   --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISSUER"
 sha256sum -c SHA256SUMS
