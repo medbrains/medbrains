@@ -145,6 +145,34 @@ Each step changes the update path, so each passes the staging update-and-rollbac
 run (`scripts/staging_update_e2e.sh`) before it reaches a hospital, and an
 install made the old way must upgrade into the new layout in that same run.
 
+## Borrowed from other systems
+
+Each row is an idea another operating system proved, the piece of ours it
+becomes, and what it needs before it can reach a hospital. We stay on Debian;
+only the ideas move.
+
+| From | Idea | Ours | Gate |
+|---|---|---|---|
+| NixOS | Generations, plan, restart-what-changed, closures, keep-N | G1-G5 above | staging run |
+| Arch | `pacman -Qkk`: check every installed file against the package's record | `medbrains-release verify`: every file under `current/` against `manifest.json`; run at boot and before an update; a mismatch is reported, never repaired silently | unit test + staging row |
+| Arch | Hooks: a snapshot is taken before every upgrade, by the package manager, not by the operator | The backup before a switch is part of `switch`, not a step someone remembers; no backup, no switch (override needs a typed reason, logged) | staging run |
+| Arch | One short recipe file per package (`PKGBUILD`) | One `brick.toml` per brick: name, version, needs, permissions, units, data, tests | check in CI |
+| Arch | A wiki that answers the question you have | Every refusal and error names its page in the built-in guide | docs check |
+| OpenBSD | `pledge`/`unveil`: a program states what it will use and loses the rest | Each unit states its address families, paths and system calls (systemd sandboxing + Landlock); unused kernel modules cannot load | `systemd-analyze security` score in CI |
+| OpenBSD | Secure by default: nothing listens until it is switched on | A brick that is off has no listener, no unit and no route | staging row per brick |
+| FreeBSD | Boot environments: boot the system as it was before the update | `previous` is selectable at the boot menu on the appliance image (two-slot updater) | power-cut test on hardware |
+| illumos (SMF), QNX | A failed service is restarted alone, with its dependents, and the fault is recorded | `Restart=` and `PartOf=` set from the brick graph; three failures in ten minutes stops the brick and raises a ticket instead of looping | fault-injection test |
+| ChromeOS, Android | Update in the background into the other slot; switch at a quiet time; fall back by itself if the new one does not come up healthy | `switch` waits for the hospital's quiet window; health not green in N seconds puts `previous` back without anyone present | staging run |
+| ChromeOS | Verified boot; "powerwash" back to factory state | Signed image with dm-verity on the appliance; factory reset keeps only declared data folders | hardware test |
+| OpenWrt | Failsafe mode: a known-good minimal system reachable when the main one is broken | A recovery target with the network, the update tool and the restore tool only | staging run |
+| Talos, Bottlerocket | No shell; every change through one typed interface | Box configuration only from the hospital's declared file, rendered and validated; no hand edits | config drift check at boot |
+| Windows | Quick machine recovery: a box that cannot boot fetches its own fix | Recovery target can download and verify a signed generation | later; needs the recovery target first |
+
+Build order after G1-G5: verify and backup-in-switch (small, catch real
+failures we had), unit sandboxing (answers the kernel bugs of 2026), automatic
+fallback on failed health, then the image-level items (two slots, verified
+boot, recovery target), which need hardware tests.
+
 ## What we avoid, and why
 
 | Option | Why not |
